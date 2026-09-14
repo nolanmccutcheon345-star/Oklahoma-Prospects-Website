@@ -6,37 +6,23 @@
       name="viewport"
       content="width=device-width,initial-scale=1,viewport-fit=cover"
     />
-    <title>Page Not Found | Oklahoma Prospects</title>
+    <title>Athlete check-in | Oklahoma Prospects</title>
     <meta
       name="description"
-      content="Find teams, training, facility booking, and parent resources at Oklahoma Prospects."
+      content="Check in for your reserved hour at Oklahoma Prospects in Broken Arrow."
     />
-    <meta name="theme-color" content="#0b1720" />
-    <link rel="canonical" href="https://prospectsbaseball.club/404" />
+    <meta name="theme-color" content="#071b31" />
+    <link rel="canonical" href="https://prospectsbaseball.club/check-in" />
     <meta property="og:type" content="website" />
     <meta property="og:site_name" content="Oklahoma Prospects" />
-    <meta property="og:title" content="Page Not Found | Oklahoma Prospects" />
+    <meta property="og:title" content="Athlete check-in | Oklahoma Prospects" />
     <meta
       property="og:description"
-      content="Find teams, training, facility booking, and parent resources at Oklahoma Prospects."
+      content="Address, reserved training hours, check-in and annual waiver information for Oklahoma Prospects in Broken Arrow."
     />
-    <meta property="og:url" content="https://prospectsbaseball.club/404" />
+    <meta property="og:url" content="https://prospectsbaseball.club/check-in" />
     <meta
       property="og:image"
-      content="https://prospectsbaseball.club/assets/prospects-crest-transparent.png"
-    />
-    <meta
-      property="og:image:alt"
-      content="Oklahoma Prospects official crest, established 2008"
-    />
-    <meta name="twitter:card" content="summary" />
-    <meta name="twitter:title" content="Page Not Found | Oklahoma Prospects" />
-    <meta
-      name="twitter:description"
-      content="Find teams, training, facility booking, and parent resources at Oklahoma Prospects."
-    />
-    <meta
-      name="twitter:image"
       content="https://prospectsbaseball.club/assets/prospects-crest-transparent.png"
     />
     <link
@@ -51,8 +37,8 @@
     <link rel="manifest" href="/site.webmanifest" />
     <link rel="stylesheet" href="/assets/brand-tokens.css?v=10" />
 <link rel="stylesheet" href="/assets/style.css?v=10" />
-    <script src="/assets/site.js?v=10" defer></script>
     <link rel="stylesheet" href="/assets/prospects-brand.css?v=10" />
+    <script src="/assets/site.js?v=10" defer></script>
     <link rel="stylesheet" href="/assets/shared-chrome.css?v=10" />
 </head>
   <body>
@@ -87,24 +73,43 @@
 </header>
 <!-- shared-header:end -->
     <main id="main" tabindex="-1">
-      <section class="page-hero">
+      <section class="page-hero compact-hero">
         <div class="wrap hero-inner">
-          <p class="eyebrow">Page not found</p>
-          <h1>
-            LET’S GET YOU<br /><span class="blue">BACK IN THE GAME.</span>
-          </h1>
-          <p class="hero-copy">
-            That page is not available. Find what you need from the links below.
-          </p>
-          <div class="actions">
-            <a class="button primary" href="/"
-              >Go home<span aria-hidden="true">↗</span></a
-            ><a
-              class="button outline"
-              href="/book"
-              >Book a cage<span aria-hidden="true">↗</span></a
-            >
+          <p class="eyebrow">Oklahoma Prospects · Arriving today</p>
+          <h1>Athlete check-in</h1>
+          <p class="hero-copy">Tell the desk you are here. Same Oklahoma Prospects site as booking and the waiver.</p>
+        </div>
+      </section>
+      <section class="section white-section">
+        <div class="wrap form-layout">
+          <div class="form-panel">
+            <form action="/thanks" class="inquiry-form" data-netlify="true" method="POST" name="check-in" netlify-honeypot="bot-field">
+              <input name="form-name" type="hidden" value="check-in" />
+              <p style="display:none"><label>Don’t fill this out: <input name="bot-field" /></label></p>
+              <label for="ci-athlete">Athlete name<span class="required-mark"> *</span>
+                <input id="ci-athlete" name="athlete-name" required autocomplete="name" /></label>
+              <label for="ci-adult">Responsible adult<span class="required-mark"> *</span>
+                <input id="ci-adult" name="adult-name" required autocomplete="name" /></label>
+              <label for="ci-phone">Adult mobile<span class="required-mark"> *</span>
+                <input id="ci-phone" name="adult-phone" type="tel" required inputmode="tel" autocomplete="tel" /></label>
+              <label for="ci-reason">Here for<span class="required-mark"> *</span>
+                <select id="ci-reason" name="visit-type" required>
+                  <option value="cage">Cage rental</option>
+                  <option value="lesson">Lesson</option>
+                  <option value="team">Team / practice</option>
+                  <option value="tryout">Tryout</option>
+                </select></label>
+              <label for="ci-notes">Lane, coach, or notes
+                <input id="ci-notes" name="notes" /></label>
+              <button class="button primary" type="submit">Check in</button>
+            </form>
           </div>
+          <aside class="contact-aside">
+            <h2>If the gate is locked</h2>
+            <p>Text the desk <a href="tel:+19189228114">(918) 922-8114</a>.</p>
+            <p>Need the annual waiver first? <a href="/waiver">Sign it here</a>.</p>
+            <p>Address: 3804 S. Elm Pl., Suite A, Broken Arrow.</p>
+          </aside>
         </div>
       </section>
     </main>

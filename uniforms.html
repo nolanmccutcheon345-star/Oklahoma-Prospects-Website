@@ -6,37 +6,23 @@
       name="viewport"
       content="width=device-width,initial-scale=1,viewport-fit=cover"
     />
-    <title>Page Not Found | Oklahoma Prospects</title>
+    <title>Uniform sizing | Oklahoma Prospects</title>
     <meta
       name="description"
-      content="Find teams, training, facility booking, and parent resources at Oklahoma Prospects."
+      content="Submit jersey, pants, and hat sizes for Oklahoma Prospects teams."
     />
-    <meta name="theme-color" content="#0b1720" />
-    <link rel="canonical" href="https://prospectsbaseball.club/404" />
+    <meta name="theme-color" content="#071b31" />
+    <link rel="canonical" href="https://prospectsbaseball.club/uniforms" />
     <meta property="og:type" content="website" />
     <meta property="og:site_name" content="Oklahoma Prospects" />
-    <meta property="og:title" content="Page Not Found | Oklahoma Prospects" />
+    <meta property="og:title" content="Uniform sizing | Oklahoma Prospects" />
     <meta
       property="og:description"
-      content="Find teams, training, facility booking, and parent resources at Oklahoma Prospects."
+      content="Address, reserved training hours, check-in and annual waiver information for Oklahoma Prospects in Broken Arrow."
     />
-    <meta property="og:url" content="https://prospectsbaseball.club/404" />
+    <meta property="og:url" content="https://prospectsbaseball.club/uniforms" />
     <meta
       property="og:image"
-      content="https://prospectsbaseball.club/assets/prospects-crest-transparent.png"
-    />
-    <meta
-      property="og:image:alt"
-      content="Oklahoma Prospects official crest, established 2008"
-    />
-    <meta name="twitter:card" content="summary" />
-    <meta name="twitter:title" content="Page Not Found | Oklahoma Prospects" />
-    <meta
-      name="twitter:description"
-      content="Find teams, training, facility booking, and parent resources at Oklahoma Prospects."
-    />
-    <meta
-      name="twitter:image"
       content="https://prospectsbaseball.club/assets/prospects-crest-transparent.png"
     />
     <link
@@ -51,8 +37,8 @@
     <link rel="manifest" href="/site.webmanifest" />
     <link rel="stylesheet" href="/assets/brand-tokens.css?v=10" />
 <link rel="stylesheet" href="/assets/style.css?v=10" />
-    <script src="/assets/site.js?v=10" defer></script>
     <link rel="stylesheet" href="/assets/prospects-brand.css?v=10" />
+    <script src="/assets/site.js?v=10" defer></script>
     <link rel="stylesheet" href="/assets/shared-chrome.css?v=10" />
 </head>
   <body>
@@ -87,24 +73,41 @@
 </header>
 <!-- shared-header:end -->
     <main id="main" tabindex="-1">
-      <section class="page-hero">
+      <section class="page-hero compact-hero">
         <div class="wrap hero-inner">
-          <p class="eyebrow">Page not found</p>
-          <h1>
-            LET’S GET YOU<br /><span class="blue">BACK IN THE GAME.</span>
-          </h1>
-          <p class="hero-copy">
-            That page is not available. Find what you need from the links below.
-          </p>
-          <div class="actions">
-            <a class="button primary" href="/"
-              >Go home<span aria-hidden="true">↗</span></a
-            ><a
-              class="button outline"
-              href="/book"
-              >Book a cage<span aria-hidden="true">↗</span></a
-            >
+          <p class="eyebrow">Oklahoma Prospects · Teams</p>
+          <h1>Uniform sizing</h1>
+          <p class="hero-copy">Jersey, pants, and hat — submitted on the same Oklahoma Prospects site.</p>
+        </div>
+      </section>
+      <section class="section white-section">
+        <div class="wrap form-layout">
+          <div class="form-panel">
+            <form action="/thanks" class="inquiry-form" data-netlify="true" method="POST" name="uniform-sizing" netlify-honeypot="bot-field">
+              <input name="form-name" type="hidden" value="uniform-sizing" />
+              <p style="display:none"><label>Don’t fill this out: <input name="bot-field" /></label></p>
+              <label for="u-athlete">Athlete name<span class="required-mark"> *</span>
+                <input id="u-athlete" name="athlete-name" required /></label>
+              <label for="u-team">Team / age group
+                <input id="u-team" name="team" placeholder="13U, 10U…" /></label>
+              <label for="u-jersey">Jersey size<span class="required-mark"> *</span>
+                <input id="u-jersey" name="jersey-size" required placeholder="YS / YM / YL / AS / AM / AL / AXL" /></label>
+              <label for="u-pants">Pants size<span class="required-mark"> *</span>
+                <input id="u-pants" name="pants-size" required /></label>
+              <label for="u-hat">Hat size
+                <input id="u-hat" name="hat-size" placeholder="Youth / adjustable / fitted" /></label>
+              <label for="u-adult">Parent name<span class="required-mark"> *</span>
+                <input id="u-adult" name="adult-name" required /></label>
+              <label for="u-phone">Parent mobile<span class="required-mark"> *</span>
+                <input id="u-phone" name="adult-phone" type="tel" required inputmode="tel" /></label>
+              <button class="button primary" type="submit">Submit sizes</button>
+            </form>
           </div>
+          <aside class="contact-aside">
+            <h2>Questions</h2>
+            <p>Desk <a href="tel:+19189228114">(918) 922-8114</a></p>
+            <p>This is not an order checkout. It tells the club what to pull for your athlete.</p>
+          </aside>
         </div>
       </section>
     </main>

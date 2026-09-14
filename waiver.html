@@ -9,7 +9,7 @@
     <title>Annual waiver | Oklahoma Prospects</title>
     <meta
       name="description"
-      content="The Oklahoma Prospects annual waiver is moving here. Contact the front desk at (918) 922-8114 for help signing today."
+      content="Sign the official Oklahoma Prospects annual waiver on this site. Parent or guardian signs for athletes under 18."
     />
     <meta name="theme-color" content="#071b31" />
     <link rel="canonical" href="https://prospectsbaseball.club/waiver" />
@@ -18,7 +18,7 @@
     <meta property="og:title" content="Annual waiver | Oklahoma Prospects" />
     <meta
       property="og:description"
-      content="The Oklahoma Prospects annual waiver is moving here. Contact the front desk at (918) 922-8114 for help signing today."
+      content="Sign the official Oklahoma Prospects annual waiver on this site. Parent or guardian signs for athletes under 18."
     />
     <meta property="og:url" content="https://prospectsbaseball.club/waiver" />
     <meta
@@ -35,11 +35,11 @@
       href="/assets/prospects-crest-transparent.png"
     />
     <link rel="manifest" href="/site.webmanifest" />
-    <link rel="stylesheet" href="/assets/brand-tokens.css?v=9" />
-<link rel="stylesheet" href="/assets/style.css?v=9" />
-    <link rel="stylesheet" href="/assets/prospects-brand.css?v=9" />
-    <script src="/assets/site.js?v=9" defer></script>
-    <link rel="stylesheet" href="/assets/shared-chrome.css?v=9" />
+    <link rel="stylesheet" href="/assets/brand-tokens.css?v=10" />
+<link rel="stylesheet" href="/assets/style.css?v=10" />
+    <link rel="stylesheet" href="/assets/prospects-brand.css?v=10" />
+    <script src="/assets/site.js?v=10" defer></script>
+    <link rel="stylesheet" href="/assets/shared-chrome.css?v=10" />
 </head>
   <body>
     <a class="skip-link" href="#main">Skip to content</a>
@@ -78,32 +78,74 @@
           <p class="eyebrow">Oklahoma Prospects · Visit</p>
           <h1>Annual waiver</h1>
           <p class="hero-copy">
-            Parent or guardian signs for athletes under 18. One waiver covers
-            Prospects activity for a year. This is the official club waiver.
+            Sign here. Parent or guardian signs for athletes under 18. One
+            waiver covers Oklahoma Prospects activity for a year.
           </p>
-          <div class="actions">
-            <a
-              class="button primary"
-              href="https://prospects-waiver-checkin.stevemccutcheon89.chatgpt.site"
-              >Sign the waiver</a
-            >
-            <a class="button outline" href="tel:+19189228114"
-              >Call the desk: (918) 922-8114</a
-            >
-          </div>
         </div>
       </section>
       <section class="section white-section">
-        <div class="wrap narrow waiver-copy">
-          <p>
-            Continue to the official Prospects waiver form. If anything looks
-            off, stop and call (918) 922-8114. We do not sell your information.
-          </p>
-          <p>
-            We are moving this form onto this domain. Until then, this is still
-            the Oklahoma Prospects waiver — not a third-party product.
-          </p>
-          <p><a href="/visit">Visit information &amp; hours →</a></p>
+        <div class="wrap form-layout">
+          <div class="form-panel">
+            <p class="eyebrow">Official club waiver</p>
+            <h2>READ, THEN SIGN</h2>
+            <p class="form-note">This stays on prospectsbaseball.club. Fields marked * are required.</p>
+            <form action="/thanks" class="inquiry-form" data-netlify="true" method="POST" name="annual-waiver" netlify-honeypot="bot-field">
+              <input name="form-name" type="hidden" value="annual-waiver" />
+              <p style="display:none"><label>Don’t fill this out: <input name="bot-field" /></label></p>
+              <label for="adult-name">Responsible adult name<span class="required-mark"> *</span>
+                <input id="adult-name" name="adult-name" autocomplete="name" required /></label>
+              <label for="adult-email">Adult email<span class="required-mark"> *</span>
+                <input id="adult-email" name="adult-email" type="email" autocomplete="email" required /></label>
+              <label for="adult-phone">Adult mobile<span class="required-mark"> *</span>
+                <input id="adult-phone" name="adult-phone" type="tel" autocomplete="tel" inputmode="tel" required /></label>
+              <label for="athlete-name">Athlete name<span class="required-mark"> *</span>
+                <input id="athlete-name" name="athlete-name" autocomplete="name" required /></label>
+              <label for="participant-type">Participant<span class="required-mark"> *</span>
+                <select id="participant-type" name="participant-type" required>
+                  <option value="adult">Adult (18 or older)</option>
+                  <option value="minor" selected>Minor (under 18)</option>
+                </select></label>
+              <label for="emergency-name">Emergency contact name<span class="required-mark"> *</span>
+                <input id="emergency-name" name="emergency-name" required /></label>
+              <label for="emergency-phone">Emergency contact phone<span class="required-mark"> *</span>
+                <input id="emergency-phone" name="emergency-phone" type="tel" inputmode="tel" required /></label>
+              <label for="signer-name">Electronic signature (type full legal name)<span class="required-mark"> *</span>
+                <input id="signer-name" name="signer-name" autocomplete="name" required /></label>
+              <label class="consent-row" for="waiver-accept" style="display:flex;gap:10px;align-items:flex-start">
+                <input id="waiver-accept" name="waiver-accepted" type="checkbox" required style="width:22px;height:22px;flex:0 0 22px;margin-top:4px" />
+                <span>I have read the Facility Waiver & Release, understand sports training involves risk of injury, and I am legally authorized to sign for myself or the named minor.</span>
+              </label>
+              <button class="button primary" type="submit">Sign the annual waiver</button>
+            </form>
+          </div>
+          <aside class="contact-aside">
+            <h2>What you are signing</h2>
+            <p>Assumption of risk for baseball, softball, cages, lessons, and facility use.</p>
+            <p>Release of ordinary negligence to the extent Oklahoma law allows. Gross negligence is not released.</p>
+            <p>Emergency care authorization if we cannot reach you.</p>
+            <p>If the athlete is under 18, a parent or legal guardian must sign.</p>
+            <p>Desk: <a href="tel:+19189228114">(918) 922-8114</a></p>
+            <details>
+              <summary style="min-height:44px;cursor:pointer;font-weight:800">Read the full waiver</summary>
+              <div class="waiver-copy">
+                <p><b>PLEASE READ CAREFULLY. THIS AGREEMENT AFFECTS LEGAL RIGHTS.</b></p>
+                <h3>1. Activities and inherent risks</h3>
+                <p>I voluntarily choose to enter and participate in activities at Oklahoma Prospects, including baseball, softball, batting, pitching, throwing, catching, instruction, conditioning, cage or field rental, and use of equipment. I understand these activities involve inherent and other risks, including being struck by balls, bats or equipment; collisions; falls; equipment failure; overexertion; and serious injury, illness, disability, or death.</p>
+                <h3>2. Assumption of risk</h3>
+                <p>I knowingly and voluntarily accept all risks of participation and presence at the facility, whether known or unknown, except to the extent Oklahoma law does not permit a risk to be assumed or liability to be waived.</p>
+                <h3>3. Release and covenant not to sue</h3>
+                <p>To the fullest extent permitted by Oklahoma law, I release and agree not to sue Oklahoma Prospects, Prospects Baseball, and their owners, coaches, instructors, employees, agents, landlords, and affiliates for claims arising from ordinary negligence connected with the participant’s presence or activities. This release does not apply to gross negligence, reckless conduct, intentional misconduct, or any liability that cannot lawfully be released.</p>
+                <h3>4. Rules, condition, and equipment</h3>
+                <p>I will follow posted rules and staff instructions, use required safety equipment, inspect equipment before use, report unsafe conditions, and stop participating if the participant is injured, ill, or not physically able. I understand supervision is not guaranteed unless instruction is specifically booked.</p>
+                <h3>5. Emergency care</h3>
+                <p>If emergency care is reasonably necessary and I cannot be reached, I authorize facility staff to contact emergency services and consent to reasonable emergency treatment for the participant. I accept responsibility for resulting medical and transportation costs.</p>
+                <h3>6. Minor participant</h3>
+                <p>If signing for a minor, I confirm I am the minor’s parent or legal guardian, consent to participation, acknowledge the risks, and agree to these terms on my own behalf. I understand Oklahoma law may limit the effect of a parent’s release of a minor’s own legal claims.</p>
+                <h3>7. Agreement terms</h3>
+                <p>Oklahoma law governs this agreement. Typing your name and checking this box records your electronic signature, waiver version, and acceptance time. Waiver version 2026-09-14.</p>
+              </div>
+            </details>
+          </aside>
         </div>
       </section>
     </main>
@@ -137,6 +179,7 @@
       <a href="/tryouts">Team inquiries</a>
       <a href="/parents">Parent resources</a>
       <a href="/waiver">Annual waiver</a>
+      <a href="/check-in">Check-in</a>
       <a href="/schedule">Team schedules</a>
       <a href="/memberships">Memberships</a>
       <a href="https://app.prospectsbaseball.club/">Member sign-in</a>
