@@ -61,3 +61,10 @@ Keep self-hosted fonts and license files.
 
     node scripts/build.mjs
     npx netlify deploy --prod --no-build --dir dist --site c49ad0ab-1b2c-412e-88d9-1f6ddf490a17
+
+## Booking engine (same club chrome)
+
+The live calendar at book.prospectsbaseball.club lives in `booking-site/`.
+It is the same reservation/payment engine, restyled to **Oklahoma Prospects**.
+Deploy that folder to Netlify site `6198a086-0140-492b-98a5-086771a2029b`.
+Do not publish it as the marketing site.

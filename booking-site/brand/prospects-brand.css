@@ -1,0 +1,20 @@
+/* Prospects typography v6: licensed outline webfonts; native italic, no traced glyphs. */
+@font-face{font-family:'Barlow Condensed';src:url('./fonts/barlow-condensed-800-italic-v6.woff2') format('woff2');font-weight:800;font-style:italic;font-display:swap}
+@font-face{font-family:'Barlow Condensed';src:url('./fonts/barlow-condensed-600-v6.woff2') format('woff2');font-weight:600;font-style:normal;font-display:swap}
+@font-face{font-family:'Barlow Condensed';src:url('./fonts/barlow-condensed-700-v6.woff2') format('woff2');font-weight:700;font-style:normal;font-display:swap}
+@font-face{font-family:'Barlow Condensed';src:url('./fonts/barlow-condensed-800-v6.woff2') format('woff2');font-weight:800;font-style:normal;font-display:swap}
+@font-face{font-family:'Inter';src:url('./fonts/inter-400-v6.woff2') format('woff2');font-weight:400;font-style:normal;font-display:swap}
+@font-face{font-family:'Inter';src:url('./fonts/inter-500-v6.woff2') format('woff2');font-weight:500;font-style:normal;font-display:swap}
+@font-face{font-family:'Inter';src:url('./fonts/inter-600-v6.woff2') format('woff2');font-weight:600;font-style:normal;font-display:swap}
+@font-face{font-family:'Inter';src:url('./fonts/inter-700-v6.woff2') format('woff2');font-weight:700;font-style:normal;font-display:swap}
+
+:root{--prospects-display:'Barlow Condensed','Arial Narrow',sans-serif;--prospects-body:'Inter',system-ui,sans-serif;--prospects-maroon:#681C35;--prospects-powder:#B5DDF1;--prospects-ink:#10253C}
+body{font-family:var(--prospects-body);font-synthesis:none;text-rendering:optimizeLegibility;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}
+h1,h2,h3,h4,h5,h6,.promoHeadline,.campName,.tryoutHeadline,.membershipHeadline,.title,.sectionTitle,.lessonHeadline,.membershipName{font-family:var(--prospects-display)!important;font-synthesis:none;font-weight:700;font-style:normal;text-transform:uppercase;letter-spacing:.025em;line-height:1.15}
+h1,.page-hero h1,.promoHeadline,.tryoutHeadline,.membershipHeadline,.lessonHeadline,.prospects-brand-name{font-family:var(--prospects-display)!important;font-weight:800!important;font-style:italic!important;letter-spacing:.015em;line-height:1.08}
+.portal-eyebrow{font-family:var(--prospects-body);font-weight:700;letter-spacing:.1em;text-transform:uppercase}
+.brand>span{font-family:var(--prospects-display);font-weight:800;font-style:italic}.brand small{font-family:var(--prospects-body);font-style:normal}
+input,select,textarea{font-family:var(--prospects-body);font-size:1rem}
+button,a,input,select,summary{touch-action:manipulation}
+:focus-visible{outline:3px solid #176DA1!important;outline-offset:3px}
+@media(prefers-reduced-motion:reduce){*{scroll-behavior:auto!important;transition:none!important;animation:none!important}}

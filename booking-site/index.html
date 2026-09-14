@@ -1,0 +1,667 @@
+<!doctype html>
+<html lang="en">
+<head>
+
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+<meta name="theme-color" content="#0b1720" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="Oklahoma Prospects" />
+<title>Book a Cage | Oklahoma Prospects</title>
+<meta name="description" content="Reserve a baseball or softball cage, team cage, field area, or lesson at Oklahoma Prospects in Broken Arrow, Oklahoma." />
+<meta property="og:type" content="website" />
+<meta property="og:title" content="Book a Cage | Oklahoma Prospects" />
+<meta property="og:description" content="Live availability for cage rentals, team workouts, field-area rentals, and lessons in Broken Arrow." />
+<meta property="og:url" content="https://book.prospectsbaseball.club/" />
+<meta property="og:image" content="https://book.prospectsbaseball.club/cage-rentals-no-qr.jpg" />
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:title" content="Book a Cage | Oklahoma Prospects" />
+<meta name="twitter:description" content="Live cage, field-area, and lesson availability in Broken Arrow." />
+<meta name="twitter:image" content="https://book.prospectsbaseball.club/cage-rentals-no-qr.jpg" />
+<link rel="icon" type="image/png" sizes="180x180" href="/brand/prospects-p-transparent.png" />
+<link rel="apple-touch-icon" sizes="180x180" href="/brand/prospects-p-transparent.png" />
+<link rel="manifest" href="site.webmanifest" />
+<link rel="stylesheet" href="tryouts.css" />
+
+<style>
+:root{--maroon:#681C35;--dark:#0b1720;--blue:#9fd3f2;--panel:#461226;--ink:#fff;--line:rgba(255,255,255,.24);--ok:#9fd3f2;--warn:#ffd17a}
+*{box-sizing:border-box}html{max-width:100%;overflow-x:hidden;overflow-x:clip;background:#0b1720;scroll-padding-top:var(--scheduler-navigation-offset,0)}body{max-width:100%;margin:0;overflow-x:hidden;overflow-x:clip;font-family:Arial,Helvetica,sans-serif;background:#0b1720;color:var(--ink)}button,input,select,textarea{max-width:100%;min-width:0;font:inherit}button{cursor:pointer}.app{width:100%;max-width:1100px;margin:auto;padding:12px 12px 40px}.panel{min-width:0;background:linear-gradient(135deg,var(--dark),var(--maroon));border:1px solid var(--line);border-radius:18px;padding:16px;margin-bottom:13px;box-shadow:0 8px 30px rgba(0,0,0,.18)}
+.header,.sectionHead,.toolbar,.rowActions,.tabs{display:flex;align-items:center;gap:9px}.header,.sectionHead,.toolbar{justify-content:space-between}.header{flex-wrap:wrap}.brand{display:flex;align-items:center;gap:12px}.logo{width:72px;height:72px;border-radius:16px;object-fit:contain;background:transparent}.eyebrow,.moneyLabel,.miniLabel{font-size:11px;font-weight:900;letter-spacing:.12em;text-transform:uppercase;opacity:.75}.title{font-size:27px;font-weight:900}.sub{opacity:.8;font-size:13px;margin-top:4px}.pill,.statusPill{background:var(--blue);color:var(--dark);font-weight:900;border-radius:999px;padding:7px 11px;font-size:11px;text-transform:uppercase}.statusPill.unpaid{background:var(--warn)}
+.schedulerNavigation{position:sticky;top:calc(env(safe-area-inset-top,0px) + 8px);z-index:20}.tabs{flex-wrap:wrap;justify-content:center;overflow:visible;padding-bottom:3px}.tab{white-space:normal;min-height:42px;border:1px solid rgba(255,255,255,.3);background:#35101f;color:#fff;border-radius:11px;padding:8px 13px;font-weight:900}.tab.active{background:var(--blue);color:var(--dark);border-color:var(--blue)}.view{display:none;min-width:0;scroll-margin-top:var(--scheduler-navigation-offset,0)}.view.active{display:block;min-height:calc(100svh - var(--scheduler-navigation-offset,0px))}
+.toolbar button,.action,.bookBtn{min-height:44px;border:1px solid rgba(255,255,255,.35);background:#35101f;color:#fff;border-radius:12px;padding:9px 13px;font-weight:900}.bookBtn{background:var(--blue);color:var(--dark);border:0}.month{font-size:20px;font-weight:900;text-align:center}.today{display:block;margin:5px auto 0;background:none!important;border:0!important;color:#fff;text-decoration:underline;min-height:auto!important}.dow,.grid{display:grid;grid-template-columns:repeat(7,1fr);gap:5px}.dow{font-size:10px;font-weight:900;text-align:center;opacity:.72;margin:14px 0 6px}.day{min-height:88px;background:#401123;color:#fff;border:1px solid var(--line);border-radius:12px;padding:8px;text-align:left}.day.selected{outline:3px solid var(--blue)}.day.muted{opacity:.38}.num{font-weight:900}.badge{display:inline-block;margin-top:6px;border-radius:999px;background:var(--blue);color:var(--dark);font-size:10px;font-weight:900;padding:3px 6px}.small{font-size:10px;opacity:.75;margin-top:5px}.sectionTitle{font-size:19px;font-weight:900}.cards{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-top:12px}.cage{background:#461226;border:1px solid var(--line);border-radius:14px;padding:12px}.cageTop{display:flex;justify-content:space-between;gap:8px;align-items:center}.status{background:var(--blue);color:var(--dark);border-radius:999px;padding:4px 7px;font-size:10px;font-weight:900}.booking{background:#2d0b18;border-radius:10px;padding:9px;margin-top:8px;font-size:12px}.booking .customer{font-size:14px;font-weight:900}.formgrid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}.field label{display:block;font-size:11px;font-weight:900;margin-bottom:5px;text-transform:uppercase}.field input,.field select,.field textarea{width:100%;min-height:46px;background:#35101f;color:#fff;border:1px solid rgba(255,255,255,.35);border-radius:12px;padding:10px}.field textarea{min-height:78px;resize:vertical}.field select option{background:#fff;color:#111}.span2{grid-column:span 2}.spanAll{grid-column:1/-1}.message{font-size:13px;font-weight:900;margin-top:10px;min-height:16px}.tableWrap{overflow-x:auto;border:1px solid rgba(255,255,255,.25);border-radius:12px}table{width:100%;min-width:820px;border-collapse:collapse}th{background:#2d0b18;text-align:left}th,td{padding:10px;border-top:1px solid rgba(255,255,255,.16);font-size:12px;vertical-align:top}.rowActions{justify-content:flex-end;flex-wrap:wrap}.rowActions button{background:transparent;color:#fff;border:1px solid rgba(255,255,255,.35);border-radius:9px;padding:6px 8px;font-weight:800}.moneyGrid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}.moneyCard{background:#2d0b18;border:1px solid var(--line);border-radius:14px;padding:14px}.moneyValue{font-size:25px;font-weight:900;margin-top:5px}.priceNote,.installHint{font-size:12px;opacity:.8;line-height:1.5;margin-top:9px}.todayList{display:grid;gap:8px;margin-top:12px}.todayItem{display:grid;grid-template-columns:110px 1fr auto;gap:12px;align-items:center;background:#2d0b18;border:1px solid var(--line);border-radius:13px;padding:12px}.todayTime{font-weight:900}.todayCustomer{font-weight:900;font-size:15px}.todayMeta{font-size:12px;opacity:.75;margin-top:3px}.empty{padding:22px;text-align:center;opacity:.75}.reportGrid{display:grid;grid-template-columns:1fr 1fr;gap:10px}.reportBox{background:#2d0b18;border:1px solid var(--line);border-radius:14px;padding:14px}.bar{height:10px;background:#35101f;border-radius:99px;overflow:hidden;margin-top:8px}.bar>i{display:block;height:100%;background:var(--blue)}.modal{position:fixed;inset:0;background:rgba(0,0,0,.72);display:none;align-items:center;justify-content:center;padding:14px;z-index:50}.modal.open{display:flex}.modalCard{width:min(760px,100%);max-height:92vh;overflow:auto;background:#2d0b18;border:1px solid var(--line);border-radius:18px;padding:16px}.modalHead{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}.close{border:1px solid var(--line);background:#35101f;color:#fff;border-radius:10px;padding:8px 11px;font-weight:900}.checkbox{display:flex;align-items:center;gap:8px;min-height:46px}.checkbox input{width:20px;height:20px}.danger{border-color:#ffb1b1!important}.printOnly{display:none}
+@media(max-width:780px){.moneyGrid{grid-template-columns:1fr 1fr}.cards{grid-template-columns:repeat(2,1fr)}.formgrid{grid-template-columns:1fr 1fr}.reportGrid{grid-template-columns:1fr}.title{font-size:22px}.day{min-height:72px;padding:6px}.badge{font-size:9px;padding:2px 5px}.todayItem{grid-template-columns:90px 1fr}}
+@media(max-width:460px){.app{padding:9px 7px 30px}.panel{padding:13px}.logo{width:58px;height:58px}.grid,.dow{gap:3px}.day{min-height:62px;border-radius:9px}.small{display:none}.cards,.formgrid,.moneyGrid{grid-template-columns:1fr}.span2,.spanAll{grid-column:1}.toolbar button{padding:8px 9px}.month{font-size:16px}.todayItem{grid-template-columns:1fr;gap:5px}.todayItem .statusPill{justify-self:start}}
+.publicSchedule{overflow-x:hidden}.publicSchedule table{min-width:0;table-layout:fixed}.publicSchedule th,.publicSchedule td{overflow-wrap:anywhere}.publicSchedule th:nth-child(1){width:34%}.publicSchedule th:nth-child(2){width:38%}.publicSchedule th:nth-child(3){width:28%}@media(max-width:460px){.publicSchedule th,.publicSchedule td{padding:9px 7px;font-size:11px}}
+.cageShortcut{width:100%;min-height:44px;margin-top:12px;border:0;border-radius:10px;background:var(--blue);color:var(--dark);font-weight:900}.cageShortcut:hover{transform:translateY(-1px)}.cageShortcut:focus-visible{outline:3px solid #fff;outline-offset:2px}
+@media print{body{background:#fff;color:#000}.app>*{display:none!important}.app #scheduleView{display:block!important}.app #scheduleView .panel{display:block!important;background:#fff;color:#000;border:1px solid #aaa;box-shadow:none}.tabs,.noPrint,.rowActions{display:none!important}table{min-width:0}th{background:#eee;color:#000}th,td{border-color:#aaa}.printOnly{display:block}.pill,.statusPill{border:1px solid #777;background:#fff;color:#000}}
+
+/* No-JavaScript booking fallback: opening #scheduleView always reveals the booking area. */
+.view:target{display:block!important}
+#scheduleView:target{display:block!important}
+
+/* Commercial / Special of the Week */
+.promoPanel{padding:0;overflow:hidden;border:2px solid var(--blue);background:#140710}.promoHero{display:grid;grid-template-columns:auto 1fr auto;gap:18px;align-items:center;padding:22px;background:linear-gradient(135deg,#2d0b18,#5a1730)}.promoLogo{width:82px;height:82px;border-radius:16px;object-fit:contain;background:transparent}.promoCopy{min-width:0}.promoTag{display:inline-block;background:var(--blue);color:var(--dark);font-size:10px;font-weight:900;letter-spacing:.1em;padding:6px 9px;border-radius:999px}.promoHeadline{font-weight:900;font-size:30px;letter-spacing:.02em;margin-top:8px}.promoText{font-size:13px;opacity:.84;margin-top:5px;line-height:1.5}.promoCta{border:0;background:var(--blue);color:var(--dark);text-decoration:none;display:inline-flex;align-items:center;justify-content:center;font-weight:900;border-radius:12px;padding:13px 18px;min-height:46px;box-shadow:0 6px 18px rgba(0,0,0,.22)}.promoBody{padding:18px 20px 20px}.promoFeatures{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px}.promoFeature{border:1px solid var(--line);background:#2d0b18;border-radius:999px;padding:7px 10px;font-size:11px;font-weight:800}.promoRates{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}.promoRate{border:1px solid var(--line);background:#2d0b18;border-radius:14px;padding:15px}.promoRateName{font-size:11px;font-weight:900;letter-spacing:.08em;color:var(--blue)}.promoRatePrice{font-size:25px;font-weight:900;margin:5px 0}.promoRateMeta{font-size:12px;opacity:.75;line-height:1.45}.promoInfo{display:grid;grid-template-columns:1.15fr .85fr;gap:10px;margin-top:10px}.promoInfoCard{border:1px solid var(--line);background:#2d0b18;border-radius:14px;padding:15px}.promoInfoTitle{font-size:11px;font-weight:900;letter-spacing:.09em;color:var(--blue);margin-bottom:8px}.promoHours{display:grid;grid-template-columns:1fr 1fr;gap:12px;font-size:13px;line-height:1.45}.promoDetails{font-size:12px;line-height:1.65;opacity:.86}.promoOriginal{border-top:1px solid var(--line);padding:0 20px}.promoOriginal summary{cursor:pointer;padding:14px 0;color:var(--blue);font-size:11px;font-weight:900;letter-spacing:.07em;list-style:none}.promoOriginal summary::-webkit-details-marker{display:none}.promoOriginal summary::after{content:" +"}.promoOriginal[open] summary::after{content:" −"}.promoImage{display:block;width:min(620px,100%);height:auto;margin:0 auto 20px;border-radius:12px;background:#0d0509}
+@media(max-width:760px){.promoHero{grid-template-columns:auto 1fr}.promoCta{grid-column:1/-1;width:100%}.promoRates,.promoInfo{grid-template-columns:1fr}.promoHeadline{font-size:25px}}
+@media(max-width:480px){.promoHero{grid-template-columns:1fr;padding:18px}.promoLogo{width:68px;height:68px}.promoBody{padding:15px}.promoOriginal{padding:0 15px}.promoHours{grid-template-columns:1fr}.promoHeadline{font-size:22px}}
+
+.paymentActions{grid-column:1/-1;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-top:2px}
+.payAction{display:flex;align-items:center;justify-content:center;text-decoration:none;border:2px solid rgba(255,255,255,.18);border-radius:14px;padding:13px 10px;font-weight:900;letter-spacing:.03em;background:#10151d;color:#fff;cursor:pointer;min-height:48px}
+.payAction:hover,.payAction:active{transform:translateY(-1px);filter:brightness(1.08)}
+.payAction.venmo{background:#1677ff}
+.payAction.cashapp{background:#00b84a;color:#07150c}
+.payAction.cash{background:#6d1736}
+.payAction.square{background:#20252b}
+.paymentHelp{grid-column:1/-1;font-size:12px;opacity:.78;line-height:1.45;margin-top:2px}
+.paymentAmounts{grid-column:1/-1;display:grid;gap:6px;padding:13px;border:1px solid rgba(159,211,242,.55);border-radius:13px;background:#250a16;font-size:13px;line-height:1.45}
+.paymentAmounts[hidden]{display:none}
+.paymentAmountRow{display:flex;justify-content:space-between;align-items:baseline;gap:12px}
+.paymentAmountRow b{color:var(--blue);white-space:nowrap}
+.paymentAmountRow.total{margin-top:2px;padding-top:7px;border-top:1px solid rgba(159,211,242,.35);font-weight:900}
+.paymentAmountRow.total b{font-size:19px}
+.paymentAmountNote{font-size:12px;opacity:.82;line-height:1.5}
+@media(max-width:650px){.paymentActions{grid-template-columns:1fr}}
+
+
+.adminPanel{max-width:620px;margin-left:auto;margin-right:auto}.adminLogin{display:grid;grid-template-columns:1fr auto;gap:10px;align-items:end;margin-top:16px}.adminLogin .bookBtn{min-width:130px}.adminUnlocked{margin-top:12px}.adminActions{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px}.adminActions #lockAdmin{grid-column:1/-1}@media(max-width:560px){.adminLogin,.adminActions{grid-template-columns:1fr}.adminLogin .bookBtn,.adminActions #lockAdmin{grid-column:1}.adminLogin .bookBtn{width:100%}}
+.manageBookings{margin-top:18px;padding-top:16px;border-top:1px solid var(--line)}.manageBookingList{display:grid;gap:9px;margin-top:12px}.manageBookingRow{display:grid;grid-template-columns:1fr auto;gap:12px;align-items:center;padding:12px;background:#250a16;border:1px solid var(--line);border-radius:13px}.manageBookingName{font-size:15px;font-weight:900}.manageBookingMeta{font-size:12px;line-height:1.5;opacity:.78;margin-top:3px}.manageBookingActions{display:flex;gap:7px;flex-wrap:wrap;justify-content:flex-end}.removeBooking{background:#8f1d35!important;border-color:#ffb1b1!important}.manageEmpty{padding:18px;text-align:center;opacity:.72}@media(max-width:560px){.manageBookingRow{grid-template-columns:1fr}.manageBookingActions{justify-content:stretch}.manageBookingActions button{flex:1}}
+.adminBookingOnly{display:none}.admin-mode .adminBookingOnly{display:block}#price[readonly]{font-size:22px;font-weight:900;color:#b9dcff;cursor:default}
+.paymentConfirm{grid-column:1/-1;display:flex;align-items:flex-start;gap:10px;padding:12px 14px;border:1px solid rgba(159,211,242,.35);border-radius:12px;background:#250a16;font-size:13px;line-height:1.45}.paymentConfirm input{width:20px;height:20px;min-height:20px;flex:0 0 20px;margin-top:1px}.admin-mode .customerBookingOnly{display:none}
+.membershipHero{text-align:center;padding:28px 18px}.membershipHeadline{font-size:clamp(34px,7vw,62px);line-height:.94;font-weight:900;letter-spacing:-.045em;margin:8px 0 13px}.membershipLead{max-width:690px;margin:auto;font-size:14px;line-height:1.6;opacity:.8}.membershipGrid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:20px;text-align:left}.membershipCard{display:flex;min-width:0;flex-direction:column;background:#250a16;border:1px solid var(--line);border-radius:18px;padding:19px}.membershipCard.featured{background:var(--blue);color:var(--dark);border-color:var(--blue);transform:translateY(-5px)}.membershipName{font-size:19px;font-weight:900}.membershipPrice{font-size:42px;font-weight:900;letter-spacing:-.05em;margin:9px 0}.membershipPrice span{font-size:13px;letter-spacing:0}.membershipBenefits{display:grid;gap:8px;font-size:13px;line-height:1.45;flex:1}.membershipBenefits div::before{content:"✓ ";font-weight:900}.membershipCard .bookBtn{margin-top:16px}.membershipCard.featured .bookBtn{background:var(--dark);color:#fff}.teamMembershipRates{display:grid;gap:12px;margin-top:16px}.teamMembershipRate{margin:0;padding:14px 16px;border:1px solid var(--line);border-radius:13px;background:#250a16;font-size:14px;line-height:1.75;overflow-wrap:anywhere}.teamMembershipRate strong{color:var(--blue)}.teamMembershipOption{display:inline-block;white-space:normal}.teamMembershipPrice{white-space:nowrap}.memberForm{margin-top:15px}.memberRules{display:grid;grid-template-columns:repeat(2,1fr);gap:7px;font-size:12px;line-height:1.5;margin-top:12px}.memberRule{background:#250a16;border-radius:10px;padding:9px}.memberStatus{font-weight:900}.memberStatus.Active{color:#9ff2bb}.memberStatus.Pending{color:#ffd17a}.memberStatus.Paused{color:#b9dcff}.memberStatus.Cancelled{color:#ffb1b1}@media(max-width:760px){.membershipGrid{grid-template-columns:1fr}.membershipCard.featured{transform:none}.memberRules{grid-template-columns:1fr}}@media(max-width:480px){.teamMembershipRate{padding:13px;font-size:13px;line-height:1.7}.teamMembershipOption{display:block;margin-top:3px}}
+.teamMembershipCta{display:flex;justify-content:flex-end;margin-top:14px}.teamMembershipCta .bookBtn{width:auto;min-width:250px}@media(max-width:480px){.teamMembershipCta .bookBtn{width:100%;min-width:0}}
+.memberCreditBox{margin:14px 0;padding:14px;border:1px solid rgba(159,211,242,.55);border-radius:14px;background:#250a16}.memberCreditGrid{display:grid;grid-template-columns:1fr auto;gap:10px;align-items:end}.memberBalance{margin-top:10px;font-size:13px;line-height:1.55}.memberBalance strong{color:var(--blue)}.creditChoice{display:flex;align-items:flex-start;gap:10px;margin-top:12px;padding:11px;border-radius:11px;background:rgba(159,211,242,.1)}.creditChoice input{width:20px;height:20px;flex:0 0 20px}.paymentActions.creditSelected{display:none}@media(max-width:560px){.memberCreditGrid{grid-template-columns:1fr}.memberCreditGrid .action{width:100%}}
+.waiverBox{grid-column:1/-1;padding:15px;border:2px solid rgba(159,211,242,.48);border-radius:15px;background:#250a16}.waiverTitle{font-size:16px;font-weight:900}.waiverIntro,.waiverLegal{font-size:12px;line-height:1.55;opacity:.82;margin-top:6px}.waiverFields{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-top:12px}.waiverAgree{display:flex;align-items:flex-start;gap:10px;margin-top:12px;font-size:13px;line-height:1.5}.waiverAgree input{width:21px;height:21px;flex:0 0 21px;margin-top:1px}.waiverLink{margin-top:9px;background:none;border:0;color:var(--blue);font-weight:900;text-decoration:underline;padding:4px 0}.waiverCopy h3{font-size:14px;margin:16px 0 5px;color:var(--blue)}.waiverCopy p,.waiverCopy li{font-size:13px;line-height:1.55}.waiverCopy ul{padding-left:20px}@media(max-width:650px){.waiverFields{grid-template-columns:1fr}}
+.campCards{display:grid;gap:14px}.campCard{overflow:hidden;padding:0}.campBanner{display:grid;grid-template-columns:1.5fr auto;gap:18px;align-items:center;padding:22px;background:linear-gradient(120deg,#701e3d,#2d0b18 68%);border-bottom:1px solid var(--line)}.campName{font-size:clamp(28px,6vw,48px);font-weight:900;line-height:.95;margin-top:7px}.campPrice{text-align:right}.campPrice strong{display:block;font-size:44px;line-height:1}.campBody{padding:20px}.campFacts{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}.campFact{padding:13px;border-radius:13px;background:#2d0b18;border:1px solid var(--line);font-size:13px;line-height:1.5}.campTraining{display:flex;flex-wrap:wrap;gap:7px;margin:16px 0}.campTraining span{padding:7px 10px;border-radius:999px;background:rgba(159,211,242,.12);border:1px solid rgba(159,211,242,.35);font-size:12px;font-weight:900}.campRegister{margin-top:14px}.campPayChoice{border:2px solid transparent}.campPayChoice.selected{border-color:#fff;outline:2px solid var(--blue)}.campTotal{padding:12px;border-radius:12px;background:#250a16;font-size:14px;line-height:1.55}.campContact{font-size:12px;line-height:1.6;opacity:.82;margin-top:14px}.campContact a{color:var(--blue)}@media(max-width:700px){.campBanner{grid-template-columns:1fr}.campPrice{text-align:left}.campFacts{grid-template-columns:1fr}.campBody{padding:15px}.campName{font-size:34px}}
+.consentBox{grid-column:1/-1;padding:13px;border:1px solid var(--line);border-radius:13px;background:#250a16}.consentChoice{display:flex;align-items:flex-start;gap:10px;font-size:13px;line-height:1.5}.consentChoice input{width:21px;height:21px;flex:0 0 21px;margin-top:1px}.privacyNote{font-size:12px;line-height:1.55;opacity:.8;margin:8px 0 0 31px}.privacyNote a{color:var(--blue)}
+
+.app{padding:16px 14px 48px}.panel{margin-bottom:12px;box-shadow:0 5px 20px rgba(0,0,0,.14)}.tabs{justify-content:center}.promoPanel{margin-bottom:16px}.facilityFooter{margin-top:24px;padding:24px 16px 0;border-top:1px solid var(--line);display:grid;grid-template-columns:1.3fr 1fr;gap:24px;color:rgba(255,255,255,.78)}.facilityFooter h2{margin:0 0 9px;color:#fff;font-size:20px}.footerDetails,.footerHours{display:grid;gap:6px;font-size:13px;line-height:1.5}.facilityFooter a{color:var(--blue)}.footerLabel{margin-bottom:7px;font-size:10px;font-weight:900;letter-spacing:.12em;text-transform:uppercase;color:var(--blue)}
+@media(max-width:700px){.facilityFooter{grid-template-columns:1fr;gap:18px;padding-left:4px;padding-right:4px}}
+
+.lessonPanel{position:relative;overflow:hidden;background:linear-gradient(145deg,#2d0b18 0%,#5a1730 62%,#35101f 100%)}.lessonPanel::after{content:"";position:absolute;width:280px;height:280px;right:-110px;top:-130px;border:45px solid rgba(159,211,242,.08);border-radius:50%;pointer-events:none}.lessonIntro{position:relative;z-index:1;display:grid;grid-template-columns:1.2fr .8fr;gap:24px;align-items:end}.lessonHeadline{max-width:680px;font-size:clamp(30px,6vw,58px);line-height:.94;letter-spacing:-.045em;font-weight:900;margin:9px 0 14px}.lessonLead{max-width:660px;font-size:15px;line-height:1.65;color:rgba(255,255,255,.82)}.sportStack{display:grid;gap:10px}.sportCard{display:flex;align-items:center;gap:12px;background:#250a16;border:1px solid rgba(159,211,242,.35);border-radius:16px;padding:14px}.sportIcon{display:grid;place-items:center;width:43px;height:43px;flex:0 0 43px;border-radius:50%;background:var(--blue);color:var(--dark)}.sportIcon svg{width:24px;height:24px}.sportName{font-size:17px;font-weight:900}.sportMeta{font-size:11px;opacity:.68;margin-top:2px}.lessonRates{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:18px}.lessonRate{position:relative;min-height:220px;display:flex;flex-direction:column;justify-content:space-between;background:#260a17;border:1px solid var(--line);border-radius:18px;padding:20px;overflow:hidden}.lessonRate.featured{background:var(--blue);color:var(--dark);border-color:var(--blue)}.lessonAge{font-size:12px;font-weight:900;letter-spacing:.12em;text-transform:uppercase}.lessonPrice{font-size:clamp(40px,7vw,66px);line-height:1;font-weight:900;letter-spacing:-.06em;margin-top:20px}.lessonPrice span{font-size:16px;letter-spacing:0}.lessonIncludes{font-size:13px;line-height:1.55;opacity:.78;margin-top:14px}.lessonFooter{display:flex;justify-content:space-between;gap:18px;align-items:center;margin-top:16px;padding-top:16px;border-top:1px solid var(--line)}.lessonNote{max-width:650px;font-size:12px;line-height:1.55;opacity:.72}.lessonCta{white-space:nowrap}.lessonPanel .eyebrow{color:var(--blue);opacity:1}.lessonRate.featured .eyebrow{color:var(--dark)}
+@media(max-width:760px){.lessonIntro{grid-template-columns:1fr}.sportStack{grid-template-columns:1fr 1fr}.lessonFooter{align-items:flex-start;flex-direction:column}.lessonCta{width:100%}}
+@media(max-width:520px){.lessonRates,.sportStack{grid-template-columns:1fr}.lessonRate{min-height:190px}.lessonHeadline{font-size:36px}}
+.instructorsPanel{min-height:430px;display:grid;place-items:center;position:relative;overflow:hidden;text-align:center;background:radial-gradient(circle at 50% 0,rgba(159,211,242,.14),transparent 42%),linear-gradient(145deg,#2d0b18,#4b1228)}.instructorsPanel::before,.instructorsPanel::after{content:"";position:absolute;border:1px solid rgba(159,211,242,.15);border-radius:50%;pointer-events:none}.instructorsPanel::before{width:330px;height:330px;left:-190px;bottom:-210px}.instructorsPanel::after{width:220px;height:220px;right:-120px;top:-120px}.instructorsEmpty{position:relative;z-index:1;max-width:620px;padding:34px 20px}.instructorMarks{display:flex;justify-content:center;margin-bottom:22px}.instructorMark{width:68px;height:68px;display:grid;place-items:center;border-radius:50%;background:#250a16;border:3px solid var(--blue);color:var(--blue);box-shadow:0 0 0 7px rgba(159,211,242,.08)}.instructorMark+ .instructorMark{margin-left:-12px}.instructorMark svg{width:34px;height:34px}.instructorsTitle{font-size:clamp(32px,6vw,55px);font-weight:900;line-height:.95;letter-spacing:-.04em;margin:9px 0 16px}.instructorsCopy{font-size:15px;line-height:1.65;color:rgba(255,255,255,.76)}.instructorsComing{display:inline-block;margin-top:24px;padding:9px 13px;border-radius:999px;background:var(--blue);color:var(--dark);font-size:11px;font-weight:900;letter-spacing:.1em}
+.instructorsTab,#instructorsView{display:none!important}.bookingFlow{display:block}.bookingSteps{display:grid;grid-template-columns:repeat(3,1fr);gap:7px;margin:14px 0 18px}.bookingStepTab{display:flex;align-items:center;justify-content:center;gap:7px;min-height:48px;padding:8px;border:1px solid var(--line);border-radius:12px;background:#250a16;color:#fff;font-size:12px;font-weight:900;text-align:center}.bookingStepTab span{display:grid;place-items:center;width:24px;height:24px;flex:0 0 24px;border-radius:50%;background:rgba(255,255,255,.12)}.bookingStepTab.active{background:var(--blue);color:var(--dark);border-color:var(--blue)}.bookingStepTab.active span{background:var(--dark);color:#fff}.bookingStepTab.complete{border-color:rgba(159,211,242,.65)}.bookingStep{display:none}.bookingStep.active{display:block}.bookingStepGrid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}.rentalTypeField{grid-column:1/-1}.rentalTypeChoices{display:grid;grid-template-columns:repeat(3,1fr);gap:9px;margin-top:7px}.rentalTypeChoice{position:relative;display:block}.rentalTypeChoice input{position:absolute;opacity:0;pointer-events:none}.rentalTypeCard{display:flex;min-height:84px;flex-direction:column;justify-content:space-between;gap:7px;padding:14px;border:2px solid var(--line);border-radius:14px;background:#250a16;transition:transform .15s ease,border-color .15s ease,background .15s ease}.rentalTypeName{font-size:15px;font-weight:900}.rentalTypeRate{font-size:13px;font-weight:900;color:var(--blue)}.rentalTypeChoice input:checked+.rentalTypeCard{border-color:var(--blue);background:#35101f;box-shadow:inset 0 0 0 1px var(--blue)}.rentalTypeChoice input:focus-visible+.rentalTypeCard{outline:3px solid #fff;outline-offset:2px}.rentalTypeChoice:active .rentalTypeCard{transform:scale(.985)}.selectedDateCard,.availabilityCard{border:1px solid var(--line);border-radius:14px;background:#250a16;padding:13px}.selectedDateCard{grid-column:span 2}.selectedDateValue{font-size:18px;font-weight:900;margin-top:4px}.availabilityCard{grid-column:1/-1;font-size:13px;font-weight:900;line-height:1.45}.availabilityCard.available{border-color:rgba(159,211,242,.7);color:var(--blue)}.availabilityCard.unavailable{border-color:#ffb1b1;color:#ffb1b1}.stepOneTotal{grid-column:1/-1;margin:0;padding:14px 16px}.stepOneTotal .lockedTotalValue{font-size:36px}.lockedTotal{display:flex;align-items:center;justify-content:space-between;gap:18px;margin-bottom:14px;padding:18px;border:2px solid var(--blue);border-radius:16px;background:#250a16}.lockedTotalLabel{font-size:12px;font-weight:900;letter-spacing:.14em}.lockedTotalValue{font-size:clamp(38px,9vw,58px);line-height:1;font-weight:900;letter-spacing:-.05em;color:var(--blue)}.selectionSummary{font-size:12px;line-height:1.55;opacity:.78;margin-top:5px}.stepActions{display:flex;justify-content:space-between;gap:10px;margin-top:14px}.stepActions .bookBtn,.stepActions .action{min-width:150px}.paymentSelected{grid-column:1/-1;min-height:24px;font-size:13px;font-weight:900;color:var(--blue)}.membershipSignup[hidden]{display:none}.membershipSignupHead{gap:14px}.membershipClose{flex:0 0 auto}.memberLockedTotal{margin:12px 0 0}.memberLockedTotal .lockedTotalValue{font-size:38px}.teamMembershipRate{display:grid;gap:10px}.teamPlanChoice{display:grid;grid-template-columns:1fr auto;gap:10px;align-items:center;padding-top:9px;border-top:1px solid rgba(255,255,255,.12)}.teamPlanChoice:first-of-type{padding-top:0;border-top:0}.teamPlanChoice .bookBtn{min-height:44px;padding:8px 13px}.memberForm>.field:first-child select{font-weight:800}
+@media(max-width:700px){.bookingStepGrid{grid-template-columns:1fr 1fr}.selectedDateCard{grid-column:1/-1}.stepActions .bookBtn,.stepActions .action{min-width:0;flex:1}.lockedTotal{align-items:flex-end}.teamPlanChoice{grid-template-columns:1fr}.teamPlanChoice .bookBtn{width:100%}}
+@media(max-width:480px){.app{padding:10px 10px 36px}.panel{padding:14px;border-radius:15px}.title{font-size:22px}.logo{width:58px;height:58px}.tabs{display:grid;grid-template-columns:repeat(2,1fr);width:100%}.tab{width:100%;min-height:48px}.promoCta,.bookBtn,.action,.payAction{min-height:50px}.bookingSteps{gap:4px}.bookingStepTab{display:grid;gap:3px;min-height:62px;padding:6px 3px;font-size:10px;line-height:1.15}.bookingStepTab span{margin:auto}.bookingStepGrid{grid-template-columns:1fr}.rentalTypeChoices{grid-template-columns:1fr}.rentalTypeCard{min-height:68px}.selectedDateCard,.availabilityCard{grid-column:1}.lockedTotal{padding:15px}.lockedTotalValue{font-size:42px}.stepOneTotal .lockedTotalValue{font-size:34px}.stepActions{flex-direction:column-reverse}.stepActions .bookBtn,.stepActions .action{width:100%}.formgrid{grid-template-columns:1fr}.span2,.spanAll{grid-column:1}.day{min-height:70px;padding:6px}.dow,.grid{gap:3px}.num{font-size:13px}.badge{font-size:8px;padding:3px 4px}.cards{grid-template-columns:1fr}.membershipCard .bookBtn{width:100%}.memberLockedTotal .lockedTotalValue{font-size:34px}}
+</style>
+<!-- Google Ads site tag. The gtag shim below is inline so a blocked googletagmanager.com still
+     leaves conversions queued in window.dataLayer. The completed-reservation conversion itself is
+     inlined further down with the scheduler, where no content blocker can refuse it. -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=AW-18423856687"></script>
+<script>
+window.dataLayer=window.dataLayer||[];
+function gtag(){dataLayer.push(arguments)}
+gtag('js',new Date());
+gtag('config','AW-18423856687');
+</script>
+<!-- Optional anonymous visit measurement. Separately loaded, and blocked for some visitors; the
+     scheduler and the Google Ads conversion both work without it. -->
+<script src="/site-signals.js"></script>
+<style>.logo{object-fit:contain!important;background:transparent!important;border-radius:0!important;border:0!important}.promoLogo{object-fit:contain!important;background:transparent!important;width:min(260px,75vw)!important;height:auto!important;max-height:115px}.brand{min-width:0}.brand>div{min-width:0}.title{overflow-wrap:anywhere}</style>
+<link rel="stylesheet" href="/brand/prospects-brand.css?v=6">
+<link rel="stylesheet" href="/booking-refresh.css">
+</head>
+<body>
+
+<nav class="club-chrome" aria-label="Oklahoma Prospects">
+  <a class="club-chrome-brand" href="https://prospectsbaseball.club/">OKLAHOMA PROSPECTS</a>
+  <a href="https://prospectsbaseball.club/book">Book</a>
+  <a href="https://prospectsbaseball.club/training">Train</a>
+  <a href="https://prospectsbaseball.club/teams">Teams</a>
+  <a href="https://prospectsbaseball.club/visit">Visit</a>
+</nav>
+<style>
+.club-chrome{position:sticky;top:0;z-index:50;display:flex;gap:14px;align-items:center;flex-wrap:wrap;min-height:56px;padding:8px 16px;background:#071b31;border-bottom:3px solid #681C35;font-family:Inter,system-ui,sans-serif}
+.club-chrome a{color:#f4f8fb;text-decoration:none;font-weight:700;min-height:44px;display:inline-flex;align-items:center}
+.club-chrome-brand{font-family:"Barlow Condensed",Arial Narrow,sans-serif;font-style:italic;font-weight:800;letter-spacing:.04em;color:#9ed8f3!important}
+</style>
+<a class="skip-booking" href="#bookingFlow">Skip to booking</a><main class="app">
+<section class="panel"><div class="header"><div class="brand"><img class="logo" src="/brand/prospects-p-transparent.png" alt="Prospects logo"><div><div class="eyebrow">Oklahoma Prospects</div><div class="title">OKLAHOMA PROSPECTS</div><div class="sub">Cage rentals • lessons • live availability</div></div></div><span class="pill">BOOK ONLINE</span></div></section>
+<section class="panel noPrint schedulerNavigation" data-scheduler-navigation aria-label="Scheduler sections"><div class="tabs"><button class="tab" data-view="todayView">TODAY</button><button class="tab active" data-view="scheduleView">BOOK A CAGE</button><button class="tab" data-view="tryoutsView">SPRING TRYOUTS</button><button class="tab" data-view="campsView">CAMPS</button><button class="tab" data-view="membershipView">MEMBERSHIPS</button><button class="tab" data-view="lessonsView">LESSONS</button><button class="tab instructorsTab" data-view="instructorsView" hidden>MEET OUR INSTRUCTORS</button></div></section>
+
+<div id="todayView" class="view">
+<section class="panel"><div class="sectionHead"><div><div class="eyebrow">At-a-glance</div><div class="sectionTitle">TODAY'S SCHEDULE</div></div><span id="todayCount" class="pill">0 BOOKINGS</span></div><div id="todayDate" class="sub"></div><div id="todayList" class="todayList"></div></section>
+<section class="panel"><div class="sectionHead"><div><div class="eyebrow">Availability</div><div class="sectionTitle">CAGES RIGHT NOW / TODAY</div></div><button class="action" id="goSchedule" data-activate-view="scheduleView">OPEN SCHEDULE</button></div><div id="todayCages" class="cards"></div></section>
+<section class="panel promoPanel noPrint" id="cageRentalCommercial">
+  <div class="promoHero">
+    <img class="promoLogo" src="/brand/prospects-wordmark.png" alt="Prospects logo">
+    <div class="promoCopy">
+      <div class="promoTag">OKLAHOMA PROSPECTS</div>
+      <div class="promoHeadline">CAGE RENTALS</div>
+      <div class="promoText">Get better. Get confident. Be a Prospect.<br>Individuals • small groups • teams • lessons • baseball • softball</div>
+    </div>
+    <a class="promoCta" id="promoBookCage" href="#scheduleView" role="button" data-activate-view="scheduleView">BOOK A CAGE</a>
+  </div>
+  <div class="promoBody">
+    <div class="promoFeatures" aria-label="Facility features">
+      <span class="promoFeature">EASY ONLINE RESERVATIONS</span>
+      <span class="promoFeature">30-MINUTE TIME SLOTS</span>
+      <span class="promoFeature">CLEAN, SAFE FACILITY</span>
+      <span class="promoFeature">ALL AGES &amp; SKILL LEVELS</span>
+    </div>
+    <div class="promoRates">
+      <div class="promoRate"><div class="promoRateName">INDIVIDUAL CAGE</div><div class="promoRatePrice">$50/hr</div><div class="promoRateMeta">Per cage • Lanes 1, 2, 5, 6, and 7</div></div>
+      <div class="promoRate"><div class="promoRateName">TEAM CAGE</div><div class="promoRatePrice">$60/hr</div><div class="promoRateMeta">Per cage • Lanes 1, 2, 5, 6, and 7</div></div>
+      <div class="promoRate"><div class="promoRateName">FIELD AREA</div><div class="promoRatePrice">$75/hr</div><div class="promoRateMeta">Cages 3 and 4</div></div>
+    </div>
+    <div class="promoInfo">
+      <div class="promoInfoCard">
+        <div class="promoInfoTitle">HOURS &amp; TIME SLOTS</div>
+        <div class="promoHours"><div><b>Monday–Friday</b><br>4:00–8:00 PM</div><div><b>Saturday–Sunday</b><br>1:00–8:00 PM by reservation</div></div>
+        <div class="promoDetails" style="margin-top:9px">Choose 30-minute or 1-hour reservations from the live schedule.</div>
+      </div>
+      <div class="promoInfoCard">
+        <div class="promoInfoTitle">RESERVATIONS &amp; PAYMENT</div>
+        <div class="promoDetails">Reserve online • Pay online<br>Venmo • Cash App • Square / Card<br>Choose your payment method, complete payment, then confirm your reservation.<br>24-hour cancellation notice required</div>
+      </div>
+    </div>
+  </div>
+  <details class="promoOriginal">
+    <summary>VIEW ORIGINAL RENTAL FLYER</summary>
+    <img class="promoImage" src="cage-rentals-no-qr.jpg" alt="Original Prospects Cage Rentals flyer">
+  </details>
+</section>
+</div>
+
+<div id="tryoutsView" class="view">
+<section class="panel tryoutHero"><div class="tryoutHeroGrid"><div><div class="tryoutKicker">Spring 2027 Team Tryouts</div><div class="tryoutHeadline">COME EARN<br>YOUR SPOT.</div><div class="tryoutLead">Free team evaluations for 5U, 8U, 9U, 10U, 13U, and 15U athletes at Top Oklahoma Prospects in Broken Arrow. No payment is required.</div></div><div class="tryoutFree"><strong>FREE</strong><span>SPRING 2027 TEAM TRYOUTS</span></div></div><div class="tryoutSchedule"><div class="tryoutDay"><h3>Saturday, November 14, 2026</h3><div class="tryoutSlot"><b>5U</b><span>9:00–10:00 AM</span></div><div class="tryoutSlot"><b>8U</b><span>10:15–11:15 AM</span></div><div class="tryoutSlot"><b>9U</b><span>11:30 AM–12:30 PM</span></div><div class="tryoutSlot"><b>10U</b><span>1:00–2:00 PM</span></div></div><div class="tryoutDay"><h3>Sunday, November 15, 2026</h3><div class="tryoutSlot"><b>13U</b><span>1:00–2:30 PM</span></div><div class="tryoutSlot"><b>15U</b><span>3:00–4:30 PM</span></div><div class="tryoutSlot"><b>Makeup</b><span>Nov. 21 by appointment</span></div></div></div><div class="tryoutMeta"><div><b>LOCATION</b><br>3804 S. Elm Pl., Suite A<br>Broken Arrow, OK</div><div><b>ARRIVAL</b><br>Check in 15 minutes before the session.</div><div><b>BRING</b><br>Glove, bat if available, and indoor athletic shoes.</div></div></section>
+<section class="panel"><div class="sectionHead"><div><div class="eyebrow">No payment required</div><div class="sectionTitle">REGISTER FOR SPRING TRYOUTS</div></div><span class="pill">FREE</span></div><form id="tryoutForm" class="tryoutForm"><div class="field"><label for="tryoutSession">Session</label><select id="tryoutSession" required><option>Loading sessions…</option></select></div><div class="field"><label for="tryoutAgeGroup">Age group</label><select id="tryoutAgeGroup" required><option>5U</option><option>8U</option><option>9U</option><option>10U</option><option>13U</option><option>15U</option></select></div><div class="field"><label for="tryoutFirstName">Athlete first name</label><input id="tryoutFirstName" autocomplete="given-name" required></div><div class="field"><label for="tryoutLastName">Athlete last name</label><input id="tryoutLastName" autocomplete="family-name" required></div><div class="field"><label for="tryoutDob">Date of birth</label><input id="tryoutDob" type="date" required></div><div class="field"><label for="tryoutPrimaryPosition">Primary position</label><input id="tryoutPrimaryPosition" required placeholder="Example: Shortstop"></div><div class="field"><label for="tryoutSecondaryPosition">Secondary position</label><input id="tryoutSecondaryPosition" placeholder="Optional"></div><div class="field"><label for="tryoutSchool">School</label><input id="tryoutSchool" required></div><div class="field"><label for="tryoutGrade">Current grade</label><input id="tryoutGrade" required placeholder="Example: 7th"></div><div class="field"><label for="tryoutTeam">Current team or free agent</label><input id="tryoutTeam" required placeholder="Team name or Free Agent"></div><div class="field spanAll"><label for="tryoutExperience">Playing experience</label><textarea id="tryoutExperience" required placeholder="Years played, level, recent teams, or relevant baseball experience"></textarea></div><div class="field"><label for="tryoutParentName">Parent / guardian name</label><input id="tryoutParentName" autocomplete="name" required></div><div class="field"><label for="tryoutEmail">Parent / guardian email</label><input id="tryoutEmail" type="email" autocomplete="email" required></div><div class="field"><label for="tryoutPhone">Parent / guardian phone</label><input id="tryoutPhone" type="tel" autocomplete="tel" required></div><div class="field" id="tryoutMakeupField" hidden><label for="tryoutPreferredTime">Preferred Nov. 21 time / contact details</label><input id="tryoutPreferredTime" placeholder="Preferred window and best time to contact you"></div><div class="field spanAll"><label for="tryoutNotes">Optional notes</label><textarea id="tryoutNotes" placeholder="Anything the owner should know before the evaluation"></textarea></div><label class="tryoutCheck spanAll"><input id="tryoutWaiver" type="checkbox" required><span><b>Required participation and medical waiver:</b> I am the athlete’s parent/legal guardian or am authorized to register the athlete. I understand baseball evaluation activities involve risk of injury, authorize emergency medical care when reasonably necessary, confirm the athlete is physically able to participate, release Prospects and the facility from claims to the extent allowed by law, and accept financial responsibility for medical care.</span></label><label class="tryoutCheck spanAll"><input id="tryoutMarketing" type="checkbox"><span><b>Optional promotional consent:</b> Send me occasional Prospects promotions by email and text. Consent is optional and not required to register. Message and data rates may apply. Reply STOP to end texts. Unsubscribe from emails anytime.</span></label><button class="bookBtn spanAll" id="tryoutSubmit" type="submit">REGISTER FOR FREE TRYOUT</button></form><div id="tryoutMessage" class="tryoutMessage" role="status" aria-live="polite"></div><div id="tryoutConfirmation" class="tryoutConfirmation" role="status" aria-live="polite" hidden></div></section>
+</div>
+
+<div id="campsView" class="view">
+<div id="campCards" class="campCards"><section class="panel"><div class="empty">CHECKING CAMP AVAILABILITY…</div></section></div>
+<section class="panel campRegister" id="campRegistrationPanel" hidden>
+  <div class="sectionHead"><div><div class="eyebrow">One athlete per submission</div><div class="sectionTitle" id="campSelectedName">CAMP REGISTRATION</div></div><button class="action" id="closeCampRegistration" type="button">CLOSE</button></div>
+  <form id="campRegistrationForm">
+    <div class="formgrid" style="margin-top:14px">
+      <div class="field span2"><label for="campAdultName">Responsible adult / parent name</label><input id="campAdultName" required autocomplete="name"></div>
+      <div class="field"><label for="campAdultEmail">Adult email</label><input id="campAdultEmail" type="email" required autocomplete="email"></div>
+      <div class="field"><label for="campAdultMobile">Adult mobile number</label><input id="campAdultMobile" type="tel" required autocomplete="tel"></div>
+      <div class="field span2"><label for="campAthleteName">Athlete name</label><input id="campAthleteName" required autocomplete="off"></div>
+      <div class="field span2"><label for="campAthleteAge">Baseball age</label><select id="campAthleteAge" required><option value="">Select age</option></select></div>
+      <div class="field span2" id="campRoleField" hidden><label for="campAthleteRole">Athlete role</label><select id="campAthleteRole"><option value="">Select role</option></select></div>
+      <div class="field span2"><label for="campEmergencyName">Emergency contact name</label><input id="campEmergencyName" required autocomplete="off"></div>
+      <div class="field span2"><label for="campEmergencyPhone">Emergency contact phone</label><input id="campEmergencyPhone" type="tel" required autocomplete="off"></div>
+      <div class="spanAll"><div class="miniLabel" id="campPaymentLabel">Payment — select a camp first</div><div class="paymentActions"><a class="payAction venmo campPayChoice" href="https://venmo.com/u/Steve-McCutcheon-3" target="_blank" rel="noopener" data-camp-pay="Venmo" id="campPayVenmo">PAY WITH VENMO</a><a class="payAction cashapp campPayChoice" href="https://cash.app/$steveandann" target="_blank" rel="noopener" data-camp-pay="Cash App" id="campPayCashApp">PAY WITH CASH APP</a><a class="payAction square campPayChoice" href="https://square.link/u/MFmFySyk?src=sheet" target="_blank" rel="noopener" data-camp-pay="Square" id="campPaySquare">SQUARE / CARD</a></div><input id="campPaymentMethod" type="hidden"><div class="campTotal" id="campPaymentTotal">Select a payment method after choosing a camp.</div></div>
+      <label class="paymentConfirm spanAll"><input id="campPaymentConfirmed" type="checkbox" required> <span>I selected the payment method above and completed payment. Prospects staff will verify payment; this submission does not mark payment verified.</span></label>
+      <div class="waiverBox"><div class="waiverTitle">FACILITY WAIVER ACKNOWLEDGMENT</div><div class="waiverIntro">The existing Oklahoma Prospects waiver applies to this camp.</div><button class="waiverLink" type="button" id="campOpenWaiver">READ FULL FACILITY WAIVER</button><label class="waiverAgree"><input id="campWaiverAccepted" type="checkbox" required> <span>I am the responsible adult/parent and acknowledge and accept the existing facility waiver for the athlete named above.</span></label></div>
+      <div class="consentBox"><label class="consentChoice"><input id="campMarketingConsent" type="checkbox"> <span>Send me occasional Prospects promotions by email and text. Consent is optional and not required to book. Message and data rates may apply. Reply STOP to end texts. Unsubscribe from emails anytime.</span></label><p class="privacyNote">This optional box starts unchecked. Reservation and safety communications still use the responsible adult’s contact information.</p></div>
+    </div>
+    <button class="bookBtn" id="campSubmit" type="submit">REGISTER ATHLETE</button><div class="message" id="campMessage" role="status" aria-live="polite"></div>
+  </form>
+</section>
+</div>
+
+<div id="membershipView" class="view">
+<section class="panel"><div class="sectionHead"><div><div class="eyebrow">Active members</div><div class="sectionTitle">CHECK MEMBERSHIP BALANCE</div></div><span class="pill">SECURE CODE</span></div><div class="memberCreditGrid" style="margin-top:12px"><div class="field"><label for="balanceMemberCode">Member Code</label><input id="balanceMemberCode" autocomplete="off" autocapitalize="characters" placeholder="TP-XXXX-XXXX"></div><button class="action" id="checkBalance" type="button">CHECK BALANCE</button></div><div id="balanceResult" class="memberBalance" role="status" aria-live="polite">Enter the code issued when the membership was activated.</div></section>
+<section class="panel membershipHero">
+  <div class="eyebrow">Train more • save more</div><div class="membershipHeadline">PROSPECTS<br>MEMBERSHIPS</div>
+  <div class="membershipLead">Monthly cage time and member discounts for athletes committed to getting better. Reservations remain subject to availability.</div>
+  <div class="membershipGrid">
+    <article class="membershipCard"><div class="membershipName">PROSPECT</div><div class="membershipPrice">$79<span>/MONTH</span></div><div class="membershipBenefits"><div>Two 1-hour cage rentals monthly</div><div>10% off additional cages</div><div>10% off private lessons</div></div><button class="bookBtn joinPlan" type="button" data-plan="Prospect">JOIN PROSPECT</button></article>
+    <article class="membershipCard featured"><div class="membershipName">ALL-STAR</div><div class="membershipPrice">$139<span>/MONTH</span></div><div class="membershipBenefits"><div>Four 1-hour cage rentals monthly</div><div>15% off additional cages and lessons</div><div>14-day priority booking</div></div><button class="bookBtn joinPlan" type="button" data-plan="All-Star">JOIN ALL-STAR</button></article>
+    <article class="membershipCard"><div class="membershipName">ELITE FAMILY</div><div class="membershipPrice">$199<span>/MONTH</span></div><div class="membershipBenefits"><div>Six 1-hour cage rentals monthly</div><div>Shared by two household athletes</div><div>20% off cages, lessons and field rentals</div></div><button class="bookBtn joinPlan" type="button" data-plan="Elite Family">JOIN ELITE FAMILY</button></article>
+  </div>
+</section>
+<section class="panel"><details class="development-catalog"><summary>Lesson + cage combos &amp; fully remote coaching</summary><p>One plan for your development. Prices below come from the current Prospects catalog.</p><div id="developmentMemberships" class="lesson-book-options" aria-live="polite"><p>Loading current plans…</p></div><p><a href="https://app.prospectsbaseball.club/pricing">Compare all development plans and ask a coach</a></p></details></section>
+<section class="panel">
+  <div class="sectionHead"><div><div class="eyebrow">Team training plans</div><div class="sectionTitle">TEAM MEMBERSHIP</div></div><span class="pill">4 VISITS MONTHLY</span></div>
+  <div class="teamMembershipRates">
+    <div class="teamMembershipRate"><strong>ONE CAGE</strong><div class="teamPlanChoice"><span><span class="teamMembershipPrice">$219/month</span> — 4 × 1-hour visits</span><button class="bookBtn joinPlan" type="button" data-plan="Team — One Cage — 4 × 1 Hour">JOIN</button></div><div class="teamPlanChoice"><span><span class="teamMembershipPrice">$329/month</span> — 4 × 90-minute visits</span><button class="bookBtn joinPlan" type="button" data-plan="Team — One Cage — 4 × 90 Minutes">JOIN</button></div><div class="teamPlanChoice"><span><span class="teamMembershipPrice">$439/month</span> — 4 × 2-hour visits</span><button class="bookBtn joinPlan" type="button" data-plan="Team — One Cage — 4 × 2 Hours">JOIN</button></div></div>
+    <div class="teamMembershipRate"><strong>TWO CAGES</strong><div class="teamPlanChoice"><span><span class="teamMembershipPrice">$399/month</span> — 4 × 1-hour visits</span><button class="bookBtn joinPlan" type="button" data-plan="Team — Two Cages — 4 × 1 Hour">JOIN</button></div><div class="teamPlanChoice"><span><span class="teamMembershipPrice">$599/month</span> — 4 × 90-minute visits</span><button class="bookBtn joinPlan" type="button" data-plan="Team — Two Cages — 4 × 90 Minutes">JOIN</button></div><div class="teamPlanChoice"><span><span class="teamMembershipPrice">$799/month</span> — 4 × 2-hour visits</span><button class="bookBtn joinPlan" type="button" data-plan="Team — Two Cages — 4 × 2 Hours">JOIN</button></div></div>
+    <div class="teamMembershipRate"><strong>FIELD / TEAM AREA</strong><div class="teamPlanChoice"><span><span class="teamMembershipPrice">$289/month</span> — 4 × 1-hour visits</span><button class="bookBtn joinPlan" type="button" data-plan="Team — Field / Team Area — 4 × 1 Hour">JOIN</button></div><div class="teamPlanChoice"><span><span class="teamMembershipPrice">$429/month</span> — 4 × 90-minute visits</span><button class="bookBtn joinPlan" type="button" data-plan="Team — Field / Team Area — 4 × 90 Minutes">JOIN</button></div><div class="teamPlanChoice"><span><span class="teamMembershipPrice">$549/month</span> — 4 × 2-hour visits</span><button class="bookBtn joinPlan" type="button" data-plan="Team — Field / Team Area — 4 × 2 Hours">JOIN</button></div></div>
+  </div>
+</section>
+<section class="panel noPrint membershipSignup" id="membershipSignup" hidden><div class="sectionHead membershipSignupHead"><div><div class="eyebrow">Start your membership</div><div class="sectionTitle">MEMBERSHIP SIGNUP</div></div><button class="action membershipClose" id="closeMembershipSignup" type="button" aria-label="Close membership signup">CLOSE</button></div>
+  <div class="lockedTotal memberLockedTotal" aria-live="polite"><div><div class="lockedTotalLabel">SELECTED PLAN</div><div id="memberPlanSummary" class="selectionSummary">Prospect membership</div></div><div><div class="lockedTotalLabel">MONTHLY TOTAL</div><div id="memberTotal" class="lockedTotalValue">$79.00</div></div></div>
+  <form id="membershipForm" class="formgrid memberForm">
+    <div class="field"><label for="memberPlan">Membership</label><select id="memberPlan" required><optgroup label="Individual &amp; Family"><option value="Prospect">Prospect — $79/month</option><option value="All-Star">All-Star — $139/month</option><option value="Elite Family">Elite Family — $199/month</option></optgroup><optgroup label="Team — One Cage"><option value="Team — One Cage — 4 × 1 Hour">4 × 1-hour visits — $219/month</option><option value="Team — One Cage — 4 × 90 Minutes">4 × 90-minute visits — $329/month</option><option value="Team — One Cage — 4 × 2 Hours">4 × 2-hour visits — $439/month</option></optgroup><optgroup label="Team — Two Cages"><option value="Team — Two Cages — 4 × 1 Hour">4 × 1-hour visits — $399/month</option><option value="Team — Two Cages — 4 × 90 Minutes">4 × 90-minute visits — $599/month</option><option value="Team — Two Cages — 4 × 2 Hours">4 × 2-hour visits — $799/month</option></optgroup><optgroup label="Team — Field / Team Area"><option value="Team — Field / Team Area — 4 × 1 Hour">4 × 1-hour visits — $289/month</option><option value="Team — Field / Team Area — 4 × 90 Minutes">4 × 90-minute visits — $429/month</option><option value="Team — Field / Team Area — 4 × 2 Hours">4 × 2-hour visits — $549/month</option></optgroup></select></div>
+    <div class="field"><label for="memberName">Member / Parent / Coach Name</label><input id="memberName" autocomplete="name" required></div>
+    <div class="field span2"><label for="memberAthletes">Athlete or Team Name(s)</label><input id="memberAthletes" placeholder="Athlete name(s) or team name" required></div>
+    <div class="field span2"><label for="memberEmail">Email</label><input id="memberEmail" type="email" autocomplete="email" required></div><div class="field span2"><label for="memberPhone">Phone</label><input id="memberPhone" type="tel" autocomplete="tel"></div>
+    <div class="field span2"><label for="memberPayment">Payment Method</label><select id="memberPayment" required><option value="">Choose payment method</option><option value="Venmo">Venmo</option><option value="Cash App">Cash App</option><option value="Square">Square / Card</option></select></div>
+    <div class="paymentActions"><div class="paymentAmounts" id="memberPaymentAmounts" aria-live="polite"><div class="paymentAmountRow"><span>Monthly membership price</span><b id="memberBasePrice">$79.00</b></div><div class="paymentAmountRow"><span>Cash App fee recovery (2.6% + $0.15)</span><b id="memberCashAppFee">$2.19</b></div><div class="paymentAmountRow total"><span>Cash App total to send</span><b id="memberCashAppTotal">$81.19</b></div><div class="paymentAmountNote" id="memberPaymentNote"></div></div><a class="payAction venmo" href="https://venmo.com/u/Steve-McCutcheon-3" target="_blank" rel="noopener" id="memberPayVenmo">PAY WITH VENMO</a><a class="payAction cashapp" href="https://cash.app/$steveandann" target="_blank" rel="noopener" id="memberPayCashApp">PAY WITH CASH APP</a><a class="payAction square" href="https://square.link/u/MFmFySyk?src=sheet" target="_blank" rel="noopener" id="memberPaySquare">SQUARE / CARD</a></div>
+    <label class="paymentConfirm"><input id="memberPaymentConfirmed" type="checkbox" required><span>I completed the first monthly membership payment using the method selected above.</span></label>
+    <label class="paymentConfirm"><input id="memberTerms" type="checkbox" required><span>I agree to monthly membership rules, the 24-hour cancellation policy, no monthly credit rollover, and completing the required facility waiver before participation.</span></label>
+    <button class="bookBtn spanAll" id="memberSubmit" type="submit">SUBMIT MEMBERSHIP</button>
+  </form><div id="memberMessage" class="message" aria-live="polite"></div>
+  <div class="memberRules"><div class="memberRule">Monthly credits expire and do not roll over.</div><div class="memberRule">Individual plans allow one credit hour per day; team plans follow the selected visit length.</div><div class="memberRule">Late cancellation or no-show loses the credit.</div><div class="memberRule">Individual memberships exclude team practices; select a team plan for team use.</div></div>
+</section>
+</div>
+
+<div id="lessonsView" class="view"><section class="panel"><div class="sectionHead"><h1>Lessons &amp; development</h1><a href="https://app.prospectsbaseball.club/pricing">Compare all plans</a> <a href="https://app.prospectsbaseball.club/coaches">Meet the coaches</a></div><p>Find your program below. Use development checkout for current instructor availability, pricing and purchase options.</p><div class="lesson-book-options">
+<article><h2>New player assessment</h2><div class="lesson-price">$149 · 75 minutes</div><p>Start standard development with a skills baseline and a written plan. Choose hitting, pitching, catching or fielding.</p><a class="bookBtn" href="https://book.prospectsbaseball.club/development/?kind=services&amp;productId=s1">BOOK AN ASSESSMENT</a></article>
+<article><h2>Youth lessons</h2><div class="lesson-price">$40 / 30 min<br>$70 / 60 min</div><p>For players 10 and under with Youth Instructors. No assessment required. Younger players may also choose standard programs.</p><a class="bookBtn" href="https://book.prospectsbaseball.club/development/?kind=services&amp;productId=youth-hitting-30">BOOK A YOUTH LESSON</a></article>
+<article><h2>Standard lessons &amp; plans</h2><div class="lesson-price">Individual or monthly</div><p>Hitting, pitching, fielding and catching. Standard lessons require a completed new player assessment. Monthly plans start with a $50 assessment/setup surcharge in month one for new players, then renew at the regular monthly price.</p><a class="bookBtn" href="https://book.prospectsbaseball.club/development/">BOOK A LESSON OR PLAN</a></article>
+</div></section></div>
+
+<div id="instructorsView" class="view">
+<section class="panel instructorsPanel">
+  <div class="instructorsEmpty">
+    <div class="instructorMarks" aria-hidden="true">
+      <span class="instructorMark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="12" cy="8" r="3.5"/><path d="M5.5 20c.7-4.1 2.9-6.2 6.5-6.2s5.8 2.1 6.5 6.2"/></svg></span>
+      <span class="instructorMark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="12" cy="8" r="3.5"/><path d="M5.5 20c.7-4.1 2.9-6.2 6.5-6.2s5.8 2.1 6.5 6.2"/></svg></span>
+      <span class="instructorMark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="12" cy="8" r="3.5"/><path d="M5.5 20c.7-4.1 2.9-6.2 6.5-6.2s5.8 2.1 6.5 6.2"/></svg></span>
+    </div>
+    <div class="eyebrow">Prospects coaching team</div>
+    <div class="instructorsTitle">MEET OUR<br>INSTRUCTORS</div>
+    <div class="instructorsCopy">Coach profiles, specialties, and experience are being prepared. Check back soon to meet the baseball and softball instructors helping Prospects athletes sharpen their game.</div>
+    <div class="instructorsComing">PROFILES COMING SOON</div>
+  </div>
+</section>
+</div>
+
+<div id="scheduleView" class="view active">
+<section class="panel noPrint" id="bookingFlow" tabindex="-1"><div class="sectionHead"><div><div class="eyebrow">Fast mobile checkout</div><div class="sectionTitle" id="formTitle">BOOK A CAGE</div></div><button type="button" class="action" id="clearForm" style="display:none">CANCEL EDIT</button></div>
+<div class="bookingSteps" aria-label="Booking progress"><button class="bookingStepTab active" type="button" data-go-step="1"><span>1</span>CHOOSE TIME</button><button class="bookingStepTab" type="button" data-go-step="2"><span>2</span>PAY</button><button class="bookingStepTab" type="button" data-go-step="3"><span>3</span>SIGN &amp; BOOK</button></div>
+<form id="form" data-booking-form="true" class="bookingFlow">
+<input type="hidden" id="editId" /><input id="price" type="hidden" readonly aria-readonly="true">
+<section class="bookingStep active" data-booking-step="1" aria-labelledby="stepOneTitle"><div class="eyebrow">Step 1 of 3</div><div class="sectionTitle" id="stepOneTitle">CHOOSE TIME</div><div class="bookingStepGrid" style="margin-top:12px">
+<div class="selectedDateCard"><div><div class="miniLabel">Selected date</div><div id="bookingDateDisplay" class="selectedDateValue"></div></div><div class="field quick-date"><label for="quickBookingDate">Change date</label><input type="date" id="quickBookingDate"></div><div class="selectionSummary">Choose your date here, or open the calendar below.</div></div>
+<fieldset class="rentalTypeField" id="rentalTypeField"><legend>Rental Type</legend><div class="rentalTypeChoices">
+<label class="rentalTypeChoice"><input type="radio" name="rentalType" value="individual" checked><span class="rentalTypeCard"><span class="rentalTypeName">Individual Cage</span><span class="rentalTypeRate">$50/hour</span></span></label>
+<label class="rentalTypeChoice"><input type="radio" name="rentalType" value="team"><span class="rentalTypeCard"><span class="rentalTypeName">Team Cage</span><span class="rentalTypeRate">$60/hour</span></span></label>
+<label class="rentalTypeChoice"><input type="radio" name="rentalType" value="field"><span class="rentalTypeCard"><span class="rentalTypeName">Open Field Area</span><span class="rentalTypeRate">$75/hour</span></span></label>
+</div></fieldset>
+<div class="field"><label for="cage">Cage / Area</label><select id="cage"></select></div>
+<div class="field"><label for="slot">Start Time</label><select id="slot"></select></div><div class="field"><label for="duration">Duration</label><select id="duration"><option value="60" selected>1 Hour</option><option value="30">30 Minutes</option><option value="90">90 Minutes</option><option value="120">2 Hours</option></select></div>
+<div id="selectionAvailability" class="availabilityCard available" role="status" aria-live="polite">Checking live availability…</div><div class="lockedTotal stepOneTotal" aria-live="polite"><div><div class="lockedTotalLabel">SELECTED RENTAL</div><div id="stepOneSelectionSummary" class="selectionSummary"></div></div><div><div class="lockedTotalLabel">TOTAL</div><div id="stepOneTotalDisplay" class="lockedTotalValue">$50.00</div></div></div></div><div class="stepActions"><span></span><button class="bookBtn" id="continueToPay" type="button" data-go-step="2">CONTINUE TO PAY</button></div></section>
+<section class="bookingStep" data-booking-step="2" aria-labelledby="stepTwoTitle"><div class="eyebrow">Step 2 of 3</div><div class="sectionTitle" id="stepTwoTitle">PAY</div>
+<div class="lockedTotal" aria-live="polite"><div><div class="lockedTotalLabel">TOTAL</div><div id="bookingSelectionSummary" class="selectionSummary"></div></div><div id="totalDisplay" class="lockedTotalValue">$50.00</div></div>
+<div class="memberCreditBox"><div class="eyebrow">Membership booking</div><div class="memberCreditGrid"><div class="field"><label for="bookingMemberCode">Member Code</label><input id="bookingMemberCode" autocomplete="off" autocapitalize="characters" placeholder="TP-XXXX-XXXX"></div><button class="action" id="validateBookingMember" type="button">VALIDATE CODE</button></div><div id="bookingMemberResult" class="memberBalance" role="status" aria-live="polite">Members can reserve an included visit here. Credits are deducted only after the visit is marked complete.</div><label class="creditChoice" id="creditChoice" hidden><input id="useMembershipCredit" type="checkbox"><span><b>Use membership credit</b><br><span id="creditChoiceText">Reserve one included visit for this booking.</span></span></label></div>
+<div class="field adminBookingOnly"><label for="paymentStatus">Payment</label><select id="paymentStatus"><option>Unpaid</option><option>Paid</option></select></div><div class="field adminBookingOnly"><label for="paymentMethod">Method</label><select id="paymentMethod"><option value="">Not selected</option><option value="Venmo">Venmo</option><option value="Cash App">Cash App</option><option value="Square">Square / Card</option><option value="Card">Card</option><option value="Other">Other</option></select></div>
+<div class="paymentActions" id="paymentActions"><div class="paymentAmounts" id="paymentAmounts" aria-live="polite"><div class="paymentAmountRow"><span>Booking price</span><b id="paymentBasePrice">$50.00</b></div><div class="paymentAmountRow"><span>Cash App fee recovery (2.6% + $0.15)</span><b id="paymentCashAppFee">$1.49</b></div><div class="paymentAmountRow total"><span>Cash App total to send</span><b id="paymentCashAppTotal">$51.49</b></div><div class="paymentAmountNote" id="paymentAmountNote"></div></div><a class="payAction venmo" href="https://venmo.com/u/Steve-McCutcheon-3" target="_blank" rel="noopener" data-pay-method="Venmo" id="payVenmo">PAY WITH VENMO</a><a class="payAction cashapp" href="https://cash.app/$steveandann" target="_blank" rel="noopener" data-pay-method="Cash App" id="payCashApp">PAY WITH CASH APP</a><button class="payAction square" type="button" id="paySquare">SQUARE / CARD</button><div class="paymentHelp" id="paymentHelp">Choose a payment method, complete payment, then return here. Venmo and Square / Card are charged at the booking price.</div><div id="paymentSelected" class="paymentSelected" aria-live="polite">NO PAYMENT METHOD SELECTED</div></div>
+<label class="paymentConfirm customerBookingOnly"><input id="paymentConfirmed" type="checkbox"> <span>I selected the payment method shown above and completed payment for this reservation.</span></label><div class="stepActions"><button class="action" type="button" data-go-step="1">BACK</button><button class="bookBtn" id="continueToSign" type="button" data-go-step="3">CONTINUE TO SIGN</button></div></section>
+<section class="bookingStep" data-booking-step="3" aria-labelledby="stepThreeTitle"><div class="eyebrow">Step 3 of 3</div><div class="sectionTitle" id="stepThreeTitle">SIGN &amp; BOOK</div><div class="formgrid" style="margin-top:12px">
+<div class="field span2"><label for="customer">Adult / Parent or Guardian Name</label><input id="customer" placeholder="Responsible adult’s full name" autocomplete="name" required></div><div class="field span2"><label for="customerEmail">Responsible Adult’s Email</label><input id="customerEmail" type="email" autocomplete="email" placeholder="adult@email.com" required></div><div class="field span2"><label for="phone">Responsible Adult’s Mobile Phone</label><input id="phone" type="tel" autocomplete="tel" inputmode="tel" placeholder="(918) 555-1234" required></div>
+<div class="waiverBox customerBookingOnly"><div class="waiverTitle">FACILITY WAIVER &amp; RELEASE — REQUIRED</div><div class="waiverIntro">Every reservation requires an electronic signature. If the athlete is under 18, a parent or legal guardian must sign.</div><button class="waiverLink" type="button" id="openWaiver">READ THE FULL WAIVER &amp; RELEASE</button><div class="waiverFields"><div class="field"><label for="participantName">Participant / Athlete Name</label><input id="participantName" autocomplete="name" placeholder="Full name" required></div><div class="field"><label for="participantType">Participant</label><select id="participantType"><option value="adult">Adult (18 or older)</option><option value="minor">Minor (under 18)</option></select></div><div class="field" id="guardianField" hidden><label for="guardianName">Parent / Legal Guardian</label><input id="guardianName" autocomplete="name" placeholder="Full legal name"></div><div class="field"><label for="signerName">Electronic Signature</label><input id="signerName" autocomplete="name" placeholder="Type signer’s full legal name" required></div></div><label class="waiverAgree"><input id="waiverAccepted" type="checkbox" required> <span>I have read and agree to the Facility Waiver &amp; Release, understand that sports training involves risk of injury, consent to this electronic signature, and confirm that I am 18 or older and legally authorized to sign for myself or the named minor.</span></label><div class="waiverLegal">Typing your name and checking this box records your electronic signature, waiver version, and acceptance time with the booking.</div></div>
+<div class="field spanAll"><label for="notes">Notes</label><textarea id="notes" placeholder="Coach, team, special instructions, etc."></textarea></div>
+<div class="consentBox customerBookingOnly"><label class="consentChoice"><input id="marketingConsent" type="checkbox"> <span>Send me occasional Prospects promotions by email and text. Consent is optional and not required to book. Message and data rates may apply. Reply STOP to end texts. Unsubscribe from emails anytime.</span></label><p class="privacyNote">We use the responsible adult’s information for this reservation and, only if selected, Prospects promotions. We do not sell it. <a href="mailto:Oklahomaprospectsbaseball@gmail.com?subject=Update%20my%20Prospects%20contact%20preferences">Request removal from promotions</a> without cancelling facility communications needed for an active reservation.</p></div></div><div class="stepActions"><button class="action" type="button" data-go-step="2">BACK</button><button class="bookBtn" type="submit" id="submitBtn">SUBMIT RESERVATION</button></div></section>
+</form><div id="message" class="message" aria-live="polite"></div></section>
+<details class="panel booking-calendar"><summary>Open monthly calendar</summary><div class="toolbar"><button id="prev">‹ PREV</button><div><div id="monthTitle" class="month"></div><button id="today" class="today">Today</button></div><button id="next">NEXT ›</button></div><div class="dow"><div>Sun</div><div>Mon</div><div>Tue</div><div>Wed</div><div>Thu</div><div>Fri</div><div>Sat</div></div><div id="calendar" class="grid"></div></details>
+<details class="panel booking-day"><summary>See reservations on this day</summary><div class="sectionHead"><div><div class="eyebrow">Selected Day</div><div id="selectedTitle" class="sectionTitle"></div></div><span id="count" class="pill">0 BOOKINGS</span></div><div id="cages" class="cards"></div></details>
+<section class="panel"><div class="sectionHead"><div class="sectionTitle">DAILY AVAILABILITY</div><button class="action noPrint" id="printBtn">PRINT DAY</button></div><div class="printOnly"><h2>Oklahoma Prospects — Daily Schedule</h2></div><div class="tableWrap publicSchedule" style="margin-top:12px"><table><thead><tr><th>TIME</th><th>CAGE / AREA</th><th>STATUS</th></tr></thead><tbody id="rows"></tbody></table></div></section>
+</div>
+<footer class="facilityFooter">
+  <div>
+    <div class="footerLabel">Visit Prospects</div>
+    <h2>Oklahoma Prospects</h2>
+    <div class="footerDetails">
+      <div>3804 S. Elm Pl., Suite A<br>Broken Arrow, OK 74011</div>
+      <div><a href="tel:+19189228114">Call/Text: (918) 922-8114</a></div>
+      <div><a href="mailto:Oklahomaprospectsbaseball@gmail.com">Oklahomaprospectsbaseball@gmail.com</a></div>
+      <div><a href="mailto:Oklahomaprospectsbaseball@gmail.com?subject=Update%20my%20Prospects%20contact%20preferences">Privacy &amp; contact preferences</a></div>
+      <div><a href="/privacy">How we measure visits — anonymous, no personal data</a></div>
+      <div><a href="https://prospectsbaseball.club/">ProspectsBaseball.club</a></div>
+    </div>
+  </div>
+  <div>
+    <div class="footerLabel">Facility Hours</div>
+    <div class="footerHours">
+      <div><strong>Monday–Friday</strong><br>4:00–8:00 PM</div>
+      <div><strong>Saturday–Sunday</strong><br>Reservations 1:00–8:00 PM</div>
+    </div>
+  </div>
+</footer>
+</main>
+
+<div class="modal" id="waiverModal"><div class="modalCard"><div class="modalHead"><div class="sectionTitle">FACILITY WAIVER &amp; RELEASE</div><button class="close" id="closeWaiver" type="button">CLOSE</button></div><div class="waiverCopy">
+<p><b>PLEASE READ CAREFULLY. THIS AGREEMENT AFFECTS LEGAL RIGHTS.</b></p>
+<h3>1. Activities and inherent risks</h3><p>I voluntarily choose to enter and participate in activities at Oklahoma Prospects, including baseball, softball, batting, pitching, throwing, catching, instruction, conditioning, cage or field rental, and use of equipment. I understand these activities involve inherent and other risks, including being struck by balls, bats or equipment; collisions; falls; equipment failure; overexertion; and serious injury, illness, disability, or death.</p>
+<h3>2. Assumption of risk</h3><p>I knowingly and voluntarily accept all risks of participation and presence at the facility, whether known or unknown, except to the extent Oklahoma law does not permit a risk to be assumed or liability to be waived.</p>
+<h3>3. Release and covenant not to sue</h3><p>To the fullest extent permitted by Oklahoma law, I release and agree not to sue Oklahoma Prospects, Prospects Baseball, and their owners, coaches, instructors, employees, agents, landlords, and affiliates for claims arising from ordinary negligence connected with the participant’s presence or activities. This release does not apply to gross negligence, reckless conduct, intentional misconduct, or any liability that cannot lawfully be released.</p>
+<h3>4. Rules, condition, and equipment</h3><p>I will follow posted rules and staff instructions, use required safety equipment, inspect equipment before use, report unsafe conditions, and stop participating if the participant is injured, ill, or not physically able. I understand supervision is not guaranteed unless instruction is specifically booked.</p>
+<h3>5. Emergency care</h3><p>If emergency care is reasonably necessary and I cannot be reached, I authorize facility staff to contact emergency services and consent to reasonable emergency treatment for the participant. I accept responsibility for resulting medical and transportation costs.</p>
+<h3>6. Minor participant</h3><p>If signing for a minor, I confirm I am the minor’s parent or legal guardian, consent to participation, acknowledge the risks, and agree to these terms on my own behalf. I understand Oklahoma law may limit the effect of a parent’s release of a minor’s own legal claims.</p>
+<h3>7. Agreement terms</h3><p>Oklahoma law governs this agreement. If one provision is unenforceable, the remaining provisions continue to the fullest extent allowed. My typed name, checked agreement box, and recorded acceptance time are intended as my electronic signature. I have had the opportunity to read this entire agreement and ask questions before signing.</p>
+</div></div></div>
+<script src="payment-fees.js"></script>
+<script src="scheduler-navigation.js"></script>
+
+<script>
+/* Google Ads completed-reservation conversion. Inlined here on purpose, and it must stay inline.
+
+   This started as its own first-party file, then moved into /site-signals.js, the neutral script
+   the scheduler already loads. Content blockers match request URLs and both names were refused:
+   the request came back ERR_BLOCKED_BY_CLIENT, window.ProspectsBookingConversion stayed undefined,
+   and a completed reservation was never reported. Code inside this page has no URL of its own to
+   block — if the page rendered at all, the conversion exists.
+
+   Reporting goes through the gtag shim in the head, which pushes into window.dataLayer. That shim
+   is inline too, so a blocked googletagmanager.com leaves the event queued in dataLayer instead of
+   losing it, and the confirmation redirect never waits on Google to answer.
+
+   It is deliberately the first statement in this script. The scheduler code below depends on
+   payment-fees.js and scheduler-navigation.js, which are also separately fetched files, so a
+   blocker refusing one of those must not be able to stop the conversion from being defined.
+
+   Anonymous visit measurement is deliberately NOT here. It stays in the optional /site-signals.js,
+   where being blocked costs nothing. Nothing below may affect a booking: every path ends with the
+   reservation intact and the customer on the confirmation page. */
+window.ProspectsBookingConversion=(function(){
+  const CONVERSION_LABEL='AW-18423856687/hGBYCJaqquwcEK_8ltFE',CONVERSION_PATH='/booking-confirmed';
+  const GUARD_KEY='prospects:booking-conversion-reported',GUARD_TTL_MS=24*60*60*1000,GUARD_MAX_ENTRIES=40;
+  const EVENT_TIMEOUT_MS=1000,NAVIGATION_TIMEOUT_MS=1200;
+  /* Same-page-view guard. The durable guard below survives reloads; this one still works when
+     storage is unavailable (private browsing, quota exceeded). */
+  const reportedThisPageView=new Set();
+  function guardStore(){try{return window.localStorage||null}catch(error){return null}}
+  /* Reads the durable guard, dropping anything older than the retention window. */
+  function readGuard(){
+    try{
+      const store=guardStore(),parsed=JSON.parse((store&&store.getItem(GUARD_KEY))||'null');
+      if(!parsed||typeof parsed!=='object')return {};
+      const cutoff=Date.now()-GUARD_TTL_MS,live={};
+      for(const id of Object.keys(parsed)){const reportedAt=Number(parsed[id]);if(Number.isFinite(reportedAt)&&reportedAt>cutoff)live[id]=reportedAt}
+      return live;
+    }catch(error){
+      return {};
+    }
+  }
+  function alreadyReported(transactionId){return reportedThisPageView.has(transactionId)||Object.prototype.hasOwnProperty.call(readGuard(),transactionId)}
+  /* Records the conversion before it is queued, so a repeat call can never emit a second event. */
+  function markReported(transactionId){
+    reportedThisPageView.add(transactionId);
+    try{
+      const guard=readGuard();
+      guard[transactionId]=Date.now();
+      const ids=Object.keys(guard).sort((a,b)=>guard[b]-guard[a]).slice(0,GUARD_MAX_ENTRIES),trimmed={};
+      for(const id of ids)trimmed[id]=guard[id];
+      const store=guardStore();
+      if(store)store.setItem(GUARD_KEY,JSON.stringify(trimmed));
+    }catch(error){
+      /* Storage unavailable: the in-page guard above still prevents a duplicate event. */
+    }
+  }
+  /* The real amount charged for the reservation, or undefined when the page has no price. An empty
+     field is "unknown", not free: Number('') would otherwise report a $0 conversion. */
+  function bookingValue(booking){
+    if(booking.price===''||booking.price===null||booking.price===undefined)return undefined;
+    const price=Number(booking.price);
+    if(!Number.isFinite(price)||price<0)return undefined;
+    return Math.round(price*100)/100;
+  }
+  /* Reports one conversion for a newly created customer reservation and owns the confirmation
+     redirect for it. Returns true only when this call took responsibility for the redirect, so the
+     caller knows whether it still has to navigate itself. */
+  function complete(outcome){
+    const source=outcome||{},booking=source.booking||{},transactionId=String(booking.submissionId||booking.id||'').trim();
+    /* 201 is a brand new reservation. A repeated submission answers 200, an edit is a PATCH, and
+       admin-created or test bookings are owner tooling — none of those are customer conversions. */
+    const isNewCustomerReservation=source.httpStatus===201&&!source.isAdmin&&!source.isEditing&&source.isTest!==true&&booking.isTest!==true&&Boolean(transactionId);
+    if(!isNewCustomerReservation||alreadyReported(transactionId))return false;
+    markReported(transactionId);
+    let navigationStarted=false;
+    const navigate=()=>{
+      if(navigationStarted)return;
+      navigationStarted=true;
+      try{window.location.assign(CONVERSION_PATH)}catch(error){/* navigation refused: the success message on the form is the remaining feedback */}
+    };
+    try{
+      const payload={send_to:CONVERSION_LABEL,currency:'USD',transaction_id:transactionId,event_callback:navigate,event_timeout:EVENT_TIMEOUT_MS},value=bookingValue(booking);
+      if(value!==undefined)payload.value=value;
+      if(typeof window.gtag==='function'){
+        window.gtag('event','conversion',payload);
+        /* The event is now queued in dataLayer. A blocked or slow Google script never calls
+           event_callback, so the redirect is also armed on a short timer. Whichever fires first
+           wins; navigate() only runs once. */
+        window.setTimeout(navigate,NAVIGATION_TIMEOUT_MS);
+      }else{
+        navigate();
+      }
+    }catch(error){
+      navigate();
+    }
+    return true;
+  }
+  return {complete:complete,confirmationPath:CONVERSION_PATH};
+})();
+const KEY='prospects-facility-manager-v2', OLD_KEY='prospects-cage-bookings-v1';
+const pad=n=>String(n).padStart(2,'0'), iso=(y,m,d)=>`${y}-${pad(m+1)}-${pad(d)}`, todayISO=()=>{const n=new Date();return iso(n.getFullYear(),n.getMonth(),n.getDate())};
+const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
+const money=n=>'$'+Number(n||0).toFixed(2), esc=s=>String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m]));
+/* Payment fees live in payment-fees.js so the scheduler, the owner console and the booking API all
+   split a price the same way. Square is deliberately fee-free here: Square applies the facility's
+   configured 3% surcharge itself, at checkout, and only to eligible credit cards — debit is never
+   surcharged. Only Cash App is grossed up, to cover Cash App Business's 2.6% + $0.15. */
+const FEES=window.ProspectsPaymentFees;
+const paymentSplit=(base,method)=>FEES.paymentTotal(base,method);
+const cashAppSplit=base=>FEES.paymentTotal(base,'Cash App');
+const amountDue=(base,method)=>FEES.chargedBookingPrice(base,method);
+const fmt=t=>{const[h,m]=t.split(':').map(Number);return `${h%12||12}:${pad(m)} ${h>=12?'PM':'AM'}`};
+const fmtDate=s=>{const[y,m,d]=s.split('-').map(Number);return new Date(y,m-1,d).toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric',year:'numeric'})};
+const overlap=(a,b,c,d)=>a<d&&b>c;
+const normalizeRentalType=(type,cages=[])=>['individual','team','field'].includes(type)?type:cages.includes('team')?'team':cages.length===2&&cages.includes(3)&&cages.includes(4)?'field':'individual';
+const rentalTypeLabel=type=>type==='team'?'Team Cage':type==='field'?'Open Field Area':'Individual Cage';
+const cageOnlyLabel=a=>a.length===2&&a.includes(3)&&a.includes(4)?'Cages 3–4':a.length>1?`Cages ${a.join(' & ')}`:`Cage ${a[0]}`;
+const cageLabel=(a,type)=>{const rentalType=normalizeRentalType(type,a);if(a.includes('team'))return'Team Cage Rental';if(rentalType==='field')return'Open Field Area (Cages 3–4)';return`${rentalTypeLabel(rentalType)} — ${cageOnlyLabel(a)}`};
+function autoPrice(cages,start,end,rentalType){const [sh,sm]=start.split(':').map(Number),[eh,em]=end.split(':').map(Number),hours=((eh*60+em)-(sh*60+sm))/60,type=normalizeRentalType(rentalType,cages);if(cages.includes('team'))return 60*hours;if(type==='field')return 75*hours;if(cages.length===2&&cages.includes(5)&&cages.includes(6))return 100*hours;return(type==='team'?60:50)*hours}
+function paid(b){return b.paymentStatus==='Paid'} function active(b){return !['Cancelled','Complete','No Show'].includes(b.status)} function priceOf(b){return Number(b.price ?? autoPrice(b.cages,b.start,b.end,b.rentalType))}
+let deviceBookings=[];try{deviceBookings=JSON.parse(localStorage.getItem(KEY)||'[]')}catch(e){}
+if(!deviceBookings.length){try{const old=JSON.parse(localStorage.getItem(OLD_KEY)||'[]');if(Array.isArray(old)&&old.length)deviceBookings=old}catch(e){}}
+deviceBookings=deviceBookings.filter(b=>b&&b.date&&b.start&&b.end&&Array.isArray(b.cages)).map(b=>({...b,id:String(b.id||Date.now()),rentalType:normalizeRentalType(b.rentalType,b.cages),customerEmail:b.customerEmail||'',phone:b.phone||'',notes:b.notes||'',participantName:b.participantName||'',participantType:b.participantType||'adult',guardianName:b.guardianName||'',signerName:b.signerName||'',waiverAccepted:b.waiverAccepted===true,waiverAcceptedAt:b.waiverAcceptedAt||'',waiverVersion:b.waiverVersion||'',paymentStatus:b.paymentStatus||'Unpaid',paymentMethod:b.paymentMethod||'',price:Number(b.price ?? autoPrice(b.cages,b.start,b.end,b.rentalType)),status:b.status||'Booked'}));
+for(const key of [KEY,OLD_KEY]){try{const stored=JSON.parse(localStorage.getItem(key)||'[]');if(Array.isArray(stored)){const scrubbed=stored.map(({customerEmail,phone,responsibleAdultName,marketingConsent,marketingConsentAt,marketingConsentText,marketingConsentVersion,marketingConsentSource,...booking})=>booking);localStorage.setItem(key,JSON.stringify(scrubbed))}}catch(e){}}
+let bookings=[], members=[], camps=[], selectedCampSlug='', adminPinSession='', validatedBookingMember=null;
+const API='/.netlify/functions/bookings', MEMBERSHIP_API='/.netlify/functions/memberships', CAMP_API='/.netlify/functions/camps';
+function rangeDates(){const now=new Date(),from=new Date(now),to=new Date(now);from.setDate(from.getDate()-90);to.setDate(to.getDate()+275);return {from:iso(from.getFullYear(),from.getMonth(),from.getDate()),to:iso(to.getFullYear(),to.getMonth(),to.getDate())}}
+async function apiRequest(method='GET',body=null,admin=false){const headers={'content-type':'application/json'};if(admin&&adminPinSession)headers['x-admin-pin']=adminPinSession;let url=API;if(method==='GET'){const r=rangeDates();url+=`?from=${r.from}&to=${r.to}`}const res=await fetch(url,{method,headers,body:body?JSON.stringify(body):undefined,cache:'no-store'});const data=await res.json().catch(()=>({}));if(!res.ok){const error=new Error(data.error||'Could not update the live schedule');error.details=data;throw error}return {...data,httpStatus:res.status}}
+async function membershipRequest(method='GET',body=null,admin=false){const headers={'content-type':'application/json'};if(admin&&adminPinSession)headers['x-admin-pin']=adminPinSession;const res=await fetch(MEMBERSHIP_API,{method,headers,body:body?JSON.stringify(body):undefined,cache:'no-store'});const data=await res.json().catch(()=>({}));if(!res.ok)throw new Error(data.error||'Membership service unavailable');return data}
+async function campRequest(method='GET',body=null){const res=await fetch(CAMP_API,{method,headers:{'content-type':'application/json'},body:body?JSON.stringify(body):undefined,cache:'no-store'});const data=await res.json().catch(()=>({}));if(!res.ok){const error=new Error(data.error||'Camp registration service unavailable.');error.code=data.code;throw error}return data}
+function campBySlug(slug){return camps.find(camp=>camp.slug===slug)}
+function campCashAppSplit(camp){return cashAppSplit(Number(camp?.priceCents||0)/100)}
+function renderCamps(){const cards=$('#campCards');if(!camps.length){cards.innerHTML='<section class="panel"><div class="empty">NO CAMPS ARE CURRENTLY OPEN FOR REGISTRATION</div></section>';return}cards.innerHTML=camps.map(camp=>`<section class="panel campCard"><div class="campBanner"><div><div class="eyebrow">${esc(camp.scheduleText||fmtDate(camp.date))}</div><div class="campName">${esc(camp.name)}</div></div><div class="campPrice"><span class="miniLabel">Per athlete</span><strong>${money(Number(camp.priceCents)/100)}</strong><span class="pill">${camp.full?'CAMP FULL':`${camp.remaining} OF ${camp.capacity} SPOTS LEFT`}</span></div></div><div class="campBody"><div class="campFacts"><div class="campFact"><b>${esc(camp.scheduleText||fmtDate(camp.date))}</b></div><div class="campFact"><b>BASEBALL AGES ${camp.ageMin}U–${camp.ageMax}U</b><br>Capacity: ${camp.capacity} athletes${camp.roleOptions?.length?'<br>Aim: six pitchers and six catchers; role choice is informational.':''}</div><div class="campFact"><b>${esc(camp.locationName)}</b><br>${esc(camp.locationAddress)}</div></div><div class="campTraining" aria-label="Camp training">${(camp.trainingItems||[]).map(item=>`<span>${esc(item).toUpperCase()}</span>`).join('')}</div><button class="bookBtn" type="button" data-camp-register="${esc(camp.slug)}" ${camp.full?'disabled':''}>${camp.full?'CAMP FULL':'REGISTER'}</button><div class="campContact">Questions? Call or text <a href="tel:+19189228114">${esc(camp.contactPhone)}</a> or email <a href="mailto:${esc(camp.contactEmail)}">${esc(camp.contactEmail)}</a>.</div></div></section>`).join('')}
+async function loadCamps(){try{const data=await campRequest();camps=data.camps||[];renderCamps()}catch(error){$('#campCards').innerHTML='<section class="panel"><div class="empty">CAMP AVAILABILITY COULD NOT LOAD. PLEASE REFRESH OR CALL 918-922-8114.</div></section>';$('#campMessage').textContent='Camp availability could not load. Please refresh or call 918-922-8114.'}}
+function updateCampPaymentMessage(camp,method=''){const base=Number(camp.priceCents)/100,cashApp=campCashAppSplit(camp);$('#campPaymentLabel').textContent=`Payment — camp price is ${money(base)} per athlete`;$('#campPayVenmo').textContent=`PAY ${money(base)} WITH VENMO`;$('#campPayCashApp').textContent=`PAY ${money(cashApp.total)} WITH CASH APP`;$('#campPaySquare').textContent=`SQUARE / CARD — ${money(base)}`;$('#campPaymentTotal').textContent=method==='Cash App'?`Cash App selected: send ${money(cashApp.total)} — ${money(base)} camp price + ${money(cashApp.feeRecovery)} Cash App fee recovery. ${FEES.CASH_APP_FEE_NOTE}`:method==='Square'?`Square / Card selected: ${money(base)}. ${FEES.SQUARE_CHECKOUT_NOTE}`:method?`${method} selected: ${money(base)}. ${FEES.NO_FEE_NOTE}`:`Select a payment method. Venmo and Square / Card are ${money(base)}; Cash App is ${money(cashApp.total)}, which covers the ${money(cashApp.feeRecovery)} Cash App fee so the camp price arrives in full.`}
+function openCampRegistration(camp){selectedCampSlug=camp.slug;$('#campRegistrationForm').reset();$('#campSelectedName').textContent=camp.name.toUpperCase();$('#campAthleteAge').innerHTML=`<option value="">Select ${camp.ageMin}U–${camp.ageMax}U</option>`+Array.from({length:camp.ageMax-camp.ageMin+1},(_,index)=>camp.ageMin+index).map(age=>`<option value="${age}">${age}U</option>`).join('');const roles=Array.isArray(camp.roleOptions)?camp.roleOptions:[],roleField=$('#campRoleField'),roleSelect=$('#campAthleteRole');roleField.hidden=!roles.length;roleSelect.required=Boolean(roles.length);roleSelect.innerHTML='<option value="">Select role</option>'+roles.map(role=>`<option value="${esc(role)}">${esc(role)}</option>`).join('');$('#campPaymentMethod').value='';document.querySelectorAll('[data-camp-pay]').forEach(item=>item.classList.remove('selected'));updateCampPaymentMessage(camp);$('#campMessage').textContent='';$('#campRegistrationPanel').hidden=false;$('#campRegistrationPanel').scrollIntoView({behavior:'smooth',block:'start'});setTimeout(()=>$('#campAdultName').focus(),350)}
+async function checkMemberCode(code){const res=await fetch(`${MEMBERSHIP_API}?code=${encodeURIComponent(code)}`,{cache:'no-store'}),data=await res.json().catch(()=>({}));if(!res.ok)throw new Error(data.error||'Member code could not be validated');return data.member}
+function memberBalanceHtml(member){const period=member.period?`${member.period.start} through ${member.period.end}`:'Not active';return `<strong>${esc(member.plan)}</strong><br>Status: ${esc(member.status)} • Period: ${esc(period)}<br>Used: ${member.used??0} • Reserved: ${member.reserved??0} • Remaining: <strong>${member.remaining??0}</strong>${member.athletes?.length?`<br>Eligible: ${member.athletes.map(esc).join(', ')}`:''}`}
+$('#checkBalance').onclick=async()=>{const result=$('#balanceResult');result.textContent='Checking membership…';try{const member=await checkMemberCode($('#balanceMemberCode').value);result.innerHTML=memberBalanceHtml(member)}catch(error){result.textContent='⚠ '+error.message.toUpperCase()}}
+$('#validateBookingMember').onclick=async()=>{const result=$('#bookingMemberResult');result.textContent='Checking membership…';try{validatedBookingMember=await checkMemberCode($('#bookingMemberCode').value);result.innerHTML=memberBalanceHtml(validatedBookingMember);$('#creditChoice').hidden=false;$('#useMembershipCredit').checked=validatedBookingMember.status==='Active'&&validatedBookingMember.remaining>0;updateMemberPaymentState();updateBookingSummary()}catch(error){validatedBookingMember=null;$('#creditChoice').hidden=true;result.textContent='⚠ '+error.message.toUpperCase();updateMemberPaymentState();updateBookingSummary()}}
+function memberDiscountPercent(){if(!validatedBookingMember||validatedBookingMember.status!=='Active'||validatedBookingMember.plan.startsWith('Team —'))return 0;const field=['team','field'].includes(selectedRentalType());if(field&&validatedBookingMember.plan!=='Elite Family')return 0;return validatedBookingMember.plan==='Prospect'?10:validatedBookingMember.plan==='All-Star'?15:validatedBookingMember.plan==='Elite Family'?20:0}
+function updateMemberPaymentState(){const credit=$('#useMembershipCredit').checked&&validatedBookingMember;$('#paymentActions').classList.toggle('creditSelected',Boolean(credit));$('#paymentConfirmed').required=!credit;if(credit){$('#paymentConfirmed').checked=false;$('#paymentSelected').textContent='MEMBERSHIP CREDIT SELECTED — NO PAYMENT DUE'}else if($('#paymentSelected').textContent.includes('MEMBERSHIP CREDIT'))$('#paymentSelected').textContent='NO PAYMENT METHOD SELECTED'}
+$('#useMembershipCredit').onchange=()=>{updateMemberPaymentState();updateBookingSummary()};
+async function loadMembers(){if(!adminUnlocked)return;try{const data=await membershipRequest('GET',null,true);members=data.members||[];renderAdminMembers()}catch(e){const msg=$('#adminMemberMessage');if(msg)msg.textContent='⚠ MEMBERSHIPS COULD NOT LOAD'}}
+async function migrateDeviceBookings(){if(!deviceBookings.length||sessionStorage.getItem('prospects-live-migrated'))return;for(const b of deviceBookings){try{await apiRequest('POST',b,false)}catch(e){if(!/already booked/i.test(e.message))console.warn(e)}}sessionStorage.setItem('prospects-live-migrated','1')}
+let liveAvailabilityReady=false;
+async function loadBookings(admin=adminUnlocked){try{const data=await apiRequest('GET',null,admin);const dev=await fetch('/.netlify/functions/development-booking?from=2020-01-01&to=2100-01-01');if(!dev.ok)throw new Error('Lesson availability unavailable');const development=await dev.json();data.bookings=[...(data.bookings||[]),...development.reservations.map((b,i)=>({id:'development-'+i,date:b.date,start:b.start,end:b.end,cages:b.resources.map(Number),customer:'Reserved lesson',status:'Booked',paymentStatus:'Reserved',development:true}))];liveAvailabilityReady=true;bookings=(data.bookings||[]).map(b=>({...b,rentalType:normalizeRentalType(b.rentalType,b.cages),customer:b.customer||'Reserved',customerEmail:b.customerEmail||'',phone:b.phone||'',notes:b.notes||'',paymentStatus:b.paymentStatus||'Unpaid',paymentMethod:b.paymentMethod||'',status:b.status||'Booked'}));render()}catch(e){liveAvailabilityReady=false;render();$('#message').textContent='⚠ LIVE AVAILABILITY COULD NOT LOAD. PLEASE REFRESH.';const rows=$('#rows');if(rows)rows.innerHTML='<tr><td colspan="3">LIVE AVAILABILITY UNAVAILABLE</td></tr>';}}
+let selected=todayISO(), currentMonth=new Date();currentMonth=new Date(currentMonth.getFullYear(),currentMonth.getMonth(),1);
+const weekdayBaseSlots=[['16:00','16:30'],['16:30','17:00'],['17:00','17:30'],['17:30','18:00'],['18:00','18:30'],['18:30','19:00'],['19:00','19:30'],['19:30','20:00']];
+const weekendBaseSlots=[['13:00','13:30'],['13:30','14:00'],['14:00','14:30'],['14:30','15:00'],['15:00','15:30'],['15:30','16:00'],['16:00','16:30'],['16:30','17:00'],['17:00','17:30'],['17:30','18:00'],['18:00','18:30'],['18:30','19:00'],['19:00','19:30'],['19:30','20:00']];
+function addMinutes(time,mins){const[h,m]=time.split(':').map(Number),total=h*60+m+mins;return `${String(Math.floor(total/60)).padStart(2,'0')}:${String(total%60).padStart(2,'0')}`}
+function slotsFor(dateStr,duration=Number($('#duration')?.value||60)){const[y,m,d]=dateStr.split('-').map(Number),dow=new Date(y,m-1,d).getDay(),base=(dow===0||dow===6)?weekendBaseSlots:weekdayBaseSlots,close='20:00';return base.map(([start])=>[start,addMinutes(start,duration)]).filter(([,end])=>end<=close)}
+let slots=slotsFor(selected,60);
+function hoursLabel(dateStr){const[y,m,d]=dateStr.split('-').map(Number),dow=new Date(y,m-1,d).getDay();return (dow===0||dow===6)?'Reservations 1:00–8:00 PM':'Open 4:00–8:00 PM'}
+function refreshSlots(){const duration=Number($('#duration')?.value||60);slots=slotsFor(selected,duration);const el=$('#slot');if(!el)return;const keep=el.value;el.innerHTML=slots.map(([s,e])=>`<option value="${s}-${e}">${fmt(s)}–${fmt(e)}</option>`).join('');if([...el.options].some(o=>o.value===keep))el.value=keep;updatePrice()}
+function save(){const localBookings=bookings.map(({customerEmail,phone,responsibleAdultName,marketingConsent,marketingConsentAt,marketingConsentText,marketingConsentVersion,marketingConsentSource,...booking})=>booking);localStorage.setItem(KEY,JSON.stringify(localBookings))}
+let adminUnlocked=false;
+const schedulerNavigation=ProspectsSchedulerNavigation.create({bindInteractions:false,onActivate:id=>{if(id==='todayView')renderToday()}});
+function setView(id,options){return schedulerNavigation.activate(id,options)}
+window.setView=setView;
+/* Anonymous visit and funnel measurement. /site-signals.js is a separate first-party file that a
+   content blocker can still refuse to load, so every call goes through this wrapper. A missing,
+   blocked, or throwing tracker returns false and changes nothing about the booking — no error
+   message, no retry, no altered UX. */
+function signal(eventName,detail){
+  try{
+    const tracker=window.ProspectsVisitInsights;
+    if(tracker&&typeof tracker.track==='function')return tracker.track(eventName,detail)===true;
+  }catch(error){
+    /* measurement only */
+  }
+  return false;
+}
+/* Delegated and capture-phase so it observes the existing handlers rather than replacing them.
+   A click is used instead of the navigation callback because that callback also fires during
+   startup, when BOOK A CAGE is already the active view and nobody has clicked anything. */
+document.addEventListener('click',event=>{
+  try{
+    if(event.target.closest('[data-view="scheduleView"],[data-activate-view="scheduleView"],[data-book-today]'))signal('book_cage_click');
+  }catch(error){
+    /* measurement only */
+  }
+},true);
+document.querySelectorAll('.tab').forEach(tab=>{tab.onclick=()=>setView(tab.dataset.view,{forceScroll:true})});
+document.querySelectorAll('[data-activate-view]').forEach(trigger=>{trigger.onclick=event=>{if(trigger.tagName==='A')event.preventDefault();setView(trigger.dataset.activateView,{forceScroll:true})}});
+$('#campCards').onclick=event=>{const button=event.target.closest('[data-camp-register]');if(!button)return;const camp=campBySlug(button.dataset.campRegister);if(camp&&!camp.full)openCampRegistration(camp)};
+$('#closeCampRegistration').onclick=()=>{$('#campRegistrationPanel').hidden=true;$('#campMessage').textContent=''};
+$('#campOpenWaiver').onclick=()=>$('#waiverModal').classList.add('open');
+document.querySelectorAll('[data-camp-pay]').forEach(choice=>choice.addEventListener('click',()=>{const camp=campBySlug(selectedCampSlug);if(!camp)return;document.querySelectorAll('[data-camp-pay]').forEach(item=>item.classList.toggle('selected',item===choice));$('#campPaymentMethod').value=choice.dataset.campPay;updateCampPaymentMessage(camp,choice.dataset.campPay)}));
+$('#campRegistrationForm').onsubmit=async event=>{event.preventDefault();const camp=campBySlug(selectedCampSlug),button=$('#campSubmit'),message=$('#campMessage');if(!camp){message.textContent='Select a camp before registering.';return}if(!$('#campPaymentMethod').value){message.textContent='Select Venmo, Cash App, or Square / Card before registering.';return}const body={campSlug:camp.slug,responsibleAdultName:$('#campAdultName').value,adultEmail:$('#campAdultEmail').value,adultMobile:$('#campAdultMobile').value,athleteName:$('#campAthleteName').value,athleteAge:Number($('#campAthleteAge').value),athleteRole:$('#campAthleteRole').value,emergencyContactName:$('#campEmergencyName').value,emergencyContactPhone:$('#campEmergencyPhone').value,waiverAccepted:$('#campWaiverAccepted').checked,paymentMethod:$('#campPaymentMethod').value,paymentConfirmed:$('#campPaymentConfirmed').checked,marketingConsent:$('#campMarketingConsent').checked};button.disabled=true;button.textContent='CHECKING CAPACITY…';message.textContent='';try{await campRequest('POST',body);event.target.reset();$('#campPaymentMethod').value='';document.querySelectorAll('[data-camp-pay]').forEach(item=>item.classList.remove('selected'));updateCampPaymentMessage(camp);message.textContent=`Registration received for ${camp.name}. Your athlete’s place is reserved while Prospects verifies payment.`;await loadCamps()}catch(error){message.textContent=error.code==='full'?'This camp is full. No registration was created.':error.code==='duplicate'?'This athlete already has an active registration for this camp with this adult contact.':error.message}finally{button.disabled=false;button.textContent='REGISTER ATHLETE'}};
+function renderCalendar(){const y=currentMonth.getFullYear(),m=currentMonth.getMonth();$('#monthTitle').textContent=currentMonth.toLocaleDateString('en-US',{month:'long',year:'numeric'}).toUpperCase();const first=new Date(y,m,1),start=first.getDay(),days=new Date(y,m+1,0).getDate(),prevDays=new Date(y,m,0).getDate();const cal=$('#calendar');cal.innerHTML='';for(let i=0;i<42;i++){let day,cm=m,cy=y,muted=false;if(i<start){day=prevDays-start+i+1;cm=m-1;muted=true;if(cm<0){cm=11;cy--}}else if(i>=start+days){day=i-start-days+1;cm=m+1;muted=true;if(cm>11){cm=0;cy++}}else day=i-start+1;const date=iso(cy,cm,day),db=bookings.filter(b=>b.date===date&&active(b)&&b.status!=='Complete');const el=document.createElement('button');el.className='day'+(muted?' muted':'')+(date===selected?' selected':'');el.dataset.date=date;el.innerHTML=`<div class="num">${day}</div>${db.length?`<div class="badge">${db.length} booked</div><div class="small">${[...new Set(db.flatMap(x=>x.cages))].map(c=>'C'+c).join(' • ')}</div>`:'<div class="small">Open</div>'}`;cal.appendChild(el)}}
+function cageCardHTML(c,day,bookingShortcut=false){if(!liveAvailabilityReady)return `<div class="cage"><b>${c===3||c===4?"FIELD":"CAGE"} ${c}</b><p>Live availability not loaded</p></div>`;const cb=day.filter(b=>b.cages.includes(c)&&active(b)&&b.status!=='Complete');const field=c===3||c===4,label=field?`FIELD ${c}`:`CAGE ${c}`,shortcut=bookingShortcut&&!cb.length?`<button class="cageShortcut" type="button" data-book-today="${c}">${field?'BOOK FIELD AREA':`BOOK CAGE ${c}`}</button>`:'';return `<div class="cage"><div class="cageTop"><b>${label}</b><span class="status">${cb.length?'BOOKED / UNAVAILABLE':'AVAILABLE'}</span></div>${cb.length?cb.map(b=>`<div class="booking"><b>${fmt(b.start)}–${fmt(b.end)}</b><div class="customer">BOOKED / UNAVAILABLE</div></div>`).join(''):`<div style="margin-top:9px;font-size:13px"><b>AVAILABLE</b><br><span style="opacity:.72">${hoursLabel(selected)}</span></div>`}${shortcut}</div>`}
+function renderDay(){const day=bookings.filter(b=>b.date===selected).sort((a,b)=>a.start.localeCompare(b.start));$('#selectedTitle').textContent=fmtDate(selected).toUpperCase();$('#count').textContent=`${day.length} BOOKING${day.length===1?'':'S'}`;$('#cages').innerHTML=[1,2,3,4,5,6,7].map(c=>cageCardHTML(c,day)).join('');const rows=$('#rows');if(!day.length){rows.innerHTML='<tr><td colspan="3" class="empty">'+(liveAvailabilityReady?'ALL TIMES AVAILABLE':'LIVE AVAILABILITY NOT LOADED')+'</td></tr>';return}rows.innerHTML=day.map(b=>`<tr><td><b>${fmt(b.start)}–${fmt(b.end)}</b></td><td><b>${cageLabel(b.cages,b.rentalType)}</b></td><td><b>BOOKED / UNAVAILABLE</b></td></tr>`).join('')}
+function renderToday(){const d=todayISO(),day=bookings.filter(b=>b.date===d&&active(b)).sort((a,b)=>a.start.localeCompare(b.start));$('#todayDate').textContent=fmtDate(d);$('#todayCount').textContent=`${day.length} BOOKING${day.length===1?'':'S'}`;$('#todayList').innerHTML=day.length?day.map(b=>`<div class="todayItem"><div class="todayTime">${fmt(b.start)}<br><span class="small">to ${fmt(b.end)}</span></div><div><div class="todayCustomer">${cageLabel(b.cages,b.rentalType)}</div></div><span class="statusPill">BOOKED / UNAVAILABLE</span></div>`).join(''):'<div class="empty">'+(liveAvailabilityReady?'ALL TIMES AVAILABLE TODAY':'LIVE AVAILABILITY NOT LOADED')+'</div>';$('#todayCages').innerHTML=[1,2,3,4,5,6,7].map(c=>cageCardHTML(c,day,true)).join('')}
+function openTodayBooking(cage){selected=todayISO();const[y,m]=selected.split('-').map(Number);currentMonth=new Date(y,m-1,1);const field=cage===3||cage===4,rentalType=field?'field':'individual',value=field?'3,4':String(cage),choice=$(`input[name="rentalType"][value="${rentalType}"]`);if(choice)choice.checked=true;updateCageOptions(value);refreshSlots();render();setView('scheduleView',{scroll:false});showBookingStep(1,$('#rentalTypeField'))}
+$('#todayCages').onclick=event=>{const shortcut=event.target.closest('[data-book-today]');if(shortcut)openTodayBooking(Number(shortcut.dataset.bookToday))};
+function renderAdminBookings(){const list=$('#adminBookingList');if(!list)return;if(!adminUnlocked){list.innerHTML='';return}const ordered=bookings.filter(active).sort((a,b)=>(a.date+a.start).localeCompare(b.date+b.start));list.innerHTML=ordered.length?ordered.map(b=>`<div class="manageBookingRow"><div><div class="manageBookingName">${esc(b.customer)} — ${cageLabel(b.cages,b.rentalType)}</div><div class="manageBookingMeta">${fmtDate(b.date)} • ${fmt(b.start)}–${fmt(b.end)} • ${money(priceOf(b))} • ${paid(b)?'PAID':'UNPAID'}</div></div><div class="manageBookingActions"><button class="action" type="button" data-admin-edit="${b.id}">EDIT</button><button class="action removeBooking" type="button" data-admin-remove="${b.id}">REMOVE / CANCEL</button></div></div>`).join(''):'<div class="manageEmpty">NO BOOKINGS TO MANAGE</div>'}
+function renderAdminMembers(){const list=$('#adminMemberList');if(!list)return;if(!adminUnlocked){list.innerHTML='';return}const rank={Pending:0,Active:1,Paused:2,Cancelled:3},ordered=[...members].sort((a,b)=>(rank[a.status]??9)-(rank[b.status]??9)||String(b.joinedAt).localeCompare(String(a.joinedAt)));list.innerHTML=ordered.length?ordered.map(m=>`<div class="manageBookingRow"><div><div class="manageBookingName">${esc(m.memberName)} — ${esc(m.plan)}</div><div class="manageBookingMeta">Athlete(s): ${esc(m.athleteNames)}<br>${esc(m.email)}${m.phone?' • '+esc(m.phone):''}<br>${money(m.price)}/month • ${esc(m.paymentMethod)} • <span class="memberStatus ${esc(m.status)}">${esc(m.status).toUpperCase()}</span></div></div><div class="manageBookingActions"><button class="action" type="button" data-member-status="${m.id}" data-status="${m.status==='Active'?'Paused':'Active'}">${m.status==='Active'?'PAUSE':'ACTIVATE'}</button><button class="action removeBooking" type="button" data-member-remove="${m.id}">REMOVE</button></div></div>`).join(''):'<div class="manageEmpty">NO MEMBERSHIPS YET</div>'}
+function renderRevenue(){const act=bookings.filter(active),day=act.filter(b=>b.date===selected),ym=selected.slice(0,7),mon=act.filter(b=>b.date.startsWith(ym));const sum=a=>a.reduce((t,b)=>t+priceOf(b),0),sumPaid=a=>sum(a.filter(paid));$('#dayRevenue').textContent=money(sum(day));$('#dayCollected').textContent=money(sumPaid(day));$('#monthRevenue').textContent=money(sum(mon));$('#monthCollected').textContent=money(sumPaid(mon));$('#totalRevenue').textContent=money(sum(act));$('#totalCollected').textContent=money(sumPaid(act));$('#outstanding').textContent=money(sum(act)-sumPaid(act));$('#completedCount').textContent=String(act.filter(b=>b.status==='Complete').length);const monthly={};act.forEach(b=>{const k=b.date.slice(0,7);monthly[k]||(monthly[k]={booked:0,paid:0,count:0});monthly[k].booked+=priceOf(b);monthly[k].paid+=paid(b)?priceOf(b):0;monthly[k].count++});const max=Math.max(1,...Object.values(monthly).map(x=>x.booked));$('#monthBreakdown').innerHTML=Object.keys(monthly).sort().reverse().slice(0,12).map(k=>{const [y,m]=k.split('-').map(Number),label=new Date(y,m-1,1).toLocaleDateString('en-US',{month:'long',year:'numeric'}),x=monthly[k];return `<div class="reportBox"><b>${label}</b><div class="small">${x.count} rental${x.count===1?'':'s'}</div><div style="margin-top:8px">Booked <b>${money(x.booked)}</b> • Collected <b>${money(x.paid)}</b></div><div class="bar"><i style="width:${Math.round(x.booked/max*100)}%"></i></div></div>`}).join('')||'<div class="empty">NO REVENUE YET</div>';const methods={};act.filter(paid).forEach(b=>{const k=b.paymentMethod||'Unspecified';methods[k]=(methods[k]||0)+priceOf(b)});$('#paymentBreakdown').innerHTML=Object.entries(methods).sort((a,b)=>b[1]-a[1]).map(([k,v])=>`<div class="reportBox"><b>${esc(k)}</b><div class="moneyValue">${money(v)}</div></div>`).join('')||'<div class="empty">NO PAID RENTALS YET</div>'}
+function render(){const quick=document.getElementById('quickBookingDate');if(quick)quick.value=selected;renderCalendar();renderDay();renderToday();updateBookingSummary()}
+$('#calendar').onclick=e=>{const b=e.target.closest('[data-date]');if(!b)return;selected=b.dataset.date;const[y,m]=selected.split('-').map(Number);currentMonth=new Date(y,m-1,1);refreshSlots();render();};$('#prev').onclick=()=>{currentMonth=new Date(currentMonth.getFullYear(),currentMonth.getMonth()-1,1);renderCalendar()};$('#next').onclick=()=>{currentMonth=new Date(currentMonth.getFullYear(),currentMonth.getMonth()+1,1);renderCalendar()};$('#today').onclick=()=>{selected=todayISO();const[y,m]=selected.split('-').map(Number);currentMonth=new Date(y,m-1,1);refreshSlots();render()};
+refreshSlots();
+function selectedRentalType(){return $('input[name="rentalType"]:checked')?.value||'individual'}
+function updateCageOptions(preferred=''){const type=selectedRentalType(),cage=$('#cage'),singleCages=[['1','Cage 1'],['2','Cage 2'],['5','Cage 5'],['6','Cage 6'],['7','Cage 7']],options=type==='field'?[['3,4','Cages 3–4 field area — $75/hr']]:type==='team'?singleCages:[...singleCages,['5,6','Cages 5 & 6 — $100/hr']];cage.innerHTML=options.map(([value,label])=>`<option value="${value}">${label}</option>`).join('');if(options.some(([value])=>value===preferred))cage.value=preferred}
+function selectedCages(){return $('#cage').value.split(',').map(Number)}
+function selectionIsAvailable(){if(!liveAvailabilityReady)return false;const [start,end]=$('#slot').value.split('-'),cages=selectedCages(),editing=$('#editId').value||null;return !bookings.some(b=>String(b.id)!==String(editing)&&b.date===selected&&active(b)&&b.cages.some(c=>cages.includes(c))&&overlap(start,end,b.start,b.end))}
+function selectedPaymentMethod(){return $('#paymentMethod')?.value||''}
+/* Rows are filled in before any payment link is opened, so the exact Cash App amount is on screen
+   first. Nothing is added for Venmo or Square / Card, and the panel disappears with the payment
+   buttons when a membership credit covers the visit. */
+function updatePaymentAmounts(base){const panel=$('#paymentAmounts');if(!panel)return;const cashApp=cashAppSplit(base);panel.hidden=!(base>0);$('#paymentBasePrice').textContent=money(base);$('#paymentCashAppFee').textContent=money(cashApp.feeRecovery);$('#paymentCashAppTotal').textContent=money(cashApp.total);$('#paymentAmountNote').textContent=FEES.CASH_APP_FEE_NOTE;$('#payVenmo').textContent=`PAY ${money(base)} WITH VENMO`;$('#payCashApp').textContent=`PAY ${money(cashApp.total)} WITH CASH APP`;$('#paySquare').textContent=`SQUARE / CARD — ${money(base)}`}
+function paymentHelpText(method,base){if(method==='Cash App')return `Cash App selected: send ${money(cashAppSplit(base).total)} to $steveandann. ${FEES.CASH_APP_FEE_NOTE}`;if(method==='Square')return `Square / Card selected: ${money(base)}. ${FEES.SQUARE_CHECKOUT_NOTE}`;if(method)return `${method==='Venmo'?'Venmo':method} selected: ${money(base)}. ${FEES.NO_FEE_NOTE}`;return `Choose a payment method, complete payment, then return here. Venmo and Square / Card are charged at the booking price.`}
+function updateBookingSummary(){const slot=$('#slot');if(!slot||!slot.value)return;const [start,end]=slot.value.split('-'),cages=selectedCages(),rentalType=selectedRentalType(),standard=autoPrice(cages,start,end,rentalType),usingCredit=$('#useMembershipCredit')?.checked&&validatedBookingMember,discount=usingCredit?100:memberDiscountPercent(),total=standard*(1-discount/100),available=selectionIsAvailable(),summary=`${fmtDate(selected)} • ${cageLabel(cages,rentalType)} • ${fmt(start)}–${fmt(end)}${discount&&!usingCredit?` • ${discount}% member rate`:''}`;const method=usingCredit?'Membership Credit':selectedPaymentMethod();$('#price').value=amountDue(total,method).toFixed(2);updatePaymentAmounts(usingCredit?0:total);$('#paymentHelp').textContent=usingCredit?'Membership credit covers this visit. No payment is due.':paymentHelpText(method,total);$('#totalDisplay').textContent=usingCredit?'CREDIT':money(total);$('#stepOneTotalDisplay').textContent=usingCredit?'CREDIT':money(total);$('#bookingDateDisplay').textContent=fmtDate(selected);$('#bookingSelectionSummary').textContent=summary;$('#stepOneSelectionSummary').textContent=summary;const status=$('#selectionAvailability');status.className=`availabilityCard ${available?'available':'unavailable'}`;status.textContent=!liveAvailabilityReady?'CHECKING AVAILABILITY — wait for the live schedule before continuing.':available?`AVAILABLE — ${cageLabel(cages,rentalType)} is open ${fmt(start)}–${fmt(end)}.`:`UNAVAILABLE — This space overlaps an existing reservation. Choose another time or area.`;$('#continueToPay').disabled=!available}
+function updatePrice(){updateBookingSummary()}updateCageOptions();$('#slot').onchange=updatePrice;$('#duration').onchange=()=>{refreshSlots();render()};$('#cage').onchange=updatePrice;$$('input[name="rentalType"]').forEach(input=>input.onchange=()=>{updateCageOptions();updatePrice()});updatePrice();
+$$('input[name="rentalType"]').forEach(input=>input.addEventListener('change',()=>signal('rental_type_select',{rentalType:input.value})));
+$('#cage').addEventListener('change',()=>signal('space_select',{rentalType:selectedRentalType(),spaceLabel:$('#cage').value}));
+let bookingStep=1;
+function showBookingStep(step,scrollTarget=$('#bookingFlow')){bookingStep=step;$$('[data-booking-step]').forEach(section=>section.classList.toggle('active',Number(section.dataset.bookingStep)===step));$$('.bookingStepTab').forEach(tab=>{const tabStep=Number(tab.dataset.goStep);tab.classList.toggle('active',tabStep===step);tab.classList.toggle('complete',tabStep<step);tab.setAttribute('aria-current',tabStep===step?'step':'false')});scrollTarget.scrollIntoView({behavior:'smooth',block:'start'});if(step===3)signal('booking_start')}
+function requestBookingStep(step){if(step>bookingStep&&bookingStep===1&&!selectionIsAvailable()){$('#message').textContent='⚠ CHOOSE AN AVAILABLE TIME BEFORE CONTINUING.';updateBookingSummary();return}const usingCredit=$('#useMembershipCredit').checked&&validatedBookingMember;if(step>bookingStep&&bookingStep===2&&!adminUnlocked&&!usingCredit&&(!$('#paymentMethod').value||!$('#paymentConfirmed').checked)){$('#message').textContent='⚠ CHOOSE A PAYMENT METHOD AND CONFIRM PAYMENT BEFORE CONTINUING.';return}$('#message').textContent='';showBookingStep(step)}
+$$('[data-go-step]').forEach(button=>button.addEventListener('click',()=>requestBookingStep(Number(button.dataset.goStep))));
+const BOOKING_SUBMISSION_KEY='prospects:booking-submission';
+function newSubmissionId(){return window.crypto&&window.crypto.randomUUID?window.crypto.randomUUID():`booking-${Date.now()}-${Math.random().toString(16).slice(2,12)}`}
+function readBookingSubmission(){try{const stored=JSON.parse(sessionStorage.getItem(BOOKING_SUBMISSION_KEY)||'null');return stored&&typeof stored.id==='string'&&stored.id?{id:stored.id,completed:stored.completed===true}:null}catch(err){return null}}
+function writeBookingSubmission(value){try{sessionStorage.setItem(BOOKING_SUBMISSION_KEY,JSON.stringify(value))}catch(err){/* storage unavailable: the in-memory id still guards this page view */}}
+/* One submission id per reservation attempt, persisted for this tab. A refresh part way through the
+   request reuses it, so the retry is recognised by the server instead of booking a second cage. A
+   submission that already succeeded is retired on the next page load so the form stays usable. */
+let bookingSubmission=readBookingSubmission();
+if(!bookingSubmission||bookingSubmission.completed)bookingSubmission={id:newSubmissionId(),completed:false};
+writeBookingSubmission(bookingSubmission);
+let bookingInFlight=false;
+function startNewBookingSubmission(){bookingSubmission={id:newSubmissionId(),completed:false};writeBookingSubmission(bookingSubmission)}
+function resetSubmitButton(){const btn=$('#submitBtn');btn.disabled=false;btn.textContent=$('#editId').value?'SAVE CHANGES':'SUBMIT RESERVATION'}
+function clearForm(){$('#form').reset();validatedBookingMember=null;$('#creditChoice').hidden=true;$('#bookingMemberResult').textContent='Members can reserve an included visit here. Credits are deducted only after the visit is marked complete.';$('#paymentActions').classList.remove('creditSelected');$('#editId').value='';$('#duration').value='60';$('#paymentStatus').value='Unpaid';$('#formTitle').textContent='BOOK A CAGE';$('#submitBtn').textContent='SUBMIT RESERVATION';$('#clearForm').style.display='none';$('#paymentSelected').textContent='NO PAYMENT METHOD SELECTED';updateGuardianField();updateCageOptions();refreshSlots();updatePrice();showBookingStep(1);$('#message').textContent=''}$('#clearForm').onclick=()=>{startNewBookingSubmission();clearForm();resetSubmitButton()};
+const BOOKING_CONFIRMATION_PATH='/booking-confirmed',BOOKING_REDIRECT_FALLBACK_MS=250;
+/* Completed-reservation reporting is optional; the reservation itself is not. The conversion helper
+   is inlined above and so cannot be blocked, but the call into it stays guarded all the same: a
+   throwing helper must not surface an error beside a reservation that actually succeeded, and the
+   plain confirmation redirect below is the fallback if it ever declines to own the navigation. */
+function reportBookingSuccess(outcome){
+  /* Same guarantee as below, one layer earlier: a new customer reservation only. The wrapper is
+     already guarded, and this second guard means even a broken wrapper cannot throw back into the
+     submit handler, where it would show an error beside a reservation that actually succeeded. */
+  try{
+    if(outcome.httpStatus===201&&!outcome.isAdmin&&!outcome.isEditing){
+      signal('booking_complete',{
+        rentalType:outcome.booking?.rentalType||'',
+        spaceLabel:Array.isArray(outcome.booking?.cages)?outcome.booking.cages.join(','):'',
+        dedupeKey:outcome.booking?.submissionId||'',
+      });
+    }
+  }catch(error){
+    /* measurement only */
+  }
+  let helperOwnsRedirect=false;
+  try{
+    const tracker=window.ProspectsBookingConversion;
+    if(tracker&&typeof tracker.complete==='function')helperOwnsRedirect=tracker.complete(outcome)===true;
+  }catch(error){
+    helperOwnsRedirect=false;
+  }
+  if(helperOwnsRedirect)return;
+  /* Only a brand new customer reservation gets the confirmation page: admin bookings and edits stay
+     in the owner view, and anything other than a 201 was not a newly created reservation. */
+  if(outcome.httpStatus!==201||outcome.isAdmin||outcome.isEditing)return;
+  window.setTimeout(()=>{try{window.location.assign(BOOKING_CONFIRMATION_PATH)}catch(error){/* navigation refused */}},BOOKING_REDIRECT_FALLBACK_MS);
+}
+$('#form').onsubmit=async e=>{
+  e.preventDefault();
+  if(bookingInFlight||bookingSubmission.completed)return;
+  const usingCredit=!adminUnlocked&&$('#useMembershipCredit').checked&&validatedBookingMember;
+  if(!selectionIsAvailable()){$('#message').textContent='⚠ THAT TIME IS NO LONGER AVAILABLE. CHOOSE ANOTHER TIME.';showBookingStep(1);return}
+  if(!adminUnlocked&&!usingCredit&&!$('#paymentMethod').value){$('#message').textContent='⚠ CHOOSE A PAYMENT METHOD BEFORE BOOKING.';showBookingStep(2);return}
+  if(!adminUnlocked&&!usingCredit&&!$('#paymentConfirmed').checked){$('#message').textContent='⚠ CONFIRM THAT PAYMENT IS COMPLETE BEFORE BOOKING.';showBookingStep(2);return}
+  if(!adminUnlocked&&(!$('#participantName').value.trim()||!$('#signerName').value.trim()||!$('#waiverAccepted').checked)){$('#message').textContent='⚠ READ AND SIGN THE FACILITY WAIVER BEFORE BOOKING.';return}
+  if(!adminUnlocked&&$('#participantType').value==='minor'&&!$('#guardianName').value.trim()){$('#message').textContent='⚠ A PARENT OR LEGAL GUARDIAN MUST SIGN FOR A MINOR.';return}
+  const btn=$('#submitBtn'),[start,end]=$('#slot').value.split('-'),cages=selectedCages(),editing=$('#editId').value||null,id=editing||bookingSubmission.id,customer=$('#customer').value.trim(),prior=editing?bookings.find(b=>String(b.id)===String(editing)):null;
+  const data={id,date:selected,start,end,cages,rentalType:selectedRentalType(),customer,responsibleAdultName:customer,customerEmail:$('#customerEmail').value.trim(),phone:$('#phone').value.trim(),marketingConsent:!adminUnlocked&&$('#marketingConsent').checked,notes:$('#notes').value.trim(),participantName:adminUnlocked?(prior?.participantName||''):$('#participantName').value.trim(),participantType:adminUnlocked?(prior?.participantType||'adult'):$('#participantType').value,guardianName:adminUnlocked?(prior?.guardianName||''):$('#guardianName').value.trim(),signerName:adminUnlocked?(prior?.signerName||''):$('#signerName').value.trim(),waiverAccepted:adminUnlocked?(prior?.waiverAccepted===true):true,waiverAcceptedAt:adminUnlocked?(prior?.waiverAcceptedAt||''):new Date().toISOString(),waiverVersion:adminUnlocked?(prior?.waiverVersion||''):'2026-08-31',price:Number($('#price').value),paymentStatus:adminUnlocked?$('#paymentStatus').value:usingCredit?'Membership Credit':'Paid',paymentMethod:usingCredit?'Membership Credit':$('#paymentMethod').value,status:editing?(prior?.status||'Booked'):'Booked',memberCode:validatedBookingMember&&(usingCredit||memberDiscountPercent())?$('#bookingMemberCode').value:'',useMembershipCredit:Boolean(usingCredit),submissionId:bookingSubmission.id};
+  bookingInFlight=true;
+  btn.disabled=true;
+  btn.textContent='CHECKING AVAILABILITY…';
+  try{
+    const result=await apiRequest(editing?'PATCH':'POST',data,adminUnlocked);
+    await loadBookings(adminUnlocked);
+    const holdDisabled=!adminUnlocked&&!editing;
+    clearForm();
+    $('#message').textContent=editing?'✓ BOOKING UPDATED':result.membershipCreditReserved?'✓ RESERVATION CONFIRMED — MEMBERSHIP CREDIT RESERVED UNTIL COMPLETION':result.alertSent?'✓ BOOKING CONFIRMED — WAIVER SIGNED, EMAIL & REMINDERS SCHEDULED':'✓ CAGE RESERVED — WAIVER SIGNED';
+    if(holdDisabled){
+      /* Customer reservation succeeded. The button stays disabled through the confirmation redirect
+         so a second click or a resend cannot create another booking. */
+      bookingSubmission={id:bookingSubmission.id,completed:true};
+      writeBookingSubmission(bookingSubmission);
+      btn.disabled=true;
+      btn.textContent='RESERVATION SUBMITTED';
+    }else{
+      /* Owner tool: a fresh id for the next reservation, never a reuse of the one just written. */
+      startNewBookingSubmission();
+      resetSubmitButton();
+    }
+    reportBookingSuccess({booking:data,httpStatus:result.httpStatus,isAdmin:adminUnlocked,isEditing:Boolean(editing)});
+  }catch(err){
+    if(err.details?.offerPayment){$('#useMembershipCredit').checked=false;updateMemberPaymentState();updateBookingSummary();showBookingStep(2)}
+    $('#message').textContent='⚠ '+err.message.toUpperCase();
+    if(/already booked/i.test(err.message))showBookingStep(1);
+    /* Retrying keeps the same submission id, so a request that actually landed is not duplicated. */
+    resetSubmitButton();
+  }finally{
+    bookingInFlight=false;
+  }
+};
+function updateGuardianField(){const minor=$('#participantType').value==='minor';$('#guardianField').hidden=!minor;$('#guardianName').required=minor}$('#participantType').onchange=updateGuardianField;updateGuardianField();$('#openWaiver').onclick=()=>$('#waiverModal').classList.add('open');$('#closeWaiver').onclick=()=>$('#waiverModal').classList.remove('open');$('#waiverModal').onclick=e=>{if(e.target===$('#waiverModal'))$('#waiverModal').classList.remove('open')};
+const membershipPrices={Prospect:79,'All-Star':139,'Elite Family':199,'Team — One Cage — 4 × 1 Hour':219,'Team — One Cage — 4 × 90 Minutes':329,'Team — One Cage — 4 × 2 Hours':439,'Team — Two Cages — 4 × 1 Hour':399,'Team — Two Cages — 4 × 90 Minutes':599,'Team — Two Cages — 4 × 2 Hours':799,'Team — Field / Team Area — 4 × 1 Hour':289,'Team — Field / Team Area — 4 × 90 Minutes':429,'Team — Field / Team Area — 4 × 2 Hours':549};
+function updateMembershipTotal(){const plan=$('#memberPlan').value,base=Number(membershipPrices[plan]||0),cashApp=cashAppSplit(base),method=$('#memberPayment').value;$('#memberTotal').textContent=money(base);$('#memberPlanSummary').textContent=plan;$('#memberBasePrice').textContent=money(base);$('#memberCashAppFee').textContent=money(cashApp.feeRecovery);$('#memberCashAppTotal').textContent=money(cashApp.total);$('#memberPayVenmo').textContent=`PAY ${money(base)} WITH VENMO`;$('#memberPayCashApp').textContent=`PAY ${money(cashApp.total)} WITH CASH APP`;$('#memberPaySquare').textContent=`SQUARE / CARD — ${money(base)}`;$('#memberPaymentNote').textContent=method==='Cash App'?`Cash App selected: send ${money(cashApp.total)} so the ${money(base)} membership price arrives in full. ${FEES.CASH_APP_FEE_NOTE}`:method==='Square'?`Square / Card selected: ${money(base)} per month. ${FEES.SQUARE_CHECKOUT_NOTE}`:method?`${method} selected: ${money(base)} per month. ${FEES.NO_FEE_NOTE}`:`Venmo and Square / Card are ${money(base)} per month; Cash App is ${money(cashApp.total)}, which covers the Cash App fee.`}
+function openMembershipSignup(plan){$('#memberPlan').value=plan;updateMembershipTotal();$('#membershipSignup').hidden=false;setView('membershipView');requestAnimationFrame(()=>$('#membershipSignup').scrollIntoView({behavior:'smooth',block:'start'}))}
+document.querySelectorAll('.joinPlan').forEach(btn=>btn.onclick=()=>openMembershipSignup(btn.dataset.plan));
+$('#memberPlan').onchange=updateMembershipTotal;$('#memberPayment').onchange=updateMembershipTotal;$('#closeMembershipSignup').onclick=()=>{$('#membershipSignup').hidden=true;$('#memberMessage').textContent=''};updateMembershipTotal();
+$('#membershipView .venmo').onclick=()=>{$('#memberPayment').value='Venmo';updateMembershipTotal()};$('#membershipView .cashapp').onclick=()=>{$('#memberPayment').value='Cash App';updateMembershipTotal()};$('#membershipView .square').onclick=()=>{$('#memberPayment').value='Square';updateMembershipTotal()};
+$('#membershipForm').onsubmit=async e=>{e.preventDefault();const btn=$('#memberSubmit'),data={plan:$('#memberPlan').value,memberName:$('#memberName').value.trim(),athleteNames:$('#memberAthletes').value.trim(),email:$('#memberEmail').value.trim(),phone:$('#memberPhone').value.trim(),paymentMethod:$('#memberPayment').value,paymentConfirmed:$('#memberPaymentConfirmed').checked,termsAccepted:$('#memberTerms').checked};btn.disabled=true;btn.textContent='SUBMITTING…';try{await membershipRequest('POST',data,false);e.target.reset();$('#memberMessage').textContent='✓ MEMBERSHIP RECEIVED — COACH STEVE WILL VERIFY PAYMENT AND ACTIVATE IT.'}catch(err){$('#memberMessage').textContent='⚠ '+err.message.toUpperCase()}finally{btn.disabled=false;btn.textContent='SUBMIT MEMBERSHIP'}};
+function choosePayment(method,status){
+  const pm=$('#paymentMethod'), ps=$('#paymentStatus');
+  if(pm) pm.value=method;
+  if(ps && status) ps.value=status;
+  const selectedPayment=$('#paymentSelected');
+  if(selectedPayment) selectedPayment.textContent=`${(method==='Square'?FEES.SQUARE_METHOD_LABEL:method).toUpperCase()} SELECTED`;
+  /* Re-prices the reservation for the chosen method, so the hidden price field and the help text
+     both carry the amount that is actually being paid. */
+  updateBookingSummary();
+}
+document.querySelectorAll('[data-pay-method]').forEach(a=>{
+  a.addEventListener('click',()=>choosePayment(a.dataset.payMethod,'Unpaid'));
+});
+const paySquareBtn=$('#paySquare');
+if(paySquareBtn) paySquareBtn.addEventListener('click',()=>{
+  choosePayment('Square','Unpaid');
+  window.open('https://square.link/u/MFmFySyk?src=sheet','_blank','noopener');
+});
+
+$('#printBtn').onclick=()=>window.print();
+render();
+const quickDate=document.getElementById('quickBookingDate');quickDate.value=selected;quickDate.min=todayISO();quickDate.addEventListener('change',()=>{if(!quickDate.value)return;selected=quickDate.value;const [year,month]=selected.split('-').map(Number);currentMonth=new Date(year,month-1,1);refreshSlots();render();});
+(async()=>{await Promise.all([migrateDeviceBookings(),loadCamps()]);await loadBookings(false)})();
+setInterval(()=>{if(!document.hidden){loadBookings(adminUnlocked);loadCamps()}},30000);
+</script>
+<script type="module" src="tryouts.js"></script>
+<script src="/development-catalog.js" defer></script></body></html>
+
+

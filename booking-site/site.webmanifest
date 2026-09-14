@@ -1,0 +1,21 @@
+{
+  "name": "Oklahoma Oklahoma Prospects",
+  "short_name": "Oklahoma Prospects",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0b1720",
+  "theme_color": "#0b1720",
+  "icons": [
+    {
+      "src": "prospects-logo.png",
+      "sizes": "180x180",
+      "type": "image/png"
+    },
+    {
+      "src": "prospects-logo.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
