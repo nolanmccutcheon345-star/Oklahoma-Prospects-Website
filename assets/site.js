@@ -46,6 +46,7 @@ matchMedia("(min-width:961px)").addEventListener("change", (event) => {
 });
 const validAges = [
   "5U",
+  "7U",
   "8U",
   "9U",
   "10U",
