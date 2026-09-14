@@ -14,7 +14,7 @@ const parts = Object.fromEntries(
 const groups = {
   "/training": ["/training", "/recruiting"],
   "/teams": ["/teams", "/tryouts", "/roster", "/schedule"],
-  "/visit": ["/visit", "/waiver", "/parents", "/contact", "/memberships"],
+  "/visit": ["/visit", "/waiver", "/parents", "/contact", "/memberships", "/members", "/check-in"],
 };
 function currentLinks(markup, route) {
   return markup.replace(/<a href="(\/[^"#?]*)">/g, (tag, href) => {
@@ -35,6 +35,7 @@ function replacePart(html, name, markup, legacy) {
 }
 let count = 0;
 for (const file of readdirSync(root).filter((file) => file.endsWith(".html"))) {
+  if (["book.html", "booking-confirmed.html"].includes(file)) continue;
   const route = file === "index.html" ? "/" : `/${file.replace(".html", "")}`;
   let html = readFileSync(join(root, file), "utf8");
   html = html.replace(/<div class="utility">[\s\S]*?<\/div>\s*<\/div>\s*/, "");

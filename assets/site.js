@@ -142,3 +142,43 @@ document.querySelectorAll("[data-hold-form]").forEach((form) => {
     confirmEl.scrollIntoView({ behavior: "smooth", block: "start" });
   });
 });
+
+(function(){
+  const KEY='prospectsClub';
+  function read(){try{return JSON.parse(localStorage.getItem(KEY)||'null')}catch{return null}}
+  function write(v){try{localStorage.setItem(KEY, JSON.stringify(v))}catch{}}
+  const saved=read();
+  if(saved){
+    document.querySelectorAll('input[autocomplete="name"],input[name="name"],input[name="adult-name"],#customer,#club-name').forEach(el=>{if(el && !el.value && saved.name) el.value=saved.name});
+    document.querySelectorAll('input[type="tel"],input[name="phone"],input[name="adult-phone"],#phone,#club-phone').forEach(el=>{if(el && !el.value && saved.phone) el.value=saved.phone});
+    document.querySelectorAll('input[type="email"],input[name="email"],input[name="adult-email"],#customerEmail,#club-email').forEach(el=>{if(el && !el.value && saved.email) el.value=saved.email});
+    const code=document.querySelector('#club-code, #bookingMemberCode');
+    if(code && !code.value && saved.memberCode) code.value=saved.memberCode;
+    const status=document.querySelector('#member-status');
+    if(status) status.textContent='Signed in on this site as '+saved.name+'.';
+    document.body.dataset.clubRole=saved.role||'parent';
+  }
+  const form=document.querySelector('#club-account-form');
+  if(form){
+    if(saved){
+      form.name.value=saved.name||'';
+      form.phone.value=saved.phone||'';
+      form.email.value=saved.email||'';
+      form.memberCode.value=saved.memberCode||'';
+      form.role.value=saved.role||'parent';
+    }
+    form.addEventListener('submit', (e)=>{
+      e.preventDefault();
+      const next={
+        name: form.name.value.trim(),
+        phone: form.phone.value.trim(),
+        email: form.email.value.trim(),
+        memberCode: form.memberCode.value.trim(),
+        role: form.role.value
+      };
+      write(next);
+      const status=document.querySelector('#member-status');
+      if(status) status.textContent='Signed in on this site as '+next.name+'.';
+    });
+  }
+})();

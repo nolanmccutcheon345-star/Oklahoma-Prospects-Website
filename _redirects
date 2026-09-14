@@ -16,3 +16,6 @@
 /check-in /check-in.html 200
 /checkin /check-in.html 200
 /uniforms /uniforms.html 200
+/members /members.html 200
+/booking-confirmed /booking-confirmed.html 200
+/account /members.html 200

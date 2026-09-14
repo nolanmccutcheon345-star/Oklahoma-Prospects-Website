@@ -1,16 +1,21 @@
 {
   "name": "Oklahoma Prospects",
-  "short_name": "Prospects",
+  "short_name": "Oklahoma Prospects",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#0b1720",
-  "theme_color": "#0b1720",
+  "theme_color": "#071b31",
   "icons": [
     {
       "src": "/assets/prospects-crest-transparent.png",
-      "sizes": "1254x1254",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/assets/prospects-crest-transparent.png",
+      "sizes": "512x512",
       "type": "image/png",
-      "purpose": "any"
+      "purpose": "any maskable"
     }
   ]
 }
