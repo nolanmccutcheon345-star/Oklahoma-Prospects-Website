@@ -4,6 +4,26 @@ Scope: [prospectsbaseball.club](https://prospectsbaseball.club) marketing site.
 Booking, the player development portal, and hosted family tools are linked,
 not rebuilt here.
 
+## Redirects (one club hostname)
+
+Live today:
+
+| Host | What families get |
+| --- | --- |
+| prospectsbaseball.club | this site |
+| www.prospectsbaseball.club | 301 → prospectsbaseball.club |
+| book.prospectsbaseball.club (any path) | 301 → /book on the club site |
+| app.prospectsbaseball.club (any path) | 301 → /training on the club site |
+
+Those 301s are in `booking-site/_redirects` and
+`booking-site/development/_redirects`. Leave them. A deploy of the old
+booking HTML without those files would bring the split-brand sites back.
+
+To send **all** of this traffic to the phone app instead: publish the app,
+then replace the destinations with that public host (force 301, keep the path
+with `:splat` on the club domain). Do not point the club domain at a URL that
+is not live — that takes the site down.
+
 ## Session 2 (conversion)
 
 Shipped on this repository:
@@ -22,9 +42,7 @@ Shipped on this repository:
 - `/visit` and `/thanks` ask for a real Google review after a clean first visit
   (no fake ratings). Homepage schema includes reserved hours.
 
-
 Not invented: reviews, ratings, extra coach bios, alumni, or roster fees.
-
 
 ## Session 3 (stay in one site)
 
@@ -50,7 +68,6 @@ Not invented: reviews, ratings, extra coach bios, alumni, or roster fees.
   production (`npx netlify deploy --prod` below, or wait for auto-deploy).
 - Publish the phone app (this marketing site is not the PWA).
 
-
 ## Editing
 
 Edit `_includes/` for chrome, then `node scripts/build.mjs`.
@@ -67,4 +84,4 @@ Keep self-hosted fonts and license files.
 The live calendar at book.prospectsbaseball.club lives in `booking-site/`.
 It is the same reservation/payment engine, restyled to **Oklahoma Prospects**.
 Deploy that folder to Netlify site `6198a086-0140-492b-98a5-086771a2029b`.
-Do not publish it as the marketing site.
+Do not publish it as the marketing site. Keep the 301 in `_redirects`.

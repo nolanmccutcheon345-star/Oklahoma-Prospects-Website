@@ -1,1 +1,4 @@
-/booking-confirmed /booking-confirmed.html 200
+# book.prospectsbaseball.club — every path, including the old scheduler,
+# lands on the one club book page. Do not splat; those URLs do not exist
+# on the club site. Force so leftover HTML cannot win.
+/*  https://prospectsbaseball.club/book  301!

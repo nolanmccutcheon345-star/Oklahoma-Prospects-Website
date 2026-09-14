@@ -1,3 +1,12 @@
+# Oklahoma Prospects — one public hostname.
+# book.prospectsbaseball.club and app.prospectsbaseball.club already 301
+# onto this site. Do not send this site somewhere else until the phone
+# app is published; then replace the 200 rewrites with:
+# /*  https://PUBLISHED-APP-HOST/:splat  301!
+
+# Never leave families on the Netlify subdomain.
+https://oklahoma-prospects.netlify.app/*  https://prospectsbaseball.club/:splat  301!
+
 /roster /roster.html 200
 /recruiting /recruiting.html 200
 /facility /facility.html 200

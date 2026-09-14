@@ -1,11 +1,12 @@
-# Oklahoma Prospects — booking engine
+# Oklahoma Prospects — booking host (redirect only)
 
-This folder is the restyled live booking + development checkout
-currently served at book.prospectsbaseball.club.
+This folder is no longer the live booking engine.
+`book.prospectsbaseball.club` 301s every path to
+https://prospectsbaseball.club/book so families stay on one club site.
 
-Public chrome is Oklahoma Prospects (same navy / maroon / powder as
-the marketing site). Payment, schedule, and Square/Venmo logic is
-unchanged.
+`development/_redirects` does the same for `app.prospectsbaseball.club`
+→ https://prospectsbaseball.club/training.
 
-Deploy to existing Netlify site `6198a086-0140-492b-98a5-086771a2029b`
-(book.prospectsbaseball.club). Publish directory: this folder.
+Do not redeploy the old scheduler without those 301s — that would split
+the brand again. When the phone app is published, change the destination
+to that public URL (keep the force 301).
