@@ -19,6 +19,9 @@ Shipped on this repository:
 - `/training` lesson SKUs: youth $40/$70, assessment $149.
 - Card-first payment note on the homepage rate block.
 - Footer install copy. Memberships footer link stays on this domain.
+- `/visit` and `/thanks` ask for a real Google review after a clean first visit
+  (no fake ratings). Homepage schema includes reserved hours.
+
 
 Not invented: reviews, ratings, extra coach bios, alumni, or roster fees.
 
@@ -31,7 +34,10 @@ Not invented: reviews, ratings, extra coach bios, alumni, or roster fees.
   Prospects; card as the default pay button; Venmo/Cash App secondary with
   “come back to confirm.”
 - Move the actual waiver/check-in/uniform *forms* onto this domain.
-- Connect this GitHub repo to Netlify if it is not already, then deploy.
+- Connect this GitHub repo to Netlify if it is not already, then deploy
+  production (`npx netlify deploy --prod` below, or wait for auto-deploy).
+- Publish the phone app (this marketing site is not the PWA).
+
 
 ## Editing
 

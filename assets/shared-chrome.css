@@ -643,3 +643,177 @@ html {
     min-height: 0;
   }
 }
+
+
+/* Session 2 — memberships, FAQ, first-visit, people */
+.membership-section {
+  background: var(--navy);
+  color: #f4f8fb;
+  padding-block: 48px;
+}
+.membership-section h2 {
+  font-size: clamp(2.2rem, 4vw, 3.4rem);
+  margin-bottom: 12px;
+}
+.membership-section .lead {
+  max-width: 640px;
+  color: #d1e1eb;
+  margin-bottom: 28px;
+  line-height: 1.55;
+}
+.plan-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+}
+.plan-card {
+  background: var(--ink);
+  border: 1px solid #9ed8f344;
+  padding: 22px;
+  min-height: 260px;
+}
+.plan-card.featured {
+  background: var(--maroon);
+  border-color: transparent;
+}
+.plan-card .eyebrow {
+  color: var(--powder);
+  margin-bottom: 8px;
+}
+.plan-card h3 {
+  font-size: 1.8rem;
+  color: var(--powder);
+  margin-bottom: 8px;
+}
+.plan-card .price {
+  font-size: 2.6rem;
+  font-weight: 800;
+  line-height: 1;
+}
+.plan-card .price span {
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: #d1e1eb;
+}
+.plan-card .hourly {
+  color: var(--powder);
+  margin-top: 10px;
+  font-size: 0.9375rem;
+}
+.plan-card p {
+  color: #d1e1eb;
+  font-size: 0.9375rem;
+  line-height: 1.5;
+  margin-top: 8px;
+}
+.plan-card ul {
+  margin: 14px 0 0;
+  padding: 0;
+  list-style: none;
+  color: #d1e1eb;
+  font-size: 0.875rem;
+}
+.plan-card li + li {
+  margin-top: 6px;
+}
+.faq-section,
+.people-section {
+  padding-block: 48px;
+}
+.faq-list details {
+  border-bottom: 1px solid var(--line);
+  padding-block: 16px;
+}
+.faq-list summary {
+  cursor: pointer;
+  font-weight: 700;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+.faq-list details p {
+  margin: 10px 0 0;
+  color: var(--muted);
+  line-height: 1.55;
+}
+.checklist {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 12px;
+}
+.checklist li {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 16px;
+  padding: 16px 18px;
+  border: 1px solid var(--line);
+  background: white;
+  border-top: 4px solid var(--maroon);
+}
+.checklist strong {
+  display: block;
+  font-size: 1.15rem;
+  margin-bottom: 4px;
+}
+.checklist .n {
+  font-size: 1.8rem;
+  color: var(--maroon);
+  font-weight: 800;
+  line-height: 1;
+}
+.people-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+}
+.people-card {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-height: 88px;
+  padding: 18px;
+  border: 1px solid var(--line);
+  text-decoration: none;
+  background: white;
+}
+.people-card span {
+  display: block;
+  color: var(--muted);
+  font-size: 0.875rem;
+}
+.people-card strong {
+  font-size: 1.25rem;
+}
+.pay-note {
+  margin-top: 16px;
+  font-size: 0.875rem;
+  color: var(--muted);
+  line-height: 1.55;
+}
+.sku-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+  margin-top: 24px;
+}
+.sku-card {
+  border: 1px solid var(--line);
+  border-top: 4px solid var(--maroon);
+  padding: 20px;
+  background: white;
+}
+.sku-card h3 {
+  font-size: 1.6rem;
+  margin-bottom: 8px;
+}
+@media (max-width: 760px) {
+  .plan-grid,
+  .people-grid,
+  .sku-grid {
+    grid-template-columns: 1fr;
+  }
+}

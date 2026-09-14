@@ -14,7 +14,7 @@ const parts = Object.fromEntries(
 const groups = {
   "/training": ["/training", "/recruiting"],
   "/teams": ["/teams", "/tryouts", "/roster", "/schedule"],
-  "/visit": ["/visit", "/waiver", "/parents", "/contact"],
+  "/visit": ["/visit", "/waiver", "/parents", "/contact", "/memberships"],
 };
 function currentLinks(markup, route) {
   return markup.replace(/<a href="(\/[^"#?]*)">/g, (tag, href) => {
@@ -62,15 +62,15 @@ for (const file of readdirSync(root).filter((file) => file.endsWith(".html"))) {
   );
   html = html.replace(
     /(<link\s+rel="stylesheet"\s+href="\/assets\/style\.css[^\"]*"\s*\/?>)/,
-    '<link rel="stylesheet" href="/assets/brand-tokens.css?v=7" />\n$1',
+    '<link rel="stylesheet" href="/assets/brand-tokens.css?v=8" />\n$1',
   );
   html = html.replace(
     "</head>",
-    '<link rel="stylesheet" href="/assets/shared-chrome.css?v=7" />\n</head>',
+    '<link rel="stylesheet" href="/assets/shared-chrome.css?v=8" />\n</head>',
   );
   html = html.replace(
     /\/assets\/(style\.css|prospects-brand\.css|site\.js)(?:\?v=\d+)?/g,
-    "/assets/$1?v=7",
+    "/assets/$1?v=8",
   );
   // Normalize the club's public name without changing any service URLs.
   html = html.replace(/Oklahoma Prospects\s+Baseball/g, "Oklahoma Prospects");
@@ -84,14 +84,7 @@ for (const file of readdirSync(root).filter((file) => file.endsWith(".html"))) {
     /Sat–Sun · 1–8 PM by reservation/g,
     "Sat–Sun 1:00–8:00 PM by reservation",
   );
-  html = html.replace(
-    /https:\/\/prospects-waiver-checkin\.stevemccutcheon89\.chatgpt\.site\/check-in/g,
-    "/visit",
-  );
-  html = html.replace(
-    /https:\/\/prospects-waiver-checkin\.stevemccutcheon89\.chatgpt\.site/g,
-    "/waiver",
-  );
+  // Official waiver/check-in form URLs stay on branded /waiver and /visit pages.
   // Preserve existing deep booking destinations while keeping all Book links same-tab.
   html = html.replace(
     /<a\b[^>]*href="https:\/\/book\.prospectsbaseball\.club\/[^\"]*"[^>]*>/g,

@@ -55,11 +55,11 @@
       href="/assets/prospects-crest-transparent.png"
     />
     <link rel="manifest" href="/site.webmanifest" />
-    <link rel="stylesheet" href="/assets/brand-tokens.css?v=7" />
-<link rel="stylesheet" href="/assets/style.css?v=7" />
-    <script src="/assets/site.js?v=7" defer></script>
-    <link rel="stylesheet" href="/assets/prospects-brand.css?v=7" />
-    <link rel="stylesheet" href="/assets/shared-chrome.css?v=7" />
+    <link rel="stylesheet" href="/assets/brand-tokens.css?v=8" />
+<link rel="stylesheet" href="/assets/style.css?v=8" />
+    <script src="/assets/site.js?v=8" defer></script>
+    <link rel="stylesheet" href="/assets/prospects-brand.css?v=8" />
+    <link rel="stylesheet" href="/assets/shared-chrome.css?v=8" />
 </head>
   <body class="club-home">
     <a class="skip-link" href="#main">Skip to content</a>
@@ -78,7 +78,21 @@
           "addressRegion": "OK",
           "postalCode": "74011",
           "addressCountry": "US"
-        }
+        },
+        "openingHoursSpecification": [
+          {
+            "@type": "OpeningHoursSpecification",
+            "dayOfWeek": ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"],
+            "opens": "16:00",
+            "closes": "20:00"
+          },
+          {
+            "@type": "OpeningHoursSpecification",
+            "dayOfWeek": ["Saturday", "Sunday"],
+            "opens": "13:00",
+            "closes": "20:00"
+          }
+        ]
       }
     </script>
     <!-- shared-header:start -->
@@ -227,9 +241,9 @@
             </article>
           </div>
           <p class="note">
-            Hourly base rates. Choose your duration and payment method in
-            checkout to see the exact total. Reservations are subject to live
-            availability.
+            Hourly base rates. Card is the fastest way to hold the lane. Venmo
+            and Cash App work, but you must return to confirm. 24-hour cancel.
+            Softball trains here too — Lane 7 is dual-use.
           </p>
         </div>
       </section>
@@ -258,6 +272,103 @@
               loading="lazy"
               decoding="async"
             />
+          </div>
+        </div>
+      </section>
+
+      <section class="membership-section" aria-labelledby="membership-title">
+        <div class="wrap">
+          <p class="eyebrow">Train more · save more</p>
+          <h2 id="membership-title">Most families should not drop in.</h2>
+          <p class="lead">
+            Two hours a month already beats Prospect math. Four hours a month is
+            All-Star — about $35 an hour, with priority booking. Drop-in is for
+            the one-off.
+          </p>
+          <div class="plan-grid">
+            <article class="plan-card">
+              <h3>Prospect</h3>
+              <p class="price">$79<span>/ month</span></p>
+              <p class="hourly">$39.50 / included hour</p>
+              <p>One athlete · two sessions a month</p>
+              <ul>
+                <li>Two 1-hour cage rentals included</li>
+                <li>10% off extra cages and lessons</li>
+              </ul>
+            </article>
+            <article class="plan-card featured">
+              <p class="eyebrow">Most families</p>
+              <h3>All-Star</h3>
+              <p class="price">$139<span>/ month</span></p>
+              <p class="hourly">$34.75 / included hour</p>
+              <p>The weekly trainer</p>
+              <ul>
+                <li>Four 1-hour cage rentals included</li>
+                <li>15% off cages and lessons</li>
+                <li>14-day priority booking</li>
+              </ul>
+            </article>
+            <article class="plan-card">
+              <h3>Elite Family</h3>
+              <p class="price">$199<span>/ month</span></p>
+              <p class="hourly">$33.17 / included hour</p>
+              <p>Two household athletes</p>
+              <ul>
+                <li>Six 1-hour cage rentals, shared</li>
+                <li>20% off cages, lessons, and field</li>
+              </ul>
+            </article>
+          </div>
+          <div class="actions" style="margin-top:24px">
+            <a class="button primary" href="https://book.prospectsbaseball.club/#membershipView"
+              >Start All-Star <span aria-hidden="true">↗</span></a
+            >
+            <a class="button outline" href="/memberships">Compare plans</a>
+          </div>
+        </div>
+      </section>
+      <section class="faq-section" aria-labelledby="faq-title">
+        <div class="wrap">
+          <h2 id="faq-title">Straight answers</h2>
+          <div class="faq-list">
+            <details>
+              <summary>Can I walk in like a rec cage?</summary>
+              <p>No — and that’s the point. Every hour is reserved, so the lane is yours. Book live availability, then show up ready to work.</p>
+            </details>
+            <details>
+              <summary>$50 an hour looks high. Why not D-BAT?</summary>
+              <p>Drop-in is the one-off rate. Two hours a month already beats Prospect math. Four hours a month is All-Star — about $35 an hour with priority booking.</p>
+            </details>
+            <details>
+              <summary>Are you open during the day?</summary>
+              <p>After school, on purpose. Monday–Friday 4–8 PM. Saturday–Sunday 1–8 PM by reservation. Youth athletes actually exist in that window.</p>
+            </details>
+            <details>
+              <summary>Do you offer baseball and softball?</summary>
+              <p>Yes. Lane 7 is dual-use for softball machine and baseball hitting. Choose your sport when you request a lesson.</p>
+            </details>
+            <details>
+              <summary>What if I need to cancel?</summary>
+              <p>24-hour notice is required. Review the reservation terms in checkout before you pay. Prefer card — the lane is held when it clears. Venmo and Cash App require you to come back and confirm.</p>
+            </details>
+          </div>
+        </div>
+      </section>
+      <section class="people-section" aria-labelledby="people-title">
+        <div class="wrap">
+          <h2 id="people-title">Who to text</h2>
+          <p>A real person answers. Desk for cages. Steve for lessons and member access.</p>
+          <div class="people-grid" style="margin-top:20px">
+            <a class="people-card" href="tel:+19189228114">
+              <strong>Facility desk</strong>
+              <span>Cages, reservations, arriving today</span>
+              <span>(918) 922-8114</span>
+            </a>
+            <a class="people-card" href="tel:+19187602719">
+              <strong>Coach Steve</strong>
+              <span>Lessons, development, member access</span>
+              <span>(918) 760-2719</span>
+            </a>
           </div>
         </div>
       </section>
@@ -293,9 +404,7 @@
       <a href="/parents">Parent resources</a>
       <a href="/waiver">Annual waiver</a>
       <a href="/schedule">Team schedules</a>
-      <a href="https://book.prospectsbaseball.club/#membershipView"
-        >Memberships</a
-      >
+      <a href="/memberships">Memberships</a>
       <a href="https://app.prospectsbaseball.club/">Member sign-in</a>
       <a href="https://app.prospectsbaseball.club/coaches">Meet the coaches</a>
       <a href="/contact">Contact</a>
@@ -316,8 +425,8 @@
   </div>
   <div class="wrap home-screen-hint">
     <p>
-      On iPhone: Share → Add to Home Screen.<br />Next session will publish the
-      club app. For now this is the bookmark.
+      On iPhone: Share → Add to Home Screen. Android: menu → Install app.<br />
+      Book, tryouts, waiver, and check-in from one Oklahoma Prospects icon.
     </p>
   </div>
   <div class="wrap footer-bottom">
