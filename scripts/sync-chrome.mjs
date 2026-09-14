@@ -62,15 +62,15 @@ for (const file of readdirSync(root).filter((file) => file.endsWith(".html"))) {
   );
   html = html.replace(
     /(<link\s+rel="stylesheet"\s+href="\/assets\/style\.css[^\"]*"\s*\/?>)/,
-    '<link rel="stylesheet" href="/assets/brand-tokens.css?v=8" />\n$1',
+    '<link rel="stylesheet" href="/assets/brand-tokens.css?v=9" />\n$1',
   );
   html = html.replace(
     "</head>",
-    '<link rel="stylesheet" href="/assets/shared-chrome.css?v=8" />\n</head>',
+    '<link rel="stylesheet" href="/assets/shared-chrome.css?v=9" />\n</head>',
   );
   html = html.replace(
     /\/assets\/(style\.css|prospects-brand\.css|site\.js)(?:\?v=\d+)?/g,
-    "/assets/$1?v=8",
+    "/assets/$1?v=9",
   );
   // Normalize the club's public name without changing any service URLs.
   html = html.replace(/Oklahoma Prospects\s+Baseball/g, "Oklahoma Prospects");

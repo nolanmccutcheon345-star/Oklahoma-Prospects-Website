@@ -117,3 +117,28 @@ window.addEventListener("pageshow", () => {
           : "Send message";
     });
 });
+
+document.querySelectorAll("[data-hold-form]").forEach((form) => {
+  form.addEventListener("submit", (event) => {
+    event.preventDefault();
+    const data = new FormData(form);
+    const confirmEl = document.querySelector(form.getAttribute("data-hold-form"));
+    if (!confirmEl) return;
+    const parts = [];
+    data.forEach((value, key) => {
+      if (key === "bot-field" || key === "form-name") return;
+      if (String(value).trim()) parts.push(`${key}: ${value}`);
+    });
+    const summary = confirmEl.querySelector("[data-hold-summary]");
+    const sms = confirmEl.querySelector("[data-hold-sms]");
+    if (summary) summary.textContent = parts.join(" · ");
+    if (sms) {
+      const tel = sms.getAttribute("data-tel") || "+19189228114";
+      const body = ["Oklahoma Prospects request", ...parts].join("\n");
+      sms.setAttribute("href", `sms:${tel}?body=${encodeURIComponent(body)}`);
+    }
+    form.hidden = true;
+    confirmEl.hidden = false;
+    confirmEl.scrollIntoView({ behavior: "smooth", block: "start" });
+  });
+});

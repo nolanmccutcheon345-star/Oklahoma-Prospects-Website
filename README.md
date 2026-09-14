@@ -25,6 +25,18 @@ Shipped on this repository:
 
 Not invented: reviews, ratings, extra coach bios, alumni, or roster fees.
 
+
+## Session 3 (stay in one site)
+
+- **Book** in the header, footer, and mobile nav goes to `/book` on this site.
+  It no longer dumps families onto book.prospectsbaseball.club.
+- `/book` is a branded cage request (space, time, name, phone). Text the desk
+  to hold. Card checkout is the last step only.
+- **Train / lessons** stay on `/training`. Hero and plan CTAs request a lesson
+  here instead of opening app.prospectsbaseball.club/pricing.
+- Homepage, rates, facility, teams, memberships "Need one hour" all stay on
+  `/book`.
+
 ## Still human / other properties
 
 - Claim and rename Google Business (old “Top Prospects Practice Facility” pin,

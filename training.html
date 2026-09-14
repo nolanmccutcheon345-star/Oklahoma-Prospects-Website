@@ -55,11 +55,11 @@
       href="/assets/prospects-crest-transparent.png"
     />
     <link rel="manifest" href="/site.webmanifest" />
-    <link rel="stylesheet" href="/assets/brand-tokens.css?v=8" />
-<link rel="stylesheet" href="/assets/style.css?v=8" />
-    <script src="/assets/site.js?v=8" defer></script>
-    <link rel="stylesheet" href="/assets/prospects-brand.css?v=8" />
-    <link rel="stylesheet" href="/assets/shared-chrome.css?v=8" />
+    <link rel="stylesheet" href="/assets/brand-tokens.css?v=9" />
+<link rel="stylesheet" href="/assets/style.css?v=9" />
+    <script src="/assets/site.js?v=9" defer></script>
+    <link rel="stylesheet" href="/assets/prospects-brand.css?v=9" />
+    <link rel="stylesheet" href="/assets/shared-chrome.css?v=9" />
 </head>
   <body>
     <a class="skip-link" href="#main">Skip to content</a>
@@ -78,7 +78,7 @@
       >
     </a>
     <nav id="main-navigation" aria-label="Main navigation">
-      <a href="https://book.prospectsbaseball.club/">Book</a>
+      <a href="/book">Book</a>
       <a href="/training" aria-current="page">Train</a>
       <a href="/teams">Teams</a>
       <a href="/visit">Visit</a>
@@ -117,15 +117,8 @@
             your player's goals.
           </p>
           <div class="actions">
-            <a
-              class="button primary"
-              href="https://app.prospectsbaseball.club/pricing"
-              >Explore player development<span aria-hidden="true">↗</span></a
-            ><a
-              class="button outline"
-              href="https://app.prospectsbaseball.club/"
-              >Member sign-in<span aria-hidden="true">↗</span></a
-            >
+            <a class="button primary" href="#request">Request a lesson</a>
+            <a class="button outline" href="/book">Need cage time too?</a>
           </div>
         </div>
       </section>
@@ -136,9 +129,7 @@
               <p class="eyebrow">A plan for your game</p>
               <h2>TRAIN WITH PURPOSE.</h2>
               <p>
-                Start with the skills that matter to you. Find current lesson
-                options, packages, and monthly plans in the Prospects Player
-                Development portal.
+                Start with the skills that matter to you. Choose a lesson below, then request it on this page. Coach Steve confirms the slot.
               </p>
             </div>
           </div>
@@ -190,7 +181,7 @@
           <div class="actions training-next">
             <a
               class="button outline-dark"
-              href="https://app.prospectsbaseball.club/pricing"
+              href="#request"
               >See plans &amp; lesson options<span aria-hidden="true"
                 >↗</span
               ></a
@@ -204,24 +195,67 @@
             <p class="eyebrow">Oklahoma Prospects · Est. 2008</p>
             <h2>PUT YOUR DEVELOPMENT IN MOTION.</h2>
             <p>
-              Your player profile, programs, and next steps start in Prospects
-              Player Development.
+              Request the lesson on this page. Steve confirms instructor and time.
             </p>
           </div>
-          <a
-            class="button primary"
-            href="https://app.prospectsbaseball.club/pricing"
-            >Find your plan<span aria-hidden="true">↗</span></a
-          >
+<a class="button primary" href="#request">Request a lesson</a>
+        </div>
+      </section>
+
+      <section class="section white-section" id="request">
+        <div class="wrap form-layout">
+          <div class="form-panel">
+            <p class="eyebrow">Oklahoma Prospects · lessons</p>
+            <h2>REQUEST A LESSON.</h2>
+            <p class="form-note">
+              Stay on this site. Coach Steve confirms the instructor and time.
+              You are not sent to a second player-development page.
+            </p>
+            <form class="inquiry-form" data-hold-form="#lesson-confirm">
+              <label>Lesson type
+                <select name="lesson" required>
+                  <option value="Youth lesson">Youth lesson · $40 / $70</option>
+                  <option value="New player assessment">New player assessment · $149</option>
+                  <option value="Standard lesson">Standard lesson (after assessment)</option>
+                </select>
+              </label>
+              <label>Player name<span class="required-mark"> *</span>
+                <input name="player" required />
+              </label>
+              <label>Parent / guardian<span class="required-mark"> *</span>
+                <input name="parent" required autocomplete="name" />
+              </label>
+              <label>Phone<span class="required-mark"> *</span>
+                <input name="phone" required type="tel" inputmode="tel" autocomplete="tel" />
+              </label>
+              <label>Sport
+                <select name="sport">
+                  <option value="baseball">Baseball</option>
+                  <option value="softball">Softball</option>
+                </select>
+              </label>
+              <label>Notes
+                <input name="notes" placeholder="Hitting, pitching, catching, or fielding" />
+              </label>
+              <button class="button primary" type="submit">Save this request</button>
+            </form>
+            <div class="hold-confirm" id="lesson-confirm" hidden>
+              <p class="eyebrow">Still in Oklahoma Prospects</p>
+              <h2>Lesson request saved.</h2>
+              <p data-hold-summary></p>
+              <div class="actions">
+                <a class="button primary" data-hold-sms data-tel="+19187602719" href="sms:+19187602719">Text Coach Steve · (918) 760-2719</a>
+                <a class="button outline-dark" href="https://book.prospectsbaseball.club/development/">Pay for this lesson</a>
+              </div>
+            </div>
+          </div>
         </div>
       </section>
       <section class="section white-section">
         <div class="wrap">
-          <h2>Book your Prospects program</h2>
+          <h2>Pay for this lesson (last step)</h2>
           <p>
-            Choose lesson memberships with cage time, fully remote coaching,
-            assessments, or individual instruction. Checkout is securely handled
-            by Prospects Booking.
+            Card checkout is optional. The request above already stays in Oklahoma Prospects.
           </p>
           <details>
             <summary style="cursor: pointer; padding: 16px 0; font-weight: 700">
@@ -269,7 +303,7 @@
     </div>
     <div>
       <h2>Play &amp; train</h2>
-      <a href="https://book.prospectsbaseball.club/">Book</a>
+      <a href="/book">Book</a>
       <a href="/training">Train</a>
       <a href="/teams">Teams</a>
       <a href="/visit">Visit</a>
@@ -316,7 +350,7 @@
 <!-- shared-footer:end -->
     <!-- shared-mobile-nav:start -->
 <nav class="mobile-nav" aria-label="Mobile navigation">
-  <a href="https://book.prospectsbaseball.club/">
+  <a href="/book">
     <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
       <rect x="4" y="5" width="16" height="16" rx="2" />
       <path d="M8 3v4m8-4v4M4 11h16m-12 4h3" /></svg
