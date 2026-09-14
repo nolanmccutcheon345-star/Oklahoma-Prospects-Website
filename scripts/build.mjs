@@ -34,3 +34,4 @@ if (existsSync(join(root, "brand"))) {
 console.log(
   `Static release built in dist (${publicFiles.length} files + assets + brand).`,
 );
+await import('./check-release.mjs');
