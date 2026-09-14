@@ -1,0 +1,15 @@
+/* Oklahoma Prospects brand lock. Reuse these tokens for club chrome. */
+:root {
+  --ink: #0b1720;
+  --navy: #071b31;
+  --maroon: #681c35;
+  --powder: #9ed8f3;
+  --blue: var(--powder);
+  --muted: #52606b;
+  --line: #d6dfe4;
+  --prospects-ink: var(--ink);
+  --prospects-maroon: var(--maroon);
+  --prospects-powder: var(--powder);
+  --club-header-height: 88px;
+  --club-mobile-nav-height: 72px;
+}
