@@ -1,7 +1,7 @@
 [build]
   publish = "."
+  command = "true"
 
-[[redirects]]
-  from = "/development/*"
-  to = "/development/index.html"
-  status = 200
+[functions]
+  directory = "netlify/functions"
+  node_bundler = "esbuild"

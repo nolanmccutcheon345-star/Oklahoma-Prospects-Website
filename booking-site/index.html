@@ -125,7 +125,23 @@ gtag('config','AW-18423856687');
 </style>
 <a class="skip-booking" href="#bookingFlow">Skip to booking</a><main class="app">
 <section class="panel"><div class="header"><div class="brand"><img class="logo" src="/brand/prospects-p-transparent.png" alt="Prospects logo"><div><div class="eyebrow">Oklahoma Prospects</div><div class="title">OKLAHOMA PROSPECTS</div><div class="sub">Cage rentals • lessons • live availability</div></div></div><span class="pill">BOOK ONLINE</span></div></section>
-<section class="panel noPrint schedulerNavigation" data-scheduler-navigation aria-label="Scheduler sections"><div class="tabs"><button class="tab" data-view="todayView">TODAY</button><button class="tab active" data-view="scheduleView">BOOK A CAGE</button><button class="tab" data-view="tryoutsView">SPRING TRYOUTS</button><button class="tab" data-view="campsView">CAMPS</button><button class="tab" data-view="membershipView">MEMBERSHIPS</button><button class="tab" data-view="lessonsView">LESSONS</button><button class="tab instructorsTab" data-view="instructorsView" hidden>MEET OUR INSTRUCTORS</button></div></section>
+<section class="panel noPrint schedulerNavigation" data-scheduler-navigation aria-label="Booking"><div class="tabs">
+<button class="tab active" data-view="scheduleView">BOOK A CAGE</button>
+<button class="tab" data-view="tryoutsView">TRYOUTS</button>
+<button class="tab" data-view="membershipView">PLANS</button>
+</div>
+<p class="more-jobs">Need something else?
+  <a href="#" data-view="campsView" data-activate-view="campsView">Camps</a> ·
+  <a href="https://prospectsbaseball.club/training">Lessons</a> ·
+  <a href="https://prospectsbaseball.club/teams">Teams</a>
+</p>
+</section>
+<style>
+.more-jobs{margin:8px 0 0;font-size:13px;opacity:.85;text-align:center}
+.more-jobs a{color:#9ed8f3;font-weight:800;min-height:44px;display:inline-flex;align-items:center}
+#squareCheckout{margin-top:12px}
+#squareCheckout iframe{width:100%;min-height:520px;border:0;border-radius:12px;background:#fff}
+</style>
 
 <div id="todayView" class="view">
 <details class="panel"><summary class="sectionHead"><div><div class="eyebrow">At-a-glance</div><div class="sectionTitle">TODAY'S OPENINGS</div></div><span id="todayCount" class="pill">LANES OPEN</span></summary><div id="todayDate" class="sub"></div><div id="todayList" class="todayList"></div></details>
@@ -156,7 +172,7 @@ gtag('config','AW-18423856687');
       <div class="promoInfoCard">
         <div class="promoInfoTitle">HOURS &amp; TIME SLOTS</div>
         <div class="promoHours"><div><b>Monday–Friday</b><br>4:00–8:00 PM</div><div><b>Saturday–Sunday</b><br>1:00–8:00 PM by reservation</div></div>
-        <div class="promoDetails" style="margin-top:9px">Choose 30-minute or 1-hour reservations from the live schedule.</div>
+        <div class="promoDetails" style="margin-top:9px">Book in 30-minute steps, from 30 minutes up to 3 hours.</div>
       </div>
       <div class="promoInfoCard">
         <div class="promoInfoTitle">RESERVATIONS &amp; PAYMENT</div>
@@ -190,7 +206,7 @@ gtag('config','AW-18423856687');
       <div class="field span2" id="campRoleField" hidden><label for="campAthleteRole">Athlete role</label><select id="campAthleteRole"><option value="">Select role</option></select></div>
       <div class="field span2"><label for="campEmergencyName">Emergency contact name</label><input id="campEmergencyName" required autocomplete="off"></div>
       <div class="field span2"><label for="campEmergencyPhone">Emergency contact phone</label><input id="campEmergencyPhone" type="tel" required autocomplete="off"></div>
-      <div class="spanAll"><div class="miniLabel" id="campPaymentLabel">Payment — select a camp first</div><div class="paymentActions"><a class="payAction square campPayChoice" href="https://square.link/u/MFmFySyk?src=sheet" target="_blank" rel="noopener" data-camp-pay="Square" id="campPaySquare">PAY WITH CARD</a><details class="otherPay"><summary>Other ways to pay</summary><a class="payAction venmo campPayChoice" href="https://venmo.com/u/Steve-McCutcheon-3" target="_blank" rel="noopener" data-camp-pay="Venmo" id="campPayVenmo">PAY WITH VENMO</a><a class="payAction cashapp campPayChoice" href="https://cash.app/$steveandann" target="_blank" rel="noopener" data-camp-pay="Cash App" id="campPayCashApp">PAY WITH CASH APP</a></details></div><input id="campPaymentMethod" type="hidden"><div class="campTotal" id="campPaymentTotal">Select a payment method after choosing a camp.</div></div>
+      <div class="spanAll"><div class="miniLabel" id="campPaymentLabel">Payment — select a camp first</div><div class="paymentActions"><a class="payAction square campPayChoice" href="https://square.link/u/MFmFySyk?src=sheet" data-camp-pay="Square" id="campPaySquare">PAY WITH CARD</a><details class="otherPay"><summary>Other ways to pay</summary><a class="payAction venmo campPayChoice" href="https://venmo.com/u/Steve-McCutcheon-3" target="_blank" rel="noopener" data-camp-pay="Venmo" id="campPayVenmo">PAY WITH VENMO</a><a class="payAction cashapp campPayChoice" href="https://cash.app/$steveandann" target="_blank" rel="noopener" data-camp-pay="Cash App" id="campPayCashApp">PAY WITH CASH APP</a></details></div><input id="campPaymentMethod" type="hidden"><div class="campTotal" id="campPaymentTotal">Select a payment method after choosing a camp.</div></div>
       <label class="paymentConfirm spanAll"><input id="campPaymentConfirmed" type="checkbox" required> <span>I selected the payment method above and completed payment. Prospects staff will verify payment; this submission does not mark payment verified.</span></label>
       <div class="waiverBox"><div class="waiverTitle">FACILITY WAIVER ACKNOWLEDGMENT</div><div class="waiverIntro">The existing Oklahoma Prospects waiver applies to this camp.</div><button class="waiverLink" type="button" id="campOpenWaiver">READ FULL FACILITY WAIVER</button><label class="waiverAgree"><input id="campWaiverAccepted" type="checkbox" required> <span>I am the responsible adult/parent and acknowledge and accept the existing facility waiver for the athlete named above.</span></label></div>
       <div class="consentBox"><label class="consentChoice"><input id="campMarketingConsent" type="checkbox"> <span>Send me occasional Prospects promotions by email and text. Consent is optional and not required to book. Message and data rates may apply. Reply STOP to end texts. Unsubscribe from emails anytime.</span></label><p class="privacyNote">This optional box starts unchecked. Reservation and safety communications still use the responsible adult’s contact information.</p></div>
@@ -228,7 +244,7 @@ gtag('config','AW-18423856687');
     <div class="field span2"><label for="memberAthletes">Athlete or Team Name(s)</label><input id="memberAthletes" placeholder="Athlete name(s) or team name" required></div>
     <div class="field span2"><label for="memberEmail">Email</label><input id="memberEmail" type="email" autocomplete="email" required></div><div class="field span2"><label for="memberPhone">Phone</label><input id="memberPhone" type="tel" autocomplete="tel"></div>
     <div class="field span2"><label for="memberPayment">Payment Method</label><select id="memberPayment" required><option value="">Choose payment method</option><option value="Venmo">Venmo</option><option value="Cash App">Cash App</option><option value="Square">Square / Card</option></select></div>
-    <div class="paymentActions"><div class="paymentAmounts" id="memberPaymentAmounts" aria-live="polite"><div class="paymentAmountRow"><span>Monthly membership price</span><b id="memberBasePrice">$79.00</b></div><div class="paymentAmountRow"><span>Cash App fee recovery (2.6% + $0.15)</span><b id="memberCashAppFee">$2.19</b></div><div class="paymentAmountRow total"><span>Cash App total to send</span><b id="memberCashAppTotal">$81.19</b></div><div class="paymentAmountNote" id="memberPaymentNote"></div></div><a class="payAction square" href="https://square.link/u/MFmFySyk?src=sheet" target="_blank" rel="noopener" id="memberPaySquare">PAY WITH CARD</a><details class="otherPay"><summary>Other ways to pay</summary><a class="payAction venmo" href="https://venmo.com/u/Steve-McCutcheon-3" target="_blank" rel="noopener" id="memberPayVenmo">PAY WITH VENMO</a><a class="payAction cashapp" href="https://cash.app/$steveandann" target="_blank" rel="noopener" id="memberPayCashApp">PAY WITH CASH APP</a></details></div>
+    <div class="paymentActions"><div class="paymentAmounts" id="memberPaymentAmounts" aria-live="polite"><div class="paymentAmountRow"><span>Monthly membership price</span><b id="memberBasePrice">$79.00</b></div><div class="paymentAmountRow"><span>Cash App fee recovery (2.6% + $0.15)</span><b id="memberCashAppFee">$2.19</b></div><div class="paymentAmountRow total"><span>Cash App total to send</span><b id="memberCashAppTotal">$81.19</b></div><div class="paymentAmountNote" id="memberPaymentNote"></div></div><a class="payAction square" href="https://square.link/u/MFmFySyk?src=sheet" id="memberPaySquare">PAY WITH CARD</a><details class="otherPay"><summary>Other ways to pay</summary><a class="payAction venmo" href="https://venmo.com/u/Steve-McCutcheon-3" target="_blank" rel="noopener" id="memberPayVenmo">PAY WITH VENMO</a><a class="payAction cashapp" href="https://cash.app/$steveandann" target="_blank" rel="noopener" id="memberPayCashApp">PAY WITH CASH APP</a></details></div>
     <label class="paymentConfirm"><input id="memberPaymentConfirmed" type="checkbox" required><span>I completed the first monthly membership payment using the method selected above.</span></label>
     <label class="paymentConfirm"><input id="memberTerms" type="checkbox" required><span>I agree to monthly membership rules, the 24-hour cancellation policy, no monthly credit rollover, and completing the required facility waiver before participation.</span></label>
     <button class="bookBtn spanAll" id="memberSubmit" type="submit">SUBMIT MEMBERSHIP</button>
@@ -272,13 +288,19 @@ gtag('config','AW-18423856687');
 <label class="rentalTypeChoice"><input type="radio" name="rentalType" value="field"><span class="rentalTypeCard"><span class="rentalTypeName">Open Field Area</span><span class="rentalTypeRate">$75/hour</span></span></label>
 </div></fieldset>
 <div class="field"><label for="cage">Cage / Area</label><select id="cage"></select></div>
-<div class="field"><label for="slot">Start Time</label><select id="slot"></select></div><div class="field"><label for="duration">Duration</label><select id="duration"><option value="60" selected>1 Hour</option><option value="30">30 Minutes</option><option value="90">90 Minutes</option><option value="120">2 Hours</option></select></div>
+<div class="field"><label for="slot">Start Time</label><select id="slot"></select></div><div class="field"><label for="duration">Duration</label><select id="duration"><option value="30">30 minutes</option><option value="60" selected>1 hour</option><option value="90">1.5 hours</option><option value="120">2 hours</option><option value="150">2.5 hours</option><option value="180">3 hours</option></select></div>
 <div id="selectionAvailability" class="availabilityCard available" role="status" aria-live="polite">Checking live availability…</div><div class="lockedTotal stepOneTotal" aria-live="polite"><div><div class="lockedTotalLabel">SELECTED RENTAL</div><div id="stepOneSelectionSummary" class="selectionSummary"></div></div><div><div class="lockedTotalLabel">TOTAL</div><div id="stepOneTotalDisplay" class="lockedTotalValue">$50.00</div></div></div></div><div class="stepActions"><span></span><button class="bookBtn" id="continueToPay" type="button" data-go-step="2">CONTINUE TO PAY</button></div></section>
 <section class="bookingStep" data-booking-step="2" aria-labelledby="stepTwoTitle"><div class="eyebrow">Step 2 of 3</div><div class="sectionTitle" id="stepTwoTitle">PAY</div>
 <div class="lockedTotal" aria-live="polite"><div><div class="lockedTotalLabel">TOTAL</div><div id="bookingSelectionSummary" class="selectionSummary"></div></div><div id="totalDisplay" class="lockedTotalValue">$50.00</div></div>
 <div class="memberCreditBox"><div class="eyebrow">Membership booking</div><div class="memberCreditGrid"><div class="field"><label for="bookingMemberCode">Member Code</label><input id="bookingMemberCode" autocomplete="off" autocapitalize="characters" placeholder="OP-XXXX-XXXX"></div><button class="action" id="validateBookingMember" type="button">VALIDATE CODE</button></div><div id="bookingMemberResult" class="memberBalance" role="status" aria-live="polite">Members can reserve an included visit here. Credits are deducted only after the visit is marked complete.</div><label class="creditChoice" id="creditChoice" hidden><input id="useMembershipCredit" type="checkbox"><span><b>Use membership credit</b><br><span id="creditChoiceText">Reserve one included visit for this booking.</span></span></label></div>
 <div class="field adminBookingOnly"><label for="paymentStatus">Payment</label><select id="paymentStatus"><option>Unpaid</option><option>Paid</option></select></div><div class="field adminBookingOnly"><label for="paymentMethod">Method</label><select id="paymentMethod"><option value="">Not selected</option><option value="Venmo">Venmo</option><option value="Cash App">Cash App</option><option value="Square">Square / Card</option><option value="Card">Card</option><option value="Other">Other</option></select></div>
-<div class="paymentActions" id="paymentActions"><div class="paymentAmounts" id="paymentAmounts" aria-live="polite"><div class="paymentAmountRow"><span>Booking price</span><b id="paymentBasePrice">$50.00</b></div><div class="paymentAmountRow"><span>Cash App fee recovery (2.6% + $0.15)</span><b id="paymentCashAppFee">$1.49</b></div><div class="paymentAmountRow total"><span>Cash App total to send</span><b id="paymentCashAppTotal">$51.49</b></div><div class="paymentAmountNote" id="paymentAmountNote"></div></div><button class="payAction square" type="button" id="paySquare">PAY WITH CARD</button><p class="paymentHelp" id="cardFirstNote">Card is the fastest way to hold the lane. Reservation is not confirmed until payment clears.</p><details class="otherPay"><summary>Other ways to pay (Venmo / Cash App)</summary><a class="payAction venmo" href="https://venmo.com/u/Steve-McCutcheon-3" target="_blank" rel="noopener" data-pay-method="Venmo" id="payVenmo">PAY WITH VENMO</a><a class="payAction cashapp" href="https://cash.app/$steveandann" target="_blank" rel="noopener" data-pay-method="Cash App" id="payCashApp">PAY WITH CASH APP</a><div class="paymentHelp" id="paymentHelp">Venmo and Cash App leave this page. Come back and confirm after you pay. Cash App adds 2.6% + $0.15.</div></details><div id="paymentSelected" class="paymentSelected" aria-live="polite">NO PAYMENT METHOD SELECTED</div></div>
+<div class="paymentActions" id="paymentActions"><div class="paymentAmounts" id="paymentAmounts" aria-live="polite"><div class="paymentAmountRow"><span>Booking price</span><b id="paymentBasePrice">$50.00</b></div><div class="paymentAmountRow"><span>Cash App fee recovery (2.6% + $0.15)</span><b id="paymentCashAppFee">$1.49</b></div><div class="paymentAmountRow total"><span>Cash App total to send</span><b id="paymentCashAppTotal">$51.49</b></div><div class="paymentAmountNote" id="paymentAmountNote"></div></div><button class="payAction square" type="button" id="paySquare">PAY WITH CARD</button>
+<p class="paymentHelp" id="cardFirstNote">Card checkout stays in this booking. Pay, then confirm below. The lane is held when payment clears.</p>
+<div id="squareCheckout" hidden>
+  <p class="miniLabel">Card checkout</p>
+  <iframe id="squareFrame" title="Pay with card" allow="payment"></iframe>
+  <p class="paymentHelp">If checkout does not appear, <a id="squareFallback" href="https://square.link/u/MFmFySyk?src=sheet">open card pay on this same page</a>.</p>
+</div><details class="otherPay"><summary>Other ways to pay (Venmo / Cash App)</summary><a class="payAction venmo" href="https://venmo.com/u/Steve-McCutcheon-3" target="_blank" rel="noopener" data-pay-method="Venmo" id="payVenmo">PAY WITH VENMO</a><a class="payAction cashapp" href="https://cash.app/$steveandann" target="_blank" rel="noopener" data-pay-method="Cash App" id="payCashApp">PAY WITH CASH APP</a><div class="paymentHelp" id="paymentHelp">Venmo and Cash App leave this page. Come back and confirm after you pay. Cash App adds 2.6% + $0.15.</div></details><div id="paymentSelected" class="paymentSelected" aria-live="polite">NO PAYMENT METHOD SELECTED</div></div>
 <label class="paymentConfirm customerBookingOnly"><input id="paymentConfirmed" type="checkbox"> <span>I selected the payment method shown above and completed payment for this reservation.</span></label><div class="stepActions"><button class="action" type="button" data-go-step="1">BACK</button><button class="bookBtn" id="continueToSign" type="button" data-go-step="3">CONTINUE TO SIGN</button></div></section>
 <section class="bookingStep" data-booking-step="3" aria-labelledby="stepThreeTitle"><div class="eyebrow">Step 3 of 3</div><div class="sectionTitle" id="stepThreeTitle">SIGN &amp; BOOK</div><div class="formgrid" style="margin-top:12px">
 <div class="field span2"><label for="customer">Adult / Parent or Guardian Name</label><input id="customer" placeholder="Responsible adult’s full name" autocomplete="name" required></div><div class="field span2"><label for="customerEmail">Responsible Adult’s Email</label><input id="customerEmail" type="email" autocomplete="email" placeholder="adult@email.com" required></div><div class="field span2"><label for="phone">Responsible Adult’s Mobile Phone</label><input id="phone" type="tel" autocomplete="tel" inputmode="tel" placeholder="(918) 555-1234" required></div>
@@ -611,7 +633,7 @@ $('#form').onsubmit=async e=>{
     await loadBookings(adminUnlocked);
     const holdDisabled=!adminUnlocked&&!editing;
     clearForm();
-    $('#message').textContent=editing?'✓ BOOKING UPDATED':result.membershipCreditReserved?'✓ RESERVATION CONFIRMED — MEMBERSHIP CREDIT RESERVED UNTIL COMPLETION':result.alertSent?'✓ BOOKING CONFIRMED — WAIVER SIGNED, EMAIL & REMINDERS SCHEDULED':'✓ CAGE RESERVED — WAIVER SIGNED';
+    $('#message').textContent=editing?'✓ BOOKING UPDATED':(result.membershipCreditReserved?'✓ RESERVATION CONFIRMED — MEMBERSHIP CREDIT RESERVED UNTIL COMPLETION':result.alertSent?'✓ BOOKING CONFIRMED — WAIVER SIGNED, EMAIL & REMINDERS SCHEDULED':'✓ CAGE RESERVED — WAIVER SIGNED')+' Questions about this booking? Call or text the desk at (918) 922-8114.';
     if(holdDisabled){
       /* Customer reservation succeeded. The button stays disabled through the confirmation redirect
          so a second click or a resend cannot create another booking. */
@@ -659,8 +681,18 @@ document.querySelectorAll('[data-pay-method]').forEach(a=>{
 const paySquareBtn=$('#paySquare');
 if(paySquareBtn) paySquareBtn.addEventListener('click',()=>{
   choosePayment('Square','Unpaid');
-  window.open('https://square.link/u/MFmFySyk?src=sheet','_blank','noopener');
+  const panel=document.getElementById('squareCheckout');
+  const frame=document.getElementById('squareFrame');
+  if(panel&&frame){
+    panel.hidden=false;
+    frame.src='https://square.link/u/MFmFySyk?src=sheet';
+    panel.scrollIntoView({behavior:'smooth',block:'start'});
+  } else {
+    window.location.href='https://square.link/u/MFmFySyk?src=sheet';
+  }
 });
+const squareFallback=document.getElementById('squareFallback');
+if(squareFallback) squareFallback.addEventListener('click',e=>{e.preventDefault();window.location.href='https://square.link/u/MFmFySyk?src=sheet'});
 
 $('#printBtn').onclick=()=>window.print();
 render();
