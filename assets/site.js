@@ -81,7 +81,8 @@ function selectAge(age) {
   if (copy)
     copy.textContent = `Ask Prospects about ${age} team openings, evaluations, coaching, and the current season. Team availability and official rosters are confirmed directly.`;
   const inquiry = document.querySelector('.team-result a[href^="/tryouts"]');
-  if (inquiry)
+  if (inquiry && age === "7U") inquiry.href = "/7u#registration";
+  else if (inquiry)
     inquiry.href = "/tryouts?age=" + encodeURIComponent(age) + "#team-inquiry";
   const field = document.querySelector('select[name="age_group"]');
   if (field) field.value = age;

@@ -13,7 +13,7 @@ const parts = Object.fromEntries(
 );
 const groups = {
   "/training": ["/training", "/recruiting"],
-  "/teams": ["/teams", "/tryouts", "/roster", "/schedule"],
+  "/teams": ["/teams", "/tryouts", "/roster", "/schedule", "/7u", "/7u-request-received"],
   "/visit": ["/visit", "/waiver", "/parents", "/contact", "/memberships", "/members", "/check-in"],
 };
 function currentLinks(markup, route) {
