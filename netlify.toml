@@ -12,7 +12,25 @@
   command = "npm run dev"
   port = 8080
 
-# Never leave families on the Netlify subdomain.
+# Old static-site paths that families and Google still hit.
+[[redirects]]
+  from = "/visit"
+  to = "/visits"
+  status = 301
+  force = true
+
+[[redirects]]
+  from = "/check-in"
+  to = "/visits"
+  status = 301
+  force = true
+
+[[redirects]]
+  from = "/checkin"
+  to = "/visits"
+  status = 301
+  force = true
+
 [[redirects]]
   from = "https://oklahoma-prospects.netlify.app/*"
   to = "https://prospectsbaseball.club/:splat"
