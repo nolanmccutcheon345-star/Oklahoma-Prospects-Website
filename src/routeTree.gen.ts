@@ -29,6 +29,7 @@ import { Route as RecruitingRouteImport } from './routes/recruiting'
 import { Route as TeamsRouteImport } from './routes/teams'
 import { Route as TrainingRouteImport } from './routes/training'
 import { Route as TryoutsRouteImport } from './routes/tryouts'
+import { Route as VisitRouteImport } from './routes/visit'
 import { Route as VisitsRouteImport } from './routes/visits'
 import { Route as WaiverRouteImport } from './routes/waiver'
 import { Route as GoDestRouteImport } from './routes/go.$dest'
@@ -134,6 +135,11 @@ const TryoutsRoute = TryoutsRouteImport.update({
   path: '/tryouts',
   getParentRoute: () => rootRouteImport,
 } as any)
+const VisitRoute = VisitRouteImport.update({
+  id: '/visit',
+  path: '/visit',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const VisitsRoute = VisitsRouteImport.update({
   id: '/visits',
   path: '/visits',
@@ -176,6 +182,7 @@ export interface FileRoutesByFullPath {
   '/teams': typeof TeamsRoute
   '/training': typeof TrainingRoute
   '/tryouts': typeof TryoutsRoute
+  '/visit': typeof VisitRoute
   '/visits': typeof VisitsRoute
   '/waiver': typeof WaiverRoute
   '/go/$dest': typeof GoDestRoute
@@ -202,6 +209,7 @@ export interface FileRoutesByTo {
   '/teams': typeof TeamsRoute
   '/training': typeof TrainingRoute
   '/tryouts': typeof TryoutsRoute
+  '/visit': typeof VisitRoute
   '/visits': typeof VisitsRoute
   '/waiver': typeof WaiverRoute
   '/go/$dest': typeof GoDestRoute
@@ -229,6 +237,7 @@ export interface FileRoutesById {
   '/teams': typeof TeamsRoute
   '/training': typeof TrainingRoute
   '/tryouts': typeof TryoutsRoute
+  '/visit': typeof VisitRoute
   '/visits': typeof VisitsRoute
   '/waiver': typeof WaiverRoute
   '/go/$dest': typeof GoDestRoute
@@ -257,6 +266,7 @@ export interface FileRouteTypes {
     | '/teams'
     | '/training'
     | '/tryouts'
+    | '/visit'
     | '/visits'
     | '/waiver'
     | '/go/$dest'
@@ -283,6 +293,7 @@ export interface FileRouteTypes {
     | '/teams'
     | '/training'
     | '/tryouts'
+    | '/visit'
     | '/visits'
     | '/waiver'
     | '/go/$dest'
@@ -309,6 +320,7 @@ export interface FileRouteTypes {
     | '/teams'
     | '/training'
     | '/tryouts'
+    | '/visit'
     | '/visits'
     | '/waiver'
     | '/go/$dest'
@@ -336,6 +348,7 @@ export interface RootRouteChildren {
   TeamsRoute: typeof TeamsRoute
   TrainingRoute: typeof TrainingRoute
   TryoutsRoute: typeof TryoutsRoute
+  VisitRoute: typeof VisitRoute
   VisitsRoute: typeof VisitsRoute
   WaiverRoute: typeof WaiverRoute
   GoDestRoute: typeof GoDestRoute
@@ -484,6 +497,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof TryoutsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/visit': {
+      id: '/visit'
+      path: '/visit'
+      fullPath: '/visit'
+      preLoaderRoute: typeof VisitRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/visits': {
       id: '/visits'
       path: '/visits'
@@ -536,6 +556,7 @@ const rootRouteChildren: RootRouteChildren = {
   TeamsRoute: TeamsRoute,
   TrainingRoute: TrainingRoute,
   TryoutsRoute: TryoutsRoute,
+  VisitRoute: VisitRoute,
   VisitsRoute: VisitsRoute,
   WaiverRoute: WaiverRoute,
   GoDestRoute: GoDestRoute,
