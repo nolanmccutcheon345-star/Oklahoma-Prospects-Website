@@ -1,15 +1,17 @@
+import {pageHead} from "@/lib/seo";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { RedirectToSignIn, UserButton } from "@/lib/auth/gates";
 import { useCurrentUser, useCurrentUserState } from "@/lib/auth/use-current-user";
 import { Button } from "@/components/ui/button";
 import { PageHero } from "@/components/page-hero";
+import { DevelopmentProvider } from "@/lib/pd/context";
 import { PdWorkspace } from "@/components/pd/workspace";
 import { PdErrorBoundary } from "@/components/pd/error-boundary";
 import { getProfile, saveProfile, type ClubRole } from "@/lib/club-data";
 import { ROLE_LABEL } from "@/lib/pd";
 
-export const Route = createFileRoute("/account")({ component: AccountPage });
+export const Route = createFileRoute("/account")({head:()=>pageHead("/account","Player Development Account","Your assigned development work, coaching notes, and player progress.",true), component: AccountPage });
 
 function AccountPage() {
   const { user, isPending } = useCurrentUserState();
@@ -21,7 +23,7 @@ function AccountPage() {
     );
   }
   if (!user) return <RedirectToSignIn />;
-  return <AccountHome />;
+  return <DevelopmentProvider><AccountHome /></DevelopmentProvider>;
 }
 
 function AccountHome() {

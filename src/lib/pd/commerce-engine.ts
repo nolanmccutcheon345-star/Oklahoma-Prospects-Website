@@ -1,3 +1,4 @@
+import { chicagoInstant } from "../scheduling";
 import {
   NOW,
   openSlots,
@@ -62,16 +63,16 @@ export function proposeRecurring(
   return { booked, short: booked.length < weeks };
 }
 
-export function cancelQuote(booking: Booking, policy: Policy): CancelQuote {
+export function cancelQuote(booking: Booking, policy: Policy, now = NOW()): CancelQuote {
   const time = booking.time || "17:00";
-  const session = new Date(`${booking.date}T${time}:00`);
-  const hours = (session.getTime() - NOW().getTime()) / 36e5;
+  const session = chicagoInstant(booking.date, time);
+  const hours = (session.getTime() - now.getTime()) / 36e5;
   const fullRefundAfter = policy.freeCancelHours;
   const noRefundInside = policy.partialRefundHours ?? 24;
   if (hours < 0) {
     return {
       feePct: policy.noShowFeePct,
-      fee: Math.round((booking.price * policy.noShowFeePct) / 100),
+      fee: Math.round(booking.price * policy.noShowFeePct) / 100,
       label: "No-show — no refund",
       hours,
     };
@@ -79,7 +80,7 @@ export function cancelQuote(booking: Booking, policy: Policy): CancelQuote {
   if (hours < noRefundInside) {
     return {
       feePct: policy.noShowFeePct,
-      fee: Math.round((booking.price * policy.noShowFeePct) / 100),
+      fee: Math.round(booking.price * policy.noShowFeePct) / 100,
       label: `Inside ${noRefundInside} hours — no refund`,
       hours,
     };
@@ -87,7 +88,7 @@ export function cancelQuote(booking: Booking, policy: Policy): CancelQuote {
   if (hours < fullRefundAfter) {
     return {
       feePct: policy.lateCancelFeePct,
-      fee: Math.round((booking.price * policy.lateCancelFeePct) / 100),
+      fee: Math.round(booking.price * policy.lateCancelFeePct) / 100,
       label: `${noRefundInside}–${fullRefundAfter} hours — ${policy.lateCancelFeePct}% refund`,
       hours,
     };

@@ -1,3 +1,4 @@
+import {pageHead} from "@/lib/seo";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState } from "react";
 import {
@@ -9,20 +10,20 @@ import {
 import { Button } from "@/components/ui/button";
 import { PageHero } from "@/components/page-hero";
 
-type LoginSearch = { next?: string };
+import { safeNext } from "@/lib/auth/redirect";
 
-export const Route = createFileRoute("/login")({
+type LoginSearch = { next?: string; token?: string };
+
+export const Route = createFileRoute("/login")({head:()=>pageHead("/login","Sign In","Sign in to your Oklahoma Prospects account.",true),
   validateSearch: (search: Record<string, unknown>): LoginSearch => ({
-    next:
-      typeof search.next === "string" && search.next.startsWith("/")
-        ? search.next
-        : "/account",
+    next: safeNext(search.next),
+    token: typeof search.token === "string" ? search.token.slice(0,1000) : undefined,
   }),
   component: Login,
 });
 
 function persistSessionToken(token: string | null | undefined) {
-  if (!token) return;
+  if (!token || window.self === window.top) return;
   try {
     sessionStorage.setItem("grok-auth.bearer-token", token);
   } catch {
@@ -56,18 +57,20 @@ async function emailAuth(
 }
 
 function Login() {
-  const { next } = Route.useSearch();
+  const { next, token } = Route.useSearch();
   const dest = next || "/account";
   const [mode, setMode] = useState<"in" | "up">("in");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
   const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState(false);
 
   async function onEmail(event: React.FormEvent) {
     event.preventDefault();
-    setError("");
+    if(busy)return;
+    setError("");setNotice("");
     setBusy(true);
     try {
       const payload = {
@@ -75,15 +78,9 @@ function Login() {
         password,
         ...(mode === "up" ? { name } : {}),
       };
-      try {
-        await emailAuth(mode, payload);
-      } catch (first) {
-        if (mode === "up") {
-          await emailAuth("in", payload);
-        } else {
-          throw first;
-        }
-      }
+      if(token){const result=await authClient.resetPassword({token,newPassword:password});if(result.error)throw new Error(result.error.message);setNotice("Password saved. Sign in using your new password.");setBusy(false);return;}
+      await emailAuth(mode, payload);
+      if(mode === "up"){setNotice("Check your email to verify your account before signing in.");setBusy(false);return;}
       try {
         await authClient.getSession();
       } catch {
@@ -107,6 +104,10 @@ function Login() {
         compact
       />
       <div className="mx-auto max-w-md px-5 py-8">
+      {notice?<p role="status" className="mb-4 rounded-lg bg-paper-2 p-3">{notice}</p>:null}
+      {token?<p className="mb-4">Enter a new password below to reset your account.</p>:null}
+      <Button type="button" variant="outlineDark" disabled={busy} onClick={async()=>{setBusy(true);setError("");try{const result=await authClient.requestPasswordReset({email,redirectTo:window.location.origin+"/login"});if(result.error)throw new Error(result.error.message);setNotice("If this email has an account, a reset link has been sent.");}catch(e){setError(e instanceof Error?e.message:"Could not request password reset.");}finally{setBusy(false);}}}>Forgot password? Enter your email below, then tap here</Button>
+
       {authEnabled ? (
         <div className="mt-6 grid gap-2">
           {GROK_PROVIDERS.map((provider) => (

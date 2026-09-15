@@ -47,7 +47,7 @@ export function StaffPayBoard() {
             key={`${team.id}-${member.id}`}
             eyebrow={team.name}
             title={member.name}
-            copy={`${member.role}. 1099 contractor — never W-2. Pay lives on this record, not a team number.`}
+            copy={`${member.role}. 1099 contractor — never employee. Pay lives on this record, not a team number.`}
           >
             <NumRows
               rows={[
@@ -55,7 +55,7 @@ export function StaffPayBoard() {
                 { label: "Applied to fees", value: formatTeamMoney(elect.applied) },
                 { label: "Cash", value: formatTeamMoney(elect.cash) },
                 {
-                  label: "W-9",
+                  label: "contractor record",
                   value: member.w9 ? "On file" : "Missing",
                   alert: !member.w9,
                 },
@@ -171,9 +171,9 @@ export function PayrollBoard() {
   const [blocked, setBlocked] = useState<string | null>(null);
 
   return (
-    <div className="teams-stack" data-teams-office="payroll">
+    <div className="teams-stack" data-teams-office="contractor payouts">
       <DeskCard
-        eyebrow="Payroll"
+        eyebrow="Contractor payouts"
         title="Gross is what gets reported."
         copy="Three columns, always. Applied to a child's fee does not shrink the 1099."
       >
@@ -216,10 +216,10 @@ export function PayrollBoard() {
                   ) : null}
                   {!row.w9 ? (
                     <span className="text-xs font-semibold tracking-wide text-ok-maroon uppercase" data-teams-w9-block={row.member.id}>
-                      W-9 required
+                      contractor record required
                     </span>
                   ) : (
-                    <span className="text-xs text-teams-muted">W-9 on file</span>
+                    <span className="text-xs text-teams-muted">contractor record on file</span>
                   )}
                   <Button
                     type="button"
@@ -228,7 +228,7 @@ export function PayrollBoard() {
                     disabled={!row.canPay}
                     onClick={() => {
                       const result = os.recordPayout(row.team.id, row.member.id, row.cash);
-                      setBlocked(result.ok ? null : "W-9 has to be on file before the first dollar leaves.");
+                      setBlocked(result.ok ? null : "contractor record has to be on file before the first dollar leaves.");
                     }}
                   >
                     Record cash
@@ -271,7 +271,7 @@ export function PayrollBoard() {
       >
         <NumRows
           rows={[
-            { label: "Classification", value: "1099 — never W-2" },
+            { label: "Classification", value: "1099 — never employee" },
             { label: "1099-NEC at", value: formatTeamMoney(pay.form1099Threshold) },
             { label: "Suggested set-aside", value: pct(pay.seTaxGuidancePct) },
             { label: "Accountable plan", value: pay.accountablePlan ? "On" : "Off" },
@@ -286,7 +286,7 @@ export function PayrollBoard() {
 }
 
 function POLICY_COPY(pctSet: number) {
-  return `W-9 before the first dollar. Gross is always reported, even when it is applied to a child's fee. Nothing is withheld, so the contractor sets aside about ${pctSet}% for self-employment tax. Contractor status is a facts test — it depends on written agreements scoped by deliverable, not a job title.`;
+  return `contractor record before the first dollar. Gross is always reported, even when it is applied to a child's fee. Nothing is withheld, so the contractor sets aside about ${pctSet}% for self-employment tax. Contractor status is a facts test — it depends on written agreements scoped by deliverable, not a job title.`;
 }
 
 export function ReimburseBoard() {
@@ -452,7 +452,7 @@ export function ComplianceBoard() {
                 {team.name} · background {c.background ? "on file" : "missing"} · SafeSport{" "}
                 {c.safeSport ? "on file" : "missing"} · expires {c.expires || "—"}
                 {c.expired ? " · expired" : c.dueSoon ? " · due inside 30 days" : ""}
-                {!member.w9 ? " · W-9 missing" : ""}
+                {!member.w9 ? " · contractor record missing" : ""}
               </p>
             </li>
           ))}
@@ -462,8 +462,8 @@ export function ComplianceBoard() {
   );
 }
 
-export function StaffDesk({ pane }: { pane: "pay" | "payroll" | "reimburse" | "compliance" }) {
-  if (pane === "payroll") return <PayrollBoard />;
+export function StaffDesk({ pane }: { pane: "pay" | "contractor payouts" | "reimburse" | "compliance" }) {
+  if (pane === "contractor payouts") return <PayrollBoard />;
   if (pane === "reimburse") return <ReimburseBoard />;
   if (pane === "compliance") return <ComplianceBoard />;
   return (

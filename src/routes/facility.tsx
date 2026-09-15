@@ -1,3 +1,4 @@
+import {pageHead} from "@/lib/seo";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { ArrowUpRight } from "lucide-react";
 import { FacilityLanes } from "@/components/facility-lanes";
@@ -6,7 +7,7 @@ import { PageHero } from "@/components/page-hero";
 import { Button } from "@/components/ui/button";
 import { CLUB, FAQ, LINKS, RENTALS } from "@/lib/club";
 
-export const Route = createFileRoute("/facility")({ component: FacilityPage });
+export const Route = createFileRoute("/facility")({head:()=>pageHead("/facility","Visit the Facility","Seven indoor lanes for baseball and softball at 3804 S. Elm Pl., Suite A, Broken Arrow.",false), component: FacilityPage });
 
 function FacilityPage() {
   return (

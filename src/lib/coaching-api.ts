@@ -1,0 +1,12 @@
+import {createServerFn} from '@tanstack/react-start';import {z} from 'zod';
+import {authMiddleware} from './auth/middleware';
+import {profileInput,availabilityInput,trackInput,metricInput,dayInput,logInput} from './coaching-contracts';
+export const getPublicCoaches=createServerFn({method:'GET'}).handler(async()=>{const m=await import('./coaching.server');return m.publicCoaches();});
+export const getMyCoach=createServerFn({method:'GET'}).middleware([authMiddleware]).handler(async({context})=>{const m=await import('./coaching.server');return m.myCoach(context.userId);});
+export const saveMyCoach=createServerFn({method:'POST'}).middleware([authMiddleware]).validator(profileInput).handler(async({context,data})=>{const m=await import('./coaching.server');return m.saveCoach(context.userId,data);});
+export const saveMyAvailability=createServerFn({method:'POST'}).middleware([authMiddleware]).validator(availabilityInput).handler(async({context,data})=>{const m=await import('./coaching.server');return m.saveAvailability(context.userId,data);});
+export const getDevelopmentProgress=createServerFn({method:'POST'}).middleware([authMiddleware]).validator(z.object({athleteId:z.string().min(1).max(150)}).strict()).handler(async({context,data})=>{const m=await import('./coaching.server');return m.developmentProgress(context.userId,data.athleteId);});
+export const saveTrack=createServerFn({method:'POST'}).middleware([authMiddleware]).validator(trackInput).handler(async({context,data})=>{const m=await import('./coaching.server');return m.setTrack(context.userId,data);});
+export const saveTrainingDay=createServerFn({method:'POST'}).middleware([authMiddleware]).validator(dayInput).handler(async({context,data})=>{const m=await import('./coaching.server');return m.setTrainingDay(context.userId,data);});
+export const logTrainingItem=createServerFn({method:'POST'}).middleware([authMiddleware]).validator(logInput).handler(async({context,data})=>{const m=await import('./coaching.server');return m.logTraining(context.userId,data);});
+export const logSessionMetric=createServerFn({method:'POST'}).middleware([authMiddleware]).validator(metricInput).handler(async({context,data})=>{const m=await import('./coaching.server');return m.saveMetric(context.userId,data);});

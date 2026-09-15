@@ -87,46 +87,4 @@ export function useClubStatus() {
   return status;
 }
 
-function isChicagoWeekend(isoDate: string) {
-  const probe = new Date(`${isoDate}T17:00:00.000Z`);
-  if (Number.isNaN(probe.getTime())) return false;
-  const weekday = new Intl.DateTimeFormat("en-US", {
-    timeZone: TZ,
-    weekday: "short",
-  }).format(probe);
-  return weekday === "Sat" || weekday === "Sun";
-}
-
-export function minsFromHHMM(value: string) {
-  const [h, m] = value.split(":").map(Number);
-  if (!Number.isFinite(h) || !Number.isFinite(m)) return 0;
-  return h * 60 + (m || 0);
-}
-
-export function rangesOverlap(a0: number, a1: number, b0: number, b1: number) {
-  return a0 < b1 && b0 < a1;
-}
-
-export function reservationSlots(isoDate: string, minutes = 60, now = new Date()) {
-  if (!isoDate) return [];
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(isoDate)) return [];
-  const weekend = isChicagoWeekend(isoDate);
-  const startHour = weekend ? 13 : 16;
-  const duration = Math.max(30, minutes);
-  const today = chicagoDateISO(now);
-  const nowMins = isoDate === today ? chicagoMinutes(now) : -1;
-  const slots: { value: string; label: string }[] = [];
-  for (let hour = startHour; hour < 20; hour += 1) {
-    for (const minute of [0, 30]) {
-      const start = hour * 60 + minute;
-      if (start + duration > CLOSE_MINS) continue;
-      if (start <= nowMins) continue;
-      const value = `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
-      const suffix = hour >= 12 ? "PM" : "AM";
-      const twelve = hour % 12 || 12;
-      const label = `${twelve}:${String(minute).padStart(2, "0")} ${suffix}`;
-      slots.push({ value, label });
-    }
-  }
-  return slots;
-}
+export { timeMinutes as minsFromHHMM, overlaps as rangesOverlap, slotsFor as reservationSlots } from "./scheduling";

@@ -2,15 +2,15 @@
 /**
  * Deploy-time database migrator (node-postgres, `pg`).
  *
- * Runs during `npm run build` — on every Vercel deploy — applying pending files
+ * Runs only as an explicit release action, never during build, applying pending files
  * in ../migrations to DATABASE_URL. Each file is applied in one transaction and
  * recorded in a `_migrations` table, so it runs once and is safe to re-run.
  *
  * The read is non-recursive, so the opt-in auth schema under migrations/auth/
  * is not applied to an app that never asked for sign-in.
  *
- * No DATABASE_URL (local / preview builds) -> skip; the PGLite fallback applies
- * the same files at startup instead (see src/lib/db.ts).
+ * Local development without a URL uses PGlite. Hosted environments require an
+ * explicit persistent database and must never report a skipped migration as success.
  */
 import { readdir, readFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
@@ -18,8 +18,17 @@ import { dirname, join } from "node:path";
 import pg from "pg";
 import { pendingMigrations } from "./migration-plan.mjs";
 
-const databaseUrl = process.env.DATABASE_URL || process.env.NETLIFY_DATABASE_URL;
+const isPreview = process.env.CONTEXT && !["production", "dev"].includes(process.env.CONTEXT);
+const databaseUrl = isPreview ? process.env.PREVIEW_DATABASE_URL : (process.env.DATABASE_URL || process.env.NETLIFY_DATABASE_URL);
+if (databaseUrl && process.env.RUN_DB_MIGRATIONS !== "true") {
+  console.error("[migrate] Set RUN_DB_MIGRATIONS=true only after reviewing the target and backup. Builds never migrate data.");
+  process.exit(1);
+}
 if (!databaseUrl) {
+  if (isPreview || process.env.CONTEXT === "production" || process.env.NODE_ENV === "production") {
+    console.error(`[migrate] ${isPreview ? "PREVIEW_DATABASE_URL" : "DATABASE_URL or NETLIFY_DATABASE_URL"} is required for this hosted context.`);
+    process.exit(1);
+  }
   console.log(
     "[migrate] DATABASE_URL not set — skipping (the PGLite fallback migrates itself).",
   );

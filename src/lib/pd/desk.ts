@@ -42,6 +42,11 @@ export const savePdDesk = createServerFn({ method: "POST" })
     if (!file || typeof file !== "object" || !Array.isArray(file.athletes) || !Array.isArray(file.messages)) {
       throw new Error("Forbidden");
     }
+    if (!Number.isSafeInteger(file.revision) || JSON.stringify(file).length > 5_000_000) throw new Error("Invalid record.");
+    for (const [key, value] of Object.entries(file)) {
+      if (key === "policy" || key === "revision") continue;
+      if (!Array.isArray(value) || value.some(row => !row || typeof row !== "object")) throw new Error("Invalid record.");
+    }
     return { file };
   })
   .handler(async ({ context, data }) => {

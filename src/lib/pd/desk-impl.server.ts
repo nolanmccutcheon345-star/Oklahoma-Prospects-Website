@@ -1,108 +1,56 @@
-import { getSql } from "@/lib/db";
+import { getSql, type Sql } from "@/lib/db";
+import { clubIdentity } from "@/lib/identity.server";
 import {
   authorizeMessage,
   assertAthleteAccess,
   familyForViewer,
   filterDevelopmentData,
-  resolveViewerRole,
   scopeForViewer,
   type PdViewer,
 } from "./access";
 import { hydrateWorkingFile, mergeScopedFile, newFileId } from "./file";
 import { emptyDevelopment } from "./empty";
 import { seedDevelopment } from "./seed";
-import { CLUB_DAY_ISO } from "./engines";
-import type { Athlete, DevelopmentData, Family, Message } from "./types";
+import type { DevelopmentData, Family, Message } from "./types";
+
+import { withCommerceRecords } from "../commerce/development.server";
 
 const FILE_ID = "club";
 
 async function viewerFromUserId(userId: string): Promise<PdViewer> {
-  const sql = await getSql();
-  let email = "";
-  let name = "";
-  let playerName = "";
-  let profileRole: string | null = null;
-  try {
-    const auth = await sql<{ email: string; name: string }>`
-      select email, name from "user" where id = ${userId}
-    `;
-    email = (auth[0]?.email ?? "").toLowerCase();
-    name = auth[0]?.name ?? "";
-  } catch {
-    /* user table may be missing in a partial migrate */
-  }
-  try {
-    const profile = await sql<{
-      email: string;
-      name: string;
-      player_name: string;
-      role: string;
-    }>`
-      select email, name, player_name, role from profiles where user_id = ${userId}
-    `;
-    if (profile[0]) {
-      email = (profile[0].email || email).toLowerCase();
-      name = profile[0].name || name;
-      playerName = profile[0].player_name || "";
-      profileRole = profile[0].role;
-    }
-  } catch {
-    /* profiles may be missing */
-  }
-  return {
-    role: resolveViewerRole(email, profileRole),
-    email,
-    name,
-    playerName,
-  };
+  return clubIdentity(userId);
 }
 
-async function readWorkingFile(): Promise<DevelopmentData> {
-  const seed = seedDevelopment();
+export async function readWorkingFile(): Promise<DevelopmentData> {
   const sql = await getSql();
-  try {
-    const rows = await sql<{ payload: string }>`
-      select payload from pd_working_file where id = ${FILE_ID}
-    `;
-    const raw = rows[0]?.payload;
-    if (!raw) {
-      const seeded = seedDevelopment();
-      await writeWorkingFile(seeded);
-      return seeded;
-    }
-    const parsed = (typeof raw === "string" ? JSON.parse(raw) : raw) as Partial<DevelopmentData>;
-    const hydrated = hydrateWorkingFile(parsed, seed);
-    if (hydrated.coaches.length === 0 && seed.coaches.length > 0) {
-      hydrated.coaches = seed.coaches;
-      if (!hydrated.availability?.length) hydrated.availability = seed.availability;
-      await writeWorkingFile(hydrated);
-    }
-    return hydrated;
-  } catch {
-    return seedDevelopment();
-  }
+  const [row] = await sql<{ payload: string; revision: number }>`select payload, revision from pd_working_file where id = ${FILE_ID}`;
+  const empty = emptyDevelopment();
+  // Curriculum/catalog defaults are public. Never manufacture athletes or household data.
+  const defaults = seedDevelopment();
+  empty.services = defaults.services; empty.packages = defaults.packages;
+  empty.memberships = defaults.memberships; empty.videoStandards = defaults.videoStandards;
+  if (!row) return withCommerceRecords(sql, { ...empty, revision: 0 });
+  const parsed = typeof row.payload === "string" ? JSON.parse(row.payload) : row.payload;
+  return withCommerceRecords(sql, { ...hydrateWorkingFile(parsed, empty), revision: row.revision });
 }
 
-async function writeWorkingFile(data: DevelopmentData) {
-  const sql = await getSql();
-  const payload = JSON.stringify(data);
-  await sql`
-    insert into pd_working_file (id, payload, updated_at)
-    values (${FILE_ID}, ${payload}, now())
-    on conflict (id) do update set payload = excluded.payload, updated_at = now()
-  `;
+export async function writeWorkingFile(data: DevelopmentData, transaction?:Sql) {
+  const sql = transaction || await getSql();
+  const revision = data.revision ?? 0;
+  const payload = JSON.stringify({ ...data, revision: revision + 1 });
+  const rows = await sql<{ revision: number }>`insert into pd_working_file (id, payload, revision, updated_at)
+    values (${FILE_ID}, ${payload}, ${revision + 1}, now())
+    on conflict (id) do update set payload = excluded.payload, revision = excluded.revision, updated_at = now()
+    where pd_working_file.revision = ${revision}
+    returning revision`;
+  if (!rows.length) throw new Error("Another editor saved changes. Reload the latest record before saving again.");
+  data.revision = rows[0].revision;
+  return rows[0].revision;
 }
 
 function scopedDesk(viewer: PdViewer, full: DevelopmentData) {
   const scope = scopeForViewer(viewer, full);
   return { viewer, scope, data: filterDevelopmentData(full, scope) };
-}
-
-function splitName(raw: string) {
-  const parts = raw.trim().split(/\s+/).filter(Boolean);
-  if (parts.length === 0) return { first: "Athlete", last: "Prospects" };
-  if (parts.length === 1) return { first: parts[0], last: "Prospects" };
-  return { first: parts[0], last: parts.slice(1).join(" ") };
 }
 
 async function provisionViewer(viewer: PdViewer, full: DevelopmentData): Promise<DevelopmentData> {
@@ -118,7 +66,7 @@ async function provisionViewer(viewer: PdViewer, full: DevelopmentData): Promise
             id: `c-${email.replace(/[^a-z0-9]/g, "").slice(0, 18) || "admin"}`,
             name: viewer.name || "Admin",
             email,
-            specialties: ["Pitching", "Hitting"] as string[],
+            specialties: [] as string[],
             active: true,
           },
         ],
@@ -148,43 +96,12 @@ async function provisionViewer(viewer: PdViewer, full: DevelopmentData): Promise
     return next;
   }
   if (familyForViewer(viewer, full)) return full;
-  const slug = viewer.email.replace(/[^a-z0-9]/g, "").slice(0, 18) || "member";
-  const familyId = `f-${slug}`;
-  const athleteId = `a-${slug}`;
-  const player = splitName(viewer.playerName || viewer.name);
   const family: Family = {
-    id: familyId,
-    name: `${player.last} family`,
-    parentName: viewer.name || "Parent",
-    email: viewer.email,
-    phone: "",
-    athleteIds: [athleteId],
-    plan: { type: "none", lessonCredits: 0 },
+    id: `fam-${(viewer as PdViewer & {userId:string}).userId}`,
+    name: "Your household", parentName: viewer.name, email: viewer.email,
+    phone: "", athleteIds: [], plan: {type:"none",lessonCredits:0},
   };
-  const athlete: Athlete = {
-    id: athleteId,
-    firstName: player.first,
-    lastName: player.last,
-    sport: "baseball",
-    position: "",
-    throws: "R",
-    bats: "R",
-    birthDate: "2014-01-01",
-    graduationYear: 2032,
-    familyId,
-    coachIds: full.coaches[0] ? [full.coaches[0].id] : [],
-    opLevel: 0,
-    assessmentComplete: false,
-    school: "",
-    city: "Broken Arrow, OK",
-    notes: "",
-    tags: ["new"],
-  };
-  const next = {
-    ...full,
-    families: [...full.families, family],
-    athletes: [...full.athletes, athlete],
-  };
+  const next = {...full,families:[...full.families,family]};
   await writeWorkingFile(next);
   return next;
 }
@@ -221,7 +138,7 @@ export async function writeMessageForUser(
     channel: allowed.channel === "coach" ? "coach" : "family",
     fromName: viewer.name || (viewer.role === "coach" ? "Coach" : "Parent"),
     fromRole: viewer.role,
-    createdAt: CLUB_DAY_ISO,
+    createdAt: new Date().toISOString(),
   };
   await writeWorkingFile({
     ...full,
@@ -234,7 +151,16 @@ export async function saveDeskForUser(userId: string, incoming: DevelopmentData)
   const viewer = await viewerFromUserId(userId);
   const full = await readWorkingFile();
   const scope = scopeForViewer(viewer, full);
+  if (incoming.revision !== full.revision) throw new Error("Another editor saved changes. Reload before saving again.");
   const merged = mergeScopedFile(full, incoming, scope);
-  await writeWorkingFile(merged);
-  return { ok: true as const };
+  const sql = await getSql();
+  return sql.transaction(async tx=>{
+  const revision = await writeWorkingFile(merged,tx);
+  for (const athlete of merged.athletes) {
+    if (scope.athleteIds !== "all" && !scope.athleteIds.has(athlete.id)) continue;
+    await tx`update club_athletes set name = ${`${athlete.firstName} ${athlete.lastName}`.trim()},
+      birth_date = ${athlete.birthDate || null}, coach_ids = ${JSON.stringify(athlete.coachIds)}::jsonb where id = ${athlete.id}`;
+  }
+  return { ok: true as const, revision };
+  });
 }

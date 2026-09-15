@@ -1,5 +1,5 @@
-export type Sport = "baseball" | "softball";
-export type Throws = "R" | "L";
+export type Sport = "baseball" | "softball" | "";
+export type Throws = "R" | "L" | "";
 export type ViewerRole = "admin" | "coach" | "parent" | "player";
 
 export type AthleteFrame = {
@@ -532,6 +532,7 @@ export type RecordGroupDef = {
 };
 
 export type DevelopmentData = {
+  revision?: number;
   athletes: Athlete[];
   families: Family[];
   coaches: Coach[];

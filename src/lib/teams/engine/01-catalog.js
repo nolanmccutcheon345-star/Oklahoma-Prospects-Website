@@ -1,4 +1,3 @@
-// @ts-nocheck
 /* Prospects Team Management OS — paste block 2 of 5: uniform packages and the event catalog
    Use verbatim. Locked brand system and real organizer pricing. Do not regenerate. */
 

@@ -382,7 +382,7 @@ export function CoachApp({
               {s.name} · monthly {money(s.monthly)} · applied to fees {money(s.applyAmount)} · cash{" "}
               {money(Math.max(0, s.monthly - s.applyAmount))}
             </p>
-            {!s.w9 ? <p className="text-maroon">W-9 required before the first dollar.</p> : null}
+            {!s.w9 ? <p className="text-maroon">contractor record required before the first dollar.</p> : null}
           </div>
         ))}
       </Section>

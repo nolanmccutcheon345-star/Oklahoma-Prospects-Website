@@ -29,10 +29,12 @@
  * components read the user via `@/lib/auth/use-current-user`; server functions get
  * a verified id via `@/lib/auth/middleware`.
  */
+import { configuredDatabaseUrl } from "../database-config";
 import { betterAuth } from "better-auth";
 import { bearer, genericOAuth } from "better-auth/plugins";
 import { tanstackStartCookies } from "better-auth/tanstack-start";
 import { getCookie } from "@tanstack/react-start/server";
+import { deliverAuthEmail } from "./email.server";
 import { randomBytes } from "node:crypto";
 import { Pool } from "pg";
 import { ensureDbReady, getPglite } from "../db";
@@ -48,7 +50,7 @@ import {
 } from "./preview";
 
 // Kick (and share) PGLite bootstrap as soon as the auth server module loads.
-void ensureDbReady();
+void ensureDbReady().catch(() => { /* Requests report database readiness failures. */ });
 
 /**
  * Preview secret must outlive module reloads: PGLite (and its session rows) is
@@ -125,7 +127,7 @@ const trustedOrigins: string[] = explicitBaseURL
       ...LOCAL_DEV_ORIGINS,
     ];
 
-const databaseUrl = env("DATABASE_URL") || env("NETLIFY_DATABASE_URL");
+const databaseUrl = configuredDatabaseUrl(process.env);
 
 // Static broker OAuth endpoints (skip OIDC discovery on every sign-in / callback).
 // Discovery would cost an extra network hop to the broker before the popup can
@@ -200,7 +202,7 @@ export const auth = betterAuth({
       ],
       // X's synthetic email is never "verified", so don't gate linking on the
       // local user's email-verified state.
-      requireLocalEmailVerified: false,
+      requireLocalEmailVerified: true,
     },
   },
 
@@ -211,7 +213,14 @@ export const auth = betterAuth({
   session: { cookieCache: { enabled: true, maxAge: 300 } },
 
   // Local email/password — toggled only via `./email-password` (not a plugin).
-  ...(emailAndPasswordEnabled ? { emailAndPassword: { enabled: true } } : {}),
+  ...(emailAndPasswordEnabled ? {
+    emailAndPassword: {enabled:true,requireEmailVerification:true,revokeSessionsOnPasswordReset:true,
+      sendResetPassword:async ({user,url})=>{await deliverAuthEmail(user.email,"Reset your password",url);}},
+    emailVerification:{sendOnSignUp:true,sendOnSignIn:true,autoSignInAfterVerification:false,
+      sendVerificationEmail:async ({user,url})=>{await deliverAuthEmail(user.email,"Verify your email",url);}},
+  } : {}),
+  rateLimit:{enabled:true,storage:"database",window:60,max:100,
+    customRules:{"/sign-in/email":{window:60,max:10},"/sign-up/email":{window:600,max:5},"/request-password-reset":{window:600,max:5},"/send-verification-email":{window:600,max:5}}},
 
   // `__Host-` prefixed cookies: the browser REFUSES any same-named cookie that
   // carries a `Domain` attribute, so a sibling `*.grok.me` app cannot "toss" a
@@ -259,3 +268,14 @@ export function readSessionToken(): string | null {
 // Re-exported for convenience; the array lives in the dependency-free
 // `providers.ts` so the client can import it too.
 export { GROK_PROVIDERS } from "./providers";
+
+export function authConfigurationError() {
+  if ((process.env.NODE_ENV === 'production' || databaseUrl) && !env('BETTER_AUTH_SECRET')) return 'A stable authentication secret is required.';
+  if (process.env.NODE_ENV === 'production' && !databaseUrl) return 'The account database is not configured.';
+  if (process.env.NODE_ENV === 'production' && !explicitBaseURL) return 'The authentication origin is not configured.';
+  return null;
+}
+export async function handleAuthRequest(request:Request) {
+  if(authConfigurationError())return Response.json({message:'Account access is temporarily unavailable. Contact the front desk.'},{status:503});
+  return auth.handler(request);
+}

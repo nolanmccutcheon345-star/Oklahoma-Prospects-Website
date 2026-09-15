@@ -86,7 +86,7 @@ export const DRILL_LIBRARY = [
   },
 ] as const;
 
-export const ASSESSMENT_IDS = new Set(["s1", "s9"]);
+export { ASSESSMENT_PRODUCTS as ASSESSMENT_IDS } from "./pricing";
 
 export function findLesson(id: string) {
   return LESSON_CATALOG.find((item) => item.id === id);

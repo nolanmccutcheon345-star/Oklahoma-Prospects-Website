@@ -14,14 +14,19 @@ The previous static HTML marketing site in this repository is gone. `prospectsba
 
 - TanStack Start (React 19) + Vite + Tailwind
 - Netlify production host (`oklahoma-prospects` → `prospectsbaseball.club`)
-- Postgres when `DATABASE_URL` is set; otherwise a local PGLite fallback
+- Persistent Postgres in hosted environments; in-memory PGlite is for local development only
 
 ## Scripts
 
 ```bash
 npm run dev        # local app
-npm run build      # production build + migrations
+npm run build      # build only; does not modify the database
+npm run db:migrate # explicit schema migration, with the target database configured
 npm run typecheck
+npm test
+npm run lint
+NETLIFY=true CONTEXT=deploy-preview npm run build
+npm run verify:build
 ```
 
 ## Domain
@@ -32,3 +37,9 @@ npm run typecheck
 | www.prospectsbaseball.club | 301 → apex |
 | book.prospectsbaseball.club | 301 into this app |
 | app.prospectsbaseball.club | 301 into this app |
+
+## Audit implementation
+
+See [the release and Grok handoff](docs/AUDIT-HANDOFF.md) for deployment contexts,
+migration order, validation evidence and remaining release gates. The audit branch
+is a review candidate; it does not certify that the live site runs these changes.

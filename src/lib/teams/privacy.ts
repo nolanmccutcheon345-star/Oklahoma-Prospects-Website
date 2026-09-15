@@ -5,26 +5,6 @@ function dropPayment(player: Player): Player {
   return rest as Player;
 }
 
-function stripMedical(player: Player): Player {
-  return {
-    ...player,
-    emergency: {
-      allergies: "",
-      conditions: "",
-      insurer: "",
-      policyNo: "",
-      physician: "",
-      pickup: [],
-      notes: "",
-    },
-    parents: player.parents.map((p) => ({ ...p, phone: "", email: "" })),
-  };
-}
-
-function publicTeammate(player: Player): Player {
-  return stripMedical(dropPayment({ ...player, depositPaid: false }));
-}
-
 export function scopeClub(
   club: ClubRecord,
   role: "admin" | "coach" | "parent" | "player",
@@ -75,13 +55,8 @@ export function scopeClub(
       coachMonthly: 0,
       eventBudget: 0,
       otherCosts: { insurance: 0, balls: 0, fields: 0, admin: 0, travel: 0 },
-      roster: team.roster.map((p) =>
-        familyIds.has(p.familyId)
-          ? role === "player"
-            ? dropPayment(p)
-            : p
-          : publicTeammate(p),
-      ),
+      roster: team.roster.filter(p => familyIds.has(p.familyId)).map(p =>
+        role === "player" ? dropPayment(p) : p),
     }));
   return {
     ...next,
@@ -172,10 +147,7 @@ export function mergeSave(
       return {
         ...p,
         order: incomingP.order,
-        docs: incomingP.docs,
         prefs: incomingP.prefs,
-        planType: incomingP.planType,
-        cards: incomingP.cards,
         publicProfile: incomingP.publicProfile,
         rsvp: incomingP.rsvp,
         reenroll: incomingP.reenroll,

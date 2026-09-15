@@ -1,7 +1,7 @@
 import { useState, type FormEvent } from "react";
-import { toast } from "sonner";
+import {sendInquiry} from "@/lib/portal-api";
 import { Button } from "@/components/ui/button";
-import { AGE_GROUPS, CLUB, TRYOUT_AGES, TRYOUT_DAYS } from "@/lib/club";
+import { AGE_GROUPS, TRYOUT_AGES, TRYOUT_DAYS } from "@/lib/club";
 import { cn } from "@/lib/utils";
 
 const fieldClass =
@@ -25,15 +25,6 @@ type TryoutValues = {
   session: string;
 };
 
-function persist(key: string, payload: unknown) {
-  try {
-    const prev = JSON.parse(localStorage.getItem(key) || "[]") as unknown[];
-    localStorage.setItem(key, JSON.stringify([payload, ...prev].slice(0, 12)));
-  } catch {
-    /* ignore quota */
-  }
-}
-
 export function ContactForm() {
   const [values, setValues] = useState<ContactValues>({
     name: "",
@@ -42,19 +33,14 @@ export function ContactForm() {
     message: "",
   });
 
-  function onSubmit(event: FormEvent) {
-    event.preventDefault();
-    persist("prospects-contact", { ...values, at: Date.now() });
-    const subject = encodeURIComponent(`Prospects inquiry from ${values.name}`);
-    const body = encodeURIComponent(
-      `Name: ${values.name}\nEmail: ${values.email}\nPhone: ${values.phone}\n\n${values.message}`,
-    );
-    toast.success("Opening email to send this to Prospects.");
-    window.location.href = `mailto:${CLUB.email}?subject=${subject}&body=${body}`;
+  const [busy,setBusy]=useState(false);const [error,setError]=useState("");const [sent,setSent]=useState(false);const [requestId]=useState(()=>crypto.randomUUID());
+  async function onSubmit(event: FormEvent) {
+    event.preventDefault();if(busy||sent)return;setBusy(true);setError("");
+    try{await sendInquiry({data:{kind:"contact",requestId,...values}});setSent(true);}catch(e){setError(e instanceof Error?e.message:"Submission did not save. Please retry.");}finally{setBusy(false);}
   }
 
   return (
-    <form onSubmit={onSubmit} className="grid gap-4">
+    <form onSubmit={onSubmit} className="grid gap-4">{error?<p role="alert" className="text-maroon">{error}</p>:null}{sent?<p role="status">Saved to the club’s front-office queue. Reference: {requestId}</p>:null}
       <label className="text-sm font-semibold">
         Name <span className="text-maroon">*</span>
         <input
@@ -99,7 +85,7 @@ export function ContactForm() {
           onChange={(e) => setValues((v) => ({ ...v, message: e.target.value }))}
         />
       </label>
-      <Button type="submit" variant="primary" className="w-full sm:w-auto">
+      <Button type="submit" disabled={busy||sent} variant="primary" className="w-full sm:w-auto">
         Send message
       </Button>
     </form>
@@ -135,40 +121,14 @@ export function TryoutForm({
     session: "",
   });
 
-  function onSubmit(event: FormEvent) {
-    event.preventDefault();
-    persist("prospects-tryout", { ...values, intent, at: Date.now() });
-    const subject = encodeURIComponent(
-      intent === "register"
-        ? `Tryout registration — ${values.player} · ${values.age} · ${values.session || "session TBD"}`
-        : `Team inquiry — ${values.player} (${values.age})`,
-    );
-    const body = encodeURIComponent(
-      [
-        `Player: ${values.player}`,
-        `Age group: ${values.age}`,
-        `Sport: ${values.sport}`,
-        intent === "register" ? `Session: ${values.session}` : null,
-        `Parent / Guardian: ${values.parent}`,
-        `Phone: ${values.phone}`,
-        `Email: ${values.email}`,
-        "",
-        "Notes:",
-        values.notes,
-      ]
-        .filter(Boolean)
-        .join("\n"),
-    );
-    toast.success(
-      intent === "register"
-        ? "Opening email to send this tryout registration."
-        : "Opening email to send this team inquiry.",
-    );
-    window.location.href = `mailto:${CLUB.email}?subject=${subject}&body=${body}`;
+  const [busy,setBusy]=useState(false);const [error,setError]=useState("");const [sent,setSent]=useState(false);const [requestId]=useState(()=>crypto.randomUUID());
+  async function onSubmit(event: FormEvent) {
+    event.preventDefault();if(busy||sent)return;setBusy(true);setError("");
+    try{await sendInquiry({data:{kind:intent==="register"?"tryout":"team-inquiry",requestId,...values,sport:values.sport as "Baseball"|"Softball"}});setSent(true);}catch(e){setError(e instanceof Error?e.message:"Submission did not save. Please retry.");}finally{setBusy(false);}
   }
 
   return (
-    <form onSubmit={onSubmit} className="grid gap-4">
+    <form onSubmit={onSubmit} className="grid gap-4">{error?<p role="alert" className="text-maroon">{error}</p>:null}{sent?<p role="status">Saved to the club’s front-office queue. Reference: {requestId}</p>:null}
       <div className="grid gap-4 sm:grid-cols-2">
         <label className="text-sm font-semibold">
           Player name <span className="text-maroon">*</span>
@@ -285,7 +245,7 @@ export function TryoutForm({
           onChange={(e) => setValues((v) => ({ ...v, notes: e.target.value }))}
         />
       </label>
-      <Button type="submit" variant="primary" className="w-full sm:w-auto">
+      <Button type="submit" disabled={busy||sent} variant="primary" className="w-full sm:w-auto">
         Submit {intent === "register" ? "tryout registration" : "team inquiry"}
       </Button>
     </form>

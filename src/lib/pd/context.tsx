@@ -149,7 +149,7 @@ function readEducation(): Record<string, string[]> {
   }
 }
 
-const DevelopmentContext = createContext<DevelopmentContextValue | null>(null);
+export const DevelopmentContext = createContext<DevelopmentContextValue | null>(null);
 
 function ofAthlete<T extends { athleteId: string }>(rows: T[], id: string) {
   return rows.filter((row) => row.athleteId === id);
@@ -167,6 +167,10 @@ export function DevelopmentProvider({ children }: { children: ReactNode }) {
   const [educationReady, setEducationReady] = useState(false);
   const [viewer, setViewer] = useState<PdViewer | null>(null);
   const [pdReady, setPdReady] = useState(false);
+  const [saveError, setSaveError] = useState("");
+  const [saving, setSaving] = useState(false);
+  const savedRevision = useRef(0);
+  const failedSave = useRef(false);
   const skipPersist = useRef(true);
   const latestFile = useRef(data);
   const persistChain = useRef(Promise.resolve());
@@ -191,12 +195,16 @@ export function DevelopmentProvider({ children }: { children: ReactNode }) {
       .then((payload) => {
         if (cancelled) return;
         skipPersist.current = true;
+        savedRevision.current = payload.data.revision ?? 0;
+        failedSave.current = false;
+        setSaveError("");
         setData(payload.data);
         setViewer(payload.viewer);
         setPdReady(true);
       })
-      .catch(() => {
+      .catch((error) => {
         if (cancelled) return;
+        setSaveError(error instanceof Error ? error.message : "Could not load your saved records.");
         skipPersist.current = true;
         setData(emptyDevelopment());
         setViewer(null);
@@ -222,15 +230,21 @@ export function DevelopmentProvider({ children }: { children: ReactNode }) {
       skipPersist.current = false;
       return;
     }
-    if (latestFile.current.athletes.length === 0) return;
+    if (!viewer || !user) return;
     const snapshot = latestFile.current;
-    persistChain.current = persistChain.current.then(() =>
-      savePdDesk({ data: { file: latestFile.current ?? snapshot } }).then(
-        () => undefined,
-        () => undefined,
-      ),
-    );
-  }, [data, pdReady]);
+    setSaving(true);
+    persistChain.current = persistChain.current.then(async () => {
+      if (failedSave.current) return;
+      try {
+        const result = await savePdDesk({ data: { file: { ...snapshot, revision: savedRevision.current } } });
+        savedRevision.current = result.revision;
+        setSaveError("");
+      } catch (error) {
+        failedSave.current = true;
+        setSaveError(error instanceof Error ? error.message : "Changes have not saved. Please retry.");
+      } finally { setSaving(false); }
+    });
+  }, [data, pdReady, viewer, user]);
 
 
   const openAthlete = useCallback(
@@ -250,12 +264,13 @@ export function DevelopmentProvider({ children }: { children: ReactNode }) {
     try {
       const payload = await loadPdDesk();
       skipPersist.current = true;
+      savedRevision.current = payload.data.revision ?? 0;
+      failedSave.current = false;
+      setSaveError("");
       setData(payload.data);
       setViewer(payload.viewer);
-    } catch {
-      skipPersist.current = true;
-      setData(emptyDevelopment());
-      setViewer(null);
+    } catch (error) {
+      setSaveError(error instanceof Error ? error.message : "Could not reload saved records. Your current edits remain visible.");
     } finally {
       setPdReady(true);
     }
@@ -365,44 +380,8 @@ export function DevelopmentProvider({ children }: { children: ReactNode }) {
       lessons?: number;
       remote?: number;
     }) => {
-      setData((prev) => {
-        const athlete = prev.athletes.find((row) => row.id === input.athleteId);
-        const bookings: Booking[] = [
-          ...prev.bookings,
-          ...input.sessions.map((session) => ({
-            id: nid("bk"),
-            athleteId: input.athleteId,
-            serviceId: input.serviceId,
-            date: session.date,
-            dateLabel: session.dateLabel,
-            time: session.time,
-            status: "paid" as const,
-            price: input.sessions.length > 1 ? 0 : input.price,
-            coachId: session.coachId,
-            payout: "unpaid" as const,
-          })),
-        ];
-        const families = prev.families.map((family) => {
-          if (!athlete || family.id !== athlete.familyId) return family;
-          if (!input.planType) return family;
-          return {
-            ...family,
-            plan: {
-              type: input.planType,
-              lessonCredits: input.lessons ?? family.plan?.lessonCredits ?? 0,
-              lessons: input.lessons ?? family.plan?.lessons,
-              remote: input.remote ?? family.plan?.remote,
-              tier:
-                input.planType === "development" ||
-                input.planType === "performance" ||
-                input.planType === "elite"
-                  ? input.planType
-                  : family.plan?.tier,
-            },
-          };
-        });
-        return { ...prev, bookings, families };
-      });
+      void input;
+      throw new Error("Use secure checkout. Booking confirmation comes from verified payment.");
     },
     [],
   );
@@ -786,6 +765,7 @@ export function DevelopmentProvider({ children }: { children: ReactNode }) {
         result = { ok: false, reason: "Athlete not found." };
         return prev;
       }
+      if(!athlete.throws){result={ok:false,reason:"Set the athlete’s throwing hand before importing tracking data."};return prev;}
       const rows = trackingApplyRows(parsed, athleteId, athlete.throws);
       return {
         ...prev,
@@ -885,7 +865,10 @@ export function DevelopmentProvider({ children }: { children: ReactNode }) {
   );
 
   return (
-    <DevelopmentContext.Provider value={value}>{children}</DevelopmentContext.Provider>
+    <DevelopmentContext.Provider value={value}>
+      {saveError ? <div role="alert" className="border-b border-maroon bg-paper p-4 text-ink">{saveError} <button className="min-h-11 underline" onClick={() => { void refreshDesk(); }}>Reload saved records</button></div> : saving ? <p role="status" className="px-5 py-2 text-sm">Saving changes…</p> : null}
+      {children}
+    </DevelopmentContext.Provider>
   );
 }
 

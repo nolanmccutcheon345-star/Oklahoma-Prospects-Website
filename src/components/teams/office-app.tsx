@@ -36,7 +36,7 @@ export function OfficeApp({
 
   const months = useMemo(() => {
     return Array.from({ length: 12 }, (_, i) => {
-      const d = new Date(2026, 8 + i, 1);
+      const d = new Date(new Date().getFullYear(), new Date().getMonth() + i, 1);
       const label = d.toLocaleString("en-US", { month: "short" });
       const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
       const inflow = players.reduce((sum, x) => {
@@ -48,7 +48,7 @@ export function OfficeApp({
       }, 0);
       const staff = club.teams.reduce((sum, t) => sum + t.coachMonthly, 0);
       const facility = club.settings.facilityMonthly * Math.max(1, club.teams.length);
-      const outflow = staff + facility + (i % 3 === 0 ? 2000 : 400);
+      const outflow = staff + facility;
       return { label, inflow, outflow };
     });
   }, [club, players]);
@@ -129,11 +129,11 @@ export function OfficeApp({
         ))}
       </Section>
 
-      <Section title="Staff and payroll">
+      <Section title="Staff and contractor payouts">
         {club.teams.flatMap((t) =>
           t.staff.map((s) => (
             <p key={s.id} className="text-sm">
-              {s.name} · {money(s.monthly)}/mo · W-9 {s.w9 ? "yes" : "NO"} · SafeSport{" "}
+              {s.name} · {money(s.monthly)}/mo · contractor record {s.w9 ? "yes" : "NO"} · SafeSport{" "}
               {s.safeSport ? "yes" : "NO"}
             </p>
           )),

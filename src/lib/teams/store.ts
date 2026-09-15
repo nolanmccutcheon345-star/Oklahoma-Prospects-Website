@@ -2,7 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { authMiddleware } from "@/lib/auth/middleware";
 import { getSql } from "@/lib/db";
 import { getProfile } from "@/lib/club-data";
-import { isOwnerEmail } from "@/lib/owners";
+import { clubIdentity } from "@/lib/identity.server";
 import { mergeSave, scopeClub, familyHoldsPlayer, fetchTeamRecord, fetchPlayerRecord } from "./privacy";
 import { emptyClub, sampleClub } from "./seed";
 import type { ClubRecord, Player, Team } from "./types";
@@ -11,120 +11,35 @@ import type { ClubRole } from "@/lib/club-data";
 type Identity = { email: string; familyId: string; role: ClubRole; name: string };
 
 async function identity(userId: string): Promise<Identity> {
-  const sql = await getSql();
-  let email = "";
-  let name = "";
-  try {
-    const users = await sql<{ name: string; email: string }>`
-      select name, email from "user" where id = ${userId}
-    `;
-    email = (users[0]?.email ?? "").toLowerCase();
-    name = users[0]?.name ?? "";
-  } catch {
-    /* auth user row may be missing in preview */
-  }
-  if (isOwnerEmail(email)) {
-    try {
-      await sql`
-        insert into profiles (user_id, name, email, role, player_name, family_id)
-        values (
-          ${userId},
-          ${name || "Owner"},
-          ${email},
-          'admin',
-          '',
-          ${`fam-${userId.slice(0, 8)}`}
-        )
-        on conflict (user_id) do update set
-          role = 'admin',
-          email = excluded.email,
-          name = excluded.name
-      `;
-    } catch {
-      /* profile table may not have family_id yet */
-    }
-  }
-  let row: { name: string; email: string; role: ClubRole; family_id: string } | undefined;
-  try {
-    const rows = await sql<{
-      name: string;
-      email: string;
-      role: ClubRole;
-      family_id: string;
-    }>`
-      select name, email, role, family_id from profiles where user_id = ${userId}
-    `;
-    row = rows[0];
-  } catch {
-    const rows = await sql<{ name: string; email: string; role: ClubRole }>`
-      select name, email, role from profiles where user_id = ${userId}
-    `;
-    const fallback = rows[0];
-    row = fallback
-      ? { ...fallback, family_id: `fam-${userId.slice(0, 8)}` }
-      : undefined;
-  }
-  let familyId = row?.family_id || `fam-${userId.slice(0, 8)}`;
-  const role: ClubRole = isOwnerEmail(email) ? "admin" : (row?.role ?? "parent");
-  if (role !== "admin") {
-    try {
-      const club = await loadRaw();
-      if (club && email) {
-        const matched = club.teams
-          .flatMap((team) => team.roster)
-          .find((player) => {
-            const playerEmail = player.email.trim().toLowerCase();
-            if (playerEmail && playerEmail === email && !playerEmail.includes("example.com")) {
-              return true;
-            }
-            return player.parents.some((parent) => {
-              const parentEmail = parent.email.trim().toLowerCase();
-              return Boolean(parentEmail) && parentEmail === email && !parentEmail.includes("example.com");
-            });
-          });
-        if (matched?.familyId) familyId = matched.familyId;
-      }
-    } catch {
-      /* club may not be open */
-    }
-  }
-  return {
-    name: row?.name || name,
-    email: row?.email || email,
-    role,
-    familyId,
-  };
+  const me = await clubIdentity(userId);
+  let familyId = me.familyId;
+  const club = await loadRaw();
+  const matched = club?.teams.flatMap(team => team.roster).find(player =>
+    player.parents.some(parent => parent.email.trim().toLowerCase() === me.email)
+    || (me.role === "player" && player.email.trim().toLowerCase() === me.email));
+  if (matched?.familyId) familyId = matched.familyId;
+  return { ...me, familyId };
 }
 
 async function loadRaw(): Promise<ClubRecord | null> {
-  try {
-    const sql = await getSql();
-    const rows = await sql<{ payload: ClubRecord; rev: number; demo: boolean }>`
-      select payload, rev, demo from club_state where id = 'oklahoma-prospects'
-    `;
-    if (!rows[0]) return null;
-    const club = rows[0].payload;
-    const parsed = typeof club === "string" ? (JSON.parse(club) as ClubRecord) : club;
-    parsed._rev = rows[0].rev;
-    parsed._demo = rows[0].demo;
-    return parsed;
-  } catch {
-    return null;
-  }
+  const sql = await getSql();
+  const [row] = await sql<{ payload: ClubRecord; rev: number; demo: boolean }>`
+    select payload, rev, demo from club_state where id = 'oklahoma-prospects'`;
+  if (!row) return null;
+  const parsed = typeof row.payload === "string" ? JSON.parse(row.payload) as ClubRecord : row.payload;
+  return { ...parsed, _rev: row.rev, _demo: row.demo };
 }
 
-async function writeRaw(club: ClubRecord) {
+async function writeRaw(club: ClubRecord, expectedRev?: number) {
   const sql = await getSql();
-    await sql.query(
-      `insert into club_state (id, rev, demo, payload, updated_at)
-       values ($1, $2, $3, $4::jsonb, now())
-       on conflict (id) do update set
-         rev = excluded.rev,
-         demo = excluded.demo,
-         payload = excluded.payload,
-         updated_at = now()`,
-      ["oklahoma-prospects", club._rev, club._demo, JSON.stringify(club)],
-    );
+  const rows = expectedRev === undefined
+    ? await sql`insert into club_state (id, rev, demo, payload, updated_at)
+        values ('oklahoma-prospects', ${club._rev}, ${club._demo}, ${JSON.stringify(club)}::jsonb, now())
+        on conflict do nothing returning rev`
+    : await sql`update club_state set rev = ${club._rev}, demo = ${club._demo},
+        payload = ${JSON.stringify(club)}::jsonb, updated_at = now()
+        where id = 'oklahoma-prospects' and rev = ${expectedRev} returning rev`;
+  if (!rows.length) throw new Error("Another editor saved changes. Reload before saving again.");
 }
 
 export const getTeamsClub = createServerFn({ method: "POST" })
@@ -152,6 +67,7 @@ export const onboardTeamsClub = createServerFn({ method: "POST" })
     if (me.role !== "admin") throw new Error("Front office only.");
     const existing = await loadRaw();
     if (existing) throw new Error("Club already exists. Reload.");
+    if (data.mode === "sample" && process.env.NODE_ENV === "production") throw new Error("Sample data is only available locally.");
     const club = data.mode === "sample" ? sampleClub() : emptyClub();
     await writeRaw(club);
     return { ok: true, club: scopeClub(club, "admin", me) };
@@ -168,7 +84,7 @@ export const saveTeamsClub = createServerFn({ method: "POST" })
       throw new Error("The club changed. Reload before saving.");
     }
     const merged = mergeSave(stored, data.club, me.role, me);
-    await writeRaw(merged);
+    await writeRaw(merged, data.baseRev);
     const sql = await getSql();
     await sql`
       insert into club_audit (user_id, action, detail)
@@ -190,7 +106,7 @@ export const recordTeamPayment = createServerFn({ method: "POST" })
   )
   .handler(async ({ context, data }) => {
     const me = await identity(context.userId);
-    if (me.role !== "admin" && me.role !== "parent") {
+    if (me.role !== "admin") {
       throw new Error("Not allowed.");
     }
     if (!Number.isFinite(data.amount) || data.amount <= 0) {
@@ -201,9 +117,6 @@ export const recordTeamPayment = createServerFn({ method: "POST" })
     const team = stored.teams.find((t) => t.id === data.teamId);
     const player = team?.roster.find((p) => p.id === data.playerId);
     if (!player) throw new Error("Player not found.");
-    if (me.role === "parent" && !familyHoldsPlayer(stored, me.familyId, data.playerId)) {
-      throw new Error("Not your player.");
-    }
     const due = Math.max(0, (player.feeLock?.amount ?? 0) - player.payments.reduce((sum, row) => sum + row.amount, 0));
     if (due > 0 && data.amount > due + 1) {
       throw new Error(`That is more than the balance (${due}).`);
@@ -228,7 +141,7 @@ export const recordTeamPayment = createServerFn({ method: "POST" })
       action: "payment",
       detail: `${player.name} ${data.label} ${data.amount}`,
     });
-    await writeRaw(stored);
+    await writeRaw(stored, stored._rev - 1);
     return { ok: true, club: scopeClub(stored, me.role, me) };
   });
 
@@ -367,7 +280,7 @@ export const officeAddTeam = createServerFn({ method: "POST" })
     stored._rev += 1;
     stored._savedAt = new Date().toISOString();
     stored.audit.unshift({ at: stored._savedAt, action: "team", detail: `Added ${team.name}` });
-    await writeRaw(stored);
+    await writeRaw(stored, stored._rev - 1);
     return { ok: true as const, club: scopeClub(stored, "admin", me) };
   });
 
@@ -402,7 +315,7 @@ export const officeAddPlayer = createServerFn({ method: "POST" })
       action: "player",
       detail: `Added ${player.name} to ${team.name}`,
     });
-    await writeRaw(stored);
+    await writeRaw(stored, stored._rev - 1);
     try {
       const sql = await getSql();
       await sql`

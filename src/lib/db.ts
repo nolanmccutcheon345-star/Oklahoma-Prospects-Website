@@ -1,3 +1,4 @@
+import { configuredDatabaseUrl } from "./database-config";
 import { pendingMigrations } from "../../scripts/migration-plan.mjs";
 
 /** Which database backend is active. */
@@ -5,12 +6,7 @@ export type DbSource = "neon" | "pglite";
 
 // An empty/whitespace DATABASE_URL (an easy misconfig in deploy UIs) must mean
 // "unset" — otherwise production would silently run on the PGLite fallback.
-const rawDatabaseUrl =
-  typeof process !== "undefined"
-    ? process.env.DATABASE_URL || process.env.NETLIFY_DATABASE_URL
-    : undefined;
-const databaseUrl =
-  rawDatabaseUrl && rawDatabaseUrl.trim() ? rawDatabaseUrl : undefined;
+const databaseUrl = configuredDatabaseUrl(process.env);
 
 /**
  * Active backend: real **Neon** when `DATABASE_URL` is set (deployed / configured
@@ -29,6 +25,7 @@ export const dbSource: DbSource = databaseUrl ? "neon" : "pglite";
  *   const rows2 = await sql.query("select * from todos where id = $1", [id]);
  */
 export interface Sql {
+  transaction<T>(work: (tx: Sql) => Promise<T>): Promise<T>;
   <T = Record<string, unknown>>(
     strings: TemplateStringsArray,
     ...values: unknown[]
@@ -72,7 +69,7 @@ const identity = (v: string) => v;
 type Run = <T>(text: string, params: unknown[]) => Promise<T[]>;
 
 /** Wrap a query runner in the tagged-template + `.query()` `Sql` surface. */
-function toSql(run: Run): Sql {
+function toSql(run: Run, transaction?: Sql["transaction"]): Sql {
   const sql = (async <T = Record<string, unknown>>(
     strings: TemplateStringsArray,
     ...values: unknown[]
@@ -84,6 +81,7 @@ function toSql(run: Run): Sql {
   }) as unknown as Sql;
   sql.query = <T = Record<string, unknown>>(text: string, params: unknown[] = []) =>
     run<T>(text, params);
+  sql.transaction = transaction ?? (async () => { throw new Error("Nested transactions are not supported."); });
   return sql;
 }
 
@@ -99,6 +97,16 @@ function createNeonSql(): Promise<Sql> {
     return toSql(async <T>(text: string, params: unknown[]) => {
       const res = await pool.query(text, params);
       return res.rows as T[];
+    }, async work => {
+      const client = await pool.connect();
+      try {
+        await client.query("begin");
+        const tx = toSql(async <T>(text: string, params: unknown[]) => (await client.query(text, params)).rows as T[]);
+        const result = await work(tx);
+        await client.query("commit");
+        return result;
+      } catch (error) { await client.query("rollback"); throw error; }
+      finally { client.release(); }
     });
   })().catch((err) => {
     globalRef.__pgSqlPromise__ = undefined;
@@ -166,7 +174,7 @@ async function createPgliteSql(): Promise<Sql> {
   return toSql(async <T>(text: string, params: unknown[]) => {
     const result = await pg.query<T>(text, params);
     return result.rows;
-  });
+  }, work => pg.transaction(tx => work(toSql(async <T>(text: string, params: unknown[]) => (await tx.query<T>(text, params)).rows))));
 }
 
 let sqlPromise: Promise<Sql> | null = null;
@@ -178,6 +186,7 @@ async function createSql(): Promise<Sql> {
         "or a server route loader, never from client code.",
     );
   }
+  if (process.env.NODE_ENV === "production" && !databaseUrl) throw new Error("A persistent database is required on deployed sites.");
   return dbSource === "neon" ? createNeonSql() : createPgliteSql();
 }
 
@@ -222,7 +231,7 @@ export async function getPglite(): Promise<import("@electric-sql/pglite").PGlite
  * module kick it off immediately (see bottom of file).
  */
 export function ensureDbReady(): Promise<void> {
-  if (dbSource !== "pglite") return Promise.resolve();
+  if (dbSource !== "pglite" || process.env.NODE_ENV === "production") return Promise.resolve();
   return getSql().then(() => undefined);
 }
 
@@ -231,10 +240,10 @@ export function ensureDbReady(): Promise<void> {
 const globalBoot = globalThis as typeof globalThis & {
   __pgBootstrapPromise__?: Promise<void>;
 };
-if (typeof window === "undefined" && dbSource === "pglite") {
+if (typeof window === "undefined" && import.meta.env?.DEV && dbSource === "pglite" && process.env.NODE_ENV !== "production") {
   globalBoot.__pgBootstrapPromise__ ??= ensureDbReady().catch((err) => {
     globalBoot.__pgBootstrapPromise__ = undefined;
     console.error("[db] PGLite bootstrap failed:", err);
-    throw err;
+    // getSql() retries and reports the failure to the requesting operation.
   });
 }

@@ -1,3 +1,4 @@
+import {pageHead} from "@/lib/seo";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { RedirectToSignIn } from "@/lib/auth/gates";
@@ -9,7 +10,7 @@ import { Button } from "@/components/ui/button";
 import { getTeamsClub, saveTeamsClub } from "@/lib/teams/store";
 import type { ClubRecord } from "@/lib/teams/types";
 
-export const Route = createFileRoute("/coach")({ component: Page });
+export const Route = createFileRoute("/coach")({head:()=>pageHead("/coach","Coach Desk","Manage assigned athletes, team records, and coaching sessions.",true), component: Page });
 
 function Page() {
   const { user, isPending } = useCurrentUserState();

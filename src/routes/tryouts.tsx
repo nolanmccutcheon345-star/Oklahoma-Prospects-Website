@@ -1,3 +1,4 @@
+import {pageHead} from "@/lib/seo";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { ContactForm, TryoutForm } from "@/components/inquiry-form";
 import { PageHero } from "@/components/page-hero";
@@ -7,7 +8,7 @@ import { CLUB, TRYOUT_AGES } from "@/lib/club";
 
 type TryoutSearch = { age?: string };
 
-export const Route = createFileRoute("/tryouts")({
+export const Route = createFileRoute("/tryouts")({head:()=>pageHead("/tryouts","Free Tryout Registration","Register for Spring 2027 evaluations on November 14\u201315, 2026. No payment required.",false),
   validateSearch: (search: Record<string, unknown>): TryoutSearch => ({
     age: typeof search.age === "string" ? search.age : undefined,
   }),
@@ -43,7 +44,7 @@ function TryoutsPage() {
         <p className="mt-3 text-muted">
           {TRYOUT_AGES.join(", ")}. Check in 15 minutes early. Times are
           Central. Regular weekend cage hours (1–8 PM) still apply after evaluations.
-          Other ages: send an inquiry below.
+          Other ages and softball: send a team inquiry below.
         </p>
         <div className="mt-6">
           <TryoutSchedule />
@@ -67,8 +68,7 @@ function TryoutsPage() {
           </p>
           <h2 className="mt-2 text-3xl">Put your player on the November list.</h2>
           <p className="mt-2 mb-6 text-muted">
-            Free. Pick the session. This opens your email so Prospects receives
-            the registration.
+            Free. Pick the session and save your registration directly to the club.
           </p>
           <TryoutForm intent="register" initialAge={age} />
         </div>

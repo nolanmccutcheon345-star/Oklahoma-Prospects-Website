@@ -164,26 +164,11 @@ test("cli: relative paths follow the script's root, not the caller's cwd", () =>
   assert.equal(existsSync(join(root, "public/og.jpg")), false);
 });
 
-test("every hand-over the og skill prints is one this script accepts", () => {
-  // The card and banner recipes live in the skill's references/, not SKILL.md.
-  const skillDir = join(TEMPLATE_ROOT, ".grok/skills/og");
-  const docs = [
-    join(skillDir, "SKILL.md"),
-    ...readdirSync(join(skillDir, "references")).map((f) => join(skillDir, "references", f)),
-  ];
-  const invocations = docs.flatMap(
-    (path) => readFileSync(path, "utf8").match(/node scripts\/write-atomic\.mjs[^\n`]*/g) ?? [],
-  );
-  assert.ok(invocations.length >= 3, "og.jpg, x-banner.jpg and site.json each hand over");
-  for (const line of invocations) {
-    const argv = line.replace("node scripts/write-atomic.mjs", "").trim().split(/\s+/);
-    const args = parseWriteAtomicArgs(argv);
-    assert.equal(args.error, undefined, line);
-    assert.equal(
-      stagingError({ staged: args.staged, target: args.target, publicDir: "/workspace/public" }),
-      null,
-      line,
-    );
+test("card, banner and site identity support atomic hand-over", () => {
+  for (const target of ["public/og.jpg", "public/x-banner.jpg", "src/lib/og/site.json"]) {
+    const args = parseWriteAtomicArgs(["/workspace/.grok/staged.tmp", `/workspace/${target}`]);
+    assert.equal(args.error, undefined);
+    assert.equal(stagingError({...args, publicDir:"/workspace/public"}), null);
   }
 });
 

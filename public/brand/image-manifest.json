@@ -1,0 +1,291 @@
+{
+  "version": 1,
+  "canonical": "https://prospectsbaseball.club/",
+  "processing": {
+    "source": "Existing public assets only",
+    "resize": "Proportional Lanczos resize; no crop or upscaling",
+    "widths": [
+      480,
+      768,
+      1024,
+      1536
+    ],
+    "webp": {
+      "quality": 72,
+      "method": 6
+    },
+    "avif": {
+      "quality": 58,
+      "speed": 6
+    }
+  },
+  "originals": [
+    {
+      "src": "/brand/crest.png",
+      "width": 512,
+      "height": 512,
+      "bytes": 239579,
+      "sha256": "e207db6bc446e916801762ee2915d403bcb42625e263ae5f3be2a6bb8dfcfbb6"
+    },
+    {
+      "src": "/brand/facility.jpg",
+      "width": 1536,
+      "height": 1152,
+      "bytes": 336659,
+      "sha256": "27650cadc9d05fdf441a9c2eafb5d65aa7a0b7bec10917d7adb4c1e91222e86e"
+    },
+    {
+      "src": "/brand/mark.png",
+      "width": 256,
+      "height": 256,
+      "bytes": 49114,
+      "sha256": "3c3439165d746b2ddc11766d687bae850a02663332080950d49c3a58b9a17f64"
+    },
+    {
+      "src": "/brand/team.jpg",
+      "width": 1536,
+      "height": 1152,
+      "bytes": 398759,
+      "sha256": "70e0c975f30a8cb49bf7dc872c8d11d25a6a04929f758cde141800ed5f34c7b3"
+    },
+    {
+      "src": "/brand/training.jpg",
+      "width": 1536,
+      "height": 1152,
+      "bytes": 578157,
+      "sha256": "c5aad7de2ec9621eb9ee5f3f051c062cce833999ba31bdfa81766e65d5c0cd27"
+    },
+    {
+      "src": "/brand/wordmark.png",
+      "width": 900,
+      "height": 600,
+      "bytes": 150002,
+      "sha256": "9faee2ae76862aebe3f8d3d238c1b0726a08f58b0ad7db7c9c22a234967727d7"
+    },
+    {
+      "src": "/icon-192.png",
+      "width": 192,
+      "height": 192,
+      "bytes": 2991,
+      "sha256": "2dbb5fb39e56ad20d92bac107375ef896c05211b6bff33aa9ba4ddb563791642"
+    },
+    {
+      "src": "/icon-512.png",
+      "width": 512,
+      "height": 512,
+      "bytes": 8335,
+      "sha256": "5aa52f18ef1f1a4555ca41af65388a2c6ab44891a44e3e861cebf6180aad4186"
+    },
+    {
+      "src": "/og.jpg",
+      "width": 1200,
+      "height": 630,
+      "bytes": 38340,
+      "sha256": "07262c7d6539213145e4f535cdbbd06ffc1ff280a48b79998093e1aee87053fd"
+    },
+    {
+      "src": "/favicon.svg",
+      "width": 32,
+      "height": 32,
+      "bytes": 502,
+      "sha256": "6f78c35329e8ef724ae570cd9a1e93da0a530c83f5c4118b7e750be53149b1df"
+    }
+  ],
+  "responsive": {
+    "team": {
+      "original": "/brand/team.jpg",
+      "width": 1536,
+      "height": 1152,
+      "webp": [
+        {
+          "src": "/brand/team-480.webp",
+          "width": 480,
+          "height": 360,
+          "bytes": 29464,
+          "sha256": "05a40205563fb90cb0d5a77ced8fe1d16a0872901bd0a1faaafc804543e2db63"
+        },
+        {
+          "src": "/brand/team-768.webp",
+          "width": 768,
+          "height": 576,
+          "bytes": 82590,
+          "sha256": "13122f09e646703be71acdf253d647aa1c4caddd73d37a2b060ed714e5772441"
+        },
+        {
+          "src": "/brand/team-1024.webp",
+          "width": 1024,
+          "height": 768,
+          "bytes": 154828,
+          "sha256": "c7e7a6c22f2d823c845e6a9c10b26ac9bac6c683b44eedfbb73a52b2da2e43cf"
+        },
+        {
+          "src": "/brand/team-1536.webp",
+          "width": 1536,
+          "height": 1152,
+          "bytes": 344940,
+          "sha256": "32eac619df01c0233dcf78cd8408c61decda6bd8d52f827e00a54f5639f4a29c"
+        }
+      ],
+      "avif": [
+        {
+          "src": "/brand/team-480.avif",
+          "width": 480,
+          "height": 360,
+          "bytes": 23919,
+          "sha256": "f0f2c0560ead50f79a37415f59d80d8291cda2566f604122777c48e92aa3650d"
+        },
+        {
+          "src": "/brand/team-768.avif",
+          "width": 768,
+          "height": 576,
+          "bytes": 66132,
+          "sha256": "5101a8fc376d02f6448571957734da238b50aa7dfe36e09e9a6874ccb4d37525"
+        },
+        {
+          "src": "/brand/team-1024.avif",
+          "width": 1024,
+          "height": 768,
+          "bytes": 121161,
+          "sha256": "6cc966aa391b43e2880c9cc5e634a4e721841e10120bae0f5bf7747aa0530131"
+        },
+        {
+          "src": "/brand/team-1536.avif",
+          "width": 1536,
+          "height": 1152,
+          "bytes": 273628,
+          "sha256": "ff2a38e9d8c66f2de12567a31e571f7fbbc263702bf7bcc962496dcef87632e6"
+        }
+      ]
+    },
+    "facility": {
+      "original": "/brand/facility.jpg",
+      "width": 1536,
+      "height": 1152,
+      "webp": [
+        {
+          "src": "/brand/facility-480.webp",
+          "width": 480,
+          "height": 360,
+          "bytes": 31264,
+          "sha256": "794a8f8c8443b4a207d19c1d95486a5c60c9a7ccbe0851dc2a9cd19467fa90f4"
+        },
+        {
+          "src": "/brand/facility-768.webp",
+          "width": 768,
+          "height": 576,
+          "bytes": 76394,
+          "sha256": "a2e6b50f4fda34c109792cdaf580a6762038b855087931cc387dc8cc619abb28"
+        },
+        {
+          "src": "/brand/facility-1024.webp",
+          "width": 1024,
+          "height": 768,
+          "bytes": 127154,
+          "sha256": "164c133d8fd72dcd7e1d0c5fae4b9b602bf5f1cc8fda197e24b147506f52cd6e"
+        },
+        {
+          "src": "/brand/facility-1536.webp",
+          "width": 1536,
+          "height": 1152,
+          "bytes": 242424,
+          "sha256": "171513a464b0054c4f06077bd4f08051886a9acb4c72efdf718d4d1d1b80e789"
+        }
+      ],
+      "avif": [
+        {
+          "src": "/brand/facility-480.avif",
+          "width": 480,
+          "height": 360,
+          "bytes": 22066,
+          "sha256": "4ff9834178efae30e3a5e5f79066afda373fd6e0cf04b6cde4de28515aca2249"
+        },
+        {
+          "src": "/brand/facility-768.avif",
+          "width": 768,
+          "height": 576,
+          "bytes": 56237,
+          "sha256": "a32bc99876ff866522e96856dab2bf2bf231a7d013c5f2e2839f3d2c53304569"
+        },
+        {
+          "src": "/brand/facility-1024.avif",
+          "width": 1024,
+          "height": 768,
+          "bytes": 96873,
+          "sha256": "5512e866ff7e59a91955d1c3a439ff2303bb111d91b7ee71a39de7a0f26f1113"
+        },
+        {
+          "src": "/brand/facility-1536.avif",
+          "width": 1536,
+          "height": 1152,
+          "bytes": 217857,
+          "sha256": "ab2afcbf038a8bc6087ffbcceb3e876ae11ca11168e7519bd8b01f02a8a5ab42"
+        }
+      ]
+    },
+    "training": {
+      "original": "/brand/training.jpg",
+      "width": 1536,
+      "height": 1152,
+      "webp": [
+        {
+          "src": "/brand/training-480.webp",
+          "width": 480,
+          "height": 360,
+          "bytes": 47360,
+          "sha256": "b8ccd4cc38dc9399f849759e63783525a1aa1b75fcd8f54af90f3b91afccb675"
+        },
+        {
+          "src": "/brand/training-768.webp",
+          "width": 768,
+          "height": 576,
+          "bytes": 133946,
+          "sha256": "692a77d75bff91b722c255499e5ef454e546a15ae7e3c1f0a89518a7e9aac7d4"
+        },
+        {
+          "src": "/brand/training-1024.webp",
+          "width": 1024,
+          "height": 768,
+          "bytes": 245380,
+          "sha256": "6e2fa1fdee35a394364c1efcd78e913bc260e66262d24271ed4762b021440f44"
+        },
+        {
+          "src": "/brand/training-1536.webp",
+          "width": 1536,
+          "height": 1152,
+          "bytes": 562108,
+          "sha256": "f231a9bb43ea4c50d27373f04dfccc6d847b1ff3aaf581883054b6e860e6494f"
+        }
+      ],
+      "avif": [
+        {
+          "src": "/brand/training-480.avif",
+          "width": 480,
+          "height": 360,
+          "bytes": 31899,
+          "sha256": "b09d512bfceea102df304f225accd56b420bd1f21ce15c39eb073676a774f201"
+        },
+        {
+          "src": "/brand/training-768.avif",
+          "width": 768,
+          "height": 576,
+          "bytes": 89644,
+          "sha256": "25dde204c39168f5724f12b39b059412b1759c8dcc170852f36e296f5c5f5590"
+        },
+        {
+          "src": "/brand/training-1024.avif",
+          "width": 1024,
+          "height": 768,
+          "bytes": 163489,
+          "sha256": "544232b47566a7750b3dcff1fe250d0c4406f8b31b2f45d58312bb38f11aeac7"
+        },
+        {
+          "src": "/brand/training-1536.avif",
+          "width": 1536,
+          "height": 1152,
+          "bytes": 403704,
+          "sha256": "f28bbeabbcc1e853fb955818329a2a2a2a667d96a00c3f8b3795254418dcd29d"
+        }
+      ]
+    }
+  }
+}

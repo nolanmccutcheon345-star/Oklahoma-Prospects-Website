@@ -1,3 +1,5 @@
+import {pageHead} from "@/lib/seo";
+import { FamilyBilling } from "@/components/commerce/family-billing";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { RedirectToSignIn } from "@/lib/auth/gates";
@@ -9,7 +11,7 @@ import { Button } from "@/components/ui/button";
 import { getTeamsClub, saveTeamsClub } from "@/lib/teams/store";
 import type { ClubRecord } from "@/lib/teams/types";
 
-export const Route = createFileRoute("/family")({ component: Page });
+export const Route = createFileRoute("/family")({head:()=>pageHead("/family","Family Account","Manage your household athletes, bookings, receipts, and memberships.",true), component: Page });
 
 function Page() {
   const { user, isPending } = useCurrentUserState();
@@ -64,7 +66,9 @@ function FamilyPage() {
         <p className="text-xs font-semibold tracking-[0.16em] text-maroon uppercase">
           Family desk
         </p>
-        <h1 className="mt-2 text-4xl">Not on a roster yet.</h1>
+        <h1 className="mt-2 text-4xl">Your family account</h1>
+        <FamilyBilling />
+        <h2 className="mt-8 text-2xl">Team roster</h2>
         <p className="mt-3 text-muted">
           The office opens this desk after they add your player. Meanwhile you can
           still book cages, sign the waiver, and start training.
@@ -127,6 +131,7 @@ function FamilyPage() {
           </select>
         </label>
       ) : null}
+      <FamilyBilling />
       <FamilyApp
         club={club}
         familyId={familyId || state.me.familyId}
