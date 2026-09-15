@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" role="img" aria-label="Oklahoma Prospects Baseball">
+  <rect width="32" height="32" fill="#071b31"/>
+  <path fill="#681C35" d="M16 3.8l10.2 3.7v9.4c0 6.05-5.4 10.35-10.2 12.55C11.2 27.25 5.8 22.95 5.8 16.9V7.5L16 3.8z"/>
+  <path fill="#9ed8f3" fill-rule="evenodd" d="M11.4 8.9h6.15c2.85 0 4.75 1.75 4.75 4.35 0 2.55-1.9 4.3-4.75 4.3h-3.5v5.55h-2.65V8.9zm2.65 2.25v4.15h3.3c1.25 0 2.05-.8 2.05-2.075 0-1.28-.8-2.075-2.05-2.075h-3.3z"/>
+</svg>
