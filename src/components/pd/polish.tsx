@@ -197,6 +197,7 @@ export function PdSearch({
 
 export function BreakProbe() {
   const [boom, setBoom] = useState(false);
+  if (!import.meta.env.DEV) return null;
   if (boom) throw new Error("Deliberate Train desk crash for QA.");
   return (
     <button

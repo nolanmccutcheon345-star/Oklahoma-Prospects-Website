@@ -110,7 +110,7 @@ function ownStaff(team: OsTeam, email: string): OsStaff | null {
     return team.staff.find((m) => m.role === "Head coach") ?? team.staff[0] ?? null;
   }
   return (
-    team.staff.find((m) => m.name && email.toLowerCase().includes(m.name.split(" ")[0].toLowerCase())) ??
+    team.staff.find((m) => m.email && m.email.toLowerCase() === email.toLowerCase()) ??
     null
   );
 }
@@ -275,7 +275,7 @@ export function scopeClub(
         (team) =>
           team.coachEmail === identity.email ||
           team.id === identity.teamId ||
-          team.staff.some((m) => m.name && identity.email.includes(m.name.split(" ")[0].toLowerCase())),
+          team.staff.some((m) => m.email && m.email.toLowerCase() === identity.email),
       )
       .map((team) => {
         const me = ownStaff(team, identity.email);

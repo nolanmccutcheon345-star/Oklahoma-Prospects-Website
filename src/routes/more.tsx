@@ -24,10 +24,10 @@ function VisitPage() {
   return (
     <main id="main">
       <PageHero
-        eyebrow="Same club · one visit"
+        eyebrow="Visit Oklahoma Prospects"
         title="Arrive ready."
         accent="Then train."
-        copy="Check-in, waiver, uniforms, and member tools stay inside Prospects — not a stack of random links."
+        copy="Waiver, directions, uniforms, and member tools in one place."
         image="/brand/facility.jpg"
       />
       <div className="mx-auto w-full max-w-3xl px-5 py-8">
@@ -48,8 +48,9 @@ function VisitPage() {
             <a href={`tel:${CLUB.phoneTel}`}>Call {CLUB.phoneDisplay}</a>
           </Button>
           <Button asChild variant="outline">
-            <a href={LINKS.maps} target="_blank" rel="noreferrer">
+            <a href={LINKS.maps} target="_blank" rel="noopener noreferrer">
               Directions
+              <span className="sr-only"> (opens in a new tab)</span>
             </a>
           </Button>
         </div>
@@ -67,13 +68,13 @@ function VisitPage() {
         <h2 className="text-2xl">Arriving today</h2>
         <div className="mt-4 grid gap-2">
           <ContinueIn dest="checkin" plain>
-            <Row icon={ClipboardCheck} title="Athlete check-in" body="Start your visit" />
+            <Row icon={ClipboardCheck} title="Show your booking" body="Paid receipts on this phone" />
           </ContinueIn>
           <Link to="/waiver" className="no-underline">
             <Row icon={Shield} title="Facility waiver" body="Required before you train" />
           </Link>
           <ContinueIn dest="uniform" plain>
-            <Row icon={Shirt} title="Uniform sizing" body="Jersey, pants, and hat" />
+            <Row icon={Shirt} title="Uniform sizing" body="Sign in to submit jersey, pants, and hat" />
           </ContinueIn>
         </div>
       </section>
@@ -88,10 +89,10 @@ function VisitPage() {
             <Row icon={GraduationCap} title="Talk to a coach" body="Lessons, teams, evaluations" />
           </ContinueIn>
           <ContinueIn dest="memberships" plain>
-            <Row icon={ClipboardCheck} title="Membership balance" body="Plans and remaining visits" />
+            <Row icon={ClipboardCheck} title="Cage passes" body="Household monthly cage plans" />
           </ContinueIn>
           <Link to="/visits" className="no-underline">
-            <Row icon={MapPin} title="Saved reminders" body="Intent on this phone — not a paid reservation" />
+            <Row icon={MapPin} title="Paid bookings" body="Receipts saved on this phone" />
           </Link>
         </div>
       </section>
@@ -99,7 +100,7 @@ function VisitPage() {
       <section className="mt-8">
         <h2 className="text-2xl">Need a person?</h2>
         <p className="mt-2 text-sm text-muted">
-          After you book. The desk for cages. Coach Steve after a paid lesson.
+          After you book. The desk for cages and the door. Coach Steve after a paid lesson.
         </p>
         <div className="mt-4">
           <PeopleCards />
@@ -139,6 +140,13 @@ function VisitPage() {
         </a>
         <span className="text-muted">{CLUB.coachSteve} · development</span>
       </div>
+      <nav aria-label="Club pages" className="mt-8 flex flex-wrap gap-x-4 gap-y-2 text-sm">
+        <Link to="/facility">Facility</Link>
+        <Link to="/contact">Contact</Link>
+        <Link to="/privacy">Privacy</Link>
+        <Link to="/teams">Teams</Link>
+        <Link to="/training">Lessons</Link>
+      </nav>
       </div>
     </main>
   );

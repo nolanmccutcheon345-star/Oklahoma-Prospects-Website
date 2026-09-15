@@ -23,7 +23,8 @@ export const PD_POLICY = {
 
 export const MEMBERSHIP_RULES = [
   "One unused session may roll into the following month. Credits do not accumulate indefinitely.",
-  "Cancel online at any time — no phone call, no retention gauntlet.",
+  "You can stop auto-renew online anytime — no phone call, no retention gauntlet.",
+  "The 48-hour refund window still applies to unused sessions in the current month.",
   "Pause for a legitimate extended absence or injury.",
   "No hidden fees. Auto-renew is disclosed at checkout and on every receipt.",
   "Full billing history is always available in the family portal.",

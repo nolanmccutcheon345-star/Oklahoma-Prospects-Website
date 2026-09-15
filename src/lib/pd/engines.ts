@@ -27,7 +27,16 @@ import type {
   Family,
 } from "./types";
 
-export const CLUB_DAY_ISO = "2026-09-14";
+export function clubDayIso(now = new Date()) {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Chicago",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(now);
+}
+
+export const CLUB_DAY_ISO = clubDayIso();
 
 export function ageOnClubDay(iso: string, dayIso = CLUB_DAY_ISO) {
   const day = new Date(`${dayIso}T12:00:00Z`);

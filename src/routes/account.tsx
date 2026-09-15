@@ -79,7 +79,7 @@ function AccountHome() {
           eyebrow="Player development"
           title="Set up your account"
           accent="We’ll open the right desk."
-          copy="Player, parent, or coach. Club owners open as admin and still get the coach tools."
+          copy="Player or parent. Club owners open as admin automatically. Coaches are invited by the office."
           image="/brand/training.jpg"
         />
         <div className="mx-auto max-w-3xl px-5 py-8">
@@ -88,16 +88,20 @@ function AccountHome() {
             className="grid gap-3 rounded-2xl bg-paper-2 p-5 shadow-border"
             onSubmit={async (event) => {
               event.preventDefault();
-              await saveProfile({
-                data: {
-                  name: name || user?.displayName || "Prospects member",
-                  role,
-                  playerName,
-                  email: user?.primaryEmail ?? "",
-                },
-              });
-              const next = await getProfile();
-              setProfile(next);
+              try {
+                await saveProfile({
+                  data: {
+                    name: name || user?.displayName || "Prospects member",
+                    role,
+                    playerName,
+                    email: user?.primaryEmail ?? "",
+                  },
+                });
+                const next = await getProfile();
+                setProfile(next);
+              } catch (err) {
+                setLoadError(err instanceof Error ? err.message : "Could not save account.");
+              }
             }}
           >
             <label className="text-sm font-semibold">
@@ -112,15 +116,18 @@ function AccountHome() {
             <label className="text-sm font-semibold">
               I am
               <select
-                value={role}
+                value={role === "coach" || role === "admin" ? "parent" : role}
                 onChange={(e) => setRole(e.target.value as ClubRole)}
                 className="mt-1.5 block min-h-11 w-full rounded-md border border-line bg-paper px-3"
               >
                 <option value="parent">Parent / guardian</option>
                 <option value="player">Player</option>
-                <option value="coach">Coach</option>
               </select>
             </label>
+            <p className="text-xs text-muted">
+              Coaches and the front office are invited by Prospects. Sign in with
+              your staff email if you already have one.
+            </p>
             <label className="text-sm font-semibold">
               Athlete name
               <input
@@ -142,10 +149,10 @@ function AccountHome() {
         compact
         eyebrow={`${ROLE_LABEL[profile.role]} · player development`}
         title={profile.name || "Your club"}
-        accent="Same club. Same login."
+        accent="Plans, cages, and teams."
         copy={
           profile.assessment_complete
-            ? "Assessment on file. Private 30s and 60s are open. Cages, teams, and this desk share one login."
+            ? "Assessment on file. Private 30s and 60s are open."
             : "No assessment on file yet. You can still view every plan and book an assessment, remote review, group session, package, or membership."
         }
         image="/brand/training.jpg"

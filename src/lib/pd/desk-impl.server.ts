@@ -2,15 +2,17 @@ import { getSql } from "@/lib/db";
 import {
   authorizeMessage,
   assertAthleteAccess,
+  familyForViewer,
   filterDevelopmentData,
   resolveViewerRole,
   scopeForViewer,
   type PdViewer,
 } from "./access";
 import { hydrateWorkingFile, mergeScopedFile, newFileId } from "./file";
+import { emptyDevelopment } from "./empty";
 import { seedDevelopment } from "./seed";
 import { CLUB_DAY_ISO } from "./engines";
-import type { DevelopmentData, Message } from "./types";
+import type { Athlete, DevelopmentData, Family, Message } from "./types";
 
 const FILE_ID = "club";
 
@@ -64,13 +66,20 @@ async function readWorkingFile(): Promise<DevelopmentData> {
     `;
     const raw = rows[0]?.payload;
     if (!raw) {
-      await writeWorkingFile(seed);
-      return seed;
+      const seeded = seedDevelopment();
+      await writeWorkingFile(seeded);
+      return seeded;
     }
     const parsed = (typeof raw === "string" ? JSON.parse(raw) : raw) as Partial<DevelopmentData>;
-    return hydrateWorkingFile(parsed, seed);
+    const hydrated = hydrateWorkingFile(parsed, seed);
+    if (hydrated.coaches.length === 0 && seed.coaches.length > 0) {
+      hydrated.coaches = seed.coaches;
+      if (!hydrated.availability?.length) hydrated.availability = seed.availability;
+      await writeWorkingFile(hydrated);
+    }
+    return hydrated;
   } catch {
-    return seed;
+    return seedDevelopment();
   }
 }
 
@@ -89,9 +98,100 @@ function scopedDesk(viewer: PdViewer, full: DevelopmentData) {
   return { viewer, scope, data: filterDevelopmentData(full, scope) };
 }
 
+function splitName(raw: string) {
+  const parts = raw.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return { first: "Athlete", last: "Prospects" };
+  if (parts.length === 1) return { first: parts[0], last: "Prospects" };
+  return { first: parts[0], last: parts.slice(1).join(" ") };
+}
+
+async function provisionViewer(viewer: PdViewer, full: DevelopmentData): Promise<DevelopmentData> {
+  if (!viewer.email) return full;
+  if (viewer.role === "admin") {
+    const email = viewer.email.trim().toLowerCase();
+    if (email && !full.coaches.some((row) => row.email.trim().toLowerCase() === email)) {
+      const next = {
+        ...full,
+        coaches: [
+          ...full.coaches,
+          {
+            id: `c-${email.replace(/[^a-z0-9]/g, "").slice(0, 18) || "admin"}`,
+            name: viewer.name || "Admin",
+            email,
+            specialties: ["Pitching", "Hitting"] as string[],
+            active: true,
+          },
+        ],
+      };
+      await writeWorkingFile(next);
+      return next;
+    }
+    return full;
+  }
+  if (viewer.role === "coach") {
+    const email = viewer.email.trim().toLowerCase();
+    if (full.coaches.some((row) => row.email.trim().toLowerCase() === email)) return full;
+    const next = {
+      ...full,
+      coaches: [
+        ...full.coaches,
+        {
+          id: `c-${email.replace(/[^a-z0-9]/g, "").slice(0, 18) || "staff"}`,
+          name: viewer.name || "Coach",
+          email,
+          specialties: [] as string[],
+          active: true,
+        },
+      ],
+    };
+    await writeWorkingFile(next);
+    return next;
+  }
+  if (familyForViewer(viewer, full)) return full;
+  const slug = viewer.email.replace(/[^a-z0-9]/g, "").slice(0, 18) || "member";
+  const familyId = `f-${slug}`;
+  const athleteId = `a-${slug}`;
+  const player = splitName(viewer.playerName || viewer.name);
+  const family: Family = {
+    id: familyId,
+    name: `${player.last} family`,
+    parentName: viewer.name || "Parent",
+    email: viewer.email,
+    phone: "",
+    athleteIds: [athleteId],
+    plan: { type: "none", lessonCredits: 0 },
+  };
+  const athlete: Athlete = {
+    id: athleteId,
+    firstName: player.first,
+    lastName: player.last,
+    sport: "baseball",
+    position: "",
+    throws: "R",
+    bats: "R",
+    birthDate: "2014-01-01",
+    graduationYear: 2032,
+    familyId,
+    coachIds: full.coaches[0] ? [full.coaches[0].id] : [],
+    opLevel: 0,
+    assessmentComplete: false,
+    school: "",
+    city: "Broken Arrow, OK",
+    notes: "",
+    tags: ["new"],
+  };
+  const next = {
+    ...full,
+    families: [...full.families, family],
+    athletes: [...full.athletes, athlete],
+  };
+  await writeWorkingFile(next);
+  return next;
+}
+
 export async function loadDeskForUser(userId: string) {
   const viewer = await viewerFromUserId(userId);
-  const full = await readWorkingFile();
+  const full = await provisionViewer(viewer, await readWorkingFile());
   const { data } = scopedDesk(viewer, full);
   return { viewer, data };
 }

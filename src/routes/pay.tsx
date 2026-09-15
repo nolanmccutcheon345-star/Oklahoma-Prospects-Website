@@ -1,14 +1,13 @@
-import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useEffect, useMemo, useState } from "react";
+import { createFileRoute, Link, useNavigate, useRouterState } from "@tanstack/react-router";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { PageHero } from "@/components/page-hero";
 import { CheckoutSchedule } from "@/components/pd/checkout";
 import { CancelNote, OrderLines, SquarePayButton } from "@/components/square-pay";
 import { CANCEL_POLICY, CLUB } from "@/lib/club";
 import { applyPurchase, getProfile } from "@/lib/club-data";
-import { MEMBERSHIP_RULES } from "@/lib/pd";
 import { parsePaySearch, quoteCheckout } from "@/lib/pay";
-import { newReceiptId, receiptFromItem, saveReceipt } from "@/lib/receipt";
+import { newReceiptId, receiptFromItem, saveReceipt, stashCheckout } from "@/lib/receipt";
 import { SignedIn, SignedOut } from "@/lib/auth/gates";
 import { useCurrentUser } from "@/lib/auth/use-current-user";
 import { useLiveCatalog } from "@/lib/use-catalog";
@@ -25,13 +24,16 @@ export const Route = createFileRoute("/pay")({
 function PayPage() {
   const search = Route.useSearch();
   const navigate = useNavigate();
+  const location = useRouterState({ select: (s) => s.location });
   const user = useCurrentUser();
   const catalog = useLiveCatalog();
-  const { confirmSessions, emptyAthleteId, listAthletes } = useDevelopment();
+  const { confirmSessions, listAthletes } = useDevelopment();
   const [hasAssessment, setHasAssessment] = useState(search.assessed === "1");
   const [attest, setAttest] = useState(false);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const payLock = useRef(false);
+  const nextPay = `${location.pathname}${location.searchStr || ""}`;
 
   useEffect(() => {
     if (!user) {
@@ -49,7 +51,7 @@ function PayPage() {
   );
   const lesson = item && item.kind === "lesson" ? findLesson(item.id) : undefined;
   const membership = item && item.kind === "membership" ? findDevelopmentPlan(item.id) : undefined;
-  const athleteId = listAthletes("parent")[0]?.id ?? emptyAthleteId;
+  const athleteId = listAthletes("parent")[0]?.id ?? "";
   const needsSchedule =
     item && (item.kind === "lesson" || item.kind === "package" || item.kind === "membership");
   const needsHouseholdAttest = item?.kind === "cage" && item.use === "household";
@@ -64,7 +66,7 @@ function PayPage() {
           copy="Pick a lesson, monthly plan, cage, or membership, then come back here to pay."
           actions={
             <Button asChild>
-              <Link to="/training">Open player development</Link>
+              <Link to="/book">Open cage booking</Link>
             </Button>
           }
         />
@@ -94,7 +96,9 @@ function PayPage() {
 
   const paid = item;
 
-  async function finish(sessions: ProposedSession[]) {
+  async function finish(sessions: ProposedSession[], receiptId = newReceiptId()) {
+    if (payLock.current) return;
+    payLock.current = true;
     setError("");
     setBusy(true);
     const first = sessions[0];
@@ -114,26 +118,29 @@ function PayPage() {
           },
         });
       } catch (err) {
+        payLock.current = false;
         setBusy(false);
         setError(err instanceof Error ? err.message : "Could not keep this on your account.");
         return;
       }
     }
-    confirmSessions({
-      athleteId,
-      serviceId: serviceIdForCheckout(paid.kind, paid.id, paid.minutes),
-      price: paid.price,
-      sessions,
-      planName: paid.planName,
-      planType: membership?.tier,
-      lessons: membership?.lessons ?? paid.credits,
-      remote: membership?.remote ?? paid.remote,
-    });
+    if (athleteId) {
+      confirmSessions({
+        athleteId,
+        serviceId: serviceIdForCheckout(paid.kind, paid.id, paid.minutes),
+        price: paid.price,
+        sessions,
+        planName: paid.planName,
+        planType: membership?.tier,
+        lessons: membership?.lessons ?? paid.credits,
+        remote: membership?.remote ?? paid.remote,
+      });
+    }
     const receipt = saveReceipt(
       receiptFromItem(
         paid,
         { ...search, date: first?.date || search.date, time: first?.time || search.time },
-        newReceiptId(),
+        receiptId,
       ),
     );
     setBusy(false);
@@ -153,6 +160,32 @@ function PayPage() {
     });
   }
 
+  function prepareSquare(receiptId: string, sessions: ProposedSession[] = []) {
+    const first = sessions[0];
+    saveReceipt({
+      ...receiptFromItem(
+        paid,
+        { ...search, date: first?.date || search.date, time: first?.time || search.time },
+        receiptId,
+      ),
+      status: "pending",
+    });
+    stashCheckout(receiptId, {
+      kind: paid.id,
+      title: paid.title,
+      date: first?.date || search.date || new Date().toISOString().slice(0, 10),
+      startTime: first?.time || search.time || "plan",
+      durationMin: paid.minutes,
+      price: paid.price,
+      credits: paid.credits,
+      remote: paid.remote,
+      planName: paid.planName,
+      athleteId,
+      serviceId: serviceIdForCheckout(paid.kind, paid.id, paid.minutes),
+      sessions,
+    });
+  }
+
   const kindLabel =
     item.kind === "cage"
       ? "Cage reservation"
@@ -169,7 +202,7 @@ function PayPage() {
         eyebrow="Oklahoma Prospects checkout"
         title="Review the order."
         accent="Pay the total on the card."
-        copy="Debit or credit only. Square charges the same total as this receipt — not a leftover $50 cage link."
+        copy="Debit or credit only. You’ll be charged the same total as this order."
       />
       <div className="mx-auto max-w-3xl px-5 py-8">
         <ol className="mb-6 grid grid-cols-3 gap-2 text-center text-xs font-semibold tracking-wide uppercase">
@@ -232,7 +265,8 @@ function PayPage() {
               busy={busy}
               search={{ ...search, assessed: hasAssessment ? "1" : "0" }}
               hasAssessment={hasAssessment}
-              onApproved={finish}
+              onApproved={(sessions) => finish(sessions)}
+              onPrepare={(receiptId, sessions) => prepareSquare(receiptId, sessions)}
             />
           </div>
         ) : (
@@ -246,23 +280,28 @@ function PayPage() {
               busy={busy}
               disabled={needsHouseholdAttest && !attest}
               onPay={() => finish([])}
+              onPrepare={(receiptId) => prepareSquare(receiptId, [])}
             />
           </div>
         )}
 
         <p className="mt-4 text-sm text-muted">
-          {CANCEL_POLICY.short}. {MEMBERSHIP_RULES[3]}
+          {CANCEL_POLICY.short}.
         </p>
 
-        {error ? <p className="mt-3 text-sm text-maroon">{error}</p> : null}
+        {error ? (
+          <p className="mt-3 text-sm text-maroon" role="alert">
+            {error}
+          </p>
+        ) : null}
 
         <SignedOut>
           <p className="mt-4 text-center text-sm">
-            <Link to="/login" search={{ next: "/account" }}>
+            <Link to="/login" search={{ next: nextPay }}>
               Sign in
             </Link>{" "}
             to keep this on your development schedule. Guests still get a club
-            receipt on this phone.
+            receipt on this phone after card payment.
           </p>
         </SignedOut>
         <SignedIn>

@@ -34,6 +34,7 @@ import { TriangleAlert } from "lucide-react";
 
 function BreakProbe({ section }: { section: string }) {
   const [boom, setBoom] = useState(false);
+  if (!import.meta.env.DEV) return null;
   if (boom) throw new Error(`Deliberate Teams crash: ${section}`);
   return (
     <button

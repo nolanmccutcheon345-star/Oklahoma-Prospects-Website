@@ -4,12 +4,11 @@ import { Link } from "@tanstack/react-router";
 import { useLiveCatalog } from "@/lib/use-catalog";
 
 export function MembershipPlans({
-  cta = "Start All-Star",
+  cta: _cta = "Start All-Star",
 }: {
   cta?: string;
 }) {
   const { cagePlans } = useLiveCatalog();
-  const featured = cagePlans.find((plan) => plan.featured) ?? cagePlans[1] ?? cagePlans[0];
   return (
     <div>
       <div className="grid gap-3 md:grid-cols-3">
@@ -41,18 +40,18 @@ export function MembershipPlans({
                 <li key={perk}>+ {perk}</li>
               ))}
             </ul>
+            <Button asChild className="mt-4 w-full" variant={plan.featured ? "primary" : "outline"}>
+              <Link to="/pay" search={{ kind: "cage-plan", id: plan.id }}>
+                Start {plan.name} · ${plan.price}
+              </Link>
+            </Button>
           </article>
         ))}
       </div>
       <div className="mt-6 grid gap-2">
         <p className="text-sm text-fg-soft">
-          Household athletes only. Team practices use team cage rates and team monthly plans.
+          Household athletes only. Team practices use team cage rates.
         </p>
-        <Button asChild className="w-full">
-          <Link to="/pay" search={{ kind: "cage-plan", id: featured?.id ?? "all-star" }}>
-            {cta}
-          </Link>
-        </Button>
         <Button asChild variant="outlineDark" className="w-full">
           <Link to="/training">Lesson memberships</Link>
         </Button>

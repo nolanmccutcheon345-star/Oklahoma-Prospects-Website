@@ -1,25 +1,27 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { RedirectToSignIn, SignedIn, SignedOut } from "@/lib/auth/gates";
+import { RedirectToSignIn } from "@/lib/auth/gates";
+import { useCurrentUserState } from "@/lib/auth/use-current-user";
 import { FamilyApp } from "@/components/teams/family-app";
 import { FailScreen } from "@/components/teams/ui";
 import { TeamsShell } from "@/components/teams/shell";
+import { Button } from "@/components/ui/button";
 import { getTeamsClub, saveTeamsClub } from "@/lib/teams/store";
 import type { ClubRecord } from "@/lib/teams/types";
 
 export const Route = createFileRoute("/family")({ component: Page });
 
 function Page() {
-  return (
-    <>
-      <SignedOut>
-        <RedirectToSignIn />
-      </SignedOut>
-      <SignedIn>
-        <FamilyPage />
-      </SignedIn>
-    </>
-  );
+  const { user, isPending } = useCurrentUserState();
+  if (isPending) {
+    return (
+      <main id="main" className="bg-ink px-5 py-10 text-fg-inverse">
+        <p className="text-sm text-fg-soft">Loading family desk…</p>
+      </main>
+    );
+  }
+  if (!user) return <RedirectToSignIn />;
+  return <FamilyPage />;
 }
 
 function FamilyPage() {
@@ -28,6 +30,8 @@ function FamilyPage() {
   const [state, setState] = useState<Awaited<ReturnType<typeof getTeamsClub>>>();
   const [club, setClub] = useState<ClubRecord>();
   const [error, setError] = useState("");
+  const [saveError, setSaveError] = useState("");
+  const [saved, setSaved] = useState("");
 
   async function load() {
     const row = await getTeamsClub();
@@ -47,10 +51,49 @@ function FamilyPage() {
 
   if (error === "signin") return <RedirectToSignIn />;
   if (error) return <FailScreen message={error} />;
-  if (!state) return <p className="p-6">Loading club…</p>;
-  if (state.missing || !club) {
-    return <FailScreen message="Front office has not opened the club record yet." />;
+  if (!state) {
+    return (
+      <main id="main" className="bg-ink px-5 py-10 text-fg-inverse">
+        <p className="text-sm text-fg-soft">Loading family desk…</p>
+      </main>
+    );
   }
+  if (state.missing || !club) {
+    return (
+      <main id="main" className="mx-auto max-w-3xl px-5 py-10">
+        <p className="text-xs font-semibold tracking-[0.16em] text-maroon uppercase">
+          Family desk
+        </p>
+        <h1 className="mt-2 text-4xl">Not on a roster yet.</h1>
+        <p className="mt-3 text-muted">
+          The office opens this desk after they add your player. Meanwhile you can
+          still book cages, sign the waiver, and start training.
+        </p>
+        <div className="mt-6 flex flex-wrap gap-3">
+          <Button asChild>
+            <Link to="/book">Reserve a cage</Link>
+          </Button>
+          <Button asChild variant="outlineDark">
+            <Link to="/training">Monthly coaching</Link>
+          </Button>
+          <Button asChild variant="outlineDark">
+            <Link to="/waiver">Sign the waiver</Link>
+          </Button>
+        </div>
+      </main>
+    );
+  }
+
+  const familyOptions = Array.from(
+    new Map(
+      club.teams.flatMap((team) =>
+        team.roster.map((player) => [
+          player.familyId,
+          `${player.name} · ${team.name}`,
+        ] as const),
+      ),
+    ).entries(),
+  );
 
   return (
     <TeamsShell
@@ -61,25 +104,26 @@ function FamilyPage() {
       onLang={setLang}
       nav={[
         { to: "/family", label: lang === "es" ? "Familia" : "Family" },
-        { to: "/coach", label: "Coach" },
-        { to: "/account", label: "Development" },
+        ...(state.role === "coach" || state.role === "admin"
+          ? [{ to: "/coach", label: "Coach" }]
+          : []),
+        ...(state.role === "admin" ? [{ to: "/office", label: "Office" }] : []),
+        { to: "/account", label: "Lessons" },
       ]}
     >
       {state.role === "admin" && club ? (
-        <label className="mb-3 block text-sm">
+        <label className="mb-3 block text-sm font-semibold">
           View family
           <select
-            className="mt-1 min-h-11 w-full rounded-md border border-line px-3"
+            className="mt-1 min-h-11 w-full rounded-md border border-line px-3 font-normal"
             value={familyId}
             onChange={(e) => setFamilyId(e.target.value)}
           >
-            {Array.from(new Set(club.teams.flatMap((t) => t.roster.map((p) => p.familyId)))).map(
-              (id) => (
-                <option key={id} value={id}>
-                  {id}
-                </option>
-              ),
-            )}
+            {familyOptions.map(([id, label]) => (
+              <option key={id} value={id}>
+                {label}
+              </option>
+            ))}
           </select>
         </label>
       ) : null}
@@ -91,20 +135,32 @@ function FamilyPage() {
         onChange={setClub}
         onReload={load}
       />
-      <button
+      <Button
         type="button"
-        className="mt-4 min-h-11 text-sm font-semibold"
+        className="mt-4 w-full"
         onClick={async () => {
           try {
-            const saved = await saveTeamsClub({ data: { club, baseRev: club._rev } });
-            setClub(saved.club);
+            setSaveError("");
+            const savedClub = await saveTeamsClub({ data: { club, baseRev: club._rev } });
+            setClub(savedClub.club);
+            setSaved("Family record saved.");
           } catch (err) {
-            setError(err instanceof Error ? err.message : "Save failed");
+            setSaveError(err instanceof Error ? err.message : "Save failed");
           }
         }}
       >
         Save family record
-      </button>
+      </Button>
+      {saved ? (
+        <p className="mt-2 text-sm" aria-live="polite">
+          {saved}
+        </p>
+      ) : null}
+      {saveError ? (
+        <p className="mt-2 text-sm text-maroon" role="alert">
+          {saveError}
+        </p>
+      ) : null}
     </TeamsShell>
   );
 }

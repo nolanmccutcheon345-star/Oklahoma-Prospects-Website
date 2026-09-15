@@ -1,4 +1,4 @@
-import { isOwnerEmail, isStaffEmail } from "@/lib/owners";
+import { isOwnerEmail } from "@/lib/owners";
 import type { DevelopmentData, ViewerRole } from "./types";
 
 export type PdViewer = {
@@ -27,7 +27,8 @@ export class ForbiddenError extends Error {
 export function resolveViewerRole(email: string, profileRole?: string | null): ViewerRole {
   const value = (email ?? "").trim().toLowerCase();
   if (isOwnerEmail(value)) return "admin";
-  if (profileRole === "coach" && isStaffEmail(value)) return "coach";
+  if (profileRole === "admin") return "admin";
+  if (profileRole === "coach") return "coach";
   if (profileRole === "player") return "player";
   return "parent";
 }
@@ -44,16 +45,14 @@ export function familyForViewer(viewer: PdViewer, data: DevelopmentData) {
 export function athleteForPlayer(viewer: PdViewer, data: DevelopmentData) {
   const family = familyForViewer(viewer, data);
   if (!family) return undefined;
+  const kids = data.athletes.filter((row) => family.athleteIds.includes(row.id));
   const needle = viewer.playerName.trim().toLowerCase();
   if (needle) {
-    const named = data.athletes.find(
-      (row) =>
-        family.athleteIds.includes(row.id) &&
-        `${row.firstName} ${row.lastName}`.toLowerCase() === needle,
+    return kids.find(
+      (row) => `${row.firstName} ${row.lastName}`.toLowerCase() === needle,
     );
-    if (named) return named;
   }
-  return data.athletes.find((row) => family.athleteIds.includes(row.id));
+  return kids.length === 1 ? kids[0] : undefined;
 }
 
 export function scopeForViewer(viewer: PdViewer, data: DevelopmentData): PdScope {
@@ -68,10 +67,19 @@ export function scopeForViewer(viewer: PdViewer, data: DevelopmentData): PdScope
     };
   }
   if (viewer.role === "coach") {
+    const me = data.coaches.find(
+      (row) => row.email.trim().toLowerCase() === viewer.email.trim().toLowerCase(),
+    );
+    const ids = me
+      ? new Set(data.athletes.filter((row) => row.coachIds.includes(me.id)).map((row) => row.id))
+      : new Set<string>();
+    const familyIds = new Set(
+      data.athletes.filter((row) => ids.has(row.id)).map((row) => row.familyId),
+    );
     return {
       role: "coach",
-      athleteIds: "all",
-      familyIds: "all",
+      athleteIds: ids,
+      familyIds,
       includeCoachNotes: true,
       includeStaffOps: false,
       includeCoachOps: true,

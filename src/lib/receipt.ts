@@ -12,7 +12,9 @@ export type ClubReceipt = {
   time: string;
   minutes: number;
   createdAt: number;
-  status: "paid";
+  status: "paid" | "pending";
+  cages?: string;
+  use?: string;
 };
 
 const KEY = "prospects-club-receipts";
@@ -42,6 +44,8 @@ export function receiptFromItem(
     minutes: item.minutes,
     createdAt: Date.now(),
     status: "paid",
+    cages: search.cages,
+    use: search.use,
   };
 }
 
@@ -70,6 +74,40 @@ export function saveReceipt(receipt: ClubReceipt) {
 export function getReceipt(id: string | undefined) {
   if (!id) return undefined;
   return loadReceipts().find((row) => row.id === id);
+}
+
+export function stashCheckout(id: string, payload: unknown) {
+  if (typeof window === "undefined") return;
+  try {
+    sessionStorage.setItem(`op.checkout.${id}`, JSON.stringify(payload));
+  } catch {
+    /* ignore */
+  }
+}
+
+export function takeCheckout(id: string | undefined) {
+  if (!id || typeof window === "undefined") return null;
+  try {
+    const raw = sessionStorage.getItem(`op.checkout.${id}`);
+    if (!raw) return null;
+    sessionStorage.removeItem(`op.checkout.${id}`);
+    return JSON.parse(raw) as {
+      kind: string;
+      title: string;
+      date: string;
+      startTime: string;
+      durationMin: number;
+      price: number;
+      credits?: number;
+      remote?: number;
+      planName?: string;
+      athleteId?: string;
+      serviceId?: string;
+      sessions?: unknown[];
+    };
+  } catch {
+    return null;
+  }
 }
 
 export function formatReceiptText(receipt: ClubReceipt) {

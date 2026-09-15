@@ -1,7 +1,7 @@
 export const CLUB = {
   name: "Oklahoma Prospects",
   shortName: "Oklahoma Prospects",
-  tagline: "Paid indoor lanes in Broken Arrow.",
+  tagline: "Indoor baseball & softball in Broken Arrow.",
   established: 2008,
   mindset: ["Grit", "Heart", "Pride"],
   phoneDisplay: "(918) 922-8114",
@@ -29,7 +29,7 @@ export const LINKS = {
   memberApp: "/account",
   pricing: "/training",
   coaches: "/training",
-  uniform: "/more",
+  uniform: "/family",
   waiver: "/waiver",
   checkin: "/visits",
   maps: "https://www.google.com/maps/search/?api=1&query=3804+S.+Elm+Pl.+Suite+A+Broken+Arrow+OK+74011",
@@ -44,6 +44,8 @@ export function smsHref(tel: string, body: string) {
 
 export const AGE_GROUPS = [
   "5U",
+  "6U",
+  "7U",
   "8U",
   "9U",
   "10U",
@@ -294,7 +296,8 @@ export const PEOPLE = [
     role: "Cages, paid bookings, arriving today",
     phoneDisplay: "(918) 922-8114",
     tel: "+19189228114",
-    action: "Call / text the desk",
+    action: "Call the desk",
+    href: "tel:+19189228114",
   },
   {
     name: "Coach Steve",
@@ -302,13 +305,14 @@ export const PEOPLE = [
     phoneDisplay: "(918) 760-2719",
     tel: "+19187602719",
     action: "Text Coach Steve",
+    href: "sms:+19187602719",
   },
 ] as const;
 
 export const FIRST_VISIT = [
   {
     title: "Pay for the hour",
-    body: "The lane is yours when checkout says Paid — not when you pick a time. Nothing is booked until payment clears.",
+    body: "The lane is yours when checkout says reserved — not when you pick a time. Nothing is booked until you confirm.",
   },
   {
     title: "Sign the annual waiver",
@@ -336,15 +340,15 @@ export const PAY_METHODS = [
 export const FAQ = [
   {
     q: "Can I walk in without a reservation?",
-    a: "Every hour is reserved and paid in advance, so the lane is actually yours. Pick a live slot, pay with a card, then show up ready to work.",
+    a: "Every hour is reserved in advance, so the lane is actually yours. Pick a live slot, check out, then show up ready to work.",
   },
   {
-    q: "Why is a drop-in hour $50?",
-    a: "Drop-in is the one-off rate. A monthly cage membership brings the hour down — All-Star is about $35 an hour with first pick of times.",
+    q: "Why is a reserved hour $50?",
+    a: "That is the one-off household rate for one cage. A monthly cage pass brings the hour down — All-Star is under $35 an hour with first pick of times.",
   },
   {
     q: "Are you open during the day?",
-    a: "After school, on purpose. Monday–Friday 4–8 PM. Saturday–Sunday 1–8 PM, by reservation.",
+    a: "After school, on purpose. Monday–Friday 4–8 PM. Saturday–Sunday 1–8 PM, by reservation. Spring evaluations on November 14 use Saturday morning hours — doors open at 8:45 AM for 5U.",
   },
   {
     q: "Can I rent more than one cage at the same time?",
@@ -352,15 +356,15 @@ export const FAQ = [
   },
   {
     q: "Do you offer baseball and softball?",
-    a: "Yes. Lane 7 is dual-use for softball machine and baseball hitting. Choose your sport when you book a lesson.",
+    a: "Yes. Baseball and softball both train here. Lane 7 is the dual-use machine and hitting lane. Tell the coach your sport when you book, or text Coach Steve.",
   },
   {
     q: "I’m new. Where do I start?",
-    a: "Cage time can be paid for today. Monthly development is the core plan. Private lessons without an assessment on file add a $50 first-session fee — an hour is $150 instead of $100. Book the assessment ($149) to drop that fee and get a real plan.",
+    a: "Want reps today? Reserve a cage. Want coaching? Start with an assessment — pitching 75 min / $149, hitting 60 min / $129. Private hours are $100 after that. Without an assessment on file, the first private hour is $150. Monthly coaching is four sessions a month from $229.",
   },
   {
     q: "What if I need to cancel?",
-    a: "Cancel 48 hours ahead for a full refund. Between 24 and 48 hours you receive a 50% refund. Inside 24 hours there is no refund. Same rule for cages, lessons, packages, and memberships.",
+    a: "Cancel 48 hours ahead for a full refund. Between 24 and 48 hours you receive a 50% refund. Inside 24 hours there is no refund. Same window for cages, lessons, packages, and the current month of a membership. You can stop auto-renew anytime.",
   },
 ] as const;
 

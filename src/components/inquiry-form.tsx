@@ -1,7 +1,7 @@
 import { useState, type FormEvent } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { AGE_GROUPS, CLUB } from "@/lib/club";
+import { AGE_GROUPS, CLUB, TRYOUT_AGES, TRYOUT_DAYS } from "@/lib/club";
 import { cn } from "@/lib/utils";
 
 const fieldClass =
@@ -21,6 +21,8 @@ type TryoutValues = {
   phone: string;
   email: string;
   notes: string;
+  sport: string;
+  session: string;
 };
 
 function persist(key: string, payload: unknown) {
@@ -104,26 +106,64 @@ export function ContactForm() {
   );
 }
 
-export function TryoutForm() {
+const TRYOUT_SESSIONS = TRYOUT_DAYS.flatMap((day) =>
+  day.sessions.map((session) => ({
+    value: `${day.weekday} ${day.date} · ${session.age} · ${session.time}`,
+    age: session.age,
+    label: `${session.age} · ${day.weekday} ${session.time}`,
+  })),
+);
+
+export function TryoutForm({
+  initialAge = "",
+  intent = "register",
+}: {
+  initialAge?: string;
+  intent?: "register" | "inquiry";
+}) {
+  const ages = intent === "register" ? TRYOUT_AGES : AGE_GROUPS;
   const [values, setValues] = useState<TryoutValues>({
     player: "",
-    age: "",
+    age: ages.includes(initialAge as (typeof TRYOUT_AGES)[number]) || AGE_GROUPS.includes(initialAge as (typeof AGE_GROUPS)[number])
+      ? initialAge
+      : "",
     parent: "",
     phone: "",
     email: "",
     notes: "",
+    sport: "",
+    session: "",
   });
 
   function onSubmit(event: FormEvent) {
     event.preventDefault();
-    persist("prospects-tryout", { ...values, at: Date.now() });
+    persist("prospects-tryout", { ...values, intent, at: Date.now() });
     const subject = encodeURIComponent(
-      `Team inquiry — ${values.player} (${values.age})`,
+      intent === "register"
+        ? `Tryout registration — ${values.player} · ${values.age} · ${values.session || "session TBD"}`
+        : `Team inquiry — ${values.player} (${values.age})`,
     );
     const body = encodeURIComponent(
-      `Player: ${values.player}\nAge group: ${values.age}\nParent / Guardian: ${values.parent}\nPhone: ${values.phone}\nEmail: ${values.email}\n\nNotes:\n${values.notes}`,
+      [
+        `Player: ${values.player}`,
+        `Age group: ${values.age}`,
+        `Sport: ${values.sport}`,
+        intent === "register" ? `Session: ${values.session}` : null,
+        `Parent / Guardian: ${values.parent}`,
+        `Phone: ${values.phone}`,
+        `Email: ${values.email}`,
+        "",
+        "Notes:",
+        values.notes,
+      ]
+        .filter(Boolean)
+        .join("\n"),
     );
-    toast.success("Opening email to send this tryout request.");
+    toast.success(
+      intent === "register"
+        ? "Opening email to send this tryout registration."
+        : "Opening email to send this team inquiry.",
+    );
     window.location.href = `mailto:${CLUB.email}?subject=${subject}&body=${body}`;
   }
 
@@ -149,13 +189,54 @@ export function TryoutForm() {
             onChange={(e) => setValues((v) => ({ ...v, age: e.target.value }))}
           >
             <option value="">Select age group</option>
-            {AGE_GROUPS.map((age) => (
+            {ages.map((age) => (
               <option key={age} value={age}>
                 {age}
               </option>
             ))}
           </select>
         </label>
+      </div>
+      <div className="grid gap-4 sm:grid-cols-2">
+        <label className="text-sm font-semibold">
+          Sport <span className="text-maroon">*</span>
+          <select
+            required
+            className={fieldClass}
+            value={values.sport}
+            onChange={(e) => setValues((v) => ({ ...v, sport: e.target.value }))}
+          >
+            <option value="">Baseball or softball</option>
+            <option value="Baseball">Baseball</option>
+            <option value="Softball">Softball</option>
+          </select>
+        </label>
+        {intent === "register" ? (
+          <label className="text-sm font-semibold">
+            Session <span className="text-maroon">*</span>
+            <select
+              required
+              className={fieldClass}
+              value={values.session}
+              onChange={(e) => {
+                const session = e.target.value;
+                const match = TRYOUT_SESSIONS.find((row) => row.value === session);
+                setValues((v) => ({
+                  ...v,
+                  session,
+                  age: match?.age || v.age,
+                }));
+              }}
+            >
+              <option value="">Pick a session</option>
+              {TRYOUT_SESSIONS.filter((row) => !values.age || row.age === values.age).map((row) => (
+                <option key={row.value} value={row.value}>
+                  {row.label}
+                </option>
+              ))}
+            </select>
+          </label>
+        ) : null}
       </div>
       <div className="grid gap-4 sm:grid-cols-2">
         <label className="text-sm font-semibold">
@@ -205,7 +286,7 @@ export function TryoutForm() {
         />
       </label>
       <Button type="submit" variant="primary" className="w-full sm:w-auto">
-        Submit tryout request
+        Submit {intent === "register" ? "tryout registration" : "team inquiry"}
       </Button>
     </form>
   );

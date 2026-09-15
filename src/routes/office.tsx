@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { RedirectToSignIn, SignedIn, SignedOut } from "@/lib/auth/gates";
+import { RedirectToSignIn } from "@/lib/auth/gates";
+import { useCurrentUserState } from "@/lib/auth/use-current-user";
 import { OfficeApp } from "@/components/teams/office-app";
 import { FailScreen } from "@/components/teams/ui";
 import { TeamsShell } from "@/components/teams/shell";
@@ -12,16 +13,16 @@ import type { ClubRecord } from "@/lib/teams/types";
 export const Route = createFileRoute("/office")({ component: Page });
 
 function Page() {
-  return (
-    <>
-      <SignedOut>
-        <RedirectToSignIn />
-      </SignedOut>
-      <SignedIn>
-        <OfficePage />
-      </SignedIn>
-    </>
-  );
+  const { user, isPending } = useCurrentUserState();
+  if (isPending) {
+    return (
+      <main id="main" className="bg-ink px-5 py-10 text-fg-inverse">
+        <p className="text-sm text-fg-soft">Loading front office…</p>
+      </main>
+    );
+  }
+  if (!user) return <RedirectToSignIn />;
+  return <OfficePage />;
 }
 
 function OfficePage() {
@@ -43,9 +44,15 @@ function OfficePage() {
 
   if (error === "signin") return <RedirectToSignIn />;
   if (error) return <FailScreen message={error} />;
-  if (!state) return <p className="p-6">Loading club…</p>;
+  if (!state) {
+    return (
+      <main id="main" className="bg-ink px-5 py-10 text-fg-inverse">
+        <p className="text-sm text-fg-soft">Loading front office…</p>
+      </main>
+    );
+  }
   if (state.role !== "admin") {
-    return <FailScreen message="Front office is for the two owners only." />;
+    return <FailScreen message="Front office is for club owners." />;
   }
   if (state.missing) {
     return (
@@ -53,8 +60,8 @@ function OfficePage() {
         <PageHero
           eyebrow="Front office"
           title="Open the club."
-          accent="Same login."
-          copy="First run. Start empty or load the labelled sample club. Prospects will never silently invent a roster."
+          accent="Empty or sample."
+          copy="First run. Start empty for live families, or load the labelled sample club to practice the desks."
           image="/brand/team.jpg"
           compact
         />

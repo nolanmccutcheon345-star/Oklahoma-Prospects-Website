@@ -20,7 +20,10 @@ export type PortalTarget =
         | "/waiver"
         | "/visits"
         | "/more"
-        | "/memberships";
+        | "/memberships"
+        | "/contact"
+        | "/family";
+      hash?: string;
     };
 
 export const PORTALS: Record<
@@ -47,19 +50,19 @@ export const PORTALS: Record<
   memberships: {
     title: "Cage memberships",
     kicker: "Same club · same prices",
-    body: "All-Star is the plan most families should start. Hold it on this club. Have your membership code ready if you already joined.",
+    body: "All-Star is the plan most families should start. Pay on this club with debit or credit.",
     cta: "See memberships",
   },
   lessons: {
     title: "Player development",
     kicker: "Lessons · Oklahoma Prospects",
-    body: "Assessments, private 30s and 60s, packages, and monthly development. Stay on this club — do not bounce to a second site.",
+    body: "Assessments, private 30s and 60s, packages, and monthly development.",
     cta: "Open lessons",
   },
   members: {
     title: "Member portal",
     kicker: "Invited families only",
-    body: "Sign in for training plans, progress, and feedback. Same login as the rest of the club.",
+    body: "Sign in for training plans, progress, and feedback.",
     cta: "Open member sign-in",
   },
   coaches: {
@@ -93,12 +96,13 @@ export function portalTarget(id: PortalId): PortalTarget {
     case "book":
       return { to: "/book" };
     case "tryouts":
-      return { to: "/tryouts" };
+      return { to: "/tryouts", hash: "register" };
     case "memberships":
       return { to: "/memberships" };
     case "lessons":
-    case "coaches":
       return { to: "/training" };
+    case "coaches":
+      return { to: "/contact" };
     case "members":
       return { to: "/account" };
     case "waiver":
@@ -106,6 +110,6 @@ export function portalTarget(id: PortalId): PortalTarget {
     case "checkin":
       return { to: "/visits" };
     case "uniform":
-      return { to: "/more" };
+      return { to: "/family" };
   }
 }

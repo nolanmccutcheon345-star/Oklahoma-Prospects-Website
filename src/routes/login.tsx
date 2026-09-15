@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import {
   GROK_PROVIDERS,
   authClient,
@@ -8,7 +8,6 @@ import {
 } from "@/lib/auth/client";
 import { Button } from "@/components/ui/button";
 import { PageHero } from "@/components/page-hero";
-import { ensureOwnerAccounts } from "@/lib/seed-owners";
 
 type LoginSearch = { next?: string };
 
@@ -66,16 +65,11 @@ function Login() {
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
 
-  useEffect(() => {
-    void ensureOwnerAccounts().catch(() => undefined);
-  }, []);
-
   async function onEmail(event: React.FormEvent) {
     event.preventDefault();
     setError("");
     setBusy(true);
     try {
-      await ensureOwnerAccounts().catch(() => undefined);
       const payload = {
         email: email.trim(),
         password,
@@ -84,8 +78,7 @@ function Login() {
       try {
         await emailAuth(mode, payload);
       } catch (first) {
-        if (mode === "in") {
-          await ensureOwnerAccounts().catch(() => undefined);
+        if (mode === "up") {
           await emailAuth("in", payload);
         } else {
           throw first;
@@ -107,9 +100,9 @@ function Login() {
     <main id="main">
       <PageHero
         eyebrow="Oklahoma Prospects"
-        title="One login."
-        accent="Every desk."
-        copy="Parents, players, coaches, and admin. Cages, lessons, and teams stay on this club — no second site."
+        title="Sign in."
+        accent="One account."
+        copy="Parents, players, coaches, and the front office. Cages, lessons, and teams share this login."
         image="/brand/training.jpg"
         compact
       />
@@ -128,7 +121,10 @@ function Login() {
           ))}
         </div>
       ) : (
-        <p className="mt-4 text-sm text-muted">Sign-in is disabled.</p>
+        <p className="mt-4 text-sm text-muted">
+          Sign-in is turned off for this preview. Use email below if it still
+          appears, or ask the office to open accounts.
+        </p>
       )}
       <form onSubmit={onEmail} className="mt-8 grid gap-3">
         <p className="text-sm font-semibold">Email and password</p>
@@ -152,6 +148,8 @@ function Login() {
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             autoComplete="email"
+            aria-invalid={Boolean(error)}
+            aria-describedby={error ? "login-error" : undefined}
             className="mt-1.5 block min-h-11 w-full rounded-md border border-line bg-paper-2 px-3"
           />
         </label>
@@ -160,19 +158,24 @@ function Login() {
           <input
             required
             type="password"
+            minLength={8}
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             autoComplete={mode === "up" ? "new-password" : "current-password"}
             className="mt-1.5 block min-h-11 w-full rounded-md border border-line bg-paper-2 px-3"
           />
         </label>
-        {error ? <p className="text-sm text-maroon">{error}</p> : null}
-        <Button type="submit" disabled={busy}>
+        {error ? (
+          <p id="login-error" className="text-sm text-maroon" role="alert">
+            {error}
+          </p>
+        ) : null}
+        <Button type="submit" disabled={busy} aria-busy={busy}>
           {busy ? "Signing in…" : mode === "up" ? "Create account" : "Sign in"}
         </Button>
         <button
           type="button"
-          className="text-sm font-semibold text-maroon"
+          className="min-h-11 text-sm font-semibold text-maroon"
           onClick={() => setMode(mode === "up" ? "in" : "up")}
         >
           {mode === "up"

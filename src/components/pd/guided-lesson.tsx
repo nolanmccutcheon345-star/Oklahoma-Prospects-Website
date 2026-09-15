@@ -8,7 +8,7 @@ import {
   type Drill,
 } from "@/lib/pd/content";
 import { FLAWS } from "@/lib/pd/content/flaws";
-import { ageOnClubDay } from "@/lib/pd/engines";
+import { ageOnClubDay, clubDayIso } from "@/lib/pd/engines";
 import {
   INTERVENTION_METHODS,
   INTERVENTION_OUTCOMES,
@@ -45,8 +45,9 @@ export type LessonStart = {
 export function LessonLaunch({ onStart }: { onStart: (start: LessonStart) => void }) {
   const { data, listAthletes } = useDevelopment();
   const drafts = typeof window === "undefined" ? {} : readDrafts();
+  const today = clubDayIso();
   const floor = data.bookings.filter(
-    (row) => row.status === "paid" && row.date >= "2026-09-14" && row.date <= "2026-09-18",
+    (row) => row.status === "paid" && row.date >= today,
   );
   const athletes = listAthletes("coach");
   return (

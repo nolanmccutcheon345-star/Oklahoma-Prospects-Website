@@ -13,6 +13,8 @@ export function HoursChip({
 
   return (
     <span
+      role="status"
+      aria-label={`Facility ${status.label}. ${status.detail}`}
       className={cn(
         "inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-semibold tracking-wide uppercase",
         onDark

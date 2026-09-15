@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 
 const TZ = "America/Chicago";
+const CLOSE_MINS = 20 * 60;
 
 export type ClubStatus = {
   open: boolean;
@@ -27,9 +28,26 @@ function zonedParts(now: Date) {
   };
 }
 
+export function chicagoDateISO(now = new Date()) {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: TZ,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(now);
+  const get = (type: Intl.DateTimeFormatPartTypes) =>
+    parts.find((part) => part.type === type)?.value ?? "";
+  return `${get("year")}-${get("month")}-${get("day")}`;
+}
+
+function chicagoMinutes(now = new Date()) {
+  const { hour, minute } = zonedParts(now);
+  return hour * 60 + minute;
+}
+
 function nextOpenLabel(weekday: string, open: boolean, mins: number) {
   if (open) {
-    return `Open · until 8 PM`;
+    return "Booking hours · until 8 PM";
   }
   const isWeekend = weekday === "Sat" || weekday === "Sun";
   const openMins = isWeekend ? 13 * 60 : 16 * 60;
@@ -47,12 +65,11 @@ export function getClubStatus(now = new Date()): ClubStatus {
   const mins = hour * 60 + minute;
   const isWeekend = weekday === "Sat" || weekday === "Sun";
   const openMins = isWeekend ? 13 * 60 : 16 * 60;
-  const closeMins = 20 * 60;
-  const open = mins >= openMins && mins < closeMins;
+  const open = mins >= openMins && mins < CLOSE_MINS;
 
   return {
     open,
-    label: open ? "Open now" : "Closed",
+    label: open ? "Booking hours" : "Closed",
     detail: nextOpenLabel(weekday, open, mins),
   };
 }
@@ -70,16 +87,40 @@ export function useClubStatus() {
   return status;
 }
 
-export function reservationSlots(isoDate: string) {
+function isChicagoWeekend(isoDate: string) {
+  const probe = new Date(`${isoDate}T17:00:00.000Z`);
+  if (Number.isNaN(probe.getTime())) return false;
+  const weekday = new Intl.DateTimeFormat("en-US", {
+    timeZone: TZ,
+    weekday: "short",
+  }).format(probe);
+  return weekday === "Sat" || weekday === "Sun";
+}
+
+export function minsFromHHMM(value: string) {
+  const [h, m] = value.split(":").map(Number);
+  if (!Number.isFinite(h) || !Number.isFinite(m)) return 0;
+  return h * 60 + (m || 0);
+}
+
+export function rangesOverlap(a0: number, a1: number, b0: number, b1: number) {
+  return a0 < b1 && b0 < a1;
+}
+
+export function reservationSlots(isoDate: string, minutes = 60, now = new Date()) {
   if (!isoDate) return [];
-  const local = new Date(`${isoDate}T12:00:00`);
-  if (Number.isNaN(local.getTime())) return [];
-  const weekend = local.getDay() === 0 || local.getDay() === 6;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(isoDate)) return [];
+  const weekend = isChicagoWeekend(isoDate);
   const startHour = weekend ? 13 : 16;
+  const duration = Math.max(30, minutes);
+  const today = chicagoDateISO(now);
+  const nowMins = isoDate === today ? chicagoMinutes(now) : -1;
   const slots: { value: string; label: string }[] = [];
   for (let hour = startHour; hour < 20; hour += 1) {
     for (const minute of [0, 30]) {
-      if (hour === 19 && minute === 30) continue;
+      const start = hour * 60 + minute;
+      if (start + duration > CLOSE_MINS) continue;
+      if (start <= nowMins) continue;
       const value = `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
       const suffix = hour >= 12 ? "PM" : "AM";
       const twelve = hour % 12 || 12;

@@ -27,7 +27,7 @@ export function ContinueIn({
         {children}
       </Link>
     ) : (
-      <Link to={target.to} className={linkClass}>
+      <Link to={target.to} hash={"hash" in target ? target.hash : undefined} className={linkClass}>
         {children}
       </Link>
     );

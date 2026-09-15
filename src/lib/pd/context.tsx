@@ -11,6 +11,7 @@ import {
 import { emptyDevelopment } from "./empty";
 import { loadPdAthlete, loadPdDesk, savePdDesk, writePdMessage } from "./desk";
 import type { PdViewer } from "./access";
+import { useCurrentUser } from "@/lib/auth/use-current-user";
 import type {
   Athlete,
   Booking,
@@ -159,6 +160,7 @@ function nid(prefix: string) {
 }
 
 export function DevelopmentProvider({ children }: { children: ReactNode }) {
+  const user = useCurrentUser();
   const [data, setData] = useState<DevelopmentData>(() => emptyDevelopment());
   const [selectedAthleteId, setSelectedAthleteId] = useState<string | null>(null);
   const [education, setEducation] = useState<Record<string, string[]>>(seedEducationProgress);
@@ -177,6 +179,14 @@ export function DevelopmentProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     let cancelled = false;
+    if (!user) {
+      skipPersist.current = true;
+      setData(emptyDevelopment());
+      setViewer(null);
+      setPdReady(true);
+      return;
+    }
+    setPdReady(false);
     loadPdDesk()
       .then((payload) => {
         if (cancelled) return;
@@ -195,7 +205,7 @@ export function DevelopmentProvider({ children }: { children: ReactNode }) {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [user?.id]);
 
   useEffect(() => {
     if (!educationReady) return;
@@ -312,7 +322,14 @@ export function DevelopmentProvider({ children }: { children: ReactNode }) {
   );
 
   const listAthletes = useCallback(
-    (_role?: ViewerRole, _familyId?: string, _selfName?: string) => data.athletes,
+    (_role?: ViewerRole, _familyId?: string, selfName?: string) => {
+      if (!selfName) return data.athletes;
+      const needle = selfName.trim().toLowerCase();
+      const named = data.athletes.filter(
+        (row) => `${row.firstName} ${row.lastName}`.toLowerCase() === needle,
+      );
+      return named.length ? named : data.athletes;
+    },
     [data],
   );
 

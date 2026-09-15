@@ -5,7 +5,7 @@ import { getProfile } from "@/lib/club-data";
 import { isOwnerEmail } from "@/lib/owners";
 import { mergeSave, scopeClub, familyHoldsPlayer, fetchTeamRecord, fetchPlayerRecord } from "./privacy";
 import { emptyClub, sampleClub } from "./seed";
-import type { ClubRecord } from "./types";
+import type { ClubRecord, Player, Team } from "./types";
 import type { ClubRole } from "@/lib/club-data";
 
 type Identity = { email: string; familyId: string; role: ClubRole; name: string };
@@ -64,11 +64,35 @@ async function identity(userId: string): Promise<Identity> {
       ? { ...fallback, family_id: `fam-${userId.slice(0, 8)}` }
       : undefined;
   }
+  let familyId = row?.family_id || `fam-${userId.slice(0, 8)}`;
+  const role: ClubRole = isOwnerEmail(email) ? "admin" : (row?.role ?? "parent");
+  if (role !== "admin") {
+    try {
+      const club = await loadRaw();
+      if (club && email) {
+        const matched = club.teams
+          .flatMap((team) => team.roster)
+          .find((player) => {
+            const playerEmail = player.email.trim().toLowerCase();
+            if (playerEmail && playerEmail === email && !playerEmail.includes("example.com")) {
+              return true;
+            }
+            return player.parents.some((parent) => {
+              const parentEmail = parent.email.trim().toLowerCase();
+              return Boolean(parentEmail) && parentEmail === email && !parentEmail.includes("example.com");
+            });
+          });
+        if (matched?.familyId) familyId = matched.familyId;
+      }
+    } catch {
+      /* club may not be open */
+    }
+  }
   return {
     name: row?.name || name,
     email: row?.email || email,
-    role: isOwnerEmail(email) ? "admin" : (row?.role ?? "parent"),
-    familyId: row?.family_id || `fam-${userId.slice(0, 8)}`,
+    role,
+    familyId,
   };
 }
 
@@ -169,6 +193,9 @@ export const recordTeamPayment = createServerFn({ method: "POST" })
     if (me.role !== "admin" && me.role !== "parent") {
       throw new Error("Not allowed.");
     }
+    if (!Number.isFinite(data.amount) || data.amount <= 0) {
+      throw new Error("Enter an amount greater than zero.");
+    }
     const stored = await loadRaw();
     if (!stored) throw new Error("Club is not open.");
     const team = stored.teams.find((t) => t.id === data.teamId);
@@ -176,6 +203,10 @@ export const recordTeamPayment = createServerFn({ method: "POST" })
     if (!player) throw new Error("Player not found.");
     if (me.role === "parent" && !familyHoldsPlayer(stored, me.familyId, data.playerId)) {
       throw new Error("Not your player.");
+    }
+    const due = Math.max(0, (player.feeLock?.amount ?? 0) - player.payments.reduce((sum, row) => sum + row.amount, 0));
+    if (due > 0 && data.amount > due + 1) {
+      throw new Error(`That is more than the balance (${due}).`);
     }
     const fee = data.method === "card" ? Math.round(data.amount * stored.settings.cardFeePct * 100) / 100 : 0;
     player.payments.push({
@@ -230,3 +261,158 @@ export const getPlayerRecord = createServerFn({ method: "POST" })
   });
 
 export { getProfile };
+
+function slug(value: string) {
+  return value.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 24) || "new";
+}
+
+function blankPlayer(input: {
+  teamId: string;
+  familyId: string;
+  name: string;
+  parentName: string;
+  parentEmail: string;
+}): Player {
+  return {
+    id: `p-${slug(input.name)}-${Date.now().toString(36).slice(-4)}`,
+    teamId: input.teamId,
+    familyId: input.familyId,
+    name: input.name,
+    number: "",
+    positions: [],
+    bats: "R",
+    throws: "R",
+    gradYear: "",
+    school: "",
+    height: "",
+    weight: "",
+    email: "",
+    parents: [{ name: input.parentName, rel: "guardian", phone: "", email: input.parentEmail }],
+    roleType: "full",
+    coachChild: false,
+    joinedOn: new Date().toISOString().slice(0, 10),
+    withdrawn: false,
+    agreement: { version: "", signedBy: "", signedAt: "" },
+    feeLock: null,
+    planLock: null,
+    credits: [],
+    payments: [],
+    cards: [],
+    planType: "four",
+    depositPaid: false,
+    uniformWaived: false,
+    order: { number: "", sizes: {}, submitted: false },
+    docs: { waiver: false, birthCert: false, insurance: false, physical: false },
+    emergency: {
+      allergies: "",
+      conditions: "",
+      insurer: "",
+      policyNo: "",
+      physician: "",
+      pickup: [],
+      notes: "",
+    },
+    publicProfile: { enabled: false, bio: "", slug: "" },
+    prefs: { email: true, sms: true },
+    reenroll: false,
+    cageOverage: 0,
+    stats: {},
+    rsvp: {},
+  };
+}
+
+export const officeAddTeam = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
+  .validator((input: { name: string; age: string; sport: "baseball" | "softball" }) => input)
+  .handler(async ({ context, data }) => {
+    const me = await identity(context.userId);
+    if (me.role !== "admin") throw new Error("Front office only.");
+    const stored = await loadRaw();
+    if (!stored) throw new Error("Club is not open.");
+    const name = data.name.trim();
+    if (!name) throw new Error("Team name is required.");
+    const team: Team = {
+      id: `t-${slug(name)}-${Date.now().toString(36).slice(-4)}`,
+      name,
+      sport: data.sport,
+      age: data.age.trim() || "Open",
+      level: "Open",
+      seasonLabel: "Spring 2027",
+      seasonStart: "2027-02-01",
+      seasonEnd: "2027-07-15",
+      months: 6,
+      headCoach: "",
+      coachEmail: "",
+      staff: [],
+      uniformPackageId: stored.uniforms[0]?.id ?? "",
+      uniformDeadline: "",
+      orgFee: 0,
+      coachMonthly: 0,
+      eventBudget: 0,
+      tournamentIds: [],
+      otherCosts: { insurance: 0, balls: 0, fields: 0, admin: 0, travel: 0 },
+      teamCageHoursPerWeek: 0,
+      playerCageHoursPerWeek: 0,
+      record: { w: 0, l: 0, t: 0 },
+      roster: [],
+      practices: [],
+      messages: [],
+      announcements: [],
+      attendance: {},
+      pitchLog: [],
+      closed: false,
+      notes: "",
+    };
+    stored.teams.push(team);
+    stored._rev += 1;
+    stored._savedAt = new Date().toISOString();
+    stored.audit.unshift({ at: stored._savedAt, action: "team", detail: `Added ${team.name}` });
+    await writeRaw(stored);
+    return { ok: true as const, club: scopeClub(stored, "admin", me) };
+  });
+
+export const officeAddPlayer = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
+  .validator(
+    (input: { teamId: string; name: string; parentName: string; parentEmail: string }) => input,
+  )
+  .handler(async ({ context, data }) => {
+    const me = await identity(context.userId);
+    if (me.role !== "admin") throw new Error("Front office only.");
+    const stored = await loadRaw();
+    if (!stored) throw new Error("Club is not open.");
+    const team = stored.teams.find((row) => row.id === data.teamId);
+    if (!team) throw new Error("Team not found.");
+    const playerName = data.name.trim();
+    const parentEmail = data.parentEmail.trim().toLowerCase();
+    if (!playerName || !parentEmail) throw new Error("Player name and parent email are required.");
+    const familyId = `fam-${slug(parentEmail)}`;
+    const player = blankPlayer({
+      teamId: team.id,
+      familyId,
+      name: playerName,
+      parentName: data.parentName.trim() || "Parent",
+      parentEmail,
+    });
+    team.roster.push(player);
+    stored._rev += 1;
+    stored._savedAt = new Date().toISOString();
+    stored.audit.unshift({
+      at: stored._savedAt,
+      action: "player",
+      detail: `Added ${player.name} to ${team.name}`,
+    });
+    await writeRaw(stored);
+    try {
+      const sql = await getSql();
+      await sql`
+        update profiles
+        set family_id = ${familyId}
+        where lower(email) = ${parentEmail}
+      `;
+    } catch {
+      /* profile may not exist yet */
+    }
+    return { ok: true as const, club: scopeClub(stored, "admin", me) };
+  });
+

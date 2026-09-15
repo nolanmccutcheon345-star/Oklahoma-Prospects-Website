@@ -1,6 +1,8 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import type { ClubRecord } from "@/lib/teams/types";
+import { officeAddPlayer, officeAddTeam } from "@/lib/teams/store";
+import { AGE_GROUPS } from "@/lib/club";
 import { balance, docsComplete, fundingCount, priceComponents } from "@/lib/teams/pricing";
 import { Section } from "./ui";
 import { money } from "./ui";
@@ -70,6 +72,8 @@ export function OfficeApp({
       <Button type="button" onClick={onSave}>
         Save club
       </Button>
+
+      <RosterTools club={club} onChange={onChange} />
 
       <Section title="Attention queue" defaultOpen>
         <ul className="grid gap-1 text-sm">
@@ -239,6 +243,154 @@ export function OfficeApp({
         </Button>
       </Section>
     </div>
+  );
+}
+
+function RosterTools({
+  club,
+  onChange,
+}: {
+  club: ClubRecord;
+  onChange: (club: ClubRecord) => void;
+}) {
+  const [teamName, setTeamName] = useState("");
+  const [age, setAge] = useState("13U");
+  const [sport, setSport] = useState<"baseball" | "softball">("baseball");
+  const [teamId, setTeamId] = useState(club.teams[0]?.id ?? "");
+  const [playerName, setPlayerName] = useState("");
+  const [parentName, setParentName] = useState("");
+  const [parentEmail, setParentEmail] = useState("");
+  const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  return (
+    <Section title="Roster tools" defaultOpen>
+      <p className="mb-3 text-sm text-muted">
+        Add a team, then add a player with the parent’s email so their family desk opens.
+      </p>
+      <form
+        className="mb-4 grid gap-2"
+        onSubmit={async (event) => {
+          event.preventDefault();
+          setBusy(true);
+          setError("");
+          try {
+            const row = await officeAddTeam({ data: { name: teamName, age, sport } });
+            onChange(row.club);
+            setTeamName("");
+            setTeamId(row.club.teams.at(-1)?.id ?? teamId);
+          } catch (err) {
+            setError(err instanceof Error ? err.message : "Could not add team.");
+          } finally {
+            setBusy(false);
+          }
+        }}
+      >
+        <p className="text-sm font-semibold">New team</p>
+        <input
+          required
+          value={teamName}
+          onChange={(e) => setTeamName(e.target.value)}
+          placeholder="Team name"
+          className="min-h-11 rounded-md border border-line px-3"
+        />
+        <div className="grid grid-cols-2 gap-2">
+          <select
+            value={age}
+            onChange={(e) => setAge(e.target.value)}
+            className="min-h-11 rounded-md border border-line px-3"
+          >
+            {AGE_GROUPS.map((group) => (
+              <option key={group} value={group}>
+                {group}
+              </option>
+            ))}
+          </select>
+          <select
+            value={sport}
+            onChange={(e) => setSport(e.target.value as "baseball" | "softball")}
+            className="min-h-11 rounded-md border border-line px-3"
+          >
+            <option value="baseball">Baseball</option>
+            <option value="softball">Softball</option>
+          </select>
+        </div>
+        <Button type="submit" disabled={busy}>
+          Add team
+        </Button>
+      </form>
+      <form
+        className="grid gap-2"
+        onSubmit={async (event) => {
+          event.preventDefault();
+          setBusy(true);
+          setError("");
+          try {
+            const row = await officeAddPlayer({
+              data: { teamId, name: playerName, parentName, parentEmail },
+            });
+            onChange(row.club);
+            setPlayerName("");
+            setParentName("");
+            setParentEmail("");
+          } catch (err) {
+            setError(err instanceof Error ? err.message : "Could not add player.");
+          } finally {
+            setBusy(false);
+          }
+        }}
+      >
+        <p className="text-sm font-semibold">New player</p>
+        {club.teams.length === 0 ? (
+          <p className="text-sm text-muted">Add a team first.</p>
+        ) : (
+          <>
+            <select
+              required
+              value={teamId}
+              onChange={(e) => setTeamId(e.target.value)}
+              className="min-h-11 rounded-md border border-line px-3"
+            >
+              {club.teams.map((team) => (
+                <option key={team.id} value={team.id}>
+                  {team.name}
+                </option>
+              ))}
+            </select>
+            <input
+              required
+              value={playerName}
+              onChange={(e) => setPlayerName(e.target.value)}
+              placeholder="Player name"
+              className="min-h-11 rounded-md border border-line px-3"
+            />
+            <input
+              required
+              value={parentName}
+              onChange={(e) => setParentName(e.target.value)}
+              placeholder="Parent name"
+              className="min-h-11 rounded-md border border-line px-3"
+            />
+            <input
+              required
+              type="email"
+              value={parentEmail}
+              onChange={(e) => setParentEmail(e.target.value)}
+              placeholder="Parent email — used to open their family desk"
+              className="min-h-11 rounded-md border border-line px-3"
+            />
+            <Button type="submit" disabled={busy || !teamId}>
+              Add player and link family
+            </Button>
+          </>
+        )}
+      </form>
+      {error ? (
+        <p className="mt-2 text-sm text-maroon" role="alert">
+          {error}
+        </p>
+      ) : null}
+    </Section>
   );
 }
 

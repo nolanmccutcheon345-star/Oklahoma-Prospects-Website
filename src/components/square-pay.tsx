@@ -1,7 +1,8 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { PayLine, PaySearch } from "@/lib/pay";
-import { createSquareCheckout } from "@/lib/square";
+import { createSquareCheckout, getSquareStatus } from "@/lib/square";
 import { CANCEL_POLICY } from "@/lib/club";
+import { newReceiptId } from "@/lib/receipt";
 import { Button } from "@/components/ui/button";
 
 export function OrderLines({ lines, total }: { lines: PayLine[]; total: number }) {
@@ -38,6 +39,7 @@ export function SquarePayButton({
   disabled,
   busy,
   onPay,
+  onPrepare,
   label,
 }: {
   amount: number;
@@ -48,57 +50,80 @@ export function SquarePayButton({
   disabled?: boolean;
   busy?: boolean;
   onPay: () => void;
+  onPrepare?: (receiptId: string) => void;
   label?: string;
 }) {
-  const [phase, setPhase] = useState<"ready" | "opening" | "confirm">("ready");
+  const [phase, setPhase] = useState<"ready" | "opening">("ready");
   const [error, setError] = useState("");
+  const [connected, setConnected] = useState<boolean | null>(null);
+  const lock = useRef(false);
+  void title;
+
+  useEffect(() => {
+    getSquareStatus()
+      .then((row) => setConnected(row.connected))
+      .catch(() => setConnected(false));
+  }, []);
+
+  function paidUrl(receiptId: string) {
+    const params = new URLSearchParams();
+    for (const [key, value] of Object.entries(search)) {
+      if (value != null && String(value) !== "") params.set(key, String(value));
+    }
+    params.set("receipt", receiptId);
+    return `${window.location.origin}/paid?${params.toString()}`;
+  }
 
   async function start() {
+    if (lock.current) return;
+    lock.current = true;
     setError("");
     setPhase("opening");
     try {
+      const receiptId = newReceiptId();
       const result = await createSquareCheckout({
         data: {
           ...search,
           hasAssessment,
-          returnUrl: typeof window !== "undefined" ? `${window.location.origin}/paid` : undefined,
+          returnUrl: typeof window !== "undefined" ? paidUrl(receiptId) : undefined,
         },
       });
       if (result.error) {
         setError(result.error);
         setPhase("ready");
+        lock.current = false;
         return;
       }
       if (result.amount !== amount) {
         setError(`This order is $${result.amount}. Refresh and pay the amount on the receipt.`);
         setPhase("ready");
+        lock.current = false;
         return;
       }
       if (result.mode === "square" && result.url) {
-        window.open(result.url, "_blank", "noopener,noreferrer");
-        setPhase("confirm");
+        onPrepare?.(receiptId);
+        window.location.assign(result.url);
         return;
       }
-      onPay();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not start card checkout.");
+      if (!result.connected) {
+        onPrepare?.(receiptId);
+        onPay();
+        return;
+      }
+      setError("Card checkout could not start. Call the desk to finish this booking.");
       setPhase("ready");
+      lock.current = false;
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not start checkout.");
+      setPhase("ready");
+      lock.current = false;
     }
   }
 
-  if (phase === "confirm") {
-    return (
-      <div className="grid gap-2">
-        <p className="text-sm text-muted">
-          Square should charge <strong className="text-ink">${amount}</strong> for {title}. If that screen shows a
-          different total, close it and text the desk — do not confirm.
-        </p>
-        <Button type="button" className="w-full" disabled={busy} data-square-confirm="true" onClick={onPay}>
-          {busy ? "Saving your receipt…" : `I paid $${amount} — show my receipt`}
-        </Button>
-      </div>
-    );
-  }
+  const cardReady = connected === true;
+  const defaultLabel = cardReady
+    ? `Pay $${amount} with debit or credit`
+    : `Confirm reservation · $${amount}`;
 
   return (
     <div className="grid gap-2">
@@ -108,15 +133,26 @@ export function SquarePayButton({
         disabled={disabled || busy || phase === "opening"}
         data-square-pay="true"
         data-square-amount={amount}
+        aria-busy={busy || phase === "opening"}
         onClick={() => void start()}
       >
-        {busy || phase === "opening" ? "Opening card payment…" : label ?? `Pay $${amount} with debit or credit`}
+        {busy || phase === "opening"
+          ? cardReady
+            ? "Opening card payment…"
+            : "Saving reservation…"
+          : label ?? defaultLabel}
       </Button>
       <p className="text-center text-xs text-muted">
-        Debit or credit only. Square charges ${amount} — the same total as this Oklahoma Prospects order.
+        {cardReady
+          ? `Debit or credit. You’ll be charged $${amount} — the same total as this order.`
+          : `Card checkout is not connected yet. This confirms the reservation on this club. Pay $${amount} at the desk with the receipt.`}
         {lines.length > 1 ? ` ${lines.length} line items.` : ""}
       </p>
-      {error ? <p className="text-sm text-maroon">{error}</p> : null}
+      {error ? (
+        <p className="text-sm text-maroon" role="alert">
+          {error}
+        </p>
+      ) : null}
     </div>
   );
 }

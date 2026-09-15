@@ -55,7 +55,25 @@ export function FamilyApp({
   );
   const [active, setActive] = useState(mine[0]?.player.id ?? "");
   const row = mine.find((m) => m.player.id === active) ?? mine[0];
-  if (!row) return <p>No player is linked to this login.</p>;
+  if (!row) {
+    return (
+      <div className="rounded-2xl bg-paper-2 p-5 shadow-border">
+        <h2 className="text-2xl">No player is linked to this login.</h2>
+        <p className="mt-2 text-sm text-muted">
+          The office adds your athlete with the same email you signed in with.
+          You can still book cages, sign the waiver, and start training.
+        </p>
+        <div className="mt-4 flex flex-wrap gap-3">
+          <Button asChild>
+            <Link to="/book">Reserve a cage</Link>
+          </Button>
+          <Button asChild variant="outlineDark">
+            <Link to="/contact">Text the office</Link>
+          </Button>
+        </div>
+      </div>
+    );
+  }
   const { team, player } = row;
   const signed = player.feeLock?.amount ?? 0;
   const due = balance(player, signed);
@@ -128,6 +146,10 @@ export function FamilyApp({
             </ul>
           ) : null}
           <p className="mt-2 text-xs">Card fee {Math.round(club.settings.cardFeePct * 100)}% shown before you confirm. Bank draft is free.</p>
+          <p className="mt-2 text-xs">
+            Records a payment the office already collected at the desk or by
+            invoice. Cage and lesson card pay is on Book and Train.
+          </p>
           <form
             className="mt-3 grid gap-2"
             onSubmit={async (e) => {
@@ -148,11 +170,12 @@ export function FamilyApp({
             <input
               name="amount"
               type="number"
-              min={25}
+              min={1}
+              max={Math.max(due, 1)}
               defaultValue={Math.min(due, 200) || 25}
               className="min-h-11 rounded-md border border-line px-3"
             />
-            <Button type="submit">Pay with card</Button>
+            <Button type="submit">Record a payment</Button>
           </form>
           <ul className="mt-3 text-sm">
             {player.payments.map((pay) => (
@@ -187,6 +210,8 @@ export function FamilyApp({
           <label key={k} className="flex min-h-11 items-center gap-2 text-sm">
             <input
               type="checkbox"
+              disabled={isPlayer}
+              className="size-6"
               checked={player.docs[k]}
               onChange={(e) =>
                 patchPlayer({ ...player, docs: { ...player.docs, [k]: e.target.checked } })

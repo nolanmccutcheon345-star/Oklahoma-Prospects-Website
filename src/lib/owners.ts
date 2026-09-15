@@ -4,7 +4,11 @@ export const OWNER_EMAILS = [
   "oklahomaprospectsbaseball@gmail.com",
 ] as const;
 
-export const STAFF_EMAILS = ["lane@prospectsbaseball.club"] as const;
+export const STAFF_EMAILS = [
+  "lane@prospectsbaseball.club",
+  "ty@prospectsbaseball.club",
+  "steve@prospectsbaseball.club",
+] as const;
 
 function norm(email: string | null | undefined) {
   return (email ?? "").trim().toLowerCase();

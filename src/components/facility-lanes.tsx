@@ -24,6 +24,7 @@ export function FacilityLanes() {
             <button
               key={item.id}
               type="button"
+              aria-pressed={selected === item.id}
               onClick={() => setSelected(item.id)}
               className={cn(
                 "flex min-h-11 items-center justify-between gap-3 rounded-lg px-3 text-left transition-[transform,background-color] duration-150",

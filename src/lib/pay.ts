@@ -94,22 +94,20 @@ export function quoteCages(
   const rate = resolveCageRate({ use: input.use, rate: input.rate, laneIds: lanes });
 
   if (lanes.length === 0) {
-    const rental = catalog.cages.find((item) => item.id === rate) ?? catalog.cages.find((item) => item.id === input.rate);
-    if (!rental) return null;
-    const price = Math.round(rental.price * hours);
     return {
       kind: "cage",
-      id: rental.id,
-      title: rental.name,
-      price,
+      id: rate,
+      title: "Pick a cage",
+      price: 0,
       minutes,
-      detail: `${minutes} min · ${rental.summary}`,
+      detail: "Choose at least one cage before paying.",
       credits: 0,
       remote: 0,
       planName: "",
-      lines: [moneyLine(`${minutes} min · ${rental.name}`, price)],
+      lines: [],
       laneIds: [],
       use: rate === "team" ? "team" : "household",
+      error: "Select at least one cage before paying.",
     };
   }
 

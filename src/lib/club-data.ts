@@ -22,7 +22,7 @@ export type Profile = {
 
 function asRole(value: string, email: string): ClubRole {
   if (isOwnerEmail(email)) return "admin";
-  if (value === "coach" && isStaffEmail(email)) return "coach";
+  if (isStaffEmail(email)) return "coach";
   if (value === "player") return "player";
   return "parent";
 }
@@ -171,8 +171,9 @@ export const getProfile = createServerFn({ method: "GET" })
             email: auth.email || row.email,
           }
         : null;
-    } catch {
-      return null;
+    } catch (err) {
+      if (err instanceof Error && /unauthor/i.test(err.message)) throw err;
+      throw err;
     }
   });
 
@@ -242,7 +243,7 @@ export const createReservation = createServerFn({ method: "POST" })
         ${data.startTime},
         ${data.durationMin},
         ${data.price},
-        'held'
+        'paid'
       )
       returning id
     `;
@@ -256,10 +257,11 @@ export const listReservations = createServerFn({ method: "GET" })
   .middleware([authMiddleware])
   .handler(async ({ context }) => {
     const sql = await getSql();
-    const profile = await sql<{ role: string }>`
-      select role from profiles where user_id = ${context.userId}
+    const auth = await authUser(context.userId);
+    const profile = await sql<{ role: string; email: string }>`
+      select role, email from profiles where user_id = ${context.userId}
     `;
-    const role = profile[0]?.role;
+    const role = resolveViewerRole(auth.email || profile[0]?.email || "", profile[0]?.role);
     if (role === "admin" || role === "coach") {
       return sql<{
         id: number;
@@ -442,7 +444,7 @@ export const applyPurchase = createServerFn({ method: "POST" })
         ${data.startTime},
         ${data.durationMin},
         ${data.price},
-        'held'
+        'paid'
       )
       returning id
     `;

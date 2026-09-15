@@ -52,6 +52,7 @@ import {
   type Profile,
 } from "@/lib/club-data";
 import { ASSESSMENT_PHASES, DESKS, PD_OS, ROLE_LABEL, densityForRole, moneyForRole } from "@/lib/pd";
+import { clubDayIso } from "@/lib/pd/engines";
 import { useDevelopment } from "@/lib/pd/context";
 import { useLiveCatalog } from "@/lib/use-catalog";
 import { cn } from "@/lib/utils";
@@ -114,7 +115,7 @@ export function PdWorkspace({
   profile: Profile;
 }) {
   const trueRole = profile.role;
-  const previewRole = trueRole;
+  const [previewRole, setPreviewRole] = useState<ClubRole>(trueRole);
   const tabs = DESKS[previewRole] ?? DESKS.parent;
   const [tab, setTab] = useState<string>(tabs[0].id);
   const [reservations, setReservations] = useState<Reservation[]>([]);
@@ -165,6 +166,9 @@ export function PdWorkspace({
 
   return (
     <div className="pd-os mt-6" data-density={density} data-viewer-role={previewRole}>
+      {trueRole === "admin" ? (
+        <ViewAsBar value={previewRole} onChange={setPreviewRole} />
+      ) : null}
       <PdErrorBoundary section="Player development">
         <PdSearch
           onOpenAthlete={(id) => {
@@ -291,7 +295,7 @@ function HomeDesk({
         <div className="pd-card">
           <p className="text-xs font-semibold tracking-[0.16em] text-powder uppercase">
             {profile.role === "admin"
-              ? "Academy overview"
+              ? "Club today"
               : profile.role === "coach"
                 ? "Today at a glance"
                 : profile.role === "player"
@@ -303,8 +307,10 @@ function HomeDesk({
           </h2>
           <p className="mt-2 text-sm text-fg-soft">
             {profile.assessment_complete
-              ? "Private 30s and 60s are open. Same login as cages, teams, and the front office."
-              : "Private lessons are open with a $50 first-lesson fee until an assessment is on file. An hour is $150 instead of $100."}
+              ? "Private 30s and 60s are open."
+              : hideMoney
+                ? "Book with a parent. Assessment still needed before private lessons."
+                : "Private lessons are open with a $50 first-lesson fee until an assessment is on file. An hour is $150 instead of $100."}
           </p>
           <div className="mt-4 grid grid-cols-2 gap-2">
             <Stat label="Upcoming" value={String(reservations.length)} inverse />
@@ -359,7 +365,7 @@ function HomeDesk({
       <section>
         <h3 className="text-2xl">Upcoming sessions</h3>
         {upcoming.length === 0 ? (
-          <Empty text="Nothing booked yet." cta="Book a lesson" to="/training" />
+          <Empty text="Nothing booked yet." cta="Book a cage or lesson" to="/training" />
         ) : (
           <ul className="mt-3 grid gap-2">
             {upcoming.map((row) => (
@@ -385,13 +391,15 @@ function HomeDesk({
 function PlanDesk({ profile }: { profile: Profile }) {
   const { data, listAthletes } = useDevelopment();
   const athlete = listAthletes(profile.role, undefined, profile.player_name || profile.name)[0];
-  const family = data.families.find((row) => row.id === athlete?.familyId) ?? data.families[0];
+  const family = athlete
+    ? data.families.find((row) => row.id === athlete.familyId)
+    : undefined;
   const tier = family?.plan?.tier ?? family?.plan?.type;
   const upcoming = data.bookings.filter(
     (row) =>
       family &&
       family.athleteIds.includes(row.athleteId) &&
-      row.date >= "2026-09-14" &&
+      row.date >= clubDayIso() &&
       (row.status === "paid" || row.status === "cancelled"),
   );
   return (
@@ -617,12 +625,27 @@ function LeaderboardDesk() {
 }
 
 function GoalsDesk() {
+  const { listAthletes, slice } = useDevelopment();
+  const self = listAthletes("player")[0];
+  const current = self ? slice(self.id) : null;
+  if (!current?.goals?.length) {
+    return (
+      <Empty
+        text="No goals on file yet. Your coach will set velocity, command, and season targets here."
+        cta="Open progress"
+        to="/training"
+      />
+    );
+  }
   return (
-    <Empty
-      text="Velocity, command, and season targets will sit here. Coaches set them; athletes check them off."
-      cta="Open the roster"
-      to="/training"
-    />
+    <ul className="grid gap-2">
+      {current.goals.map((row) => (
+        <li key={row.id} className="rounded-xl bg-paper-2 px-4 py-3 shadow-border">
+          <p className="font-semibold">{row.title}</p>
+          {row.target ? <p className="mt-1 text-sm text-muted">{row.target}</p> : null}
+        </li>
+      ))}
+    </ul>
   );
 }
 

@@ -33,15 +33,14 @@ export function TeamsShell({
             <p className="text-xs font-semibold tracking-[0.16em] text-powder uppercase">
               {title} desk
             </p>
-            <p className="font-display text-xl leading-none italic">
-              Same club. Same login.
-            </p>
+            <p className="font-display text-xl leading-none italic">{title}</p>
           </div>
           <div className="flex items-center gap-2 text-fg-inverse">
             {onLang ? (
               <button
                 type="button"
                 className="min-h-11 px-2 text-xs font-semibold uppercase"
+                aria-label="Language"
                 onClick={() => onLang(lang === "es" ? "en" : "es")}
               >
                 {lang === "es" ? "EN" : "ES"}
@@ -69,7 +68,9 @@ export function TeamsShell({
           </ul>
         </nav>
       </div>
-      <div className="mx-auto max-w-3xl px-4 py-5 pb-24">{children}</div>
+      <main id="main" className="mx-auto max-w-3xl px-4 py-5 pb-24">
+        {children}
+      </main>
     </div>
   );
 }

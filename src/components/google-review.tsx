@@ -32,14 +32,14 @@ export function GoogleReview({
           <h2 className="font-display text-2xl uppercase">Oklahoma Prospects</h2>
           <p className={cn("mt-2 text-sm", dark ? "text-fg-soft" : "text-muted")}>
             Search Google for Oklahoma Prospects, {CLUB.addressLine1}, Broken
-            Arrow — not Top Prospects, not Prospects Training Facility. Reviews
-            belong on this club’s name.
+            Arrow. Leave a review on this club’s listing.
           </p>
         </div>
       </div>
       <Button asChild className="mt-4" variant={dark ? "primary" : "maroon"}>
-        <a href={LINKS.googleReview} target="_blank" rel="noreferrer">
+        <a href={LINKS.googleReview} target="_blank" rel="noopener noreferrer">
           Open the Oklahoma Prospects listing
+          <span className="sr-only"> (opens in a new tab)</span>
         </a>
       </Button>
     </section>

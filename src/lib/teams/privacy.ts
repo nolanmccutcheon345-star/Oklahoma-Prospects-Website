@@ -47,8 +47,8 @@ export function scopeClub(
     const teams = club.teams
       .filter(
         (team) =>
-          team.coachEmail === identity.email ||
-          team.staff.some((s) => s.email === identity.email),
+          team.coachEmail.trim().toLowerCase() === identity.email ||
+          team.staff.some((s) => s.email.trim().toLowerCase() === identity.email),
       )
       .map((team) => ({
         ...team,
@@ -105,8 +105,8 @@ export function mergeSave(
       const idx = next.teams.findIndex((t) => t.id === team.id);
       if (idx < 0) continue;
       const owned =
-        next.teams[idx].coachEmail === identity.email ||
-        next.teams[idx].staff.some((s) => s.email === identity.email);
+        next.teams[idx].coachEmail.trim().toLowerCase() === identity.email ||
+        next.teams[idx].staff.some((s) => s.email.trim().toLowerCase() === identity.email);
       if (!owned) continue;
       next.teams[idx] = {
         ...next.teams[idx],
@@ -142,6 +142,26 @@ export function mergeSave(
     return next;
   }
 
+  if (role === "player") {
+    const next = structuredClone(stored);
+    for (const team of next.teams) {
+      team.roster = team.roster.map((p) => {
+        if (p.familyId !== identity.familyId) return p;
+        const incomingTeam = incoming.teams.find((t) => t.id === team.id);
+        const incomingP = incomingTeam?.roster.find((x) => x.id === p.id);
+        if (!incomingP) return p;
+        return {
+          ...p,
+          rsvp: incomingP.rsvp,
+          publicProfile: incomingP.publicProfile,
+        };
+      });
+    }
+    next._rev = stored._rev + 1;
+    next._savedAt = new Date().toISOString();
+    return next;
+  }
+
   const next = structuredClone(stored);
   for (const team of next.teams) {
     team.roster = team.roster.map((p) => {
@@ -170,7 +190,10 @@ export function mergeSave(
 export function coachHoldsTeam(club: ClubRecord, email: string, teamId: string) {
   const team = club.teams.find((t) => t.id === teamId);
   if (!team) return false;
-  return team.coachEmail === email || team.staff.some((s) => s.email === email);
+  return (
+    team.coachEmail.trim().toLowerCase() === email.trim().toLowerCase() ||
+    team.staff.some((s) => s.email.trim().toLowerCase() === email.trim().toLowerCase())
+  );
 }
 
 export function familyHoldsPlayer(club: ClubRecord, familyId: string, playerId: string) {

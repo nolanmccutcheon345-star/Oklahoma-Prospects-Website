@@ -8,15 +8,13 @@ import {
 } from "lucide-react";
 import type { ReactNode } from "react";
 import { CLUB } from "@/lib/club";
-import { SignedIn, SignedOut } from "@/lib/auth/gates";
-import { useCurrentUser } from "@/lib/auth/use-current-user";
+import { useCurrentUserState } from "@/lib/auth/use-current-user";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 export function AppShell({ children }: { children: ReactNode }) {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
-  const user = useCurrentUser();
-  const trainTo = user ? "/account" : "/training";
+  const { user, isPending } = useCurrentUserState();
   const tabs = [
     { to: "/", label: "Home", icon: Home, match: (path: string) => path === "/" },
     {
@@ -31,7 +29,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         path.startsWith("/paid"),
     },
     {
-      to: trainTo,
+      to: "/training",
       label: "Train",
       icon: Dumbbell,
       match: (path: string) =>
@@ -69,7 +67,7 @@ export function AppShell({ children }: { children: ReactNode }) {
     <div className="flex min-h-dvh flex-col bg-paper text-fg">
       <a
         href="#main"
-        className="sr-only focus:not-sr-only focus:absolute focus:top-2 focus:left-2 focus:z-50 focus:bg-paper-2 focus:px-4 focus:py-2"
+        className="sr-only focus:not-sr-only focus:absolute focus:top-2 focus:left-2 focus:z-50 focus:rounded-md focus:bg-paper-2 focus:px-4 focus:py-2 focus:text-ink"
       >
         Skip to content
       </a>
@@ -89,23 +87,26 @@ export function AppShell({ children }: { children: ReactNode }) {
                 OKLAHOMA PROSPECTS
               </span>
               <span className="mt-1 block text-[0.65rem] font-medium tracking-[0.18em] text-fg-soft uppercase">
-                Baseball · Est. {CLUB.established}
+                Baseball & softball · Est. {CLUB.established}
               </span>
             </span>
           </Link>
           <div className="shrink-0">
-            <SignedIn>
+            {isPending ? (
+              <Button size="sm" variant="primary" disabled>
+                Account
+              </Button>
+            ) : user ? (
               <Button asChild size="sm" variant="primary">
                 <Link to="/account">Account</Link>
               </Button>
-            </SignedIn>
-            <SignedOut>
+            ) : (
               <Button asChild size="sm" variant="primary">
                 <Link to="/login" search={{ next: "/account" }}>
                   Sign in
                 </Link>
               </Button>
-            </SignedOut>
+            )}
           </div>
         </div>
       </header>

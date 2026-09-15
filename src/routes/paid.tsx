@@ -1,21 +1,25 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { DoorOpen, MapPin, Shield } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { ClubReceiptCard } from "@/components/club-receipt";
 import { GoogleReview } from "@/components/google-review";
 import { PageHero } from "@/components/page-hero";
 import { Button } from "@/components/ui/button";
 import { CLUB, LINKS, smsHref } from "@/lib/club";
-import { isLessonKind, parsePaySearch, quoteCheckout } from "@/lib/pay";
+import { applyPurchase } from "@/lib/club-data";
+import { isLessonKind, parsePaySearch } from "@/lib/pay";
 import {
   deskSms,
   gateSms,
   getReceipt,
-  receiptFromItem,
+  saveReceipt,
   steveSms,
+  takeCheckout,
   type ClubReceipt,
 } from "@/lib/receipt";
-import { useLiveCatalog } from "@/lib/use-catalog";
+import { useCurrentUserState } from "@/lib/auth/use-current-user";
+import { useDevelopment } from "@/lib/pd/context";
+import type { ProposedSession } from "@/lib/pd/commerce-engine";
 
 export const Route = createFileRoute("/paid")({
   validateSearch: parsePaySearch,
@@ -24,30 +28,72 @@ export const Route = createFileRoute("/paid")({
 
 function PaidPage() {
   const search = Route.useSearch();
-  const catalog = useLiveCatalog();
-  const item = useMemo(
-    () => quoteCheckout(search, catalog, search.assessed === "1"),
-    [search, catalog],
-  );
+  const { user, isPending } = useCurrentUserState();
+  const { confirmSessions } = useDevelopment();
   const [receipt, setReceipt] = useState<ClubReceipt | null>(null);
+  const [ready, setReady] = useState(false);
 
   useEffect(() => {
+    if (isPending) return;
     const stored = getReceipt(search.receipt);
-    if (stored) {
-      setReceipt(stored);
+    if (!stored) {
+      setReceipt(null);
+      setReady(true);
       return;
     }
-    if (item) setReceipt(receiptFromItem(item, search, search.receipt));
-  }, [item, search]);
+    if (stored.status === "pending") {
+      const paid = saveReceipt({ ...stored, status: "paid" });
+      const stash = takeCheckout(paid.id);
+      if (user && stash) {
+        void applyPurchase({
+          data: {
+            kind: stash.kind,
+            title: stash.title,
+            date: stash.date,
+            startTime: stash.startTime,
+            durationMin: stash.durationMin,
+            price: stash.price,
+            credits: stash.credits,
+            remote: stash.remote,
+            planName: stash.planName,
+          },
+        }).catch(() => undefined);
+      }
+      if (stash?.athleteId && Array.isArray(stash.sessions) && stash.sessions.length) {
+        confirmSessions({
+          athleteId: stash.athleteId,
+          serviceId: stash.serviceId || "",
+          price: stash.price,
+          sessions: stash.sessions as ProposedSession[],
+          planName: stash.planName,
+          lessons: stash.credits,
+          remote: stash.remote,
+        });
+      }
+      setReceipt(paid);
+      setReady(true);
+      return;
+    }
+    setReceipt(stored);
+    setReady(true);
+  }, [search.receipt, user, confirmSessions, isPending]);
 
-  if (!item && !receipt) {
+  if (!ready) {
+    return (
+      <main id="main" className="bg-ink px-5 py-10 text-fg-inverse">
+        <p className="text-sm text-fg-soft">Loading receipt…</p>
+      </main>
+    );
+  }
+
+  if (!receipt) {
     return (
       <main id="main">
         <PageHero
           eyebrow="Oklahoma Prospects"
           title="Nothing is booked yet."
           accent="Pick a slot first."
-          copy="Choose a cage, lesson, or membership, then pay with debit or credit."
+          copy="Choose a cage, lesson, or membership, then pay with debit or credit. A receipt only appears after checkout starts on this phone."
           actions={
             <Button asChild>
               <Link to="/book">Open booking</Link>
@@ -58,13 +104,10 @@ function PaidPage() {
     );
   }
 
-  const held = receipt ?? (item ? receiptFromItem(item, search) : null);
-  if (!held) return null;
-
-  const lesson = isLessonKind(held.kind);
+  const lesson = isLessonKind(receipt.kind);
   const who = lesson ? CLUB.coachSteve : "The facility desk";
   const whoPhone = lesson ? CLUB.coachStevePhone : CLUB.phoneDisplay;
-  const whoSms = lesson ? steveSms(held) : deskSms(held);
+  const whoSms = lesson ? steveSms(receipt) : deskSms(receipt);
 
   return (
     <main id="main">
@@ -77,7 +120,7 @@ function PaidPage() {
         copy="This hour is reserved. Sign the waiver, know the door, and text if the gate is locked."
       />
       <div className="mx-auto max-w-3xl px-5 py-8">
-        <ClubReceiptCard receipt={held} />
+        <ClubReceiptCard receipt={receipt} />
 
         <ol className="mt-6 grid gap-3">
           <li className="flex gap-4 rounded-2xl bg-paper-2 p-4 shadow-border">
@@ -91,11 +134,12 @@ function PaidPage() {
               <a
                 href={LINKS.maps}
                 target="_blank"
-                rel="noreferrer"
+                rel="noopener noreferrer"
                 className="mt-3 inline-flex min-h-11 items-center gap-2 text-sm font-semibold text-ink"
               >
                 <MapPin className="size-4 text-maroon" />
                 Open directions
+                <span className="sr-only"> (opens in a new tab)</span>
               </a>
             </span>
           </li>
@@ -124,7 +168,7 @@ function PaidPage() {
             — {whoPhone}.
           </p>
           <Button asChild className="mt-4">
-            <a href={gateSms(held)}>Text {CLUB.phoneDisplay} at the gate</a>
+            <a href={gateSms(receipt)}>Text {CLUB.phoneDisplay} at the gate</a>
           </Button>
         </section>
 
@@ -140,7 +184,7 @@ function PaidPage() {
               <a href={whoSms}>Text {who} · {whoPhone}</a>
             </Button>
             <Button asChild variant="ghost">
-              <a href={smsHref(CLUB.phoneTel, `Receipt ${held.id} — arriving shortly.`)}>
+              <a href={smsHref(CLUB.phoneTel, `Receipt ${receipt.id} — arriving shortly.`)}>
                 Text the desk
               </a>
             </Button>

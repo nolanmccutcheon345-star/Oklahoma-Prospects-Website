@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { PageHero } from "@/components/page-hero";
 import { type LessonService } from "@/lib/catalog";
 import { getProfile } from "@/lib/club-data";
-import { reservationSlots } from "@/lib/hours";
+import { reservationSlots, chicagoDateISO } from "@/lib/hours";
 import { MEMBERSHIP_RULES, OP_LEVELS } from "@/lib/pd";
 import { useLiveCatalog } from "@/lib/use-catalog";
 import { cn } from "@/lib/utils";
@@ -20,9 +20,9 @@ function TrainingPage() {
       <PdErrorBoundary section="Train · catalog">
         <PageHero
         eyebrow="Player development"
-        title="Train every month."
+        title="Monthly coaching."
         accent="That’s how the game moves."
-        copy="Monthly development is the core of this club — four coached sessions, a plan, and tracking. Baseball and softball, ages 8 through college."
+        copy="Four coached sessions a month, a plan, and tracking. Baseball and softball, ages 8 through college. Cage passes live on Book."
         image="/brand/training.jpg"
         actions={
           <>
@@ -56,12 +56,15 @@ function CatalogAndBook() {
   const catalog = useLiveCatalog();
   const [hasAssessment, setHasAssessment] = useState(false);
   const [lessonId, setLessonId] = useState<string>("");
-  const [date, setDate] = useState("");
+  const [date, setDate] = useState(chicagoDateISO());
   const [error, setError] = useState("");
   const lessons = catalog.lessons;
   const selectedId = lessonId && lessons.some((item) => item.id === lessonId) ? lessonId : lessons[0]?.id;
   const lesson = lessons.find((item) => item.id === selectedId) ?? lessons[0];
-  const slots = useMemo(() => reservationSlots(date), [date]);
+  const slots = useMemo(
+    () => reservationSlots(date, lesson?.minutes ?? 60),
+    [date, lesson?.minutes],
+  );
   const canBook = Boolean(lesson);
 
   useEffect(() => {
@@ -81,6 +84,15 @@ function CatalogAndBook() {
     const data = new FormData(event.currentTarget);
     const startTime = String(data.get("time") ?? "");
     const chosenDate = String(data.get("date") ?? "");
+    if (!chosenDate || !startTime) {
+      setError("Pick a date and a start time that is still open.");
+      return;
+    }
+    const open = reservationSlots(chosenDate, lesson.minutes).some((slot) => slot.value === startTime);
+    if (!open) {
+      setError("That window isn’t open. Pick another time.");
+      return;
+    }
     void navigate({
       to: "/pay",
       search: {
@@ -105,7 +117,8 @@ function CatalogAndBook() {
         </p>
         <h2 className="mt-2 text-3xl">Monthly development</h2>
         <p className="mt-2 text-sm text-muted">
-          Four coached sessions a month, a written plan, and tracking. First month adds $50 if there is no assessment on file — Development is $279 the first month, then $229.
+          Four coached sessions a month, a written plan, and tracking. First month
+          adds $50 if there is no assessment on file.
         </p>
         <div className="mt-4 grid gap-3">
           {catalog.memberships.map((plan) => {
@@ -125,7 +138,7 @@ function CatalogAndBook() {
               >
                 {featured ? (
                   <p className="text-xs font-semibold tracking-[0.16em] text-powder uppercase">
-                    Most families start here
+                    Core monthly plan
                   </p>
                 ) : null}
                 <h3 className="mt-1 font-display text-2xl uppercase">{plan.name}</h3>
@@ -232,6 +245,7 @@ function CatalogAndBook() {
               required
               name="date"
               type="date"
+              min={chicagoDateISO()}
               value={date}
               onChange={(event) => setDate(event.target.value)}
               className="mt-1.5 block min-h-11 w-full rounded-md border border-line bg-paper-2 px-3"
@@ -240,13 +254,15 @@ function CatalogAndBook() {
           <fieldset>
             <legend className="text-sm font-semibold">Start time</legend>
             {slots.length === 0 ? (
-              <p className="mt-2 text-sm text-muted">Pick a date to see coach windows.</p>
+              <p className="mt-2 text-sm text-muted">
+                {date ? "No remaining coach windows this day. Pick another date." : "Pick a date to see coach windows."}
+              </p>
             ) : (
               <div className="mt-2 grid grid-cols-3 gap-2 sm:grid-cols-4">
                 {slots.map((slot) => (
                   <label
                     key={slot.value}
-                    className="flex min-h-11 items-center justify-center rounded-md bg-paper-2 text-sm font-semibold shadow-border has-[:checked]:bg-maroon has-[:checked]:text-fg-inverse"
+                    className="flex min-h-11 items-center justify-center rounded-md bg-paper-2 text-sm font-semibold shadow-border has-[:checked]:bg-maroon has-[:checked]:text-fg-inverse has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-powder"
                   >
                     <input required type="radio" name="time" value={slot.value} className="sr-only" />
                     {slot.label}
@@ -255,13 +271,17 @@ function CatalogAndBook() {
               </div>
             )}
           </fieldset>
-          {error ? <p className="text-sm text-maroon">{error}</p> : null}
-          <Button type="submit" className="w-full" disabled={!canBook}>
+          {error ? (
+            <p className="text-sm text-maroon" role="alert">
+              {error}
+            </p>
+          ) : null}
+          <Button type="submit" className="w-full" disabled={!canBook || slots.length === 0}>
             {canBook ? `Review slot · $${lessonDue}` : "Pick a session"}
           </Button>
           <SignedOut>
             <p className="text-center text-sm">
-              <Link to="/login" search={{ next: "/account" }}>
+              <Link to="/login" search={{ next: "/training" }}>
                 Sign in
               </Link>{" "}
               to keep this on your schedule. Guests can still pay.
@@ -292,27 +312,15 @@ function CatalogAndBook() {
         ))}
       </ol>
 
-      <h2 className="mt-12 text-3xl">Cage memberships</h2>
-      <p className="mt-2 text-sm text-muted">
-        Lane time for household athletes — not team practices. Teams use the team plans on Book.
-      </p>
-      <div className="mt-4 grid gap-3">
-        {catalog.cagePlans.map((plan) => (
-          <article key={plan.id} className="rounded-2xl bg-paper-2 p-5 shadow-border">
-            <h3 className="font-display text-2xl uppercase">{plan.name}</h3>
-            <p className="pd-num font-display text-3xl">
-              ${plan.price}
-              <span className="text-lg">/mo</span>
-            </p>
-            <p className="mt-1 text-sm text-muted">{plan.bestFor}</p>
-            <Button asChild className="mt-4">
-              <Link to="/pay" search={{ kind: "cage-plan", id: plan.id }}>
-                Pay and join {plan.name}
-              </Link>
-            </Button>
-          </article>
-        ))}
-      </div>
+      <section className="mt-12 rounded-2xl bg-ink p-5 text-fg-inverse">
+        <h2 className="text-2xl">Need lane time without a coach?</h2>
+        <p className="mt-2 text-sm text-fg-soft">
+          Household cage passes and drop-in hours live on Book. This page is coaching.
+        </p>
+        <Button asChild className="mt-4">
+          <Link to="/book">Reserve a cage</Link>
+        </Button>
+      </section>
     </div>
   );
 }

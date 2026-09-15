@@ -16,6 +16,7 @@ import {
 } from "@/lib/pd/commerce-engine";
 import { featuresForTier } from "@/lib/pd/engines";
 import { SquarePayButton } from "@/components/square-pay";
+import { chicagoDateISO } from "@/lib/hours";
 import { PD_OS } from "@/lib/pd";
 import { cn } from "@/lib/utils";
 import type { PaySearch } from "@/lib/pay";
@@ -48,6 +49,7 @@ export function CheckoutSchedule({
   initialDate,
   initialTime,
   onApproved,
+  onPrepare,
   busy,
   search,
   hasAssessment,
@@ -57,6 +59,7 @@ export function CheckoutSchedule({
   initialDate?: string;
   initialTime?: string;
   onApproved: (sessions: ProposedSession[]) => void;
+  onPrepare?: (receiptId: string, sessions: ProposedSession[]) => void;
   busy?: boolean;
   search: PaySearch;
   hasAssessment?: boolean;
@@ -172,7 +175,7 @@ export function CheckoutSchedule({
                 </strong>
                 <button
                   type="button"
-                  className="text-xs font-semibold tracking-wide text-maroon uppercase"
+                  className="min-h-11 px-2 text-sm font-semibold tracking-wide text-maroon uppercase"
                   onClick={() =>
                     setSessions(sessions.filter((_, i) => i !== index))
                   }
@@ -182,7 +185,7 @@ export function CheckoutSchedule({
               </span>
               <button
                 type="button"
-                className="mt-2 text-sm font-semibold text-maroon"
+                className="mt-2 min-h-11 text-sm font-semibold text-maroon"
                 onClick={() => setChanging(changing === index ? null : index)}
               >
                 Change
@@ -219,7 +222,7 @@ export function CheckoutSchedule({
 
       {short ? (
         <p className="text-sm text-maroon" data-schedule-short="true">
-          Only {sessions.length} of {needed} open slots found. Remove none you
+          Only {sessions.length} of {needed} open slots found. Keep the ones you
           want, or join the waitlist for the rest.
         </p>
       ) : null}
@@ -379,7 +382,7 @@ export function CheckoutSchedule({
       ) : null}
 
       <p className="text-sm text-muted" data-pay-seam="square">
-        Pay with debit or credit. Square charges ${item.price} — the same total as this order.
+        Pay with debit or credit. You’ll be charged ${item.price} — the same total as this order.
         Nothing is booked until that payment clears.
       </p>
 
@@ -406,6 +409,7 @@ export function CheckoutSchedule({
         disabled={!approved || sessions.length === 0}
         busy={busy}
         onPay={() => onApproved(sessions)}
+        onPrepare={(receiptId) => onPrepare?.(receiptId, sessions)}
       />
       <p className="text-center text-xs text-muted">
         Desk {PD_OS.phone} if a date cannot move.
@@ -420,7 +424,7 @@ function nearbyAlts(
   around: string,
   extra: ProposedSession[],
 ) {
-  const start = around || "2026-09-15";
+  const start = around || chicagoDateISO();
   const out: ProposedSession[] = [];
   for (let i = 0; i < 10 && out.length < 9; i++) {
     const d = new Date(`${start}T12:00:00Z`);
