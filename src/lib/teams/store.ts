@@ -3,7 +3,7 @@ import { authMiddleware } from "@/lib/auth/middleware";
 import { getSql } from "@/lib/db";
 import { getProfile } from "@/lib/club-data";
 import { isOwnerEmail } from "@/lib/owners";
-import { mergeSave, scopeClub } from "./privacy";
+import { mergeSave, scopeClub, familyHoldsPlayer, fetchTeamRecord, fetchPlayerRecord } from "./privacy";
 import { emptyClub, sampleClub } from "./seed";
 import type { ClubRecord } from "./types";
 import type { ClubRole } from "@/lib/club-data";
@@ -174,7 +174,7 @@ export const recordTeamPayment = createServerFn({ method: "POST" })
     const team = stored.teams.find((t) => t.id === data.teamId);
     const player = team?.roster.find((p) => p.id === data.playerId);
     if (!player) throw new Error("Player not found.");
-    if (me.role === "parent" && player.familyId !== me.familyId) {
+    if (me.role === "parent" && !familyHoldsPlayer(stored, me.familyId, data.playerId)) {
       throw new Error("Not your player.");
     }
     const fee = data.method === "card" ? Math.round(data.amount * stored.settings.cardFeePct * 100) / 100 : 0;
@@ -199,6 +199,34 @@ export const recordTeamPayment = createServerFn({ method: "POST" })
     });
     await writeRaw(stored);
     return { ok: true, club: scopeClub(stored, me.role, me) };
+  });
+
+export const getTeamRoster = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
+  .validator((input: { teamId: string }) => input)
+  .handler(async ({ context, data }) => {
+    const me = await identity(context.userId);
+    const club = await loadRaw();
+    if (!club) throw new Error("Club is not open.");
+    const team = fetchTeamRecord(club, me.role, me, data.teamId);
+    if (!team) throw new Error("Not your team.");
+    return { ok: true as const, team };
+  });
+
+export const getPlayerRecord = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
+  .validator((input: { teamId: string; playerId: string }) => input)
+  .handler(async ({ context, data }) => {
+    const me = await identity(context.userId);
+    const club = await loadRaw();
+    if (!club) throw new Error("Club is not open.");
+    if (me.role === "coach") {
+      const team = fetchTeamRecord(club, me.role, me, data.teamId);
+      if (!team) throw new Error("Not your team.");
+    }
+    const player = fetchPlayerRecord(club, me.role, me, data.playerId);
+    if (!player) throw new Error("Not your player.");
+    return { ok: true as const, player };
   });
 
 export { getProfile };

@@ -2,8 +2,8 @@ import { useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { Button } from "@/components/ui/button";
 import type { ClubRecord, Team } from "@/lib/teams/types";
-import { cleared, docsComplete, publishedPrice, restDays } from "@/lib/teams/pricing";
-import { Chip, Meter, Section } from "./ui";
+import { cleared, docsComplete, restDays } from "@/lib/teams/pricing";
+import { Chip, Section } from "./ui";
 import { money } from "./ui";
 
 const FILTERS = ["all", "action", "unsigned", "sizes", "paperwork", "pitchers"] as const;
@@ -58,10 +58,13 @@ export function CoachApp({
         ))}
       </div>
       <p className="text-sm text-muted">
-        Published price {money(publishedPrice(club, team, team.roster[0]))} · roster {team.roster.length}/10
-        funding
+        Roster {team.roster.length}/10 funding
       </p>
-      <Meter value={spent} cap={team.eventBudget} />
+      <p className="text-xs text-muted">
+        {team.eventBudget
+          ? `${Math.round((spent / team.eventBudget) * 100)}% of budget`
+          : "No tournament budget"}
+      </p>
       <div className="flex gap-2">
         <Button type="button" onClick={onSave}>
           Save
@@ -118,21 +121,28 @@ export function CoachApp({
       <Section title="Schedule">
         <ul className="grid gap-2">
           {club.catalog
-            .filter((ev) => ev.ages.includes(team.age))
+            .filter((ev) => ev.ages.includes(team.age) && ev.sport === team.sport)
             .map((ev) => {
               const on = team.tournamentIds.includes(ev.id);
               const nextSpend = spent + (on ? 0 : ev.fee);
               const over = nextSpend > team.eventBudget && !on;
+              const share = team.eventBudget
+                ? Math.round((ev.fee / team.eventBudget) * 100)
+                : 0;
               return (
                 <li key={ev.id} className="rounded-lg bg-paper p-3">
                   <p className="font-semibold">
                     {ev.name} · {ev.city}, {ev.state}
                   </p>
                   <p className="text-xs text-muted">
-                    {ev.start} · {ev.org} · {money(ev.fee)}
+                    {ev.start} · {ev.org} · {share}% of budget
                     {ev.stayToPlay ? " · stay-to-play" : ""}
-                    {ev.verifiedOn ? "" : " · unverified price"}
                   </p>
+                  {ev.stayToPlay ? (
+                    <p className="mt-1 text-xs text-maroon">
+                      Lodging is paid by each family and is not part of the team fee.
+                    </p>
+                  ) : null}
                   <button
                     type="button"
                     className="mt-2 min-h-11 text-sm font-semibold text-maroon"
@@ -146,7 +156,7 @@ export function CoachApp({
                       });
                     }}
                   >
-                    {over ? "Over budget — request front office" : on ? "Remove" : "Add to schedule"}
+                    {over ? "Ask for more budget" : on ? "Remove" : "Add to schedule"}
                   </button>
                 </li>
               );

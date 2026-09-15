@@ -160,6 +160,79 @@
   animation: pd-skel 1.2s ease-in-out infinite;
 }
 
+/* Team Management OS density — compact staff desks, comfortable family desks. */
+.teams-os {
+  --teams-card-pad-y: 1.25rem;
+  --teams-card-pad-x: 1.25rem;
+  --teams-row-pad-y: 0.75rem;
+  --teams-row-pad-x: 1rem;
+  --teams-control-h: 2.75rem;
+  --teams-gap: 1.5rem;
+  color: var(--color-teams-ink);
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  overflow-x: hidden;
+}
+
+.teams-os[data-density="compact"] {
+  --teams-card-pad-y: 0.875rem;
+  --teams-card-pad-x: 1rem;
+  --teams-row-pad-y: 0.5rem;
+  --teams-row-pad-x: 0.875rem;
+  --teams-control-h: 2.75rem;
+  --teams-gap: 1rem;
+}
+
+.teams-os[data-density="comfortable"] {
+  --teams-card-pad-y: 1.25rem;
+  --teams-card-pad-x: 1.25rem;
+  --teams-row-pad-y: 0.75rem;
+  --teams-row-pad-x: 1rem;
+  --teams-control-h: 3rem;
+  --teams-gap: 1.5rem;
+}
+
+.teams-os .teams-card {
+  padding: var(--teams-card-pad-y) var(--teams-card-pad-x);
+}
+
+.teams-os .teams-row {
+  padding: var(--teams-row-pad-y) var(--teams-row-pad-x);
+}
+
+.teams-os .teams-control {
+  min-height: var(--teams-control-h);
+}
+
+.teams-os .teams-stack {
+  display: grid;
+  gap: var(--teams-gap);
+  min-width: 0;
+}
+
+.teams-os .teams-num,
+.teams-os [data-teams-num] {
+  font-variant-numeric: tabular-nums;
+}
+
+.teams-os button:focus-visible,
+.teams-os a:focus-visible,
+.teams-os [role="tab"]:focus-visible,
+.teams-os [role="switch"]:focus-visible,
+.teams-os input:focus-visible,
+.teams-os select:focus-visible,
+.teams-os textarea:focus-visible {
+  outline: 2px solid var(--color-maroon);
+  outline-offset: 2px;
+}
+
+.teams-skel {
+  background: linear-gradient(90deg, var(--color-line) 0%, var(--color-paper-2) 50%, var(--color-line) 100%);
+  background-size: 200% 100%;
+  animation: pd-skel 1.2s ease-in-out infinite;
+}
+
 @keyframes pd-skel {
   0% { background-position: 100% 0; }
   100% { background-position: -100% 0; }
@@ -192,6 +265,23 @@
   }
   .pd-print-sheet h2,
   .pd-print-sheet h3 {
+    break-after: avoid;
+  }
+
+  body:has([data-teams-print]) header,
+  body:has([data-teams-print]) nav,
+  body:has([data-teams-print]) [data-site-nav],
+  body:has([data-teams-print]) .teams-os [role="tablist"],
+  body:has([data-teams-print]) [data-teams-search],
+  body:has([data-teams-print]) [data-teams-undo],
+  body:has([data-teams-print]) [data-teams-break] {
+    display: none !important;
+  }
+  [data-teams-print] {
+    break-inside: avoid;
+  }
+  [data-teams-print] h2,
+  [data-teams-print] h3 {
     break-after: avoid;
   }
 }

@@ -1,33 +1,8 @@
 import type { ClubRecord, Player, Team } from "./types";
 
-function stripFamilySecrets(player: Player): Player {
-  return {
-    ...player,
-    feeLock: null,
-    planLock: null,
-    credits: [],
-    payments: [],
-    cards: [],
-  };
-}
-
-function coachView(player: Player): Player {
-  return {
-    ...player,
-    planLock: null,
-    credits: [],
-    payments: [],
-    cards: [],
-    feeLock: player.feeLock
-      ? {
-          amount: player.feeLock.amount,
-          lockedAt: player.feeLock.lockedAt,
-          policyVersion: "",
-          components: {},
-        }
-      : null,
-    emergency: player.emergency,
-  };
+function dropPayment(player: Player): Player {
+  const { feeLock: _f, planLock: _p, credits: _c, payments: _pay, cards: _cards, ...rest } = player;
+  return rest as Player;
 }
 
 function stripMedical(player: Player): Player {
@@ -47,7 +22,7 @@ function stripMedical(player: Player): Player {
 }
 
 function publicTeammate(player: Player): Player {
-  return stripMedical(stripFamilySecrets({ ...player, depositPaid: false }));
+  return stripMedical(dropPayment({ ...player, depositPaid: false }));
 }
 
 export function scopeClub(
@@ -56,6 +31,17 @@ export function scopeClub(
   identity: { email: string; familyId: string },
 ): ClubRecord {
   if (role === "admin") return club;
+
+  const next: ClubRecord = {
+    ...club,
+    settings: {
+      ...club.settings,
+      membershipMonthly: 0,
+      facilityMonthly: 0,
+      orgFeeFloor: 0,
+      orgFeeCeiling: 0,
+    },
+  };
 
   if (role === "coach") {
     const teams = club.teams
@@ -66,17 +52,13 @@ export function scopeClub(
       )
       .map((team) => ({
         ...team,
-        roster: team.roster.map(coachView),
+        roster: team.roster.map(dropPayment),
       }));
     return {
-      ...club,
+      ...next,
       teams,
-      settings: {
-        ...club.settings,
-        membershipMonthly: 0,
-        orgFeeFloor: 0,
-        orgFeeCeiling: 0,
-      },
+      leads: [],
+      audit: [],
     };
   }
 
@@ -96,21 +78,16 @@ export function scopeClub(
       roster: team.roster.map((p) =>
         familyIds.has(p.familyId)
           ? role === "player"
-            ? stripFamilySecrets(p)
+            ? dropPayment(p)
             : p
           : publicTeammate(p),
       ),
     }));
   return {
-    ...club,
+    ...next,
     teams,
-    settings: {
-      ...club.settings,
-      membershipMonthly: 0,
-      facilityMonthly: 0,
-      orgFeeFloor: 0,
-      orgFeeCeiling: 0,
-    },
+    leads: [],
+    audit: [],
   };
 }
 
@@ -188,4 +165,71 @@ export function mergeSave(
   next._rev = stored._rev + 1;
   next._savedAt = new Date().toISOString();
   return next;
+}
+
+export function coachHoldsTeam(club: ClubRecord, email: string, teamId: string) {
+  const team = club.teams.find((t) => t.id === teamId);
+  if (!team) return false;
+  return team.coachEmail === email || team.staff.some((s) => s.email === email);
+}
+
+export function familyHoldsPlayer(club: ClubRecord, familyId: string, playerId: string) {
+  return club.teams.some((t) => t.roster.some((p) => p.id === playerId && p.familyId === familyId));
+}
+
+export function canFetchTeam(
+  club: ClubRecord,
+  role: "admin" | "coach" | "parent" | "player",
+  identity: { email: string; familyId: string },
+  teamId: string,
+): boolean {
+  const team = club.teams.find((t) => t.id === teamId);
+  if (!team) return false;
+  if (role === "admin") return true;
+  if (role === "coach") return coachHoldsTeam(club, identity.email, teamId);
+  return team.roster.some((p) => p.familyId === identity.familyId);
+}
+
+export function canFetchPlayer(
+  club: ClubRecord,
+  role: "admin" | "coach" | "parent" | "player",
+  identity: { email: string; familyId: string },
+  playerId: string,
+): boolean {
+  if (role === "admin") {
+    return club.teams.some((t) => t.roster.some((p) => p.id === playerId));
+  }
+  if (role === "coach") {
+    const team = club.teams.find((t) => t.roster.some((p) => p.id === playerId));
+    return team ? coachHoldsTeam(club, identity.email, team.id) : false;
+  }
+  if (role === "parent") return familyHoldsPlayer(club, identity.familyId, playerId);
+  const e = identity.email.toLowerCase();
+  return club.teams.some((t) =>
+    t.roster.some((p) => p.id === playerId && p.email.toLowerCase() === e),
+  );
+}
+
+/** Crafted roster request. Returns null instead of leaking another team's names. */
+export function fetchTeamRecord(
+  club: ClubRecord,
+  role: "admin" | "coach" | "parent" | "player",
+  identity: { email: string; familyId: string },
+  teamId: string,
+): Team | null {
+  if (!canFetchTeam(club, role, identity, teamId)) return null;
+  const scoped = scopeClub(club, role, identity);
+  return scoped.teams.find((t) => t.id === teamId) ?? null;
+}
+
+/** Crafted player request. Returns null instead of leaking another family's record. */
+export function fetchPlayerRecord(
+  club: ClubRecord,
+  role: "admin" | "coach" | "parent" | "player",
+  identity: { email: string; familyId: string },
+  playerId: string,
+): Player | null {
+  if (!canFetchPlayer(club, role, identity, playerId)) return null;
+  const scoped = scopeClub(club, role, identity);
+  return scoped.teams.flatMap((t) => t.roster).find((p) => p.id === playerId) ?? null;
 }
