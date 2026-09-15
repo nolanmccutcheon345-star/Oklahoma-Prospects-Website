@@ -11,3 +11,12 @@
   [headers.values]
     X-Content-Type-Options = "nosniff"
     Referrer-Policy = "strict-origin-when-cross-origin"
+
+# Host-level: Netlify default subdomain → club domain.
+# book. and app. are separate Netlify sites; their 301s live in
+# booking-site/_redirects and booking-site/development/_redirects.
+[[redirects]]
+  from = "https://oklahoma-prospects.netlify.app/*"
+  to = "https://prospectsbaseball.club/:splat"
+  status = 301
+  force = true

@@ -5,3 +5,9 @@
 [functions]
   directory = "netlify/functions"
   node_bundler = "esbuild"
+
+[[redirects]]
+  from = "/*"
+  to = "https://prospectsbaseball.club/book"
+  status = 301
+  force = true
