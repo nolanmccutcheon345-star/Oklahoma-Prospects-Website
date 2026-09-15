@@ -1,4 +1,3 @@
-// @ts-nocheck
 /* Prospects Team Management OS — paste block 4 of 5: permissions, documents and pitch-count rules
    Use verbatim. Who may see what, the four required documents, and MLB Pitch Smart rest days. */
 

@@ -3,9 +3,9 @@ import {
   HeadContent,
   Outlet,
   Scripts,
+  useRouter,
 } from "@tanstack/react-router";
 import { AuthProvider } from "@/lib/auth/provider";
-import { DevelopmentProvider } from "@/lib/pd/context";
 import { PreviewHostBridge } from "@/components/preview-host-bridge";
 import { AppShell } from "@/components/app-shell";
 import { LOCAL_BUSINESS_JSONLD } from "@/lib/local-business";
@@ -46,6 +46,7 @@ export const Route = createRootRoute({
 });
 
 function RootDocument() {
+  const nonce = useRouter().options.ssr?.nonce;
   return (
     <html lang="en" suppressHydrationWarning className="antialiased">
       <head>
@@ -55,14 +56,13 @@ function RootDocument() {
         <PreviewHostBridge />
         <script
           type="application/ld+json"
+          nonce={nonce}
           dangerouslySetInnerHTML={{ __html: JSON.stringify(LOCAL_BUSINESS_JSONLD) }}
         />
         <AuthProvider>
-          <DevelopmentProvider>
             <AppShell>
               <Outlet />
             </AppShell>
-          </DevelopmentProvider>
         </AuthProvider>
         <Toaster richColors position="top-center" />
         <Scripts />

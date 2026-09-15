@@ -1,18 +1,19 @@
+import {pageHead} from "@/lib/seo";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useMemo, useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { Button } from "@/components/ui/button";
 import { PageHero } from "@/components/page-hero";
 import { CancelNote } from "@/components/square-pay";
 import { BOOKABLE_LANES, CANCEL_POLICY, type BookableLaneId } from "@/lib/club";
-import { reservationSlots, chicagoDateISO, minsFromHHMM, rangesOverlap } from "@/lib/hours";
+import {getCageAvailability} from "@/lib/commerce/api";
+import { reservationSlots, chicagoDateISO } from "@/lib/hours";
 import { quoteCages } from "@/lib/pay";
-import { loadReceipts } from "@/lib/receipt";
 import { useLiveCatalog } from "@/lib/use-catalog";
 import { cn } from "@/lib/utils";
 
 type BookSearch = { space?: string };
 
-export const Route = createFileRoute("/book")({
+export const Route = createFileRoute("/book")({head:()=>pageHead("/book","Book a Cage","Reserve one or more indoor cages in Broken Arrow. View availability for 30 minutes to 3 hours.",false),
   validateSearch: (search: Record<string, unknown>): BookSearch => ({
     space: typeof search.space === "string" ? search.space : undefined,
   }),
@@ -35,8 +36,8 @@ function BookPage() {
       <PageHero
         eyebrow="Oklahoma Prospects"
         title="Pick the lanes."
-        accent="Pay to reserve."
-        copy="One cage or several at the same time — 30 minutes to 3 hours. Household rate is for 1–2 family athletes. Team rate is for groups of three or more, or three or more spaces. The lanes are yours after checkout."
+        accent="Reserve your time."
+        copy="One cage or several at the same time — 30 minutes to 3 hours. Household rate is for 1–2 family athletes. Team rate is for groups of three or more, or three or more spaces. Availability is checked with the club before checkout."
         image="/brand/facility.jpg"
       />
       <BookingFunnel initial={space} />
@@ -66,26 +67,6 @@ function defaultLanes(space?: string): BookableLaneId[] {
   return [];
 }
 
-function laneTaken(
-  date: string,
-  time: string,
-  minutes: number,
-  lanes: string[],
-) {
-  if (!date || !time || lanes.length === 0) return false;
-  const start = minsFromHHMM(time);
-  const end = start + minutes;
-  return loadReceipts().some((row) => {
-    if (row.kind !== "cage" || row.date !== date || !row.time) return false;
-    if (row.status !== "paid" && row.status !== "pending") return false;
-    const theirs = (row.cages || "").split(",").filter(Boolean);
-    if (!theirs.some((id) => lanes.includes(id))) return false;
-    const otherStart = minsFromHHMM(row.time);
-    const otherEnd = otherStart + (row.minutes || 60);
-    return rangesOverlap(start, end, otherStart, otherEnd);
-  });
-}
-
 function BookingFunnel({ initial }: { initial?: string }) {
   const navigate = useNavigate();
   const catalog = useLiveCatalog();
@@ -99,7 +80,9 @@ function BookingFunnel({ initial }: { initial?: string }) {
   const forcedTeam = lanes.length >= 3;
   const use = party === "team" || forcedTeam ? "team" : "household";
   const rate = use === "team" ? "team" : "individual";
-  const slots = useMemo(() => reservationSlots(date, duration), [date, duration]);
+  const [slots,setSlots]=useState<{value:string;label:string}[]>([]);
+  const [loadingSlots,setLoadingSlots]=useState(false);
+  useEffect(()=>{let cancelled=false;setSlots([]);setError("");if(!lanes.length)return;setLoadingSlots(true);void getCageAvailability({data:{date,duration,laneIds:lanes}}).then(rows=>{if(!cancelled)setSlots(rows);}).catch(e=>{if(!cancelled)setError(e instanceof Error?e.message:"Availability could not load.");}).finally(()=>{if(!cancelled)setLoadingSlots(false);});return()=>{cancelled=true;};},[date,duration,lanes]);
   const quote = quoteCages(catalog, { rate, laneIds: lanes, minutes: duration, use });
   const total = quote?.price ?? 0;
   const householdHour = catalog.cages.find((row) => row.id === "individual")?.price ?? 50;
@@ -130,10 +113,6 @@ function BookingFunnel({ initial }: { initial?: string }) {
     const open = reservationSlots(chosenDate, duration).some((slot) => slot.value === time);
     if (!open) {
       setError("That window isn’t open. Pick another time.");
-      return;
-    }
-    if (laneTaken(chosenDate, time, duration, lanes)) {
-      setError("That lane is already reserved on this phone for that window. Pick another time or cage.");
       return;
     }
     void navigate({
@@ -285,7 +264,7 @@ function BookingFunnel({ initial }: { initial?: string }) {
           ) : (
             <div className="mt-2 grid grid-cols-3 gap-2 sm:grid-cols-4">
               {slots.map((slot) => {
-                const taken = laneTaken(date, slot.value, duration, lanes);
+                const taken = false;
                 return (
                   <label
                     key={slot.value}
@@ -347,7 +326,7 @@ function BookingFunnel({ initial }: { initial?: string }) {
         <Button
           type="submit"
           className="w-full"
-          disabled={lanes.length === 0 || slots.length === 0}
+          disabled={loadingSlots || lanes.length === 0 || slots.length === 0}
           aria-describedby="cage-total"
         >
           {lanes.length === 0
@@ -357,7 +336,7 @@ function BookingFunnel({ initial }: { initial?: string }) {
               : `Review ${lanes.length > 1 ? `${lanes.length} cages` : "this cage"} · $${total}`}
         </Button>
         <p className="text-center text-xs text-muted">
-          Next screen: debit or credit, or a desk receipt if card checkout is not connected. {CANCEL_POLICY.short}.
+          Next screen confirms the price and payment availability. Reserve now, pay at the desk while online payment is unavailable. {CANCEL_POLICY.short}.
         </p>
       </form>
     </section>

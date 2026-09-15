@@ -1,3 +1,4 @@
+import { dollars } from "./pricing";
 export const CLUB = {
   name: "Oklahoma Prospects",
   shortName: "Oklahoma Prospects",
@@ -28,7 +29,7 @@ export const LINKS = {
   development: "/training",
   memberApp: "/account",
   pricing: "/training",
-  coaches: "/training",
+  coaches: "/coaches",
   uniform: "/family",
   waiver: "/waiver",
   checkin: "/visits",
@@ -116,7 +117,7 @@ export const RENTALS: {
   {
     id: "team",
     name: "Team cage",
-    price: 60,
+    price: dollars("team"),
     unit: "/ hour",
     summary: "One cage. Space for your team's next workout.",
     lanes: "Lanes 1, 2, 5, 6, 7",
@@ -124,7 +125,7 @@ export const RENTALS: {
   {
     id: "field",
     name: "Fielding area",
-    price: 75,
+    price: dollars("field"),
     unit: "/ hour",
     summary: "Combined lanes 3–4 for defensive repetitions.",
     lanes: "Cages 3 and 4",
@@ -134,7 +135,7 @@ export const RENTALS: {
 export const MEMBERSHIPS = [
   {
     name: "Prospect",
-    price: 79,
+    price: dollars("prospect"),
     period: "/ month",
     hours: 2,
     hourly: "$39.50 / included hour",
@@ -148,7 +149,7 @@ export const MEMBERSHIPS = [
   },
   {
     name: "All-Star",
-    price: 139,
+    price: dollars("all-star"),
     period: "/ month",
     hours: 4,
     hourly: "$34.75 / included hour",
@@ -163,7 +164,7 @@ export const MEMBERSHIPS = [
   },
   {
     name: "Elite Family",
-    price: 199,
+    price: dollars("elite-family"),
     period: "/ month",
     hours: 6,
     hourly: "$33.17 / included hour",
@@ -210,13 +211,13 @@ export const LESSONS = [
     name: "New Pitcher Assessment",
     detail: "75 minutes · required entry point",
     dest: "lessons" as const,
-    prices: [{ label: "75 min", price: 149 }],
+    prices: [{ label: "75 min", price: dollars("s1") }],
   },
   {
     name: "Hitting Assessment",
     detail: "60 minutes · swing, contact, power",
     dest: "lessons" as const,
-    prices: [{ label: "60 min", price: 129 }],
+    prices: [{ label: "60 min", price: dollars("s9") }],
   },
   {
     name: "Private 30",
@@ -333,7 +334,7 @@ export const PAY_METHODS = [
     id: "card",
     name: "Debit or credit",
     preferred: true,
-    note: "Pay here with a debit or credit card. Your receipt is from Oklahoma Prospects.",
+    note: "Reserve now, pay at the desk until card checkout is enabled.",
   },
 ] as const;
 
@@ -348,7 +349,7 @@ export const FAQ = [
   },
   {
     q: "Are you open during the day?",
-    a: "After school, on purpose. Monday–Friday 4–8 PM. Saturday–Sunday 1–8 PM, by reservation. Spring evaluations on November 14 use Saturday morning hours — doors open at 8:45 AM for 5U.",
+    a: "After school, on purpose. Monday–Friday 4–8 PM. Saturday–Sunday 1–8 PM, by reservation. Spring evaluations are November 14–15. November 14 uses Saturday morning hours — doors open at 8:45 AM for 5U.",
   },
   {
     q: "Can I rent more than one cage at the same time?",
@@ -360,7 +361,7 @@ export const FAQ = [
   },
   {
     q: "I’m new. Where do I start?",
-    a: "Want reps today? Reserve a cage. Want coaching? Start with an assessment — pitching 75 min / $149, hitting 60 min / $129. Private hours are $100 after that. Without an assessment on file, the first private hour is $150. Monthly coaching is four sessions a month from $229.",
+    a: "Want reps today? Reserve a cage. Want coaching? Start with an assessment — pitching 75 min / $149, hitting 60 min / $150. Private hours are $100 after that. Ordinary lessons and packages unlock after your coach completes your assessment. Monthly coaching is four sessions a month from $239.",
   },
   {
     q: "What if I need to cancel?",
@@ -370,8 +371,8 @@ export const FAQ = [
 
 export const PROOF = [
   { label: "Est.", value: "2008" },
-  { label: "Sports", value: "Baseball & softball" },
-  { label: "Booking", value: "Pay online" },
+  { label: "Facility", value: "7 lanes" },
+  { label: "Booking", value: "By reservation" },
   { label: "Tryouts", value: "Free evals" },
 ] as const;
 

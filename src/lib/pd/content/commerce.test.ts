@@ -10,7 +10,7 @@ test("catalog paste is complete", () => {
   assert.equal(MEMBERSHIPS_INIT.length, 5);
   assert.equal(SERVICES_INIT[0].coachSplit, 55);
   assert.equal(MEMBERSHIPS_INIT[2].price, 449);
-  assert.equal(MEMBERSHIPS_INIT[0].price, 229);
+  assert.equal(MEMBERSHIPS_INIT[0].price, 239);
 });
 
 test("earnings stay pending until complete", () => {
@@ -51,11 +51,11 @@ test("cancel quote shows fee before confirm", () => {
     status: "paid",
     price: 100,
   };
-  const quote = cancelQuote(inside, policy);
+  const quote = cancelQuote(inside, policy, new Date("2026-09-14T17:00:00Z"));
   assert.equal(quote.feePct, 100);
   assert.equal(quote.fee, 100);
   const window50: Booking = { ...inside, date: "2026-09-15", time: "18:00" };
-  assert.equal(cancelQuote(window50, policy).feePct, 50);
+  assert.equal(cancelQuote(window50, policy, new Date("2026-09-14T17:00:00Z")).feePct, 50);
   const later: Booking = { ...inside, date: "2026-09-20", time: "17:00" };
-  assert.equal(cancelQuote(later, policy).fee, 0);
+  assert.equal(cancelQuote(later, policy, new Date("2026-09-14T17:00:00Z")).fee, 0);
 });

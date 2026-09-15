@@ -10,6 +10,8 @@ import { MEMBERSHIPS, RENTALS } from "@/lib/club";
 import type { ClubRole } from "@/lib/club-data";
 import { getSql, type Sql } from "@/lib/db";
 import { isOwnerEmail } from "@/lib/owners";
+import { clubIdentity } from "./identity.server";
+import { accountInput, recordIdInput, serviceInput, staffInput, userIdInput } from "./ops-contracts";
 
 export type ServiceKind =
   | "lesson"
@@ -358,8 +360,8 @@ export function buildPublicCatalog(rows: ClubService[]): PublicCatalog {
   const cages = active.filter((row) => row.kind === "cage");
   const cagePlans = active.filter((row) => row.kind === "cage_plan");
   return {
-    lessons: lessons.length ? lessons.map(toLesson) : LESSON_CATALOG.map((item) => ({ ...item })),
-    packages: packages.length
+    lessons: (lessons.length || rows.length) ? lessons.map(toLesson) : LESSON_CATALOG.map((item) => ({ ...item })),
+    packages: (packages.length || rows.length)
       ? packages.map((row) => ({
           id: row.id,
           name: row.name,
@@ -369,7 +371,7 @@ export function buildPublicCatalog(rows: ClubService[]): PublicCatalog {
           expiresDays: row.expires_days,
         }))
       : LESSON_PACKAGES.map((item) => ({ ...item })),
-    memberships: memberships.length
+    memberships: (memberships.length || rows.length)
       ? memberships.map((row) => ({
           id: row.id,
           name: row.name,
@@ -392,7 +394,7 @@ export function buildPublicCatalog(rows: ClubService[]): PublicCatalog {
           includes: [...item.includes],
           tier: item.tier,
         })),
-    cages: cages.length
+    cages: (cages.length || rows.length)
       ? cages.map((row) => ({
           id: row.id,
           name: row.name,
@@ -402,7 +404,7 @@ export function buildPublicCatalog(rows: ClubService[]): PublicCatalog {
           lanes: row.lanes,
         }))
       : RENTALS.map((item) => ({ ...item })),
-    cagePlans: cagePlans.length
+    cagePlans: (cagePlans.length || rows.length)
       ? cagePlans.map((row) => ({
           id: row.id,
           name: row.name,
@@ -444,333 +446,9 @@ function newId(prefix: string, name: string) {
 }
 
 async function requireAdmin(userId: string) {
-  const sql = await getSql();
-  const users = await sql<{ email: string; name: string }>`
-    select email, name from "user" where id = ${userId}
-  `;
-  const email = (users[0]?.email ?? "").toLowerCase();
-  if (isOwnerEmail(email)) {
-    return { email, name: users[0]?.name ?? "", role: "admin" as const };
-  }
-  const profiles = await sql<{ role: string; email: string; name: string }>`
-    select role, email, name from profiles where user_id = ${userId}
-  `;
-  if (profiles[0]?.role !== "admin") {
-    throw new Error("Admin only.");
-  }
-  return {
-    email: (profiles[0].email || email).toLowerCase(),
-    name: profiles[0].name,
-    role: "admin" as const,
-  };
-}
-
-async function ensureOpsTables(sql: Sql) {
-  await sql.query(`
-    create table if not exists club_services (
-      id text primary key,
-      kind text not null,
-      name text not null,
-      discipline text not null default '',
-      price integer not null default 0,
-      minutes integer not null default 0,
-      purpose text not null default '',
-      entry boolean not null default false,
-      group_session boolean not null default false,
-      requires_assessment boolean not null default false,
-      credits integer not null default 0,
-      remote integer not null default 0,
-      expires_days integer not null default 0,
-      hours integer not null default 0,
-      featured boolean not null default false,
-      detail text not null default '',
-      includes_json text not null default '[]',
-      extra_json text not null default '{}',
-      active boolean not null default true,
-      sort_order integer not null default 0,
-      updated_at timestamptz not null default now()
-    )
-  `);
-  await sql.query(`
-    create table if not exists club_staff (
-      id text primary key,
-      user_id text not null default '',
-      name text not null,
-      email text not null default '',
-      phone text not null default '',
-      role text not null default 'coach',
-      access_notes text not null default '',
-      active boolean not null default true,
-      created_at timestamptz not null default now()
-    )
-  `);
-  await sql.query(`
-    create table if not exists club_staff_services (
-      staff_id text not null,
-      service_id text not null,
-      profit_split integer not null default 60,
-      primary key (staff_id, service_id)
-    )
-  `);
-}
-
-async function seedServices(sql: Sql) {
-  const existing = await sql<{ n: number }>`select count(*)::int as n from club_services`;
-  if (asInt(existing[0]?.n) > 0) return;
-
-  const rows: Array<{
-    id: string;
-    kind: ServiceKind;
-    name: string;
-    discipline: string;
-    price: number;
-    minutes: number;
-    purpose: string;
-    entry: boolean;
-    group_session: boolean;
-    requires_assessment: boolean;
-    credits: number;
-    remote: number;
-    expires_days: number;
-    hours: number;
-    featured: boolean;
-    detail: string;
-    includes: string[];
-    extra: Record<string, unknown>;
-    sort_order: number;
-  }> = [];
-
-  LESSON_CATALOG.forEach((item, index) => {
-    rows.push({
-      id: item.id,
-      kind: "lesson",
-      name: item.name,
-      discipline: item.discipline,
-      price: item.price,
-      minutes: item.minutes,
-      purpose: item.purpose,
-      entry: Boolean(item.entry),
-      group_session: Boolean(item.group),
-      requires_assessment: item.requiresAssessment,
-      credits: 0,
-      remote: 0,
-      expires_days: 0,
-      hours: 0,
-      featured: false,
-      detail: item.purpose,
-      includes: [],
-      extra: {},
-      sort_order: 10 + index,
-    });
-  });
-
-  LESSON_PACKAGES.forEach((item, index) => {
-    rows.push({
-      id: item.id,
-      kind: "package",
-      name: item.name,
-      discipline: "",
-      price: item.price,
-      minutes: item.minutes,
-      purpose: `${item.credits} credits · expires in ${item.expiresDays} days`,
-      entry: false,
-      group_session: false,
-      requires_assessment: false,
-      credits: item.credits,
-      remote: 0,
-      expires_days: item.expiresDays,
-      hours: 0,
-      featured: false,
-      detail: `${item.credits} credits · ${item.minutes} min`,
-      includes: [],
-      extra: {},
-      sort_order: 100 + index,
-    });
-  });
-
-  DEVELOPMENT_PLANS.forEach((item, index) => {
-    rows.push({
-      id: item.id,
-      kind: "membership",
-      name: item.name,
-      discipline: "Pitching",
-      price: item.price,
-      minutes: item.minutes,
-      purpose: item.detail,
-      entry: false,
-      group_session: item.tier === "group",
-      requires_assessment: false,
-      credits: item.lessons,
-      remote: item.remote,
-      expires_days: 0,
-      hours: 0,
-      featured: item.tier === "performance",
-      detail: item.detail,
-      includes: [...item.includes],
-      extra: { perks: [...item.includes] },
-      sort_order: 200 + index,
-    });
-  });
-
-  RENTALS.forEach((item, index) => {
-    rows.push({
-      id: item.id,
-      kind: "cage",
-      name: item.name,
-      discipline: "Cage",
-      price: item.price,
-      minutes: 60,
-      purpose: item.summary,
-      entry: false,
-      group_session: false,
-      requires_assessment: false,
-      credits: 0,
-      remote: 0,
-      expires_days: 0,
-      hours: 1,
-      featured: false,
-      detail: item.summary,
-      includes: [],
-      extra: { unit: item.unit, lanes: item.lanes },
-      sort_order: 300 + index,
-    });
-  });
-
-  MEMBERSHIPS.forEach((item, index) => {
-    rows.push({
-      id: item.name.toLowerCase().replace(/\s+/g, "-"),
-      kind: "cage_plan",
-      name: item.name,
-      discipline: "Cage",
-      price: item.price,
-      minutes: item.hours * 60,
-      purpose: item.bestFor,
-      entry: false,
-      group_session: false,
-      requires_assessment: false,
-      credits: item.hours,
-      remote: 0,
-      expires_days: 0,
-      hours: item.hours,
-      featured: item.featured,
-      detail: item.bestFor,
-      includes: [...item.perks],
-      extra: {
-        period: item.period,
-        hourly: item.hourly,
-        bestFor: item.bestFor,
-        savings: item.savings,
-        perks: [...item.perks],
-      },
-      sort_order: 400 + index,
-    });
-  });
-
-  for (const row of rows) {
-    await sql`
-      insert into club_services (
-        id, kind, name, discipline, price, minutes, purpose, entry, group_session,
-        requires_assessment, credits, remote, expires_days, hours, featured, detail,
-        includes_json, extra_json, active, sort_order
-      ) values (
-        ${row.id},
-        ${row.kind},
-        ${row.name},
-        ${row.discipline},
-        ${row.price},
-        ${row.minutes},
-        ${row.purpose},
-        ${row.entry},
-        ${row.group_session},
-        ${row.requires_assessment},
-        ${row.credits},
-        ${row.remote},
-        ${row.expires_days},
-        ${row.hours},
-        ${row.featured},
-        ${row.detail},
-        ${JSON.stringify(row.includes)},
-        ${JSON.stringify(row.extra)},
-        true,
-        ${row.sort_order}
-      )
-      on conflict (id) do nothing
-    `;
-  }
-}
-
-async function seedStaff(sql: Sql) {
-  const existing = await sql<{ n: number }>`select count(*)::int as n from club_staff`;
-  if (asInt(existing[0]?.n) > 0) return;
-
-  const users = await sql<{ id: string }>`
-    select id from "user" where lower(email) = ${"stevemccutcheon89@gmail.com"}
-  `;
-  await sql`
-    insert into club_staff (id, user_id, name, email, phone, role, access_notes, active)
-    values (
-      ${"staff-steve"},
-      ${users[0]?.id ?? ""},
-      ${"Coach Steve"},
-      ${"stevemccutcheon89@gmail.com"},
-      ${"(918) 760-2719"},
-      ${"coach"},
-      ${"Lessons, development, member access"},
-      true
-    )
-    on conflict (id) do nothing
-  `;
-
-  const lessons = await sql<{ id: string; name: string; kind: string; group_session: boolean; entry: boolean }>`
-    select id, name, kind, group_session, entry from club_services where kind = 'lesson' and active = true
-  `;
-  for (const lesson of lessons) {
-    const split = defaultCoachSplit({
-      kind: lesson.kind,
-      name: lesson.name,
-      group_session: asBool(lesson.group_session),
-      entry: asBool(lesson.entry),
-    });
-    await sql`
-      insert into club_staff_services (staff_id, service_id, profit_split)
-      values (${"staff-steve"}, ${lesson.id}, ${split})
-      on conflict (staff_id, service_id) do nothing
-    `;
-  }
-}
-
-async function syncLaunchCatalog(sql: Sql) {
-  await sql`
-    update club_services
-    set price = 229, updated_at = now()
-    where id = 'm1' and price <> 229
-  `;
-  for (const plan of MEMBERSHIPS) {
-    const id = plan.name.toLowerCase().replace(/\s+/g, "-");
-    await sql`
-      update club_services
-      set price = ${plan.price},
-          detail = ${plan.bestFor},
-          purpose = ${plan.bestFor},
-          includes_json = ${JSON.stringify([...plan.perks])},
-          extra_json = ${JSON.stringify({
-            period: plan.period,
-            hourly: plan.hourly,
-            bestFor: plan.bestFor,
-            savings: plan.savings,
-            perks: [...plan.perks],
-          })},
-          updated_at = now()
-      where id = ${id}
-    `;
-  }
-}
-
-async function ensureOps(sql: Sql) {
-  await ensureOpsTables(sql);
-  await seedServices(sql);
-  await syncLaunchCatalog(sql);
-  await seedStaff(sql);
+  const me = await clubIdentity(userId);
+  if (me.role !== "admin") throw new Error("Front office only.");
+  return me;
 }
 
 async function loadServices(sql: Sql) {
@@ -786,23 +464,20 @@ async function loadServices(sql: Sql) {
 
 export const getServices = createServerFn({ method: "GET" }).handler(async () => {
   const sql = await getSql();
-  await ensureOps(sql);
   return loadServices(sql);
 });
 
 export async function loadPublicCatalog() {
   const sql = await getSql();
-  await ensureOps(sql);
   return buildPublicCatalog(await loadServices(sql));
 }
 
 export const saveService = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
-  .validator((input: ServiceInput) => input)
+  .validator(serviceInput)
   .handler(async ({ context, data }) => {
     await requireAdmin(context.userId);
     const sql = await getSql();
-    await ensureOps(sql);
     const name = data.name.trim();
     if (!name) throw new Error("Name is required.");
     const kind = asKind(data.kind);
@@ -868,7 +543,7 @@ export const saveService = createServerFn({ method: "POST" })
 
 export const deleteService = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
-  .validator((input: { id: string }) => input)
+  .validator(recordIdInput)
   .handler(async ({ context, data }) => {
     await requireAdmin(context.userId);
     const sql = await getSql();
@@ -931,7 +606,6 @@ export const listStaff = createServerFn({ method: "GET" })
   .handler(async ({ context }) => {
     await requireAdmin(context.userId);
     const sql = await getSql();
-    await ensureOps(sql);
     return loadStaff(sql);
   });
 
@@ -949,8 +623,7 @@ async function setPasswordForUser(userId: string, email: string, password: strin
       set password = ${hashed}, "updatedAt" = now()
       where id = ${accounts[0].id}
     `;
-    return;
-  }
+  } else {
   await sql`
     insert into "account" (
       id, "accountId", "providerId", "userId", password, "createdAt", "updatedAt"
@@ -964,6 +637,8 @@ async function setPasswordForUser(userId: string, email: string, password: strin
       now()
     )
   `;
+  }
+  await sql`delete from "session" where "userId" = ${userId}`;
 }
 
 async function upsertProfile(input: {
@@ -1034,11 +709,10 @@ async function findOrCreateUser(input: {
 
 export const saveStaff = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
-  .validator((input: StaffInput) => input)
+  .validator(staffInput)
   .handler(async ({ context, data }) => {
     await requireAdmin(context.userId);
     const sql = await getSql();
-    await ensureOps(sql);
     const name = data.name.trim();
     if (!name) throw new Error("Coach name is required.");
     const email = data.email.trim().toLowerCase();
@@ -1100,7 +774,7 @@ export const saveStaff = createServerFn({ method: "POST" })
 
 export const deleteStaff = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
-  .validator((input: { id: string }) => input)
+  .validator(recordIdInput)
   .handler(async ({ context, data }) => {
     await requireAdmin(context.userId);
     const sql = await getSql();
@@ -1149,7 +823,7 @@ export const listAccounts = createServerFn({ method: "GET" })
 
 export const saveAccount = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
-  .validator((input: AccountInput) => input)
+  .validator(accountInput)
   .handler(async ({ context, data }) => {
     await requireAdmin(context.userId);
     const sql = await getSql();
@@ -1162,14 +836,16 @@ export const saveAccount = createServerFn({ method: "POST" })
         select email from "user" where id = ${userId}
       `;
       const currentEmail = (current[0]?.email ?? "").toLowerCase();
+      if (!current[0]) throw new Error("Account not found.");
       if (current[0] && isOwnerEmail(currentEmail) && email !== currentEmail) {
         throw new Error("Owner emails stay locked.");
       }
-      await sql`
-        update "user"
-        set name = ${name}, email = ${isOwnerEmail(currentEmail) ? currentEmail : email}, "updatedAt" = now()
-        where id = ${userId}
-      `;
+      await sql.transaction(async tx => {
+        await tx`update "user" set name = ${name}, email = ${email},
+          "emailVerified" = case when lower(email) = ${email} then "emailVerified" else false end,
+          "updatedAt" = now() where id = ${userId}`;
+        if (email !== currentEmail) await tx`delete from "session" where "userId" = ${userId}`;
+      });
       if (data.password && data.password.length >= 8) {
         await setPasswordForUser(userId, isOwnerEmail(currentEmail) ? currentEmail : email, data.password);
       }
@@ -1180,7 +856,7 @@ export const saveAccount = createServerFn({ method: "POST" })
         password: data.password,
       });
     }
-    const savedEmail = isOwnerEmail(email) ? email : email;
+    const savedEmail = email;
     await upsertProfile({
       userId,
       name,
@@ -1219,7 +895,7 @@ export const saveAccount = createServerFn({ method: "POST" })
 
 export const deleteAccount = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
-  .validator((input: { userId: string }) => input)
+  .validator(userIdInput)
   .handler(async ({ context, data }) => {
     await requireAdmin(context.userId);
     if (data.userId === context.userId) {

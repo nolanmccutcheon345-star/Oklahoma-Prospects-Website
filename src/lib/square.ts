@@ -19,20 +19,17 @@ export type SquareCheckoutResult = {
 
 export const createSquareCheckout = createServerFn({ method: "POST" })
   .validator((input: SquareCheckoutInput) => input)
-  .handler(async ({ data }) => {
-    const { startSquareCheckout } = await import("./square-impl.server");
-    return startSquareCheckout(data);
+  .handler(async (): Promise<SquareCheckoutResult> => {
+    throw new Error("Square checkout has been retired. Use /pay for secure Stripe checkout.");
   });
 
-export const getSquareStatus = createServerFn({ method: "GET" }).handler(async () => {
-  const { readSquareStatus } = await import("./square-impl.server");
-  return readSquareStatus();
-});
+export const getSquareStatus = createServerFn({ method: "GET" }).handler(async () => ({
+  connected: false, environment: "retired", locationId: "", hasToken: false,
+}));
 
 export const saveSquareSettings = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
   .validator((input: { locationId?: string; accessToken?: string; environment?: string }) => input)
-  .handler(async ({ context, data }) => {
-    const { writeSquareSettings } = await import("./square-impl.server");
-    return writeSquareSettings(data, context.userId);
+  .handler(async () => {
+    throw new Error("Configure Stripe secrets in Netlify environment settings. Processor secrets are never stored in the club database.");
   });

@@ -1,3 +1,4 @@
+import {pageHead} from "@/lib/seo";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import {
   ClipboardCheck,
@@ -18,7 +19,7 @@ import { VisitChecklist } from "@/components/visit-checklist";
 import { Button } from "@/components/ui/button";
 import { CLUB, LINKS } from "@/lib/club";
 
-export const Route = createFileRoute("/more")({ component: VisitPage });
+export const Route = createFileRoute("/more")({head:()=>pageHead("/more","Visit & Directions","Find directions, reserved hours, waiver, check-in, and the front desk.",false), component: VisitPage });
 
 function VisitPage() {
   return (

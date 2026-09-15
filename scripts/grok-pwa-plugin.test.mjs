@@ -6,9 +6,9 @@ import { fileURLToPath } from "node:url";
 import test from "node:test";
 import {
   appNameFromHost,
-  createHeadInjector,
+  createHeadInjector as rawCreateHeadInjector,
   grokXCreatorHeadTags,
-  injectGrokPwaHead,
+  injectGrokPwaHead as rawInjectGrokPwaHead,
   isDocumentPath,
   isInstallQuery,
   publicAppHost,
@@ -19,6 +19,10 @@ import {
 } from "./grok-pwa-shared.mjs";
 import { renderInstallPage } from "./grok-pwa-plugin.mjs";
 
+// Template behavior uses a blank fixture, independent of the club's real identity/assets.
+const FIXTURE_ROOT = mkdtempSync(join(tmpdir(), "grok-pwa-fixture-"));
+const injectGrokPwaHead = (html, options = {}) => rawInjectGrokPwaHead(html, {cwd: FIXTURE_ROOT, ...options});
+const createHeadInjector = (options = {}) => rawCreateHeadInjector({cwd: FIXTURE_ROOT, ...options});
 const TEMPLATE_ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 
 test("injects before </head>", () => {

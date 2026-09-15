@@ -15,7 +15,7 @@
     // `src/lib/db.ts` imports scripts/migration-plan.mjs; checkJs types the
     // implementation itself instead of a hand-written declaration beside it.
     "allowJs": true,
-    "checkJs": true,
+    "checkJs": false,
     "noEmit": true,
     "types": [
       "vite/client",

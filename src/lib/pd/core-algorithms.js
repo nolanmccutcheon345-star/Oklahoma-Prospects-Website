@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * Oklahoma Prospects — scoring engines.
  * Helpers below are identifiers the pasted engines close over (dates, height
@@ -6,10 +5,9 @@
  * the published formulas that follow.
  */
 
-const CLUB_DAY = "2026-09-14T12:00:00";
-function NOW() {
-  return new Date(CLUB_DAY);
-}
+import { slotsFor, timeMinutes, chicagoDate } from '../scheduling.ts';
+import { coachAvailable } from '../commerce/availability.ts';
+function NOW() { return new Date(); }
 
 function inFromStr(v) {
   if (v == null || v === "") return null;
@@ -121,7 +119,7 @@ function matchColumn(headers, key) {
 }
 
 function upcomingDates(n) {
-  const start = NOW();
+  const start = new Date(chicagoDate()+"T12:00:00Z");
   const out = [];
   for (let i = 1; i <= n; i++) {
     const d = new Date(start.getTime());
@@ -133,19 +131,15 @@ function upcomingDates(n) {
   return out;
 }
 
-function openSlots(availability, bookings, coachId, d) {
+function openSlots(availability, bookings, coachId, d, duration = 30) {
   const iso = d && (d.iso || d.date || d);
-  const taken = new Set(
-    (bookings || [])
-      .filter((b) => b.date === iso && (!b.coachId || b.coachId === coachId) && b.status !== "Cancelled" && b.status !== "cancelled")
-      .map((b) => b.time),
-  );
-  const hasCoach = (availability || []).some((a) => a.coachId === coachId);
-  if (!hasCoach && (availability || []).length) return [];
-  const slots = ["16:00", "16:30", "17:00", "17:30", "18:00", "18:30", "19:00", "19:30"];
-  return slots.filter((t) => !taken.has(t));
+  return slotsFor(iso,duration).filter(slot=>coachAvailable(availability,coachId,iso,slot.value,duration))
+    .filter(slot=>!(bookings||[]).some(b=>{
+      if(b.date!==iso || b.coachId!==coachId || ['cancelled','unconfirmed','waitlist'].includes(b.status))return false;
+      const start=timeMinutes(b.time),length=b.minutes||b.duration||(b.serviceId==='s1'?75:b.serviceId==='s9'?60:60);
+      return timeMinutes(slot.value)<start+length && timeMinutes(slot.value)+duration>start;
+    })).map(slot=>slot.value);
 }
-
 
 // Oklahoma Prospects — core algorithms.
 // PASTE THESE VERBATIM. They cannot be re-derived from a description.
@@ -537,7 +531,6 @@ function planHasFeature(tier, feature) {
 
 export {
   NOW,
-  CLUB_DAY,
   inFromStr,
   fmtHeight,
   projectAdultHeight,

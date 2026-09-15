@@ -1,4 +1,3 @@
-// @ts-nocheck
 /* Prospects Team Management OS — paste block 5 of 5: seed data and the empty club
    Use verbatim. Full entity shapes. seedState() is sample data; emptyState() is what a real club starts from. */
 

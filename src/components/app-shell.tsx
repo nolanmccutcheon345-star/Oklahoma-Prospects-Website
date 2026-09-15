@@ -74,7 +74,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       <header className="sticky top-0 z-40 border-b border-fg-inverse/10 bg-ink text-fg-inverse">
         <div className="h-1 bg-maroon" />
         <div className="mx-auto flex h-16 max-w-3xl items-center justify-between gap-3 px-4">
-          <Link to="/" className="flex min-w-0 items-center gap-3 no-underline">
+          <Link to="/" aria-label="Oklahoma Prospects home" className="flex min-w-0 items-center gap-3 no-underline">
             <img
               src="/brand/mark.png"
               alt=""
@@ -91,7 +91,7 @@ export function AppShell({ children }: { children: ReactNode }) {
               </span>
             </span>
           </Link>
-          <div className="shrink-0">
+          <div className="flex shrink-0 items-center gap-2"><a href={`tel:${CLUB.phoneTel}`} className="inline-flex min-h-11 items-center text-sm underline"><span className="hidden sm:inline">{CLUB.phoneDisplay}</span><span className="sm:hidden">Call</span></a>
             {isPending ? (
               <Button size="sm" variant="primary" disabled>
                 Account

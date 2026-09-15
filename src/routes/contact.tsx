@@ -1,3 +1,4 @@
+import {pageHead} from "@/lib/seo";
 import { createFileRoute } from "@tanstack/react-router";
 import { ArrowUpRight } from "lucide-react";
 import { ContactForm } from "@/components/inquiry-form";
@@ -7,7 +8,7 @@ import { PeopleCards } from "@/components/people";
 import { Button } from "@/components/ui/button";
 import { CLUB, LINKS } from "@/lib/club";
 
-export const Route = createFileRoute("/contact")({ component: ContactPage });
+export const Route = createFileRoute("/contact")({head:()=>pageHead("/contact","Contact the Front Desk","Call (918) 922-8114 or send Oklahoma Prospects a question about cages, lessons, and teams.",false), component: ContactPage });
 
 function ContactPage() {
   return (

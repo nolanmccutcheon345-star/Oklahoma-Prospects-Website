@@ -1,0 +1,10 @@
+import {createServerFn} from '@tanstack/react-start';
+import {z} from 'zod';
+import {authMiddleware} from './auth/middleware';
+import {inquiryInput,athleteInput,waiverInput} from './portal-contracts';
+export const sendInquiry=createServerFn({method:'POST'}).validator(inquiryInput).handler(async({data})=>{const m=await import('./portal.server');return m.submitInquiry(data);});
+export const createAthlete=createServerFn({method:'POST'}).middleware([authMiddleware]).validator(athleteInput).handler(async({context,data})=>{const m=await import('./portal.server');return m.addAthlete(context.userId,data);});
+export const getMyWaivers=createServerFn({method:'GET'}).middleware([authMiddleware]).handler(async({context})=>{const m=await import('./portal.server');return m.myWaivers(context.userId);});
+export const saveAnnualWaiver=createServerFn({method:'POST'}).middleware([authMiddleware]).validator(waiverInput).handler(async({context,data})=>{const m=await import('./portal.server');return m.signWaiver(context.userId,data);});
+export const getOfficeRequests=createServerFn({method:'GET'}).middleware([authMiddleware]).handler(async({context})=>{const m=await import('./portal.server');return m.officeRequests(context.userId);});
+export const closeOfficeRequest=createServerFn({method:'POST'}).middleware([authMiddleware]).validator(z.object({id:z.string().min(1).max(200)}).strict()).handler(async({context,data})=>{const m=await import('./portal.server');return m.resolveRequest(context.userId,data.id);});

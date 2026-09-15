@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import {BrandImage} from "./brand-image";
 import { cn } from "@/lib/utils";
 
 export function PageHero({
@@ -27,7 +28,7 @@ export function PageHero({
     >
       {image ? (
         <>
-          <img
+          <BrandImage priority
             src={image}
             alt=""
             className="absolute inset-0 -z-20 size-full object-cover object-[center_36%]"

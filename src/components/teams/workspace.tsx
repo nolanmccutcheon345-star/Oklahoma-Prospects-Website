@@ -76,7 +76,7 @@ function AdminDesk({ desk, onDesk }: { desk: string; onDesk: (id: string) => voi
     );
   }
   if (desk === "staff") return <StaffDesk pane="pay" />;
-  if (desk === "payroll") return <StaffDesk pane="payroll" />;
+  if (desk === "contractor payouts") return <StaffDesk pane="contractor payouts" />;
   if (desk === "tryouts" || desk === "recruiting") return <TryoutBoard />;
   if (desk === "analytics") return <AnalyticsBoard />;
   if (desk === "archive") return <ArchiveBoard />;

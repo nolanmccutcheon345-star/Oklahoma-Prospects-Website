@@ -1,5 +1,7 @@
+import {pageHead} from "@/lib/seo";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { ArrowRight, MapPin } from "lucide-react";
+import {BrandImage} from "@/components/brand-image";
 import { FaqList } from "@/components/faq-list";
 import { GoogleReview } from "@/components/google-review";
 import { HoursChip } from "@/components/hours-chip";
@@ -9,13 +11,13 @@ import { Button } from "@/components/ui/button";
 import { CANCEL_POLICY, CLUB, LINKS, PROOF, RENTALS } from "@/lib/club";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
 
-export const Route = createFileRoute("/")({ component: Home });
+export const Route = createFileRoute("/")({head:()=>pageHead("/","Indoor cages, lessons & teams","Reserved indoor baseball and softball cages, coaching, and teams in Broken Arrow. Serving northeast Oklahoma since 2008.",false), component: Home });
 
 function Home() {
   return (
     <main id="main">
       <section className="relative isolate overflow-hidden bg-ink text-fg-inverse">
-        <img
+        <BrandImage priority
           src="/brand/team.jpg"
           alt=""
           width={1536}
@@ -30,11 +32,10 @@ function Home() {
             Broken Arrow · Indoor baseball & softball
           </p>
           <h1 className="mt-3 max-w-xl font-display text-5xl leading-[0.9] font-extrabold italic sm:text-6xl">
-            WIN THE MOMENT.
+            YOUR HOUR. YOUR LANE.
           </h1>
           <p className="mt-5 max-w-md text-[1.05rem] leading-relaxed text-fg-soft">
-            Indoor baseball and softball in Broken Arrow. Reserved cages, private
-            lessons, and competitive teams since {CLUB.established}.
+            Reserved indoor cages in Broken Arrow. Baseball and softball. The hour is yours — not a walk-in warehouse.
           </p>
           <div className="mt-7 flex flex-wrap gap-3">
             <Button asChild>
@@ -44,6 +45,7 @@ function Home() {
               <Link to="/tryouts">Free Spring tryout</Link>
             </Button>
           </div>
+          <p className="mt-4 text-sm text-fg-soft"><a href={LINKS.maps} className="underline">{CLUB.addressLine1}, {CLUB.addressLine2}</a> · <a href={`tel:${CLUB.phoneTel}`} className="underline">{CLUB.phoneDisplay}</a></p>
         </div>
         <div className="absolute inset-x-0 bottom-0 h-1 bg-gradient-to-r from-maroon from-70% to-powder" />
       </section>
@@ -73,11 +75,11 @@ function Home() {
             to="/book"
             kicker="From $50 / hour"
             title="Book a cage"
-            body="One cage or several at the same time. Pick a live slot and pay — the lanes are yours."
+            body="One cage or several at the same time. Reserve now, pay at the desk. Card checkout availability is shown before booking."
           />
           <PathCard
             to="/training"
-            kicker="From $229 / mo"
+            kicker="From $239 / mo"
             title="Start monthly development"
             body="Four coached sessions a month, a plan, and tracking. Baseball and softball, 8U through college."
           />

@@ -1,4 +1,3 @@
-// @ts-nocheck
 /* Prospects Team Management OS — paste block 3 of 5: the pricing engine
    Use verbatim. This bills real families. Use exactly as written — do not rewrite or simplify. */
 

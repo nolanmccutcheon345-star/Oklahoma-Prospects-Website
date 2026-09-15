@@ -1,3 +1,6 @@
+import {DevelopmentBoard} from "@/components/commerce/development-board";
+import {CoachProfile} from "@/components/commerce/coach-profile";
+import { CoachSessions } from "@/components/commerce/coach-sessions";
 import { Link } from "@tanstack/react-router";
 import { useEffect, useState, type ReactNode } from "react";
 import { Button } from "@/components/ui/button";
@@ -53,7 +56,8 @@ import {
 } from "@/lib/club-data";
 import { ASSESSMENT_PHASES, DESKS, PD_OS, ROLE_LABEL, densityForRole, moneyForRole } from "@/lib/pd";
 import { clubDayIso } from "@/lib/pd/engines";
-import { useDevelopment } from "@/lib/pd/context";
+import { previewData, ReadOnlyPreview, useReadOnlyPreview } from "@/lib/pd/preview";
+import { DevelopmentContext, useDevelopment } from "@/lib/pd/context";
 import { useLiveCatalog } from "@/lib/use-catalog";
 import { cn } from "@/lib/utils";
 
@@ -102,33 +106,37 @@ export function ViewAsBar({
 }
 
 function DeskFrame({ name, children }: { name: string; children: ReactNode }) {
+  const readOnly=useReadOnlyPreview();
   return (
     <PdErrorBoundary section={name}>
-      <div className="pd-stack">{children}</div>
+      <fieldset disabled={readOnly} className="pd-stack min-w-0">{children}</fieldset>
     </PdErrorBoundary>
   );
 }
 
-export function PdWorkspace({
+function ScopedWorkspace({
   profile,
 }: {
   profile: Profile;
 }) {
+  const readOnly=useReadOnlyPreview();
   const trueRole = profile.role;
-  const [previewRole, setPreviewRole] = useState<ClubRole>(trueRole);
-  const tabs = DESKS[previewRole] ?? DESKS.parent;
+  const previewRole = trueRole;
+  const tabs = [...(DESKS[previewRole] ?? DESKS.parent),{id:"development-tracks",label:"30-day plan & tracks"}];
   const [tab, setTab] = useState<string>(tabs[0].id);
   const [reservations, setReservations] = useState<Reservation[]>([]);
   const [programs, setPrograms] = useState<Program[]>([]);
   const [drills, setDrills] = useState<Drill[]>([]);
   const [logs, setLogs] = useState<Log[]>([]);
   const [ready, setReady] = useState(false);
+  const [loadError,setLoadError]=useState("");
   const [lesson, setLesson] = useState<LessonStart | null>(null);
   const athlete = profile.player_name || profile.name;
   const previewProfile = { ...profile, role: previewRole };
   const { closeAthlete, openAthlete, pdReady } = useDevelopment();
 
   async function refresh() {
+    if(readOnly){setReady(true);return;}
     const [nextRes, nextProg, nextDrills, nextLogs] = await Promise.all([
       listReservations(),
       listPrograms(),
@@ -143,11 +151,11 @@ export function PdWorkspace({
   }
 
   useEffect(() => {
-    refresh();
+    void refresh().catch(e=>{setLoadError(e instanceof Error?e.message:"Could not load account records.");setReady(true);});
   }, []);
 
   useEffect(() => {
-    const nextTabs = DESKS[previewRole] ?? DESKS.parent;
+    const nextTabs = [...(DESKS[previewRole] ?? DESKS.parent),{id:"development-tracks",label:"30-day plan & tracks"}];
     if (!nextTabs.some((item) => item.id === tab)) {
       setTab(nextTabs[0].id);
     }
@@ -166,9 +174,7 @@ export function PdWorkspace({
 
   return (
     <div className="pd-os mt-6" data-density={density} data-viewer-role={previewRole}>
-      {trueRole === "admin" ? (
-        <ViewAsBar value={previewRole} onChange={setPreviewRole} />
-      ) : null}
+{loadError?<p role="alert">{loadError}</p>:null}
       <PdErrorBoundary section="Player development">
         <PdSearch
           onOpenAthlete={(id) => {
@@ -198,6 +204,7 @@ export function PdWorkspace({
         <div className="mt-6">
           <DeskFrame name={`Train · ${ROLE_LABEL[previewRole]} · ${activeLabel}`}>
             <BreakProbe />
+            {ready&&pdReady&&tab==="development-tracks"?<DevelopmentBoard/>:null}
             {!ready || !pdReady ? <PdSkeleton variant="desk" /> : null}
             {ready && pdReady && (tab === "overview" || tab === "today" || tab === "home") ? (
               <HomeDesk
@@ -212,7 +219,7 @@ export function PdWorkspace({
                 hideMoney={hideMoney}
               />
             ) : null}
-            {ready && pdReady && tab === "lesson" ? <LessonLaunch onStart={setLesson} /> : null}
+            {ready && pdReady && tab === "lesson" ? <><CoachSessions /><LessonLaunch onStart={setLesson} /></> : null}
             {ready && pdReady && (tab === "athletes" || tab === "roster") ? (
               <AthleteRoster
                 role={previewRole}
@@ -228,7 +235,7 @@ export function PdWorkspace({
             {ready && pdReady && tab === "toolkit" ? (
               <ToolkitDesk athlete={athlete} onSaved={refresh} email={previewProfile.email} name={previewProfile.name} />
             ) : null}
-            {ready && pdReady && tab === "my-account" ? <CoachAccountDesk profile={previewProfile} /> : null}
+            {ready && pdReady && tab === "my-account" ? <><CoachProfile/><CoachAccountDesk profile={previewProfile} /></> : null}
             {ready && pdReady && tab === "plan" ? <PlanDesk profile={previewProfile} /> : null}
             {ready && pdReady && tab === "progress" ? <AthleteRoster role={previewRole} selfName={athlete} /> : null}
             {ready && pdReady && tab === "training" ? (
@@ -812,4 +819,24 @@ function SubPills({
       ))}
     </div>
   );
+}
+
+export function PdWorkspace({profile}:{profile:Profile}) {
+  const context=useDevelopment();const [role,setRole]=useState<ClubRole>(profile.role);
+  const [targetId,setTargetId]=useState("");
+  if(profile.role!=="admin")return <ScopedWorkspace profile={profile}/>;
+  const preview=role!=="admin";
+  const target=context.data.athletes.find(a=>a.id===targetId);
+  const family=context.data.families.find(f=>f.id===target?.familyId);
+  const coach=context.data.coaches.find(c=>c.id===targetId);
+  const viewer={role,email:role==="coach"?coach?.email||"":family?.email||"",name:role==="coach"?coach?.name||"":family?.parentName||"",playerName:target?`${target.firstName} ${target.lastName}`:""};
+  const data=preview?previewData(context.data,viewer):context.data;
+  const scoped={...context,data,viewer:preview?viewer:context.viewer,
+    listAthletes:()=>data.athletes,athlete:(id:string)=>data.athletes.find(a=>a.id===id),emptyAthleteId:data.athletes[0]?.id||"",
+    slice:(id:string)=>{const original=context.slice(id);if(!original||!data.athletes.some(a=>a.id===id))return null;const patch:Record<string,unknown>={...original,athlete:data.athletes.find(a=>a.id===id),family:data.families.find(f=>f.id===original.athlete.familyId)};for(const [key,rows] of Object.entries(data)){if(Array.isArray(rows)&&key in original)patch[key]=rows.filter(r=>('athleteId' in r && r.athleteId===id)||(key==="coaches"&&'id' in r &&original.athlete.coachIds.includes(r.id)));}return patch as typeof original;},
+  };
+  return <><ViewAsBar value={role} onChange={r=>{setRole(r);setTargetId("");context.closeAthlete();}}/>
+    {preview?<div className="my-4 rounded-xl border p-4"><p className="mb-3">Read-only {role} preview. Select a real household or coach to view their scoped records. Preview changes do not save.</p><label>{role==="coach"?"Coach":"Athlete / household"}<select value={targetId} onChange={e=>{setTargetId(e.target.value);context.closeAthlete();}} className="ml-2 min-h-11 rounded-lg border px-3"><option value="">Choose a record</option>{role==="coach"?context.data.coaches.map(c=><option key={c.id} value={c.id}>{c.name}</option>):context.data.athletes.map(a=><option key={a.id} value={a.id}>{a.firstName} {a.lastName}</option>)}</select></label>{!context.data.athletes.length&&role!=="coach"?<p>No athlete records yet. Create a test household to test its preview.</p>:null}</div>:null}
+    {(!preview||targetId)?<DevelopmentContext.Provider value={scoped}><ReadOnlyPreview active={preview}><ScopedWorkspace key={`${role}:${targetId}`} profile={preview?{...profile,role,email:viewer.email,name:viewer.name,player_name:viewer.playerName}:profile}/></ReadOnlyPreview></DevelopmentContext.Provider>:null}
+  </>;
 }

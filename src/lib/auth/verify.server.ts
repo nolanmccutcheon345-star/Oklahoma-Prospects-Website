@@ -1,6 +1,7 @@
+import { configuredDatabaseUrl } from "../database-config";
 import { getRequest } from "@tanstack/react-start/server";
 import { gateIdentityEnabled } from "./gate-identity.server";
-import { auth, authConfigured } from "./server";
+import { auth, authConfigured, authConfigurationError } from "./server";
 
 /**
  * Server-side session resolution (server-only).
@@ -13,7 +14,7 @@ import { auth, authConfigured } from "./server";
  */
 
 /** True when a real database is configured server-side. */
-const databaseConfigured = Boolean(process.env.DATABASE_URL?.trim());
+const databaseConfigured = Boolean(configuredDatabaseUrl(process.env));
 
 /** Re-export so callers can branch on it without importing `server.ts`. */
 export { authConfigured };
@@ -57,6 +58,7 @@ export type VerifiedUser = { id: string; email: string | null };
 export async function getSessionUser(
   bearerToken?: string,
 ): Promise<VerifiedUser | null> {
+  if (authConfigurationError()) throw new Error("Account access is temporarily unavailable. Contact the front desk.");
   if (!authConfigured && !gateIdentityEnabled()) return null;
   const request = getRequest();
   if (!request) return null;
@@ -83,7 +85,7 @@ export async function getSessionUser(
  */
 export async function requireUserId(bearerToken?: string): Promise<string> {
   if (!authConfigured && !gateIdentityEnabled()) {
-    if (databaseConfigured) {
+    if (databaseConfigured || process.env.NODE_ENV === "production") {
       throw new Error(
         "Auth is disabled (VITE_AUTH_ENABLED=false) but DATABASE_URL is set — " +
           "refusing to fall back to the shared dev user against a real database.",

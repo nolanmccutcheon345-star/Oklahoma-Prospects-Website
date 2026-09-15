@@ -41,6 +41,7 @@ export const CLUB_DAY_ISO = clubDayIso();
 export function ageOnClubDay(iso: string, dayIso = CLUB_DAY_ISO) {
   const day = new Date(`${dayIso}T12:00:00Z`);
   const born = new Date(`${iso}T12:00:00Z`);
+  if (!Number.isFinite(born.getTime())) return 0;
   let age = day.getUTCFullYear() - born.getUTCFullYear();
   const month = day.getUTCMonth() - born.getUTCMonth();
   if (month < 0 || (month === 0 && day.getUTCDate() < born.getUTCDate())) age -= 1;

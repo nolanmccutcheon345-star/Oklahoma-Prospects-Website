@@ -1,9 +1,8 @@
 import { createServerFn } from "@tanstack/react-start";
 import { authMiddleware } from "@/lib/auth/middleware";
 import { getSql } from "@/lib/db";
-import { isOwnerEmail, isStaffEmail } from "@/lib/owners";
-import { resolveViewerRole } from "@/lib/pd/access";
-import { ASSESSMENT_IDS, lessonNeedsAssessment } from "@/lib/catalog";
+import { clubIdentity } from "@/lib/identity.server";
+import { z } from "zod";
 
 export type ClubRole = "player" | "parent" | "coach" | "admin";
 
@@ -20,249 +19,47 @@ export type Profile = {
   plan_price: number;
 };
 
-function asRole(value: string, email: string): ClubRole {
-  if (isOwnerEmail(email)) return "admin";
-  if (isStaffEmail(email)) return "coach";
-  if (value === "player") return "player";
-  return "parent";
-}
-
-async function ensurePdColumns() {
-  try {
-    const sql = await getSql();
-    await sql.query(
-      "alter table profiles add column if not exists lesson_credits integer not null default 0",
-    );
-    await sql.query(
-      "alter table profiles add column if not exists remote_credits integer not null default 0",
-    );
-    await sql.query(
-      "alter table profiles add column if not exists plan_name text not null default ''",
-    );
-    await sql.query(
-      "alter table profiles add column if not exists plan_price integer not null default 0",
-    );
-  } catch {
-    /* already present or migrating */
-  }
-}
-
-function emptyPlan(): Pick<
-  Profile,
-  "lesson_credits" | "remote_credits" | "plan_name" | "plan_price"
-> {
-  return {
-    lesson_credits: 0,
-    remote_credits: 0,
-    plan_name: "",
-    plan_price: 0,
-  };
-}
-
-async function authUser(userId: string) {
-  try {
-    const sql = await getSql();
-    const rows = await sql<{ email: string; name: string }>`
-      select email, name from "user" where id = ${userId}
-    `;
-    return rows[0] ?? { email: "", name: "" };
-  } catch {
-    return { email: "", name: "" };
-  }
-}
-
-async function ensureProfile(
-  userId: string,
-  fallback: { name: string; email: string; role: ClubRole; playerName: string },
-) {
-  const sql = await getSql();
-  const auth = await authUser(userId);
-  const email = (auth.email || fallback.email).toLowerCase();
-  const name = fallback.name || auth.name || "Prospects member";
-  const role = asRole(fallback.role, email);
-  const familyId = `fam-${userId.slice(0, 8)}`;
-  await sql`
-    insert into profiles (user_id, name, email, role, player_name, family_id)
-    values (
-      ${userId},
-      ${name},
-      ${email},
-      ${role},
-      ${fallback.playerName},
-      ${familyId}
-    )
-    on conflict (user_id) do update set
-      name = excluded.name,
-      email = excluded.email,
-      role = excluded.role,
-      player_name = excluded.player_name
-  `;
-  if (isOwnerEmail(email)) {
-    await sql`
-      update profiles set role = 'admin', email = ${email} where user_id = ${userId}
-    `;
-  }
-}
-
-async function serviceFlags(id: string) {
-  try {
-    const sql = await getSql();
-    const rows = await sql<{
-      requires_assessment: boolean | string;
-      entry: boolean | string;
-    }>`
-      select requires_assessment, entry from club_services where id = ${id}
-    `;
-    if (rows[0]) {
-      const flag = (value: unknown) =>
-        value === true || value === "t" || value === "true" || value === 1 || value === "1";
-      return {
-        needsAssessment: flag(rows[0].requires_assessment),
-        isEntry: flag(rows[0].entry),
-      };
-    }
-  } catch {
-    /* table may not exist yet */
-  }
-  return {
-    needsAssessment: lessonNeedsAssessment(id),
-    isEntry: ASSESSMENT_IDS.has(id),
-  };
-}
-
 export const getProfile = createServerFn({ method: "GET" })
   .middleware([authMiddleware])
   .handler(async ({ context }) => {
-    try {
-      const sql = await getSql();
-      await ensurePdColumns();
-      const auth = await authUser(context.userId);
-      if (isOwnerEmail(auth.email)) {
-        await ensureProfile(context.userId, {
-          name: auth.name,
-          email: auth.email,
-          role: "admin",
-          playerName: "",
-        });
-      }
-      const rows = await sql<Profile>`
-        select user_id, name, email, role, player_name, assessment_complete,
-               coalesce(lesson_credits, 0) as lesson_credits,
-               coalesce(remote_credits, 0) as remote_credits,
-               coalesce(plan_name, '') as plan_name,
-               coalesce(plan_price, 0) as plan_price
-        from profiles
-        where user_id = ${context.userId}
-      `;
-      const row = rows[0] ?? null;
-      if (row && isOwnerEmail(auth.email || row.email)) {
-        return {
-          ...emptyPlan(),
-          ...row,
-          role: "admin" as const,
-          email: auth.email || row.email,
-        };
-      }
-      return row
-        ? {
-            ...emptyPlan(),
-            ...row,
-            role: resolveViewerRole(auth.email || row.email, row.role),
-            email: auth.email || row.email,
-          }
-        : null;
-    } catch (err) {
-      if (err instanceof Error && /unauthor/i.test(err.message)) throw err;
-      throw err;
-    }
+    const me = await clubIdentity(context.userId);
+    const sql = await getSql();
+    const [row] = await sql<Profile>`select * from profiles where user_id = ${context.userId}`;
+    return row ? { ...row, email: me.email, role: me.role } : null;
   });
 
 export const saveProfile = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
-  .validator(
-    (input: {
-      name: string;
-      role: ClubRole;
-      playerName: string;
-      email: string;
-    }) => input,
-  )
+  .validator(z.object({ name: z.string().trim().min(1).max(120),
+    role: z.enum(["parent", "player", "coach", "admin"]),
+    playerName: z.string().trim().max(120), email: z.string().email().max(254) }))
   .handler(async ({ context, data }) => {
-    const role = asRole(data.role, data.email);
-    await ensureProfile(context.userId, {
-      name: data.name,
-      email: data.email,
-      role,
-      playerName: data.playerName,
-    });
-    return { ok: true, role: isOwnerEmail(data.email) ? "admin" : role };
+    const me = await clubIdentity(context.userId);
+    const sql = await getSql();
+    // Self-service never changes role, household ownership, email or financial fields.
+    const role = me.role === "parent" && data.role === "player" ? "player" : me.role;
+    await sql`insert into profiles (user_id, name, email, role, player_name, family_id)
+      values (${me.userId}, ${data.name}, ${me.email}, ${role}, ${data.playerName}, ${me.familyId})
+      on conflict (user_id) do update set name = excluded.name, player_name = excluded.player_name`;
+    return { ok: true, role };
   });
 
+/** Retired browser mutation: completion belongs to the assigned coach. */
 export const markAssessment = createServerFn({ method: "POST" })
-  .middleware([authMiddleware])
-  .handler(async ({ context }) => {
-    const sql = await getSql();
-    await sql`
-      update profiles
-      set assessment_complete = true
-      where user_id = ${context.userId}
-    `;
-    return { ok: true };
-  });
+  .middleware([authMiddleware]).handler(() => { throw new Error("Only the assigned coach can complete an assessment."); });
 
+/** Retired browser mutation: fulfillment belongs to the verified Stripe webhook. */
 export const createReservation = createServerFn({ method: "POST" })
-  .middleware([authMiddleware])
-  .validator(
-    (input: {
-      kind: string;
-      title: string;
-      date: string;
-      startTime: string;
-      durationMin: number;
-      price: number;
-    }) => input,
-  )
-  .handler(async ({ context, data }) => {
-    const sql = await getSql();
-    const profile = await sql<Profile>`
-      select user_id, name, email, role, player_name, assessment_complete
-      from profiles where user_id = ${context.userId}
-    `;
-    const hasAssessment = profile[0]?.assessment_complete === true;
-    const flags = await serviceFlags(data.kind);
-    if (flags.needsAssessment && !hasAssessment && data.price < 50) {
-      throw new Error("First lesson without an assessment is $50 more.");
-    }
-    const rows = await sql<{ id: number }>`
-      insert into reservations (user_id, kind, title, date, start_time, duration_min, price, status)
-      values (
-        ${context.userId},
-        ${data.kind},
-        ${data.title},
-        ${data.date},
-        ${data.startTime},
-        ${data.durationMin},
-        ${data.price},
-        'paid'
-      )
-      returning id
-    `;
-    if (flags.isEntry) {
-      await sql`update profiles set assessment_complete = true where user_id = ${context.userId}`;
-    }
-    return { id: rows[0].id };
-  });
+  .middleware([authMiddleware]).validator((input: unknown) => input)
+  .handler(() => { throw new Error("Use secure checkout to reserve a session."); });
 
 export const listReservations = createServerFn({ method: "GET" })
   .middleware([authMiddleware])
   .handler(async ({ context }) => {
     const sql = await getSql();
-    const auth = await authUser(context.userId);
-    const profile = await sql<{ role: string; email: string }>`
-      select role, email from profiles where user_id = ${context.userId}
-    `;
-    const role = resolveViewerRole(auth.email || profile[0]?.email || "", profile[0]?.role);
-    if (role === "admin" || role === "coach") {
+    const me = await clubIdentity(context.userId);
+    // Legacy reservations have no coach assignment. Only front office can see all.
+    if (me.role === "admin") {
       return sql<{
         id: number;
         user_id: string;
@@ -404,64 +201,5 @@ export const listLogs = createServerFn({ method: "GET" })
   });
 
 export const applyPurchase = createServerFn({ method: "POST" })
-  .middleware([authMiddleware])
-  .validator(
-    (input: {
-      kind: string;
-      title: string;
-      date: string;
-      startTime: string;
-      durationMin: number;
-      price: number;
-      credits?: number;
-      remote?: number;
-      planName?: string;
-    }) => input,
-  )
-  .handler(async ({ context, data }) => {
-    await ensurePdColumns();
-    const sql = await getSql();
-    const profile = await sql<Profile>`
-      select user_id, name, email, role, player_name, assessment_complete,
-             coalesce(lesson_credits, 0) as lesson_credits,
-             coalesce(remote_credits, 0) as remote_credits,
-             coalesce(plan_name, '') as plan_name,
-             coalesce(plan_price, 0) as plan_price
-      from profiles where user_id = ${context.userId}
-    `;
-    const hasAssessment = profile[0]?.assessment_complete === true;
-    const flags = await serviceFlags(data.kind);
-    if (flags.needsAssessment && !hasAssessment && data.price < 50) {
-      throw new Error("First lesson without an assessment is $50 more.");
-    }
-    const rows = await sql<{ id: number }>`
-      insert into reservations (user_id, kind, title, date, start_time, duration_min, price, status)
-      values (
-        ${context.userId},
-        ${data.kind},
-        ${data.title},
-        ${data.date},
-        ${data.startTime},
-        ${data.durationMin},
-        ${data.price},
-        'paid'
-      )
-      returning id
-    `;
-    if (flags.isEntry) {
-      await sql`update profiles set assessment_complete = true where user_id = ${context.userId}`;
-    }
-    if (data.planName || data.credits || data.remote) {
-      const credits = (profile[0]?.lesson_credits ?? 0) + (data.credits ?? 0);
-      const remote = (profile[0]?.remote_credits ?? 0) + (data.remote ?? 0);
-      await sql`
-        update profiles
-        set lesson_credits = ${credits},
-            remote_credits = ${remote},
-            plan_name = ${data.planName || profile[0]?.plan_name || ""},
-            plan_price = ${data.planName ? data.price : (profile[0]?.plan_price ?? 0)}
-        where user_id = ${context.userId}
-      `;
-    }
-    return { id: rows[0].id };
-  });
+  .middleware([authMiddleware]).validator((input: unknown) => input)
+  .handler(() => { throw new Error("Purchase confirmation must come from the verified payment webhook."); });

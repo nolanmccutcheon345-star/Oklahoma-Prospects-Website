@@ -1,4 +1,3 @@
-import { isOwnerEmail } from "@/lib/owners";
 import type { DevelopmentData, ViewerRole } from "./types";
 
 export type PdViewer = {
@@ -10,6 +9,7 @@ export type PdViewer = {
 
 export type PdScope = {
   role: ViewerRole;
+  coachId?: string;
   athleteIds: "all" | Set<string>;
   familyIds: "all" | Set<string>;
   includeCoachNotes: boolean;
@@ -25,8 +25,8 @@ export class ForbiddenError extends Error {
 }
 
 export function resolveViewerRole(email: string, profileRole?: string | null): ViewerRole {
-  const value = (email ?? "").trim().toLowerCase();
-  if (isOwnerEmail(value)) return "admin";
+  // Email alone does not grant a role. The server resolves verified grants.
+  void email;
   if (profileRole === "admin") return "admin";
   if (profileRole === "coach") return "coach";
   if (profileRole === "player") return "player";
@@ -78,6 +78,7 @@ export function scopeForViewer(viewer: PdViewer, data: DevelopmentData): PdScope
     );
     return {
       role: "coach",
+      coachId: me?.id,
       athleteIds: ids,
       familyIds,
       includeCoachNotes: true,
@@ -167,8 +168,8 @@ export function filterDevelopmentData(data: DevelopmentData, scope: PdScope): De
     interventions: scope.includeCoachNotes ? ofAthlete(data.interventions, scope) : [],
     calibration: coachOps ? ofAthlete(data.calibration, scope) : [],
     calibrationScores: staff ? data.calibrationScores : [],
-    coachPayouts: coachOps ? data.coachPayouts : [],
-    coachOverrides: coachOps ? data.coachOverrides : [],
+    coachPayouts: staff ? data.coachPayouts : coachOps ? data.coachPayouts.filter(row => row.coachId === scope.coachId) : [],
+    coachOverrides: staff ? data.coachOverrides : [],
     certifications: ofAthlete(data.certifications, scope),
     auditLog: staff ? data.auditLog : [],
     messages,

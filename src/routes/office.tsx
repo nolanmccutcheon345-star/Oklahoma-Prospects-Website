@@ -1,7 +1,9 @@
+import {pageHead} from "@/lib/seo";
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { RedirectToSignIn } from "@/lib/auth/gates";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
+import {OfficeRequests} from "@/components/commerce/office-requests";
 import { OfficeApp } from "@/components/teams/office-app";
 import { FailScreen } from "@/components/teams/ui";
 import { TeamsShell } from "@/components/teams/shell";
@@ -10,7 +12,7 @@ import { PageHero } from "@/components/page-hero";
 import { getTeamsClub, onboardTeamsClub, saveTeamsClub } from "@/lib/teams/store";
 import type { ClubRecord } from "@/lib/teams/types";
 
-export const Route = createFileRoute("/office")({ component: Page });
+export const Route = createFileRoute("/office")({head:()=>pageHead("/office","Front Office","Manage Oklahoma Prospects club operations.",true), component: Page });
 
 function Page() {
   const { user, isPending } = useCurrentUserState();
@@ -60,23 +62,13 @@ function OfficePage() {
         <PageHero
           eyebrow="Front office"
           title="Open the club."
-          accent="Empty or sample."
-          copy="First run. Start empty for live families, or load the labelled sample club to practice the desks."
+          accent="Your club records."
+          copy="Start an empty team desk. Only add confirmed club records."
           image="/brand/team.jpg"
           compact
         />
-        <div className="mx-auto max-w-lg px-5 py-8">
+        <div className="mx-auto max-w-3xl px-5 py-8"><OfficeRequests/>
           <div className="grid gap-2">
-            <Button
-              type="button"
-              onClick={async () => {
-                const row = await onboardTeamsClub({ data: { mode: "sample" } });
-                setClub(row.club);
-                setState({ ok: true, missing: false, role: "admin", me: state.me, club: row.club });
-              }}
-            >
-              Load sample club
-            </Button>
             <Button
               type="button"
               variant="outlineDark"
@@ -107,6 +99,7 @@ function OfficePage() {
         { to: "/account", label: "Development" },
       ]}
     >
+      <OfficeRequests/>
       <OfficeApp
         club={club}
         onChange={setClub}

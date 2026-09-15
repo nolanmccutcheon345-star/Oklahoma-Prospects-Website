@@ -1,0 +1,12 @@
+User-agent: *
+Allow: /
+Disallow: /api/
+Disallow: /account
+Disallow: /family
+Disallow: /coach
+Disallow: /office
+Disallow: /pay
+Disallow: /paid
+Disallow: /login
+
+Sitemap: https://prospectsbaseball.club/sitemap.xml

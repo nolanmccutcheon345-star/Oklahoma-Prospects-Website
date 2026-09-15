@@ -145,38 +145,8 @@ export function FamilyApp({
               <li>Uniform {money(player.feeLock.components.uniform ?? 0)}</li>
             </ul>
           ) : null}
-          <p className="mt-2 text-xs">Card fee {Math.round(club.settings.cardFeePct * 100)}% shown before you confirm. Bank draft is free.</p>
-          <p className="mt-2 text-xs">
-            Records a payment the office already collected at the desk or by
-            invoice. Cage and lesson card pay is on Book and Train.
-          </p>
-          <form
-            className="mt-3 grid gap-2"
-            onSubmit={async (e) => {
-              e.preventDefault();
-              const amount = Number(new FormData(e.currentTarget).get("amount"));
-              await recordTeamPayment({
-                data: {
-                  teamId: team.id,
-                  playerId: player.id,
-                  amount,
-                  method: "card",
-                  label: "Family payment",
-                },
-              });
-              onReload();
-            }}
-          >
-            <input
-              name="amount"
-              type="number"
-              min={1}
-              max={Math.max(due, 1)}
-              defaultValue={Math.min(due, 200) || 25}
-              className="min-h-11 rounded-md border border-line px-3"
-            />
-            <Button type="submit">Record a payment</Button>
-          </form>
+          <p className="mt-2">Contact the front office for your team invoice. Only verified payments appear in this history.</p>
+          <a className="inline-flex min-h-11 items-center underline" href="/contact">Request a team invoice</a>
           <ul className="mt-3 text-sm">
             {player.payments.map((pay) => (
               <li key={pay.receipt}>

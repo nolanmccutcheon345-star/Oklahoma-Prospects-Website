@@ -1,4 +1,3 @@
-// @ts-nocheck
 /* Prospects Team Management OS — helpers. Club day is pinned so seed stays still. */
 
 export const TODAY = new Date(2026, 8, 15);

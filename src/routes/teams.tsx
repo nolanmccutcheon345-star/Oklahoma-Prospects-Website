@@ -1,3 +1,4 @@
+import {pageHead} from "@/lib/seo";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { ContinueIn } from "@/components/continue-in";
@@ -10,7 +11,7 @@ import { AGE_GROUPS } from "@/lib/club";
 import { isOwnerEmail } from "@/lib/owners";
 import { cn } from "@/lib/utils";
 
-export const Route = createFileRoute("/teams")({ component: TeamsPage });
+export const Route = createFileRoute("/teams")({head:()=>pageHead("/teams","Teams & Spring 2027 Tryouts","Free November 14\u201315, 2026 evaluations in Broken Arrow. Other ages and softball: send a team inquiry.",false), component: TeamsPage });
 
 function deskFor(role: ClubRole | null) {
   if (role === "admin") return { to: "/office" as const, label: "Front office" };
@@ -112,7 +113,7 @@ function TeamsPublic() {
         <p className="mt-2 mb-6 text-muted">
           Free. No payment to register. Check in 15 minutes early.
         </p>
-        <TryoutSchedule />
+        <TryoutSchedule /><p className="mt-4">Other ages & softball: <Link to="/tryouts" hash="team-inquiry" className="underline">send a team inquiry</Link>.</p>
         <Button asChild className="mt-6 w-full">
           <Link to="/tryouts" hash="register">
             Register for free

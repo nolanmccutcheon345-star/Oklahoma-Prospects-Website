@@ -65,23 +65,27 @@ function mergeAthleteRows<T extends { athleteId: string }>(
 }
 
 function mergeAthletes(full: Athlete[], incoming: Athlete[], scope: PdScope): Athlete[] {
-  const outside = full.filter((row) => !keepAthlete(scope, row.id));
-  const next = incoming
-    .filter((row) => keepAthlete(scope, row.id))
-    .map((row) => {
-      if (scope.includeCoachNotes) return row;
-      const prev = full.find((item) => item.id === row.id);
-      return { ...row, notes: prev?.notes ?? row.notes };
-    });
-  return [...outside, ...next];
+  return full.map(prev => {
+    const row = incoming.find(item => item.id === prev.id);
+    if (!row || !keepAthlete(scope, prev.id)) return prev;
+    const personal = { firstName: row.firstName, lastName: row.lastName, school: row.school,
+      city: row.city, birthDate: row.birthDate, graduationYear: row.graduationYear,
+      sport: row.sport, position: row.position, throws: row.throws, bats: row.bats, frame: row.frame };
+    const coached = scope.includeCoachNotes ? { ...prev, ...row } : { ...prev, ...personal };
+    // Payment and completion are controlled by dedicated server commands, even for staff.
+    return { ...coached, id: prev.id, familyId: prev.familyId,
+      coachIds: scope.includeStaffOps ? row.coachIds : prev.coachIds,
+      assessmentComplete: prev.assessmentComplete };
+  });
 }
 
 function mergeFamilies(full: Family[], incoming: Family[], scope: PdScope): Family[] {
-  if (scope.familyIds === "all") return incoming;
-  const allowed = scope.familyIds;
-  const outside = full.filter((row) => !allowed.has(row.id));
-  const next = incoming.filter((row) => allowed.has(row.id));
-  return [...outside, ...next];
+  return full.map(prev => {
+    const row = incoming.find(item => item.id === prev.id);
+    const allowed = scope.familyIds === "all" || scope.familyIds.has(prev.id);
+    return row && allowed ? { ...prev, name: row.name, parentName: row.parentName,
+      phone: row.phone, leaderboardOptOut: row.leaderboardOptOut } : prev;
+  });
 }
 
 function mergeMessages(full: Message[], incoming: Message[], scope: PdScope): Message[] {
@@ -154,11 +158,13 @@ export function mergeScopedFile(
   next.athletes = mergeAthletes(full.athletes, incoming.athletes, scope);
   next.families = mergeFamilies(full.families, incoming.families, scope);
   next.messages = mergeMessages(full.messages, incoming.messages, scope);
-  next.cohorts = mergeCohorts(full.cohorts, incoming.cohorts, scope);
+  if (scope.includeCoachNotes) next.cohorts = mergeCohorts(full.cohorts, incoming.cohorts, scope);
 
   const patch = next as unknown as Record<string, unknown>;
 
+  const familyWritable = new Set<string>(["outings", "workoutLog", "strengthLog", "strengthSets", "workload", "goals", "armCare", "intake", "videos"]);
   for (const key of ATHLETE_ROW_KEYS) {
+    if (key === "bookings" || (!scope.includeCoachNotes && !familyWritable.has(key))) continue;
     patch[key] = mergeAthleteRows(
       full[key] as { athleteId: string }[],
       incoming[key] as { athleteId: string }[],
@@ -180,10 +186,17 @@ export function mergeScopedFile(
     patch[key] = takeIf(scope.includeStaffOps, incoming[key], full[key]);
   }
   for (const key of COACH_OPS_KEYS) {
-    patch[key] = takeIf(scope.includeCoachOps, incoming[key], full[key]);
+    patch[key] = takeIf(scope.includeStaffOps, incoming[key], full[key]);
   }
   for (const key of CATALOG_KEYS) {
     patch[key] = takeIf(scope.includeStaffOps, incoming[key], full[key]);
+  }
+  if (scope.role === "coach" && scope.coachId) {
+    next.availability = [...full.availability.filter(row => row.coachId !== scope.coachId),
+      ...incoming.availability.filter(row => row.coachId === scope.coachId)];
+    next.coaches = full.coaches.map(row => row.id === scope.coachId
+      ? { ...row, ...incoming.coaches.find(item => item.id === row.id), id: row.id, email: row.email, active: row.active }
+      : row);
   }
   next.policy = takeIf(scope.includeStaffOps, incoming.policy, full.policy);
 

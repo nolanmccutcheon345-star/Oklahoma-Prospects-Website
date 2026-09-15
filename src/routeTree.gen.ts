@@ -13,6 +13,7 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as AccountRouteImport } from './routes/account'
 import { Route as BookRouteImport } from './routes/book'
 import { Route as CoachRouteImport } from './routes/coach'
+import { Route as CoachesRouteImport } from './routes/coaches'
 import { Route as ContactRouteImport } from './routes/contact'
 import { Route as FacilityRouteImport } from './routes/facility'
 import { Route as FamilyRouteImport } from './routes/family'
@@ -34,6 +35,7 @@ import { Route as VisitsRouteImport } from './routes/visits'
 import { Route as WaiverRouteImport } from './routes/waiver'
 import { Route as GoDestRouteImport } from './routes/go.$dest'
 import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
+import { Route as ApiStripeWebhookRouteImport } from './routes/api/stripe/webhook'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -53,6 +55,11 @@ const BookRoute = BookRouteImport.update({
 const CoachRoute = CoachRouteImport.update({
   id: '/coach',
   path: '/coach',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CoachesRoute = CoachesRouteImport.update({
+  id: '/coaches',
+  path: '/coaches',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ContactRoute = ContactRouteImport.update({
@@ -160,12 +167,18 @@ const ApiAuthSplatRoute = ApiAuthSplatRouteImport.update({
   path: '/api/auth/$',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiStripeWebhookRoute = ApiStripeWebhookRouteImport.update({
+  id: '/api/stripe/webhook',
+  path: '/api/stripe/webhook',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/account': typeof AccountRoute
   '/book': typeof BookRoute
   '/coach': typeof CoachRoute
+  '/coaches': typeof CoachesRoute
   '/contact': typeof ContactRoute
   '/facility': typeof FacilityRoute
   '/family': typeof FamilyRoute
@@ -187,12 +200,14 @@ export interface FileRoutesByFullPath {
   '/waiver': typeof WaiverRoute
   '/go/$dest': typeof GoDestRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
+  '/api/stripe/webhook': typeof ApiStripeWebhookRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/account': typeof AccountRoute
   '/book': typeof BookRoute
   '/coach': typeof CoachRoute
+  '/coaches': typeof CoachesRoute
   '/contact': typeof ContactRoute
   '/facility': typeof FacilityRoute
   '/family': typeof FamilyRoute
@@ -214,6 +229,7 @@ export interface FileRoutesByTo {
   '/waiver': typeof WaiverRoute
   '/go/$dest': typeof GoDestRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
+  '/api/stripe/webhook': typeof ApiStripeWebhookRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -221,6 +237,7 @@ export interface FileRoutesById {
   '/account': typeof AccountRoute
   '/book': typeof BookRoute
   '/coach': typeof CoachRoute
+  '/coaches': typeof CoachesRoute
   '/contact': typeof ContactRoute
   '/facility': typeof FacilityRoute
   '/family': typeof FamilyRoute
@@ -242,6 +259,7 @@ export interface FileRoutesById {
   '/waiver': typeof WaiverRoute
   '/go/$dest': typeof GoDestRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
+  '/api/stripe/webhook': typeof ApiStripeWebhookRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -250,6 +268,7 @@ export interface FileRouteTypes {
     | '/account'
     | '/book'
     | '/coach'
+    | '/coaches'
     | '/contact'
     | '/facility'
     | '/family'
@@ -271,12 +290,14 @@ export interface FileRouteTypes {
     | '/waiver'
     | '/go/$dest'
     | '/api/auth/$'
+    | '/api/stripe/webhook'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
     | '/account'
     | '/book'
     | '/coach'
+    | '/coaches'
     | '/contact'
     | '/facility'
     | '/family'
@@ -298,12 +319,14 @@ export interface FileRouteTypes {
     | '/waiver'
     | '/go/$dest'
     | '/api/auth/$'
+    | '/api/stripe/webhook'
   id:
     | '__root__'
     | '/'
     | '/account'
     | '/book'
     | '/coach'
+    | '/coaches'
     | '/contact'
     | '/facility'
     | '/family'
@@ -325,6 +348,7 @@ export interface FileRouteTypes {
     | '/waiver'
     | '/go/$dest'
     | '/api/auth/$'
+    | '/api/stripe/webhook'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -332,6 +356,7 @@ export interface RootRouteChildren {
   AccountRoute: typeof AccountRoute
   BookRoute: typeof BookRoute
   CoachRoute: typeof CoachRoute
+  CoachesRoute: typeof CoachesRoute
   ContactRoute: typeof ContactRoute
   FacilityRoute: typeof FacilityRoute
   FamilyRoute: typeof FamilyRoute
@@ -353,6 +378,7 @@ export interface RootRouteChildren {
   WaiverRoute: typeof WaiverRoute
   GoDestRoute: typeof GoDestRoute
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
+  ApiStripeWebhookRoute: typeof ApiStripeWebhookRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -383,6 +409,13 @@ declare module '@tanstack/react-router' {
       path: '/coach'
       fullPath: '/coach'
       preLoaderRoute: typeof CoachRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/coaches': {
+      id: '/coaches'
+      path: '/coaches'
+      fullPath: '/coaches'
+      preLoaderRoute: typeof CoachesRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/contact': {
@@ -532,6 +565,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiAuthSplatRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/stripe/webhook': {
+      id: '/api/stripe/webhook'
+      path: '/api/stripe/webhook'
+      fullPath: '/api/stripe/webhook'
+      preLoaderRoute: typeof ApiStripeWebhookRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -540,6 +580,7 @@ const rootRouteChildren: RootRouteChildren = {
   AccountRoute: AccountRoute,
   BookRoute: BookRoute,
   CoachRoute: CoachRoute,
+  CoachesRoute: CoachesRoute,
   ContactRoute: ContactRoute,
   FacilityRoute: FacilityRoute,
   FamilyRoute: FamilyRoute,
@@ -561,6 +602,7 @@ const rootRouteChildren: RootRouteChildren = {
   WaiverRoute: WaiverRoute,
   GoDestRoute: GoDestRoute,
   ApiAuthSplatRoute: ApiAuthSplatRoute,
+  ApiStripeWebhookRoute: ApiStripeWebhookRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

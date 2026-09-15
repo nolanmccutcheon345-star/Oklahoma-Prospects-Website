@@ -1,10 +1,11 @@
+import {pageHead} from "@/lib/seo";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { MembershipPlans } from "@/components/membership-plans";
 import { PageHero } from "@/components/page-hero";
 import { Button } from "@/components/ui/button";
 import { TEAM_MEMBERSHIPS } from "@/lib/club";
 
-export const Route = createFileRoute("/memberships")({
+export const Route = createFileRoute("/memberships")({head:()=>pageHead("/memberships","Cage Passes","Household cage memberships: Prospect, All-Star, and Elite Family. Review monthly pricing and included hours.",false),
   component: MembershipsPage,
 });
 

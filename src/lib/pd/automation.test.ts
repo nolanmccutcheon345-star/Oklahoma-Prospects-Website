@@ -40,7 +40,7 @@ test("weekly targets are 80 / 130 / 180 by age band", () => {
 
 test("one log per type per day is a hard limit; high-value stays pending", () => {
   const data = seedDevelopment();
-  const first = creditDecision(data, { athleteId: "a-9u", key: "throwing" });
+  const first = creditDecision(data, { athleteId: "a-9u", key: "throwing", date:"2026-09-14" });
   assert.equal(first.ok, true);
   if (first.ok) assert.equal(first.status, "pending");
   data.pointsLog.unshift({
@@ -52,7 +52,7 @@ test("one log per type per day is a hard limit; high-value stays pending", () =>
     activity: "throwing",
     status: "pending",
   });
-  const second = creditDecision(data, { athleteId: "a-9u", key: "throwing" });
+  const second = creditDecision(data, { athleteId: "a-9u", key: "throwing", date:"2026-09-14" });
   assert.equal(second.ok, false);
   const checkin = creditDecision(data, { athleteId: "a-9u", key: "checkin" });
   assert.equal(checkin.ok, true);

@@ -1,3 +1,4 @@
+import { eligibility } from "./pricing";
 import { BOOKABLE_LANES, HOUSEHOLD_CAGE_PLAN_IDS, type BookableLaneId } from "@/lib/club";
 import { ASSESSMENT_IDS, findLesson } from "@/lib/catalog";
 import { PD_POLICY } from "@/lib/pd";
@@ -43,10 +44,10 @@ function moneyLine(label: string, amount: number): PayLine {
 export function parseLaneIds(raw?: string): BookableLaneId[] {
   if (!raw) return [];
   const allowed = new Set(BOOKABLE_LANES.map((row) => row.id));
-  return raw
+  return [...new Set(raw
     .split(",")
     .map((part) => part.trim())
-    .filter((part): part is BookableLaneId => allowed.has(part as BookableLaneId));
+    .filter((part): part is BookableLaneId => allowed.has(part as BookableLaneId)))];
 }
 
 export function parsePaySearch(search: Record<string, unknown>): PaySearch {
@@ -62,7 +63,6 @@ export function parsePaySearch(search: Record<string, unknown>): PaySearch {
     receipt: typeof search.receipt === "string" ? search.receipt : undefined,
     cages: typeof search.cages === "string" ? search.cages : undefined,
     use: typeof search.use === "string" ? search.use : undefined,
-    assessed: typeof search.assessed === "string" ? search.assessed : undefined,
   };
 }
 
@@ -88,7 +88,8 @@ export function quoteCages(
   catalog: PublicCatalog,
   input: { rate: string; laneIds: string[]; minutes: number; use?: string },
 ): PayItem | null {
-  const minutes = input.minutes > 0 ? input.minutes : 60;
+  const minutes = input.minutes;
+  if (!Number.isInteger(minutes) || minutes < 30 || minutes > 180 || minutes % 30) return null;
   const hours = minutes / 60;
   const lanes = parseLaneIds(input.laneIds.join(","));
   const rate = resolveCageRate({ use: input.use, rate: input.rate, laneIds: lanes });
@@ -114,7 +115,7 @@ export function quoteCages(
   const lines: PayLine[] = lanes.map((id) => {
     const lane = BOOKABLE_LANES.find((row) => row.id === id)!;
     const hourly = lane.group === "field" ? hourlyFor(catalog, "field") : hourlyFor(catalog, rate);
-    const amount = Math.round(hourly * hours);
+    const amount = Math.round(hourly * 100 * hours) / 100;
     return moneyLine(`${minutes} min · ${lane.name} · $${hourly}/hr`, amount);
   });
   const price = lines.reduce((sum, line) => sum + line.amount, 0);
@@ -140,19 +141,11 @@ export function quoteCages(
 }
 
 function needsAssessmentFee(kind: string, id: string): boolean {
-  if (kind === "lesson") {
-    if (ASSESSMENT_IDS.has(id)) return false;
-    const lesson = findLesson(id);
-    if (!lesson) return true;
-    if (lesson.entry || lesson.group) return false;
-    if (lesson.id === "s5") return false;
-    return lesson.requiresAssessment;
-  }
-  if (kind === "membership") return id === "m1" || id === "m2" || id === "m3";
-  return false;
+  return eligibility(kind, id, false).setupCents > 0;
 }
 
 export function applyAssessmentFee(item: PayItem, hasAssessment: boolean): PayItem {
+  if (eligibility(item.kind, item.id, hasAssessment).locked) return { ...item, error: "Complete your assessment with your coach to unlock ordinary lessons and packages." };
   if (hasAssessment) return item;
   if (!needsAssessmentFee(item.kind, item.id)) return item;
   const fee = PD_POLICY.assessmentSurcharge;

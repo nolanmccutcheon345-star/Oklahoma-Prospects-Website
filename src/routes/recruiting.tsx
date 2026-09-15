@@ -1,9 +1,10 @@
+import {pageHead} from "@/lib/seo";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { PageHero } from "@/components/page-hero";
 import { PeopleCards } from "@/components/people";
 import { Button } from "@/components/ui/button";
 
-export const Route = createFileRoute("/recruiting")({
+export const Route = createFileRoute("/recruiting")({head:()=>pageHead("/recruiting","Recruiting","Learn about Oklahoma Prospects recruiting support and player development.",false),
   component: RecruitingPage,
 });
 
