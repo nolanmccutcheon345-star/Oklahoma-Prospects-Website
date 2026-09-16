@@ -176,35 +176,28 @@ export function FamilyApp({
       </Section>
 
       <Section title={t.docs}>
-        {(["waiver", "birthCert", "insurance", "physical"] as const).map((k) => (
-          <label key={k} className="flex min-h-11 items-center gap-2 text-sm">
-            <input
-              type="checkbox"
-              disabled={isPlayer}
-              className="size-6"
-              checked={player.docs[k]}
-              onChange={(e) =>
-                patchPlayer({ ...player, docs: { ...player.docs, [k]: e.target.checked } })
-              }
-            />
-            {k}
-          </label>
-        ))}
+        <p>Document status is confirmed by the front office. Signed annual waivers are maintained in your account.</p>
+        <Link to="/waiver" className="inline-flex min-h-11 items-center underline">View and sign annual waivers</Link>
+        {(["birthCert", "insurance", "physical"] as const).map(k=><p key={k}>{k}: {player.docs[k]?"On file":"Not yet verified"}</p>)}
       </Section>
 
       <Section title={t.uniform}>
         <p className="text-sm">{club.uniforms.find((u) => u.id === team.uniformPackageId)?.name}</p>
-        <input
+        <label>Uniform number<input
           value={player.order.number}
           onChange={(e) =>
             patchPlayer({ ...player, order: { ...player.order, number: e.target.value } })
           }
+          maxLength={3}
           placeholder="Number"
           className="mt-2 min-h-11 w-full rounded-md border border-line px-3"
         />
+        </label>
+        {(club.uniforms.find(u=>u.id===team.uniformPackageId)?.sizeFields||[]).map(field=><label className="mt-2 block" key={field}>{field}<input maxLength={30} value={player.order.sizes[field]||''} onChange={e=>patchPlayer({...player,order:{...player.order,sizes:{...player.order.sizes,[field]:e.target.value},submitted:false}})} className="mt-1 min-h-11 w-full rounded-md border px-3"/></label>)}
         <label className="mt-2 flex min-h-11 items-center gap-2 text-sm">
           <input
             type="checkbox"
+            disabled={(club.uniforms.find(u=>u.id===team.uniformPackageId)?.sizeFields||[]).some(field=>!player.order.sizes[field]?.trim())}
             checked={player.order.submitted}
             onChange={(e) =>
               patchPlayer({ ...player, order: { ...player.order, submitted: e.target.checked } })

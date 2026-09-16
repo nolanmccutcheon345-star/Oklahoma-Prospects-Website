@@ -1,4 +1,6 @@
 import {randomUUID} from 'node:crypto';
+import {getRequest} from '@tanstack/react-start/server';
+import {validateWaiverSigner} from './waiver-validation';
 import type {z} from 'zod';
 import {getSql} from './db';
 import {clubIdentity} from './identity.server';
@@ -28,10 +30,13 @@ export async function addAthlete(userId:string,input:z.infer<typeof athleteInput
 }
 export async function myWaivers(userId:string){await clubIdentity(userId);const sql=await getSql();return sql<{id:string;athlete_id:string;athlete_name:string;signer_name:string;signed_at:Date;expires_at:Date}>`select w.id,w.athlete_id,a.name as athlete_name,w.signer_name,w.signed_at,w.signed_at+interval '1 year' as expires_at from club_waivers w join club_athletes a on a.id=w.athlete_id where w.user_id=${userId} and w.signed_at+interval '1 year'>now() order by signed_at desc`;}
 export async function signWaiver(userId:string,input:z.infer<typeof waiverInput>){
- await clubIdentity(userId);const sql=await getSql();const [athlete]=await sql`select id from club_athletes where id=${input.athleteId} and user_id=${userId}`;
+ const me=await clubIdentity(userId);const sql=await getSql();const [athlete]=await sql<{id:string;name:string;birth_date:string}>`select id,name,birth_date from club_athletes where id=${input.athleteId} and user_id=${userId}`;
  if(!athlete)throw new Error('Choose an athlete in your household.');
+ validateWaiverSigner(athlete.birth_date,input.participantType,input.relationship);
+ if(input.participantType==='adult' && (input.signerName.trim().toLowerCase()!==athlete.name.trim().toLowerCase() || me.name.trim().toLowerCase()!==athlete.name.trim().toLowerCase()))throw new Error('Adult athletes must sign in to their own account to sign.');
+ const details={...input,ipAddress:getRequest()?.headers.get('x-nf-client-connection-ip')||null};
  const version=`${WAIVER_VERSION}:${chicagoDate().slice(0,4)}`;
- await sql`insert into club_waivers(id,user_id,athlete_id,version,signer_name,consent_text,details) values(${randomUUID()},${userId},${input.athleteId},${version},${input.signerName},${WAIVER_TEXT},${JSON.stringify(input)}::jsonb) on conflict(athlete_id,version) do nothing`;
+ await sql`insert into club_waivers(id,user_id,athlete_id,version,signer_name,consent_text,details) values(${randomUUID()},${userId},${input.athleteId},${version},${input.signerName},${WAIVER_TEXT},${JSON.stringify(details)}::jsonb) on conflict(athlete_id,version) do nothing`;
  return {ok:true};
 }
 export async function officeRequests(userId:string){

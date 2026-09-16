@@ -48,14 +48,16 @@ export async function expireHolds(sql: Sql, now = new Date()) {
 
 export async function holdWindow(sql: Sql, input: {
   orderId: string | null; userId: string | null; athleteId: string | null; coachId?: string;
-  productId: string; start: Date; end: Date; resources: string[];
+  productId: string; start: Date; end: Date; resources: string[]; participantCount?:number;
 }) {
   if (input.start >= input.end || !input.resources.length) throw new Error("Invalid reservation window.");
   const id = randomUUID();
-  await sql`insert into booking_records (id,order_id,user_id,athlete_id,coach_id,product_id,starts_at,ends_at,resources)
+  const resources=[...new Set([...input.resources,...(input.athleteId?[`athlete:${input.athleteId}`]:[])])];
+  await sql`insert into booking_records (id,order_id,user_id,athlete_id,coach_id,product_id,starts_at,ends_at,resources,participant_count,participants_verified)
     values (${id},${input.orderId},${input.userId},${input.athleteId},${input.coachId || null},${input.productId},
-      ${input.start.toISOString()},${input.end.toISOString()},${JSON.stringify(input.resources)}::jsonb)`;
-  for (const resource of [...new Set(input.resources)].sort()) {
+      ${input.start.toISOString()},${input.end.toISOString()},${JSON.stringify(resources)}::jsonb,${input.participantCount||1},${Boolean(input.athleteId)})`;
+  if(input.athleteId)await sql`insert into booking_participants(booking_id,athlete_id) values(${id},${input.athleteId})`;
+  for (const resource of resources.sort()) {
     for (let ms = input.start.getTime(); ms < input.end.getTime(); ms += 300_000) {
       await sql`insert into booking_occupancy (resource_id,slot_at,booking_id) values (${resource},${new Date(ms).toISOString()},${id})`;
     }

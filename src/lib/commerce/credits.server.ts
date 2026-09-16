@@ -30,7 +30,8 @@ async function context(userId:string,input:Input) {
     if(!service||service.kind!=='lesson'||ASSESSMENT_PRODUCTS.has(service.id)||service.id==='s6'||service.minutes!==minutes || (grant.kind==='remote-review')!==(service.id==='s5'))throw new Error('Choose a service included with this credit.');
     if(!input.coachId||!file.coaches.some(c=>c.id===input.coachId&&c.active))throw new Error('Choose your coach.');
     if(!file.coaches.find(c=>c.id===input.coachId)!.specialties.some(s=>s.toLowerCase()===service.discipline.toLowerCase()))throw new Error('This coach does not offer the selected discipline.');
-    resources=[`coach:${input.coachId}`];
+    const {lessonResources}=await import('./operations.server');
+    resources=[`coach:${input.coachId}`,`athlete:${grant.athlete_id}`,...(grant.kind==='remote-review'?[]:await lessonResources(service.id,sql))];
   }
   if(quantity>grant.remaining)throw new Error('Not enough credits for this booking.');
   return {sql,grant,file,minutes,quantity,resources};
@@ -71,7 +72,7 @@ export async function redeemCredit(userId:string,input:Input) {
       if(window.end>new Date(grant.expires_at)||window.start<new Date(grant.starts_at))throw new Error('Choose a date within this credit period.');
       if(grant.kind!=='cage-minutes'&&!coachAvailable(file.availability,input.coachId!,input.date,input.time,minutes))throw new Error('Your coach is unavailable for the full session.');
       await expireHolds(tx);
-      const bookingId=await holdWindow(tx,{orderId:grant.order_id,userId,athleteId:grant.athlete_id||null,coachId:input.coachId,productId:grant.kind==='cage-minutes'?'individual':input.serviceId,...window,resources});
+      const bookingId=await holdWindow(tx,{orderId:grant.order_id,userId,athleteId:grant.athlete_id||null,coachId:input.coachId,productId:grant.kind==='cage-minutes'?'individual':input.serviceId,...window,resources,participantCount:grant.kind==='cage-minutes'?input.athleteCount:1});
       await tx`update booking_records set status='confirmed' where id=${bookingId}`;
       await tx`insert into credit_uses(id,grant_id,booking_id,quantity) values(${randomUUID()},${grant.id},${bookingId},${quantity})`;
     }

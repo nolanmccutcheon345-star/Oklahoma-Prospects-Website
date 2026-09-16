@@ -70,8 +70,11 @@ export async function quoteForRequest(input: CheckoutInput, requireConsent = tru
     if (!input.coachId || !file.coaches.some(c => c.id === input.coachId && c.active)) throw new Error("Choose an available coach.");
     const selectedCoach = file.coaches.find(c => c.id === input.coachId)!;
     if (!selectedCoach.specialties.some(s => s.toLowerCase() === quote.discipline.toLowerCase())) throw new Error("This coach does not offer the selected discipline.");
-    quote.resources = [`coach:${input.coachId}`];
+    const {lessonResources}=await import('./operations.server');
+    const spaceProduct=quote.setupCents>0?(quote.discipline==='Hitting'?'s9':'s1'):quote.kind==='membership'?(quote.sessionMinutes===30?'s2':'s3'):quote.productId;
+    quote.resources = [`coach:${input.coachId}`,...await lessonResources(spaceProduct,sql)];
   }
+  if(athleteId && quote.needsSlot)quote.resources.push(`athlete:${athleteId}`);
   return { me, quote, athleteId, file };
 }
 
@@ -116,7 +119,7 @@ export async function beginCheckout(input: CheckoutInput) {
             ${athlete?.birthDate || input.playerBirthDate || null},${JSON.stringify(athlete?.coachIds || (input.coachId ? [input.coachId] : []))}::jsonb)
           on conflict (id) do nothing`;
       }
-      const snapshot = { ...quote, fingerprint, input: { date: input.date, time: input.time, coachId: input.coachId }, consentAt: input.consent ? new Date().toISOString() : null };
+      const snapshot = { ...quote, fingerprint, input: { date: input.date, time: input.time, coachId: input.coachId, athleteCount: input.athleteCount }, consentAt: input.consent ? new Date().toISOString() : null };
       await tx`insert into commerce_orders (id,request_key,user_id,email,athlete_id,product_id,kind,snapshot,total_cents,hold_until)
         values (${id},${input.requestId},${me?.userId || null},${email},${athleteId},${quote.productId},${quote.kind},${JSON.stringify(snapshot)}::jsonb,${quote.totalCents},${holdUntil.toISOString()})`;
       if (quote.needsSlot) {
@@ -125,7 +128,7 @@ export async function beginCheckout(input: CheckoutInput) {
         if (quote.kind !== "cage" && !coachAvailable(file.availability, input.coachId!, input.date, input.time, quote.duration)) throw new Error("Your coach is unavailable for the full session.");
         await holdWindow(tx, { orderId: id, userId: me?.userId || null, athleteId, coachId: input.coachId,
           productId: quote.setupCents > 0 ? (quote.discipline === "Hitting" ? "s9" : "s1") : quote.productId,
-          ...window, resources: quote.resources });
+          ...window, resources: quote.resources, participantCount: quote.kind === "cage" ? input.athleteCount : 1 });
       }
     });
     [order] = await sql`select id,checkout_url,snapshot,status,hold_until from commerce_orders where id = ${id}`;

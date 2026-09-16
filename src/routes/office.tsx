@@ -5,6 +5,7 @@ import { RedirectToSignIn } from "@/lib/auth/gates";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
 import {OfficeRequests} from "@/components/commerce/office-requests";
 import { OfficeApp } from "@/components/teams/office-app";
+import {OfficeOperations} from "@/components/commerce/operations";
 import { FailScreen } from "@/components/teams/ui";
 import { TeamsShell } from "@/components/teams/shell";
 import { Button } from "@/components/ui/button";
@@ -100,7 +101,7 @@ function OfficePage() {
       ]}
     >
       <OfficeRequests/>
-      <OfficeApp
+      <OfficeOperations/><OfficeApp
         club={club}
         onChange={setClub}
         onSave={async () => {

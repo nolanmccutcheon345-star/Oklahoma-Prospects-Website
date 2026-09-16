@@ -11,7 +11,7 @@ export async function familyBilling(userId: string) {
   await clubIdentity(userId); const sql = await getSql();
   const [orders, bookings, subscriptions, invoices, credits, athletes, requests] = await Promise.all([
     sql<{ id:string; product_id:string; snapshot:Quote; total_cents:number; status:string; receipt_url:string|null; created_at:Date }>`select id,product_id,snapshot,total_cents,status,receipt_url,created_at from commerce_orders where user_id = ${userId} order by created_at desc limit 200`,
-    sql<{ id:string; order_id:string; product_id:string; starts_at:Date; ends_at:Date; status:string; checked_in_at:Date|null }>`select id,order_id,product_id,starts_at,ends_at,status,checked_in_at from booking_records where user_id = ${userId} order by starts_at desc limit 200`,
+    sql<{ id:string; order_id:string; product_id:string; starts_at:Date; ends_at:Date; status:string; participant_count:number; checked_in_at:Date|null }>`select id,order_id,product_id,starts_at,ends_at,status,participant_count,checked_in_at from booking_records where user_id = ${userId} order by starts_at desc limit 200`,
     sql<{ id:string; product_id:string; amount_cents:number; status:string; period_end:Date; cancel_at_period_end:boolean; pause_requested_at:Date|null }>`select id,product_id,amount_cents,status,period_end,cancel_at_period_end,pause_requested_at from club_subscriptions where user_id = ${userId} order by period_end desc`,
     sql<{ id:string; amount_cents:number; status:string; invoice_url:string|null; pdf_url:string|null; created_at:Date }>`select id,amount_cents,status,invoice_url,pdf_url,created_at from billing_invoices where user_id = ${userId} order by created_at desc limit 200`,
     sql<{ id:string; kind:string; minutes:number; remaining:number; expires_at:Date; rollover:boolean; athlete_id:string }>`select id,kind,minutes,remaining,expires_at,rollover,athlete_id from credit_grants where user_id = ${userId} and remaining > 0 and starts_at <= now() and expires_at > now() and order_id in (select id from commerce_orders where status='paid') order by expires_at`,
@@ -105,11 +105,15 @@ export async function cancelAndRefund(userId:string,orderId:string) {
 
 export async function checkIn(userId:string,bookingId:string) {
   const me = await clubIdentity(userId); const sql = await getSql();
-  const [row] = await sql`update booking_records set checked_in_at = coalesce(checked_in_at,now())
-    where id = ${bookingId} and (user_id = ${userId} or ${me.role === "admin"}) and status = 'confirmed'
-      returning id`;
-  if (!row) throw new Error("Only your confirmed reservations can be checked in.");
-  return {ok:true};
+  return sql.transaction(async tx=>{
+    const [row]=await tx<{id:string;participant_count:number;participants_verified:boolean;starts_at:Date;ends_at:Date}>`select id,participant_count,participants_verified,starts_at,ends_at from booking_records
+      where id=${bookingId} and (user_id=${userId} or ${me.role==='admin'}) and status='confirmed' for update`;
+    if(!row)throw new Error('Only your confirmed reservations can be checked in.');
+    const {enforceVisitWaivers}=await import('./waivers.server');
+    await enforceVisitWaivers(tx,row);
+    await tx`update booking_records set checked_in_at=coalesce(checked_in_at,now()) where id=${bookingId}`;
+    return {ok:true};
+  });
 }
 
 export async function coachBookings(userId:string) {

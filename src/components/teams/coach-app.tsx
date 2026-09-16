@@ -342,7 +342,7 @@ export function CoachApp({
             e.currentTarget.reset();
           }}
         >
-          <input name="body" required className="min-h-11 w-full rounded-md border border-line px-3" />
+          <label>Team message<input name="body" maxLength={5000} required className="min-h-11 w-full rounded-md border border-line px-3" /></label>
           <Button type="submit" className="mt-2">
             Post to team
           </Button>
@@ -396,6 +396,7 @@ function Emergency({ team }: { team: Team }) {
   return (
     <Section title="Emergency">
       <select
+        aria-label="Athlete emergency information"
         value={id}
         onChange={(e) => setId(e.target.value)}
         className="min-h-11 w-full rounded-md border border-line px-3"

@@ -1,3 +1,4 @@
+import {ContractorEarnings} from "@/components/commerce/operations";
 import { useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { pushUndo } from "@/components/pd/polish";
@@ -172,8 +173,7 @@ export function LockedFeatures({ tier }: { tier?: string }) {
 }
 
 export function CoachWaitlist() {
-  const { data, offerWaitlist } = useDevelopment();
-  const [note, setNote] = useState("");
+  const { data } = useDevelopment();
   const open = data.waitlist.filter((row) => (row.status ?? "open") === "open");
   return (
     <section className="rounded-2xl bg-paper-2 shadow-border" data-coach-waitlist="true">
@@ -181,7 +181,7 @@ export function CoachWaitlist() {
         <p className="text-xs font-semibold tracking-[0.16em] text-maroon uppercase">Waitlist</p>
         <h3 className="mt-2 text-2xl">Offer a slot</h3>
         <p className="mt-2 text-sm text-muted">
-          Finds a real opening that matches their day and time. Never invents a window.
+          Review the family’s preferred time before arranging a confirmed booking.
         </p>
         {open.length === 0 ? (
           <p className="mt-3 text-sm font-semibold text-maroon">No open waitlist names. Check the floor.</p>
@@ -195,27 +195,12 @@ export function CoachWaitlist() {
                   <span className="mt-1 block text-sm text-muted">
                     Prefers {row.preferredDay || "any day"} {row.preferredTime || ""}
                   </span>
-                  <Button
-                    type="button"
-                    size="sm"
-                    className="mt-2"
-                    onClick={() => {
-                      const slot = offerWaitlist(row.id, athlete?.coachIds[0] || "c-steve");
-                      setNote(
-                        slot
-                          ? `Offered ${slot.dateLabel} at ${labelTime(slot.time)}.`
-                          : "No matching opening on the posted windows.",
-                      );
-                    }}
-                  >
-                    Offer a slot
-                  </Button>
+                  <p className="mt-2">Contact the family to arrange a booking through the front desk. This waitlist entry does not reserve a slot.</p>
                 </li>
               );
             })}
           </ul>
         )}
-        {note ? <p className="mt-3 text-sm">{note}</p> : null}
       </div>
     </section>
   );
@@ -228,7 +213,7 @@ export function CoachFloor({
   coachId?: string;
   onStartLesson?: (start: LessonStart) => void;
 }) {
-  const { data, completeBooking } = useDevelopment();
+  const { data } = useDevelopment();
   const rows = data.bookings.filter(
     (row) =>
       row.status === "paid" &&
@@ -287,15 +272,7 @@ export function CoachFloor({
                   >
                     Bullpen
                   </Button>
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="outlineDark"
-                    className="mt-2 min-h-12"
-                    onClick={() => completeBooking(row.id)}
-                  >
-                    Mark complete
-                  </Button>
+                  <p className="mt-2 text-sm">Finish this session in Confirmed sessions, with a saved coach recap.</p>
                 </li>
               );
             })
@@ -315,43 +292,8 @@ function Stat({ label, value }: { label: string; value: string }) {
   );
 }
 
-export function EarningsBoard({ coachId }: { coachId?: string }) {
-  const { data, payEarning } = useDevelopment();
-  const rows = data.bookings
-    .filter((row) => row.status !== "cancelled")
-    .filter((row) => !coachId || row.coachId === coachId || !row.coachId)
-    .map(earningRow);
-  const pending = rows.filter((row) => row.status === "pending");
-  const payable = rows.filter((row) => row.status === "payable");
-  const paid = rows.filter((row) => row.status === "paid");
-  const sum = (list: typeof rows) => list.reduce((n, row) => n + row.amount, 0);
-  return (
-    <section className="rounded-2xl bg-paper-2 shadow-border" data-earnings="true">
-      <div className="pd-card">
-        <p className="text-xs font-semibold tracking-[0.16em] text-maroon uppercase">Coach earnings</p>
-        <h3 className="mt-2 text-2xl">Pending → payable → paid</h3>
-        <div className="mt-4 grid grid-cols-3 gap-2">
-          <Stat label="Pending" value={`$${sum(pending)}`} />
-          <Stat label="Payable" value={`$${sum(payable)}`} />
-          <Stat label="Paid" value={`$${sum(paid)}`} />
-        </div>
-        <ul className="mt-3 grid gap-2">
-          {payable.map((row) => (
-            <li
-              key={row.bookingId}
-              className="pd-row flex items-center justify-between rounded-xl bg-paper"
-              data-earning-status="payable"
-            >
-              <span className="pd-num font-display text-xl">${row.amount}</span>
-              <Button type="button" size="sm" onClick={() => payEarning(row.bookingId)}>
-                Mark paid
-              </Button>
-            </li>
-          ))}
-        </ul>
-      </div>
-    </section>
-  );
+export function EarningsBoard({ coachId: _coachId }: { coachId?: string }) {
+ return <ContractorEarnings/>;
 }
 
 export function PolicyEditor() {
