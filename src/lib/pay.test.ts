@@ -70,10 +70,10 @@ test("hour lesson with assessment stays $100", () => {
   assert.equal(item.price, 100);
 });
 
-test("development first month without assessment is $289", () => {
+test("development first month without assessment is $279", () => {
   const item = quoteCheckout({ kind: "membership", id: "m1" }, catalog, false);
   assert.ok(item);
-  assert.equal(item.price, 289);
+  assert.equal(item.price, 279);
 });
 
 test("household cage plan is blocked for team use", () => {

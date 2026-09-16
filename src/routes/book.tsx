@@ -336,7 +336,7 @@ function BookingFunnel({ initial }: { initial?: string }) {
               : `Review ${lanes.length > 1 ? `${lanes.length} cages` : "this cage"} · $${total}`}
         </Button>
         <p className="text-center text-xs text-muted">
-          Next screen confirms the price and payment availability. Reserve now, pay at the desk while online payment is unavailable. {CANCEL_POLICY.short}.
+          Next screen confirms the price and payment availability. While online payment is unavailable, call the front desk to reserve. Choosing a time here does not save a booking. {CANCEL_POLICY.short}.
         </p>
       </form>
     </section>

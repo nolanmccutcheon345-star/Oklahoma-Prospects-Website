@@ -69,7 +69,7 @@ function VisitPage() {
         <h2 className="text-2xl">Arriving today</h2>
         <div className="mt-4 grid gap-2">
           <ContinueIn dest="checkin" plain>
-            <Row icon={ClipboardCheck} title="Show your booking" body="Paid receipts on this phone" />
+            <Row icon={ClipboardCheck} title="Show your booking" body="Paid receipts in your account" />
           </ContinueIn>
           <Link to="/waiver" className="no-underline">
             <Row icon={Shield} title="Facility waiver" body="Required before you train" />
@@ -93,7 +93,7 @@ function VisitPage() {
             <Row icon={ClipboardCheck} title="Cage passes" body="Household monthly cage plans" />
           </ContinueIn>
           <Link to="/visits" className="no-underline">
-            <Row icon={MapPin} title="Paid bookings" body="Receipts saved on this phone" />
+            <Row icon={MapPin} title="Paid bookings" body="Receipts saved to your account" />
           </Link>
         </div>
       </section>

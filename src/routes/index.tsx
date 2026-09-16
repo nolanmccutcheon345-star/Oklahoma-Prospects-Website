@@ -1,3 +1,4 @@
+import {useLiveCatalog} from "@/lib/use-catalog";
 import {pageHead} from "@/lib/seo";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { ArrowRight, MapPin } from "lucide-react";
@@ -14,6 +15,7 @@ import { useCurrentUserState } from "@/lib/auth/use-current-user";
 export const Route = createFileRoute("/")({head:()=>pageHead("/","Indoor cages, lessons & teams","Reserved indoor baseball and softball cages, coaching, and teams in Broken Arrow. Serving northeast Oklahoma since 2008.",false), component: Home });
 
 function Home() {
+  const catalog=useLiveCatalog();
   return (
     <main id="main">
       <section className="relative isolate overflow-hidden bg-ink text-fg-inverse">
@@ -75,11 +77,11 @@ function Home() {
             to="/book"
             kicker="From $50 / hour"
             title="Book a cage"
-            body="One cage or several at the same time. Reserve now, pay at the desk. Card checkout availability is shown before booking."
+            body="One cage or several at the same time. Call the front desk to reserve. Card checkout availability is shown before booking."
           />
           <PathCard
             to="/training"
-            kicker="From $239 / mo"
+            kicker={`From $${catalog.memberships.find(m=>m.id==="m1")?.price ?? 229} / mo`}
             title="Start monthly development"
             body="Four coached sessions a month, a plan, and tracking. Baseball and softball, 8U through college."
           />

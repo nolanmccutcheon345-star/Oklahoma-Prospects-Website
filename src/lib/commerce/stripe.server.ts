@@ -8,7 +8,7 @@ export function paymentMode(): "disabled" | "test" | "live" {
   return "disabled";
 }
 export function stripeClient() {
-  if (paymentMode() === "disabled") throw new Error("Reserve now, pay at the desk. Card checkout is not active yet.");
+  if (paymentMode() === "disabled") throw new Error("Call the front desk to reserve. Card checkout is not active yet.");
   return new Stripe(process.env.STRIPE_SECRET_KEY!, { maxNetworkRetries: 2 });
 }
 export function checkoutOrigin() {

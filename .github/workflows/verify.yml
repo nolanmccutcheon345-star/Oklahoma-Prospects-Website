@@ -1,7 +1,7 @@
 name: Verify club application
 on:
   push:
-    branches: [audit-fixes, main]
+    branches: [audit-fixes-v2, audit-fixes, main]
   pull_request:
     branches: [main]
   workflow_dispatch:

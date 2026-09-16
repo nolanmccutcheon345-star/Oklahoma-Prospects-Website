@@ -312,7 +312,7 @@ export const PEOPLE = [
 
 export const FIRST_VISIT = [
   {
-    title: "Pay for the hour",
+    title: "Confirm your reservation",
     body: "The lane is yours when checkout says reserved — not when you pick a time. Nothing is booked until you confirm.",
   },
   {
@@ -334,7 +334,7 @@ export const PAY_METHODS = [
     id: "card",
     name: "Debit or credit",
     preferred: true,
-    note: "Reserve now, pay at the desk until card checkout is enabled.",
+    note: "Call the front desk to reserve while card checkout is unavailable.",
   },
 ] as const;
 
@@ -361,7 +361,7 @@ export const FAQ = [
   },
   {
     q: "I’m new. Where do I start?",
-    a: "Want reps today? Reserve a cage. Want coaching? Start with an assessment — pitching 75 min / $149, hitting 60 min / $150. Private hours are $100 after that. Ordinary lessons and packages unlock after your coach completes your assessment. Monthly coaching is four sessions a month from $239.",
+    a: "Want reps today? Reserve a cage. Want coaching? Start with an assessment — pitching 75 min / $149, hitting 60 min / $150. Private hours are $100 after that. Ordinary lessons and packages unlock after your coach completes your assessment. Monthly coaching is four sessions a month from $229.",
   },
   {
     q: "What if I need to cancel?",
