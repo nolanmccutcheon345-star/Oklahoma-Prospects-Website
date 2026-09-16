@@ -40,7 +40,7 @@ test("parents cannot expand household, complete assessment, or mint lesson credi
 test("coaches can save their own availability but cannot edit payouts or other coaches", () => {
   const full = seedDevelopment(); const coach = full.coaches[0];
   const scope = scopeForViewer({ role: "coach", email: coach.email, name: coach.name, playerName: "" }, full);
-  const incoming = structuredClone(full);
+  const incoming = structuredClone(filterDevelopmentData(full, scope));
   incoming.availability = full.availability.filter(a => a.coachId !== coach.id);
   incoming.coachPayouts = [];
   const merged = mergeScopedFile(full, incoming, scope);

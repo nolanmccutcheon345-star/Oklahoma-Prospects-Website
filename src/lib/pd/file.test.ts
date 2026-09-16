@@ -77,3 +77,11 @@ test("hydrate fills missing keys without resurrecting emptied arrays", () => {
   assert.ok(hydrated.athletes.length > 0);
   assert.ok(Array.isArray(hydrated.calibrationScores));
 });
+
+test('v2: every new or changed cohort member must be assigned to the coach',()=>{
+ const scope={role:'coach' as const,coachId:'fixture',athleteIds:new Set(['a-down']),familyIds:new Set(['f-navarro']),includeCoachNotes:true,includeCoachOps:true,includeStaffOps:false};
+ const full={...seed,cohorts:[{id:'existing',name:'Existing',athleteIds:['a-down']}]};
+ assert.throws(()=>mergeScopedFile(full,{...full,cohorts:[{id:'new',name:'New',athleteIds:['a-down','a-full']}]},scope),/assigned athletes/);
+ assert.throws(()=>mergeScopedFile(full,{...full,cohorts:[{id:'existing',name:'Edited',athleteIds:['a-down','a-full']}]},scope),/assigned athletes/);
+ assert.deepEqual(mergeScopedFile(full,{...full,cohorts:[{id:'new',name:'New',athleteIds:['a-down']}]},scope).cohorts.map(c=>c.id),['new']);
+});

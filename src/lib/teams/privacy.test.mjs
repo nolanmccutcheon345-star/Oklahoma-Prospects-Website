@@ -195,3 +195,26 @@ describe("Fetch-time scope — ClubRecord", () => {
     assert.equal(mine.id, "p-cade");
   });
 });
+
+it('v2: a colliding family identifier does not reveal or edit an unrelated household',()=>{
+ const raw=club(),me={email:'ty@prospectsbaseball.club',familyId:'fam-cade'};
+ raw.teams[0].roster[1].familyId='fam-cade';
+ raw.teams[1].roster[0].familyId='fam-cade';
+ raw.notifications=[{id:'secret',teamId:'t-foreign',audience:'admin',body:'Private staff note'},{id:'family',teamId:'t-13u-navy',audience:'family',body:'Practice'}];
+ const scoped=scopeClub(raw,'parent',me);
+ assert.deepEqual(scoped.teams.map(t=>t.id),['t-13u-navy']);
+ assert.deepEqual(scoped.teams[0].roster.map(p=>p.id),['p-cade']);
+ assert.deepEqual(scoped.notifications.map(n=>n.id),['family']);
+ const incoming=structuredClone(raw);incoming.teams[0].roster[1].order.number='99';
+ assert.equal(mergeSave(raw,incoming,'parent',me).teams[0].roster[1].order.number,'7');
+});
+it('v2: persisted guardian membership authorizes only its linked household',()=>{
+ const raw=club(),me={email:'second-guardian@example.invalid',familyId:'not-used',familyIds:['fam-cade']};
+ assert.deepEqual(scopeClub(raw,'parent',me).teams[0].roster.map(p=>p.id),['p-cade']);
+ assert.equal(fetchPlayerRecord(raw,'parent',me,'p-other'),null);
+ assert.equal(scopeClub(raw,'parent',{...me,familyIds:[]}).teams.length,0);
+});
+it('v2: browser saves cannot replace administrative audit history',()=>{
+ const raw=club(),incoming={...structuredClone(raw),audit:[]};
+ assert.deepEqual(mergeSave(raw,incoming,'admin',{email:'owner@example.invalid',familyId:''}).audit,raw.audit);
+});
