@@ -135,6 +135,7 @@ function FamilyPage() {
       <FamilyApp
         club={club}
         familyId={familyId || state.me.familyId}
+        familyIds={state.role==='admin'?[familyId||state.me.familyId]:state.me.familyIds}
         isPlayer={state.role === "player"}
         lang={lang}
         onChange={setClub}

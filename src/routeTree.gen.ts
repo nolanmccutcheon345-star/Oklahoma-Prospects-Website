@@ -29,6 +29,7 @@ import { Route as PayRouteImport } from './routes/pay'
 import { Route as PrivacyRouteImport } from './routes/privacy'
 import { Route as RecruitingRouteImport } from './routes/recruiting'
 import { Route as TeamsRouteImport } from './routes/teams'
+import { Route as TermsRouteImport } from './routes/terms'
 import { Route as TrainingRouteImport } from './routes/training'
 import { Route as TryoutsRouteImport } from './routes/tryouts'
 import { Route as TwoFactorRouteImport } from './routes/two-factor'
@@ -139,6 +140,11 @@ const TeamsRoute = TeamsRouteImport.update({
   path: '/teams',
   getParentRoute: () => rootRouteImport,
 } as any)
+const TermsRoute = TermsRouteImport.update({
+  id: '/terms',
+  path: '/terms',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const TrainingRoute = TrainingRouteImport.update({
   id: '/training',
   path: '/training',
@@ -206,6 +212,7 @@ export interface FileRoutesByFullPath {
   '/privacy': typeof PrivacyRoute
   '/recruiting': typeof RecruitingRoute
   '/teams': typeof TeamsRoute
+  '/terms': typeof TermsRoute
   '/training': typeof TrainingRoute
   '/tryouts': typeof TryoutsRoute
   '/two-factor': typeof TwoFactorRoute
@@ -237,6 +244,7 @@ export interface FileRoutesByTo {
   '/privacy': typeof PrivacyRoute
   '/recruiting': typeof RecruitingRoute
   '/teams': typeof TeamsRoute
+  '/terms': typeof TermsRoute
   '/training': typeof TrainingRoute
   '/tryouts': typeof TryoutsRoute
   '/two-factor': typeof TwoFactorRoute
@@ -269,6 +277,7 @@ export interface FileRoutesById {
   '/privacy': typeof PrivacyRoute
   '/recruiting': typeof RecruitingRoute
   '/teams': typeof TeamsRoute
+  '/terms': typeof TermsRoute
   '/training': typeof TrainingRoute
   '/tryouts': typeof TryoutsRoute
   '/two-factor': typeof TwoFactorRoute
@@ -302,6 +311,7 @@ export interface FileRouteTypes {
     | '/privacy'
     | '/recruiting'
     | '/teams'
+    | '/terms'
     | '/training'
     | '/tryouts'
     | '/two-factor'
@@ -333,6 +343,7 @@ export interface FileRouteTypes {
     | '/privacy'
     | '/recruiting'
     | '/teams'
+    | '/terms'
     | '/training'
     | '/tryouts'
     | '/two-factor'
@@ -364,6 +375,7 @@ export interface FileRouteTypes {
     | '/privacy'
     | '/recruiting'
     | '/teams'
+    | '/terms'
     | '/training'
     | '/tryouts'
     | '/two-factor'
@@ -396,6 +408,7 @@ export interface RootRouteChildren {
   PrivacyRoute: typeof PrivacyRoute
   RecruitingRoute: typeof RecruitingRoute
   TeamsRoute: typeof TeamsRoute
+  TermsRoute: typeof TermsRoute
   TrainingRoute: typeof TrainingRoute
   TryoutsRoute: typeof TryoutsRoute
   TwoFactorRoute: typeof TwoFactorRoute
@@ -549,6 +562,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof TeamsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/terms': {
+      id: '/terms'
+      path: '/terms'
+      fullPath: '/terms'
+      preLoaderRoute: typeof TermsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/training': {
       id: '/training'
       path: '/training'
@@ -636,6 +656,7 @@ const rootRouteChildren: RootRouteChildren = {
   PrivacyRoute: PrivacyRoute,
   RecruitingRoute: RecruitingRoute,
   TeamsRoute: TeamsRoute,
+  TermsRoute: TermsRoute,
   TrainingRoute: TrainingRoute,
   TryoutsRoute: TryoutsRoute,
   TwoFactorRoute: TwoFactorRoute,

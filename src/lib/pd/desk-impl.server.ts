@@ -152,7 +152,8 @@ export async function saveDeskForUser(userId: string, incoming: DevelopmentData)
   const full = await readWorkingFile();
   const scope = scopeForViewer(viewer, full);
   if (incoming.revision !== full.revision) throw new Error("Another editor saved changes. Reload before saving again.");
-  const merged = mergeScopedFile(full, incoming, scope);
+  const signedMessages=incoming.messages.map(row=>full.messages.find(old=>old.id===row.id)||({...row,fromRole:viewer.role,fromName:viewer.name,createdAt:new Date().toISOString()}));
+  const merged = mergeScopedFile(full, {...incoming,messages:signedMessages}, scope);
   const sql = await getSql();
   return sql.transaction(async tx=>{
   const revision = await writeWorkingFile(merged,tx);

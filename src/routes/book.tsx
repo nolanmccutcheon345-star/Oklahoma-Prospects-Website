@@ -257,7 +257,7 @@ function BookingFunnel({ initial }: { initial?: string }) {
           <legend className="text-sm font-semibold">Start time</legend>
           {slots.length === 0 ? (
             <p className="mt-2 text-sm text-muted">
-              {date === today
+              {lanes.length === 0 ? "Choose a lane to see available times." : loadingSlots ? "Loading available times…" : date === today
                 ? "No remaining windows today. Pick another date."
                 : "No windows on this date. Pick another day."}
             </p>

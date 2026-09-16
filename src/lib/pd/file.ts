@@ -88,20 +88,15 @@ function mergeFamilies(full: Family[], incoming: Family[], scope: PdScope): Fami
   });
 }
 
-function mergeMessages(full: Message[], incoming: Message[], scope: PdScope): Message[] {
-  if (scope.includeCoachNotes) return mergeAthleteRows(full, incoming, scope);
-  const outside = full.filter((row) => !keepAthlete(scope, row.athleteId));
-  const hidden = full.filter(
-    (row) => keepAthlete(scope, row.athleteId) && row.channel === "coach",
-  );
-  const visible = incoming.filter(
-    (row) => keepAthlete(scope, row.athleteId) && row.channel !== "coach",
-  );
-  return [...outside, ...hidden, ...visible];
+function mergeMessages(full:Message[],incoming:Message[],scope:PdScope):Message[] {
+ const existing=new Set(full.map(row=>row.id));
+ const additions=incoming.filter(row=>!existing.has(row.id)&&keepAthlete(scope,row.athleteId)&&(scope.includeCoachNotes||row.channel!=='coach'));
+ return [...full,...additions];
 }
 
 function mergeCohorts(full: DevelopmentData["cohorts"], incoming: DevelopmentData["cohorts"], scope: PdScope) {
   if (scope.athleteIds === "all") return incoming;
+  if (incoming.some(row => row.athleteIds.some(id => !keepAthlete(scope,id)))) throw new Error("A cohort can include only your assigned athletes.");
   const kept = full
     .map((row) => {
       const next = incoming.find((item) => item.id === row.id);
@@ -110,7 +105,7 @@ function mergeCohorts(full: DevelopmentData["cohorts"], incoming: DevelopmentDat
         return outside.length ? { ...row, athleteIds: outside } : null;
       }
       const inside = next.athleteIds.filter((id) => keepAthlete(scope, id));
-      return { ...next, athleteIds: [...outside, ...inside] };
+      return { ...(outside.length ? row : next), athleteIds: [...outside, ...inside] };
     })
     .filter((row): row is NonNullable<typeof row> => Boolean(row));
   const added = incoming.filter((row) => !full.some((item) => item.id === row.id));

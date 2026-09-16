@@ -81,8 +81,7 @@ function staffSeasonPay(team, m) {
 function staffChild(team, m) {
  return m.childId ? team.roster.find((pl) => pl.id === m.childId && !pl.withdrawn) || null : null;
 }
-/* What a staff member may divert to fees. A W-2 check has to keep enough cash
- Contractors have nothing withheld, so the only cap is what the fee owes.   */
+/* Contractor compensation applied to fees cannot exceed the outstanding fee. */
 
 
 function maxDivert(state, team, m) {

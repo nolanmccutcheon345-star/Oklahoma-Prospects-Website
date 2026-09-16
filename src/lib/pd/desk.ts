@@ -1,3 +1,5 @@
+import {validateRecord} from "../record-validation";
+import {emptyDevelopment} from "./empty";
 import { createServerFn } from "@tanstack/react-start";
 import { authMiddleware } from "@/lib/auth/middleware";
 import type { DevelopmentData } from "./types";
@@ -39,6 +41,9 @@ export const savePdDesk = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
   .validator((input: { file: DevelopmentData }) => {
     const file = input?.file;
+    validateRecord(file);
+    const allowed=new Set([...Object.keys(emptyDevelopment()),"revision"]);
+    if(Object.keys(file||{}).some(key=>!allowed.has(key)))throw new Error("Unknown working-record field.");
     if (!file || typeof file !== "object" || !Array.isArray(file.athletes) || !Array.isArray(file.messages)) {
       throw new Error("Forbidden");
     }
@@ -47,6 +52,11 @@ export const savePdDesk = createServerFn({ method: "POST" })
       if (key === "policy" || key === "revision") continue;
       if (!Array.isArray(value) || value.some(row => !row || typeof row !== "object")) throw new Error("Invalid record.");
     }
+    for(const key of ['athletes','families','coaches','cohorts'] as const){
+      const rows=file[key];
+      if(!Array.isArray(rows)||rows.some(row=>typeof row.id!=='string'||!row.id||row.id.length>150)||new Set(rows.map(row=>row.id)).size!==rows.length)throw new Error('Invalid or duplicate record identifiers.');
+    }
+    for(const cohort of file.cohorts)if(!Array.isArray(cohort.athleteIds)||cohort.athleteIds.some(id=>typeof id!=='string'||id.length>150))throw new Error('Invalid cohort members.');
     return { file };
   })
   .handler(async ({ context, data }) => {

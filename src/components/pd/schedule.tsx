@@ -1,12 +1,8 @@
 import {ContractorEarnings} from "@/components/commerce/operations";
-import { useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { pushUndo } from "@/components/pd/polish";
 import { useDevelopment } from "@/lib/pd/context";
 import { FEATURE_LABELS } from "@/lib/pd/content/commerce";
-import { cancelQuote, earningRow, slotsOn, type ProposedSession } from "@/lib/pd/commerce-engine";
-import { featuresForTier, rescheduleFor } from "@/lib/pd/engines";
-import { PD_OS } from "@/lib/pd";
+import { featuresForTier } from "@/lib/pd/engines";
 import type { Booking, Family } from "@/lib/pd/types";
 import type { LessonStart } from "@/components/pd/guided-lesson";
 import { cn } from "@/lib/utils";
@@ -17,132 +13,8 @@ function labelTime(time: string) {
   return `${hour}:${String(m).padStart(2, "0")} ${h < 12 ? "AM" : "PM"}`;
 }
 
-export function SessionPolicyRow({
-  booking,
-  family,
-}: {
-  booking: Booking;
-  family: Family;
-}) {
-  const { data, rescheduleBooking, cancelBooking, restoreBooking } = useDevelopment();
-  const gate = rescheduleFor(booking, family, data);
-  const quote = cancelQuote(booking, data.policy);
-  const [changing, setChanging] = useState(false);
-  const [confirmCancel, setConfirmCancel] = useState(false);
-  const [message, setMessage] = useState("");
-  const alts = useMemo(() => {
-    if (!changing) return [];
-    const coachId = booking.coachId || "c-steve";
-    const out: ProposedSession[] = [];
-    for (let i = 1; i <= 14 && out.length < 8; i++) {
-      const d = new Date(`${booking.date}T12:00:00Z`);
-      d.setUTCDate(d.getUTCDate() + i);
-      const iso = d.toISOString().slice(0, 10);
-      const label = d.toLocaleDateString("en-US", {
-        weekday: "short",
-        month: "short",
-        day: "numeric",
-        timeZone: "UTC",
-      });
-      for (const time of slotsOn(data, coachId, iso) as string[]) {
-        out.push({ coachId, date: iso, dateLabel: label, time });
-        if (out.length >= 8) break;
-      }
-    }
-    return out;
-  }, [booking, changing, data]);
-
-  if (booking.status === "cancelled") {
-    return (
-      <li className="pd-row rounded-xl bg-paper-2 text-muted shadow-border">
-        {booking.date} · {labelTime(booking.time)} · cancelled
-      </li>
-    );
-  }
-
-  return (
-    <li
-      className="pd-row rounded-2xl bg-paper-2 shadow-border"
-      data-session-id={booking.id}
-      data-session-reschedule={gate.ok ? "open" : "blocked"}
-    >
-      <strong>
-        {booking.date} · {labelTime(booking.time)}
-      </strong>
-      <span className="mt-1 block text-sm text-muted">
-        {booking.status}
-        {booking.rescheduledMonth ? " · already moved this month" : ""}
-      </span>
-      <div className="mt-3 flex flex-wrap gap-2">
-        {gate.ok ? (
-          <Button
-            type="button"
-            size="sm"
-            variant="outlineDark"
-            data-reschedule-ok="true"
-            onClick={() => setChanging((v) => !v)}
-          >
-            Reschedule
-          </Button>
-        ) : (
-          <p className="rounded-lg bg-maroon/15 px-3 py-2 text-sm" data-reschedule-blocked="true">
-            {gate.reason}. {gate.detail} Call {PD_OS.phone} for a genuine emergency.
-          </p>
-        )}
-        <Button type="button" size="sm" variant="maroon" onClick={() => setConfirmCancel(true)}>
-          Cancel
-        </Button>
-      </div>
-      {changing ? (
-        <div className="mt-3 grid grid-cols-2 gap-2">
-          {alts.map((slot) => (
-            <button
-              key={`${slot.date}-${slot.time}`}
-              type="button"
-              className="min-h-11 rounded-md bg-paper text-xs font-semibold shadow-border"
-              onClick={() => {
-                const result = rescheduleBooking(booking.id, slot, family.id);
-                setMessage(result.ok ? `Moved to ${slot.dateLabel}` : result.reason || "Could not move.");
-                setChanging(false);
-              }}
-            >
-              {slot.date.slice(5)} {labelTime(slot.time)}
-            </button>
-          ))}
-        </div>
-      ) : null}
-      {confirmCancel ? (
-        <div className="mt-3 rounded-xl bg-paper p-3" data-cancel-quote="true">
-          <p className="text-sm">
-            {quote.label}. Fee before you confirm:{" "}
-            <strong className="pd-num">${quote.fee}</strong>
-            {quote.feePct ? ` (${quote.feePct}%)` : " — free"}.
-          </p>
-          <div className="mt-2 flex gap-2">
-            <Button
-              type="button"
-              size="sm"
-              variant="maroon"
-              onClick={() => {
-                cancelBooking(booking.id);
-                setConfirmCancel(false);
-                pushUndo({
-                  label: `Cancelled ${booking.date}.`,
-                  run: () => restoreBooking(booking.id),
-                });
-              }}
-            >
-              Confirm cancel · ${quote.fee}
-            </Button>
-            <Button type="button" size="sm" variant="outlineDark" onClick={() => setConfirmCancel(false)}>
-              Keep session
-            </Button>
-          </div>
-        </div>
-      ) : null}
-      {message ? <p className="mt-2 text-sm text-muted">{message}</p> : null}
-    </li>
-  );
+export function SessionPolicyRow({booking,family:_family}:{booking:Booking;family:Family}) {
+ return <li className="pd-row rounded-xl bg-paper-2 shadow-border"><strong>{booking.date} · {labelTime(booking.time)}</strong><p>{booking.status}</p><a className="inline-flex min-h-11 items-center underline" href="/family">Manage confirmed booking and view refund options</a><p className="text-sm">Contact the front desk to arrange a different time.</p></li>;
 }
 
 export function LockedFeatures({ tier }: { tier?: string }) {
@@ -280,15 +152,6 @@ export function CoachFloor({
         </ul>
       </div>
     </section>
-  );
-}
-
-function Stat({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="pd-row rounded-xl bg-paper">
-      <p className="text-[0.65rem] font-semibold tracking-widest text-muted uppercase">{label}</p>
-      <p className="pd-num font-display text-2xl">{value}</p>
-    </div>
   );
 }
 

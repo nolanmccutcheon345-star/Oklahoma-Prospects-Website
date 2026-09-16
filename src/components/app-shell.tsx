@@ -1,3 +1,4 @@
+import {SiteFooter} from "./site-footer";
 import { Link, useRouterState } from "@tanstack/react-router";
 import {
   CalendarClock,
@@ -112,6 +113,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       </header>
 
       <div className="flex-1">{children}</div>
+      <SiteFooter/>
 
       <nav
         aria-label="Primary"

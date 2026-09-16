@@ -146,7 +146,6 @@ export function AdminServicesDesk() {
     setError("");
     try {
       await saveService({ data: editing });
-      if(saved.invitation)window.alert(saved.invitation);
       setEditing(null);
       await refresh();
     } catch (err) {
@@ -288,6 +287,7 @@ export function AdminStaffDesk() {
     password: "",
   });
   const [error, setError] = useState("");
+  const [notice,setNotice]=useState("");
   const [busy, setBusy] = useState(false);
   const { data } = useDevelopment();
   async function refresh() {
@@ -311,12 +311,11 @@ export function AdminStaffDesk() {
           access_notes: form.access_notes,
           active: form.active,
           createLogin: form.createLogin,
-          password: form.password || undefined,
         },
       });
-      if(saved.invitation)window.alert(saved.invitation);
       setEditingId(null);
       await refresh();
+      setNotice(saved.invitation||"Changes saved.");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not save that coach.");
     } finally {
@@ -325,6 +324,7 @@ export function AdminStaffDesk() {
   }
   return (
     <section>
+      {notice?<p role="status" className="mb-3">{notice}</p>:null}
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h3 className="text-2xl">Coaches and splits</h3>
@@ -377,7 +377,7 @@ export function AdminStaffDesk() {
         {staff.map((row) => (
           <li key={row.id} className="rounded-2xl bg-paper-2 p-4 shadow-border">
             <p className="font-display text-xl uppercase">{row.name}</p>
-            <p className="text-sm text-muted">{row.email}</p>
+            <p className="text-sm text-muted">{row.email} · {row.active?"Active":"Deactivated"}</p>
             <div className="mt-3 flex flex-wrap gap-2">
               <Button
                 type="button"
@@ -400,27 +400,12 @@ export function AdminStaffDesk() {
                 Edit
               </Button>
               <ArmConfirm
-                label="Delete"
-                armedLabel="Tap again to remove"
+                label="Deactivate"
+                armedLabel="Tap again to deactivate"
                 onConfirm={async () => {
                   await deleteStaff({ data: { id: row.id } });
                   await refresh();
-                  pushUndo({
-                    label: `Removed ${row.name}.`,
-                    run: async () => {
-                      await saveStaff({
-                        data: {
-                          name: row.name,
-                          email: row.email,
-                          phone: row.phone,
-                          role: row.role,
-                          access_notes: row.access_notes,
-                          active: row.active,
-                        },
-                      });
-                      await refresh();
-                    },
-                  });
+
                 }}
               />
             </div>
@@ -444,6 +429,7 @@ export function AdminAccountsDesk() {
     owner?: boolean;
   } | null>(null);
   const [error, setError] = useState("");
+  const [notice,setNotice]=useState("");
   const [busy, setBusy] = useState(false);
   async function refresh() {
     setRows(await listAccounts());
@@ -473,11 +459,11 @@ export function AdminAccountsDesk() {
           email: editing.email,
           role: editing.role,
           playerName: editing.playerName,
-          password: editing.password || undefined,
         },
       });
       setEditing(null);
       await refresh();
+      setNotice(saved.invitation||"Changes saved.");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not save that account.");
     } finally {
@@ -486,6 +472,7 @@ export function AdminAccountsDesk() {
   }
   return (
     <section>
+      {notice?<p role="status" className="mb-3">{notice}</p>:null}
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h3 className="text-2xl">Accounts and access</h3>

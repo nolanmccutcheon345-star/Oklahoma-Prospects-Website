@@ -25,12 +25,13 @@ export async function rateLimit(bucket: string, maximum = 30) {
 
 export async function checkoutContext() {
   const session = await getSessionUser();
+  const me=session?await clubIdentity(session.id):null;
   const sql = await getSql();
   const file = session ? (await loadDeskForUser(session.id)).data : await readWorkingFile();
   const [products, assessments] = await Promise.all([
     sql<Product>`select id,kind,name,price,minutes,credits,remote,expires_days,hours,discipline,active from club_services where active = true`,
     session ? sql<{ athlete_id: string }>`select distinct a.athlete_id from athlete_assessments a
-      join club_athletes c on c.id = a.athlete_id where c.user_id = ${session.id}` : Promise.resolve([]),
+      join club_athletes c on c.id = a.athlete_id where c.household_id = any(${me!.billingHouseholdIds}::text[])` : Promise.resolve([]),
   ]);
   const done = new Set(assessments.map(a => a.athlete_id));
   // Guest callers receive only coach names/specialties and the public catalog.
@@ -56,7 +57,7 @@ export async function quoteForRequest(input: CheckoutInput, requireConsent = tru
     if (!me) throw new Error("Sign in to select an athlete on your account.");
     const desk = await loadDeskForUser(me.userId);
     const athlete = desk.data.athletes.find(a => a.id === input.athleteId);
-    if (!athlete || (me.role !== "admin" && !desk.data.families.some(f => f.id === athlete.familyId && f.email.toLowerCase() === me.email))) throw new Error("This athlete is not in your household.");
+    if (!athlete || (me.role !== "admin" && !desk.data.families.some(f => f.id === athlete.familyId && (me.householdEmails.includes(f.email.toLowerCase()) || f.email.toLowerCase() === me.email)))) throw new Error("This athlete is not in your household.");
     athleteId = athlete.id;
     const [result] = await sql<{ done: boolean }>`select exists(select 1 from athlete_assessments where athlete_id = ${athleteId}) as done`;
     completed = result.done;

@@ -1,9 +1,10 @@
 import type { ClubRecord, Player, Team } from "./types";
 
 const norm = (value:string) => value.trim().toLowerCase();
-function ownsPlayer(player:Player, identity:{email:string;familyId:string}) {
- return Boolean(identity.email) && player.familyId===identity.familyId
-   && (player.parents.some(parent=>norm(parent.email)===norm(identity.email)) || norm(player.email)===norm(identity.email));
+function ownsPlayer(player:Player, identity:{email:string;familyId:string;familyIds?:string[]}) {
+ if(identity.familyIds)return identity.familyIds.includes(player.familyId);
+ return Boolean(identity.email) && (player.familyId===identity.familyId
+   && (player.parents.some(parent=>norm(parent.email)===norm(identity.email)) || norm(player.email)===norm(identity.email)));
 }
 function visibleNotifications(club:ClubRecord,teams:Team[],role:string) {
  const ids=new Set(teams.map(t=>t.id));
@@ -17,7 +18,7 @@ function dropPayment(player: Player): Player {
 export function scopeClub(
   club: ClubRecord,
   role: "admin" | "coach" | "parent" | "player",
-  identity: { email: string; familyId: string },
+  identity: { email: string; familyId: string; familyIds?:string[] },
 ): ClubRecord {
   if (role === "admin") return club;
 
@@ -79,7 +80,7 @@ export function mergeSave(
   stored: ClubRecord,
   incoming: ClubRecord,
   role: "admin" | "coach" | "parent" | "player",
-  identity: { email: string; familyId: string },
+  identity: { email: string; familyId: string; familyIds?:string[] },
 ): ClubRecord {
   if (role === "admin") return { ...incoming, audit: stored.audit, _rev: stored._rev + 1, _savedAt: new Date().toISOString() };
 
@@ -184,7 +185,7 @@ export function familyHoldsPlayer(club: ClubRecord, familyId: string, playerId: 
 export function canFetchTeam(
   club: ClubRecord,
   role: "admin" | "coach" | "parent" | "player",
-  identity: { email: string; familyId: string },
+  identity: { email: string; familyId: string; familyIds?:string[] },
   teamId: string,
 ): boolean {
   const team = club.teams.find((t) => t.id === teamId);
@@ -197,7 +198,7 @@ export function canFetchTeam(
 export function canFetchPlayer(
   club: ClubRecord,
   role: "admin" | "coach" | "parent" | "player",
-  identity: { email: string; familyId: string },
+  identity: { email: string; familyId: string; familyIds?:string[] },
   playerId: string,
 ): boolean {
   if (role === "admin") {
@@ -218,7 +219,7 @@ export function canFetchPlayer(
 export function fetchTeamRecord(
   club: ClubRecord,
   role: "admin" | "coach" | "parent" | "player",
-  identity: { email: string; familyId: string },
+  identity: { email: string; familyId: string; familyIds?:string[] },
   teamId: string,
 ): Team | null {
   if (!canFetchTeam(club, role, identity, teamId)) return null;
@@ -230,7 +231,7 @@ export function fetchTeamRecord(
 export function fetchPlayerRecord(
   club: ClubRecord,
   role: "admin" | "coach" | "parent" | "player",
-  identity: { email: string; familyId: string },
+  identity: { email: string; familyId: string; familyIds?:string[] },
   playerId: string,
 ): Player | null {
   if (!canFetchPlayer(club, role, identity, playerId)) return null;

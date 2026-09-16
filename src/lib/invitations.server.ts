@@ -43,3 +43,11 @@ export async function acceptInvitation(userId:string,id:string) {
   return {ok:true};
  });
 }
+
+export async function myHouseholds(userId:string) {
+ const me=await clubIdentity(userId);const sql=await getSql();
+ const rows=await sql<{id:string;primary_email:string;user_id:string;name:string;email:string}>`select h.id,h.primary_email,u.id as user_id,u.name,u.email
+  from club_households h join household_members m on m.household_id=h.id join "user" u on u.id=m.user_id
+  where h.id=any(${me.familyIds}::text[]) order by h.id,u.name`;
+ return {canInvite:me.role==='parent'||me.role==='admin',userId,rows};
+}

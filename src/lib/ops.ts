@@ -663,7 +663,8 @@ export const saveStaff = createServerFn({ method: "POST" })
       const {issueInvitation}=await import('./invitations.server');
       invitation=(await issueInvitation(context.userId,email,data.role||'coach')).message;
     }
-    await sql`
+    await sql.transaction(async tx => {
+    const [saved] = await tx<{ user_id: string }>`
       insert into club_staff (id, user_id, name, email, phone, role, access_notes, active)
       values (
         ${id},
@@ -683,16 +684,22 @@ export const saveStaff = createServerFn({ method: "POST" })
         role = excluded.role,
         access_notes = excluded.access_notes,
         active = excluded.active
+      returning user_id
     `;
     if (data.offerings) {
-      await sql`delete from club_staff_services where staff_id = ${id}`;
+      await tx`delete from club_staff_services where staff_id = ${id}`;
       for (const offer of data.offerings) {
-        await sql`
+        await tx`
           insert into club_staff_services (staff_id, service_id, profit_split)
           values (${id}, ${offer.serviceId}, ${Math.min(100, Math.max(0, asInt(offer.profitSplit)))})
         `;
       }
     }
+      if (data.active === false && saved?.user_id) {
+        await tx`update profiles set role='parent' where user_id=${saved.user_id} and role='coach'`;
+        await tx`delete from "session" where "userId"=${saved.user_id}`;
+      }
+    });
     return { id, invitation };
   });
 
@@ -702,8 +709,13 @@ export const deleteStaff = createServerFn({ method: "POST" })
   .handler(async ({ context, data }) => {
     await requireAdmin(context.userId);
     const sql = await getSql();
-    await sql`delete from club_staff_services where staff_id = ${data.id}`;
-    await sql`delete from club_staff where id = ${data.id}`;
+    await sql.transaction(async tx=>{
+      const [staff]=await tx<{user_id:string}>`update club_staff set active=false where id=${data.id} returning user_id`;
+      if(staff?.user_id){
+        await tx`update profiles set role='parent' where user_id=${staff.user_id} and role='coach'`;
+        await tx`delete from "session" where "userId"=${staff.user_id}`;
+      }
+    });
     return { ok: true as const };
   });
 

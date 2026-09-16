@@ -1,13 +1,13 @@
 import {AccountSecurity} from "@/components/account-security";
 import {pageHead} from "@/lib/seo";
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useEffect, useState, lazy, Suspense } from "react";
 import { RedirectToSignIn, UserButton } from "@/lib/auth/gates";
 import { useCurrentUser, useCurrentUserState } from "@/lib/auth/use-current-user";
 import { Button } from "@/components/ui/button";
 import { PageHero } from "@/components/page-hero";
 import { DevelopmentProvider } from "@/lib/pd/context";
-import { PdWorkspace } from "@/components/pd/workspace";
+const PdWorkspace=lazy(()=>import("@/components/pd/workspace").then(m=>({default:m.PdWorkspace})));
 import { PdErrorBoundary } from "@/components/pd/error-boundary";
 import { getProfile, saveProfile, type ClubRole } from "@/lib/club-data";
 import { ROLE_LABEL } from "@/lib/pd";
@@ -184,7 +184,7 @@ function AccountHome() {
         <AccountSecurity/>
         <Link to="/invitations" className="inline-flex min-h-11 items-center underline">Your invitations</Link>
         <PdErrorBoundary section="Train · account">
-          <PdWorkspace profile={profile} />
+          <Suspense fallback={<p role="status">Loading your workspace…</p>}><PdWorkspace profile={profile} /></Suspense>
         </PdErrorBoundary>
       </div>
     </main>

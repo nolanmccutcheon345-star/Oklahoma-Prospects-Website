@@ -13,9 +13,9 @@ import { redemptionInput } from './redemption';
 type Input=z.infer<typeof redemptionInput>;
 type Grant={id:string;user_id:string;athlete_id:string;order_id:string;kind:string;minutes:number;remaining:number;starts_at:Date;expires_at:Date;product_id:string};
 async function context(userId:string,input:Input) {
-  await clubIdentity(userId);const sql=await getSql();
+  const me=await clubIdentity(userId);const sql=await getSql();
   const [grant]=await sql<Grant>`select g.*,o.product_id from credit_grants g join commerce_orders o on o.id=g.order_id
-    where g.id=${input.grantId} and g.user_id=${userId} and g.remaining>0 and g.starts_at<=now() and g.expires_at>now() and o.status='paid'`;
+    where g.id=${input.grantId} and g.household_id=any(${me.billingHouseholdIds}::text[]) and g.remaining>0 and g.starts_at<=now() and g.expires_at>now() and o.status='paid'`;
   if(!grant)throw new Error('This credit is unavailable or has expired.');
   const file=await readWorkingFile();let minutes=grant.minutes,resources:string[],quantity=1;
   if(grant.kind==='cage-minutes') {
@@ -34,7 +34,7 @@ async function context(userId:string,input:Input) {
     resources=[`coach:${input.coachId}`,`athlete:${grant.athlete_id}`,...(grant.kind==='remote-review'?[]:await lessonResources(service.id,sql))];
   }
   if(quantity>grant.remaining)throw new Error('Not enough credits for this booking.');
-  return {sql,grant,file,minutes,quantity,resources};
+  return {sql,grant,file,minutes,quantity,resources,me};
 }
 export async function creditSlots(userId:string,input:Input) {
   const {sql,grant,file,minutes,resources}=await context(userId,input);
@@ -53,7 +53,7 @@ export async function redeemCredit(userId:string,input:Input) {
   const read = await getSql();
   const prior=await read`select id from club_requests where id=${`redeem:${input.requestId}`} and user_id=${userId}`;
   if(prior.length)return {ok:true};
-  const {sql,grant,file,minutes,quantity,resources}=await context(userId,input);
+  const {sql,grant,file,minutes,quantity,resources,me}=await context(userId,input);
   return sql.transaction(async tx=>{
     const key=`redeem:${input.requestId}`;
     const previous=await tx`select id from club_requests where id=${key} and user_id=${userId}`;
@@ -61,7 +61,7 @@ export async function redeemCredit(userId:string,input:Input) {
     const [paid]=await tx`select id from commerce_orders where id=${grant.order_id} and status='paid' for update`;
     if(!paid)throw new Error('This purchase is no longer available for credit booking.');
     await tx`insert into club_requests(id,user_id,kind,payload,status) values(${key},${userId},'credit-redemption',${JSON.stringify({grantId:grant.id})}::jsonb,'completed')`;
-    const rows=await tx`update credit_grants set remaining=remaining-${quantity} where id=${grant.id} and user_id=${userId} and remaining>=${quantity} and expires_at>now() returning id`;
+    const rows=await tx`update credit_grants set remaining=remaining-${quantity} where id=${grant.id} and household_id=any(${me.billingHouseholdIds}::text[]) and remaining>=${quantity} and expires_at>now() returning id`;
     if(!rows.length)throw new Error('This credit was used in another booking. Reload your account.');
     if(grant.kind==='remote-review') {
       if(!input.videoUrl||!input.videoUrl.startsWith('https://'))throw new Error('Add a secure video link for your coach.');

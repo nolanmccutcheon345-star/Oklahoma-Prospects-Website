@@ -111,6 +111,7 @@ function PayPage() {
       </fieldset> : null}
       {recurring ? <label className="flex min-h-11 items-start gap-3"><input className="mt-1 size-5" type="checkbox" required checked={consent} onChange={e=>setConsent(e.target.checked)}/><span>I agree to the first-month total and the regular monthly amount shown above. My membership renews monthly until I cancel. <Link to="/family" className="underline">Stop auto-renew in the family portal</Link>.</span></label> : <p className="text-sm">{CANCEL_POLICY.copy}</p>}
       {context?.mode === "test" ? <p role="status" className="rounded-lg bg-paper-2 p-3 font-semibold">Stripe test checkout · use test cards only. No real payment will be collected.</p> : null}
+      <p className="text-sm"><Link to="/terms" className="underline">Booking terms</Link> · <Link to="/privacy" className="underline">Privacy</Link></p>
       {context?.mode === "disabled" ? <p className="rounded-lg bg-paper-2 p-3">Call the front desk to reserve. Online card checkout is not active yet. <a className="underline" href="tel:+19189228114">Call (918) 922-8114</a> to reserve.</p> : <Button type="submit" className="w-full" disabled={busy || locked || !quote || (quote.needsSlot && !slots.some(s=>s.value===time)) || (recurring && !consent)}>{busy ? "Opening secure checkout…" : recurring ? "Start membership" : "Continue to secure payment"}</Button>}
     </form> : null}
   </main>;

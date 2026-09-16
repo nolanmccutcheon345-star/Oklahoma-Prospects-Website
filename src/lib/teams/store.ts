@@ -1,15 +1,17 @@
+import {z} from "zod";
+import {parseClubSave} from "./contracts";
 import { randomUUID } from "node:crypto";
 import { createServerFn } from "@tanstack/react-start";
 import { authMiddleware } from "@/lib/auth/middleware";
-import { getSql } from "@/lib/db";
+import { getSql, type Sql } from "@/lib/db";
 import { getProfile } from "@/lib/club-data";
 import { clubIdentity } from "@/lib/identity.server";
-import { mergeSave, scopeClub, familyHoldsPlayer, fetchTeamRecord, fetchPlayerRecord } from "./privacy";
+import { mergeSave, scopeClub, fetchTeamRecord, fetchPlayerRecord } from "./privacy";
 import { emptyClub, sampleClub } from "./seed";
 import type { ClubRecord, Player, Team } from "./types";
 import type { ClubRole } from "@/lib/club-data";
 
-type Identity = { email: string; familyId: string; role: ClubRole; name: string };
+type Identity = { email: string; familyId: string; familyIds:string[]; role: ClubRole; name: string };
 
 async function identity(userId: string): Promise<Identity> {
   const me = await clubIdentity(userId);
@@ -31,8 +33,8 @@ async function loadRaw(): Promise<ClubRecord | null> {
   return { ...parsed, _rev: row.rev, _demo: row.demo };
 }
 
-async function writeRaw(club: ClubRecord, expectedRev?: number) {
-  const sql = await getSql();
+async function writeRaw(club: ClubRecord, expectedRev?: number, transaction?:Sql) {
+  const sql = transaction || await getSql();
   const rows = expectedRev === undefined
     ? await sql`insert into club_state (id, rev, demo, payload, updated_at)
         values ('oklahoma-prospects', ${club._rev}, ${club._demo}, ${JSON.stringify(club)}::jsonb, now())
@@ -62,7 +64,7 @@ export const getTeamsClub = createServerFn({ method: "POST" })
 
 export const onboardTeamsClub = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
-  .validator((input: { mode: "empty" | "sample" }) => input)
+  .validator(z.object({mode:z.enum(["empty","sample"])}).strict())
   .handler(async ({ context, data }) => {
     const me = await identity(context.userId);
     if (me.role !== "admin") throw new Error("Front office only.");
@@ -76,7 +78,7 @@ export const onboardTeamsClub = createServerFn({ method: "POST" })
 
 export const saveTeamsClub = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
-  .validator((input: { club: ClubRecord; baseRev: number }) => input)
+  .validator(parseClubSave)
   .handler(async ({ context, data }) => {
     const me = await identity(context.userId);
     const stored = await loadRaw();
@@ -96,15 +98,7 @@ export const saveTeamsClub = createServerFn({ method: "POST" })
 
 export const recordTeamPayment = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
-  .validator(
-    (input: {
-      teamId: string;
-      playerId: string;
-      amount: number;
-      method: string;
-      label: string;
-    }) => input,
-  )
+  .validator(z.object({teamId:z.string().min(1).max(150),playerId:z.string().min(1).max(150),amount:z.number().finite().positive().max(100000),method:z.string().min(1).max(80),label:z.string().min(1).max(200)}).strict())
   .handler(async ({ context, data }) => {
     const me = await identity(context.userId);
     if (me.role !== "admin") {
@@ -148,7 +142,7 @@ export const recordTeamPayment = createServerFn({ method: "POST" })
 
 export const getTeamRoster = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
-  .validator((input: { teamId: string }) => input)
+  .validator(z.object({teamId:z.string().min(1).max(150)}).strict())
   .handler(async ({ context, data }) => {
     const me = await identity(context.userId);
     const club = await loadRaw();
@@ -160,7 +154,7 @@ export const getTeamRoster = createServerFn({ method: "POST" })
 
 export const getPlayerRecord = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
-  .validator((input: { teamId: string; playerId: string }) => input)
+  .validator(z.object({teamId:z.string().min(1).max(150),playerId:z.string().min(1).max(150)}).strict())
   .handler(async ({ context, data }) => {
     const me = await identity(context.userId);
     const club = await loadRaw();
@@ -237,7 +231,7 @@ function blankPlayer(input: {
 
 export const officeAddTeam = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
-  .validator((input: { name: string; age: string; sport: "baseball" | "softball" }) => input)
+  .validator(z.object({name:z.string().trim().min(1).max(200),age:z.string().trim().max(30),sport:z.enum(["baseball","softball"])}).strict())
   .handler(async ({ context, data }) => {
     const me = await identity(context.userId);
     if (me.role !== "admin") throw new Error("Front office only.");
@@ -287,9 +281,7 @@ export const officeAddTeam = createServerFn({ method: "POST" })
 
 export const officeAddPlayer = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
-  .validator(
-    (input: { teamId: string; name: string; parentName: string; parentEmail: string }) => input,
-  )
+  .validator(z.object({teamId:z.string().min(1).max(150),name:z.string().trim().min(1).max(200),parentName:z.string().trim().max(200),parentEmail:z.string().trim().email().max(254)}).strict())
   .handler(async ({ context, data }) => {
     const me = await identity(context.userId);
     if (me.role !== "admin") throw new Error("Front office only.");
@@ -300,7 +292,11 @@ export const officeAddPlayer = createServerFn({ method: "POST" })
     const playerName = data.name.trim();
     const parentEmail = data.parentEmail.trim().toLowerCase();
     if (!playerName || !parentEmail) throw new Error("Player name and parent email are required.");
-    const familyId = stored.teams.flatMap(t=>t.roster).find(p=>p.parents.some(parent=>parent.email.trim().toLowerCase()===parentEmail))?.familyId || "fam-"+randomUUID();
+    const db=await getSql();
+    await db`insert into club_households(id,primary_email) values(${'fam-'+randomUUID()},${parentEmail}) on conflict(primary_email) do nothing`;
+    const [household]=await db<{id:string}>`select id from club_households where primary_email=${parentEmail}`;
+    const familyId=household.id;
+
     const player = blankPlayer({
       teamId: team.id,
       familyId,
@@ -330,3 +326,35 @@ export const officeAddPlayer = createServerFn({ method: "POST" })
     return { ok: true as const, club: scopeClub(stored, "admin", me) };
   });
 
+
+export const reviewTeamInquiry=createServerFn({method:'POST'}).middleware([authMiddleware])
+ .validator(z.object({id:z.string().min(1).max(150),teamId:z.string().min(1).max(150),stage:z.enum(['registered','evaluated','offer','accepted','waitlist'])}).strict())
+ .handler(async({context,data})=>{
+  const me=await identity(context.userId);if(me.role!=='admin')throw new Error('Front office only.');
+  const sql=await getSql();
+  return sql.transaction(async tx=>{
+   const [request]=await tx<{kind:string;payload:{player:string;parent:string;email:string;age:string;rosterPlayerId?:string}}> `select kind,payload from club_requests where id=${data.id} for update`;
+   if(!request||!['tryout','team-inquiry'].includes(request.kind))throw new Error('Choose a tryout or team inquiry.');
+   const [row]=await tx<{payload:ClubRecord;rev:number}>`select payload,rev from club_state where id='oklahoma-prospects' for update`;
+   if(!row)throw new Error('Open the club record first.');
+   const club={...row.payload,_rev:row.rev},team=club.teams.find(t=>t.id===data.teamId);
+   if(!team)throw new Error('Choose a current team.');
+   if(request.payload.rosterPlayerId)return {ok:true,message:'This registration is already on a roster.'};
+   const leadId='inquiry-'+data.id,prior=club.leads.find(l=>l.id===leadId);
+   const lead={id:leadId,name:request.payload.player,age:request.payload.age,stage:data.stage,grades:prior?.grades||{},teamId:team.id};
+   club.leads=[...club.leads.filter(l=>l.id!==leadId),lead];
+   let rosterPlayerId:string|undefined;
+   if(data.stage==='accepted'){
+    const email=z.string().email().parse(request.payload.email).toLowerCase();
+    await tx`insert into club_households(id,primary_email) values(${'fam-'+randomUUID()},${email}) on conflict(primary_email) do nothing`;
+    const [household]=await tx<{id:string}>`select id from club_households where primary_email=${email}`;
+    const player=blankPlayer({teamId:team.id,familyId:household.id,name:request.payload.player,parentName:request.payload.parent,parentEmail:email});
+    team.roster.push(player);rosterPlayerId=player.id;
+    await tx`insert into club_invites(id,token_hash,email,team_id,family_id,invited_by,role,expires_at) values(${randomUUID()},${randomUUID()},${email},${team.id},${household.id},${context.userId},'parent',now()+interval '7 days')`;
+   }
+   const revision=club._rev;club._rev++;club._savedAt=new Date().toISOString();
+   await writeRaw(club,revision,tx);
+   await tx`update club_requests set status=${data.stage},payload=payload||${JSON.stringify({stage:data.stage,teamId:team.id,...(rosterPlayerId?{rosterPlayerId}:{})})}::jsonb where id=${data.id}`;
+   return {ok:true,message:rosterPlayerId?'Added to the roster. Ask the guardian to sign in at /invitations to accept access.':'Registration stage saved.'};
+  });
+ });

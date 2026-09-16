@@ -6,13 +6,13 @@ import { BOOKABLE_LANES } from '../club';
 export async function setParticipants(userId:string,id:string,athleteIds:string[]) {
  const me=await clubIdentity(userId);const sql=await getSql();
  return sql.transaction(async tx=>{
-  const [booking]=await tx<{id:string;participant_count:number;starts_at:Date;ends_at:Date;athlete_id:string|null}>`select * from booking_records where id=${id} and (user_id=${userId} or ${me.role==='admin'}) and status='confirmed' and checked_in_at is null for update`;
+  const [booking]=await tx<{id:string;participant_count:number;starts_at:Date;ends_at:Date;athlete_id:string|null;household_id:string}>`select * from booking_records where id=${id} and (household_id=any(${me.billingHouseholdIds}::text[]) or ${me.role==='admin'}) and status='confirmed' and checked_in_at is null for update`;
   if(!booking)throw new Error('Choose an upcoming confirmed reservation that has not been checked in.');
   if(new Date(booking.ends_at)<=new Date())throw new Error('This reservation has ended.');
   const ids=[...new Set(athleteIds)];
   if(ids.length!==booking.participant_count)throw new Error(`Choose all ${booking.participant_count} participating athletes.`);
   if(booking.athlete_id&&!ids.includes(booking.athlete_id))throw new Error('The booked athlete must participate.');
-  const athletes=await tx`select id from club_athletes where id=any(${ids}::text[]) and (user_id=${userId} or ${me.role==='admin'})`;
+  const athletes=await tx`select id from club_athletes where id=any(${ids}::text[]) and (household_id=${booking.household_id} or ${me.role==='admin'})`;
   if(athletes.length!==ids.length)throw new Error('Choose athletes in your household.');
   await tx`delete from booking_occupancy where booking_id=${id} and resource_id like 'athlete:%'`;
   await tx`delete from booking_participants where booking_id=${id}`;
@@ -54,7 +54,7 @@ export async function recordSettlement(userId:string,bookingId:string,reference:
 export async function officeOperations(userId:string) {
  const me=await clubIdentity(userId);if(me.role!=='admin')throw new Error('Owner access required.');
  const sql=await getSql();
- const [bookings,resources,counts,events]=await Promise.all([
+ const [bookings,resources,counts,events,athletes]=await Promise.all([
   sql<{id:string;product_id:string;starts_at:Date;status:string;checked_in_at:Date|null;participant_count:number;participant_names:string|null;missing_waivers:number}>`select b.id,b.product_id,b.starts_at,b.status,b.checked_in_at,b.participant_count,
    string_agg(a.name,', ') as participant_names,
    count(*) filter(where a.id is null or not exists(select 1 from club_waivers w where w.athlete_id=a.id and w.signed_at+interval '1 year'>now()))::integer as missing_waivers
@@ -69,8 +69,9 @@ export async function officeOperations(userId:string) {
    (select coalesce(sum(total_cents),0) from commerce_orders where status='paid') as paid_cents,
    (select count(*)::integer from commerce_orders where status='payment_review') as open_review`,
   sql<{id:number;actor_id:string;action:string;target_table:string;target_id:string;created_at:Date}>`select id,actor_id,action,target_table,target_id,created_at from audit_events order by id desc limit 100`,
+  sql<{id:string;name:string}>`select id,name from club_athletes where user_id is not null order by name limit 2000`,
  ]);
- return {bookings,resources,counts:counts[0],events};
+ return {bookings,resources,counts:counts[0],events,athletes};
 }
 export async function saveServiceResources(userId:string,serviceId:string,laneIds:string[]) {
  const me=await clubIdentity(userId);if(me.role!=='admin')throw new Error('Owner access required.');

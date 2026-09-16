@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { Button } from "@/components/ui/button";
-import { recordTeamPayment } from "@/lib/teams/store";
 import type { ClubRecord, Player } from "@/lib/teams/types";
 import { balance, docsComplete } from "@/lib/teams/pricing";
 import { Section } from "./ui";
@@ -37,13 +36,14 @@ const copy = {
 export function FamilyApp({
   club,
   familyId,
+  familyIds,
   isPlayer,
   lang,
   onChange,
-  onReload,
 }: {
   club: ClubRecord;
   familyId: string;
+  familyIds?:string[];
   isPlayer: boolean;
   lang: "en" | "es";
   onChange: (club: ClubRecord) => void;
@@ -51,7 +51,7 @@ export function FamilyApp({
 }) {
   const t = copy[lang];
   const mine = club.teams.flatMap((team) =>
-    team.roster.filter((p) => p.familyId === familyId).map((p) => ({ team, player: p })),
+    team.roster.filter((p) => (familyIds||[familyId]).includes(p.familyId)).map((p) => ({ team, player: p })),
   );
   const [active, setActive] = useState(mine[0]?.player.id ?? "");
   const row = mine.find((m) => m.player.id === active) ?? mine[0];
@@ -102,6 +102,7 @@ export function FamilyApp({
           {mine.map((m) => (
             <button
               key={m.player.id}
+              aria-pressed={active===m.player.id}
               type="button"
               className="min-h-11 rounded-full bg-paper-2 px-3 text-sm font-semibold"
               onClick={() => setActive(m.player.id)}

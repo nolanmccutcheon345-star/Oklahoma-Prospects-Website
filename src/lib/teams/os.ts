@@ -30,7 +30,7 @@ export const TEAM_DESKS = {
     { id: "close", label: "Season Close" },
     { id: "teams", label: "Teams" },
     { id: "staff", label: "Staff" },
-    { id: "payroll", label: "Payroll" },
+    { id: "payroll", label: "Contractor payouts" },
     { id: "tryouts", label: "Tryouts" },
     { id: "analytics", label: "Analytics" },
     { id: "archive", label: "Archive" },

@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { getSql } from "../db";
+import { getSql, type Sql } from "../db";
 import { clubIdentity } from "../identity.server";
 import { refundCents, ASSESSMENT_PRODUCTS } from "../pricing";
 import { stripeClient, checkoutOrigin } from "./stripe.server";
@@ -7,18 +7,21 @@ import { readWorkingFile } from "../pd/desk-impl.server";
 import type { Quote } from "./contracts";
 import { prepareCancellation } from "./store.server";
 
-export async function familyBilling(userId: string) {
-  await clubIdentity(userId); const sql = await getSql();
+export async function familyBilling(userId: string,page=0) {
+  const me = await clubIdentity(userId); const sql = await getSql();
+  return readFamilyBilling(sql,me,page);
+}
+export async function readFamilyBilling(sql:Sql,me:Awaited<ReturnType<typeof clubIdentity>>,page=0) {
   const [orders, bookings, subscriptions, invoices, credits, athletes, requests] = await Promise.all([
-    sql<{ id:string; product_id:string; snapshot:Quote; total_cents:number; status:string; receipt_url:string|null; created_at:Date }>`select id,product_id,snapshot,total_cents,status,receipt_url,created_at from commerce_orders where user_id = ${userId} order by created_at desc limit 200`,
-    sql<{ id:string; order_id:string; product_id:string; starts_at:Date; ends_at:Date; status:string; participant_count:number; checked_in_at:Date|null }>`select id,order_id,product_id,starts_at,ends_at,status,participant_count,checked_in_at from booking_records where user_id = ${userId} order by starts_at desc limit 200`,
-    sql<{ id:string; product_id:string; amount_cents:number; status:string; period_end:Date; cancel_at_period_end:boolean; pause_requested_at:Date|null }>`select id,product_id,amount_cents,status,period_end,cancel_at_period_end,pause_requested_at from club_subscriptions where user_id = ${userId} order by period_end desc`,
-    sql<{ id:string; amount_cents:number; status:string; invoice_url:string|null; pdf_url:string|null; created_at:Date }>`select id,amount_cents,status,invoice_url,pdf_url,created_at from billing_invoices where user_id = ${userId} order by created_at desc limit 200`,
-    sql<{ id:string; kind:string; minutes:number; remaining:number; expires_at:Date; rollover:boolean; athlete_id:string }>`select id,kind,minutes,remaining,expires_at,rollover,athlete_id from credit_grants where user_id = ${userId} and remaining > 0 and starts_at <= now() and expires_at > now() and order_id in (select id from commerce_orders where status='paid') order by expires_at`,
-    sql<{ id:string; name:string; birth_date:string|null; assessment_complete:boolean }>`select id,name,birth_date,exists(select 1 from athlete_assessments a where a.athlete_id = c.id) as assessment_complete from club_athletes c where user_id = ${userId}`,
-    sql<{ id:string; kind:string; status:string; created_at:Date }>`select id,kind,status,created_at from club_requests where user_id = ${userId} order by created_at desc limit 100`,
+    sql<{ id:string; product_id:string; snapshot:Quote; total_cents:number; status:string; receipt_url:string|null; created_at:Date }>`select id,product_id,snapshot,total_cents,status,receipt_url,created_at from commerce_orders where household_id = any(${me.billingHouseholdIds}::text[]) order by created_at desc,id desc limit 50 offset ${page*50}`,
+    sql<{ id:string; order_id:string; product_id:string; starts_at:Date; ends_at:Date; status:string; participant_count:number; completion_recap:string|null; checked_in_at:Date|null }>`select id,order_id,product_id,starts_at,ends_at,status,participant_count,completion_recap,checked_in_at from booking_records where household_id = any(${me.billingHouseholdIds}::text[]) order by starts_at desc,id desc limit 50 offset ${page*50}`,
+    sql<{ id:string; product_id:string; amount_cents:number; status:string; period_end:Date; cancel_at_period_end:boolean; pause_requested_at:Date|null }>`select id,product_id,amount_cents,status,period_end,cancel_at_period_end,pause_requested_at from club_subscriptions where household_id = any(${me.billingHouseholdIds}::text[]) order by period_end desc`,
+    sql<{ id:string; amount_cents:number; status:string; invoice_url:string|null; pdf_url:string|null; created_at:Date }>`select id,amount_cents,status,invoice_url,pdf_url,created_at from billing_invoices where household_id = any(${me.billingHouseholdIds}::text[]) order by created_at desc,id desc limit 50 offset ${page*50}`,
+    sql<{ id:string; kind:string; minutes:number; remaining:number; expires_at:Date; rollover:boolean; athlete_id:string }>`select id,kind,minutes,remaining,expires_at,rollover,athlete_id from credit_grants where household_id = any(${me.billingHouseholdIds}::text[]) and remaining > 0 and starts_at <= now() and expires_at > now() and order_id in (select id from commerce_orders where status='paid') order by expires_at`,
+    sql<{ id:string; name:string; birth_date:string|null; assessment_complete:boolean }>`select id,name,birth_date,exists(select 1 from athlete_assessments a where a.athlete_id = c.id) as assessment_complete from club_athletes c where household_id = any(${me.billingHouseholdIds}::text[])`,
+    sql<{ id:string; kind:string; status:string; created_at:Date }>`select id,kind,status,created_at from club_requests where user_id = ${me.userId} order by created_at desc limit 100`,
   ]);
-  return { orders, bookings, subscriptions, invoices, credits, athletes, requests };
+  return { orders, bookings, subscriptions, invoices, credits, athletes, requests, historyHasMore:orders.length===50||bookings.length===50||invoices.length===50 };
 }
 
 export async function claimGuestOrders(userId: string) {
@@ -37,8 +40,8 @@ export async function claimGuestOrders(userId: string) {
 }
 
 export async function cancelRenewal(userId: string, subscriptionId: string) {
-  await clubIdentity(userId); const sql = await getSql();
-  const [sub] = await sql<{id:string;period_end:Date}>`select id,period_end from club_subscriptions where id = ${subscriptionId} and user_id = ${userId}`;
+  const me = await clubIdentity(userId); const sql = await getSql();
+  const [sub] = await sql<{id:string;period_end:Date}>`select id,period_end from club_subscriptions where id = ${subscriptionId} and household_id = any(${me.billingHouseholdIds}::text[])`;
   if (!sub) throw new Error("Membership not found.");
   const current = await stripeClient().subscriptions.update(sub.id, {cancel_at_period_end:true}, {idempotencyKey:`stop-renewal:${sub.id}:${new Date(sub.period_end).toISOString()}`});
   await sql`update club_subscriptions set cancel_at_period_end = ${current.cancel_at_period_end}, updated_at = now() where id = ${sub.id}`;
@@ -48,15 +51,15 @@ export async function cancelRenewal(userId: string, subscriptionId: string) {
 export async function billingPortal(userId: string, subscriptionId: string) {
   await clubIdentity(userId); const sql = await getSql();
   const [sub] = await sql<{customer_id:string}>`select customer_id from club_subscriptions where id = ${subscriptionId} and user_id = ${userId}`;
-  if (!sub) throw new Error("Membership not found.");
+  if (!sub) throw new Error("Only the original purchaser can manage saved payment methods.");
   const session = await stripeClient().billingPortal.sessions.create({customer:sub.customer_id,return_url:`${checkoutOrigin()}/family`});
   return { url:session.url };
 }
 
 export async function requestPause(userId: string, id: string, reason: string) {
-  await clubIdentity(userId); const sql = await getSql();
+  const me = await clubIdentity(userId); const sql = await getSql();
   return sql.transaction(async tx=>{
-    const [sub] = await tx`update club_subscriptions set pause_requested_at = now() where id = ${id} and user_id = ${userId} returning id`;
+    const [sub] = await tx`update club_subscriptions set pause_requested_at = now() where id = ${id} and household_id = any(${me.billingHouseholdIds}::text[]) returning id`;
     if (!sub) throw new Error("Membership not found.");
     await tx`insert into club_requests (id,user_id,kind,payload) values (${randomUUID()},${userId},'membership-pause',${JSON.stringify({subscriptionId:id,reason})}::jsonb)`;
     return {ok:true};
@@ -66,7 +69,7 @@ export async function requestPause(userId: string, id: string, reason: string) {
 async function refundableOrder(userId: string, orderId: string) {
   const me = await clubIdentity(userId); const sql = await getSql();
   const [order] = await sql<{id:string;total_cents:number;status:string;payment_intent_id:string|null;snapshot:Quote}>`
-    select id,total_cents,status,payment_intent_id,snapshot from commerce_orders where id = ${orderId} and (user_id = ${userId} or ${me.role === "admin"})`;
+    select id,total_cents,status,payment_intent_id,snapshot from commerce_orders where id = ${orderId} and (household_id = any(${me.billingHouseholdIds}::text[]) or ${me.role === "admin"})`;
   if (!order) throw new Error("Order not found.");
   const [booking] = await sql<{id:string;starts_at:Date;ends_at:Date;status:string}>`select id,starts_at,ends_at,status from booking_records where order_id = ${orderId} order by starts_at limit 1`;
   if (booking?.status === "completed" || (booking && new Date(booking.ends_at).getTime() <= Date.now() && booking.status !== "cancelled")) throw new Error("Completed and past sessions require front-office review.");
@@ -107,7 +110,7 @@ export async function checkIn(userId:string,bookingId:string) {
   const me = await clubIdentity(userId); const sql = await getSql();
   return sql.transaction(async tx=>{
     const [row]=await tx<{id:string;participant_count:number;participants_verified:boolean;starts_at:Date;ends_at:Date}>`select id,participant_count,participants_verified,starts_at,ends_at from booking_records
-      where id=${bookingId} and (user_id=${userId} or ${me.role==='admin'}) and status='confirmed' for update`;
+      where id=${bookingId} and (household_id=any(${me.billingHouseholdIds}::text[]) or ${me.role==='admin'}) and status='confirmed' for update`;
     if(!row)throw new Error('Only your confirmed reservations can be checked in.');
     const {enforceVisitWaivers}=await import('./waivers.server');
     await enforceVisitWaivers(tx,row);
@@ -133,7 +136,7 @@ export async function completeSession(userId:string,bookingId:string,notes:strin
   const sql = await getSql();
   return sql.transaction(async tx=>{
     const [booking] = await tx<{id:string;athlete_id:string;coach_id:string;product_id:string;order_id:string;ends_at:Date}>`
-      update booking_records set status = 'completed', completed_at = coalesce(completed_at,now())
+      update booking_records set status = 'completed', completed_at = coalesce(completed_at,now()), completion_recap=coalesce(completion_recap,${notes}), completed_by=coalesce(completed_by,${userId})
       where id = ${bookingId} and (coach_id = ${coachId} or ${me.role === "admin"}) and status in ('confirmed','completed') and ends_at <= now() returning *`;
     if (!booking) throw new Error("Only an assigned coach can complete a confirmed session after it ends.");
     const [order] = await tx<{snapshot:Quote;total_cents:number;status:string}>`select snapshot,total_cents,status from commerce_orders where id = ${booking.order_id}`;
@@ -142,7 +145,9 @@ export async function completeSession(userId:string,bookingId:string,notes:strin
         values (${"assessment:"+booking.id},${booking.athlete_id},${order?.snapshot.discipline || "Pitching"},${userId},now(),${notes},${booking.id},${order?.snapshot.productId === "m5" ? "remote" : "in-person"})
         on conflict (id) do nothing`;
     }
-    const split = file.coachPayouts.find(p=>p.coachId===booking.coach_id && p.serviceId===booking.product_id)?.splitPct;
+    const assignedCoach=file.coaches.find(c=>c.id===booking.coach_id);
+    const [configured]=await tx<{profit_split:number}>`select offers.profit_split from club_staff_services offers join club_staff staff on staff.id=offers.staff_id where lower(staff.email)=${assignedCoach?.email.trim().toLowerCase()||''} and offers.service_id=${booking.product_id} and staff.active=true`;
+    const split = configured?.profit_split ?? file.coachPayouts.find(p=>p.coachId===booking.coach_id && p.serviceId===booking.product_id)?.splitPct;
     // No invented split or transfer recipient. Earnings require an actual configured split.
     if (order?.status === "paid" && split !== undefined) {
       const gross = order.snapshot.recurring || order.snapshot.kind === "package" ? Math.round(order.snapshot.regularCents / Math.max(1,order.snapshot.credits)) : order.total_cents;

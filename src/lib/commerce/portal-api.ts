@@ -35,3 +35,5 @@ export const finishSession = createServerFn({method:"POST"}).middleware([authMid
 });
 export const getCreditSlots = createServerFn({method:"POST"}).middleware([authMiddleware]).validator(redemptionInput).handler(async({context,data})=>{const {creditSlots}=await import('./credits.server');return creditSlots(context.userId,data);});
 export const bookWithCredit = createServerFn({method:"POST"}).middleware([authMiddleware]).validator(redemptionInput).handler(async({context,data})=>{const {redeemCredit}=await import('./credits.server');return redeemCredit(context.userId,data);});
+
+export const getBillingHistoryPage=createServerFn({method:"GET"}).middleware([authMiddleware]).validator(z.object({page:z.number().int().min(0).max(10000)}).strict()).handler(async({context,data})=>{const {familyBilling}=await import('./portal.server');return familyBilling(context.userId,data.page);});

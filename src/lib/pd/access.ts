@@ -3,6 +3,7 @@ import type { DevelopmentData, ViewerRole } from "./types";
 export type PdViewer = {
   role: ViewerRole;
   email: string;
+  householdEmails?: string[];
   name: string;
   playerName: string;
 };
@@ -36,7 +37,7 @@ export function resolveViewerRole(email: string, profileRole?: string | null): V
 export function familyForViewer(viewer: PdViewer, data: DevelopmentData) {
   const email = viewer.email.trim().toLowerCase();
   if (email) {
-    const byEmail = data.families.find((row) => row.email.trim().toLowerCase() === email);
+    const byEmail = data.families.find((row) => row.email.trim().toLowerCase() === email || viewer.householdEmails?.includes(row.email.trim().toLowerCase()));
     if (byEmail) return byEmail;
   }
   return undefined;
@@ -99,9 +100,10 @@ export function scopeForViewer(viewer: PdViewer, data: DevelopmentData): PdScope
       includeCoachOps: false,
     };
   }
-  const family = familyForViewer(viewer, data);
-  const ids = new Set(family?.athleteIds ?? []);
-  const familyIds = new Set(family ? [family.id] : []);
+  const emails=new Set([viewer.email.trim().toLowerCase(),...(viewer.householdEmails||[])]);
+  const families=data.families.filter(f=>emails.has(f.email.trim().toLowerCase()));
+  const ids = new Set(families.flatMap(f=>f.athleteIds));
+  const familyIds = new Set(families.map(f=>f.id));
   return {
     role: "parent",
     athleteIds: ids,
