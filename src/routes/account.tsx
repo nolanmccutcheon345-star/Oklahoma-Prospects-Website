@@ -1,3 +1,4 @@
+import {AccountSecurity} from "@/components/account-security";
 import {pageHead} from "@/lib/seo";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
@@ -155,7 +156,7 @@ function AccountHome() {
         copy={
           profile.assessment_complete
             ? "Assessment on file. Private 30s and 60s are open."
-            : "No assessment on file yet. You can still view every plan and book an assessment, remote review, group session, package, or membership."
+            : "No completed assessment is on file yet. Choose an assessment or explore monthly plans. Ordinary lessons and packages unlock after coach-confirmed completion."
         }
         image="/brand/training.jpg"
         actions={
@@ -180,6 +181,8 @@ function AccountHome() {
         }
       />
       <div className="mx-auto max-w-3xl px-5 py-8 pb-24">
+        <AccountSecurity/>
+        <Link to="/invitations" className="inline-flex min-h-11 items-center underline">Your invitations</Link>
         <PdErrorBoundary section="Train · account">
           <PdWorkspace profile={profile} />
         </PdErrorBoundary>

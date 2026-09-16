@@ -60,7 +60,7 @@ export async function writeSquareSettings(
   const users = await sql<{ email: string }>`select email from "user" where id = ${userId}`;
   const email = (users[0]?.email ?? "").toLowerCase();
   const profiles = await sql<{ role: string }>`select role from profiles where user_id = ${userId}`;
-  if (!isOwnerEmail(email) && profiles[0]?.role !== "admin") {
+  if (!await isOwnerEmail(email) && profiles[0]?.role !== "admin") {
     throw new Error("Admin only.");
   }
   if (input.locationId !== undefined) await setSetting("square_location_id", input.locationId.trim());

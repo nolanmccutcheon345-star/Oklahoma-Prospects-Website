@@ -43,5 +43,6 @@ export const authMiddleware = createMiddleware({ type: "function" })
     // Reject scripted cross-site/sibling requests before touching per-user data.
     assertSameSiteRequest();
     const userId = await requireUserId(context.bearerToken);
-    return next({ context: { userId } });
+    const { withAuditActor } = await import('../audit-context.server');
+    return withAuditActor(userId, () => next({ context: { userId } }));
   });

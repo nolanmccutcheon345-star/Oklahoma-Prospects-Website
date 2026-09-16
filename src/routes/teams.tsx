@@ -8,7 +8,6 @@ import { Button } from "@/components/ui/button";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
 import { getProfile, type ClubRole } from "@/lib/club-data";
 import { AGE_GROUPS } from "@/lib/club";
-import { isOwnerEmail } from "@/lib/owners";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/teams")({head:()=>pageHead("/teams","Teams & Spring 2027 Tryouts","Free November 14\u201315, 2026 evaluations in Broken Arrow. Other ages and softball: send a team inquiry.",false), component: TeamsPage });
@@ -35,15 +34,12 @@ function TeamsPage() {
     getProfile()
       .then((row) => {
         if (cancelled) return;
-        const email = row?.email || user.primaryEmail || "";
-        if (isOwnerEmail(email)) setProfileRole("admin");
-        else setProfileRole(row?.role ?? "parent");
+        setProfileRole(row?.role ?? "parent");
         setReady(true);
       })
       .catch(() => {
         if (cancelled) return;
-        const email = user.primaryEmail || "";
-        setProfileRole(isOwnerEmail(email) ? "admin" : "parent");
+        setProfileRole("parent");
         setReady(true);
       });
     return () => {

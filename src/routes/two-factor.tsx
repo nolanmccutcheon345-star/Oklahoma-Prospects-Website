@@ -1,0 +1,7 @@
+import {createFileRoute} from '@tanstack/react-router';
+import {useState} from 'react';
+import {authClient} from '@/lib/auth/client';
+import {Button} from '@/components/ui/button';
+import {pageHead} from '@/lib/seo';
+export const Route=createFileRoute('/two-factor')({head:()=>pageHead('/two-factor','Verify sign-in','Verify your account security code.',true),component:Challenge});
+function Challenge(){const [backup,setBackup]=useState(false),[error,setError]=useState(''),[busy,setBusy]=useState(false);return <main id="main" className="mx-auto max-w-md px-5 py-8"><h1 className="text-4xl">Verify your sign-in</h1><form className="mt-5 grid gap-4" onSubmit={async e=>{e.preventDefault();setBusy(true);setError('');const code=String(new FormData(e.currentTarget).get('code'));try{const result=backup?await authClient.twoFactor.verifyBackupCode({code}):await authClient.twoFactor.verifyTotp({code});if(result.error)throw new Error(result.error.message);window.location.assign('/account');}catch(e){setError(e instanceof Error?e.message:'Verification failed.');setBusy(false);}}}><label>{backup?'Unused recovery code':'Authenticator code'}<input key={String(backup)} name="code" required autoComplete="one-time-code" inputMode={backup?'text':'numeric'} maxLength={100}/></label><Button disabled={busy}>Verify</Button></form><Button className="mt-4" variant="outlineDark" onClick={()=>setBackup(!backup)}>{backup?'Use authenticator':'Use recovery code'}</Button>{error?<p role="alert">{error}</p>:null}</main>;}

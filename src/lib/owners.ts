@@ -1,24 +1,7 @@
-export const OWNER_EMAILS = [
-  "stevemccutcheon89@gmail.com",
-  "nolanmccutcheon@icloud.com",
-  "oklahomaprospectsbaseball@gmail.com",
-] as const;
-
-export const STAFF_EMAILS = [
-  "lane@prospectsbaseball.club",
-  "ty@prospectsbaseball.club",
-  "steve@prospectsbaseball.club",
-] as const;
-
-function norm(email: string | null | undefined) {
-  return (email ?? "").trim().toLowerCase();
-}
-
-export function isOwnerEmail(email: string | null | undefined) {
-  return OWNER_EMAILS.includes(norm(email) as (typeof OWNER_EMAILS)[number]);
-}
-
-export function isStaffEmail(email: string | null | undefined) {
-  const value = norm(email);
-  return isOwnerEmail(value) || STAFF_EMAILS.includes(value as (typeof STAFF_EMAILS)[number]);
+/** Server-only owner policy. Approved grants are persisted by migration. */
+export async function isOwnerEmail(email: string | null | undefined) {
+  const { getSql } = await import('./db');
+  const sql = await getSql();
+  const rows = await sql.query("select email from owner_grants where email=$1 and revoked_at is null",[(email || '').trim().toLowerCase()]);
+  return rows.length > 0;
 }

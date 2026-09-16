@@ -44,6 +44,7 @@ async function emailAuth(
     body: JSON.stringify(payload),
   });
   const data = (await res.json().catch(() => ({}))) as {
+    twoFactorRedirect?: boolean;
     message?: string;
     token?: string;
     user?: { id: string };
@@ -79,7 +80,9 @@ function Login() {
         ...(mode === "up" ? { name } : {}),
       };
       if(token){const result=await authClient.resetPassword({token,newPassword:password});if(result.error)throw new Error(result.error.message);setNotice("Password saved. Sign in using your new password.");setBusy(false);return;}
-      await emailAuth(mode, payload);
+      const signedIn=await emailAuth(mode, payload);
+      setPassword("");
+      if(signedIn.twoFactorRedirect){window.location.assign("/two-factor");return;}
       if(mode === "up"){setNotice("Check your email to verify your account before signing in.");setBusy(false);return;}
       try {
         await authClient.getSession();

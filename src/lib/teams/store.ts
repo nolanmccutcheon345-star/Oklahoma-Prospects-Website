@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { createServerFn } from "@tanstack/react-start";
 import { authMiddleware } from "@/lib/auth/middleware";
 import { getSql } from "@/lib/db";
@@ -299,7 +300,7 @@ export const officeAddPlayer = createServerFn({ method: "POST" })
     const playerName = data.name.trim();
     const parentEmail = data.parentEmail.trim().toLowerCase();
     if (!playerName || !parentEmail) throw new Error("Player name and parent email are required.");
-    const familyId = `fam-${slug(parentEmail)}`;
+    const familyId = stored.teams.flatMap(t=>t.roster).find(p=>p.parents.some(parent=>parent.email.trim().toLowerCase()===parentEmail))?.familyId || "fam-"+randomUUID();
     const player = blankPlayer({
       teamId: team.id,
       familyId,

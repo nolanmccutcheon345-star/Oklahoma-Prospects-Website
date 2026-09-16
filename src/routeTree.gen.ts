@@ -17,6 +17,7 @@ import { Route as CoachesRouteImport } from './routes/coaches'
 import { Route as ContactRouteImport } from './routes/contact'
 import { Route as FacilityRouteImport } from './routes/facility'
 import { Route as FamilyRouteImport } from './routes/family'
+import { Route as InvitationsRouteImport } from './routes/invitations'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as MembersRouteImport } from './routes/members'
 import { Route as MembershipsRouteImport } from './routes/memberships'
@@ -30,6 +31,7 @@ import { Route as RecruitingRouteImport } from './routes/recruiting'
 import { Route as TeamsRouteImport } from './routes/teams'
 import { Route as TrainingRouteImport } from './routes/training'
 import { Route as TryoutsRouteImport } from './routes/tryouts'
+import { Route as TwoFactorRouteImport } from './routes/two-factor'
 import { Route as VisitRouteImport } from './routes/visit'
 import { Route as VisitsRouteImport } from './routes/visits'
 import { Route as WaiverRouteImport } from './routes/waiver'
@@ -75,6 +77,11 @@ const FacilityRoute = FacilityRouteImport.update({
 const FamilyRoute = FamilyRouteImport.update({
   id: '/family',
   path: '/family',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const InvitationsRoute = InvitationsRouteImport.update({
+  id: '/invitations',
+  path: '/invitations',
   getParentRoute: () => rootRouteImport,
 } as any)
 const LoginRoute = LoginRouteImport.update({
@@ -142,6 +149,11 @@ const TryoutsRoute = TryoutsRouteImport.update({
   path: '/tryouts',
   getParentRoute: () => rootRouteImport,
 } as any)
+const TwoFactorRoute = TwoFactorRouteImport.update({
+  id: '/two-factor',
+  path: '/two-factor',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const VisitRoute = VisitRouteImport.update({
   id: '/visit',
   path: '/visit',
@@ -182,6 +194,7 @@ export interface FileRoutesByFullPath {
   '/contact': typeof ContactRoute
   '/facility': typeof FacilityRoute
   '/family': typeof FamilyRoute
+  '/invitations': typeof InvitationsRoute
   '/login': typeof LoginRoute
   '/members': typeof MembersRoute
   '/memberships': typeof MembershipsRoute
@@ -195,6 +208,7 @@ export interface FileRoutesByFullPath {
   '/teams': typeof TeamsRoute
   '/training': typeof TrainingRoute
   '/tryouts': typeof TryoutsRoute
+  '/two-factor': typeof TwoFactorRoute
   '/visit': typeof VisitRoute
   '/visits': typeof VisitsRoute
   '/waiver': typeof WaiverRoute
@@ -211,6 +225,7 @@ export interface FileRoutesByTo {
   '/contact': typeof ContactRoute
   '/facility': typeof FacilityRoute
   '/family': typeof FamilyRoute
+  '/invitations': typeof InvitationsRoute
   '/login': typeof LoginRoute
   '/members': typeof MembersRoute
   '/memberships': typeof MembershipsRoute
@@ -224,6 +239,7 @@ export interface FileRoutesByTo {
   '/teams': typeof TeamsRoute
   '/training': typeof TrainingRoute
   '/tryouts': typeof TryoutsRoute
+  '/two-factor': typeof TwoFactorRoute
   '/visit': typeof VisitRoute
   '/visits': typeof VisitsRoute
   '/waiver': typeof WaiverRoute
@@ -241,6 +257,7 @@ export interface FileRoutesById {
   '/contact': typeof ContactRoute
   '/facility': typeof FacilityRoute
   '/family': typeof FamilyRoute
+  '/invitations': typeof InvitationsRoute
   '/login': typeof LoginRoute
   '/members': typeof MembersRoute
   '/memberships': typeof MembershipsRoute
@@ -254,6 +271,7 @@ export interface FileRoutesById {
   '/teams': typeof TeamsRoute
   '/training': typeof TrainingRoute
   '/tryouts': typeof TryoutsRoute
+  '/two-factor': typeof TwoFactorRoute
   '/visit': typeof VisitRoute
   '/visits': typeof VisitsRoute
   '/waiver': typeof WaiverRoute
@@ -272,6 +290,7 @@ export interface FileRouteTypes {
     | '/contact'
     | '/facility'
     | '/family'
+    | '/invitations'
     | '/login'
     | '/members'
     | '/memberships'
@@ -285,6 +304,7 @@ export interface FileRouteTypes {
     | '/teams'
     | '/training'
     | '/tryouts'
+    | '/two-factor'
     | '/visit'
     | '/visits'
     | '/waiver'
@@ -301,6 +321,7 @@ export interface FileRouteTypes {
     | '/contact'
     | '/facility'
     | '/family'
+    | '/invitations'
     | '/login'
     | '/members'
     | '/memberships'
@@ -314,6 +335,7 @@ export interface FileRouteTypes {
     | '/teams'
     | '/training'
     | '/tryouts'
+    | '/two-factor'
     | '/visit'
     | '/visits'
     | '/waiver'
@@ -330,6 +352,7 @@ export interface FileRouteTypes {
     | '/contact'
     | '/facility'
     | '/family'
+    | '/invitations'
     | '/login'
     | '/members'
     | '/memberships'
@@ -343,6 +366,7 @@ export interface FileRouteTypes {
     | '/teams'
     | '/training'
     | '/tryouts'
+    | '/two-factor'
     | '/visit'
     | '/visits'
     | '/waiver'
@@ -360,6 +384,7 @@ export interface RootRouteChildren {
   ContactRoute: typeof ContactRoute
   FacilityRoute: typeof FacilityRoute
   FamilyRoute: typeof FamilyRoute
+  InvitationsRoute: typeof InvitationsRoute
   LoginRoute: typeof LoginRoute
   MembersRoute: typeof MembersRoute
   MembershipsRoute: typeof MembershipsRoute
@@ -373,6 +398,7 @@ export interface RootRouteChildren {
   TeamsRoute: typeof TeamsRoute
   TrainingRoute: typeof TrainingRoute
   TryoutsRoute: typeof TryoutsRoute
+  TwoFactorRoute: typeof TwoFactorRoute
   VisitRoute: typeof VisitRoute
   VisitsRoute: typeof VisitsRoute
   WaiverRoute: typeof WaiverRoute
@@ -437,6 +463,13 @@ declare module '@tanstack/react-router' {
       path: '/family'
       fullPath: '/family'
       preLoaderRoute: typeof FamilyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/invitations': {
+      id: '/invitations'
+      path: '/invitations'
+      fullPath: '/invitations'
+      preLoaderRoute: typeof InvitationsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/login': {
@@ -530,6 +563,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof TryoutsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/two-factor': {
+      id: '/two-factor'
+      path: '/two-factor'
+      fullPath: '/two-factor'
+      preLoaderRoute: typeof TwoFactorRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/visit': {
       id: '/visit'
       path: '/visit'
@@ -584,6 +624,7 @@ const rootRouteChildren: RootRouteChildren = {
   ContactRoute: ContactRoute,
   FacilityRoute: FacilityRoute,
   FamilyRoute: FamilyRoute,
+  InvitationsRoute: InvitationsRoute,
   LoginRoute: LoginRoute,
   MembersRoute: MembersRoute,
   MembershipsRoute: MembershipsRoute,
@@ -597,6 +638,7 @@ const rootRouteChildren: RootRouteChildren = {
   TeamsRoute: TeamsRoute,
   TrainingRoute: TrainingRoute,
   TryoutsRoute: TryoutsRoute,
+  TwoFactorRoute: TwoFactorRoute,
   VisitRoute: VisitRoute,
   VisitsRoute: VisitsRoute,
   WaiverRoute: WaiverRoute,

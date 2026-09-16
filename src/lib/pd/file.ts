@@ -114,6 +114,9 @@ function mergeCohorts(full: DevelopmentData["cohorts"], incoming: DevelopmentDat
     })
     .filter((row): row is NonNullable<typeof row> => Boolean(row));
   const added = incoming.filter((row) => !full.some((item) => item.id === row.id));
+  if (added.some(row => row.athleteIds.some(id => !keepAthlete(scope,id)))) {
+    throw new Error('A cohort can include only your assigned athletes.');
+  }
   return [...kept, ...added];
 }
 
@@ -183,7 +186,7 @@ export function mergeScopedFile(
   }
 
   for (const key of STAFF_ONLY_KEYS) {
-    patch[key] = takeIf(scope.includeStaffOps, incoming[key], full[key]);
+    patch[key] = key === "auditLog" ? full[key] : takeIf(scope.includeStaffOps, incoming[key], full[key]);
   }
   for (const key of COACH_OPS_KEYS) {
     patch[key] = takeIf(scope.includeStaffOps, incoming[key], full[key]);

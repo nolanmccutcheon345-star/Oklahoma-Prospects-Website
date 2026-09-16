@@ -67,8 +67,12 @@ export async function getSessionUser(
     headers = new Headers(request.headers);
     headers.set("Authorization", `Bearer ${bearerToken}`);
   }
-  const session = await auth.api.getSession({ headers });
+  const session = await auth.api.getSession({ headers, query: { disableCookieCache: true } });
   if (!session?.user) return null;
+  const { getSql } = await import('../db');
+  const sql = await getSql();
+  const [account] = await sql.query<{disabledAt:Date|null}>('select "disabledAt" from "user" where id=$1',[session.user.id]);
+  if (!account || account.disabledAt) return null;
   return { id: session.user.id, email: session.user.email ?? null };
 }
 

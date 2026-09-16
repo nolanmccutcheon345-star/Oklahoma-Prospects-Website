@@ -226,7 +226,7 @@ function asKind(value: string): ServiceKind {
 }
 
 function asRole(value: string, email: string): ClubRole {
-  if (isOwnerEmail(email)) return "admin";
+  void email;
   if (value === "player" || value === "parent" || value === "coach" || value === "admin") {
     return value;
   }
@@ -609,38 +609,6 @@ export const listStaff = createServerFn({ method: "GET" })
     return loadStaff(sql);
   });
 
-async function setPasswordForUser(userId: string, email: string, password: string) {
-  const { hashPassword } = await import("better-auth/crypto");
-  const hashed = await hashPassword(password);
-  const sql = await getSql();
-  const accounts = await sql<{ id: string }>`
-    select id from "account"
-    where "userId" = ${userId} and "providerId" = ${"credential"}
-  `;
-  if (accounts[0]) {
-    await sql`
-      update "account"
-      set password = ${hashed}, "updatedAt" = now()
-      where id = ${accounts[0].id}
-    `;
-  } else {
-  await sql`
-    insert into "account" (
-      id, "accountId", "providerId", "userId", password, "createdAt", "updatedAt"
-    ) values (
-      ${`cred-${userId}`},
-      ${email.toLowerCase()},
-      ${"credential"},
-      ${userId},
-      ${hashed},
-      now(),
-      now()
-    )
-  `;
-  }
-  await sql`delete from "session" where "userId" = ${userId}`;
-}
-
 async function upsertProfile(input: {
   userId: string;
   name: string;
@@ -650,8 +618,9 @@ async function upsertProfile(input: {
 }) {
   const sql = await getSql();
   const email = input.email.toLowerCase();
+  if (input.role === 'admin' && !await isOwnerEmail(email)) throw new Error('Only the approved owners may receive admin access.');
   const role = asRole(input.role, email);
-  const familyId = `fam-${input.userId.slice(0, 8)}`;
+  const familyId = `fam-${input.userId}`;
   await sql`
     insert into profiles (user_id, name, email, role, player_name, family_id)
     values (
@@ -668,43 +637,6 @@ async function upsertProfile(input: {
       role = excluded.role,
       player_name = excluded.player_name
   `;
-}
-
-async function findOrCreateUser(input: {
-  name: string;
-  email: string;
-  password?: string;
-}) {
-  const sql = await getSql();
-  const email = input.email.trim().toLowerCase();
-  const existing = await sql<{ id: string; name: string }>`
-    select id, name from "user" where lower(email) = ${email}
-  `;
-  if (existing[0]) {
-    if (input.name && input.name !== existing[0].name) {
-      await sql`update "user" set name = ${input.name}, "updatedAt" = now() where id = ${existing[0].id}`;
-    }
-    if (input.password && input.password.length >= 8) {
-      await setPasswordForUser(existing[0].id, email, input.password);
-    }
-    return existing[0].id;
-  }
-  if (!input.password || input.password.length < 8) {
-    throw new Error("New accounts need a password of at least 8 characters.");
-  }
-  const { auth } = await import("@/lib/auth/server");
-  await auth.api.signUpEmail({
-    body: {
-      email,
-      password: input.password,
-      name: input.name || email,
-    },
-  });
-  const created = await sql<{ id: string }>`
-    select id from "user" where lower(email) = ${email}
-  `;
-  if (!created[0]) throw new Error("Could not create that login.");
-  return created[0].id;
 }
 
 export const saveStaff = createServerFn({ method: "POST" })
@@ -724,20 +656,12 @@ export const saveStaff = createServerFn({ method: "POST" })
       `;
       userId = users[0]?.id ?? "";
     }
-    if (data.createLogin || data.password) {
-      if (!email) throw new Error("Email is required to create a login.");
-      userId = await findOrCreateUser({
-        name,
-        email,
-        password: data.password,
-      });
-      await upsertProfile({
-        userId,
-        name,
-        email,
-        role: asRole(data.role || "coach", email),
-        playerName: "",
-      });
+    if(data.role==='admin'&&!await isOwnerEmail(email))throw new Error('Only approved owners may have admin access.');
+    let invitation:string|undefined;
+    if(data.createLogin){
+      if(!email)throw new Error('Email is required for an invitation.');
+      const {issueInvitation}=await import('./invitations.server');
+      invitation=(await issueInvitation(context.userId,email,data.role||'coach')).message;
     }
     await sql`
       insert into club_staff (id, user_id, name, email, phone, role, access_notes, active)
@@ -769,7 +693,7 @@ export const saveStaff = createServerFn({ method: "POST" })
         `;
       }
     }
-    return { id };
+    return { id, invitation };
   });
 
 export const deleteStaff = createServerFn({ method: "POST" })
@@ -805,9 +729,10 @@ export const listAccounts = createServerFn({ method: "GET" })
         p.assessment_complete
       from "user" u
       left join profiles p on p.user_id = u.id
+      where u."disabledAt" is null
       order by u.email
     `;
-    return rows.map((row) => {
+    return Promise.all(rows.map(async (row) => {
       const email = row.email.toLowerCase();
       return {
         user_id: row.user_id,
@@ -816,9 +741,9 @@ export const listAccounts = createServerFn({ method: "GET" })
         role: asRole(row.role, email),
         player_name: row.player_name || "",
         assessment_complete: asBool(row.assessment_complete),
-        owner: isOwnerEmail(email),
+        owner: await isOwnerEmail(email),
       } satisfies ClubAccount;
-    });
+    }));
   });
 
 export const saveAccount = createServerFn({ method: "POST" })
@@ -830,14 +755,14 @@ export const saveAccount = createServerFn({ method: "POST" })
     const email = data.email.trim().toLowerCase();
     if (!email) throw new Error("Email is required.");
     const name = data.name.trim() || email;
-    let userId = data.userId?.trim() || "";
+    const userId = data.userId?.trim() || "";
     if (userId) {
       const current = await sql<{ email: string }>`
         select email from "user" where id = ${userId}
       `;
       const currentEmail = (current[0]?.email ?? "").toLowerCase();
       if (!current[0]) throw new Error("Account not found.");
-      if (current[0] && isOwnerEmail(currentEmail) && email !== currentEmail) {
+      if (current[0] && await isOwnerEmail(currentEmail) && email !== currentEmail) {
         throw new Error("Owner emails stay locked.");
       }
       await sql.transaction(async tx => {
@@ -846,15 +771,10 @@ export const saveAccount = createServerFn({ method: "POST" })
           "updatedAt" = now() where id = ${userId}`;
         if (email !== currentEmail) await tx`delete from "session" where "userId" = ${userId}`;
       });
-      if (data.password && data.password.length >= 8) {
-        await setPasswordForUser(userId, isOwnerEmail(currentEmail) ? currentEmail : email, data.password);
-      }
     } else {
-      userId = await findOrCreateUser({
-        name,
-        email,
-        password: data.password,
-      });
+      const {issueInvitation}=await import('./invitations.server');
+      const invitation=await issueInvitation(context.userId,email,data.role);
+      return {id:invitation.id,invitation:invitation.message};
     }
     const savedEmail = email;
     await upsertProfile({
@@ -890,7 +810,7 @@ export const saveAccount = createServerFn({ method: "POST" })
         `;
       }
     }
-    return { id: userId };
+    return { id: userId, invitation:undefined as string|undefined };
   });
 
 export const deleteAccount = createServerFn({ method: "POST" })
@@ -906,17 +826,13 @@ export const deleteAccount = createServerFn({ method: "POST" })
       select email from "user" where id = ${data.userId}
     `;
     if (!users[0]) return { ok: true as const };
-    if (isOwnerEmail(users[0].email)) {
+    if (await isOwnerEmail(users[0].email)) {
       throw new Error("Owner accounts stay locked.");
     }
-    await sql`delete from drills where user_id = ${data.userId}`;
-    await sql`delete from athlete_logs where user_id = ${data.userId}`;
-    await sql`delete from programs where user_id = ${data.userId}`;
-    await sql`delete from reservations where user_id = ${data.userId}`;
-    await sql`delete from profiles where user_id = ${data.userId}`;
-    await sql`update club_staff set user_id = ${""} where user_id = ${data.userId}`;
-    await sql`delete from "session" where "userId" = ${data.userId}`;
-    await sql`delete from "account" where "userId" = ${data.userId}`;
-    await sql`delete from "user" where id = ${data.userId}`;
+    await sql.transaction(async tx => {
+      await tx`update "user" set "disabledAt"=now(), "updatedAt"=now() where id=${data.userId}`;
+      await tx`update club_staff set active=false where user_id=${data.userId}`;
+      await tx`delete from "session" where "userId"=${data.userId}`;
+    });
     return { ok: true as const };
   });

@@ -197,12 +197,20 @@ async function createSql(): Promise<Sql> {
  * Schema comes from `migrations/*.sql`, auto-applied before the first query on
  * both backends — define tables there, never inline in server functions.
  */
-export function getSql(): Promise<Sql> {
+export async function getSql(): Promise<Sql> {
   sqlPromise ??= createSql().catch((err) => {
     sqlPromise = null; // don't memoize failures — let the next call retry
     throw err;
   });
-  return sqlPromise;
+  const raw = await sqlPromise;
+  const { currentAuditActor } = await import('./audit-context.server');
+  const actor = currentAuditActor();
+  if (!actor) return raw;
+  const transaction: Sql['transaction'] = work => raw.transaction(async tx => {
+    await tx.query("select set_config('app.actor_id',$1,true)",[actor]);
+    return work(tx);
+  });
+  return toSql((text, params) => transaction(tx => tx.query(text,params)),transaction);
 }
 
 /**

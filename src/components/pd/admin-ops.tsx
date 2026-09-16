@@ -146,6 +146,7 @@ export function AdminServicesDesk() {
     setError("");
     try {
       await saveService({ data: editing });
+      if(saved.invitation)window.alert(saved.invitation);
       setEditing(null);
       await refresh();
     } catch (err) {
@@ -300,7 +301,7 @@ export function AdminStaffDesk() {
     setBusy(true);
     setError("");
     try {
-      await saveStaff({
+      const saved=await saveStaff({
         data: {
           id: editingId === "new" ? undefined : editingId ?? undefined,
           name: form.name,
@@ -313,6 +314,7 @@ export function AdminStaffDesk() {
           password: form.password || undefined,
         },
       });
+      if(saved.invitation)window.alert(saved.invitation);
       setEditingId(null);
       await refresh();
     } catch (err) {
@@ -464,7 +466,7 @@ export function AdminAccountsDesk() {
     setBusy(true);
     setError("");
     try {
-      await saveAccount({
+      const saved=await saveAccount({
         data: {
           userId: editing.userId,
           name: editing.name,
@@ -487,7 +489,7 @@ export function AdminAccountsDesk() {
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h3 className="text-2xl">Accounts and access</h3>
-          <p className="mt-1 text-sm text-muted">One login. Role decides the desk they see.</p>
+          <p className="mt-1 text-sm text-muted">New accounts receive a pending invitation at /invitations. Share that link with the recipient; they choose their own password and verify their email.</p>
         </div>
         <Button
           type="button"
@@ -568,25 +570,12 @@ export function AdminAccountsDesk() {
               </Button>
               {row.owner ? null : (
                 <ArmConfirm
-                  label="Delete"
-                  armedLabel="Tap again to delete login"
+                  label="Deactivate"
+                  armedLabel="Tap again to deactivate"
                   onConfirm={async () => {
                     await deleteAccount({ data: { userId: row.user_id } });
                     await refresh();
-                    pushUndo({
-                      label: `Deleted ${row.email}.`,
-                      run: async () => {
-                        await saveAccount({
-                          data: {
-                            name: row.name,
-                            email: row.email,
-                            role: row.role,
-                            playerName: row.player_name,
-                          },
-                        });
-                        await refresh();
-                      },
-                    });
+
                   }}
                 />
               )}

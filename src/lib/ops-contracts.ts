@@ -4,7 +4,7 @@ const text = z.string().trim().max(2000);
 const id = z.string().trim().min(1).max(120);
 const optionalId = z.string().trim().max(120).optional();
 const role = z.enum(["parent", "player", "coach", "admin"]);
-const password = z.union([z.literal(""), z.string().min(8).max(128)]).optional();
+const password = z.literal("").optional();
 const count = z.number().int().min(0).max(10000);
 const lines = z.array(z.string().trim().max(500)).max(50);
 
