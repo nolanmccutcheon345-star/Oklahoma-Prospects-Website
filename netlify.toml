@@ -7,6 +7,8 @@
 
 [build.environment]
   NODE_VERSION = "22"
+  # Local Netlify CLI builds also need the Netlify adapter and migration output.
+  NETLIFY = "true"
 
 [dev]
   command = "npm run dev"
