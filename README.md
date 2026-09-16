@@ -27,6 +27,7 @@ npm test
 npm run lint
 NETLIFY=true CONTEXT=deploy-preview npm run build
 npm run verify:build
+npm run verify:hosted -- https://prospectsbaseball.club # read-only HTTP smoke
 ```
 
 ## Domain
@@ -40,6 +41,8 @@ npm run verify:build
 
 ## Audit implementation
 
-See [the release and Grok handoff](docs/AUDIT-HANDOFF.md) for deployment contexts,
-migration order, validation evidence and remaining release gates. The audit branch
-is a review candidate; it does not certify that the live site runs these changes.
+See [current release readiness](docs/RELEASE-READINESS.md) for verified deployment
+evidence and remaining acceptance gates, and [the implementation/Grok handoff](docs/AUDIT-HANDOFF.md)
+for the original audit scope. The audit candidate at `c84553b` was published directly
+to Netlify on September 16, 2026. Online card checkout remains disabled; deployment
+does not mean payment/account acceptance is complete. PR #4 is still unmerged.

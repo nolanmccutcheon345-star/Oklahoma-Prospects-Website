@@ -1,9 +1,19 @@
 name: Verify club application
 on:
   push:
-    branches: [audit-fixes]
+    branches: [audit-fixes, main]
   pull_request:
     branches: [main]
+  workflow_dispatch:
+    inputs:
+      hosted_origin:
+        description: Optional read-only hosted HTTP smoke (does not certify this commit is deployed)
+        type: choice
+        default: skip
+        options:
+          - skip
+          - https://audit-release-check--oklahoma-prospects.netlify.app
+          - https://prospectsbaseball.club
 permissions:
   contents: read
 jobs:
@@ -27,3 +37,8 @@ jobs:
           CONTEXT: deploy-preview
           STRIPE_LIVE_ENABLED: "false"
       - run: npm run verify:build
+      - name: Read-only hosted HTTP smoke
+        if: github.event_name == 'workflow_dispatch' && inputs.hosted_origin != 'skip'
+        run: npm run verify:hosted -- "$HOSTED_ORIGIN"
+        env:
+          HOSTED_ORIGIN: ${{ inputs.hosted_origin }}

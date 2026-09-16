@@ -2,7 +2,12 @@
 
 Prepared September 15, 2026. Source baseline: `49712f38196f114358abc87ca9da0f048a1b4fd4`.
 Working branch: `audit-fixes` in `nolanmccutcheon345-star/Oklahoma-Prospects-Website`.
-This is a draft review candidate. It is not a claim that Netlify or Grok is already running these changes.
+**Status update, September 16:** Netlify published `c84553b` at 00:55:20 UTC and
+applied all 12 managed-database migrations. PR #4 remains a draft and unmerged;
+online card checkout is disabled in production and the hosted preview. See
+[RELEASE-READINESS.md](RELEASE-READINESS.md) for the current evidence, acceptance
+gates, and the GitHub/Netlify source mismatch. The original procedure below is
+historical; do not repeat already-applied production migrations. Grok remains pending.
 
 ## Implemented in this branch
 
@@ -34,7 +39,7 @@ The sharp override addresses the upstream [libvips advisory](https://github.com/
 
 Browser hydration, mobile layout, keyboard behavior, real email and Stripe test flows are **not certified**. This workspace's dev server failed while enumerating network interfaces, and its browser blocked the local address. The build smoke test does not substitute for browser acceptance. GitHub CI separately checks Node 22; local checks used Node 24.
 
-## Netlify release procedure
+## Original Netlify release procedure (superseded by current readiness record)
 
 Existing site: `oklahoma-prospects`, ID `c49ad0ab-1b2c-412e-88d9-1f6ddf490a17`.
 Production domain: `https://prospectsbaseball.club`.
