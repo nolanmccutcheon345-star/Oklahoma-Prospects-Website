@@ -1,3 +1,4 @@
+import { revokeStaffAccess } from './staff-access.server';
 import { createServerFn } from "@tanstack/react-start";
 import { authMiddleware } from "@/lib/auth/middleware";
 import {
@@ -664,7 +665,7 @@ export const saveStaff = createServerFn({ method: "POST" })
       invitation=(await issueInvitation(context.userId,email,data.role||'coach')).message;
     }
     await sql.transaction(async tx => {
-    const [saved] = await tx<{ user_id: string }>`
+    const [saved] = await tx<{ user_id: string; email: string }>`
       insert into club_staff (id, user_id, name, email, phone, role, access_notes, active)
       values (
         ${id},
@@ -684,7 +685,7 @@ export const saveStaff = createServerFn({ method: "POST" })
         role = excluded.role,
         access_notes = excluded.access_notes,
         active = excluded.active
-      returning user_id
+      returning user_id, email
     `;
     if (data.offerings) {
       await tx`delete from club_staff_services where staff_id = ${id}`;
@@ -695,10 +696,7 @@ export const saveStaff = createServerFn({ method: "POST" })
         `;
       }
     }
-      if (data.active === false && saved?.user_id) {
-        await tx`update profiles set role='parent' where user_id=${saved.user_id} and role='coach'`;
-        await tx`delete from "session" where "userId"=${saved.user_id}`;
-      }
+      if (data.active === false && saved) await revokeStaffAccess(tx, saved);
     });
     return { id, invitation };
   });
@@ -710,11 +708,8 @@ export const deleteStaff = createServerFn({ method: "POST" })
     await requireAdmin(context.userId);
     const sql = await getSql();
     await sql.transaction(async tx=>{
-      const [staff]=await tx<{user_id:string}>`update club_staff set active=false where id=${data.id} returning user_id`;
-      if(staff?.user_id){
-        await tx`update profiles set role='parent' where user_id=${staff.user_id} and role='coach'`;
-        await tx`delete from "session" where "userId"=${staff.user_id}`;
-      }
+      const [staff]=await tx<{user_id:string;email:string}>`update club_staff set active=false where id=${data.id} returning user_id,email`;
+      if(staff)await revokeStaffAccess(tx,staff);
     });
     return { ok: true as const };
   });

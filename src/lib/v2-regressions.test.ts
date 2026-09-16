@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {readFile,readdir} from 'node:fs/promises';
 import {PGlite} from '@electric-sql/pglite';
 import type {Sql} from './db';
+import {revokeStaffAccess} from './staff-access.server';
 import {resolveIdentity} from './identity.server';
 import {enforceVisitWaivers} from './commerce/waivers.server';
 import {holdWindow} from './commerce/store.server';
@@ -65,6 +66,15 @@ test('v2 migrations, owner authority, households, audit events and visit gates',
    assert.deepEqual(new Set(linked.householdUserIds),new Set(['guardian-a','guardian-b']));
    await sql`delete from household_members where household_id=${a.familyIds[0]} and user_id='guardian-b'`;
    assert.deepEqual((await resolveIdentity(sql,'guardian-b')).householdUserIds,['guardian-b']);
+  });
+  await t.test('staff deactivation revokes existing sessions and pending coach invitations',async()=>{
+   await sql`insert into profiles(user_id,email,role) values('guardian-b','similar.household.name+b@example.invalid','coach') on conflict(user_id) do update set role='coach'`;
+   await sql`insert into "session"(id,"userId",token,"expiresAt","createdAt","updatedAt") values('staff-session','guardian-b','synthetic-staff-session',now()+interval '1 day',now(),now())`;
+   await sql`insert into club_invites(id,invited_by,token_hash,email,role,expires_at) values('pending-staff','owner-b','synthetic-hash','similar.household.name+b@example.invalid','coach',now()+interval '1 day')`;
+   await sql.transaction(tx=>revokeStaffAccess(tx,{user_id:'guardian-b',email:'similar.household.name+b@example.invalid'}));
+   assert.equal((await sql<{status:string}>`select status from club_invites where id='pending-staff'`)[0].status,'revoked');
+   assert.equal((await sql`select id from "session" where id='staff-session'`).length,0);
+   assert.equal((await resolveIdentity(sql,'guardian-b')).role,'parent');
   });
   await t.test('administrative events are attributed, atomic and append-only',async()=>{
    await sql.transaction(async tx=>{await tx`select set_config('app.actor_id','fixture-owner',true)`;await tx`update club_services set price=371 where id='p2'`;});
