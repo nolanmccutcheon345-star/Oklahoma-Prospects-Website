@@ -294,6 +294,32 @@ export async function verifySquareLocation(userId: string) {
   };
 }
 
+/** Read-only configuration check; signing keys never leave the server. */
+export async function verifySquareWebhooks(userId: string) {
+  await requirePaymentOwner(userId);
+  const c = squareConfig();
+  const subscriptions = await squareClient().webhooks.subscriptions.list({ includeDisabled: true });
+  for await (const listed of subscriptions) {
+    if (listed.notificationUrl !== c.webhookUrl || !listed.id) continue;
+    const { subscription } = await squareClient().webhooks.subscriptions.get({
+      subscriptionId: listed.id,
+    });
+    if (!subscription) throw new Error("Square could not retrieve the webhook subscription.");
+    if (!subscription.enabled) throw new Error("The Square webhook subscription is disabled.");
+    if (subscription.signatureKey !== c.signatureKey)
+      throw new Error("The Square webhook signing key does not match this site's saved key.");
+    const required = ["payment.updated", "refund.updated"];
+    if (required.some((type) => !subscription.eventTypes?.includes(type)))
+      throw new Error("The Square webhook must subscribe to payment.updated and refund.updated.");
+    const sql = await getSql();
+    const [result] = await sql<{
+      count: number;
+    }>`select count(*)::int as count from square_events where environment=${c.environment} and status='processed'`;
+    return { configured: true, processedEvents: result?.count ?? 0 };
+  }
+  throw new Error("No Square webhook subscription matches this site's exact webhook URL.");
+}
+
 export async function setCageWindow(userId: string, standardDays: number) {
   await requirePaymentOwner(userId);
   assertPaymentRequest();

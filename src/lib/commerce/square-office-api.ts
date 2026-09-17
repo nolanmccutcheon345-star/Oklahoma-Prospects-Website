@@ -19,6 +19,12 @@ export const checkSquareLocation = createServerFn({ method: "POST" })
     const m = await import("./square-office.server");
     return m.verifySquareLocation(context.userId);
   });
+export const checkSquareWebhooks = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
+  .handler(async ({ context }) => {
+    const m = await import("./square-office.server");
+    return m.verifySquareWebhooks(context.userId);
+  });
 export const ownerRefund = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
   .validator(

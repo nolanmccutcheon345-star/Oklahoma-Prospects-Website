@@ -5,6 +5,7 @@ import {
   ownerRefund,
   approveMembershipPause,
   checkSquareLocation,
+  checkSquareWebhooks,
   saveCageWindow,
 } from "@/lib/commerce/square-office-api";
 import { formatMoney } from "@/lib/pricing";
@@ -83,6 +84,21 @@ export function SquareOffice() {
               }
             >
               Verify Square location
+            </Button>
+            <Button
+              variant="outlineDark"
+              disabled={busy || !data.config}
+              onClick={() =>
+                void action(async () => {
+                  const checks = await checkSquareWebhooks();
+                  if (!checks.processedEvents)
+                    throw new Error(
+                      "Square webhook settings match, but no delivered event has been processed yet.",
+                    );
+                }, "Square webhook settings match and delivered events have been processed.")
+              }
+            >
+              Verify Square webhooks
             </Button>
           </div>
           <details>
