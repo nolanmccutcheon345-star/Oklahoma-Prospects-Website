@@ -38,6 +38,8 @@ import { Route as VisitsRouteImport } from './routes/visits'
 import { Route as WaiverRouteImport } from './routes/waiver'
 import { Route as GoDestRouteImport } from './routes/go.$dest'
 import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
+import { Route as ApiSquareReconcileRouteImport } from './routes/api/square/reconcile'
+import { Route as ApiSquareWebhookRouteImport } from './routes/api/square/webhook'
 import { Route as ApiStripeWebhookRouteImport } from './routes/api/stripe/webhook'
 
 const IndexRoute = IndexRouteImport.update({
@@ -185,6 +187,16 @@ const ApiAuthSplatRoute = ApiAuthSplatRouteImport.update({
   path: '/api/auth/$',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiSquareReconcileRoute = ApiSquareReconcileRouteImport.update({
+  id: '/api/square/reconcile',
+  path: '/api/square/reconcile',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiSquareWebhookRoute = ApiSquareWebhookRouteImport.update({
+  id: '/api/square/webhook',
+  path: '/api/square/webhook',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiStripeWebhookRoute = ApiStripeWebhookRouteImport.update({
   id: '/api/stripe/webhook',
   path: '/api/stripe/webhook',
@@ -221,6 +233,8 @@ export interface FileRoutesByFullPath {
   '/waiver': typeof WaiverRoute
   '/go/$dest': typeof GoDestRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
+  '/api/square/reconcile': typeof ApiSquareReconcileRoute
+  '/api/square/webhook': typeof ApiSquareWebhookRoute
   '/api/stripe/webhook': typeof ApiStripeWebhookRoute
 }
 export interface FileRoutesByTo {
@@ -253,6 +267,8 @@ export interface FileRoutesByTo {
   '/waiver': typeof WaiverRoute
   '/go/$dest': typeof GoDestRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
+  '/api/square/reconcile': typeof ApiSquareReconcileRoute
+  '/api/square/webhook': typeof ApiSquareWebhookRoute
   '/api/stripe/webhook': typeof ApiStripeWebhookRoute
 }
 export interface FileRoutesById {
@@ -286,6 +302,8 @@ export interface FileRoutesById {
   '/waiver': typeof WaiverRoute
   '/go/$dest': typeof GoDestRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
+  '/api/square/reconcile': typeof ApiSquareReconcileRoute
+  '/api/square/webhook': typeof ApiSquareWebhookRoute
   '/api/stripe/webhook': typeof ApiStripeWebhookRoute
 }
 export interface FileRouteTypes {
@@ -320,6 +338,8 @@ export interface FileRouteTypes {
     | '/waiver'
     | '/go/$dest'
     | '/api/auth/$'
+    | '/api/square/reconcile'
+    | '/api/square/webhook'
     | '/api/stripe/webhook'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -352,6 +372,8 @@ export interface FileRouteTypes {
     | '/waiver'
     | '/go/$dest'
     | '/api/auth/$'
+    | '/api/square/reconcile'
+    | '/api/square/webhook'
     | '/api/stripe/webhook'
   id:
     | '__root__'
@@ -384,6 +406,8 @@ export interface FileRouteTypes {
     | '/waiver'
     | '/go/$dest'
     | '/api/auth/$'
+    | '/api/square/reconcile'
+    | '/api/square/webhook'
     | '/api/stripe/webhook'
   fileRoutesById: FileRoutesById
 }
@@ -417,6 +441,8 @@ export interface RootRouteChildren {
   WaiverRoute: typeof WaiverRoute
   GoDestRoute: typeof GoDestRoute
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
+  ApiSquareReconcileRoute: typeof ApiSquareReconcileRoute
+  ApiSquareWebhookRoute: typeof ApiSquareWebhookRoute
   ApiStripeWebhookRoute: typeof ApiStripeWebhookRoute
 }
 
@@ -625,6 +651,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiAuthSplatRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/square/reconcile': {
+      id: '/api/square/reconcile'
+      path: '/api/square/reconcile'
+      fullPath: '/api/square/reconcile'
+      preLoaderRoute: typeof ApiSquareReconcileRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/square/webhook': {
+      id: '/api/square/webhook'
+      path: '/api/square/webhook'
+      fullPath: '/api/square/webhook'
+      preLoaderRoute: typeof ApiSquareWebhookRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/stripe/webhook': {
       id: '/api/stripe/webhook'
       path: '/api/stripe/webhook'
@@ -665,6 +705,8 @@ const rootRouteChildren: RootRouteChildren = {
   WaiverRoute: WaiverRoute,
   GoDestRoute: GoDestRoute,
   ApiAuthSplatRoute: ApiAuthSplatRoute,
+  ApiSquareReconcileRoute: ApiSquareReconcileRoute,
+  ApiSquareWebhookRoute: ApiSquareWebhookRoute,
   ApiStripeWebhookRoute: ApiStripeWebhookRoute,
 }
 export const routeTree = rootRouteImport

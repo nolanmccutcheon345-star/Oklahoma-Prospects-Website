@@ -1,11 +1,12 @@
-import {pageHead} from "@/lib/seo";
+import { pageHead } from "@/lib/seo";
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { RedirectToSignIn } from "@/lib/auth/gates";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
-import {OfficeRequests} from "@/components/commerce/office-requests";
+import { SquareOffice } from "@/components/commerce/square-office";
+import { OfficeRequests } from "@/components/commerce/office-requests";
 import { OfficeApp } from "@/components/teams/office-app";
-import {OfficeOperations} from "@/components/commerce/operations";
+import { OfficeOperations } from "@/components/commerce/operations";
 import { FailScreen } from "@/components/teams/ui";
 import { TeamsShell } from "@/components/teams/shell";
 import { Button } from "@/components/ui/button";
@@ -13,7 +14,11 @@ import { PageHero } from "@/components/page-hero";
 import { getTeamsClub, onboardTeamsClub, saveTeamsClub } from "@/lib/teams/store";
 import type { ClubRecord } from "@/lib/teams/types";
 
-export const Route = createFileRoute("/office")({head:()=>pageHead("/office","Front Office","Manage Oklahoma Prospects club operations.",true), component: Page });
+export const Route = createFileRoute("/office")({
+  head: () =>
+    pageHead("/office", "Front Office", "Manage Oklahoma Prospects club operations.", true),
+  component: Page,
+});
 
 function Page() {
   const { user, isPending } = useCurrentUserState();
@@ -68,7 +73,8 @@ function OfficePage() {
           image="/brand/team.jpg"
           compact
         />
-        <div className="mx-auto max-w-3xl px-5 py-8"><OfficeRequests/>
+        <div className="mx-auto max-w-3xl px-5 py-8">
+          <OfficeRequests />
           <div className="grid gap-2">
             <Button
               type="button"
@@ -100,8 +106,10 @@ function OfficePage() {
         { to: "/account", label: "Development" },
       ]}
     >
-      <OfficeRequests/>
-      <OfficeOperations/><OfficeApp
+      <OfficeRequests />
+      <SquareOffice />
+      <OfficeOperations />
+      <OfficeApp
         club={club}
         onChange={setClub}
         onSave={async () => {
