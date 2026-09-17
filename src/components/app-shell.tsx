@@ -92,7 +92,7 @@ export function AppShell({ children }: { children: ReactNode }) {
               </span>
             </span>
           </Link>
-          <div className="flex shrink-0 items-center gap-2"><a href={`tel:${CLUB.phoneTel}`} className="inline-flex min-h-11 items-center text-sm underline"><span className="hidden sm:inline">{CLUB.phoneDisplay}</span><span className="sm:hidden">Call</span></a>
+          <div className="flex shrink-0 items-center gap-2">
             {isPending ? (
               <Button size="sm" variant="primary" disabled>
                 Account

@@ -7,7 +7,7 @@ export const LOCAL_BUSINESS_JSONLD = {
   legalName: "Oklahoma Prospects",
   alternateName: ["Oklahoma Prospects Baseball", "Oklahoma Prospects Softball"],
   description:
-    "Reserved indoor batting cages, private baseball and softball lessons, and competitive teams in Broken Arrow, Oklahoma. Est. 2008.",
+    "Book indoor batting cages, private baseball and softball lessons, and competitive teams in Broken Arrow, Oklahoma. Est. 2008.",
   url: LINKS.site,
   telephone: CLUB.phoneTel,
   email: CLUB.email,

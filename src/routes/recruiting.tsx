@@ -1,7 +1,7 @@
 import {pageHead} from "@/lib/seo";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { PageHero } from "@/components/page-hero";
-import { PeopleCards } from "@/components/people";
+
 import { Button } from "@/components/ui/button";
 
 export const Route = createFileRoute("/recruiting")({head:()=>pageHead("/recruiting","Recruiting","Learn about Oklahoma Prospects recruiting support and player development.",false),
@@ -45,7 +45,7 @@ function RecruitingPage() {
             {
               n: "03",
               title: "Ask the next step",
-              body: "The right evaluation, the right lesson plan, or a reserved cage hour. We will tell you which one it is.",
+              body: "The right evaluation, the right lesson plan, or a paid cage booking. We will tell you which one it is.",
             },
           ].map((step) => (
             <li key={step.n} className="flex gap-5 py-6">
@@ -65,7 +65,7 @@ function RecruitingPage() {
         <div className="mx-auto max-w-3xl px-5">
           <h2 className="text-3xl">Who to text</h2>
           <div className="mt-5">
-            <PeopleCards />
+            <Link to="/contact" className="inline-flex min-h-11 items-center underline">Contact</Link>
           </div>
         </div>
       </section>

@@ -277,6 +277,6 @@ export function authConfigurationError() {
   return null;
 }
 export async function handleAuthRequest(request:Request) {
-  if(authConfigurationError())return Response.json({message:'Account access is temporarily unavailable. Contact the front desk.'},{status:503});
+  if(authConfigurationError())return Response.json({message:'Account access is temporarily unavailable. Please try again shortly.'},{status:503});
   return auth.handler(request);
 }

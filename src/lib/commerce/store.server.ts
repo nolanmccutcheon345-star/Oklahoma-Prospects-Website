@@ -31,7 +31,7 @@ export async function holdWindow(
   },
 ) {
   if (input.start >= input.end || !input.resources.length)
-    throw new Error("Invalid reservation window.");
+    throw new Error("Invalid booking window.");
   const id = randomUUID();
   const resources = [
     ...new Set([...input.resources, ...(input.athleteId ? [`athlete:${input.athleteId}`] : [])]),
@@ -46,6 +46,34 @@ export async function holdWindow(
       await sql`insert into booking_occupancy (resource_id,slot_at,booking_id) values (${resource},${new Date(ms).toISOString()},${id})`;
     }
   }
+  return id;
+}
+
+/** Allocate occupancy only for a paid order. A conflict leaves no booking behind.
+ * Every writer acquires occupancy in the same order; the unique resource/time
+ * key prevents two successful payments from booking the same space.
+ */
+export async function createPaidBooking(sql: Sql, input: Parameters<typeof holdWindow>[1]) {
+  const [paid] = await sql`select id from commerce_orders where id=${input.orderId} and status='paid' for update`;
+  if (!paid) throw new Error("Successful payment is required before booking.");
+  if (input.start >= input.end || input.start <= new Date() || !input.resources.length)
+    return null;
+  const id = randomUUID();
+  const resources = [...new Set([...input.resources, ...(input.athleteId ? [`athlete:${input.athleteId}`] : [])])].sort();
+  await sql`insert into booking_records(id,order_id,user_id,athlete_id,coach_id,product_id,starts_at,ends_at,resources,participant_count,participants_verified,status)
+    values(${id},${input.orderId},${input.userId},${input.athleteId},${input.coachId || null},${input.productId},${input.start.toISOString()},${input.end.toISOString()},${JSON.stringify(resources)}::jsonb,${input.participantCount || 1},${Boolean(input.athleteId)},'confirmed')`;
+  for (const resource of resources) {
+    for (let ms = input.start.getTime(); ms < input.end.getTime(); ms += 300_000) {
+      const inserted = await sql`insert into booking_occupancy(resource_id,slot_at,booking_id) values(${resource},${new Date(ms).toISOString()},${id}) on conflict do nothing returning booking_id`;
+      if (!inserted.length) {
+        await sql`delete from booking_occupancy where booking_id=${id}`;
+        await sql`delete from booking_records where id=${id}`;
+        return null;
+      }
+    }
+  }
+  if (input.athleteId)
+    await sql`insert into booking_participants(booking_id,athlete_id) values(${id},${input.athleteId})`;
   return id;
 }
 
@@ -112,14 +140,14 @@ export async function carryOneSession(
 }
 
 /** Durable compensating refunds; the worker calls Square with each saved refund key. */
-export async function queueExpiredCheckoutRefunds(sql: Sql, environment: string) {
+export async function queueExpiredCheckoutRefunds(sql: Sql, environment: string, orderId?: string) {
   const abandoned = await sql<{
     id: string;
     order_id: string;
     amount_cents: number;
     refunded_cents: number;
     user_id: string;
-  }>`select p.id,p.order_id,p.amount_cents,p.refunded_cents,o.user_id from square_payments p join commerce_orders o on o.id=p.order_id where p.environment=${environment} and o.status in ('expired','payment_review') and p.refunded_cents<p.amount_cents limit 10`;
+  }>`select p.id,p.order_id,p.amount_cents,p.refunded_cents,o.user_id from square_payments p join commerce_orders o on o.id=p.order_id where p.environment=${environment} and o.status in ('expired','payment_review') and (${orderId ?? null}::text is null or o.id=${orderId ?? null}) and p.refunded_cents<p.amount_cents limit 10`;
   for (const p of abandoned)
     await sql`insert into commerce_refunds(id,order_id,user_id,amount_cents,status,reason,square_payment_id,request_key) values(${"expired:" + p.id},${p.order_id},${p.user_id},${p.amount_cents - p.refunded_cents},'pending','Checkout expired before complete payment; no confirmed booking',${p.id},${"expired:" + p.id}) on conflict do nothing`;
 }

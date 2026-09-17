@@ -73,7 +73,7 @@ function PayPage() {
   const kind = (search.kind || "lesson") as CheckoutInput["kind"];
   const enrollmentHelp =
     product?.id === "m4" || product?.id === "s6"
-      ? "Contact the front desk for the published small-group schedule before enrolling."
+      ? "Small-group enrollment opens when the weekly schedule is published."
       : product?.id === "m5" && !assessed
         ? "Contact your coach to arrange a remote assessment before starting remote coaching."
         : "";
@@ -354,9 +354,6 @@ function PayPage() {
           {enrollmentHelp ? (
             <div className="rounded-xl border p-4" role="status">
               <p>{enrollmentHelp}</p>
-              <a className="inline-flex min-h-11 items-center underline" href="tel:+19189228114">
-                Call (918) 922-8114
-              </a>
             </div>
           ) : null}
           {locked ? (
@@ -511,12 +508,7 @@ function PayPage() {
           </p>
           {context?.mode === "disabled" ? (
             <p className="rounded-lg bg-paper-2 p-3">
-              Online card checkout is not active yet. No booking or reservation is created without
-              successful payment.{" "}
-              <a className="underline" href="tel:+19189228114">
-                Call (918) 922-8114
-              </a>{" "}
-              for help.
+              Online payment is temporarily unavailable. No booking is created until payment succeeds. Please try again later.
             </p>
           ) : (
             <Button

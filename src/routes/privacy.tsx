@@ -1,6 +1,7 @@
+import { CLUB } from "@/lib/club";
 import {pageHead} from "@/lib/seo";
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { CLUB } from "@/lib/club";
+
 
 export const Route = createFileRoute("/privacy")({head:()=>pageHead("/privacy","Privacy","How Oklahoma Prospects handles household and club account information.",false), component: PrivacyPage });
 
@@ -39,11 +40,7 @@ function PrivacyPage() {
           <p className="mt-2">
             The design supports keyboard navigation, visible focus, labeled
             forms, adjustable text, and reduced-motion preferences. If something
-            prevents you from using the app, call or text{" "}
-            <a href={`tel:${CLUB.phoneTel}`} className="font-semibold text-maroon">
-              {CLUB.phoneDisplay}
-            </a>{" "}
-            or{" "}
+            prevents you from using the app, visit our {" "}
             <Link to="/contact" className="font-semibold text-maroon">
               contact Prospects
             </Link>

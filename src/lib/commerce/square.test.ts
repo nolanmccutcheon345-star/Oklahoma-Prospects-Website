@@ -13,6 +13,7 @@ import { fulfillSquarePayment, verifiedPayment, type SquareOrder } from "./squar
 import {
   expireHolds,
   holdWindow,
+  createPaidBooking,
   queueExpiredCheckoutRefunds,
   carryOneSession,
 } from "./store.server";
@@ -165,7 +166,7 @@ test("Square payment fulfillment commits once and never turns unpaid holds into 
       await db.exec(await readFile("migrations/" + file, "utf8"));
     const sql = wrap(db);
     await sql`insert into club_athletes(id,user_id,household_email,name) values('athlete','parent','fixture@example.invalid','Synthetic Athlete')`;
-    async function order(id: string, patch: Partial<Quote> = {}) {
+    async function order(id: string, patch: Partial<SquareOrder["snapshot"]> = {}) {
       const q = { ...quote, ...patch };
       await sql`insert into commerce_orders(id,request_key,user_id,email,athlete_id,product_id,kind,snapshot,total_cents,hold_until,payment_provider,payment_environment,square_customer_id)
         values(${id},${id},'parent','fixture@example.invalid','athlete',${q.productId},${q.kind},${JSON.stringify(q)}::jsonb,${q.totalCents},now()+interval '10 minutes','square','sandbox','customer')`;
@@ -203,6 +204,32 @@ test("Square payment fulfillment commits once and never turns unpaid holds into 
         );
       },
     );
+    await t.test("unpaid selections create no booking; only one paid customer can take the time", async () => {
+      const bookingWindow = { start: "2027-04-20T22:00:00Z", end: "2027-04-20T23:00:00Z", participantCount: 1 };
+      const cage = { productId: "individual", kind: "cage", needsSlot: true, resources: ["lane:6"], credits: 0, bookingWindow };
+      await order("cage-first", cage);
+      await order("cage-second", cage);
+      assert.equal((await sql`select id from booking_records where order_id in ('cage-first','cage-second')`).length, 0);
+      await assert.rejects(sql.transaction(tx => createPaidBooking(tx, { orderId: "cage-first", userId: "parent", athleteId: null, productId: "individual", start: new Date(bookingWindow.start), end: new Date(bookingWindow.end), resources: ["lane:6"] })), /Successful payment/);
+      await sql.transaction(tx => fulfillSquarePayment(tx, {...payment("cage-first"), status: "FAILED"}, config));
+      assert.equal((await sql`select id from booking_records where order_id='cage-first'`).length, 0);
+      await sql.transaction(tx => fulfillSquarePayment(tx, payment("cage-first"), config));
+      await sql.transaction(tx => fulfillSquarePayment(tx, payment("cage-first"), config));
+      assert.equal((await sql`select id from booking_records where order_id='cage-first' and status='confirmed'`).length, 1);
+      await sql.transaction(tx => fulfillSquarePayment(tx, payment("cage-second"), config));
+      assert.equal((await sql<{status:string}>`select status from commerce_orders where id='cage-second'`)[0].status, "payment_review");
+      assert.equal((await sql`select id from booking_records where order_id='cage-second'`).length, 0);
+      assert.equal((await sql`select id from commerce_refunds where order_id='cage-second' and status='pending' and amount_cents=22000`).length, 1);
+      assert.equal((await sql`select id from booking_records where order_id in ('cage-first','cage-second') and status='held'`).length, 0);
+    });
+    await t.test("a partial membership payment does not block its selected time", async () => {
+      const bookingWindow = { start: "2027-04-21T22:00:00Z", end: "2027-04-21T23:00:00Z", participantCount: 1 };
+      await order("no-hold-partial", { productId: "m1", kind: "membership", recurring: true, needsSlot: true, resources: ["lane:7"], totalCents: 27900, regularCents: 22900, setupCents: 5000, assessment: true, bookingWindow });
+      await sql.transaction(tx => fulfillSquarePayment(tx, payment("no-hold-partial",22900),config));
+      assert.equal((await sql`select id from booking_records where order_id='no-hold-partial'`).length, 0);
+      await sql.transaction(tx => fulfillSquarePayment(tx, {...payment("no-hold-partial",5000), id:"fee-no-hold"},config));
+      assert.equal((await sql`select id from booking_records where order_id='no-hold-partial' and status='confirmed'`).length, 1);
+    });
     await t.test(
       "duplicate confirmation grants one package with exact expiry and leaves assessment incomplete",
       async () => {

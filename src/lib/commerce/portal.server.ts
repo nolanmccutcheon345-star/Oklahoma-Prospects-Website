@@ -168,7 +168,7 @@ export async function checkIn(userId: string, bookingId: string) {
       ends_at: Date;
     }>`select id,participant_count,participants_verified,starts_at,ends_at from booking_records
       where id=${bookingId} and (household_id=any(${me.billingHouseholdIds}::text[]) or ${me.role === "admin"}) and status='confirmed' for update`;
-    if (!row) throw new Error("Only your confirmed reservations can be checked in.");
+    if (!row) throw new Error("Only your paid bookings can be checked in.");
     const { enforceVisitWaivers } = await import("./waivers.server");
     await enforceVisitWaivers(tx, row);
     await tx`update booking_records set checked_in_at=coalesce(checked_in_at,now()) where id=${bookingId}`;

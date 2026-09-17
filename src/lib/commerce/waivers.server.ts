@@ -11,5 +11,5 @@ export async function enforceVisitWaivers(sql:Sql, booking:{id:string;participan
  if(participants.length!==booking.participant_count)throw new Error('Add every participating athlete before check-in.');
  const missing=participants.filter(p=>!p.current);
  if(missing.length)throw new Error(`A current annual waiver is required for: ${missing.map(p=>p.name).join(', ')}. Open Annual waiver to sign.`);
- if(chicagoDate(new Date(booking.starts_at))!==chicagoDate(now)||new Date(booking.ends_at)<=now)throw new Error('Check in on the date of your reservation, before it ends.');
+ if(chicagoDate(new Date(booking.starts_at))!==chicagoDate(now)||new Date(booking.ends_at)<=now)throw new Error('Check in on the date of your booking, before it ends.');
 }

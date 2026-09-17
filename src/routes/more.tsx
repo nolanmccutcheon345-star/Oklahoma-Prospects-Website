@@ -5,7 +5,6 @@ import {
   GraduationCap,
   LogIn,
   MapPin,
-  Phone,
   Shield,
   Shirt,
   Smartphone,
@@ -14,12 +13,12 @@ import { ContinueIn } from "@/components/continue-in";
 import { GoogleReview } from "@/components/google-review";
 import { HoursChip } from "@/components/hours-chip";
 import { PageHero } from "@/components/page-hero";
-import { PeopleCards } from "@/components/people";
+
 import { VisitChecklist } from "@/components/visit-checklist";
 import { Button } from "@/components/ui/button";
 import { CLUB, LINKS } from "@/lib/club";
 
-export const Route = createFileRoute("/more")({head:()=>pageHead("/more","Visit & Directions","Find directions, reserved hours, waiver, check-in, and the front desk.",false), component: VisitPage });
+export const Route = createFileRoute("/more")({head:()=>pageHead("/more","Visit & Directions","Find directions, booked hours, waiver, and check-in.",false), component: VisitPage });
 
 function VisitPage() {
   return (
@@ -46,7 +45,7 @@ function VisitPage() {
         </p>
         <div className="mt-5 grid gap-2 sm:grid-cols-2">
           <Button asChild>
-            <a href={`tel:${CLUB.phoneTel}`}>Call {CLUB.phoneDisplay}</a>
+            <Link to="/contact">Contact</Link>
           </Button>
           <Button asChild variant="outline">
             <a href={LINKS.maps} target="_blank" rel="noopener noreferrer">
@@ -104,7 +103,7 @@ function VisitPage() {
           After you book. The desk for cages and the door. Coach Steve after a paid lesson.
         </p>
         <div className="mt-4">
-          <PeopleCards />
+          <Link to="/contact" className="inline-flex min-h-11 items-center underline">Contact</Link>
         </div>
       </section>
 
@@ -127,20 +126,6 @@ function VisitPage() {
         <GoogleReview />
       </section>
 
-      <div className="mt-6 flex items-center gap-3 text-sm">
-        <Phone className="size-4 text-maroon" />
-        <a href={`tel:${CLUB.phoneTel}`} className="font-semibold text-ink">
-          {CLUB.phoneDisplay}
-        </a>
-        <span className="text-muted">Facility</span>
-      </div>
-      <div className="mt-2 flex items-center gap-3 text-sm">
-        <Phone className="size-4 text-maroon" />
-        <a href={`tel:${CLUB.coachSteveTel}`} className="font-semibold text-ink">
-          {CLUB.coachStevePhone}
-        </a>
-        <span className="text-muted">{CLUB.coachSteve} · development</span>
-      </div>
       <nav aria-label="Club pages" className="mt-8 flex flex-wrap gap-x-4 gap-y-2 text-sm">
         <Link to="/facility">Facility</Link>
         <Link to="/contact">Contact</Link>
@@ -158,7 +143,7 @@ function Row({
   title,
   body,
 }: {
-  icon: typeof Phone;
+  icon: typeof MapPin;
   title: string;
   body: string;
 }) {

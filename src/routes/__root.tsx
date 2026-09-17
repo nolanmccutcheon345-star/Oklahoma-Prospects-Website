@@ -23,7 +23,7 @@ export const Route = createRootRoute({
       {
         name: "description",
         content:
-          "Oklahoma Prospects: reserved indoor cages, private lessons, and free Spring 2027 evaluations in Broken Arrow.",
+          "Oklahoma Prospects: paid indoor cages, private lessons, and free Spring 2027 evaluations in Broken Arrow.",
       },
       { name: "theme-color", content: "#0b1720" },
       { name: "apple-mobile-web-app-capable", content: "yes" },

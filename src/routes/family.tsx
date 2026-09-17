@@ -75,7 +75,7 @@ function FamilyPage() {
         </p>
         <div className="mt-6 flex flex-wrap gap-3">
           <Button asChild>
-            <Link to="/book">Reserve a cage</Link>
+            <Link to="/book">Book a cage</Link>
           </Button>
           <Button asChild variant="outlineDark">
             <Link to="/training">Monthly coaching</Link>

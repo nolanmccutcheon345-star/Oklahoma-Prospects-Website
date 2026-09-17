@@ -65,10 +65,10 @@ export function FamilyApp({
         </p>
         <div className="mt-4 flex flex-wrap gap-3">
           <Button asChild>
-            <Link to="/book">Reserve a cage</Link>
+            <Link to="/book">Book a cage</Link>
           </Button>
           <Button asChild variant="outlineDark">
-            <Link to="/contact">Text the office</Link>
+            <Link to="/contact">Contact</Link>
           </Button>
         </div>
       </div>
@@ -146,7 +146,7 @@ export function FamilyApp({
               <li>Uniform {money(player.feeLock.components.uniform ?? 0)}</li>
             </ul>
           ) : null}
-          <p className="mt-2">Contact the front office for your team invoice. Only verified payments appear in this history.</p>
+          <p className="mt-2">Team invoices appear here when issued. Only verified payments appear in this history.</p>
           <a className="inline-flex min-h-11 items-center underline" href="/contact">Request a team invoice</a>
           <ul className="mt-3 text-sm">
             {player.payments.map((pay) => (

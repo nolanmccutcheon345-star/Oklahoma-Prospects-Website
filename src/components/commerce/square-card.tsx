@@ -151,8 +151,8 @@ export function SquareCard({
       {remaining !== null ? (
         <p role="timer">
           {remaining > 0
-            ? `Checkout hold: ${Math.floor(remaining / 60)}:${String(remaining % 60).padStart(2, "0")} remaining. Payment is required to confirm your booking.`
-            : "This checkout hold has expired. Check billing history before choosing a new time."}
+            ? `Payment session: ${Math.floor(remaining / 60)}:${String(remaining % 60).padStart(2, "0")} remaining. Your time stays available until payment succeeds.`
+            : "This payment session has expired. Check billing history before choosing a new time."}
         </p>
       ) : null}
       <div id={id} className="min-h-32" />

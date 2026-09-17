@@ -55,7 +55,7 @@ function TryoutsPage() {
         <p className="mt-4 text-sm text-muted">
           Just need a cage?{" "}
           <Link to="/book" className="font-semibold text-ink">
-            Reserve an hour
+            Book an hour
           </Link>
           .
         </p>
@@ -96,7 +96,7 @@ function TryoutsPage() {
               Baseball and softball. Ask about the right age group or evaluation.
             </p>
             <Button asChild className="mt-5 w-full">
-              <a href={`tel:${CLUB.phoneTel}`}>Call / text Prospects</a>
+              <Link to="/contact">Contact</Link>
             </Button>
             <p className="mt-5 text-sm text-fg-soft">
               {CLUB.addressLine1}

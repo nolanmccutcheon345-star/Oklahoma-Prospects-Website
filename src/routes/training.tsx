@@ -213,7 +213,7 @@ function CatalogAndBook() {
           Household cage passes and drop-in hours live on Book. This page is coaching.
         </p>
         <Button asChild className="mt-4">
-          <Link to="/book">Reserve a cage</Link>
+          <Link to="/book">Book a cage</Link>
         </Button>
       </section>
     </div>

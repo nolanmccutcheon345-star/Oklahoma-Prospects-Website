@@ -1,3 +1,4 @@
+import { CLUB } from "@/lib/club";
 import { pageHead } from "@/lib/seo";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
@@ -49,7 +50,7 @@ function Paid() {
       } catch {
         if (active)
           setError(
-            "Payment confirmation could not load. Your card has not been charged again. Check billing history or contact the desk.",
+            "Payment confirmation could not load. Your card has not been charged again. Check billing history.",
           );
       }
     };
@@ -80,7 +81,7 @@ function Paid() {
           : status === "paid"
             ? `${formatMoney(amount)} received. Your saved booking and receipt are in your account. An assessment stays incomplete until your coach completes it.`
             : status === "payment_review"
-              ? "Your payment arrived after the reservation hold ended. The front desk will arrange a refund or a new time; this booking is not confirmed."
+              ? "Payment was received, but the selected time could not be booked. A refund is being processed. This booking is not confirmed."
               : "This page waits for verified payment confirmation. Returning here does not mark an order paid."}
       </p>
       {payment?.feeDue && payment.square && user ? (
@@ -109,6 +110,12 @@ function Paid() {
         <p role="alert" className="text-maroon">
           {error}
         </p>
+      ) : null}
+      {status === "paid" && payment?.receipt_url ? (
+        <section className="my-5 rounded-xl border p-4" aria-label="Payment receipt">
+          <a className="inline-flex min-h-11 items-center underline" href={payment.receipt_url} target="_blank" rel="noopener noreferrer">View your Square receipt</a>
+          {payment.bookingConfirmed ? <p className="mt-3">Questions about your paid booking? <a className="inline-flex min-h-11 items-center underline" href={`tel:${CLUB.phoneTel}`}>Call {CLUB.phoneDisplay}</a>.</p> : null}
+        </section>
       ) : null}
       <div className="flex flex-wrap gap-3">
         <Button asChild>

@@ -51,7 +51,7 @@ export const markAssessment = createServerFn({ method: "POST" })
 /** Retired browser mutation: fulfillment belongs to the verified Stripe webhook. */
 export const createReservation = createServerFn({ method: "POST" })
   .middleware([authMiddleware]).validator((input: unknown) => input)
-  .handler(() => { throw new Error("Use secure checkout to reserve a session."); });
+  .handler(() => { throw new Error("Payment is required to book a session. Use secure checkout."); });
 
 export const listReservations = createServerFn({ method: "GET" })
   .middleware([authMiddleware])

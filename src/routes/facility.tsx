@@ -16,7 +16,7 @@ function FacilityPage() {
         eyebrow="Indoor baseball & softball · Broken Arrow"
         title="Your next rep."
         accent="Your next level."
-        copy="Reserve a cage, plan a team workout, or work with an instructor."
+        copy="Book a cage, plan a team workout, or work with an instructor."
         image="/brand/facility.jpg"
         actions={
           <>
@@ -136,7 +136,7 @@ function FacilityPage() {
               </a>
             </Button>
             <Button asChild variant="outline">
-              <a href={`tel:${CLUB.phoneTel}`}>Call / text</a>
+              <Link to="/contact">Contact</Link>
             </Button>
           </div>
         </address>

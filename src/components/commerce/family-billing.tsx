@@ -131,7 +131,7 @@ export function FamilyBilling({ bookingsOnly = false }: { bookingsOnly?: boolean
         <p>
           No bookings yet.{" "}
           <Link to="/book" className="underline">
-            Reserve a cage
+            Book a cage
           </Link>{" "}
           or{" "}
           <Link to="/training" className="underline">

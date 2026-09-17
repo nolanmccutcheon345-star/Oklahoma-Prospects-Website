@@ -7,7 +7,7 @@ import { validateWindow, slotsFor } from "../scheduling";
 import { ASSESSMENT_PRODUCTS } from "../pricing";
 import { BOOKABLE_LANES } from "../club";
 import { coachAvailable } from "./availability";
-import { expireHolds, holdWindow } from "./store.server";
+import { expireHolds, createPaidBooking } from "./store.server";
 import type { Product } from "./contracts";
 import { redemptionInput } from "./redemption";
 type Input = z.infer<typeof redemptionInput>;
@@ -94,7 +94,7 @@ export async function creditSlots(userId: string, input: Input) {
   const occupied = await sql<{
     slot_at: Date;
   }>`select b.slot_at from booking_occupancy b join booking_records r on r.id=b.booking_id left join commerce_orders o on o.id=r.order_id
-    where b.resource_id=any(${resources}::text[]) and (r.status in ('confirmed','completed') or o.hold_until>now())`;
+    where b.resource_id=any(${resources}::text[]) and r.status in ('confirmed','completed')`;
   return slotsFor(input.date, minutes).filter((s) => {
     const { start, end } = validateWindow(input.date, s.value, minutes);
     return (
@@ -142,7 +142,7 @@ export async function redeemCredit(userId: string, input: Input) {
       )
         throw new Error("Your coach is unavailable for the full session.");
       await expireHolds(tx);
-      const bookingId = await holdWindow(tx, {
+      const bookingId = await createPaidBooking(tx, {
         orderId: grant.order_id,
         userId,
         athleteId: grant.athlete_id || null,
@@ -152,7 +152,7 @@ export async function redeemCredit(userId: string, input: Input) {
         resources,
         participantCount: grant.kind === "cage-minutes" ? input.athleteCount : 1,
       });
-      await tx`update booking_records set status='confirmed' where id=${bookingId}`;
+      if (!bookingId) throw new Error("That time was just booked. Choose another time. Your paid credit has not been used.");
       await tx`insert into credit_uses(id,grant_id,booking_id,quantity) values(${randomUUID()},${grant.id},${bookingId},${quantity})`;
     }
     return { ok: true };

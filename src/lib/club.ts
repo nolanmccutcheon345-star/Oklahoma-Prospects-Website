@@ -312,8 +312,8 @@ export const PEOPLE = [
 
 export const FIRST_VISIT = [
   {
-    title: "Confirm your reservation",
-    body: "The lane is yours when checkout says reserved — not when you pick a time. Nothing is booked until you confirm.",
+    title: "Pay to book your time",
+    body: "Choose an available time and pay online. Your lane is booked only after successful payment. Selecting a time does not block it.",
   },
   {
     title: "Sign the annual waiver",
@@ -321,7 +321,7 @@ export const FIRST_VISIT = [
   },
   {
     title: "Know the door",
-    body: "3804 S. Elm Pl., Suite A, Broken Arrow. Text the desk if you are late or the gate is locked.",
+    body: "3804 S. Elm Pl., Suite A, Broken Arrow. Arrive at your paid booking’s start time.",
   },
   {
     title: "Bring the basics",
@@ -334,22 +334,22 @@ export const PAY_METHODS = [
     id: "card",
     name: "Debit or credit",
     preferred: true,
-    note: "Payment is required to confirm a booking. Call the front desk for help while card checkout is unavailable.",
+    note: "Payment is required to confirm a booking. Booking is unavailable until secure payment is active.",
   },
 ] as const;
 
 export const FAQ = [
   {
-    q: "Can I walk in without a reservation?",
-    a: "Every hour is reserved in advance, so the lane is actually yours. Pick a live slot, check out, then show up ready to work.",
+    q: "How do I book a cage?",
+    a: "Choose an available cage and time, then pay online. Your booking is confirmed only after successful payment. Unpaid selections do not block time.",
   },
   {
-    q: "Why is a reserved hour $50?",
+    q: "What does a cage hour cost?",
     a: "That is the one-off household rate for one cage. A monthly cage pass brings the hour down — All-Star is under $35 an hour with first pick of times.",
   },
   {
     q: "Are you open during the day?",
-    a: "After school, on purpose. Monday–Friday 4–8 PM. Saturday–Sunday 1–8 PM, by reservation. Spring evaluations are November 14–15. November 14 uses Saturday morning hours — doors open at 8:45 AM for 5U.",
+    a: "After school, on purpose. Monday–Friday 4–8 PM. Saturday–Sunday 1–8 PM, with a paid booking. Spring evaluations are November 14–15. November 14 uses Saturday morning hours — doors open at 8:45 AM for 5U.",
   },
   {
     q: "Can I rent more than one cage at the same time?",
@@ -357,11 +357,11 @@ export const FAQ = [
   },
   {
     q: "Do you offer baseball and softball?",
-    a: "Yes. Baseball and softball both train here. Lane 7 is the dual-use machine and hitting lane. Tell the coach your sport when you book, or text Coach Steve.",
+    a: "Yes. Baseball and softball both train here. Lane 7 is the dual-use machine and hitting lane. Select your sport when you book.",
   },
   {
     q: "I’m new. Where do I start?",
-    a: "Want reps today? Reserve a cage. Want coaching? Start with an assessment — pitching 75 min / $149, hitting 60 min / $150. Private hours are $100 after that. Ordinary lessons and packages unlock after your coach completes your assessment. Monthly coaching is four sessions a month from $229.",
+    a: "Want reps today? Book a cage. Want coaching? Start with an assessment — pitching 75 min / $149, hitting 60 min / $150. Private hours are $100 after that. Ordinary lessons and packages unlock after your coach completes your assessment. Monthly coaching is four sessions a month from $229.",
   },
   {
     q: "What if I need to cancel?",
@@ -372,7 +372,7 @@ export const FAQ = [
 export const PROOF = [
   { label: "Est.", value: "2008" },
   { label: "Facility", value: "7 lanes" },
-  { label: "Booking", value: "By reservation" },
+  { label: "Booking", value: "Pay to book" },
   { label: "Tryouts", value: "Free evals" },
 ] as const;
 

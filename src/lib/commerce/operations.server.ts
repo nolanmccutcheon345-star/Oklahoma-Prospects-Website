@@ -16,8 +16,8 @@ export async function setParticipants(userId: string, id: string, athleteIds: st
       household_id: string;
     }>`select * from booking_records where id=${id} and (household_id=any(${me.billingHouseholdIds}::text[]) or ${me.role === "admin"}) and status='confirmed' and checked_in_at is null for update`;
     if (!booking)
-      throw new Error("Choose an upcoming confirmed reservation that has not been checked in.");
-    if (new Date(booking.ends_at) <= new Date()) throw new Error("This reservation has ended.");
+      throw new Error("Choose an upcoming paid booking that has not been checked in.");
+    if (new Date(booking.ends_at) <= new Date()) throw new Error("This booking has ended.");
     const ids = [...new Set(athleteIds)];
     if (ids.length !== booking.participant_count)
       throw new Error(`Choose all ${booking.participant_count} participating athletes.`);
@@ -152,7 +152,7 @@ export async function lessonResources(serviceId: string, sql: Awaited<ReturnType
   }>`select lane_ids from service_resources where service_id=${serviceId}`;
   if (!row?.lane_ids.length)
     throw new Error(
-      "The front desk must assign a facility space for this lesson before online booking opens. Contact the desk for help. Payment is required to confirm a booking.",
+      "This lesson is unavailable until a facility space is assigned. Choose another available service.",
     );
   return row.lane_ids.map((id) => "lane:" + id);
 }

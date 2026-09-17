@@ -7,12 +7,12 @@ import { FaqList } from "@/components/faq-list";
 import { GoogleReview } from "@/components/google-review";
 import { HoursChip } from "@/components/hours-chip";
 import { MembershipPlans } from "@/components/membership-plans";
-import { PeopleCards } from "@/components/people";
+
 import { Button } from "@/components/ui/button";
 import { CANCEL_POLICY, CLUB, LINKS, PROOF, RENTALS } from "@/lib/club";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
 
-export const Route = createFileRoute("/")({head:()=>pageHead("/","Indoor cages, lessons & teams","Reserved indoor baseball and softball cages, coaching, and teams in Broken Arrow. Serving northeast Oklahoma since 2008.",false), component: Home });
+export const Route = createFileRoute("/")({head:()=>pageHead("/","Indoor cages, lessons & teams","Book indoor baseball and softball cages, coaching, and teams in Broken Arrow. Serving northeast Oklahoma since 2008.",false), component: Home });
 
 function Home() {
   const catalog=useLiveCatalog();
@@ -37,17 +37,17 @@ function Home() {
             YOUR HOUR. YOUR LANE.
           </h1>
           <p className="mt-5 max-w-md text-[1.05rem] leading-relaxed text-fg-soft">
-            Reserved indoor cages in Broken Arrow. Baseball and softball. The hour is yours — not a walk-in warehouse.
+            Book indoor cages in Broken Arrow. Baseball and softball. The hour is yours — not a walk-in warehouse.
           </p>
           <div className="mt-7 flex flex-wrap gap-3">
             <Button asChild>
-              <Link to="/book">Reserve a cage</Link>
+              <Link to="/book">Book a cage</Link>
             </Button>
             <Button asChild variant="outline">
               <Link to="/tryouts">Free Spring tryout</Link>
             </Button>
           </div>
-          <p className="mt-4 text-sm text-fg-soft"><a href={LINKS.maps} className="underline">{CLUB.addressLine1}, {CLUB.addressLine2}</a> · <a href={`tel:${CLUB.phoneTel}`} className="underline">{CLUB.phoneDisplay}</a></p>
+          <p className="mt-4 text-sm text-fg-soft"><a href={LINKS.maps} className="underline">{CLUB.addressLine1}, {CLUB.addressLine2}</a></p>
         </div>
         <div className="absolute inset-x-0 bottom-0 h-1 bg-gradient-to-r from-maroon from-70% to-powder" />
       </section>
@@ -77,7 +77,7 @@ function Home() {
             to="/book"
             kicker="From $50 / hour"
             title="Book a cage"
-            body="One cage or several at the same time. Payment is required to confirm your booking. Call the front desk for help."
+            body="One cage or several at the same time. Payment is required to confirm your booking."
           />
           <PathCard
             to="/training"
@@ -107,11 +107,11 @@ function Home() {
             <div>
               <h2 className="text-3xl">Cage rates</h2>
               <p className="mt-1 text-muted">
-                Pay only for the hour you reserve. {CANCEL_POLICY.short}.
+                Pay at checkout to book your time. {CANCEL_POLICY.short}.
               </p>
             </div>
             <Button asChild variant="outlineDark" size="sm">
-              <Link to="/book">Build a reservation</Link>
+              <Link to="/book">Book a cage</Link>
             </Button>
           </div>
           <div className="mt-6 grid gap-3">
@@ -172,7 +172,7 @@ function Home() {
           <p className="mt-2 mb-5 text-muted">
             Desk for cages and the door. Coach Steve after a paid lesson.
           </p>
-          <PeopleCards />
+          <Link to="/contact" className="inline-flex min-h-11 items-center underline">Contact</Link>
           <a
             href={LINKS.maps}
             target="_blank"

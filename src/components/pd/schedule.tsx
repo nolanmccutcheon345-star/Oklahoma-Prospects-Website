@@ -14,7 +14,7 @@ function labelTime(time: string) {
 }
 
 export function SessionPolicyRow({booking,family:_family}:{booking:Booking;family:Family}) {
- return <li className="pd-row rounded-xl bg-paper-2 shadow-border"><strong>{booking.date} · {labelTime(booking.time)}</strong><p>{booking.status}</p><a className="inline-flex min-h-11 items-center underline" href="/family">Manage confirmed booking and view refund options</a><p className="text-sm">Contact the front desk to arrange a different time.</p></li>;
+ return <li className="pd-row rounded-xl bg-paper-2 shadow-border"><strong>{booking.date} · {labelTime(booking.time)}</strong><p>{booking.status}</p><a className="inline-flex min-h-11 items-center underline" href="/family">Manage confirmed booking and view refund options</a></li>;
 }
 
 export function LockedFeatures({ tier }: { tier?: string }) {
@@ -67,7 +67,7 @@ export function CoachWaitlist() {
                   <span className="mt-1 block text-sm text-muted">
                     Prefers {row.preferredDay || "any day"} {row.preferredTime || ""}
                   </span>
-                  <p className="mt-2">Contact the family to arrange a booking through the front desk. This waitlist entry does not reserve a slot.</p>
+                  <p className="mt-2">The family must complete online payment to book an available session.</p>
                 </li>
               );
             })}

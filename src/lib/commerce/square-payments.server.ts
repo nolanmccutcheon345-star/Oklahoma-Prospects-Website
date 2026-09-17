@@ -13,7 +13,7 @@ import {
   safePaymentError,
 } from "./square.server";
 import { rateLimit } from "./checkout.server";
-import { grantCredits } from "./store.server";
+import { grantCredits, createPaidBooking, queueExpiredCheckoutRefunds } from "./store.server";
 import { addCalendarMonth } from "./catalog";
 import { chicagoDate, chicagoInstant } from "../scheduling";
 import type { Quote } from "./contracts";
@@ -22,7 +22,7 @@ export type SquareOrder = {
   user_id: string;
   email: string;
   athlete_id: string | null;
-  snapshot: Quote;
+  snapshot: Quote & { bookingWindow?: { start: string; end: string; coachId?: string; participantCount: number } | null };
   status: string;
   total_cents: number;
   hold_until: Date;
@@ -133,14 +133,33 @@ export async function fulfillSquarePayment(
     status: string;
     starts_at: Date;
   }>`select id,status,starts_at from booking_records where order_id=${order.id} for update`;
-  const late =
+  let late =
     bookings.some((b) => b.status !== "held" || new Date(b.starts_at).getTime() <= Date.now()) ||
     (bookings.length > 0 && new Date(order.hold_until).getTime() <= Date.now());
+  const window = order.snapshot.bookingWindow;
+  if (window) late ||= new Date(window.start).getTime() <= Date.now() || new Date(order.hold_until).getTime() <= Date.now();
+  // Expired/partially-paid sessions must not activate a membership or book a time.
+  late ||= !["pending", "pending_fee"].includes(order.status) || needsFee;
   await sql`update commerce_orders set status=${late ? "payment_review" : "paid"},paid_at=${paidAt.toISOString()},subscription_setup_status=${order.snapshot.recurring && !late ? "pending" : null},updated_at=now() where id=${order.id}`;
+  if (!late && window) {
+    const bookingId = await createPaidBooking(sql, {
+      orderId: order.id, userId: order.user_id, athleteId: order.athlete_id,
+      coachId: window.coachId,
+      productId: order.snapshot.setupCents > 0 ? (order.snapshot.discipline === "Hitting" ? "s9" : "s1") : order.snapshot.productId,
+      start: new Date(window.start), end: new Date(window.end),
+      resources: order.snapshot.resources, participantCount: window.participantCount,
+    });
+    if (bookingId) bookings.push({ id: bookingId, status: "confirmed", starts_at: new Date(window.start) });
+    else {
+      late = true;
+      await sql`update commerce_orders set status='payment_review',subscription_setup_status=null where id=${order.id}`;
+    }
+  }
   if (late) {
     await sql`update booking_records set status='expired' where order_id=${order.id} and status='held'`;
     await sql`delete from booking_occupancy where booking_id in(select id from booking_records where order_id=${order.id} and status='expired')`;
-    await sql`insert into club_requests(id,user_id,kind,payload) values(${"late-payment:" + id},${order.user_id},'payment-review',${JSON.stringify({ orderId: order.id, paymentId: id, reason: "Payment arrived after checkout expired; no booking confirmed." })}::jsonb) on conflict do nothing`;
+    await sql`insert into club_requests(id,user_id,kind,payload) values(${"late-payment:" + id},${order.user_id},'payment-review',${JSON.stringify({ orderId: order.id, paymentId: id, reason: "Payment completed after checkout expired or the selected time became unavailable; no booking confirmed." })}::jsonb) on conflict do nothing`;
+    await queueExpiredCheckoutRefunds(sql, config.environment, order.id);
     return;
   }
   await sql`update booking_records set status='confirmed' where order_id=${order.id} and status='held'`;
@@ -295,6 +314,13 @@ export async function paySquareOrder(
         throw new Error(
           "A completed assessment must remain on the athlete account before payment.",
         );
+    }
+    if (current.snapshot.bookingWindow) {
+      const window = current.snapshot.bookingWindow;
+      if (new Date(window.start).getTime() <= Date.now())
+        throw new Error("This booking time has passed. No payment was submitted.");
+      const occupied = await tx`select b.booking_id from booking_occupancy b join booking_records r on r.id=b.booking_id where r.status in ('confirmed','completed') and b.resource_id=any(${current.snapshot.resources}::text[]) and b.slot_at>=${window.start} and b.slot_at<${window.end} limit 1`;
+      if (occupied.length) throw new Error("That time was just booked. Choose another time. No payment was submitted.");
     }
     const started =
       await tx`select id from booking_records where order_id=${order.id} and (status<>'held' or starts_at<=now())`;

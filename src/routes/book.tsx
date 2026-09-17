@@ -13,7 +13,7 @@ import { cn } from "@/lib/utils";
 
 type BookSearch = { space?: string };
 
-export const Route = createFileRoute("/book")({head:()=>pageHead("/book","Book a Cage","Reserve one or more indoor cages in Broken Arrow. View availability for 30 minutes to 3 hours.",false),
+export const Route = createFileRoute("/book")({head:()=>pageHead("/book","Book a Cage","Pay and book one or more indoor cages in Broken Arrow. View availability for 30 minutes to 3 hours.",false),
   validateSearch: (search: Record<string, unknown>): BookSearch => ({
     space: typeof search.space === "string" ? search.space : undefined,
   }),
@@ -36,8 +36,8 @@ function BookPage() {
       <PageHero
         eyebrow="Oklahoma Prospects"
         title="Pick the lanes."
-        accent="Reserve your time."
-        copy="One cage or several at the same time — 30 minutes to 3 hours. Household rate is for 1–2 family athletes. Team rate is for groups of three or more, or three or more spaces. Availability is checked with the club before checkout."
+        accent="Pay. Then it’s booked."
+        copy="One cage or several at the same time — 30 minutes to 3 hours. Household rate is for 1–2 family athletes. Team rate is for groups of three or more, or three or more spaces. Choose an available time and pay online to book."
         image="/brand/facility.jpg"
       />
       <BookingFunnel initial={space} />
@@ -315,7 +315,7 @@ function BookingFunnel({ initial }: { initial?: string }) {
             </span>
           </label>
         ) : (
-          <p className="text-sm text-muted">Team rate is locked for this reservation.</p>
+          <p className="text-sm text-muted">Team rate applies to this booking.</p>
         )}
         <CancelNote />
         {error ? (
@@ -336,7 +336,7 @@ function BookingFunnel({ initial }: { initial?: string }) {
               : `Review ${lanes.length > 1 ? `${lanes.length} cages` : "this cage"} · $${total}`}
         </Button>
         <p className="text-center text-xs text-muted">
-          Next screen confirms the price and payment availability. Payment must succeed before your booking is confirmed. While online payment is unavailable, call the front desk for help. Choosing a time here does not save a booking. {CANCEL_POLICY.short}.
+          Next screen confirms the price and payment availability. Payment must succeed before your booking is confirmed. Choosing a time here does not save a booking. {CANCEL_POLICY.short}.
         </p>
       </form>
     </section>

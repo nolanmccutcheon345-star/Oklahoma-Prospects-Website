@@ -58,7 +58,7 @@ export type VerifiedUser = { id: string; email: string | null };
 export async function getSessionUser(
   bearerToken?: string,
 ): Promise<VerifiedUser | null> {
-  if (authConfigurationError()) throw new Error("Account access is temporarily unavailable. Contact the front desk.");
+  if (authConfigurationError()) throw new Error("Account access is temporarily unavailable. Please try again shortly.");
   if (!authConfigured && !gateIdentityEnabled()) return null;
   const request = getRequest();
   if (!request) return null;
