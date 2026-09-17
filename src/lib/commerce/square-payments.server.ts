@@ -217,7 +217,7 @@ export async function paySquareOrder(
   await rateLimit("square-payment", 15);
   const session = verifiedUserId ? { id: verifiedUserId } : await getSessionUser();
   if (!session) throw new Error("Sign in before payment.");
-  await clubIdentity(session.id);
+  const identity = await clubIdentity(session.id);
   const sql = await getSql(),
     c = squareConfig(),
     client = squareClient();
@@ -234,6 +234,11 @@ export async function paySquareOrder(
     order.status === "payment_review"
   )
     return { url, declined: false, message: "" };
+  if (
+    !["pending", "pending_fee"].includes(order.status) ||
+    new Date(order.hold_until).getTime() <= Date.now()
+  )
+    throw new Error("This checkout expired. Check billing history before starting again.");
   const chargeCents =
     order.snapshot.setupCents > 0
       ? order.square_payment_id
@@ -255,12 +260,19 @@ export async function paySquareOrder(
     !location.capabilities?.includes("CREDIT_CARD_PROCESSING")
   )
     throw new Error("The Square location is not ready to accept card payments.");
-  const { customer } = await client.customers.create({
-    idempotencyKey: squareKey("customer", `${c.environment}:${session.id}`),
-    emailAddress: order.email,
-    referenceId: session.id,
-  });
-  if (!customer?.id) throw new Error("Payment account could not be prepared.");
+  const [previousCustomer] = await sql<{
+    square_customer_id: string;
+  }>`select square_customer_id from commerce_orders where user_id=${session.id} and payment_environment=${c.environment} and payment_provider='square' and square_customer_id is not null order by created_at limit 1`;
+  const customerId = order.square_customer_id || previousCustomer?.square_customer_id;
+  const { customer } = customerId
+    ? await client.customers.get({ customerId })
+    : await client.customers.create({
+        idempotencyKey: squareKey("customer", `${c.environment}:${order.id}`),
+        emailAddress: order.email,
+        referenceId: session.id,
+      });
+  if (!customer?.id || customer.referenceId !== session.id)
+    throw new Error("Payment account could not be verified.");
   const hash = createHash("sha256").update(input.sourceId).digest("hex");
   await sql.transaction(async (tx) => {
     const [current] =
@@ -270,6 +282,20 @@ export async function paySquareOrder(
       new Date(current.hold_until).getTime() <= Date.now()
     )
       throw new Error("This checkout expired. Check billing history before starting again.");
+    if (current.athlete_id) {
+      const [athlete] = await tx<{
+        assessed: boolean;
+      }>`select exists(select 1 from athlete_assessments a where a.athlete_id=c.id) as assessed from club_athletes c where c.id=${current.athlete_id} and c.household_id=any(${identity.billingHouseholdIds}::text[])`;
+      if (!athlete) throw new Error("This athlete is no longer linked to your billing household.");
+      if (
+        ["lesson", "package"].includes(current.snapshot.kind) &&
+        !current.snapshot.assessment &&
+        !athlete.assessed
+      )
+        throw new Error(
+          "A completed assessment must remain on the athlete account before payment.",
+        );
+    }
     const started =
       await tx`select id from booking_records where order_id=${order.id} and (status<>'held' or starts_at<=now())`;
     if (started.length)
