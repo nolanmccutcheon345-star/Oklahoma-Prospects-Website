@@ -19,5 +19,11 @@ for (const [path, status] of [["/", 200], ["/__audit_missing_page__", 404], ["/l
   assert.ok(scripts.length > 0, "Expected application scripts");
   for (const script of scripts) assert.ok(script[1].includes(`nonce="${nonce}"`), "Every rendered script must match the CSP nonce");
   assert.ok(html.includes('property="csp-nonce"'), "Client hydration needs the server nonce");
+  if (path.startsWith("/login")) {
+    assert.match(html, /type="email"/, "Netlify must retain email sign-in");
+    assert.match(html, /type="password"/, "Netlify must retain password sign-in");
+    assert.doesNotMatch(html, /Continue with (Google|X)/,
+      "Default Netlify builds must not offer unregistered Grok OAuth callbacks");
+  }
   console.log(`PASS ${status} ${path}: matching CSP, script and hydration nonces; private cache`);
 }

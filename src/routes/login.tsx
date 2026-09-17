@@ -124,25 +124,25 @@ function Login() {
       {!resetToken ? <>
       <Button type="button" variant="outlineDark" disabled={busy} onClick={async()=>{setBusy(true);setError("");try{const result=await authClient.requestPasswordReset({email,redirectTo:window.location.origin+"/login"});if(result.error)throw new Error(result.error.message);setNotice("If this email has an account, a reset link has been sent.");}catch(e){setError(e instanceof Error?e.message:"Could not request password reset.");}finally{setBusy(false);}}}>Forgot password? Enter your email below, then tap here</Button>
 
-      {authEnabled ? (
+      {authEnabled && GROK_PROVIDERS.length > 0 ? (
         <div className="mt-6 grid gap-2">
           {GROK_PROVIDERS.map((provider) => (
             <Button
               key={provider.providerId}
               type="button"
               variant="outlineDark"
-              onClick={() => signIn(provider.providerId, { callbackURL: dest })}
+              disabled={busy}
+              onClick={async () => {
+                setBusy(true); setError("");
+                try { await signIn(provider.providerId, { callbackURL: dest }); }
+                catch (err) { setError(err instanceof Error ? err.message : "Could not sign in."); setBusy(false); }
+              }}
             >
               Continue with {provider.label}
             </Button>
           ))}
         </div>
-      ) : (
-        <p className="mt-4 text-sm text-muted">
-          Sign-in is turned off for this preview. Use email below if it still
-          appears, or ask the office to open accounts.
-        </p>
-      )}
+      ) : null}
       </> : null}
       <form onSubmit={onEmail} className="mt-8 grid gap-3">
         <p className="text-sm font-semibold">{resetToken ? "Reset your password" : "Email and password"}</p>

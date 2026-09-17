@@ -25,7 +25,9 @@ export type GrokProvider = {
   label: string;
 };
 
-export const GROK_PROVIDERS: readonly GrokProvider[] = [
+// Shared by the rendered buttons and server plugin; email/password auth is
+// independent. Netlify builds default this flag to false in vite.config.ts.
+export const GROK_PROVIDERS: readonly GrokProvider[] = import.meta.env?.VITE_GROK_SOCIAL_AUTH_ENABLED === "false" ? [] : [
   { providerId: "grok-google", idp: "google", label: "Google" },
   { providerId: "grok-x", idp: "twitter", label: "X" },
 ];

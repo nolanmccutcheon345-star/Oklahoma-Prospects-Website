@@ -100,6 +100,9 @@ export async function signIn(
   providerId: string,
   opts: { callbackURL?: string; errorCallbackURL?: string } = {},
 ): Promise<void> {
+  if (!GROK_PROVIDERS.some((provider) => provider.providerId === providerId)) {
+    throw new Error("Please sign in with your email and password.");
+  }
   const callbackURL = opts.callbackURL ?? "/";
   const errorCallbackURL = opts.errorCallbackURL ?? "/";
 

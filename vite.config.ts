@@ -180,6 +180,11 @@ export default defineConfig(({ command, isPreview }) => ({
   },
   define: {
     "process.env.SQUARE_DEPLOY_CONTEXT": JSON.stringify(process.env.CONTEXT || "development"),
+    // Grok's preview OAuth client does not accept Netlify callback addresses.
+    // Opt in only after a broker client is registered for this deployment.
+    "import.meta.env.VITE_GROK_SOCIAL_AUTH_ENABLED": JSON.stringify(
+      process.env.VITE_GROK_SOCIAL_AUTH_ENABLED ?? (process.env.NETLIFY ? "false" : "true"),
+    ),
   },
   resolve: { tsconfigPaths: true },
   plugins: [

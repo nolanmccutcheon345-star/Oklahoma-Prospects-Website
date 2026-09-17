@@ -1,5 +1,5 @@
 import { useState, useSyncExternalStore, type ReactNode } from "react";
-import { Navigate, useRouterState } from "@tanstack/react-router";
+import { Link, Navigate, useRouterState } from "@tanstack/react-router";
 import { GROK_PROVIDERS, authEnabled, signIn, signOut } from "./client";
 import { hasGateSessionMarker } from "./gate-session-marker";
 import { resolveSignInGateState } from "./sign-in-gate";
@@ -66,6 +66,9 @@ export function SignInGate({
 }
 
 export function SignInButtons() {
+  if (GROK_PROVIDERS.length === 0) {
+    return <Link to="/login" className="min-h-11 rounded-md border border-line px-4 py-2">Sign in with email</Link>;
+  }
   return (
     <div className="flex w-full max-w-sm flex-col gap-2">
       {GROK_PROVIDERS.map((p) => (
