@@ -178,6 +178,9 @@ export default defineConfig(({ command, isPreview }) => ({
     port: 8081,
     strictPort: true,
   },
+  define: {
+    "process.env.SQUARE_DEPLOY_CONTEXT": JSON.stringify(process.env.CONTEXT || "development"),
+  },
   resolve: { tsconfigPaths: true },
   plugins: [
     pgliteBootstrapPlugin(),

@@ -41,9 +41,11 @@
 
 # Preview authentication and commerce require separately scoped test credentials.
 [context.deploy-preview.environment]
-  STRIPE_LIVE_ENABLED = "false"
+  SQUARE_LIVE_ENABLED = "false"
+  SQUARE_ENVIRONMENT = "sandbox"
 [context.branch-deploy.environment]
-  STRIPE_LIVE_ENABLED = "false"
+  SQUARE_LIVE_ENABLED = "false"
+  SQUARE_ENVIRONMENT = "sandbox"
 
 # SSR/function routing is emitted by the TanStack adapter. A /* /index.html
 # rewrite here would hide real API responses and the 404 status.
