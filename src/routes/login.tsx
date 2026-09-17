@@ -59,6 +59,8 @@ async function emailAuth(
 
 function Login() {
   const { next, token } = Route.useSearch();
+  const navigate = Route.useNavigate();
+  const [resetToken, setResetToken] = useState(token);
   const dest = next || "/account";
   const [mode, setMode] = useState<"in" | "up">("in");
   const [email, setEmail] = useState("");
@@ -79,7 +81,17 @@ function Login() {
         password,
         ...(mode === "up" ? { name } : {}),
       };
-      if(token){const result=await authClient.resetPassword({token,newPassword:password});if(result.error)throw new Error(result.error.message);setNotice("Password saved. Sign in using your new password.");setBusy(false);return;}
+      if (resetToken) {
+        const result = await authClient.resetPassword({ token: resetToken, newPassword: password });
+        if (result.error) throw new Error(result.error.message);
+        setResetToken(undefined);
+        setPassword("");
+        setMode("in");
+        await navigate({ search: { next: dest }, replace: true });
+        setNotice("Password saved. Sign in using your email and new password.");
+        setBusy(false);
+        return;
+      }
       const signedIn=await emailAuth(mode, payload);
       setPassword("");
       if(signedIn.twoFactorRedirect){window.location.assign("/two-factor");return;}
@@ -108,7 +120,8 @@ function Login() {
       />
       <div className="mx-auto max-w-md px-5 py-8">
       {notice?<p role="status" className="mb-4 rounded-lg bg-paper-2 p-3">{notice}</p>:null}
-      {token?<p className="mb-4">Enter a new password below to reset your account.</p>:null}
+      {resetToken ? <p className="mb-4">Choose a new password, then select Save new password. If this link has expired or was already used, return to sign in and request a fresh reset link.</p> : null}
+      {!resetToken ? <>
       <Button type="button" variant="outlineDark" disabled={busy} onClick={async()=>{setBusy(true);setError("");try{const result=await authClient.requestPasswordReset({email,redirectTo:window.location.origin+"/login"});if(result.error)throw new Error(result.error.message);setNotice("If this email has an account, a reset link has been sent.");}catch(e){setError(e instanceof Error?e.message:"Could not request password reset.");}finally{setBusy(false);}}}>Forgot password? Enter your email below, then tap here</Button>
 
       {authEnabled ? (
@@ -130,9 +143,10 @@ function Login() {
           appears, or ask the office to open accounts.
         </p>
       )}
+      </> : null}
       <form onSubmit={onEmail} className="mt-8 grid gap-3">
-        <p className="text-sm font-semibold">Email and password</p>
-        {mode === "up" ? (
+        <p className="text-sm font-semibold">{resetToken ? "Reset your password" : "Email and password"}</p>
+        {!resetToken && mode === "up" ? (
           <label className="text-sm font-semibold">
             Name
             <input
@@ -144,7 +158,7 @@ function Login() {
             />
           </label>
         ) : null}
-        <label className="text-sm font-semibold">
+        {!resetToken ? <label className="text-sm font-semibold">
           Email
           <input
             required
@@ -156,16 +170,16 @@ function Login() {
             aria-describedby={error ? "login-error" : undefined}
             className="mt-1.5 block min-h-11 w-full rounded-md border border-line bg-paper-2 px-3"
           />
-        </label>
+        </label> : null}
         <label className="text-sm font-semibold">
-          Password
+          {resetToken ? "New password" : "Password"}
           <input
             required
             type="password"
             minLength={8}
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            autoComplete={mode === "up" ? "new-password" : "current-password"}
+            autoComplete={resetToken || mode === "up" ? "new-password" : "current-password"}
             className="mt-1.5 block min-h-11 w-full rounded-md border border-line bg-paper-2 px-3"
           />
         </label>
@@ -175,9 +189,9 @@ function Login() {
           </p>
         ) : null}
         <Button type="submit" disabled={busy} aria-busy={busy}>
-          {busy ? "Signing in…" : mode === "up" ? "Create account" : "Sign in"}
+          {busy ? (resetToken ? "Saving password…" : "Please wait…") : resetToken ? "Save new password" : mode === "up" ? "Create account" : "Sign in"}
         </Button>
-        <button
+        {resetToken ? <Link to="/login" search={{ next: dest }} reloadDocument className="min-h-11 text-sm font-semibold text-maroon">Return to sign in</Link> : <button
           type="button"
           className="min-h-11 text-sm font-semibold text-maroon"
           onClick={() => setMode(mode === "up" ? "in" : "up")}
@@ -185,7 +199,7 @@ function Login() {
           {mode === "up"
             ? "Already have an account? Sign in"
             : "New here? Create an account"}
-        </button>
+        </button>}
       </form>
       <p className="mt-6 text-sm">
         <Link to="/">Back to home</Link>
