@@ -571,3 +571,85 @@ test("Square payment fulfillment commits once and never turns unpaid holds into 
     await db.close();
   }
 });
+
+test("Queued receipts isolate environments, retry safely, and restrict Sandbox tests to the owner", async () => {
+  const { deliverPaymentNotifications } = await import("./square-notifications.server");
+  const db = new PGlite();
+  try {
+    for (const file of (await readdir("migrations")).filter((f) => f.endsWith(".sql")).sort())
+      await db.exec(await readFile("migrations/" + file, "utf8"));
+    const sql = wrap(db);
+    async function notice(
+      id: string,
+      environment: string,
+      user = "owner",
+      email = "owner@example.test",
+    ) {
+      await sql`insert into commerce_orders(id,request_key,user_id,email,product_id,kind,snapshot,total_cents,payment_provider,payment_environment,receipt_url)
+        values(${id},${id},${user},${email},'individual','cage','{"title":"Cage booking"}'::jsonb,2500,'square',${environment},${"https://squareupsandbox.com/receipt/" + id})`;
+      await sql`insert into payment_notifications(id,order_id,kind) values(${id},${id},'receipt')`;
+    }
+    await notice("sandbox-owner", "sandbox");
+    await notice("sandbox-other", "sandbox", "other", "other@example.test");
+    await notice("sandbox-wrong-email", "sandbox", "owner", "other@example.test");
+    await notice("production", "production");
+    const calls: { body: { to: string[]; text: string; subject: string }; key: string }[] = [];
+    let fail = false;
+    const send: typeof fetch = async (_url, options) => {
+      calls.push({
+        body: JSON.parse(String(options?.body)),
+        key: new Headers(options?.headers).get("Idempotency-Key")!,
+      });
+      return new Response(
+        JSON.stringify(fail ? { error: "temporary failure" } : { id: "email-accepted" }),
+        { status: fail ? 503 : 200 },
+      );
+    };
+    const email = { key: "offline-fixture", from: "sender@example.test" };
+    const sandbox = { environment: "sandbox" as const, origin: "https://preview.example.test" };
+    const production = {
+      environment: "production" as const,
+      origin: "https://production.example.test",
+    };
+    await deliverPaymentNotifications(sql, sandbox, email, undefined, send);
+    assert.equal(calls.length, 0, "ordinary Sandbox worker sends no customer email");
+    await deliverPaymentNotifications(sql, production, email, undefined, send);
+    assert.equal(calls.length, 1);
+    assert.equal(calls[0].key, "production");
+    assert.match(calls[0].body.text, /production.example.test\/family/);
+    const owner = { userId: "owner", email: "owner@example.test" };
+    await assert.rejects(
+      deliverPaymentNotifications(sql, production, email, owner, send),
+      /Sandbox-only/,
+    );
+    fail = true;
+    await deliverPaymentNotifications(sql, sandbox, email, owner, send);
+    assert.equal(
+      (
+        await sql<{
+          status: string;
+        }>`select status from payment_notifications where id='sandbox-owner'`
+      )[0].status,
+      "pending",
+    );
+    fail = false;
+    const ids = await deliverPaymentNotifications(sql, sandbox, email, owner, send);
+    assert.deepEqual(ids, ["email-accepted"]);
+    assert.equal(calls[1].key, calls[2].key, "retries retain provider idempotency key");
+    assert.deepEqual(calls[2].body.to, ["owner@example.test"]);
+    assert.match(calls[2].body.subject, /Sandbox booking receipt test/);
+    assert.match(calls[2].body.text, /receipt\/sandbox-owner/);
+    assert.match(calls[2].body.text, /No real money/);
+    await deliverPaymentNotifications(sql, sandbox, email, owner, send);
+    assert.equal(calls.length, 3, "sent receipt cannot be sent again");
+    const remaining = await sql<{
+      id: string;
+    }>`select id from payment_notifications where status='pending' order by id`;
+    assert.deepEqual(
+      remaining.map((r) => r.id),
+      ["sandbox-other", "sandbox-wrong-email"],
+    );
+  } finally {
+    await db.close();
+  }
+});

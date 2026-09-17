@@ -1,3 +1,4 @@
+import { deliverPaymentNotifications } from "./square-notifications.server";
 import { getSql } from "../db";
 import { clubIdentity } from "../identity.server";
 import { squarePublicConfig, squareConfig, squareClient } from "./square.server";
@@ -152,68 +153,10 @@ export async function manualSquareRefund(
   return { ok: true };
 }
 export async function sendPaymentNotifications() {
-  const sql = await getSql(),
-    c = squareConfig();
-  const key = process.env.RESEND_API_KEY,
-    from = process.env.RESEND_FROM_EMAIL || process.env.EMAIL_FROM;
+  const key = process.env.RESEND_API_KEY;
+  const from = process.env.RESEND_FROM_EMAIL || process.env.EMAIL_FROM;
   if (!key || !from) return;
-  const notices = await sql<{
-    id: string;
-    kind: string;
-    created_at: Date;
-    email: string;
-    receipt_url: string | null;
-    order_id: string;
-    title: string;
-  }>`select n.*,o.email,o.receipt_url,o.snapshot->>'title' as title from payment_notifications n join commerce_orders o on o.id=n.order_id where n.status='pending' order by n.created_at limit 15`;
-  for (const n of notices) {
-    // Email provider idempotency retention is 24 h. Older ambiguous sends need owner review.
-    if (Date.now() - new Date(n.created_at).getTime() > 23 * 3600000) {
-      await sql`update payment_notifications set status='review' where id=${n.id}`;
-      continue;
-    }
-    if (c.environment === "sandbox" && !n.email.endsWith("@example.invalid")) continue;
-    if (n.email.endsWith("@example.invalid")) {
-      if (c.environment === "sandbox")
-        await sql`update payment_notifications set status='sandbox-suppressed' where id=${n.id}`;
-      continue;
-    }
-    const failed = n.kind === "renewal-failed",
-      dispute = n.kind === "dispute";
-    const recipients = dispute
-      ? (
-          await sql<{
-            email: string;
-          }>`select email from owner_grants where user_id is not null and revoked_at is null`
-        ).map((o) => o.email)
-      : [n.email];
-    if (!recipients.length) continue;
-    const response = await fetch("https://api.resend.com/emails", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${key}`,
-        "Content-Type": "application/json",
-        "Idempotency-Key": n.id,
-      },
-      body: JSON.stringify({
-        from,
-        to: recipients,
-        subject: dispute
-          ? "Square payment dispute needs review"
-          : failed
-            ? "Update your membership payment card"
-            : "Oklahoma Prospects payment receipt",
-        text: dispute
-          ? `A Square payment dispute requires owner review. Open ${c.origin}/office and review the deadline in Square.`
-          : failed
-            ? `Your membership renewal could not be collected. Update your card in your account: ${c.origin}/family. New credits are issued only after a successful payment.`
-            : `Your payment for ${n.title} is confirmed. View your booking and billing history at ${c.origin}/family. Receipt: ${n.receipt_url || c.origin + "/paid?order_id=" + n.order_id}`,
-      }),
-      signal: AbortSignal.timeout(10000),
-    });
-    if (response.ok)
-      await sql`update payment_notifications set status='sent',sent_at=now() where id=${n.id}`;
-  }
+  await deliverPaymentNotifications(await getSql(), squareConfig(), { key, from });
 }
 export async function reconcileSquare() {
   const sql = await getSql(),
@@ -350,23 +293,15 @@ export async function testReceiptEmail(userId: string, messageId?: string) {
       throw new Error("Only your own test email can be checked.");
     return { id: messageId, status: result.last_event || "unknown" };
   }
-  const response = await fetch("https://api.resend.com/emails", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${key}`,
-      "Content-Type": "application/json",
-      "Idempotency-Key": `receipt-readiness-${userId}-${new Date().toISOString().slice(0, 10)}`,
-    },
-    body: JSON.stringify({
-      from,
-      to: [me.email],
-      subject: "Oklahoma Prospects — receipt email test",
-      text: "This is an owner-requested check of Oklahoma Prospects receipt email delivery. No payment was taken and no booking was made. Your payment receipts will link to your saved booking and billing history.",
-    }),
-    signal: AbortSignal.timeout(10000),
-  });
-  if (!response.ok) throw new Error("Email provider rejected the receipt delivery test.");
-  const result = (await response.json()) as { id?: string };
-  if (!result.id) throw new Error("Email provider did not return a message ID.");
-  return { id: result.id, status: "accepted" };
+  const ids = await deliverPaymentNotifications(
+    await getSql(),
+    squareConfig(),
+    { key, from },
+    { userId, email: me.email },
+  );
+  if (!ids.length)
+    throw new Error(
+      "No recent pending receipt from your own Sandbox payment is available, or the provider did not accept it.",
+    );
+  return { id: ids[0], status: "accepted" };
 }
