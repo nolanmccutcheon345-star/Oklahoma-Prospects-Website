@@ -539,30 +539,6 @@ function PayPage() {
           )}
         </form>
       ) : null}
-      <section aria-labelledby="other-payment-options" className="mt-8 rounded-2xl border border-line bg-paper-2 p-5">
-        <h2 id="other-payment-options" className="text-2xl">Venmo or Cash App</h2>
-        <p className="mt-3 text-sm">
-          Confirm the amount and availability with the office before sending. Include your booking
-          name and date in the payment note. The office must verify payment and confirm your booking;
-          these links do not automatically reserve a time or activate a membership.
-        </p>
-        <div className="mt-4 grid gap-3 sm:grid-cols-2">
-          <Button asChild variant="ink">
-            <a href="https://venmo.com/u/Steve-McCutcheon-3" target="_blank" rel="noopener noreferrer">
-              Pay with Venmo
-            </a>
-          </Button>
-          <Button asChild variant="ink">
-            <a href="https://cash.app/$steveandann" target="_blank" rel="noopener noreferrer">
-              Pay with Cash App
-            </a>
-          </Button>
-        </div>
-        <p className="mt-3 text-sm">
-          Opens in a new tab or your payment app. These links send real payments—do not use them for
-          test bookings. Questions? <a href="tel:+19189228114" className="underline">Call (918) 922-8114</a>.
-        </p>
-      </section>
     </main>
   );
 }
