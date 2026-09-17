@@ -14,11 +14,15 @@ export function securityHeaders(nonce: string, development = false): Record<stri
       "font-src 'self' https://fonts.gstatic.com https://square-fonts-production-f.squarecdn.com https://d1g145x70srn7h.cloudfront.net",
       "img-src 'self' data: blob: https:",
       "connect-src 'self' https://grok.com https://*.grok.com https://web.squarecdn.com https://sandbox.web.squarecdn.com https://pci-connect.squareup.com https://pci-connect.squareupsandbox.com https://o160250.ingest.sentry.io",
-      "frame-src 'self' https://grok.com https://*.grok.com https://web.squarecdn.com https://sandbox.web.squarecdn.com",
+      // Square 3DS posts into an issuer-hosted frame. Issuer domains vary by bank;
+      // Square cannot provide an exhaustive allowlist. Only HTTPS destinations
+      // are allowed; script execution remains restricted by the nonce policy.
+      // https://developer.squareup.com/forums/t/content-security-policy-csp-questions-for-web-payments-sdk/11628
+      "frame-src 'self' https:",
       "frame-ancestors 'self' https://grok.com https://*.grok.com",
       "object-src 'none'",
       "base-uri 'self'",
-      "form-action 'self'",
+      "form-action 'self' https:",
     ].join("; ");
   }
   return headers;

@@ -56,7 +56,7 @@ export function safePaymentError(error: unknown) {
   if (codes.includes("CVV_FAILURE")) return "Check the card security code and try again.";
   if (codes.includes("ADDRESS_VERIFICATION_FAILURE"))
     return "Check the card billing postal code and try again.";
-  if (codes.includes("CARD_EXPIRED") || codes.includes("EXPIRATION_FAILURE"))
+  if (codes.some((code) => ["CARD_EXPIRED", "EXPIRATION_FAILURE", "INVALID_EXPIRATION", "INVALID_EXPIRATION_YEAR", "INVALID_EXPIRATION_DATE", "BAD_EXPIRATION"].includes(code || "")))
     return "Check the card expiration date or use another card.";
   if (
     codes.includes("CARD_DECLINED") ||
