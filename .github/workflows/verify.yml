@@ -1,7 +1,7 @@
 name: Verify club application
 on:
   push:
-    branches: [audit-fixes-v2, audit-fixes, main]
+    branches: [square-payments, audit-fixes-v2, audit-fixes, main]
   pull_request:
     branches: [main]
   workflow_dispatch:
@@ -35,7 +35,8 @@ jobs:
         env:
           NETLIFY: "true"
           CONTEXT: deploy-preview
-          STRIPE_LIVE_ENABLED: "false"
+          SQUARE_LIVE_ENABLED: "false"
+          SQUARE_ENVIRONMENT: sandbox
       - run: npm run verify:build
       - name: Read-only hosted HTTP smoke
         if: github.event_name == 'workflow_dispatch' && inputs.hosted_origin != 'skip'
