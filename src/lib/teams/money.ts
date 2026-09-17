@@ -97,11 +97,7 @@ export function chargeOf(
   return { amount: n, fee, totalCharged: n + fee, method };
 }
 
-export function receiptText(
-  player: OsPlayer,
-  team: OsTeam,
-  pay: OsPayment,
-): string {
+export function receiptText(player: OsPlayer, team: OsTeam, pay: OsPayment): string {
   const method = pay.method === "ach" ? "Bank draft" : "Card";
   return [
     "Oklahoma Prospects",
@@ -115,7 +111,7 @@ export function receiptText(
     `Total charged ${pay.totalCharged ?? pay.amount}`,
     pay.method === "ach"
       ? "Bank draft is free."
-      : "Card surcharge charged for real. Amount, fee, and total are recorded separately.",
+      : "Office-recorded external payment. This entry does not process or charge a card.",
   ].join("\n");
 }
 
@@ -153,7 +149,7 @@ export function applyPay(
     club,
     team.id,
     "Payment",
-    `${player.name} ${charge.method === "ach" ? "bank draft" : "card"} ${charge.amount} plus fee ${charge.fee}, charged ${charge.totalCharged}.`,
+    `${player.name} ${charge.method === "ach" ? "bank draft" : "card"} ${charge.amount} plus recorded fee ${charge.fee}, external payment recorded ${charge.totalCharged}.`,
     "money",
     "admin",
   );
@@ -174,7 +170,14 @@ export function applyEnrollDraft(
   player.planType = "monthly";
   player.draftEnrolled = true;
   logAudit(club, actor, "draft", `${player.name} monthly auto-draft`);
-  notify(club, team.id, "Auto-draft on", `${player.name} is on monthly auto-draft.`, "money", "admin");
+  notify(
+    club,
+    team.id,
+    "Auto-draft on",
+    `${player.name} is on monthly auto-draft.`,
+    "money",
+    "admin",
+  );
   return { ok: true };
 }
 
@@ -187,18 +190,22 @@ export function applyAcceptAmendment(
   const team = club.teams.find((t) => t.id === teamId);
   const player = team?.roster.find((p) => p.id === playerId);
   if (!team || !player) return { ok: false };
-  const pending = (player.amendments || []).find((a) => a.status === "pending" || a.status === "question");
+  const pending = (player.amendments || []).find(
+    (a) => a.status === "pending" || a.status === "question",
+  );
   if (!pending) return { ok: false };
   const agreed = Number(player.feeLock?.amount) || 0;
   player.feeLock = lockFee(club, team, player, club.settings.policy.version);
   pending.status = "accepted";
-  logAudit(
+  logAudit(club, actor, "amend-accept", `${player.name} ${agreed} → ${player.feeLock.amount}`);
+  notify(
     club,
-    actor,
-    "amend-accept",
-    `${player.name} ${agreed} → ${player.feeLock.amount}`,
+    team.id,
+    "Amendment accepted",
+    `${player.name} accepted the new fee.`,
+    "money",
+    "admin",
   );
-  notify(club, team.id, "Amendment accepted", `${player.name} accepted the new fee.`, "money", "admin");
   return { ok: true };
 }
 
@@ -254,7 +261,14 @@ export function applyIssueAmendments(
     count += 1;
   }
   if (count) {
-    notify(club, team.id, "Amendments issued", `${count} signed fee${count === 1 ? "" : "s"} need a family decision.`, "money", "admin");
+    notify(
+      club,
+      team.id,
+      "Amendments issued",
+      `${count} signed fee${count === 1 ? "" : "s"} need a family decision.`,
+      "money",
+      "admin",
+    );
     logAudit(club, actor, "amend-issue", `${team.name} ${count}`);
   }
   return { ok: true, count };
@@ -313,7 +327,10 @@ export function applySetProfile(
   if (!player) return club;
   const slug =
     player.publicProfile?.slug ||
-    player.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+    player.name
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-|-$/g, "");
   player.publicProfile = {
     enabled: input.enabled,
     bio: input.bio,
@@ -324,7 +341,9 @@ export function applySetProfile(
 }
 
 export function recruitingOnePager(player: OsPlayer, team: OsTeam): string {
-  const pos = Array.isArray(player.positions) ? player.positions.join(" / ") : String(player.positions || "");
+  const pos = Array.isArray(player.positions)
+    ? player.positions.join(" / ")
+    : String(player.positions || "");
   const s = player.stats || {};
   return [
     `${player.name} · #${player.number}`,
@@ -344,7 +363,10 @@ export function recruitingOnePager(player: OsPlayer, team: OsTeam): string {
 export function recruitingShareUrl(player: OsPlayer): string {
   const slug =
     player.publicProfile?.slug ||
-    player.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+    player.name
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-|-$/g, "");
   return `https://prospectsbaseball.club/p/${slug}`;
 }
 
@@ -373,7 +395,14 @@ export function applyWaiveUniform(
     ];
   }
   logAudit(club, actor, "waive-uniform", player.name);
-  notify(club, team.id, "Uniform waived", `${player.name}'s uniform fee was waived.`, "money", "admin");
+  notify(
+    club,
+    team.id,
+    "Uniform waived",
+    `${player.name}'s uniform fee was waived.`,
+    "money",
+    "admin",
+  );
   return club;
 }
 
@@ -388,7 +417,12 @@ function addIn(map: Record<string, number>, month: string, amount: number) {
   map[month] = (map[month] || 0) + Math.max(0, Number(amount) || 0);
 }
 
-function remainingDueMonths(club: ClubOs, team: OsTeam, player: OsPlayer, left: number): Record<string, number> {
+function remainingDueMonths(
+  club: ClubOs,
+  team: OsTeam,
+  player: OsPlayer,
+  left: number,
+): Record<string, number> {
   const out: Record<string, number> = {};
   if (left <= 0) return out;
   const deadline = payoffDeadline(club, team);
@@ -419,7 +453,11 @@ function remainingDueMonths(club: ClubOs, team: OsTeam, player: OsPlayer, left: 
   return out;
 }
 
-export function cashFlowForTeam(club: ClubOs, team: OsTeam, start = monthKey(TODAY)): {
+export function cashFlowForTeam(
+  club: ClubOs,
+  team: OsTeam,
+  start = monthKey(TODAY),
+): {
   months: CashMonth[];
   low: { month: string; label: string; balance: number };
 } {
@@ -445,7 +483,8 @@ export function cashFlowForTeam(club: ClubOs, team: OsTeam, start = monthKey(TOD
       : Number(team.coachMonthly) || 0;
   const facilityMonthly = Number(club.settings.facilityPerTeamMonth) || 0;
   const uniformTotal =
-    (Number(priced.uniformCost) || 0) * team.roster.filter((p) => !p.withdrawn && !p.uniformWaived).length;
+    (Number(priced.uniformCost) || 0) *
+    team.roster.filter((p) => !p.withdrawn && !p.uniformWaived).length;
   const uniformMonth = monthKey(team.uniformDeadline || team.seasonStart || TODAY);
   const entryByMonth: Record<string, number> = {};
   for (const ev of priced.evs || []) {
@@ -539,7 +578,14 @@ export function applyCloseSeason(
     })),
   });
   logAudit(club, actor, "season-close", `${team.name} realized ${realized}`);
-  notify(club, team.id, "Season closed", `${team.name} is archived. Margin is realized.`, "money", "admin");
+  notify(
+    club,
+    team.id,
+    "Season closed",
+    `${team.name} is archived. Margin is realized.`,
+    "money",
+    "admin",
+  );
   return { ok: true, realized };
 }
 
@@ -580,7 +626,10 @@ export function collectionsOf(club: ClubOs, team?: OsTeam | null) {
 
 export type CollectionFilter = "all" | "pastDue" | "noDeposit" | "noBackup";
 
-export function matchesCollection(row: ReturnType<typeof collectionsOf>[number], filter: CollectionFilter) {
+export function matchesCollection(
+  row: ReturnType<typeof collectionsOf>[number],
+  filter: CollectionFilter,
+) {
   if (filter === "pastDue") return row.pastDue;
   if (filter === "noDeposit") return !row.depositPaid;
   if (filter === "noBackup") return !row.backup;

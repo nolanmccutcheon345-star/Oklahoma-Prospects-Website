@@ -109,7 +109,6 @@ import {
   applyCloseSeason,
   applyEnrollDraft,
   applyIssueAmendments,
-  applyPay,
   applyQuestionAmendment,
   applyRecordOfficePay,
   applyReenroll,
@@ -178,13 +177,28 @@ function shapeDemo(state: ClubOs): ClubOs {
   const last = t12?.roster.at(-1);
   if (last && !last.withdrawn) last.withdrawn = "2026-09-10";
   const t13 = next.teams.find((t) => t.id === "t13s");
-  const quiet =
-    t13?.roster.find((p) => !p.agreement) ?? t13?.roster.at(-1);
+  const quiet = t13?.roster.find((p) => !p.agreement) ?? t13?.roster.at(-1);
   if (quiet?.stats) {
     quiet.stats = {
-      gp: 0, ab: 0, h: 0, hr: 0, rbi: 0, bb: 0, k: 0, sb: 0,
-      avg: 0, obp: 0, ops: 0, ev: 0, pop: null, velo: null,
-      ip: 0, er: 0, so: 0, era: 0, whip: 0,
+      gp: 0,
+      ab: 0,
+      h: 0,
+      hr: 0,
+      rbi: 0,
+      bb: 0,
+      k: 0,
+      sb: 0,
+      avg: 0,
+      obp: 0,
+      ops: 0,
+      ev: 0,
+      pop: null,
+      velo: null,
+      ip: 0,
+      er: 0,
+      so: 0,
+      era: 0,
+      whip: 0,
     };
   }
   const withdrawn = (t13?.roster || []).filter((p) => p.agreement && p !== quiet).slice(-2);
@@ -242,9 +256,7 @@ function shapeDemo(state: ClubOs): ClubOs {
     t14.otherCosts.fields = (Number(t14.otherCosts.fields) || 0) + 200;
     t14.otherCosts.travel = 400;
   }
-  const drifted = t14?.roster.filter(
-    (p) => p.feeLock && !p.withdrawn && p.agreement,
-  );
+  const drifted = t14?.roster.filter((p) => p.feeLock && !p.withdrawn && p.agreement);
   if (t14 && drifted?.length) {
     drifted.forEach((player) => {
       const drift = Number(feeDrift(next, t14, player)) || 0;
@@ -301,9 +313,7 @@ function shapeDemo(state: ClubOs): ClubOs {
         reportable: true,
       },
     ];
-    next.bookings = [
-      { scope: "team", ownerId: t14.id, week: "2026-09-13", hours: 2 },
-    ];
+    next.bookings = [{ scope: "team", ownerId: t14.id, week: "2026-09-13", hours: 2 }];
     const sess = t14.practices?.[0]?.id;
     if (sess) {
       t14.attendance = t14.attendance || {};
@@ -406,9 +416,7 @@ function identityFromUser(state: ClubOs, role: ClubRole, email: string): OsIdent
   }
   if (role === "coach") {
     const team = state.teams.find(
-      (t) =>
-        t.coachEmail?.toLowerCase() === e ||
-        t.staff.some((m) => m.email?.toLowerCase() === e),
+      (t) => t.coachEmail?.toLowerCase() === e || t.staff.some((m) => m.email?.toLowerCase() === e),
     );
     return {
       role,
@@ -466,8 +474,7 @@ function safePlan(state: ClubOs, team: OsTeam | null, player: OsPlayer | null): 
         label: row.label,
         due: row.due,
         amount: row.amount,
-        status:
-          live.rows.find((r) => r.label === row.label)?.status ?? "scheduled",
+        status: live.rows.find((r) => r.label === row.label)?.status ?? "scheduled",
       })),
       locked: true,
     };
@@ -498,7 +505,10 @@ type TeamsContextValue = {
   closeRecord: () => void;
   setRecordTab: (tab: string) => void;
   teamById: (id: string | null | undefined) => OsTeam | null;
-  playerById: (teamId: string | null | undefined, playerId: string | null | undefined) => OsPlayer | null;
+  playerById: (
+    teamId: string | null | undefined,
+    playerId: string | null | undefined,
+  ) => OsPlayer | null;
   visibleTeams: OsTeam[];
   myPlayers: OsPlayer[];
   homeTeam: OsTeam | null;
@@ -513,14 +523,22 @@ type TeamsContextValue = {
   chargeFor: (team: OsTeam | null) => OsDepositCharge;
   deadlineFor: (team: OsTeam | null) => string | null;
   driftFor: (team: OsTeam | null, player: OsPlayer | null) => number;
-  amendmentFor: (player: OsPlayer | null) => { status: string; delta?: number; note?: string } | null;
-  breakdownFor: (team: OsTeam | null, player: OsPlayer | null) => { total: number; lines: { label: string; amount: number }[] } | null;
+  amendmentFor: (
+    player: OsPlayer | null,
+  ) => { status: string; delta?: number; note?: string } | null;
+  breakdownFor: (
+    team: OsTeam | null,
+    player: OsPlayer | null,
+  ) => { total: number; lines: { label: string; amount: number }[] } | null;
   eventFor: (id: string | null | undefined) => ClubOs["catalog"][number] | null;
   gamesFor: (teamId: string) => OsGame[];
   alerts: OsAlert[];
   docsMissing: (player: OsPlayer | null) => string[];
   clearanceFor: (player: OsPlayer | null) => { ok: boolean; status: OsClearance; reason: string };
-  pitchFor: (team: OsTeam | null, playerId: string | null | undefined) => {
+  pitchFor: (
+    team: OsTeam | null,
+    playerId: string | null | undefined,
+  ) => {
     available: boolean;
     last: { date: string; pitches: number; event?: string } | null;
     need: number;
@@ -567,9 +585,25 @@ type TeamsContextValue = {
   }) => { ok: boolean; warn?: boolean; missing?: string[] };
   advancePo: (poId: string) => { ok: boolean; status?: string };
   poCsv: (poId: string) => string | null;
-  logPitch: (teamId: string, playerId: string, pitches: number, date: string, event: string) => { ok: boolean; warn: boolean; max: number };
+  logPitch: (
+    teamId: string,
+    playerId: string,
+    pitches: number,
+    date: string,
+    event: string,
+  ) => { ok: boolean; warn: boolean; max: number };
   markAttendance: (teamId: string, sessionId: string, playerId: string, mark: OsAttend) => void;
-  postAnnouncement: (teamId: string, input: { title: string; body: string; arrive?: string; uniform?: string; hotel?: string; pin?: boolean }) => void;
+  postAnnouncement: (
+    teamId: string,
+    input: {
+      title: string;
+      body: string;
+      arrive?: string;
+      uniform?: string;
+      hotel?: string;
+      pin?: boolean;
+    },
+  ) => void;
   sendFieldCall: (input: {
     teamId: string;
     practiceId?: string | null;
@@ -579,11 +613,26 @@ type TeamsContextValue = {
     newTime?: string;
     newPlace?: string;
   }) => void;
-  sendChat: (teamId: string, text: string, toPlayerId?: string | null) => { ok: boolean; reason?: "dm" | "empty" | "missing" };
-  addPractice: (teamId: string, input: { date: string; time: string; place: string; note?: string; cageHours?: number }) => void;
-  bookCage: (input: { scope: "team" | "player"; ownerId: string; hours: number; noShow?: boolean }) => { ok: boolean; overage: boolean; used: number; allowance: number };
+  sendChat: (
+    teamId: string,
+    text: string,
+    toPlayerId?: string | null,
+  ) => { ok: boolean; reason?: "dm" | "empty" | "missing" };
+  addPractice: (
+    teamId: string,
+    input: { date: string; time: string; place: string; note?: string; cageHours?: number },
+  ) => void;
+  bookCage: (input: {
+    scope: "team" | "player";
+    ownerId: string;
+    hours: number;
+    noShow?: boolean;
+  }) => { ok: boolean; overage: boolean; used: number; allowance: number };
   markNoShow: (input: { scope: "team" | "player"; ownerId: string }) => { ok: boolean };
-  startGame: (teamId: string, input: { opponent: string; event?: string; field?: string; time?: string }) => void;
+  startGame: (
+    teamId: string,
+    input: { opponent: string; event?: string; field?: string; time?: string },
+  ) => void;
   tapRun: (gameId: string, who: "us" | "them") => void;
   advanceHalf: (gameId: string) => void;
   postFinal: (gameId: string) => void;
@@ -610,11 +659,22 @@ type TeamsContextValue = {
     amount: number;
     method: OsPayMethod;
   }) => { ok: boolean; reason?: string };
-  closeSeason: (teamId: string, actuals: Record<string, number>) => { ok: boolean; realized: number };
+  closeSeason: (
+    teamId: string,
+    actuals: Record<string, number>,
+  ) => { ok: boolean; realized: number };
   cashFlowFor: (team: OsTeam | null) => ReturnType<typeof cashFlowForTeam> | null;
   collectionsFor: (team?: OsTeam | null) => ReturnType<typeof collectionsOf>;
-  electPay: (teamId: string, staffId: string, applyAmount: number) => { ok: boolean; applied: number; cash: number; gross: number };
-  recordPayout: (teamId: string, staffId: string, amount: number) => { ok: boolean; reason?: "missing" | "w9" };
+  electPay: (
+    teamId: string,
+    staffId: string,
+    applyAmount: number,
+  ) => { ok: boolean; applied: number; cash: number; gross: number };
+  recordPayout: (
+    teamId: string,
+    staffId: string,
+    amount: number,
+  ) => { ok: boolean; reason?: "missing" | "w9" };
   addReimbursement: (input: {
     teamId: string;
     staffEmail: string;
@@ -637,8 +697,8 @@ type TeamsContextValue = {
   undoLabel: string | null;
   undoLast: () => void;
   notes: ClubOs["notifications"];
-  teamTabs: typeof TEAM_RECORD_TABS[number][];
-  playerTabs: typeof PLAYER_RECORD_TABS[number][];
+  teamTabs: (typeof TEAM_RECORD_TABS)[number][];
+  playerTabs: (typeof PLAYER_RECORD_TABS)[number][];
   docLabels: Record<string, string>;
   pitchLimit: Record<string, number>;
   coachScopeReport: ReturnType<typeof inspectCoachScope> | null;
@@ -685,10 +745,7 @@ export function TeamsProvider({
       return [];
     }
   }, [club, role, identity]);
-  const scoped = useMemo(
-    () => scopeClub(club, identity, rawAlerts),
-    [club, identity, rawAlerts],
-  );
+  const scoped = useMemo(() => scopeClub(club, identity, rawAlerts), [club, identity, rawAlerts]);
   const state = scoped.state;
   const viewer = scoped.viewer;
   const alerts = scoped.alerts;
@@ -705,10 +762,13 @@ export function TeamsProvider({
     setView({ kind: "desk" });
   }, []);
 
-  const openTeam = useCallback((teamId: string, tab = "overview") => {
-    if (!requestTeam(club, identity, teamId)) return;
-    setView({ kind: "team", teamId, tab });
-  }, [club, identity]);
+  const openTeam = useCallback(
+    (teamId: string, tab = "overview") => {
+      if (!requestTeam(club, identity, teamId)) return;
+      setView({ kind: "team", teamId, tab });
+    },
+    [club, identity],
+  );
 
   const openPlayer = useCallback(
     (teamId: string, playerId: string, tab = "profile") => {
@@ -729,8 +789,7 @@ export function TeamsProvider({
   }, []);
 
   const teamById = useCallback(
-    (id: string | null | undefined) =>
-      state.teams.find((t) => t.id === id) ?? null,
+    (id: string | null | undefined) => state.teams.find((t) => t.id === id) ?? null,
     [state.teams],
   );
 
@@ -755,13 +814,12 @@ export function TeamsProvider({
   );
 
   const visibleTeams = state.teams;
-  const homeTeam =
-    teamById(identity.teamId) ?? visibleTeams[0] ?? null;
+  const homeTeam = teamById(identity.teamId) ?? visibleTeams[0] ?? null;
   const homePlayer =
     playerById(identity.teamId, identity.playerId) ??
     (identity.familyId
-      ? visibleTeams.flatMap((t) => t.roster).find((p) => p.familyId === identity.familyId) ??
-        null
+      ? (visibleTeams.flatMap((t) => t.roster).find((p) => p.familyId === identity.familyId) ??
+        null)
       : null);
 
   const myPlayers = useMemo(() => {
@@ -871,7 +929,16 @@ export function TeamsProvider({
         return 0;
       }
     },
-    [access.player, access.coach, access.parent, identity.familyId, viewer, rawTeam, rawPlayer, club],
+    [
+      access.player,
+      access.coach,
+      access.parent,
+      identity.familyId,
+      viewer,
+      rawTeam,
+      rawPlayer,
+      club,
+    ],
   );
 
   const balanceFor = useCallback(
@@ -1035,23 +1102,19 @@ export function TeamsProvider({
     return clearanceOf(player);
   }, []);
 
-  const pitchFor = useCallback(
-    (team: OsTeam | null, playerId: string | null | undefined) => {
-      if (!team || !playerId) {
-        return { available: true, last: null, need: 0, readyOn: null };
-      }
-      try {
-        return pitcherStatus(team, playerId);
-      } catch {
-        return { available: true, last: null, need: 0, readyOn: null };
-      }
-    },
-    [],
-  );
+  const pitchFor = useCallback((team: OsTeam | null, playerId: string | null | undefined) => {
+    if (!team || !playerId) {
+      return { available: true, last: null, need: 0, readyOn: null };
+    }
+    try {
+      return pitcherStatus(team, playerId);
+    } catch {
+      return { available: true, last: null, need: 0, readyOn: null };
+    }
+  }, []);
 
   const teamTabs = useMemo(
-    () =>
-      TEAM_RECORD_TABS.filter((tab) => !("money" in tab && tab.money) || canSeeTeamMoney),
+    () => TEAM_RECORD_TABS.filter((tab) => !("money" in tab && tab.money) || canSeeTeamMoney),
     [canSeeTeamMoney],
   );
 
@@ -1206,12 +1269,7 @@ export function TeamsProvider({
   );
 
   const submitSizes = useCallback(
-    (
-      teamId: string,
-      playerId: string,
-      number: number | string,
-      sizes: Record<string, string>,
-    ) => {
+    (teamId: string, playerId: string, number: number | string, sizes: Record<string, string>) => {
       if (!requestPlayer(club, identity, teamId, playerId)) return { ok: false as const };
       const next = cloneOs(club);
       const result = applySubmitSizes(next, teamId, playerId, number, sizes);
@@ -1246,7 +1304,8 @@ export function TeamsProvider({
       playerIds?: string[];
       force?: boolean;
     }) => {
-      if (!requestTeam(club, identity, input.teamId)) return { ok: false, warn: false, missing: [] as string[] };
+      if (!requestTeam(club, identity, input.teamId))
+        return { ok: false, warn: false, missing: [] as string[] };
       const next = cloneOs(club);
       const made = applyCreatePo(next, { ...input, actor });
       if (made.ok) setClub(next);
@@ -1276,7 +1335,8 @@ export function TeamsProvider({
 
   const logPitch = useCallback(
     (teamId: string, playerId: string, pitches: number, date: string, event: string) => {
-      if (!requestPlayer(club, identity, teamId, playerId)) return { ok: false as const, warn: false, max: 0 };
+      if (!requestPlayer(club, identity, teamId, playerId))
+        return { ok: false as const, warn: false, max: 0 };
       const next = cloneOs(club);
       const result = applyLogPitch(next, teamId, playerId, pitches, date, event, actor);
       if (result.ok) setClub(next);
@@ -1294,7 +1354,17 @@ export function TeamsProvider({
   );
 
   const postAnnouncement = useCallback(
-    (teamId: string, input: { title: string; body: string; arrive?: string; uniform?: string; hotel?: string; pin?: boolean }) => {
+    (
+      teamId: string,
+      input: {
+        title: string;
+        body: string;
+        arrive?: string;
+        uniform?: string;
+        hotel?: string;
+        pin?: boolean;
+      },
+    ) => {
       if (!requestTeam(club, identity, teamId)) return;
       setClub((prev) => applyAnnouncement(cloneOs(prev), teamId, { ...input, actor }));
     },
@@ -1319,7 +1389,8 @@ export function TeamsProvider({
 
   const sendChat = useCallback(
     (teamId: string, text: string, toPlayerId?: string | null) => {
-      if (!requestTeam(club, identity, teamId)) return { ok: false as const, reason: "missing" as const };
+      if (!requestTeam(club, identity, teamId))
+        return { ok: false as const, reason: "missing" as const };
       if (toPlayerId) return { ok: false as const, reason: "dm" as const };
       const next = cloneOs(club);
       const result = applyChat(next, teamId, {
@@ -1335,7 +1406,10 @@ export function TeamsProvider({
   );
 
   const addPractice = useCallback(
-    (teamId: string, input: { date: string; time: string; place: string; note?: string; cageHours?: number }) => {
+    (
+      teamId: string,
+      input: { date: string; time: string; place: string; note?: string; cageHours?: number },
+    ) => {
       if (!requestTeam(club, identity, teamId)) return;
       setClub((prev) => applyAddPractice(cloneOs(prev), teamId, { ...input, actor }));
     },
@@ -1363,7 +1437,10 @@ export function TeamsProvider({
   );
 
   const startGame = useCallback(
-    (teamId: string, input: { opponent: string; event?: string; field?: string; time?: string }) => {
+    (
+      teamId: string,
+      input: { opponent: string; event?: string; field?: string; time?: string },
+    ) => {
       if (!requestTeam(club, identity, teamId)) return;
       setClub((prev) => applyStartGame(cloneOs(prev), teamId, { ...input, actor }));
     },
@@ -1410,12 +1487,12 @@ export function TeamsProvider({
       if (!requestPlayer(club, identity, input.teamId, input.playerId)) {
         return { ok: false, reason: "forbidden" };
       }
-      const next = cloneOs(club);
-      const result = applyPay(next, { ...input, actor });
-      if (result.ok) setClub(next);
-      return { ok: result.ok, reason: result.reason, receipt: result.receipt };
+      return {
+        ok: false,
+        reason: "Payment must be confirmed by Square. Contact the office for a verified invoice.",
+      };
     },
-    [actor, club, identity],
+    [club, identity],
   );
 
   const enrollDraft = useCallback(
@@ -1549,7 +1626,8 @@ export function TeamsProvider({
 
   const electPay = useCallback(
     (teamId: string, staffId: string, applyAmount: number) => {
-      if (!requestTeam(club, identity, teamId)) return { ok: false as const, applied: 0, cash: 0, gross: 0 };
+      if (!requestTeam(club, identity, teamId))
+        return { ok: false as const, applied: 0, cash: 0, gross: 0 };
       const next = cloneOs(club);
       const result = applyElectPay(next, teamId, staffId, applyAmount, actor);
       if (result.ok) setClub(next);
@@ -1580,7 +1658,8 @@ export function TeamsProvider({
       purpose: string;
       receipt: boolean;
     }) => {
-      if (!requestTeam(club, identity, input.teamId)) return { ok: false as const, reportable: false };
+      if (!requestTeam(club, identity, input.teamId))
+        return { ok: false as const, reportable: false };
       const next = cloneOs(club);
       const result = applyAddReimbursement(next, input, actor);
       if (result.ok) setClub(next);
@@ -1695,7 +1774,13 @@ export function TeamsProvider({
 
   const notes = useMemo(() => {
     const audience =
-      role === "admin" ? "admin" : role === "coach" ? "coach" : role === "parent" ? "family" : "all";
+      role === "admin"
+        ? "admin"
+        : role === "coach"
+          ? "coach"
+          : role === "parent"
+            ? "family"
+            : "all";
     const rows = (visibleNotes(state, audience) as ClubOs["notifications"]) || [];
     return rows
       .filter((n) => {
@@ -1711,8 +1796,7 @@ export function TeamsProvider({
       .slice(0, 12);
   }, [state, role, visibleTeams]);
 
-  const coachScopeReport =
-    identity.role === "coach" ? inspectCoachScope(state) : null;
+  const coachScopeReport = identity.role === "coach" ? inspectCoachScope(state) : null;
 
   const value: TeamsContextValue = {
     state,
@@ -1845,9 +1929,7 @@ export function useTeams() {
 
 export function positionsOf(player: OsPlayer | null): string {
   if (!player?.positions) return "—";
-  return Array.isArray(player.positions)
-    ? player.positions.join(" / ")
-    : String(player.positions);
+  return Array.isArray(player.positions) ? player.positions.join(" / ") : String(player.positions);
 }
 
 export function fmtAvg(value: number | string | null | undefined) {
