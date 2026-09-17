@@ -113,7 +113,9 @@ export function SquareOffice() {
                   className="w-16 rounded border p-2"
                 />
               </label>
-              <Button disabled={busy}>Save booking policy</Button>
+              <Button type="submit" disabled={busy}>
+                Save booking policy
+              </Button>
             </form>
           </details>
           <h3 className="text-xl">Payments</h3>
@@ -202,7 +204,9 @@ export function SquareOffice() {
                 Withdraw all unused credits and cancel future bookings covered by this payment.
                 Completed sessions remain in the audit history.
               </label>
-              <Button disabled={busy || !data.config}>Issue refund</Button>
+              <Button type="submit" disabled={busy || !data.config}>
+                Issue refund
+              </Button>
             </form>
           </details>
           <h3 className="text-xl">Refunds</h3>
@@ -243,7 +247,7 @@ export function SquareOffice() {
                     className="w-16 rounded border p-2"
                   />
                 </label>
-                <Button disabled={busy || !data.config} variant="outlineDark">
+                <Button type="submit" disabled={busy || !data.config} variant="outlineDark">
                   Approve pause
                 </Button>
               </form>
