@@ -13,6 +13,7 @@ export type PaySearch = {
   receipt?: string;
   cages?: string;
   use?: string;
+  athleteCount?: number;
   assessed?: string;
 };
 
@@ -63,7 +64,26 @@ export function parsePaySearch(search: Record<string, unknown>): PaySearch {
     receipt: typeof search.receipt === "string" ? search.receipt : undefined,
     cages: typeof search.cages === "string" ? search.cages : undefined,
     use: typeof search.use === "string" ? search.use : undefined,
+    athleteCount: Number.isInteger(Number(search.athleteCount)) && Number(search.athleteCount) >= 1 && Number(search.athleteCount) <= 100
+      ? Number(search.athleteCount) : undefined,
   };
+}
+
+export function checkoutParty(search: PaySearch) {
+  return {
+    household: search.use === "household",
+    count: search.athleteCount ?? (search.use === "team" ? 3 : 1),
+  };
+}
+
+export function checkoutReturnPath(search: PaySearch): string {
+  const params = new URLSearchParams();
+  // Keep booking choices through sign-in, never identity, payment, or assessment claims.
+  for (const key of ["kind", "id", "date", "time", "minutes", "cages", "use", "athleteCount"] as const) {
+    const value = search[key];
+    if (value !== undefined && value !== "") params.set(key, String(value));
+  }
+  return `/pay?${params.toString()}`;
 }
 
 function hourlyFor(

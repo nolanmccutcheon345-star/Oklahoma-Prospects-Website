@@ -1,9 +1,36 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { buildPublicCatalog } from "./ops";
-import { quoteCages, quoteCheckout, resolvePayItem } from "./pay";
+import { checkoutParty, checkoutReturnPath, parsePaySearch, quoteCages, quoteCheckout, resolvePayItem } from "./pay";
+import { calculateQuote, type Product } from "./commerce/contracts";
 
 const catalog = buildPublicCatalog([]);
+
+test("household booking keeps its $50 rate and choices through sign-in", () => {
+  const selection = parsePaySearch({ kind: "cage", id: "individual", cages: "1", minutes: 60,
+    date: "2026-09-18", time: "16:00", use: "household", athleteCount: 2 });
+  const restored = parsePaySearch(Object.fromEntries(new URL(checkoutReturnPath(selection), "https://example.com").searchParams));
+  assert.deepEqual(restored, selection);
+  const party = checkoutParty(restored);
+  const rates: Product[] = catalog.cages.map((p) => ({ ...p, kind: "cage", active: true,
+    minutes: 60, credits: 0, remote: 0, expires_days: 0, hours: 0, discipline: "" }));
+  const quote = calculateQuote({ requestId: "unused", productId: "individual", kind: "cage",
+    laneIds: ["1"], duration: restored.minutes, household: party.household, athleteCount: party.count,
+    consent: false, name: "Test", email: "test@example.com" }, rates.find(p => p.id === "individual")!, false, rates);
+  assert.equal(quote.totalCents, 5000);
+  assert.equal(quote.teamRate, false);
+});
+
+test("sign-in return path excludes payment and assessment claims and retains team use", () => {
+  const restored = parsePaySearch(Object.fromEntries(new URL(checkoutReturnPath({ kind: "cage", id: "team", use: "team", athleteCount: 5,
+    receipt: "private-receipt", assessed: "true" }), "https://example.com").searchParams));
+  assert.deepEqual(checkoutParty(restored), { household: false, count: 5 });
+  assert.equal(restored.receipt, undefined);
+  assert.equal(restored.assessed, undefined);
+  for (const athleteCount of [-1, 0, 101, 1.5, "invalid"]) {
+    assert.equal(parsePaySearch({ athleteCount }).athleteCount, undefined);
+  }
+});
 
 test("two cages at two hours charge for both", () => {
   const item = quoteCages(catalog, { rate: "individual", laneIds: ["1", "2"], minutes: 120 });

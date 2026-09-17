@@ -2,7 +2,7 @@ import { pageHead } from "@/lib/seo";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { parsePaySearch, parseLaneIds } from "@/lib/pay";
+import { checkoutParty, checkoutReturnPath, parsePaySearch, parseLaneIds } from "@/lib/pay";
 import {
   getCheckoutContext,
   getCheckoutQuote,
@@ -36,8 +36,8 @@ function PayPage() {
     birthDate = "";
   const [date, setDate] = useState(search.date || chicagoDate());
   const [time, setTime] = useState(search.time || "");
-  const [household, setHousehold] = useState(false);
-  const [count, setCount] = useState(search.use === "team" ? 3 : 1);
+  const [household, setHousehold] = useState(checkoutParty(search).household);
+  const [count, setCount] = useState(checkoutParty(search).count);
   const [consent, setConsent] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -291,7 +291,7 @@ function PayPage() {
               Please{" "}
               <Link
                 to="/login"
-                search={{ next: `/pay?kind=${kind}&id=${search.id || ""}` }}
+                search={{ next: checkoutReturnPath({ ...search, kind, date, time, use: household ? "household" : "team", athleteCount: count }) }}
                 className="underline"
               >
                 sign in or create an account
@@ -466,7 +466,7 @@ function PayPage() {
                 </div>
               ) : (
                 <p>
-                  Enter your details and choose a coach and date to see available times.{" "}
+                  {!user ? "Sign in to check available times." : kind === "cage" ? "Choose a date to check available cage times." : "Choose a coach and date to see available times."}{" "}
                   {slotsFor(date, quote.duration).length === 0
                     ? "No times remain on this date."
                     : "If no times appear, choose another date."}
