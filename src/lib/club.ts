@@ -334,7 +334,7 @@ export const PAY_METHODS = [
     id: "card",
     name: "Debit or credit",
     preferred: true,
-    note: "Call the front desk to reserve while card checkout is unavailable.",
+    note: "Payment is required to confirm a booking. Call the front desk for help while card checkout is unavailable.",
   },
 ] as const;
 

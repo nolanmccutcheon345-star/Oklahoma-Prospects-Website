@@ -77,7 +77,7 @@ function Home() {
             to="/book"
             kicker="From $50 / hour"
             title="Book a cage"
-            body="One cage or several at the same time. Call the front desk to reserve. Card checkout availability is shown before booking."
+            body="One cage or several at the same time. Payment is required to confirm your booking. Call the front desk for help."
           />
           <PathCard
             to="/training"
