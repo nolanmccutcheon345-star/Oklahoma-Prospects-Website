@@ -291,7 +291,16 @@ function PayPage() {
               Please{" "}
               <Link
                 to="/login"
-                search={{ next: checkoutReturnPath({ ...search, kind, date, time, use: household ? "household" : "team", athleteCount: count }) }}
+                search={{
+                  next: checkoutReturnPath({
+                    ...search,
+                    kind,
+                    date,
+                    time,
+                    use: household ? "household" : "team",
+                    athleteCount: count,
+                  }),
+                }}
                 className="underline"
               >
                 sign in or create an account
@@ -463,7 +472,11 @@ function PayPage() {
                 </div>
               ) : (
                 <p>
-                  {!user ? "Sign in to check available times." : kind === "cage" ? "Choose a date to check available cage times." : "Choose a coach and date to see available times."}{" "}
+                  {!user
+                    ? "Sign in to check available times."
+                    : kind === "cage"
+                      ? "Choose a date to check available cage times."
+                      : "Choose a coach and date to see available times."}{" "}
                   {slotsFor(date, quote.duration).length === 0
                     ? "No times remain on this date."
                     : "If no times appear, choose another date."}
@@ -506,9 +519,15 @@ function PayPage() {
               Privacy
             </Link>
           </p>
-          {context?.mode === "disabled" ? (
+          {context?.square?.checkoutScope === "cages" && product.kind !== "cage" ? (
+            <p role="status" className="rounded-lg bg-paper-2 p-3">
+              Online checkout is open for one-time cage bookings. Memberships, lessons and packages
+              are not yet available for purchase.
+            </p>
+          ) : context?.mode === "disabled" ? (
             <p className="rounded-lg bg-paper-2 p-3">
-              Online payment is temporarily unavailable. No booking is created until payment succeeds. Please try again later.
+              Online payment is temporarily unavailable. No booking is created until payment
+              succeeds. Please try again later.
             </p>
           ) : (
             <Button

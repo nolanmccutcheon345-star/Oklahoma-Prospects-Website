@@ -10,6 +10,7 @@ import { slotsFor, validateWindow, validDate } from "../scheduling";
 import { coachAvailable } from "./availability";
 import { paymentMode, squarePublicConfig, squareConfig, planVariation } from "./square.server";
 import { approvedProducts, CATALOG_VERSION } from "./catalog";
+import { assertSquareCheckoutScope } from "./square-config";
 import { expireHolds } from "./store.server";
 
 export async function rateLimit(bucket: string, maximum = 30) {
@@ -174,6 +175,7 @@ export async function beginCheckout(input: CheckoutInput, verifiedUserId?: strin
   if (input.productId === "m4" || input.productId === "s6")
     throw new Error("Small-group enrollment opens when the office publishes the group schedule.");
   const { me, quote, athleteId, file } = await quoteForRequest(input, true, verifiedUserId);
+  assertSquareCheckoutScope(config, quote);
   if (quote.recurring) {
     const { validateSquarePlan } = await import("./square-payments.server");
     await validateSquarePlan(planVariation(quote.productId), quote.regularCents);
@@ -226,7 +228,12 @@ export async function beginCheckout(input: CheckoutInput, verifiedUserId?: strin
         athleteCount: input.athleteCount,
       },
       consentAt: input.consent ? new Date().toISOString() : null,
-      bookingWindow: null as null | { start: string; end: string; coachId?: string; participantCount: number },
+      bookingWindow: null as null | {
+        start: string;
+        end: string;
+        coachId?: string;
+        participantCount: number;
+      },
     };
     if (quote.needsSlot) {
       if (!input.date || !input.time) throw new Error("Choose a date and available start time.");
@@ -237,11 +244,15 @@ export async function beginCheckout(input: CheckoutInput, verifiedUserId?: strin
       )
         throw new Error("Your coach is unavailable for the full session.");
       snapshot.bookingWindow = {
-        start: window.start.toISOString(), end: window.end.toISOString(),
-        coachId: input.coachId, participantCount: quote.kind === "cage" ? input.athleteCount : 1,
+        start: window.start.toISOString(),
+        end: window.end.toISOString(),
+        coachId: input.coachId,
+        participantCount: quote.kind === "cage" ? input.athleteCount : 1,
       };
-      const occupied = await tx`select b.booking_id from booking_occupancy b join booking_records r on r.id=b.booking_id where r.status in ('confirmed','completed') and b.resource_id=any(${quote.resources}::text[]) and b.slot_at>=${window.start.toISOString()} and b.slot_at<${window.end.toISOString()} limit 1`;
-      if (occupied.length) throw new Error("That time is already booked. Choose another available time.");
+      const occupied =
+        await tx`select b.booking_id from booking_occupancy b join booking_records r on r.id=b.booking_id where r.status in ('confirmed','completed') and b.resource_id=any(${quote.resources}::text[]) and b.slot_at>=${window.start.toISOString()} and b.slot_at<${window.end.toISOString()} limit 1`;
+      if (occupied.length)
+        throw new Error("That time is already booked. Choose another available time.");
     }
     // Save only a payment session. No booking record or occupancy exists before payment.
     await tx`insert into commerce_orders(id,request_key,user_id,email,athlete_id,product_id,kind,snapshot,total_cents,hold_until,payment_provider,payment_environment)
@@ -281,7 +292,13 @@ export async function orderStatus(orderId: string, verifiedUserId?: string) {
     product_id: row.product_id,
     receipt_url: row.receipt_url,
     subscription_setup_status: row.subscription_setup_status,
-    bookingConfirmed: row.status === "paid" && Boolean((await sql`select id from booking_records where order_id=${orderId} and status='confirmed' limit 1`).length),
+    bookingConfirmed:
+      row.status === "paid" &&
+      Boolean(
+        (
+          await sql`select id from booking_records where order_id=${orderId} and status='confirmed' limit 1`
+        ).length,
+      ),
     holdUntil: new Date(row.hold_until).toISOString(),
     feeDue: row.status === "pending_fee" ? row.snapshot.setupCents : 0,
     square: squarePublicConfig(),

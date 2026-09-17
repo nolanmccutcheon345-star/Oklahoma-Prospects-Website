@@ -55,3 +55,11 @@ Use synthetic accounts and Square Sandbox only. Do not run real charges or enter
 - Desktop and mobile card field rendering, 3DS, consent, itemized prices, expiration, accessible errors, persistent receipts, and transactional email delivery.
 
 `npm run test:square` is the repository’s offline test suite. It is **not** the separately requested `prospects-payments-audit.mjs`; that script was not supplied. Neither offline tests nor a green build proves that a seller account can accept payments.
+
+## Owner-selected phased release: one-time cage bookings
+
+On September 17, 2026 the owner delegated the launch decision after being offered a cage-only first release. This phase uses `SQUARE_CHECKOUT_SCOPE=cages` and a separate `SQUARE_CAGE_SANDBOX_VERIFIED=true` acceptance flag, together with `SQUARE_LIVE_ENABLED=true`. It does **not** set the full `SQUARE_SANDBOX_VERIFIED` flag. Both checkout creation and payment submission enforce the scope against the server-approved quote; existing unpaid non-cage orders cannot be charged. A recurring quote is rejected even if its kind is altered to cage. Unknown scope values fail closed.
+
+For this phase, accept cage pricing/hours/household and team rules, verified ownership, idempotent fulfillment and occupancy constraints, decline/CVV/ZIP/expiration behavior, 3DS, refunds, webhook verification/recovery, saved receipts and receipt email. Recurring plans, assessments, lessons and packages remain unavailable for purchase. The full matrix above remains required for the later all-products release. Missing monthly catalog mappings must not be treated as completed membership acceptance.
+
+The owner payment console includes a receipt test addressed only to the authenticated owner's account, with provider delivery status checking restricted to that same recipient. Sandbox customer notifications remain suppressed; the test does not claim a purchase or create a booking.

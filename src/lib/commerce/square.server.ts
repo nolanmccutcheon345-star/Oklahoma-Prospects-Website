@@ -16,7 +16,12 @@ export function squarePublicConfig() {
     CONTEXT: process.env.SQUARE_DEPLOY_CONTEXT || process.env.CONTEXT,
   });
   return c
-    ? { environment: c.environment, applicationId: c.applicationId, locationId: c.locationId }
+    ? {
+        environment: c.environment,
+        applicationId: c.applicationId,
+        locationId: c.locationId,
+        checkoutScope: c.checkoutScope,
+      }
     : null;
 }
 export function paymentMode(): "disabled" | "test" | "live" {
@@ -56,7 +61,18 @@ export function safePaymentError(error: unknown) {
   if (codes.includes("CVV_FAILURE")) return "Check the card security code and try again.";
   if (codes.includes("ADDRESS_VERIFICATION_FAILURE"))
     return "Check the card billing postal code and try again.";
-  if (codes.some((code) => ["CARD_EXPIRED", "EXPIRATION_FAILURE", "INVALID_EXPIRATION", "INVALID_EXPIRATION_YEAR", "INVALID_EXPIRATION_DATE", "BAD_EXPIRATION"].includes(code || "")))
+  if (
+    codes.some((code) =>
+      [
+        "CARD_EXPIRED",
+        "EXPIRATION_FAILURE",
+        "INVALID_EXPIRATION",
+        "INVALID_EXPIRATION_YEAR",
+        "INVALID_EXPIRATION_DATE",
+        "BAD_EXPIRATION",
+      ].includes(code || ""),
+    )
+  )
     return "Check the card expiration date or use another card.";
   if (
     codes.includes("CARD_DECLINED") ||

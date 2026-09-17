@@ -330,3 +330,43 @@ export async function setCageWindow(userId: string, standardDays: number) {
   await sql`insert into commerce_policy(id,value,updated_by) values('cage-booking-window',${JSON.stringify({ standardDays, allStarDays: 14 })}::jsonb,${userId}) on conflict(id) do update set value=excluded.value,updated_by=excluded.updated_by,updated_at=now()`;
   return { ok: true };
 }
+
+/** Owner-initiated delivery check sends only to that owner's verified account. */
+export async function testReceiptEmail(userId: string, messageId?: string) {
+  const me = await requirePaymentOwner(userId);
+  assertPaymentRequest();
+  await rateLimit("owner-receipt-email-check", 10);
+  const key = process.env.RESEND_API_KEY;
+  const from = process.env.RESEND_FROM_EMAIL || process.env.EMAIL_FROM;
+  if (!key || !from) throw new Error("Receipt email credentials are not configured.");
+  if (messageId) {
+    const response = await fetch(`https://api.resend.com/emails/${encodeURIComponent(messageId)}`, {
+      headers: { Authorization: `Bearer ${key}` },
+      signal: AbortSignal.timeout(10000),
+    });
+    if (!response.ok) throw new Error("Email provider cannot confirm delivery with this API key.");
+    const result = (await response.json()) as { to?: string[]; last_event?: string };
+    if (result.to?.length !== 1 || result.to[0].toLowerCase() !== me.email.toLowerCase())
+      throw new Error("Only your own test email can be checked.");
+    return { id: messageId, status: result.last_event || "unknown" };
+  }
+  const response = await fetch("https://api.resend.com/emails", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${key}`,
+      "Content-Type": "application/json",
+      "Idempotency-Key": `receipt-readiness-${userId}-${new Date().toISOString().slice(0, 10)}`,
+    },
+    body: JSON.stringify({
+      from,
+      to: [me.email],
+      subject: "Oklahoma Prospects — receipt email test",
+      text: "This is an owner-requested check of Oklahoma Prospects receipt email delivery. No payment was taken and no booking was made. Your payment receipts will link to your saved booking and billing history.",
+    }),
+    signal: AbortSignal.timeout(10000),
+  });
+  if (!response.ok) throw new Error("Email provider rejected the receipt delivery test.");
+  const result = (await response.json()) as { id?: string };
+  if (!result.id) throw new Error("Email provider did not return a message ID.");
+  return { id: result.id, status: "accepted" };
+}

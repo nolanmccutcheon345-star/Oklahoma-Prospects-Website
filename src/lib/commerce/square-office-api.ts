@@ -59,3 +59,11 @@ export const saveCageWindow = createServerFn({ method: "POST" })
     const m = await import("./square-office.server");
     return m.setCageWindow(context.userId, data.standardDays);
   });
+
+export const checkReceiptEmail = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
+  .validator(z.object({ messageId: z.string().uuid().optional() }).strict())
+  .handler(async ({ context, data }) => {
+    const m = await import("./square-office.server");
+    return m.testReceiptEmail(context.userId, data.messageId);
+  });

@@ -7,6 +7,7 @@ import {
   checkSquareLocation,
   checkSquareWebhooks,
   saveCageWindow,
+  checkReceiptEmail,
 } from "@/lib/commerce/square-office-api";
 import { formatMoney } from "@/lib/pricing";
 import { Button } from "@/components/ui/button";
@@ -15,6 +16,7 @@ export function SquareOffice() {
     [error, setError] = useState(""),
     [notice, setNotice] = useState(""),
     [busy, setBusy] = useState(false);
+  const [emailCheckId, setEmailCheckId] = useState<string>();
   const refundKey = useRef(crypto.randomUUID());
   async function load() {
     setData(await getSquareOffice());
@@ -101,6 +103,22 @@ export function SquareOffice() {
               Verify Square webhooks
             </Button>
           </div>
+          <Button
+            variant="outlineDark"
+            disabled={busy || !data.config}
+            onClick={() =>
+              void action(async () => {
+                const result = await checkReceiptEmail({ data: { messageId: emailCheckId } });
+                setEmailCheckId(result.id);
+                if (result.status !== "delivered")
+                  throw new Error(
+                    `Receipt test email: ${result.status}. Check delivery again shortly.`,
+                  );
+              }, "Receipt test email delivered to your account address.")
+            }
+          >
+            {emailCheckId ? "Check test email delivery" : "Send receipt test to my email"}
+          </Button>
           <details>
             <summary className="min-h-11 cursor-pointer">Configure cage booking windows</summary>
             <p>

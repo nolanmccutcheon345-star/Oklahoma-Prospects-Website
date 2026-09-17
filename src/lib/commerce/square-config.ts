@@ -2,6 +2,7 @@
 export type SquareEnvironment = "sandbox" | "production";
 export type SquareSettings = {
   environment: SquareEnvironment;
+  checkoutScope: "all" | "cages";
   applicationId: string;
   locationId: string;
   merchantId: string;
@@ -14,13 +15,17 @@ export function resolveSquareConfig(
   env: Record<string, string | undefined>,
 ): SquareSettings | null {
   const environment = env.SQUARE_ENVIRONMENT;
+  const checkoutScope = env.SQUARE_CHECKOUT_SCOPE || "all";
+  if (checkoutScope !== "all" && checkoutScope !== "cages") return null;
+  const accepted =
+    checkoutScope === "cages"
+      ? env.SQUARE_CAGE_SANDBOX_VERIFIED === "true"
+      : env.SQUARE_SANDBOX_VERIFIED === "true";
   if (environment !== "sandbox" && environment !== "production") return null;
   if (env.CONTEXT === "production" && environment !== "production") return null;
   if (
     environment === "production" &&
-    (env.CONTEXT !== "production" ||
-      env.SQUARE_LIVE_ENABLED !== "true" ||
-      env.SQUARE_SANDBOX_VERIFIED !== "true")
+    (env.CONTEXT !== "production" || env.SQUARE_LIVE_ENABLED !== "true" || !accepted)
   )
     return null;
   const prefix = environment === "sandbox" ? "SQUARE_SANDBOX_" : "SQUARE_PRODUCTION_";
@@ -58,6 +63,7 @@ export function resolveSquareConfig(
       return null;
     return {
       environment,
+      checkoutScope,
       applicationId,
       locationId,
       merchantId,
@@ -69,4 +75,15 @@ export function resolveSquareConfig(
   } catch {
     return null;
   }
+}
+
+/** Scope is enforced on server-approved quotes, including existing unpaid orders. */
+export function assertSquareCheckoutScope(
+  config: Pick<SquareSettings, "checkoutScope">,
+  quote: { kind: string; recurring: boolean },
+) {
+  if (config.checkoutScope === "cages" && (quote.kind !== "cage" || quote.recurring))
+    throw new Error(
+      "Online checkout is currently open for one-time cage bookings only. Memberships, lessons and packages are not yet available for purchase.",
+    );
 }
