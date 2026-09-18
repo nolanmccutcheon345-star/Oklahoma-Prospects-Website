@@ -15,8 +15,7 @@ export async function setParticipants(userId: string, id: string, athleteIds: st
       athlete_id: string | null;
       household_id: string;
     }>`select * from booking_records where id=${id} and (household_id=any(${me.billingHouseholdIds}::text[]) or ${me.role === "admin"}) and status='confirmed' and checked_in_at is null for update`;
-    if (!booking)
-      throw new Error("Choose an upcoming paid booking that has not been checked in.");
+    if (!booking) throw new Error("Choose an upcoming paid booking that has not been checked in.");
     if (new Date(booking.ends_at) <= new Date()) throw new Error("This booking has ended.");
     const ids = [...new Set(athleteIds)];
     if (ids.length !== booking.participant_count)
@@ -92,16 +91,20 @@ export async function officeOperations(userId: string) {
       id: string;
       product_id: string;
       starts_at: Date;
+      ends_at: Date;
+      resources: string[];
+      customer_email: string | null;
+      total_cents: number | null;
       status: string;
       checked_in_at: Date | null;
       participant_count: number;
       participant_names: string | null;
       missing_waivers: number;
-    }>`select b.id,b.product_id,b.starts_at,b.status,b.checked_in_at,b.participant_count,
+    }>`select b.id,b.product_id,b.starts_at,b.ends_at,b.resources,b.status,b.checked_in_at,b.participant_count,o.email as customer_email,o.total_cents,
    string_agg(a.name,', ') as participant_names,
    count(*) filter(where a.id is null or not exists(select 1 from club_waivers w where w.athlete_id=a.id and w.signed_at+interval '1 year'>now()))::integer as missing_waivers
-   from booking_records b left join booking_participants p on p.booking_id=b.id left join club_athletes a on a.id=p.athlete_id
-   where b.starts_at>now()-interval '1 day' and b.starts_at<now()+interval '14 days' and b.status='confirmed' group by b.id order by b.starts_at limit 200`,
+   from booking_records b left join commerce_orders o on o.id=b.order_id left join booking_participants p on p.booking_id=b.id left join club_athletes a on a.id=p.athlete_id
+   where b.starts_at>now()-interval '1 day' and b.starts_at<now()+interval '14 days' and b.status='confirmed' group by b.id,o.id order by b.starts_at limit 200`,
     sql<{
       service_id: string;
       name: string;

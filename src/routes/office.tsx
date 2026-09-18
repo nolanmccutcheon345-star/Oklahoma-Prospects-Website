@@ -113,6 +113,8 @@ function OfficePage() {
           compact
         />
         <div className="mx-auto max-w-3xl px-5 py-8">
+          <SquareOffice />
+          <OfficeOperations />
           <OfficeRequests />
           <div className="grid gap-2">
             <Button

@@ -152,11 +152,28 @@ export async function manualSquareRefund(
   await executeSquareRefund(id);
   return { ok: true };
 }
-export async function sendPaymentNotifications() {
+export async function sendPaymentNotifications(orderId?: string, ownerOnly = false) {
   const key = process.env.RESEND_API_KEY;
   const from = process.env.RESEND_FROM_EMAIL || process.env.EMAIL_FROM;
-  if (!key || !from) return;
-  await deliverPaymentNotifications(await getSql(), squareConfig(), { key, from });
+  if (!key || !from) throw new Error("Booking email delivery is not configured.");
+  const sql = await getSql(),
+    c = squareConfig();
+  // Recover missed owner notices for recent paid bookings without resending customer receipts.
+  await sql`insert into payment_notifications(id,order_id,kind)
+    select 'owner-booking:' || o.id,o.id,'owner-booking' from commerce_orders o
+    where o.payment_provider='square' and o.payment_environment=${c.environment} and o.status='paid'
+      and o.paid_at>now()-interval '1 day'
+      and (${orderId || null}::text is null or o.id=${orderId || null})
+      and exists(select 1 from booking_records b where b.order_id=o.id and b.status='confirmed' and b.ends_at>now())
+    on conflict do nothing`;
+  return deliverPaymentNotifications(sql, c, { key, from }, undefined, fetch, orderId, ownerOnly);
+}
+export async function sendOwnerBookingAlerts(userId: string) {
+  await requirePaymentOwner(userId);
+  assertPaymentRequest();
+  await rateLimit("owner-booking-alerts", 5);
+  const ids = await sendPaymentNotifications(undefined, true);
+  return { accepted: ids.length };
 }
 export async function reconcileSquare() {
   const sql = await getSql(),

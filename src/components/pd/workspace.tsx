@@ -229,7 +229,7 @@ function ScopedWorkspace({
             ) : null}
             {ready && pdReady && tab === "coaches" && adminOps ? <AdminStaffDesk /> : null}
             {ready && pdReady && tab === "programs" ? <ProgramsDesk /> : null}
-            {ready && pdReady && tab === "business" && adminOps ? <BusinessDesk reservations={reservations} /> : null}
+            {ready && pdReady && tab === "business" && adminOps ? <BusinessDesk /> : null}
             {ready && pdReady && tab === "retention" && adminOps ? <RetentionDesk /> : null}
             {ready && pdReady && tab === "evidence" && adminOps ? <EvidenceDesk /> : null}
             {ready && pdReady && tab === "toolkit" ? (
@@ -467,7 +467,7 @@ function EvidenceDesk() {
   );
 }
 
-function BusinessDesk({ reservations }: { reservations: Reservation[] }) {
+function BusinessDesk() {
   const [pane, setPane] = useState("launch");
   return (
     <>
@@ -489,10 +489,11 @@ function BusinessDesk({ reservations }: { reservations: Reservation[] }) {
         <section className="rounded-2xl bg-paper-2 shadow-border">
           <div className="pd-card">
             <p className="text-xs font-semibold tracking-[0.16em] text-maroon uppercase">Payments</p>
-            <h3 className="mt-2 text-2xl">{reservations.length} on the board</h3>
+            <h3 className="mt-2 text-2xl">Live bookings and payments</h3>
             <p className="mt-2 text-sm text-muted">
-              Square charges the exact order total with line items. This desk lists what’s booked.
+              View paid cage bookings, customer details, and owner alerts in the front office.
             </p>
+            <Link to="/office" className="mt-3 inline-flex min-h-11 items-center font-semibold underline">Open bookings and payments</Link>
           </div>
         </section>
       ) : null}

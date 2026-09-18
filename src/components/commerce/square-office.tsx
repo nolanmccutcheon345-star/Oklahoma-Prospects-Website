@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import {
   getSquareOffice,
+  sendOwnerBookingAlerts,
   prepareSquareMonthlyPlans,
   prepareSquareMembershipWebhooks,
   reconcilePayments,
@@ -60,6 +61,12 @@ export function SquareOffice() {
               : "Square is not configured. Checkout remains closed; no unpaid booking can be confirmed."}
           </p>
           <div className="flex flex-wrap gap-3">
+            <Button disabled={busy || !data.config} variant="outlineDark" onClick={() =>
+              void action(async () => {
+                const result = await sendOwnerBookingAlerts();
+                if (!result.accepted) throw new Error("No new owner alerts were accepted. Check the notification queue below for pending or review items.");
+              }, "Owner booking alerts accepted by the email provider. Check your inbox.")
+            }>Send pending owner alerts</Button>
             <Button
               disabled={busy || !data.config}
               onClick={() =>
