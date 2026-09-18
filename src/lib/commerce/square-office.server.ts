@@ -265,7 +265,7 @@ export async function verifySquareWebhooks(userId: string, prepareSandbox = fals
         "dispute.created",
         "card.automatically_updated",
       );
-    if (prepareSandbox && required.some((type) => !subscription.eventTypes?.includes(type))) {
+    if (prepareSandbox && required.some((type) => !subscription?.eventTypes?.includes(type))) {
       await squareClient().webhooks.subscriptions.update({
         subscriptionId: listed.id,
         subscription: {

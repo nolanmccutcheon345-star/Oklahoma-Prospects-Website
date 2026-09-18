@@ -1,4 +1,4 @@
-import { WebhooksHelper, type Square } from "square";
+import { WebhooksHelper, type Square, type SquareClient } from "square";
 import { getSql, type Sql } from "../db";
 import { squareClient, squareConfig } from "./square.server";
 import {
@@ -27,10 +27,18 @@ export async function syncSquareSubscription(id: string) {
     s.actions?.find((a) => a.type === "RESUME");
   await sql`update club_subscriptions set status=${s.status?.toLowerCase() || "pending"},provider_version=${s.version?.toString() || null},cancel_at_period_end=${Boolean(s.canceledDate || s.status === "CANCELED" || action?.type === "CANCEL")},scheduled_action=${action?.type || null},action_effective_date=${action?.effectiveDate || s.canceledDate || null},updated_at=now() where id=${id}`;
 }
-export async function syncSquareInvoice(id: string) {
-  const client = squareClient(),
-    c = squareConfig(),
-    sql = await getSql();
+export async function syncSquareInvoice(
+  id: string,
+  dependencies?: {
+    client: SquareClient;
+    config: { environment: string; locationId: string };
+    sql: Sql;
+  },
+  failedCharge = false,
+) {
+  const client = dependencies?.client || squareClient(),
+    c = dependencies?.config || squareConfig(),
+    sql = dependencies?.sql || (await getSql());
   const { invoice } = await client.invoices.get({ invoiceId: id });
   if (!invoice?.subscriptionId || invoice.locationId !== c.locationId) return;
   const [local] = await sql<{
@@ -73,8 +81,12 @@ export async function syncSquareInvoice(id: string) {
       payments.some(
         (p) =>
           p.status !== "COMPLETED" ||
+          p.orderId !== invoice.orderId ||
           p.locationId !== c.locationId ||
           p.amountMoney?.currency !== "USD" ||
+          p.totalMoney?.currency !== "USD" ||
+          p.totalMoney.amount !== p.amountMoney.amount ||
+          Number(p.refundedMoney?.amount || 0) > 0 ||
           p.customerId !== local.customer_id,
       ) ||
       payments.reduce((sum, p) => sum + Number(p.amountMoney!.amount), 0) !== local.amount_cents
@@ -86,9 +98,17 @@ export async function syncSquareInvoice(id: string) {
     const [previous] = await tx<{
       status: string;
     }>`select status from billing_invoices where id=${id}`;
+    // A slower unpaid response must not roll back a committed paid invoice.
+    // This also prevents a later paid retry from repeating rollover/notifications.
+    if (previous?.status === "paid") return;
     await tx`insert into billing_invoices(id,user_id,subscription_id,amount_cents,status,invoice_url,period_start,period_end)
       values(${id},${o.user_id},${invoice.subscriptionId!},${local.amount_cents},${invoice.status?.toLowerCase() || "pending"},${invoice.publicUrl || null},${start.toISOString()},${end.toISOString()}) on conflict(id) do update set status=excluded.status,invoice_url=excluded.invoice_url`;
-    if (!paid || previous?.status === "paid") return;
+    if (!paid) {
+      if (failedCharge)
+        await tx`insert into payment_notifications(id,order_id,kind) values(${"failed:" + id},${o.id},'renewal-failed') on conflict do nothing`;
+      return;
+    }
+    await tx`update payment_notifications set status='resolved' where id=${"failed:" + id} and status='pending'`;
     for (const p of payments)
       await tx`insert into square_payments(id,order_id,invoice_id,environment,amount_cents,status,receipt_url,period_start,period_end)
       values(${p.id!},${o.id},${id},${c.environment},${Number(p.amountMoney!.amount)},'COMPLETED',${p.receiptUrl || null},${start.toISOString()},${end.toISOString()}) on conflict(id) do nothing`;
@@ -170,15 +190,11 @@ export async function processSquareEvent(
     if (payment.referenceId) await provisionSubscription(payment.referenceId, client);
   } else if (event.type.startsWith("subscription.")) await syncSquareSubscription(event.object_id);
   else if (event.type.startsWith("invoice.")) {
-    await syncSquareInvoice(event.object_id);
-    if (event.type === "invoice.scheduled_charge_failed") {
-      const [invoice] = await sql<{
-        order_id: string;
-        status: string;
-      }>`select s.order_id,i.status from billing_invoices i join club_subscriptions s on s.id=i.subscription_id where i.id=${event.object_id}`;
-      if (invoice && invoice.status !== "paid")
-        await sql`insert into payment_notifications(id,order_id,kind) values(${"failed:" + event.object_id},${invoice.order_id},'renewal-failed') on conflict do nothing`;
-    }
+    await syncSquareInvoice(
+      event.object_id,
+      undefined,
+      event.type === "invoice.scheduled_charge_failed",
+    );
   } else if (event.type === "card.automatically_updated") {
     const { card } = await client.cards.get({ cardId: event.object_id });
     if (card?.id && card.customerId)

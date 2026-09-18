@@ -33,11 +33,12 @@ export async function changeRenewal(
 ) {
   assertPaymentRequest();
   await rateLimit("square-management", 20);
-  const { sub, me } = await ownedSubscription(userId, id);
+  const { me } = await ownedSubscription(userId, id);
   if (action === "pause" && me.role !== "admin")
     throw new Error("The office must approve the pause length before billing changes.");
   const client = squareClient();
   await syncSquareSubscription(id);
+  const { sub } = await ownedSubscription(userId, id);
   if (action === "cancel") await client.subscriptions.cancel({ subscriptionId: id });
   if (action === "pause") {
     if (!cycles || !Number.isInteger(cycles) || cycles < 1 || cycles > 12)
