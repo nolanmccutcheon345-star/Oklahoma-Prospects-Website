@@ -45,7 +45,7 @@ function TeamsPage() {
     return () => {
       cancelled = true;
     };
-  }, [user]);
+  }, [user?.id]);
 
   const desk = deskFor(profileRole);
 

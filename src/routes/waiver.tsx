@@ -13,7 +13,7 @@ function Waiver(){
  const user=useCurrentUser();const [athletes,setAthletes]=useState<Awaited<ReturnType<typeof getFamilyBilling>>['athletes']>([]);const [waivers,setWaivers]=useState<Awaited<ReturnType<typeof getMyWaivers>>>([]);
  const [error,setError]=useState(''),[busy,setBusy]=useState(false),[saved,setSaved]=useState(false);
  async function load(){const [billing,records]=await Promise.all([getFamilyBilling(),getMyWaivers()]);setAthletes(billing.athletes);setWaivers(records);}
- useEffect(()=>{if(user)void load().catch(e=>setError(e.message));},[user]);
+ useEffect(()=>{if(user)void load().catch(e=>setError(e.message));},[user?.id]);
  return <main id="main"><PageHero eyebrow="Required before you train" title="One waiver." accent="One year." copy="Parent or guardian signs for athletes under 18. This is the Oklahoma Prospects facility waiver." compact/>
  <section className="mx-auto grid max-w-3xl gap-5 px-5 py-8"><article className="rounded-xl bg-ink p-5 text-fg-inverse"><h2 className="text-2xl">Facility Waiver & Release</h2>{WAIVER_PARAGRAPHS.map(p=><p className="mt-3" key={p}>{p}</p>)}</article>
  {!user?<p><Link to="/login" search={{next:'/waiver'}} className="underline">Sign in or create an account</Link> to attach a signed waiver to your athlete.</p>:<>

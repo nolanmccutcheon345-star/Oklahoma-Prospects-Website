@@ -244,7 +244,7 @@ export function DevelopmentProvider({ children }: { children: ReactNode }) {
         setSaveError(error instanceof Error ? error.message : "Changes have not saved. Please retry.");
       } finally { setSaving(false); }
     });
-  }, [data, pdReady, viewer, user]);
+  }, [data, pdReady, viewer, user?.id]);
 
 
   const openAthlete = useCallback(

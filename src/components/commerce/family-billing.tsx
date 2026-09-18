@@ -71,7 +71,7 @@ export function FamilyBilling({ bookingsOnly = false }: { bookingsOnly?: boolean
       void load().catch((e) =>
         setError(e instanceof Error ? e.message : "Billing could not load."),
       );
-  }, [user]);
+  }, [user?.id]);
   async function action(work: () => Promise<unknown>, message: string) {
     if (busy) return;
     setBusy(true);
