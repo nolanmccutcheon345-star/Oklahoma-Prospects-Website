@@ -238,13 +238,12 @@ export async function verifySquareLocation(userId: string) {
 }
 
 /** Read-only configuration check; signing keys never leave the server. */
-export async function verifySquareWebhooks(userId: string, prepareSandbox = false) {
+export async function verifySquareWebhooks(userId: string, prepareMemberships = false) {
   await requirePaymentOwner(userId);
   const c = squareConfig();
-  if (prepareSandbox) {
+  if (prepareMemberships) {
     assertPaymentRequest();
     await rateLimit("square-webhook-setup", 5);
-    if (c.environment !== "sandbox") throw new Error("Webhook setup is available only in Sandbox.");
   }
   const subscriptions = await squareClient().webhooks.subscriptions.list({ includeDisabled: true });
   for await (const listed of subscriptions) {
@@ -257,7 +256,7 @@ export async function verifySquareWebhooks(userId: string, prepareSandbox = fals
     if (subscription.signatureKey !== c.signatureKey)
       throw new Error("The Square webhook signing key does not match this site's saved key.");
     const required = ["payment.updated", "refund.updated"];
-    if (c.checkoutScope === "all")
+    if (c.checkoutScope === "all" || prepareMemberships)
       required.push(
         "subscription.updated",
         "invoice.payment_made",
@@ -265,7 +264,7 @@ export async function verifySquareWebhooks(userId: string, prepareSandbox = fals
         "dispute.created",
         "card.automatically_updated",
       );
-    if (prepareSandbox && required.some((type) => !subscription?.eventTypes?.includes(type))) {
+    if (prepareMemberships && required.some((type) => !subscription?.eventTypes?.includes(type))) {
       await squareClient().webhooks.subscriptions.update({
         subscriptionId: listed.id,
         subscription: {
@@ -286,9 +285,16 @@ export async function verifySquareWebhooks(userId: string, prepareSandbox = fals
       throw new Error("The Square webhook is missing required payment or membership events.");
     const sql = await getSql();
     const [result] = await sql<{
-      count: number;
-    }>`select count(*)::int as count from square_events where environment=${c.environment} and status='processed'`;
-    return { configured: true, processedEvents: result?.count ?? 0 };
+      processed: number;
+      pending: number;
+    }>`select count(*) filter(where status='processed')::int as processed,
+      count(*) filter(where status<>'processed')::int as pending
+      from square_events where environment=${c.environment}`;
+    return {
+      configured: true,
+      processedEvents: result?.processed ?? 0,
+      pendingEvents: result?.pending ?? 0,
+    };
   }
   throw new Error("No Square webhook subscription matches this site's exact webhook URL.");
 }

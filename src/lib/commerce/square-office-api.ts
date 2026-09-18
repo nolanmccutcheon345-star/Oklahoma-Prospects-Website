@@ -75,7 +75,7 @@ export const prepareSquareMonthlyPlans = createServerFn({ method: "POST" })
     return m.setupMonthlyPlans(context.userId);
   });
 
-export const prepareSquareSandboxWebhooks = createServerFn({ method: "POST" })
+export const prepareSquareMembershipWebhooks = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
   .handler(async ({ context }) => {
     const m = await import("./square-office.server");

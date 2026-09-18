@@ -5,7 +5,7 @@ import type { Sql } from "../db";
 import type { SquareClient, Square } from "square";
 import { prepareMonthlyPlans, savedPlan, assertMonthlyPlan } from "./square-plans.server";
 
-test("monthly setup verifies price, persists scoped mappings, retries without duplicating and cannot mutate production", async () => {
+test("monthly setup verifies price, persists scoped mappings, retries without duplicating and isolates production setup", async () => {
   const db = new PGlite();
   await db.exec(
     "create table commerce_policy(id text primary key,value jsonb,updated_by text,updated_at timestamptz default now())",
@@ -68,21 +68,24 @@ test("monthly setup verifies price, persists scoped mappings, retries without du
     assert.equal(await savedPlan(sql, { ...c, environment: "production" }, "prospect"), undefined);
     await prepareMonthlyPlans(sql, client, c, "owner", () => undefined);
     assert.equal(creates, 8);
-    await assert.rejects(
-      prepareMonthlyPlans(
-        sql,
-        client,
-        { ...c, environment: "production" },
-        "owner",
-        () => undefined,
-      ),
-      /Sandbox first/,
+    const live = await prepareMonthlyPlans(
+      sql,
+      client,
+      { ...c, environment: "production" },
+      "owner",
+      () => undefined,
     );
-    assert.equal(creates, 8);
+    assert.equal(live.filter((r) => r.ready).length, 8);
+    assert.equal(creates, 16);
+    assert.equal(
+      await savedPlan(sql, { ...c, environment: "production" }, "prospect"),
+      "variation-9",
+    );
+    assert.equal(await savedPlan(sql, c, "prospect"), "variation-1");
     // Provider success followed by missing local mapping recovers the same idempotent object.
     await db.exec("delete from commerce_policy");
     await prepareMonthlyPlans(sql, client, c, "owner", () => undefined);
-    assert.equal(creates, 8);
+    assert.equal(creates, 16);
     const p = objects.get("variation-1")!;
     assertMonthlyPlan(p, 7900);
     assert.throws(() => assertMonthlyPlan(p, 13900), /approved monthly price/);
@@ -100,7 +103,7 @@ test("monthly setup verifies price, persists scoped mappings, retries without du
     );
     assert.equal(wrong[0].ready, false);
     assert.equal(wrong.filter((r) => r.ready).length, 7);
-    assert.equal(creates, 8);
+    assert.equal(creates, 16);
     await db.exec("update commerce_policy set value=jsonb_set(value,'{cents}','1')");
     assert.equal(await savedPlan(sql, c, "prospect"), undefined);
   } finally {

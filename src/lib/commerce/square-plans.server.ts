@@ -55,9 +55,8 @@ export async function prepareMonthlyPlans(
   userId: string,
   configured: (productId: string) => string | undefined,
 ) {
-  // Sandbox first. This action cannot activate live enrollment or alter production catalog.
-  if (c.environment !== "sandbox")
-    throw new Error("Prepare and verify monthly plans in Sandbox first.");
+  // The authenticated owner prepares the catalog for the configured environment.
+  // Checkout acceptance and product-scope gates remain independently enforced.
   const { location } = await client.locations.get({ locationId: c.locationId });
   if (
     location?.merchantId !== c.merchantId ||

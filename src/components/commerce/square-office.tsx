@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import {
   getSquareOffice,
   prepareSquareMonthlyPlans,
-  prepareSquareSandboxWebhooks,
+  prepareSquareMembershipWebhooks,
   reconcilePayments,
   ownerRefund,
   approveMembershipPause,
@@ -98,6 +98,10 @@ export function SquareOffice() {
               onClick={() =>
                 void action(async () => {
                   const checks = await checkSquareWebhooks();
+                  if (checks.pendingEvents)
+                    throw new Error(
+                      `Square webhook settings match, but ${checks.pendingEvents} delivered event(s) still need processing. Review Needs attention below.`,
+                    );
                   if (!checks.processedEvents)
                     throw new Error(
                       "Square webhook settings match, but no delivered event has been processed yet.",
@@ -157,12 +161,12 @@ export function SquareOffice() {
               </Button>
             </form>
           </details>
-          {data.config?.environment === "sandbox" ? (
+          {data.config ? (
             <section className="grid gap-3 rounded-lg border p-4" aria-label="Monthly plan setup">
               <h3 className="text-xl">Set up monthly payments</h3>
               <p>
-                Create and verify the Square Sandbox plans for the current site prices. This creates
-                no customer charges and does not open live enrollment.
+                Create and verify the Square {data.config.environment} plans for the current site
+                prices. This creates no customer charges and does not open live enrollment.
               </p>
               <Button
                 disabled={busy}
@@ -174,10 +178,10 @@ export function SquareOffice() {
                       throw new Error(
                         "Some monthly plans still need setup. Review the results below and retry.",
                       );
-                  }, "All eight monthly plans are connected for Sandbox payment testing.")
+                  }, `All eight monthly plans are connected in ${data.config?.environment}. Checkout availability is unchanged.`)
                 }
               >
-                Prepare Sandbox monthly plans
+                Prepare {data.config.environment} monthly plans
               </Button>
               {planResults.map((p) => (
                 <p key={p.id}>
@@ -189,12 +193,12 @@ export function SquareOffice() {
                 variant="outlineDark"
                 onClick={() =>
                   void action(
-                    () => prepareSquareSandboxWebhooks(),
-                    "Sandbox payment and membership event delivery is configured.",
+                    () => prepareSquareMembershipWebhooks(),
+                    "Payment and membership event delivery is configured. Review pending events before launch.",
                   )
                 }
               >
-                Connect Sandbox membership events
+                Connect {data.config.environment} membership events
               </Button>
             </section>
           ) : null}
