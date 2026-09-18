@@ -45,12 +45,20 @@ export function squareClient() {
 export function squareKey(operation: string, id: string) {
   return createHash("sha256").update(`${operation}:${id}`).digest("hex").slice(0, 44);
 }
-export function planVariation(productId: string) {
+export function configuredPlanVariation(productId: string) {
   const c = squareConfig();
   const id =
     process.env[
       `SQUARE_${c.environment.toUpperCase()}_PLAN_${productId.toUpperCase().replaceAll("-", "_")}`
     ];
+  return id;
+}
+export async function planVariation(productId: string) {
+  const { getSql } = await import("../db");
+  const { savedPlan } = await import("./square-plans.server");
+  const id =
+    configuredPlanVariation(productId) ||
+    (await savedPlan(await getSql(), squareConfig(), productId));
   if (!id)
     throw new Error("This monthly plan is not ready for enrollment. No payment has been taken.");
   return id;

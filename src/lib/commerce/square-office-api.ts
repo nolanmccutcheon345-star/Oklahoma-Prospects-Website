@@ -67,3 +67,17 @@ export const checkReceiptEmail = createServerFn({ method: "POST" })
     const m = await import("./square-office.server");
     return m.testReceiptEmail(context.userId, data.messageId);
   });
+
+export const prepareSquareMonthlyPlans = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
+  .handler(async ({ context }) => {
+    const m = await import("./square-office.server");
+    return m.setupMonthlyPlans(context.userId);
+  });
+
+export const prepareSquareSandboxWebhooks = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
+  .handler(async ({ context }) => {
+    const m = await import("./square-office.server");
+    return m.verifySquareWebhooks(context.userId, true);
+  });

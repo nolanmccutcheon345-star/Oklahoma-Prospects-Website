@@ -4,7 +4,11 @@ import { formatMoney } from "@/lib/pricing";
 type Card = {
   attach(selector: string): Promise<void>;
   destroy(): Promise<void>;
-  tokenize(details: Record<string, unknown>): Promise<{ status: string; token?: string }>;
+  tokenize(details: Record<string, unknown>): Promise<{
+    status: string;
+    token?: string;
+    errors?: Array<{ type?: string; field?: string; message?: string }>;
+  }>;
 };
 type SquareBrowser = {
   payments(applicationId: string, locationId: string): { card(): Promise<Card> };
@@ -108,17 +112,24 @@ export function SquareCard({
     try {
       if (!attempt.current) {
         const result = await card.current.tokenize({
-          ...(intent === "CHARGE" ? { amount: (amountCents / 100).toFixed(2) } : {}),
-          currencyCode: "USD",
-          intent,
+          ...(intent === "CHARGE"
+            ? { amount: (amountCents / 100).toFixed(2), currencyCode: "USD" }
+            : {}),
+          intent: intent === "CHARGE" && recurring ? "CHARGE_AND_STORE" : intent,
           billingContact: { givenName: name, email, countryCode: "US" },
           customerInitiated: true,
           sellerKeyedIn: false,
         });
-        if (result.status !== "OK" || !result.token)
+        if (result.status !== "OK" || !result.token) {
+          // Only SDK error categories, never card details or tokens, reach diagnostics.
+          console.warn("Square card verification failed", {
+            status: result.status,
+            errors: result.errors?.map(({ type, field }) => ({ type, field })),
+          });
           throw new Error(
             "Check your card details and complete any bank verification before continuing.",
           );
+        }
         attempt.current = { token: result.token, id: crypto.randomUUID() };
       }
       const result = await onToken(attempt.current.token, attempt.current.id);

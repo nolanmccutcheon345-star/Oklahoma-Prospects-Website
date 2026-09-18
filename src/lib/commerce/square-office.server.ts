@@ -238,13 +238,18 @@ export async function verifySquareLocation(userId: string) {
 }
 
 /** Read-only configuration check; signing keys never leave the server. */
-export async function verifySquareWebhooks(userId: string) {
+export async function verifySquareWebhooks(userId: string, prepareSandbox = false) {
   await requirePaymentOwner(userId);
   const c = squareConfig();
+  if (prepareSandbox) {
+    assertPaymentRequest();
+    await rateLimit("square-webhook-setup", 5);
+    if (c.environment !== "sandbox") throw new Error("Webhook setup is available only in Sandbox.");
+  }
   const subscriptions = await squareClient().webhooks.subscriptions.list({ includeDisabled: true });
   for await (const listed of subscriptions) {
     if (listed.notificationUrl !== c.webhookUrl || !listed.id) continue;
-    const { subscription } = await squareClient().webhooks.subscriptions.get({
+    let { subscription } = await squareClient().webhooks.subscriptions.get({
       subscriptionId: listed.id,
     });
     if (!subscription) throw new Error("Square could not retrieve the webhook subscription.");
@@ -252,8 +257,33 @@ export async function verifySquareWebhooks(userId: string) {
     if (subscription.signatureKey !== c.signatureKey)
       throw new Error("The Square webhook signing key does not match this site's saved key.");
     const required = ["payment.updated", "refund.updated"];
+    if (c.checkoutScope === "all")
+      required.push(
+        "subscription.updated",
+        "invoice.payment_made",
+        "invoice.scheduled_charge_failed",
+        "dispute.created",
+        "card.automatically_updated",
+      );
+    if (prepareSandbox && required.some((type) => !subscription.eventTypes?.includes(type))) {
+      await squareClient().webhooks.subscriptions.update({
+        subscriptionId: listed.id,
+        subscription: {
+          eventTypes: [...new Set([...(subscription.eventTypes || []), ...required])],
+        },
+      });
+      ({ subscription } = await squareClient().webhooks.subscriptions.get({
+        subscriptionId: listed.id,
+      }));
+      if (
+        !subscription?.enabled ||
+        subscription.notificationUrl !== c.webhookUrl ||
+        subscription.signatureKey !== c.signatureKey
+      )
+        throw new Error("Square webhook settings could not be verified after setup.");
+    }
     if (required.some((type) => !subscription.eventTypes?.includes(type)))
-      throw new Error("The Square webhook must subscribe to payment.updated and refund.updated.");
+      throw new Error("The Square webhook is missing required payment or membership events.");
     const sql = await getSql();
     const [result] = await sql<{
       count: number;
@@ -304,4 +334,19 @@ export async function testReceiptEmail(userId: string, messageId?: string) {
       "No recent pending receipt from your own Sandbox payment is available, or the provider did not accept it.",
     );
   return { id: ids[0], status: "accepted" };
+}
+
+export async function setupMonthlyPlans(userId: string) {
+  await requirePaymentOwner(userId);
+  assertPaymentRequest();
+  await rateLimit("owner-monthly-plan-setup", 5);
+  const { prepareMonthlyPlans } = await import("./square-plans.server");
+  const { configuredPlanVariation } = await import("./square.server");
+  return prepareMonthlyPlans(
+    await getSql(),
+    squareClient(),
+    squareConfig(),
+    userId,
+    configuredPlanVariation,
+  );
 }

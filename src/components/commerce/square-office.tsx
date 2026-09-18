@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import {
   getSquareOffice,
+  prepareSquareMonthlyPlans,
+  prepareSquareSandboxWebhooks,
   reconcilePayments,
   ownerRefund,
   approveMembershipPause,
@@ -16,6 +18,9 @@ export function SquareOffice() {
     [error, setError] = useState(""),
     [notice, setNotice] = useState(""),
     [busy, setBusy] = useState(false);
+  const [planResults, setPlanResults] = useState<
+    Awaited<ReturnType<typeof prepareSquareMonthlyPlans>>
+  >([]);
   const [emailCheckId, setEmailCheckId] = useState<string>();
   const refundKey = useRef(crypto.randomUUID());
   async function load() {
@@ -152,6 +157,47 @@ export function SquareOffice() {
               </Button>
             </form>
           </details>
+          {data.config?.environment === "sandbox" ? (
+            <section className="grid gap-3 rounded-lg border p-4" aria-label="Monthly plan setup">
+              <h3 className="text-xl">Set up monthly payments</h3>
+              <p>
+                Create and verify the Square Sandbox plans for the current site prices. This creates
+                no customer charges and does not open live enrollment.
+              </p>
+              <Button
+                disabled={busy}
+                onClick={() =>
+                  void action(async () => {
+                    const results = await prepareSquareMonthlyPlans();
+                    setPlanResults(results);
+                    if (results.some((p) => !p.ready))
+                      throw new Error(
+                        "Some monthly plans still need setup. Review the results below and retry.",
+                      );
+                  }, "All eight monthly plans are connected for Sandbox payment testing.")
+                }
+              >
+                Prepare Sandbox monthly plans
+              </Button>
+              {planResults.map((p) => (
+                <p key={p.id}>
+                  {p.name} · {formatMoney(p.cents)}/month · {p.ready ? "Connected" : p.error}
+                </p>
+              ))}
+              <Button
+                disabled={busy}
+                variant="outlineDark"
+                onClick={() =>
+                  void action(
+                    () => prepareSquareSandboxWebhooks(),
+                    "Sandbox payment and membership event delivery is configured.",
+                  )
+                }
+              >
+                Connect Sandbox membership events
+              </Button>
+            </section>
+          ) : null}
           <h3 className="text-xl">Payments</h3>
           <div className="overflow-x-auto">
             <table className="w-full text-left">

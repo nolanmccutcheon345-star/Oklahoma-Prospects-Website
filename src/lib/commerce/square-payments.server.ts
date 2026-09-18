@@ -54,24 +54,8 @@ export function assertPaymentRequest() {
 }
 export async function validateSquarePlan(id: string, cents: number, client = squareClient()) {
   const { object } = await client.catalog.object.get({ objectId: id });
-  const variation =
-    object?.type === "SUBSCRIPTION_PLAN_VARIATION"
-      ? object.subscriptionPlanVariationData
-      : undefined;
-  const phase = variation?.phases?.[0];
-  if (
-    object?.isDeleted ||
-    !variation ||
-    variation.phases?.length !== 1 ||
-    phase?.cadence !== "MONTHLY" ||
-    phase.periods ||
-    phase.pricing?.type !== "STATIC" ||
-    phase.pricing.priceMoney?.currency !== "USD" ||
-    phase.pricing.priceMoney.amount !== BigInt(cents)
-  )
-    throw new Error(
-      "The Square plan does not match the approved monthly price. Enrollment is unavailable.",
-    );
+  const { assertMonthlyPlan } = await import("./square-plans.server");
+  assertMonthlyPlan(object, cents);
 }
 export function nextBillingDate(paidAt: Date) {
   return chicagoDate(addCalendarMonth(chicagoInstant(chicagoDate(paidAt), "12:00")));
@@ -218,7 +202,7 @@ export async function provisionSubscription(orderId: string, client = squareClie
     throw new Error("Subscription environment mismatch.");
   if (nextBillingDate(new Date(o.paid_at!)) <= chicagoDate())
     throw new Error("Delayed recurring setup requires owner review before any new charge.");
-  const planId = planVariation(o.snapshot.productId);
+  const planId = await planVariation(o.snapshot.productId);
   await validateSquarePlan(planId, o.snapshot.regularCents, client);
   // CreateCard accepts the completed payment id; a consumed nonce is never reused.
   const { card } = await client.cards.create({
@@ -290,7 +274,7 @@ export async function paySquareOrder(
       : order.total_cents;
   if (order.snapshot.recurring)
     await validateSquarePlan(
-      planVariation(order.snapshot.productId),
+      await planVariation(order.snapshot.productId),
       order.snapshot.regularCents,
       client,
     );
@@ -343,7 +327,12 @@ export async function paySquareOrder(
       const window = current.snapshot.bookingWindow;
       if (current.snapshot.kind !== "cage") {
         const { readWorkingFile } = await import("../pd/desk-impl.server");
-        await requireCoachService(tx, (await readWorkingFile()).coaches, window.coachId, checkoutLessonService(current.snapshot));
+        await requireCoachService(
+          tx,
+          (await readWorkingFile()).coaches,
+          window.coachId,
+          checkoutLessonService(current.snapshot),
+        );
       }
       if (new Date(window.start).getTime() <= Date.now())
         throw new Error("This booking time has passed. No payment was submitted.");

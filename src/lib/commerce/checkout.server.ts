@@ -165,7 +165,7 @@ export async function beginCheckout(input: CheckoutInput, verifiedUserId?: strin
   assertSquareCheckoutScope(config, quote);
   if (quote.recurring) {
     const { validateSquarePlan } = await import("./square-payments.server");
-    await validateSquarePlan(planVariation(quote.productId), quote.regularCents);
+    await validateSquarePlan(await planVariation(quote.productId), quote.regularCents);
   }
   const sql = await getSql();
   const fingerprint = JSON.stringify({
