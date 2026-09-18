@@ -1,3 +1,5 @@
+import { bookableCoaches, requireCoachService } from "./coach-services.server";
+import { checkoutLessonService } from "./coach-services";
 import { createHash, randomUUID } from "node:crypto";
 import { getRequest } from "@tanstack/react-start/server";
 import { getSql } from "../db";
@@ -54,9 +56,7 @@ export async function checkoutContext(verifiedUserId?: string) {
           assessmentComplete: done.has(a.id),
         }))
       : [],
-    coaches: file.coaches
-      .filter((c) => c.active)
-      .map((c) => ({ id: c.id, name: c.name, specialties: c.specialties })),
+    coaches: await bookableCoaches(sql, (await readWorkingFile()).coaches),
   };
 }
 
@@ -124,22 +124,9 @@ export async function quoteForRequest(
       "Complete an assessment before starting remote coaching. Contact the coach to arrange a remote assessment.",
     );
   if (quote.needsSlot && quote.kind !== "cage") {
-    if (!input.coachId || !file.coaches.some((c) => c.id === input.coachId && c.active))
-      throw new Error("Choose an available coach.");
-    const selectedCoach = file.coaches.find((c) => c.id === input.coachId)!;
-    if (!selectedCoach.specialties.some((s) => s.toLowerCase() === quote.discipline.toLowerCase()))
-      throw new Error("This coach does not offer the selected discipline.");
+    const spaceProduct = checkoutLessonService(quote);
+    await requireCoachService(sql, file.coaches, input.coachId, spaceProduct);
     const { lessonResources } = await import("./operations.server");
-    const spaceProduct =
-      quote.setupCents > 0
-        ? quote.discipline === "Hitting"
-          ? "s9"
-          : "s1"
-        : quote.kind === "membership"
-          ? quote.sessionMinutes === 30
-            ? "s2"
-            : "s3"
-          : quote.productId;
     quote.resources = [`coach:${input.coachId}`, ...(await lessonResources(spaceProduct, sql))];
   }
   if (athleteId && quote.needsSlot) quote.resources.push(`athlete:${athleteId}`);

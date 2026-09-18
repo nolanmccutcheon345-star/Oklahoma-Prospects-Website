@@ -1,3 +1,4 @@
+import { requireCoachService } from "./coach-services.server";
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
 import { getSql } from "../db";
@@ -68,14 +69,7 @@ async function context(userId: string, input: Input) {
       ["remote-review", "film-review"].includes(grant.kind) !== (service.id === "s5")
     )
       throw new Error("Choose a service included with this credit.");
-    if (!input.coachId || !file.coaches.some((c) => c.id === input.coachId && c.active))
-      throw new Error("Choose your coach.");
-    if (
-      !file.coaches
-        .find((c) => c.id === input.coachId)!
-        .specialties.some((s) => s.toLowerCase() === service.discipline.toLowerCase())
-    )
-      throw new Error("This coach does not offer the selected discipline.");
+    await requireCoachService(sql, file.coaches, input.coachId, service.id);
     const { lessonResources } = await import("./operations.server");
     resources = [
       `coach:${input.coachId}`,
@@ -152,7 +146,10 @@ export async function redeemCredit(userId: string, input: Input) {
         resources,
         participantCount: grant.kind === "cage-minutes" ? input.athleteCount : 1,
       });
-      if (!bookingId) throw new Error("That time was just booked. Choose another time. Your paid credit has not been used.");
+      if (!bookingId)
+        throw new Error(
+          "That time was just booked. Choose another time. Your paid credit has not been used.",
+        );
       await tx`insert into credit_uses(id,grant_id,booking_id,quantity) values(${randomUUID()},${grant.id},${bookingId},${quantity})`;
     }
     return { ok: true };

@@ -688,13 +688,8 @@ export const saveStaff = createServerFn({ method: "POST" })
       returning user_id, email
     `;
     if (data.offerings) {
-      await tx`delete from club_staff_services where staff_id = ${id}`;
-      for (const offer of data.offerings) {
-        await tx`
-          insert into club_staff_services (staff_id, service_id, profit_split)
-          values (${id}, ${offer.serviceId}, ${Math.min(100, Math.max(0, asInt(offer.profitSplit)))})
-        `;
-      }
+      const { replaceCoachServices } = await import("./commerce/coach-services.server");
+      await replaceCoachServices(tx, id, data.offerings);
     }
       if (data.active === false && saved) await revokeStaffAccess(tx, saved);
     });

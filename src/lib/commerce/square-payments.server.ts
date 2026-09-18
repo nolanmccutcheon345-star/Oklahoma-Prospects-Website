@@ -1,3 +1,5 @@
+import { requireCoachService } from "./coach-services.server";
+import { checkoutLessonService } from "./coach-services";
 import { createHash } from "node:crypto";
 import type { Square } from "square";
 import { getSql, type Sql } from "../db";
@@ -339,6 +341,10 @@ export async function paySquareOrder(
     }
     if (current.snapshot.bookingWindow) {
       const window = current.snapshot.bookingWindow;
+      if (current.snapshot.kind !== "cage") {
+        const { readWorkingFile } = await import("../pd/desk-impl.server");
+        await requireCoachService(tx, (await readWorkingFile()).coaches, window.coachId, checkoutLessonService(current.snapshot));
+      }
       if (new Date(window.start).getTime() <= Date.now())
         throw new Error("This booking time has passed. No payment was submitted.");
       const occupied =

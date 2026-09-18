@@ -141,6 +141,7 @@ export function CreditBooking({
                   value={serviceId}
                   onChange={(e) => {
                     setService(e.target.value);
+                    setCoach("");
                     setTime("");
                     setSlots([]);
                   }}
@@ -174,11 +175,13 @@ export function CreditBooking({
                   }}
                 >
                   <option value="">Choose your coach</option>
-                  {context?.coaches.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.name}
-                    </option>
-                  ))}
+                  {context?.coaches
+                    .filter((c) => c.serviceIds.includes(serviceId))
+                    .map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.name}
+                      </option>
+                    ))}
                 </select>
               </label>
             </>

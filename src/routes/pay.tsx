@@ -1,3 +1,4 @@
+import { checkoutLessonService } from "@/lib/commerce/coach-services";
 import { pageHead } from "@/lib/seo";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -423,11 +424,7 @@ function PayPage() {
                   >
                     <option value="">Select a coach</option>
                     {context?.coaches
-                      .filter((c) =>
-                        c.specialties.some(
-                          (s) => s.toLowerCase() === quote.discipline.toLowerCase(),
-                        ),
-                      )
+                      .filter((c) => c.serviceIds.includes(checkoutLessonService(quote)))
                       .map((c) => (
                         <option key={c.id} value={c.id}>
                           {c.name}

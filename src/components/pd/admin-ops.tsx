@@ -274,6 +274,8 @@ export function AdminServicesDesk() {
 }
 
 export function AdminStaffDesk() {
+  const [services, setServices] = useState<ClubService[]>([]);
+  const [offerings, setOfferings] = useState<{ serviceId: string; profitSplit: number }[]>([]);
   const [staff, setStaff] = useState<ClubStaff[]>([]);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState({
@@ -287,23 +289,27 @@ export function AdminStaffDesk() {
     password: "",
   });
   const [error, setError] = useState("");
-  const [notice,setNotice]=useState("");
+  const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState(false);
   const { data } = useDevelopment();
   async function refresh() {
-    setStaff(await listStaff());
+    const [people, catalog] = await Promise.all([listStaff(), getServices()]);
+    setStaff(people);
+    setServices(catalog.filter((service) => service.kind === "lesson"));
   }
   useEffect(() => {
-    refresh().catch(() => void 0);
+    refresh().catch(() => setError("Could not load coaches and services. Please reload."));
   }, []);
   async function onSave(event: React.FormEvent) {
     event.preventDefault();
+    if (busy) return;
     setBusy(true);
     setError("");
+    setNotice("");
     try {
-      const saved=await saveStaff({
+      const saved = await saveStaff({
         data: {
-          id: editingId === "new" ? undefined : editingId ?? undefined,
+          id: editingId === "new" ? undefined : (editingId ?? undefined),
           name: form.name,
           email: form.email,
           phone: form.phone,
@@ -311,11 +317,12 @@ export function AdminStaffDesk() {
           access_notes: form.access_notes,
           active: form.active,
           createLogin: form.createLogin,
+          offerings,
         },
       });
       setEditingId(null);
       await refresh();
-      setNotice(saved.invitation||"Changes saved.");
+      setNotice(saved.invitation || "Coach and service assignments saved.");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not save that coach.");
     } finally {
@@ -324,16 +331,31 @@ export function AdminStaffDesk() {
   }
   return (
     <section>
-      {notice?<p role="status" className="mb-3">{notice}</p>:null}
+      {notice ? (
+        <p role="status" className="mb-3">
+          {notice}
+        </p>
+      ) : null}
+      {error ? (
+        <p role="alert" className="mb-3 text-maroon">
+          {error}
+        </p>
+      ) : null}
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h3 className="text-2xl">Coaches and splits</h3>
-          <p className="mt-1 text-sm text-muted">Who can teach which lesson, and the coach share of that session.</p>
+          <h3 className="text-2xl">Coach services</h3>
+          <p className="mt-1 text-sm text-muted">
+            Choose the assessments, lessons and video reviews each coach offers. Package and
+            membership sessions use these same assignments.
+          </p>
         </div>
         <Button
           type="button"
           onClick={() => {
             setEditingId("new");
+            setOfferings([]);
+            setError("");
+            setNotice("");
             setForm({
               name: "",
               email: "",
@@ -341,7 +363,7 @@ export function AdminStaffDesk() {
               role: "coach",
               access_notes: "",
               active: true,
-              createLogin: true,
+              createLogin: false,
               password: "",
             });
           }}
@@ -350,19 +372,127 @@ export function AdminStaffDesk() {
         </Button>
       </div>
       {editingId ? (
-        <form onSubmit={onSave} className="mt-4 grid gap-3 rounded-2xl bg-paper-2 p-5 shadow-border">
+        <form
+          onSubmit={onSave}
+          className="mt-4 grid gap-3 rounded-2xl bg-paper-2 p-5 shadow-border"
+        >
           <label className="text-sm font-semibold">
             Name
-            <input required className={fieldClass} value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
+            <input
+              required
+              className={fieldClass}
+              value={form.name}
+              onChange={(e) => setForm({ ...form, name: e.target.value })}
+            />
           </label>
           <label className="text-sm font-semibold">
             Email
-            <input required className={fieldClass} value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
+            <input
+              required
+              className={fieldClass}
+              value={form.email}
+              onChange={(e) => setForm({ ...form, email: e.target.value })}
+            />
           </label>
-          {error ? <p className="text-sm text-maroon">{error}</p> : null}
+          <fieldset className="grid gap-3" disabled={busy}>
+            <legend className="font-semibold">Services this coach offers</legend>
+            <p className="text-sm text-muted">
+              Check each service this coach may teach. An unchecked service cannot be booked with
+              this coach. Existing bookings stay on the calendar.
+            </p>
+            {services.length ? (
+              Array.from(new Set(services.map((service) => service.discipline || "Other"))).map(
+                (discipline) => (
+                  <fieldset
+                    key={discipline}
+                    className="grid gap-2 rounded-lg border border-line p-3"
+                  >
+                    <legend className="px-1 font-semibold">{discipline}</legend>
+                    {services
+                      .filter((service) => (service.discipline || "Other") === discipline)
+                      .map((service) => {
+                        const assigned = offerings.find((offer) => offer.serviceId === service.id);
+                        return (
+                          <div
+                            key={service.id}
+                            className="flex flex-wrap items-center justify-between gap-3 rounded-md bg-paper p-3"
+                          >
+                            <label className="flex min-h-11 flex-1 items-center gap-3">
+                              <input
+                                type="checkbox"
+                                className="h-5 w-5 shrink-0"
+                                checked={Boolean(assigned)}
+                                onChange={(event) =>
+                                  setOfferings((current) =>
+                                    event.target.checked
+                                      ? [...current, { serviceId: service.id, profitSplit: 60 }]
+                                      : current.filter((offer) => offer.serviceId !== service.id),
+                                  )
+                                }
+                              />
+                              <span>
+                                {service.name}
+                                <span className="block text-sm text-muted">
+                                  {service.minutes} min
+                                  {!service.active ? " · Service inactive" : ""}
+                                  {service.id === "s6"
+                                    ? " · Enrollment awaits a group schedule"
+                                    : ""}
+                                </span>
+                              </span>
+                            </label>
+                            {assigned ? (
+                              <label className="text-sm">
+                                Coach share (%)
+                                <input
+                                  aria-label={`Coach share for ${service.name}`}
+                                  type="number"
+                                  min={0}
+                                  max={100}
+                                  step={1}
+                                  required
+                                  className="ml-2 min-h-11 w-20 rounded-md border border-line bg-paper-2 px-2"
+                                  value={assigned.profitSplit}
+                                  onChange={(event) =>
+                                    setOfferings((current) =>
+                                      current.map((offer) =>
+                                        offer.serviceId === service.id
+                                          ? { ...offer, profitSplit: Number(event.target.value) }
+                                          : offer,
+                                      ),
+                                    )
+                                  }
+                                />
+                              </label>
+                            ) : null}
+                          </div>
+                        );
+                      })}
+                  </fieldset>
+                ),
+              )
+            ) : (
+              <p>No lesson services are available. Add them in the service catalog first.</p>
+            )}
+            {!offerings.length ? (
+              <p className="text-sm text-muted">
+                No services selected. This coach will not appear in lesson booking.
+              </p>
+            ) : null}
+          </fieldset>
+          {editingId === "new" ? (
+            <label className="flex min-h-11 items-center gap-3">
+              <input
+                type="checkbox"
+                checked={form.createLogin}
+                onChange={(event) => setForm({ ...form, createLogin: event.target.checked })}
+              />
+              Send a sign-in invitation to this coach
+            </label>
+          ) : null}
           <div className="flex gap-2">
             <Button type="submit" disabled={busy}>
-              Save
+              {busy ? "Saving…" : "Save coach and services"}
             </Button>
             <Button type="button" variant="outlineDark" onClick={() => setEditingId(null)}>
               Cancel
@@ -377,7 +507,14 @@ export function AdminStaffDesk() {
         {staff.map((row) => (
           <li key={row.id} className="rounded-2xl bg-paper-2 p-4 shadow-border">
             <p className="font-display text-xl uppercase">{row.name}</p>
-            <p className="text-sm text-muted">{row.email} · {row.active?"Active":"Deactivated"}</p>
+            <p className="text-sm text-muted">
+              {row.email} · {row.active ? "Active" : "Deactivated"}
+            </p>
+            <p className="mt-2 text-sm">
+              {row.offerings.length
+                ? row.offerings.map((offer) => offer.service_name).join(" · ")
+                : "No services assigned"}
+            </p>
             <div className="mt-3 flex flex-wrap gap-2">
               <Button
                 type="button"
@@ -385,6 +522,14 @@ export function AdminStaffDesk() {
                 size="sm"
                 onClick={() => {
                   setEditingId(row.id);
+                  setOfferings(
+                    row.offerings.map((offer) => ({
+                      serviceId: offer.service_id,
+                      profitSplit: offer.profit_split,
+                    })),
+                  );
+                  setError("");
+                  setNotice("");
                   setForm({
                     name: row.name,
                     email: row.email,
@@ -397,7 +542,7 @@ export function AdminStaffDesk() {
                   });
                 }}
               >
-                Edit
+                Edit coach & services
               </Button>
               <ArmConfirm
                 label="Deactivate"
@@ -405,7 +550,6 @@ export function AdminStaffDesk() {
                 onConfirm={async () => {
                   await deleteStaff({ data: { id: row.id } });
                   await refresh();
-
                 }}
               />
             </div>
