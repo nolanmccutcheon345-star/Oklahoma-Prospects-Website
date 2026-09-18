@@ -20,14 +20,43 @@ export const Route = createFileRoute("/office")({
   component: Page,
 });
 
+function OfficeLoading() {
+  const [stalled, setStalled] = useState(false);
+  useEffect(() => {
+    const timer = window.setTimeout(() => setStalled(true), 15000);
+    return () => window.clearTimeout(timer);
+  }, []);
+  return (
+    <main id="main" className="bg-ink px-5 py-10 text-fg-inverse">
+      {stalled ? (
+        <div role="alert" className="grid gap-4">
+          <p>
+            The front office could not finish loading. Your saved records have not been changed.
+          </p>
+          <a href="/login?next=%2Foffice" className="underline">
+            Open sign-in
+          </a>
+          <button
+            type="button"
+            className="min-h-11 text-left underline"
+            onClick={() => window.location.reload()}
+          >
+            Retry front office
+          </button>
+        </div>
+      ) : (
+        <p role="status" className="text-sm text-fg-soft">
+          Loading front office…
+        </p>
+      )}
+    </main>
+  );
+}
+
 function Page() {
   const { user, isPending } = useCurrentUserState();
   if (isPending) {
-    return (
-      <main id="main" className="bg-ink px-5 py-10 text-fg-inverse">
-        <p className="text-sm text-fg-soft">Loading front office…</p>
-      </main>
-    );
+    return <OfficeLoading />;
   }
   if (!user) return <RedirectToSignIn />;
   return <OfficePage />;
@@ -39,25 +68,35 @@ function OfficePage() {
   const [error, setError] = useState("");
 
   useEffect(() => {
+    let active = true;
+    const timer = window.setTimeout(() => {
+      if (active)
+        setError("The club records request timed out. Your saved records have not been changed.");
+    }, 15000);
     getTeamsClub()
       .then((row) => {
+        if (!active) return;
+        window.clearTimeout(timer);
+        setError("");
         setState(row);
         if (row.ok) setClub(row.club);
       })
       .catch((err: Error) => {
+        if (!active) return;
+        window.clearTimeout(timer);
         const message = err.message || "Could not load the club.";
         setError(message === "Unauthorized" ? "signin" : message);
       });
+    return () => {
+      active = false;
+      window.clearTimeout(timer);
+    };
   }, []);
 
   if (error === "signin") return <RedirectToSignIn />;
   if (error) return <FailScreen message={error} />;
   if (!state) {
-    return (
-      <main id="main" className="bg-ink px-5 py-10 text-fg-inverse">
-        <p className="text-sm text-fg-soft">Loading front office…</p>
-      </main>
-    );
+    return <OfficeLoading />;
   }
   if (state.role !== "admin") {
     return <FailScreen message="Front office is for club owners." />;
