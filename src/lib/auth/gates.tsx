@@ -1,9 +1,10 @@
 import { useState, useSyncExternalStore, type ReactNode } from "react";
-import { Link, Navigate, useRouterState } from "@tanstack/react-router";
+import { Link } from "@tanstack/react-router";
 import { GROK_PROVIDERS, authEnabled, signIn, signOut } from "./client";
 import { hasGateSessionMarker } from "./gate-session-marker";
 import { resolveSignInGateState } from "./sign-in-gate";
 import { useCurrentUser, useCurrentUserState } from "./use-current-user";
+export { RedirectToSignIn, SIGN_IN_PATH } from "./sign-in-redirect";
 
 const subscribeToNothing = () => () => {};
 const noGateSessionOnServer = () => false;
@@ -17,9 +18,6 @@ const noGateSessionOnServer = () => false;
  * While the session is still resolving, gates that care about signed-out state
  * render nothing so there's no signed-out flash on hard reload.
  */
-
-/** Where `RedirectToSignIn` sends signed-out visitors. Create this route. */
-export const SIGN_IN_PATH = "/login";
 
 /** Render children only when a user is present (real session, or the disabled-auth dev user). */
 export function SignedIn({ children }: { children: ReactNode }) {
@@ -35,20 +33,6 @@ export function SignedOut({ children }: { children: ReactNode }) {
   const { user, isPending } = useCurrentUserState();
   if (isPending || user) return null;
   return <>{children}</>;
-}
-
-/**
- * Client-side redirect to the sign-in route (TanStack `<Navigate>` — NOT a full
- * `window.location` reload). A hard navigation re-bootstraps the SPA and re-runs
- * session loading, which feels like a second "Loading…" on /login.
- *
- * Guard routes by waiting out `isPending` first (see `use-current-user`), then
- * render this.
- */
-export function RedirectToSignIn({ to = SIGN_IN_PATH }: { to?: string }) {
-  const location = useRouterState({ select: (s) => s.location });
-  const next = `${location.pathname}${location.searchStr || ""}`;
-  return <Navigate to={to} search={{ next: next.startsWith("/") ? next : "/account" }} />;
 }
 
 export function SignInGate({
