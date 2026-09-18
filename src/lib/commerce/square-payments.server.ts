@@ -167,6 +167,7 @@ export async function fulfillSquarePayment(
     await sql`delete from booking_occupancy where booking_id in(select id from booking_records where order_id=${order.id} and status='expired')`;
     await sql`insert into club_requests(id,user_id,kind,payload) values(${"late-payment:" + id},${order.user_id},'payment-review',${JSON.stringify({ orderId: order.id, paymentId: id, reason: "Payment completed after checkout expired or the selected time became unavailable; no booking confirmed." })}::jsonb) on conflict do nothing`;
     await queueExpiredCheckoutRefunds(sql, config.environment, order.id);
+    await sql`insert into payment_notifications(id,order_id,kind) values(${"owner-review:" + order.id},${order.id},'owner-payment-review') on conflict do nothing`;
     return;
   }
   await sql`update booking_records set status='confirmed' where order_id=${order.id} and status='held'`;
@@ -191,6 +192,8 @@ export async function fulfillSquarePayment(
     await sql`update credit_grants set payment_id=${order.square_payment_id || id} where order_id=${order.id} and source_key like ${"square:" + (order.square_payment_id || id) + ":%"}`;
   }
   await sql`insert into payment_notifications(id,order_id,kind) values(${"receipt:" + id},${order.id},'receipt') on conflict do nothing`;
+  if (bookings.length)
+    await sql`insert into payment_notifications(id,order_id,kind) values(${"owner-booking:" + order.id},${order.id},'owner-booking') on conflict do nothing`;
 }
 export async function provisionSubscription(orderId: string, client = squareClient()) {
   const sql = await getSql(),
@@ -398,6 +401,13 @@ export async function paySquareOrder(
   const verified = await client.payments.get({ paymentId: payment.id });
   if (!verified.payment) throw new Error("Payment confirmation is pending.");
   await sql.transaction((tx) => fulfillSquarePayment(tx, verified.payment!, c));
+  // Delivery failure must never turn a committed payment into a checkout failure.
+  try {
+    const { sendPaymentNotifications } = await import("./square-office.server");
+    await sendPaymentNotifications(order.id);
+  } catch {
+    console.error("Payment notification delivery pending; queued for retry.");
+  }
   if (verified.payment.status === "COMPLETED" && order.snapshot.recurring) {
     try {
       await provisionSubscription(order.id, client);

@@ -257,6 +257,20 @@ export async function squareWebhook(request: Request) {
   await sql`insert into square_events(id,environment,type,object_id) values(${e.event_id},${c.environment},${e.type},${e.data.id}) on conflict(id) do nothing`;
   try {
     await processSquareEvent({ id: e.event_id, type: e.type, object_id: e.data.id }, sql);
+    if (e.type.startsWith("payment.")) {
+      // A webhook can complete a payment after the checkout browser has gone away.
+      const [payment] = await sql<{
+        order_id: string;
+      }>`select order_id from square_payments where id=${e.data.id} and environment=${c.environment}`;
+      if (payment) {
+        try {
+          const { sendPaymentNotifications } = await import("./square-office.server");
+          await sendPaymentNotifications(payment.order_id);
+        } catch {
+          console.error("Payment notification delivery pending; queued for retry.");
+        }
+      }
+    }
     return new Response("OK");
   } catch {
     return new Response("Processing pending; retry", { status: 503 });

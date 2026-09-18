@@ -7,6 +7,12 @@ export const getSquareOffice = createServerFn({ method: "GET" })
     const m = await import("./square-office.server");
     return m.squareOffice(context.userId);
   });
+export const sendOwnerBookingAlerts = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
+  .handler(async ({ context }) => {
+    const m = await import("./square-office.server");
+    return m.sendOwnerBookingAlerts(context.userId);
+  });
 export const reconcilePayments = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
   .handler(async ({ context }) => {

@@ -272,11 +272,32 @@ test("Square payment fulfillment commits once and never turns unpaid holds into 
         await sql.transaction((tx) => fulfillSquarePayment(tx, payment("cage-first"), config));
         assert.equal(
           (
+            await sql`select id from payment_notifications where order_id='cage-first' and kind='owner-booking'`
+          ).length,
+          1,
+          "duplicate payment events queue only one owner alert",
+        );
+        assert.equal(
+          (
             await sql`select id from booking_records where order_id='cage-first' and status='confirmed'`
           ).length,
           1,
         );
         await sql.transaction((tx) => fulfillSquarePayment(tx, payment("cage-second"), config));
+        assert.equal(
+          (
+            await sql`select id from payment_notifications where order_id='cage-second' and kind='owner-payment-review'`
+          ).length,
+          1,
+          "paid conflicts alert the owner instead of silently failing",
+        );
+        assert.equal(
+          (
+            await sql`select id from payment_notifications where order_id='cage-second' and kind='owner-booking'`
+          ).length,
+          0,
+          "a paid conflict never sends booking confirmation",
+        );
         assert.equal(
           (
             await sql<{ status: string }>`select status from commerce_orders where id='cage-second'`
@@ -649,6 +670,44 @@ test("Queued receipts isolate environments, retry safely, and restrict Sandbox t
       remaining.map((r) => r.id),
       ["sandbox-other", "sandbox-wrong-email"],
     );
+    // A real owner recipient is independently verified; customers never receive the owner alert.
+    await sql`insert into "user"(id,name,email,"emailVerified","createdAt","updatedAt") values('alert-owner','Synthetic owner','alerts@example.test',true,now(),now())`;
+    await sql`insert into owner_grants(email,user_id) values('alerts@example.test','alert-owner')`;
+    await sql`insert into owner_grants(email,user_id,revoked_at) values('revoked@example.test','revoked-owner',now())`;
+    await notice("paid-cages", "production", "customer", "customer@example.test");
+    await sql`update commerce_orders set total_cents=12000,status='paid',snapshot='{"title":"Team cage"}'::jsonb where id='paid-cages'`;
+    await sql`insert into booking_records(id,order_id,product_id,starts_at,ends_at,resources,status) values('two-cages','paid-cages','team','2027-04-17T20:00:00Z','2027-04-17T21:00:00Z','["lane:5","lane:6"]'::jsonb,'confirmed')`;
+    await sql`insert into payment_notifications(id,order_id,kind) values('owner-booking:paid-cages','paid-cages','owner-booking')`;
+    fail = true;
+    await deliverPaymentNotifications(sql, production, email, undefined, send, "paid-cages", true);
+    assert.equal(
+      (await sql`select status from payment_notifications where id='owner-booking:paid-cages'`)[0]
+        .status,
+      "pending",
+    );
+    fail = false;
+    await deliverPaymentNotifications(sql, production, email, undefined, send, "paid-cages", true);
+    const alert = calls.at(-1)!;
+    assert.deepEqual(alert.body.to, ["alerts@example.test"]);
+    assert.match(alert.body.text, /customer@example.test/);
+    assert.match(alert.body.text, /Saturday, April 17, 2027/);
+    assert.match(alert.body.text, /3:00 PM CDT–4:00 PM CDT/);
+    assert.match(alert.body.text, /Lane 5/);
+    assert.match(alert.body.text, /Lane 6/);
+    assert.match(alert.body.subject, /\$120\.00/);
+    assert.match(alert.body.text, /Booking status: confirmed/);
+    assert.equal(alert.key, calls.at(-2)!.key, "owner retries preserve provider idempotency");
+    const count = calls.length;
+    await deliverPaymentNotifications(sql, production, email, undefined, send, "paid-cages", true);
+    assert.equal(calls.length, count, "owner alert is not sent twice");
+    assert.equal(
+      (await sql`select status from payment_notifications where id='paid-cages'`)[0].status,
+      "pending",
+      "owner recovery does not resend customer receipts",
+    );
+    await sql`insert into payment_notifications(id,order_id,kind) values('owner-review:paid-cages','paid-cages','owner-payment-review')`;
+    await deliverPaymentNotifications(sql, production, email, undefined, send, "paid-cages", true);
+    assert.match(calls.at(-1)!.body.text, /no booking was confirmed/);
   } finally {
     await db.close();
   }
