@@ -10,30 +10,46 @@ import { grantCredits, carryOneSession } from "./store.server";
 import { addCalendarMonth } from "./catalog";
 import { chicagoInstant } from "../scheduling";
 
-export async function syncSquareSubscription(id: string) {
-  const client = squareClient(),
-    c = squareConfig(),
-    sql = await getSql();
-  const { subscription: s } = await client.subscriptions.get({ subscriptionId: id });
-  if (!s || s.locationId !== c.locationId) throw new Error("Subscription verification failed.");
+type SquareSyncDependencies = {
+  client: SquareClient;
+  config: { environment: string; locationId: string };
+  sql: Sql;
+};
+
+export async function syncSquareSubscription(id: string, dependencies?: SquareSyncDependencies) {
+  const client = dependencies?.client || squareClient(),
+    c = dependencies?.config || squareConfig(),
+    sql = dependencies?.sql || (await getSql());
+  const { subscription: s } = await client.subscriptions.get({
+    subscriptionId: id,
+    include: "actions",
+  });
+  if (!s || s.id !== id || s.locationId !== c.locationId)
+    throw new Error("Subscription verification failed.");
   const [local] = await sql<{
     customer_id: string;
-  }>`select customer_id from club_subscriptions where id=${id} and payment_provider='square'`;
+    payment_environment: string;
+  }>`select s.customer_id,o.payment_environment from club_subscriptions s
+    join commerce_orders o on o.id=s.order_id
+    where s.id=${id} and s.payment_provider='square'`;
   if (!local) return;
+  if (local.payment_environment !== c.environment)
+    throw new Error("Subscription environment mismatch.");
   if (local.customer_id !== s.customerId) throw new Error("Subscription customer mismatch.");
+  if (s.version == null || !s.status) throw new Error("Subscription response is incomplete.");
   const action =
     s.actions?.find((a) => a.type === "CANCEL") ||
     s.actions?.find((a) => a.type === "PAUSE") ||
     s.actions?.find((a) => a.type === "RESUME");
-  await sql`update club_subscriptions set status=${s.status?.toLowerCase() || "pending"},provider_version=${s.version?.toString() || null},cancel_at_period_end=${Boolean(s.canceledDate || s.status === "CANCELED" || action?.type === "CANCEL")},scheduled_action=${action?.type || null},action_effective_date=${action?.effectiveDate || s.canceledDate || null},updated_at=now() where id=${id}`;
+  // Compare inside the update: another webhook may have saved a newer version
+  // while this Square request was in flight. Same-version action refreshes are valid.
+  await sql`update club_subscriptions set status=${s.status.toLowerCase()},provider_version=${s.version.toString()},cancel_at_period_end=${Boolean(s.canceledDate || s.status === "CANCELED" || action?.type === "CANCEL")},scheduled_action=${action?.type || null},action_effective_date=${action?.effectiveDate || s.canceledDate || null},updated_at=now()
+    where id=${id} and payment_provider='square'
+      and (provider_version is null or provider_version<=${s.version.toString()}::bigint)`;
 }
 export async function syncSquareInvoice(
   id: string,
-  dependencies?: {
-    client: SquareClient;
-    config: { environment: string; locationId: string };
-    sql: Sql;
-  },
+  dependencies?: SquareSyncDependencies,
   failedCharge = false,
 ) {
   const client = dependencies?.client || squareClient(),
