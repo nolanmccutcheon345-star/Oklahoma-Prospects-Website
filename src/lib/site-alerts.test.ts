@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { readFile, readdir } from "node:fs/promises";
 import { PGlite } from "@electric-sql/pglite";
 import type { Sql } from "./db";
-import { deliverSiteAlerts, batchSiteAlerts } from "./site-alerts.server";
+import { deliverSiteAlerts, batchSiteAlerts, siteAlertsEnabled } from "./site-alerts.server";
 function wrap(db: PGlite): Sql {
   const client = (query: PGlite["query"]): Sql => {
     const sql = (async (parts: TemplateStringsArray, ...values: unknown[]) =>
@@ -118,4 +118,11 @@ test("site alerts preserve transaction boundaries, privacy, recipient scope and 
   } finally {
     await db.close();
   }
+});
+
+test("alert environment guard accepts the pinned production context and rejects previews", () => {
+  assert.equal(siteAlertsEnabled("production", "production"), true);
+  assert.equal(siteAlertsEnabled("deploy-preview", "production"), false);
+  assert.equal(siteAlertsEnabled("production", "sandbox"), false);
+  assert.equal(siteAlertsEnabled("development", "production"), false);
 });

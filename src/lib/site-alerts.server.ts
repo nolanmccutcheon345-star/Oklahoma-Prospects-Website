@@ -211,9 +211,14 @@ export async function deliverSiteAlerts(
   );
   return results.filter((x): x is { recipient: string; id: string } => x !== null);
 }
+export function siteAlertsEnabled(
+  context = process.env.SQUARE_DEPLOY_CONTEXT || process.env.CONTEXT,
+  environment = process.env.SQUARE_ENVIRONMENT,
+) {
+  return context === "production" && environment === "production";
+}
 export async function flushSiteAlerts() {
-  const production =
-    process.env.CONTEXT === "production" && process.env.SQUARE_ENVIRONMENT === "production";
+  const production = siteAlertsEnabled();
   if (!production) return [];
   const key = process.env.RESEND_API_KEY,
     from = process.env.RESEND_FROM_EMAIL || process.env.EMAIL_FROM,
@@ -237,8 +242,7 @@ export async function testSiteAlerts(userId: string) {
   await requirePaymentOwner(userId);
   assertPaymentRequest();
   await rateLimit("site-alert-test", 3);
-  if (process.env.CONTEXT !== "production" || process.env.SQUARE_ENVIRONMENT !== "production")
-    throw new Error("Live alert tests are production-only.");
+  if (!siteAlertsEnabled()) throw new Error("Live alert tests are production-only.");
   const { getSql } = await import("./db");
   const sql = await getSql();
   const recipients = [

@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { timingSafeEqual, createHash } from "node:crypto";
-import { flushSiteAlerts } from "@/lib/site-alerts.server";
+import { flushSiteAlerts, siteAlertsEnabled } from "@/lib/site-alerts.server";
 export const Route = createFileRoute("/api/site-alerts")({
   server: {
     handlers: {
@@ -23,7 +23,7 @@ export const Route = createFileRoute("/api/site-alerts")({
             await import("@/lib/commerce/recovery-health.server");
           const sql = await getSql(),
             c = squareConfig();
-          if (process.env.CONTEXT !== "production" || c.environment !== "production")
+          if (!siteAlertsEnabled() || c.environment !== "production")
             return Response.json({ ok: true, skipped: true });
           const summary = await recordRecoveryRun(sql, c.environment, "notifications", async () => {
             const payments = await sendPaymentNotifications();
