@@ -176,6 +176,7 @@ export async function beginCheckout(input: CheckoutInput, verifiedUserId?: strin
     time: input.time,
     coachId: input.coachId,
     household: input.household,
+    schoolAge: input.schoolAge === true,
     athleteCount: input.athleteCount,
     consent: input.consent,
   });
@@ -213,6 +214,7 @@ export async function beginCheckout(input: CheckoutInput, verifiedUserId?: strin
         time: input.time,
         coachId: input.coachId,
         athleteCount: input.athleteCount,
+        schoolAge: input.schoolAge === true,
       },
       consentAt: input.consent ? new Date().toISOString() : null,
       bookingWindow: null as null | {
