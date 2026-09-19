@@ -231,8 +231,15 @@ export async function processSquareEvent(
   }
   await sql`update square_events set status='processed',processed_at=now() where id=${event.id}`;
 }
-export async function squareWebhook(request: Request) {
-  const c = squareConfig();
+export async function squareWebhook(
+  request: Request,
+  dependencies?: {
+    sql: Sql;
+    config: ReturnType<typeof squareConfig>;
+    process: typeof processSquareEvent;
+  },
+) {
+  const c = dependencies?.config || squareConfig();
   if (Number(request.headers.get("content-length") || 0) > 1_000_000)
     return new Response("Too large", { status: 413 });
   const raw = await request.text();
@@ -254,24 +261,15 @@ export async function squareWebhook(request: Request) {
     return new Response("Invalid event identity", { status: 400 });
   if (!/^(payment|subscription|invoice|refund|dispute|card)\./.test(e.type))
     return new Response("Ignored");
-  const sql = await getSql();
+  const sql = dependencies?.sql || (await getSql());
   await sql`insert into square_events(id,environment,type,object_id) values(${e.event_id},${c.environment},${e.type},${e.data.id}) on conflict(id) do nothing`;
   try {
-    await processSquareEvent({ id: e.event_id, type: e.type, object_id: e.data.id }, sql);
-    if (e.type.startsWith("payment.")) {
-      // A webhook can complete a payment after the checkout browser has gone away.
-      const [payment] = await sql<{
-        order_id: string;
-      }>`select order_id from square_payments where id=${e.data.id} and environment=${c.environment}`;
-      if (payment) {
-        try {
-          const { sendPaymentNotifications } = await import("./square-office.server");
-          await sendPaymentNotifications(payment.order_id);
-        } catch {
-          console.error("Payment notification delivery pending; queued for retry.");
-        }
-      }
-    }
+    await (dependencies?.process || processSquareEvent)(
+      { id: e.event_id, type: e.type, object_id: e.data.id },
+      sql,
+    );
+    // Fulfillment has committed durable mail. The minute worker sends it separately;
+    // provider email latency must not delay Square's acknowledgement.
     return new Response("OK");
   } catch {
     return new Response("Processing pending; retry", { status: 503 });

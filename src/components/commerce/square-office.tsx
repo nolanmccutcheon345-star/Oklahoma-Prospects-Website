@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import {
   getSquareOffice,
+  testSiteActivityAlerts,
   sendOwnerBookingAlerts,
   prepareSquareMonthlyPlans,
   prepareSquareMembershipWebhooks,
@@ -44,6 +45,16 @@ export function SquareOffice() {
       setBusy(false);
     }
   }
+  const checkedAt = data ? new Date(data.recovery.checkedAt).getTime() : Date.now();
+  const age = (value: Date | string | null) => {
+    if (!value) return "None";
+    const minutes = Math.max(0, Math.floor((checkedAt - new Date(value).getTime()) / 60000));
+    return minutes < 60
+      ? `${minutes} min`
+      : minutes < 1440
+        ? `${Math.floor(minutes / 60)} hr`
+        : `${Math.floor(minutes / 1440)} days`;
+  };
   return (
     <section className="my-8 grid gap-4" aria-label="Square payment administration">
       <h2 className="text-3xl">Square payments</h2>
@@ -60,13 +71,41 @@ export function SquareOffice() {
               ? `Connected configuration: ${data.config.environment}. Verify the location and complete Sandbox acceptance before enabling live payments.`
               : "Square is not configured. Checkout remains closed; no unpaid booking can be confirmed."}
           </p>
-          <div className="flex flex-wrap gap-3">
-            <Button disabled={busy || !data.config} variant="outlineDark" onClick={() =>
+          <p>
+            Owner activity emails cover saved site changes. Cage-booking emails also go to the
+            designated facility staff. Other activity is checked every minute.
+          </p>
+          <Button
+            disabled={busy}
+            variant="outlineDark"
+            onClick={() =>
               void action(async () => {
-                const result = await sendOwnerBookingAlerts();
-                if (!result.accepted) throw new Error("No new owner alerts were accepted. Check the notification queue below for pending or review items.");
-              }, "Owner booking alerts accepted by the email provider. Check your inbox.")
-            }>Send pending owner alerts</Button>
+                const rows = await testSiteActivityAlerts();
+                if (!rows.length || rows.some((r) => r.status !== "sent"))
+                  throw new Error(
+                    "Some alert test emails remain pending. The scheduled sender will retry.",
+                  );
+              }, "Alert test emails accepted for the owners and cage staff.")
+            }
+          >
+            Test staff and owner alerts
+          </Button>
+          <div className="flex flex-wrap gap-3">
+            <Button
+              disabled={busy || !data.config}
+              variant="outlineDark"
+              onClick={() =>
+                void action(async () => {
+                  const result = await sendOwnerBookingAlerts();
+                  if (!result.accepted)
+                    throw new Error(
+                      "No new owner alerts were accepted. Check the notification queue below for pending or review items.",
+                    );
+                }, "Owner booking alerts accepted by the email provider. Check your inbox.")
+              }
+            >
+              Send pending owner alerts
+            </Button>
             <Button
               disabled={busy || !data.config}
               onClick={() =>
@@ -344,6 +383,92 @@ export function SquareOffice() {
               </form>
             </article>
           ))}
+          <section
+            className="grid gap-3 rounded-lg border p-4"
+            aria-label="Recovery and email health"
+          >
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <h3 className="text-xl">Recovery and email health</h3>
+              <Button
+                variant="outlineDark"
+                disabled={busy}
+                onClick={() => void action(load, "Recovery status refreshed.")}
+              >
+                Refresh status
+              </Button>
+            </div>
+            <p>
+              Payments are checked every 10 minutes; email queues every minute. Completion means the
+              worker finished, not that every payment is settled or every email reached an inbox.
+            </p>
+            {[
+              { name: "payments", label: "Payment recovery", staleMinutes: 25 },
+              { name: "notifications", label: "Email delivery", staleMinutes: 5 },
+            ].map((expected) => {
+              const job = data.recovery.jobs.find((j) => j.name === expected.name);
+              const stale =
+                !job ||
+                checkedAt - new Date(job.started_at).getTime() > expected.staleMinutes * 60000 ||
+                (job.status === "running" &&
+                  checkedAt - new Date(job.started_at).getTime() > 120000);
+              return (
+                <p
+                  key={expected.name}
+                  className={
+                    stale || job?.status === "failed" || job?.status === "attention"
+                      ? "font-semibold text-maroon"
+                      : ""
+                  }
+                >
+                  {expected.label}:{" "}
+                  {stale
+                    ? "check needed — no recent completed check"
+                    : job?.status === "completed"
+                      ? "last run completed"
+                      : job?.status === "attention"
+                        ? "items still need attention"
+                        : job?.status}{" "}
+                  · started {age(job?.started_at || null)} ago · last clean completion{" "}
+                  {age(job?.last_success_at || null)} ago
+                </p>
+              );
+            })}
+            <div className="overflow-x-auto">
+              <table className="w-full text-left">
+                <thead>
+                  <tr>
+                    <th>Queue</th>
+                    <th>Pending</th>
+                    <th>Review</th>
+                    <th>Oldest</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {data.recovery.queues.map((q) => (
+                    <tr key={q.kind}>
+                      <th scope="row" className="py-2 pr-3 font-normal">
+                        {q.kind}
+                      </th>
+                      <td>{q.pending}</td>
+                      <td className={q.review ? "font-semibold text-maroon" : ""}>{q.review}</td>
+                      <td>{age(q.oldest)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <p className="text-sm">
+              Payment attempts older than a day need a Square record check before another charge.
+              Email marked review needs a delivery-history check before resending, to avoid
+              duplicates.
+            </p>
+            {data.recovery.attempts.map((a) => (
+              <p className="break-all text-sm" key={a.id}>
+                Unresolved payment attempt · order {a.order_id} · {a.status} · {age(a.created_at)}{" "}
+                old
+              </p>
+            ))}
+          </section>
           <h3 className="text-xl">Needs attention</h3>
           {data.pending.map((p) => (
             <p key={p.id}>
@@ -357,7 +482,7 @@ export function SquareOffice() {
           ))}
           {data.notifications.map((n) => (
             <p key={n.id}>
-              Email {n.kind}: {n.status}
+              Email {n.kind}: {n.status} · reference {n.id}
             </p>
           ))}
           <h3 className="text-xl">Disputes</h3>
