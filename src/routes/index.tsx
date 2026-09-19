@@ -81,7 +81,7 @@ function Home() {
           />
           <PathCard
             to="/training"
-            kicker={`From $${catalog.memberships.find(m=>m.id==="m1")?.price ?? 229} / mo`}
+            kicker={`From $${catalog.memberships.find(m=>m.id==="m1")?.price ?? 239} / mo`}
             title="Start monthly development"
             body="Four coached sessions a month, a plan, and tracking. Baseball and softball, 8U through college."
           />

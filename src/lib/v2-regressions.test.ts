@@ -37,7 +37,7 @@ test('v2 migrations, owner authority, households, audit events and visit gates',
   }
   await t.test('explicit prices change new purchases while paid history stays unchanged',async()=>{
    const prices=await sql<{id:string;price:number}>`select id,price from club_services where id in ('m1','p2','p3','s9') order by id`;
-   assert.deepEqual(prices,[{id:'m1',price:229},{id:'p2',price:370},{id:'p3',price:720},{id:'s9',price:150}]);
+   assert.deepEqual(prices,[{id:'m1',price:239},{id:'p2',price:385},{id:'p3',price:740},{id:'s9',price:150}]);
    assert.equal((await sql<{total_cents:number}>`select total_cents from commerce_orders where id='historic'`)[0].total_cents,38500);
   });
   await t.test('only the two approved verified owners qualify; revocation and deactivation take effect',async()=>{
@@ -79,7 +79,7 @@ test('v2 migrations, owner authority, households, audit events and visit gates',
   await t.test('administrative events are attributed, atomic and append-only',async()=>{
    await sql.transaction(async tx=>{await tx`select set_config('app.actor_id','fixture-owner',true)`;await tx`update club_services set price=371 where id='p2'`;});
    const [event]=await sql<{actor_id:string;before_state:{price:number};after_state:{price:number};id:number}>`select * from audit_events where target_table='club_services' and target_id='p2' order by id desc limit 1`;
-   assert.equal(event.actor_id,'fixture-owner');assert.equal(event.before_state.price,370);assert.equal(event.after_state.price,371);
+   assert.equal(event.actor_id,'fixture-owner');assert.equal(event.before_state.price,385);assert.equal(event.after_state.price,371);
    await assert.rejects(sql`update audit_events set actor_id='forged' where id=${event.id}`,/append-only/);
    await assert.rejects(sql`delete from audit_events where id=${event.id}`,/append-only/);
    const before=(await sql`select id from audit_events`).length;

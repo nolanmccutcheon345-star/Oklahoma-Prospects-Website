@@ -225,7 +225,7 @@ export function seedDevelopment(): DevelopmentData {
     ],
     packages: [
       { id: "p1", name: "4-Session Package (30 min)", credits: 4, price: 220 },
-      { id: "p2", name: "4-Session Package (60 min)", credits: 4, price: 370 },
+      { id: "p2", name: "4-Session Package (60 min)", credits: 4, price: 385 },
     ],
     memberships: [
       { id: "m1", name: "Development Membership", price: 219, detail: "Four 30s plus the system." },
