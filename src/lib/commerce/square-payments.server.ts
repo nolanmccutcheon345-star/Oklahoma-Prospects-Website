@@ -20,6 +20,7 @@ import { grantCredits, createPaidBooking, queueExpiredCheckoutRefunds } from "./
 import { addCalendarMonth } from "./catalog";
 import { chicagoDate, chicagoInstant } from "../scheduling";
 import type { Quote } from "./contracts";
+import { applySquareRefundBalance, paymentRefundedCents } from "./square-refunds.server";
 export type SquareOrder = {
   id: string;
   user_id: string;
@@ -73,6 +74,7 @@ export function verifiedPayment(
     payment.customerId !== order.square_customer_id ||
     payment.amountMoney?.currency !== "USD" ||
     payment.amountMoney.amount !== BigInt(expectedCents) ||
+    payment.totalMoney?.currency !== "USD" ||
     payment.totalMoney?.amount !== BigInt(expectedCents) ||
     payment.sourceType !== "CARD"
   )
@@ -100,11 +102,15 @@ export async function fulfillSquarePayment(
       ? order.snapshot.regularCents
       : order.total_cents;
   if (!verifiedPayment(payment, order, config.locationId, expected)) return;
+  const refundedCents = paymentRefundedCents(payment, expected);
   const id = payment.id!,
     prior = fee ? order.square_fee_payment_id : order.square_payment_id;
   if (prior && prior !== id)
     throw new Error("Order already has a different payment for this charge.");
-  if (prior === id) return;
+  if (prior === id) {
+    await applySquareRefundBalance(sql, payment, config);
+    return;
+  }
   if (fee && !order.square_payment_id)
     throw new Error("First-month payment must be verified before the separate fee.");
   const paidAt = new Date(order.paid_at || payment.createdAt || new Date());
@@ -117,6 +123,20 @@ export async function fulfillSquarePayment(
   if (fee) await sql`update commerce_orders set square_fee_payment_id=${id} where id=${order.id}`;
   else
     await sql`update commerce_orders set square_payment_id=${id},paid_at=${paidAt.toISOString()},receipt_url=${payment.receiptUrl || null} where id=${order.id}`;
+  if (refundedCents) await applySquareRefundBalance(sql, payment, config);
+  const [refunded] = await sql<{
+    exists: boolean;
+  }>`select exists(select 1 from square_payments where order_id=${order.id} and refunded_cents>0)`;
+  if (refunded.exists) {
+    // A COMPLETED payment can already have returned funds. Never grant access or
+    // allocate a lane, even if an older payment response arrives after the refund.
+    await sql`update commerce_orders set status='payment_review',subscription_setup_status=null,updated_at=now() where id=${order.id} and status<>'refunded'`;
+    await sql`update booking_records set status='expired' where order_id=${order.id} and status='held'`;
+    await sql`delete from booking_occupancy where booking_id in(select id from booking_records where order_id=${order.id} and status='expired')`;
+    await queueExpiredCheckoutRefunds(sql, config.environment, order.id);
+    await sql`insert into payment_notifications(id,order_id,kind) values(${"owner-review:" + order.id},${order.id},'owner-payment-review') on conflict do nothing`;
+    return;
+  }
   const needsFee = order.snapshot.setupCents > 0 && !fee && !order.square_fee_payment_id;
   if (needsFee && order.status === "pending" && new Date(order.hold_until).getTime() > Date.now()) {
     await sql`update commerce_orders set status='pending_fee',updated_at=now() where id=${order.id}`;
