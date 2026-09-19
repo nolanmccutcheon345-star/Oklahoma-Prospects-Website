@@ -1,3 +1,4 @@
+import { recordRecoveryRun, recoveryHealth } from "./recovery-health.server";
 import { deliverPaymentNotifications } from "./square-notifications.server";
 import { getSql } from "../db";
 import { clubIdentity } from "../identity.server";
@@ -72,6 +73,7 @@ export async function squareOffice(userId: string) {
       }>`select id,value from commerce_policy order by id`,
     ]);
   return {
+    recovery: await recoveryHealth(sql, squareConfig().environment),
     config: squarePublicConfig(),
     payments,
     refunds,
@@ -166,7 +168,16 @@ export async function sendPaymentNotifications(orderId?: string, ownerOnly = fal
       and (${orderId || null}::text is null or o.id=${orderId || null})
       and exists(select 1 from booking_records b where b.order_id=o.id and b.status='confirmed' and b.ends_at>now())
     on conflict do nothing`;
-  return deliverPaymentNotifications(sql, c, { key, from }, undefined, fetch, orderId, ownerOnly);
+  const sent = await deliverPaymentNotifications(
+    sql,
+    c,
+    { key, from },
+    undefined,
+    fetch,
+    orderId,
+    ownerOnly,
+  );
+  return sent;
 }
 export async function sendOwnerBookingAlerts(userId: string) {
   await requirePaymentOwner(userId);
@@ -178,11 +189,17 @@ export async function sendOwnerBookingAlerts(userId: string) {
 export async function reconcileSquare() {
   const sql = await getSql(),
     c = squareConfig();
+  return recordRecoveryRun(sql, c.environment, "payments", () => reconcileSquareWork());
+}
+async function reconcileSquareWork() {
+  let failures = 0;
+  const sql = await getSql(),
+    c = squareConfig();
   // Recover an unknown synchronous response even when its webhook has not arrived.
   const unknown = await sql<{
     id: string;
     created_at: Date;
-  }>`select o.id,o.created_at from commerce_orders o join square_payment_attempts a on a.order_id=o.id where a.status in ('pending','unknown') and o.payment_environment=${c.environment} and o.created_at>now()-interval '1 day' order by o.created_at limit 20`;
+  }>`select distinct o.id,o.created_at from commerce_orders o join square_payment_attempts a on a.order_id=o.id where a.status in ('pending','unknown') and o.payment_environment=${c.environment} and o.created_at>now()-interval '1 day' order by o.created_at limit 20`;
   if (unknown.length) {
     const ids = new Set(unknown.map((o) => o.id));
     const client = squareClient();
@@ -209,7 +226,7 @@ export async function reconcileSquare() {
     try {
       await provisionSubscription(o.id);
     } catch {
-      /* Remains visible in owner queue. */
+      failures++; // Remains visible in owner queue.
     }
   const events = await sql<{
     id: string;
@@ -220,7 +237,7 @@ export async function reconcileSquare() {
     try {
       await processSquareEvent(e, sql);
     } catch {
-      /* Durable event remains retryable. */
+      failures++; // Durable event remains retryable.
     }
   const refunds = await sql<{
     id: string;
@@ -229,10 +246,15 @@ export async function reconcileSquare() {
     try {
       await executeSquareRefund(r.id);
     } catch {
-      /* Retain original provider idempotency key. */
+      failures++; // Retain original provider idempotency key.
     }
-  await sendPaymentNotifications();
-  return { ok: true };
+  return {
+    failures,
+    eventsChecked: events.length,
+    refundsChecked: refunds.length,
+    subscriptionsChecked: pending.length,
+    ordersChecked: unknown.length,
+  };
 }
 export async function ownerReconcile(userId: string) {
   await requirePaymentOwner(userId);

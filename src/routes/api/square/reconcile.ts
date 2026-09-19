@@ -15,8 +15,8 @@ export const Route = createFileRoute("/api/square/reconcile")({
           .digest();
         if (!timingSafeEqual(actual, expected)) return new Response("Forbidden", { status: 403 });
         try {
-          await reconcileSquare();
-          return Response.json({ ok: true });
+          const summary = await reconcileSquare();
+          return Response.json({ ok: true, ...summary });
         } catch {
           return new Response("Retry pending", { status: 503 });
         }

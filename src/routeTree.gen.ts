@@ -36,6 +36,7 @@ import { Route as TwoFactorRouteImport } from './routes/two-factor'
 import { Route as VisitRouteImport } from './routes/visit'
 import { Route as VisitsRouteImport } from './routes/visits'
 import { Route as WaiverRouteImport } from './routes/waiver'
+import { Route as ApiSiteAlertsRouteImport } from './routes/api/site-alerts'
 import { Route as GoDestRouteImport } from './routes/go.$dest'
 import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
 import { Route as ApiSquareReconcileRouteImport } from './routes/api/square/reconcile'
@@ -177,6 +178,11 @@ const WaiverRoute = WaiverRouteImport.update({
   path: '/waiver',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiSiteAlertsRoute = ApiSiteAlertsRouteImport.update({
+  id: '/api/site-alerts',
+  path: '/api/site-alerts',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const GoDestRoute = GoDestRouteImport.update({
   id: '/go/$dest',
   path: '/go/$dest',
@@ -231,6 +237,7 @@ export interface FileRoutesByFullPath {
   '/visit': typeof VisitRoute
   '/visits': typeof VisitsRoute
   '/waiver': typeof WaiverRoute
+  '/api/site-alerts': typeof ApiSiteAlertsRoute
   '/go/$dest': typeof GoDestRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/square/reconcile': typeof ApiSquareReconcileRoute
@@ -265,6 +272,7 @@ export interface FileRoutesByTo {
   '/visit': typeof VisitRoute
   '/visits': typeof VisitsRoute
   '/waiver': typeof WaiverRoute
+  '/api/site-alerts': typeof ApiSiteAlertsRoute
   '/go/$dest': typeof GoDestRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/square/reconcile': typeof ApiSquareReconcileRoute
@@ -300,6 +308,7 @@ export interface FileRoutesById {
   '/visit': typeof VisitRoute
   '/visits': typeof VisitsRoute
   '/waiver': typeof WaiverRoute
+  '/api/site-alerts': typeof ApiSiteAlertsRoute
   '/go/$dest': typeof GoDestRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/square/reconcile': typeof ApiSquareReconcileRoute
@@ -336,6 +345,7 @@ export interface FileRouteTypes {
     | '/visit'
     | '/visits'
     | '/waiver'
+    | '/api/site-alerts'
     | '/go/$dest'
     | '/api/auth/$'
     | '/api/square/reconcile'
@@ -370,6 +380,7 @@ export interface FileRouteTypes {
     | '/visit'
     | '/visits'
     | '/waiver'
+    | '/api/site-alerts'
     | '/go/$dest'
     | '/api/auth/$'
     | '/api/square/reconcile'
@@ -404,6 +415,7 @@ export interface FileRouteTypes {
     | '/visit'
     | '/visits'
     | '/waiver'
+    | '/api/site-alerts'
     | '/go/$dest'
     | '/api/auth/$'
     | '/api/square/reconcile'
@@ -439,6 +451,7 @@ export interface RootRouteChildren {
   VisitRoute: typeof VisitRoute
   VisitsRoute: typeof VisitsRoute
   WaiverRoute: typeof WaiverRoute
+  ApiSiteAlertsRoute: typeof ApiSiteAlertsRoute
   GoDestRoute: typeof GoDestRoute
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
   ApiSquareReconcileRoute: typeof ApiSquareReconcileRoute
@@ -637,6 +650,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof WaiverRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/site-alerts': {
+      id: '/api/site-alerts'
+      path: '/api/site-alerts'
+      fullPath: '/api/site-alerts'
+      preLoaderRoute: typeof ApiSiteAlertsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/go/$dest': {
       id: '/go/$dest'
       path: '/go/$dest'
@@ -703,6 +723,7 @@ const rootRouteChildren: RootRouteChildren = {
   VisitRoute: VisitRoute,
   VisitsRoute: VisitsRoute,
   WaiverRoute: WaiverRoute,
+  ApiSiteAlertsRoute: ApiSiteAlertsRoute,
   GoDestRoute: GoDestRoute,
   ApiAuthSplatRoute: ApiAuthSplatRoute,
   ApiSquareReconcileRoute: ApiSquareReconcileRoute,
