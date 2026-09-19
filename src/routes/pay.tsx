@@ -1,3 +1,4 @@
+import { AFTER_SCHOOL } from "@/lib/after-school";
 import { checkoutLessonService } from "@/lib/commerce/coach-services";
 import { pageHead } from "@/lib/seo";
 import { createFileRoute, Link } from "@tanstack/react-router";
@@ -38,6 +39,7 @@ function PayPage() {
   const [date, setDate] = useState(search.date || chicagoDate());
   const [time, setTime] = useState(search.time || "");
   const [household, setHousehold] = useState(checkoutParty(search).household);
+  const [schoolAge, setSchoolAge] = useState(search.schoolAge === true);
   const [count, setCount] = useState(checkoutParty(search).count);
   const [consent, setConsent] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -92,6 +94,7 @@ function PayPage() {
       laneIds: parseLaneIds(search.cages),
       athleteCount: count,
       household,
+      schoolAge,
       consent,
       email,
       name,
@@ -109,6 +112,7 @@ function PayPage() {
       search.cages,
       count,
       household,
+      schoolAge,
       consent,
       email,
       name,
@@ -139,6 +143,7 @@ function PayPage() {
     time,
     count,
     household,
+    schoolAge,
     email,
     name,
     playerName,
@@ -185,6 +190,7 @@ function PayPage() {
     birthDate,
     count,
     household,
+    schoolAge,
     kind,
     search.cages,
   ]);
@@ -300,6 +306,7 @@ function PayPage() {
                     time,
                     use: household ? "household" : "team",
                     athleteCount: count,
+                    schoolAge,
                   }),
                 }}
                 className="underline"
@@ -403,6 +410,10 @@ function PayPage() {
                   team practices.
                 </span>
               </label>
+              {kind === "cage" && chicagoDate() <= AFTER_SCHOOL.end ? <label className="flex min-h-11 items-start gap-3">
+                <input type="checkbox" className="mt-1 size-5" checked={schoolAge} onChange={(e) => setSchoolAge(e.target.checked)} />
+                <span>All athletes are school-age students. After-School Special: $20 / 30 minutes or $35 / 1 hour per cage, {AFTER_SCHOOL.dates}, weekdays 4–6 PM Central. For 1–2 athletes from one household; must finish by 6 PM. Team bookings, fielding, and other dates, times, or durations use standard rates.</span>
+              </label> : null}
             </fieldset>
           ) : null}
           {quote?.needsSlot && !locked ? (
