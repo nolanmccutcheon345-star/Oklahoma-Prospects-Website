@@ -73,7 +73,11 @@ export async function squareOffice(userId: string) {
       }>`select id,value from commerce_policy order by id`,
     ]);
   return {
-    recovery: await recoveryHealth(sql, squareConfig().environment),
+    recovery: await recoveryHealth(
+      sql,
+      squarePublicConfig()?.environment ||
+        (process.env.CONTEXT === "production" ? "production" : "sandbox"),
+    ),
     config: squarePublicConfig(),
     payments,
     refunds,
