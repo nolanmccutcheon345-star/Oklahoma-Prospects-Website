@@ -9,6 +9,7 @@ import {
 import { grantCredits, carryOneSession } from "./store.server";
 import { addCalendarMonth } from "./catalog";
 import { chicagoInstant } from "../scheduling";
+import { applySquareRefundBalance } from "./square-refunds.server";
 
 type SquareSyncDependencies = {
   client: SquareClient;
@@ -151,41 +152,41 @@ export async function syncSquareInvoice(
     await tx`insert into payment_notifications(id,order_id,kind) values(${"renewal:" + id},${o.id},'renewal') on conflict do nothing`;
   });
 }
-export async function syncSquareRefund(id: string) {
-  const client = squareClient(),
-    sql = await getSql(),
-    c = squareConfig();
+export async function syncSquareRefund(id: string, dependencies?: SquareSyncDependencies) {
+  const client = dependencies?.client || squareClient(),
+    sql = dependencies?.sql || (await getSql()),
+    c = dependencies?.config || squareConfig();
   const { refund } = await client.refunds.get({ refundId: id });
-  if (!refund?.paymentId || refund.locationId !== c.locationId) return;
+  if (
+    !refund?.paymentId ||
+    refund.id !== id ||
+    !refund.status ||
+    refund.locationId !== c.locationId
+  )
+    throw new Error("Refund identity verification failed.");
+  const refundStatus = refund.status.toLowerCase();
   const { payment: p } = await client.payments.get({ paymentId: refund.paymentId });
   if (
     !p ||
+    p.id !== refund.paymentId ||
     p.locationId !== c.locationId ||
     (p.refundedMoney && p.refundedMoney.currency !== "USD")
   )
     throw new Error("Refund verification failed.");
   await sql.transaction(async (tx) => {
-    const [local] = await tx<{
-      order_id: string;
-      amount_cents: number;
-      environment: string;
-    }>`select * from square_payments where id=${p.id!} for update`;
-    if (!local) return;
-    if (local.environment !== c.environment) throw new Error("Refund environment mismatch.");
-    const refunded = Number(p.refundedMoney?.amount || 0);
-    if (refunded > local.amount_cents) throw new Error("Refund exceeds payment.");
-    await tx`update square_payments set refunded_cents=${refunded} where id=${p.id!}`;
-    await tx`update commerce_refunds set status=${refund.status?.toLowerCase() || "pending"},square_refund_id=${id} where square_refund_id=${id}`;
-    if (refunded === local.amount_cents) {
-      const grants = await tx<{
-        id: string;
-      }>`select id from credit_grants where payment_id=${p.id!} for update`;
-      const ids = grants.map((g) => g.id);
-      await tx`update credit_grants set remaining=0 where id=any(${ids}::text[])`;
-      await tx`update booking_records set status='cancelled' where status in ('held','confirmed') and (id in(select booking_id from credit_uses where grant_id=any(${ids}::text[])) or (order_id=${local.order_id} and ${p.id === (await tx<{ square_payment_id: string }>`select square_payment_id from commerce_orders where id=${local.order_id}`)[0]?.square_payment_id} and not exists(select 1 from credit_uses u where u.booking_id=booking_records.id)))`;
-      await tx`delete from booking_occupancy where booking_id in(select id from booking_records where order_id=${local.order_id} and status='cancelled')`;
-      await tx`update commerce_orders set status='refunded',updated_at=now() where id=${local.order_id} and not coalesce((snapshot->>'recurring')::boolean,false)`;
+    if (!(await applySquareRefundBalance(tx, p, c))) {
+      const known =
+        await tx`select id from commerce_orders where id=${p.referenceId || ""} and payment_provider='square' and payment_environment=${c.environment}`;
+      if (!known.length) return; // A payment outside this application has no local entitlements.
+      if (!p.refundedMoney?.amount)
+        throw new Error("Payment record pending; retry this refund event.");
+      // Persist returned funds before a later, older payment response can book a lane.
+      await fulfillSquarePayment(tx, p, c);
+      if (!(await applySquareRefundBalance(tx, p, c)))
+        throw new Error("Payment record pending; retry this refund event.");
     }
+    await tx`update commerce_refunds set status=${refundStatus},square_refund_id=${id}
+      where square_refund_id=${id} and status<>'completed'`;
   });
 }
 export async function processSquareEvent(
