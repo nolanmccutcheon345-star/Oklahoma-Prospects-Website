@@ -69,3 +69,9 @@ The queued receipt test now uses the same notification worker as normal receipts
 ## Owner catalog preparation in either environment
 
 The authenticated owner console can now prepare monthly plans and connect membership webhook events in its configured environment. The same location, merchant, currency, card capability, plan price and idempotency checks apply in production. Mappings stay isolated by environment/merchant/location/product. These setup actions create no customer, card, charge or subscription, and do not change checkout scope or acceptance flags. Production can be prepared while one-time cages remain the only enabled checkout. Webhook verification reports pending events instead of presenting an unconditional success message when only some events have processed.
+
+## Owner-confirmed training prices — September 19, 2026
+
+Development is $239/month ($289 for the first month when the existing $50 no-assessment fee applies). Four 60-minute lessons cost $385; eight 60-minute lessons cost $740. Migration 0024 updates the editable catalog for new purchases, and the canonical server pricing and public copy use the same amounts. Historical paid orders and existing subscription agreements are not repriced.
+
+This confirmation covers prices only. It does not approve the proposed seven-day standard cage window or resolve other outstanding policies. Checkout stays cage-only pending provider-backed acceptance. Before membership activation, recreate/verify the Development Square plan mapping at $239 in each environment; an older $229 mapping must not be accepted.

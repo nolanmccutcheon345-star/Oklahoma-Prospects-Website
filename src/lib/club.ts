@@ -361,7 +361,7 @@ export const FAQ = [
   },
   {
     q: "I’m new. Where do I start?",
-    a: "Want reps today? Book a cage. Want coaching? Start with an assessment — pitching 75 min / $149, hitting 60 min / $150. Private hours are $100 after that. Ordinary lessons and packages unlock after your coach completes your assessment. Monthly coaching is four sessions a month from $229.",
+    a: "Want reps today? Book a cage. Want coaching? Start with an assessment — pitching 75 min / $149, hitting 60 min / $150. Private hours are $100 after that. Ordinary lessons and packages unlock after your coach completes your assessment. Monthly coaching is four sessions a month from $239.",
   },
   {
     q: "What if I need to cancel?",
