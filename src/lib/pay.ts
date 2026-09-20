@@ -1,4 +1,3 @@
-import { afterSchoolCents } from "./after-school";
 import { eligibility } from "./pricing";
 import { BOOKABLE_LANES, HOUSEHOLD_CAGE_PLAN_IDS, type BookableLaneId } from "@/lib/club";
 import { ASSESSMENT_IDS, findLesson } from "@/lib/catalog";
@@ -15,7 +14,6 @@ export type PaySearch = {
   cages?: string;
   use?: string;
   athleteCount?: number;
-  schoolAge?: boolean;
   assessed?: string;
 };
 
@@ -65,7 +63,6 @@ export function parsePaySearch(search: Record<string, unknown>): PaySearch {
         : Number(search.minutes) || undefined,
     receipt: typeof search.receipt === "string" ? search.receipt : undefined,
     cages: typeof search.cages === "string" ? search.cages : undefined,
-    schoolAge: search.schoolAge === true || search.schoolAge === "true" ? true : undefined,
     use: typeof search.use === "string" ? search.use : undefined,
     athleteCount: Number.isInteger(Number(search.athleteCount)) && Number(search.athleteCount) >= 1 && Number(search.athleteCount) <= 100
       ? Number(search.athleteCount) : undefined,
@@ -82,7 +79,7 @@ export function checkoutParty(search: PaySearch) {
 export function checkoutReturnPath(search: PaySearch): string {
   const params = new URLSearchParams();
   // Keep booking choices through sign-in, never identity, payment, or assessment claims.
-  for (const key of ["kind", "id", "date", "time", "minutes", "cages", "use", "athleteCount", "schoolAge"] as const) {
+  for (const key of ["kind", "id", "date", "time", "minutes", "cages", "use", "athleteCount"] as const) {
     const value = search[key];
     if (value !== undefined && value !== "") params.set(key, String(value));
   }
@@ -109,7 +106,7 @@ export function resolveCageRate(input: { use?: string; rate?: string; laneIds: s
 
 export function quoteCages(
   catalog: PublicCatalog,
-  input: { rate: string; laneIds: string[]; minutes: number; use?: string; date?: string; time?: string; schoolAge?: boolean },
+  input: { rate: string; laneIds: string[]; minutes: number; use?: string },
 ): PayItem | null {
   const minutes = input.minutes;
   if (!Number.isInteger(minutes) || minutes < 30 || minutes > 180 || minutes % 30) return null;
@@ -138,8 +135,6 @@ export function quoteCages(
   const lines: PayLine[] = lanes.map((id) => {
     const lane = BOOKABLE_LANES.find((row) => row.id === id)!;
     const hourly = lane.group === "field" ? hourlyFor(catalog, "field") : hourlyFor(catalog, rate);
-    const special = afterSchoolCents({ ...input, duration: minutes, household: rate === "individual", athleteCount: rate === "individual" ? 1 : 3, laneCount: lanes.length, field: lane.group === "field" });
-    if (special !== null) return moneyLine(`${minutes} min · ${lane.name} · After-School Special`, special / 100);
     const amount = Math.round(hourly * 100 * hours) / 100;
     return moneyLine(`${minutes} min · ${lane.name} · $${hourly}/hr`, amount);
   });
@@ -285,9 +280,6 @@ export function resolvePayItem(
       laneIds: parseLaneIds(search.cages),
       minutes: search.minutes ?? 60,
       use: search.use,
-      date: search.date,
-      time: search.time,
-      schoolAge: search.schoolAge,
     });
   }
   if (kind === "cage-plan") {

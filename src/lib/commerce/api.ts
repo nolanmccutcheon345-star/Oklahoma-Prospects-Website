@@ -12,7 +12,8 @@ export const getCheckoutQuote = createServerFn({ method: "POST" })
   .middleware([paymentAuth])
   .validator(checkoutInput)
   .handler(async ({ data, context }) => {
-    const { availableSlots } = await import("./checkout.server");
+    const { availableSlots, rateLimit } = await import("./checkout.server");
+    await rateLimit("checkout-quote", 100);
     return availableSlots(data, context.paymentUserId);
   });
 export const startCheckout = createServerFn({ method: "POST" })

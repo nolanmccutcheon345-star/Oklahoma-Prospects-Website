@@ -1,4 +1,3 @@
-import { AFTER_SCHOOL } from "@/lib/after-school";
 import { checkoutLessonService } from "@/lib/commerce/coach-services";
 import { pageHead } from "@/lib/seo";
 import { createFileRoute, Link } from "@tanstack/react-router";
@@ -39,11 +38,19 @@ function PayPage() {
   const [date, setDate] = useState(search.date || chicagoDate());
   const [time, setTime] = useState(search.time || "");
   const [household, setHousehold] = useState(checkoutParty(search).household);
-  const [schoolAge, setSchoolAge] = useState(search.schoolAge === true);
   const [count, setCount] = useState(checkoutParty(search).count);
   const [consent, setConsent] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [discountText, setDiscountText] = useState("");
+  const [discountError, setDiscountError] = useState("");
+  const [applyingDiscount, setApplyingDiscount] = useState(false);
+  const [discountPreview, setDiscountPreview] = useState<{
+    key: string;
+    code: string;
+    quote: Quote;
+  } | null>(null);
+  const discountRequest = useRef(0);
   const [slotError, setSlotError] = useState("");
   const [slots, setSlots] = useState<{ value: string; label: string }[]>([]);
   const [loadingSlots, setLoadingSlots] = useState(false);
@@ -94,7 +101,6 @@ function PayPage() {
       laneIds: parseLaneIds(search.cages),
       athleteCount: count,
       household,
-      schoolAge,
       consent,
       email,
       name,
@@ -112,7 +118,6 @@ function PayPage() {
       search.cages,
       count,
       household,
-      schoolAge,
       consent,
       email,
       name,
@@ -120,7 +125,7 @@ function PayPage() {
       birthDate,
     ],
   );
-  const quote = useMemo<Quote | null>(() => {
+  const baseQuote = useMemo<Quote | null>(() => {
     if (!product || !context || locked || enrollmentHelp) return null;
     try {
       return calculateQuote(
@@ -134,6 +139,32 @@ function PayPage() {
       return null;
     }
   }, [product, context, input, assessed, locked, enrollmentHelp]);
+  // A result from an older basket or code can never supply the displayed/payment total.
+  const discountKey = JSON.stringify({ ...input, requestId: undefined, consent: undefined });
+  const normalizedCode = discountText.trim().toUpperCase();
+  const applied =
+    discountPreview?.key === discountKey && discountPreview.code === normalizedCode
+      ? discountPreview
+      : null;
+  const quote = applied?.quote || baseQuote;
+  async function applyCode() {
+    const generation = ++discountRequest.current;
+    setApplyingDiscount(true);
+    setDiscountError("");
+    setDiscountPreview(null);
+    try {
+      const result = await getCheckoutQuote({
+        data: { ...input, requestId: requestId.current, discountCode: normalizedCode },
+      });
+      if (generation === discountRequest.current)
+        setDiscountPreview({ key: discountKey, code: normalizedCode, quote: result.quote });
+    } catch (e) {
+      if (generation === discountRequest.current)
+        setDiscountError(e instanceof Error ? e.message : "Could not apply this code.");
+    } finally {
+      if (generation === discountRequest.current) setApplyingDiscount(false);
+    }
+  }
   useEffect(() => {
     requestId.current = crypto.randomUUID();
   }, [
@@ -143,7 +174,6 @@ function PayPage() {
     time,
     count,
     household,
-    schoolAge,
     email,
     name,
     playerName,
@@ -151,6 +181,8 @@ function PayPage() {
     search.id,
     search.minutes,
     search.cages,
+    normalizedCode,
+    applied?.quote.discount?.version,
   ]);
   useEffect(() => {
     let cancelled = false;
@@ -190,7 +222,6 @@ function PayPage() {
     birthDate,
     count,
     household,
-    schoolAge,
     kind,
     search.cages,
   ]);
@@ -201,7 +232,20 @@ function PayPage() {
     setBusy(true);
     setError("");
     try {
-      const result = await startCheckout({ data: { ...input, requestId: requestId.current } });
+      if (normalizedCode && !applied)
+        throw new Error("Apply your discount code or remove it before continuing.");
+      const result = await startCheckout({
+        data: {
+          ...input,
+          requestId: requestId.current,
+          discountCode: applied?.code,
+          discountVersion: applied?.quote.discount?.version,
+        },
+      });
+      if (result.totalCents !== quote?.totalCents)
+        throw new Error(
+          "Your price changed. Refresh checkout and review the new total before paying.",
+        );
       setPrepared(result);
       setBusy(false);
       paymentLock.current = false;
@@ -250,21 +294,27 @@ function PayPage() {
         </p>
       ) : null}
       {prepared && context?.square ? (
-        <SquareCard
-          config={context.square}
-          amountCents={prepared.chargeCents}
-          recurring={prepared.recurring}
-          expiresAt={prepared.holdUntil}
-          email={email}
-          name={name}
-          onToken={async (sourceId, attemptId) => {
-            const result = await submitSquarePayment({
-              data: { orderId: prepared.orderId, sourceId, attemptId },
-            });
-            if (result.url) window.location.assign(result.url);
-            return result;
-          }}
-        />
+        <div className="my-6 grid gap-4">
+          <p className="font-semibold">
+            Total to pay: {formatMoney(prepared.totalCents)}
+            {applied ? ` · ${applied.code} applied` : ""}
+          </p>
+          <SquareCard
+            config={context.square}
+            amountCents={prepared.chargeCents}
+            recurring={prepared.recurring}
+            expiresAt={prepared.holdUntil}
+            email={email}
+            name={name}
+            onToken={async (sourceId, attemptId) => {
+              const result = await submitSquarePayment({
+                data: { orderId: prepared.orderId, sourceId, attemptId },
+              });
+              if (result.url) window.location.assign(result.url);
+              return result;
+            }}
+          />
+        </div>
       ) : null}
       {product && !prepared ? (
         <form onSubmit={submit} className="mt-6 grid gap-5">
@@ -306,7 +356,6 @@ function PayPage() {
                     time,
                     use: household ? "household" : "team",
                     athleteCount: count,
-                    schoolAge,
                   }),
                 }}
                 className="underline"
@@ -410,10 +459,6 @@ function PayPage() {
                   team practices.
                 </span>
               </label>
-              {kind === "cage" && chicagoDate() <= AFTER_SCHOOL.end ? <label className="flex min-h-11 items-start gap-3">
-                <input type="checkbox" className="mt-1 size-5" checked={schoolAge} onChange={(e) => setSchoolAge(e.target.checked)} />
-                <span>All athletes are school-age students. After-School Special: $20 / 30 minutes or $35 / 1 hour per cage, {AFTER_SCHOOL.dates}, weekdays 4–6 PM Central. For 1–2 athletes from one household; must finish by 6 PM. Team bookings, fielding, and other dates, times, or durations use standard rates.</span>
-              </label> : null}
             </fieldset>
           ) : null}
           {quote?.needsSlot && !locked ? (
@@ -492,6 +537,76 @@ function PayPage() {
               )}
             </fieldset>
           ) : null}
+          {!recurring ? (
+            <fieldset className="grid gap-3 rounded-xl border border-line p-4">
+              <legend className="font-semibold">Discount code (optional)</legend>
+              <label className="grid gap-1">
+                Discount code
+                <input
+                  className="min-h-11 rounded-lg border p-3"
+                  autoComplete="off"
+                  autoCapitalize="characters"
+                  maxLength={32}
+                  value={discountText}
+                  onChange={(e) => {
+                    ++discountRequest.current;
+                    setApplyingDiscount(false);
+                    setDiscountText(e.target.value);
+                    setDiscountPreview(null);
+                    setDiscountError("");
+                  }}
+                />
+              </label>
+              <div className="flex flex-wrap gap-3">
+                <Button
+                  type="button"
+                  variant="outlineDark"
+                  disabled={
+                    !user ||
+                    !name ||
+                    !email ||
+                    !normalizedCode ||
+                    applyingDiscount ||
+                    busy ||
+                    !baseQuote
+                  }
+                  onClick={() => void applyCode()}
+                >
+                  {applyingDiscount ? "Checking code…" : "Apply code"}
+                </Button>
+                {normalizedCode ? (
+                  <Button
+                    type="button"
+                    variant="outlineDark"
+                    disabled={busy}
+                    onClick={() => {
+                      ++discountRequest.current;
+                      setApplyingDiscount(false);
+                      setDiscountText("");
+                      setDiscountPreview(null);
+                      setDiscountError("");
+                    }}
+                  >
+                    Remove code
+                  </Button>
+                ) : null}
+              </div>
+              {!user ? <p className="text-sm">Sign in to apply a code.</p> : null}
+              {applied ? (
+                <p role="status">
+                  {applied.code} applied. You save {formatMoney(applied.quote.discount!.cents)}.
+                  Total: {formatMoney(applied.quote.totalCents)}.
+                </p>
+              ) : normalizedCode && !applyingDiscount && !discountError ? (
+                <p role="status">Apply this code to review your updated total.</p>
+              ) : null}
+              {discountError ? (
+                <p role="alert" className="text-maroon">
+                  {discountError}
+                </p>
+              ) : null}
+            </fieldset>
+          ) : null}
           {recurring ? (
             <label className="flex min-h-11 items-start gap-3">
               <input
@@ -545,6 +660,8 @@ function PayPage() {
                 !user ||
                 (needsAthlete && !athleteId) ||
                 busy ||
+                applyingDiscount ||
+                Boolean(normalizedCode && !applied) ||
                 locked ||
                 !quote ||
                 (quote.needsSlot && !slots.some((s) => s.value === time)) ||

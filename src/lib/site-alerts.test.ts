@@ -24,14 +24,17 @@ function wrap(db: PGlite): Sql {
 test("site alerts preserve transaction boundaries, privacy, recipient scope and retry identity", async (t) => {
   const db = new PGlite();
   try {
-    for (const file of (await readdir("migrations")).filter((f) => f.endsWith(".sql")).sort())
-      await db.exec(await readFile("migrations/" + file, "utf8"));
     const sql = wrap(db);
-    assert.equal(
-      (await sql`select * from site_alert_events`).length,
-      0,
-      "historical activity is not replayed",
-    );
+    for (const file of (await readdir("migrations")).filter((f) => f.endsWith(".sql")).sort()) {
+      await db.exec(await readFile("migrations/" + file, "utf8"));
+      // Check replay at installation; later price migrations legitimately produce new activity.
+      if (file === "0022_site_activity_alerts.sql")
+        assert.equal(
+          (await sql`select * from site_alert_events`).length,
+          0,
+          "historical activity is not replayed",
+        );
+    }
     await sql`insert into "user"(id,name,email,"emailVerified") values('steve','Steve','stevemccutcheon89@gmail.com',true),('nolan','Nolan','nolanmccutcheon@icloud.com',true),('stranger','Other','other@example.test',true)`;
     await sql`update owner_grants set user_id=case when email='stevemccutcheon89@gmail.com' then 'steve' else 'nolan' end`;
     await sql`delete from site_alert_events`;

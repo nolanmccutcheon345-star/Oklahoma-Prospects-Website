@@ -1,4 +1,3 @@
-import { AFTER_SCHOOL } from "@/lib/after-school";
 import {pageHead} from "@/lib/seo";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState, type FormEvent } from "react";
@@ -76,8 +75,6 @@ function BookingFunnel({ initial }: { initial?: string }) {
   const [lanes, setLanes] = useState<BookableLaneId[]>(() => defaultLanes(initial));
   const [date, setDate] = useState(today);
   const [duration, setDuration] = useState(60);
-  const [time, setTime] = useState("");
-  const [schoolAge, setSchoolAge] = useState(false);
   const [attest, setAttest] = useState(false);
   const [error, setError] = useState("");
   const forcedTeam = lanes.length >= 3;
@@ -85,8 +82,8 @@ function BookingFunnel({ initial }: { initial?: string }) {
   const rate = use === "team" ? "team" : "individual";
   const [slots,setSlots]=useState<{value:string;label:string}[]>([]);
   const [loadingSlots,setLoadingSlots]=useState(false);
-  useEffect(()=>{let cancelled=false;setSlots([]);setTime("");setError("");if(!lanes.length)return;setLoadingSlots(true);void getCageAvailability({data:{date,duration,laneIds:lanes}}).then(rows=>{if(!cancelled)setSlots(rows);}).catch(e=>{if(!cancelled)setError(e instanceof Error?e.message:"Availability could not load.");}).finally(()=>{if(!cancelled)setLoadingSlots(false);});return()=>{cancelled=true;};},[date,duration,lanes]);
-  const quote = quoteCages(catalog, { rate, laneIds: lanes, minutes: duration, use, date, time, schoolAge });
+  useEffect(()=>{let cancelled=false;setSlots([]);setError("");if(!lanes.length)return;setLoadingSlots(true);void getCageAvailability({data:{date,duration,laneIds:lanes}}).then(rows=>{if(!cancelled)setSlots(rows);}).catch(e=>{if(!cancelled)setError(e instanceof Error?e.message:"Availability could not load.");}).finally(()=>{if(!cancelled)setLoadingSlots(false);});return()=>{cancelled=true;};},[date,duration,lanes]);
+  const quote = quoteCages(catalog, { rate, laneIds: lanes, minutes: duration, use });
   const total = quote?.price ?? 0;
   const householdHour = catalog.cages.find((row) => row.id === "individual")?.price ?? 50;
   const teamHour = catalog.cages.find((row) => row.id === "team")?.price ?? 60;
@@ -128,19 +125,12 @@ function BookingFunnel({ initial }: { initial?: string }) {
         minutes: duration,
         cages: lanes.join(","),
         use,
-        schoolAge,
       },
     });
   }
 
   return (
     <section className="mx-auto max-w-3xl px-5 py-8">
-      {today <= AFTER_SCHOOL.end ? <aside className="mb-8 rounded-xl bg-ink p-5 text-fg-inverse">
-        <h2 className="text-3xl">After School. Before Game Day.</h2>
-        <p className="mt-2">$20 / 30 minutes · $35 / 1 hour, per cage</p>
-        <p className="mt-2 text-sm">{AFTER_SCHOOL.dates} · Monday–Friday, 4–6 PM Central. Sessions must end by 6 PM.</p>
-        <p className="mt-2 text-sm">For 1–2 school-age athletes from one household. Select 30 or 60 minutes and confirm eligibility below. Team bookings and the fielding area use standard rates. Subject to availability.</p>
-      </aside> : null}
       <h2 className="text-3xl">1. Who is this hour for?</h2>
       <p className="mt-2 text-sm text-muted">
         Household (${householdHour}/cage): 1–2 athletes from one family. Team (${teamHour}/cage):
@@ -288,8 +278,6 @@ function BookingFunnel({ initial }: { initial?: string }) {
                       type="radio"
                       name="time"
                       value={slot.value}
-                      checked={time === slot.value}
-                      onChange={() => setTime(slot.value)}
                       disabled={taken}
                       className="sr-only"
                     />
@@ -300,10 +288,6 @@ function BookingFunnel({ initial }: { initial?: string }) {
             </div>
           )}
         </fieldset>
-        {use === "household" && today <= AFTER_SCHOOL.end ? <label className="flex min-h-11 items-start gap-3 text-sm">
-          <input type="checkbox" className="mt-1 size-6" checked={schoolAge} onChange={(event) => setSchoolAge(event.target.checked)} />
-          <span>All athletes in this booking are school-age students. Apply the After-School Special to eligible 30- or 60-minute cages. Other dates, times, and durations use standard rates.</span>
-        </label> : null}
         {quote && quote.lines.length > 0 ? (
           <ul className="grid gap-1 text-sm text-muted" data-cage-count={lanes.length} id="cage-total">
             {quote.lines.map((line) => (
@@ -314,7 +298,7 @@ function BookingFunnel({ initial }: { initial?: string }) {
             ))}
           </ul>
         ) : null}
-        <p className="font-display text-4xl" data-cage-total={total} aria-live="polite">
+        <p className="font-display text-4xl" data-cage-total={total}>
           ${total}
         </p>
         {use === "household" ? (

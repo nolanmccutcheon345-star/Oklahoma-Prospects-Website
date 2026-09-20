@@ -1,7 +1,7 @@
-import { AFTER_SCHOOL, afterSchoolCents } from "../after-school";
 import { z } from "zod";
 import { eligibility } from "../pricing";
 import { BOOKABLE_LANES } from "../club";
+import type { AppliedDiscount } from "./discounts";
 
 export const checkoutInput = z
   .object({
@@ -16,7 +16,8 @@ export const checkoutInput = z
     laneIds: z.array(z.string().max(30)).max(6).default([]),
     athleteCount: z.number().int().min(1).max(100).default(1),
     household: z.boolean().default(false),
-    schoolAge: z.boolean().optional(),
+    discountCode: z.string().trim().max(32).optional(),
+    discountVersion: z.number().int().positive().optional(),
     consent: z.boolean().default(false),
     email: z.string().email().max(254),
     name: z.string().trim().min(1).max(120),
@@ -58,7 +59,8 @@ export type Quote = {
   lines: { label: string; cents: number }[];
   teamRate: boolean;
   needsSlot: boolean;
-  promotionId?: string;
+  subtotalCents?: number;
+  discount?: AppliedDiscount;
 };
 
 /** Product data and completed-assessment status must come from server storage. */
@@ -128,11 +130,9 @@ export function calculateQuote(
       const rateId = lane.group === "field" ? "field" : quote.teamRate ? "team" : "individual";
       const rate = cages.find((p) => p.id === rateId && p.active);
       if (!rate) throw new Error("The rate for this lane is unavailable.");
-      const special = afterSchoolCents({ ...input, laneCount: ids.length, field: lane.group === "field" });
-      if (special !== null) quote.promotionId = AFTER_SCHOOL.id;
       return {
-        label: `${lane.name} · ${input.duration} min${special !== null ? " · After-School Special" : ""}`,
-        cents: special ?? Math.round((rate.price * 100 * input.duration!) / 60),
+        label: `${lane.name} · ${input.duration} min`,
+        cents: Math.round((rate.price * 100 * input.duration!) / 60),
       };
     });
     quote.resources = ids.map((id) => `lane:${id}`);

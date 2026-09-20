@@ -14,6 +14,7 @@ import { paymentMode, squarePublicConfig, squareConfig, planVariation } from "./
 import { approvedProducts, CATALOG_VERSION } from "./catalog";
 import { assertSquareCheckoutScope } from "./square-config";
 import { expireHolds } from "./store.server";
+import { quoteWithDiscount, assertDiscountCurrent } from "./discounts.server";
 
 export async function rateLimit(bucket: string, maximum = 30) {
   const request = getRequest();
@@ -109,13 +110,14 @@ export async function quoteForRequest(
     const { checkCageBookingWindow } = await import("./booking-policy.server");
     await checkCageBookingWindow(me.billingHouseholdIds, input.date);
   }
-  const quote = calculateQuote(
+  const baseQuote = calculateQuote(
     input,
     product,
     completed,
     products.filter((p) => p.kind === "cage"),
     requireConsent,
   );
+  const quote = await quoteWithDiscount(sql, baseQuote, input.discountCode);
   if (quote.kind !== "cage" && quote.kind !== "cage-plan" && !athleteId) {
     throw new Error("Add your athlete in the family portal, then select that athlete to continue.");
   }
@@ -162,6 +164,8 @@ export async function beginCheckout(input: CheckoutInput, verifiedUserId?: strin
   if (input.productId === "m4" || input.productId === "s6")
     throw new Error("Small-group enrollment opens when the office publishes the group schedule.");
   const { me, quote, athleteId, file } = await quoteForRequest(input, true, verifiedUserId);
+  if (quote.discount && input.discountVersion !== quote.discount.version)
+    throw new Error("Apply the current discount code and review your total before continuing.");
   assertSquareCheckoutScope(config, quote);
   if (quote.recurring) {
     const { validateSquarePlan } = await import("./square-payments.server");
@@ -176,12 +180,12 @@ export async function beginCheckout(input: CheckoutInput, verifiedUserId?: strin
     time: input.time,
     coachId: input.coachId,
     household: input.household,
-    schoolAge: input.schoolAge === true,
     athleteCount: input.athleteCount,
     consent: input.consent,
   });
   return sql.transaction(async (tx) => {
     await expireHolds(tx);
+    await assertDiscountCurrent(tx, quote);
     const [existing] = await tx<{
       id: string;
       snapshot: { fingerprint: string };
@@ -214,7 +218,6 @@ export async function beginCheckout(input: CheckoutInput, verifiedUserId?: strin
         time: input.time,
         coachId: input.coachId,
         athleteCount: input.athleteCount,
-        schoolAge: input.schoolAge === true,
       },
       consentAt: input.consent ? new Date().toISOString() : null,
       bookingWindow: null as null | {
