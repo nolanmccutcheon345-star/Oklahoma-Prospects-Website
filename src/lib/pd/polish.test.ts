@@ -26,7 +26,8 @@ test("Performance tier has more features than Development", () => {
   }
 });
 
-test("session 2 days out cannot reschedule; 10 days out can", () => {
+test("session 2 days out cannot reschedule; 10 days out can", (t) => {
+  t.mock.timers.enable({ apis: ["Date"], now: new Date("2026-09-14T12:00:00Z") });
   const data = seedDevelopment();
   const family = data.families.find((row) => row.id === "f-mccabe")!;
   const two = data.bookings.find((row) => row.id === "b1")!;

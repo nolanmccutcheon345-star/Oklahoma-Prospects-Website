@@ -21,6 +21,7 @@ import { addCalendarMonth } from "./catalog";
 import { chicagoDate, chicagoInstant } from "../scheduling";
 import type { Quote } from "./contracts";
 import { applySquareRefundBalance, paymentRefundedCents } from "./square-refunds.server";
+import { assertDiscountCurrent } from "./discounts.server";
 export type SquareOrder = {
   id: string;
   user_id: string;
@@ -384,8 +385,10 @@ export async function paySquareOrder(
         attempt.status === "declined")
     )
       throw new Error("A payment attempt already exists. Check payment status before retrying.");
-    if (!attempt)
+    if (!attempt) {
+      await assertDiscountCurrent(tx, current.snapshot);
       await tx`insert into square_payment_attempts(id,order_id,token_hash) values(${input.attemptId},${order.id},${hash})`;
+    }
     await tx`update commerce_orders set square_customer_id=${customer.id!} where id=${order.id}`;
   });
   let payment: Square.Payment | undefined;
