@@ -87,14 +87,14 @@ test("monthly setup verifies price, persists scoped mappings, retries without du
     await prepareMonthlyPlans(sql, client, c, "owner", () => undefined);
     assert.equal(creates, 16);
     const p = objects.get("variation-1")!;
-    assertMonthlyPlan(p, 7900);
+    assertMonthlyPlan(p, 8200);
     assert.throws(() => assertMonthlyPlan(p, 13900), /approved monthly price/);
     assert.throws(
-      () => assertMonthlyPlan({ ...p, presentAtAllLocations: false }, 7900),
+      () => assertMonthlyPlan({ ...p, presentAtAllLocations: false }, 8200),
       /approved monthly price/,
     );
     assert.throws(
-      () => assertMonthlyPlan({ ...p, isDeleted: true }, 7900),
+      () => assertMonthlyPlan({ ...p, isDeleted: true }, 8200),
       /approved monthly price/,
     );
     // A configured but incorrect mapping must not be silently replaced.

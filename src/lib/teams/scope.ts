@@ -224,9 +224,9 @@ function stripSettings(settings: ClubOs["settings"], role: OsRole): ClubOs["sett
     (next as Record<string, unknown>)[key] = 0;
   }
   if (role === "parent") {
-    // Parent needs surcharge math at the desk, not the membership rate.
-    next.cardFeePct = settings.cardFeePct;
-    next.cardSurchargeEnabled = settings.cardSurchargeEnabled;
+    // New offers include processing for all methods.
+    next.cardFeePct = 0;
+    next.cardSurchargeEnabled = false;
     next.roundStep = settings.roundStep;
     next.paidInFullWeeks = settings.paidInFullWeeks;
     next.membershipIncludes = settings.membershipIncludes;

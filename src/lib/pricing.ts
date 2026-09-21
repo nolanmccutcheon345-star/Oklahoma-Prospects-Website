@@ -1,5 +1,6 @@
-/** Approved launch prices in cents. Catalog migrations and public displays use this module. */
-export const PRICES = {
+import { processingInclusiveCents } from "./processing-prices.js";
+/** Net targets retained for budgeting. Never expose these as the checkout price. */
+export const NET_PRICES = {
   individual: 5000, team: 6000, field: 7500,
   prospect: 7900, "all-star": 13900, "elite-family": 19900,
   m1: 23900, m2: 38900, m3: 44900, m4: 15900, m5: 17900,
@@ -7,8 +8,15 @@ export const PRICES = {
   s1: 14900, s2: 6000, s3: 10000, s4: 12900, s5: 4500, s6: 15900,
   s7: 6000, s8: 10000, s9: 15000, s10: 6000, s11: 10000, s12: 10000,
 } as const;
+/** Posted prices include processing for all methods; no checkout surcharge.
+ * Rental rates cover the minimum 30-minute unit; other products round to dollars. */
+export const PRICES = Object.fromEntries(Object.entries(NET_PRICES).map(([id, net]) => [
+  id, ["individual", "team", "field"].includes(id)
+    ? processingInclusiveCents(net / 2, 25) * 2
+    : processingInclusiveCents(net, 100),
+])) as Record<keyof typeof NET_PRICES, number>;
 export const ASSESSMENT_PRODUCTS = new Set<string>(["s1", "s4", "s9"]);
-export const FIRST_MONTH_SETUP_CENTS = 5000;
+export const FIRST_MONTH_SETUP_CENTS = processingInclusiveCents(5000, 100);
 export function dollars(id: keyof typeof PRICES) { return PRICES[id] / 100; }
 export function formatMoney(cents: number) {
   return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(cents / 100);

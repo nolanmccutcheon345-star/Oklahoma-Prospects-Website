@@ -1,3 +1,4 @@
+import { processingInclusiveCents } from "../../processing-prices.js";
 /* Prospects Team Management OS — paste block 3 of 5: the pricing engine
    Use verbatim. This bills real families. Use exactly as written — do not rewrite or simplify. */
 
@@ -19,13 +20,15 @@ function membershipMonths(team, player) {
  roll-up and the individual invoice can never drift apart.        */
 
 
+function seasonPrice(net, step) { return processingInclusiveCents(Math.round(roundTo(net, step) * 100), Math.max(1, Math.round((Number(step) || 1) * 100)), 13) / 100; }
+
 function computedFee(s, p, team, player) {
- if (!player) return roundTo(p.perPlayerTeam + p.coachPerPlayer + s.membershipMonthly * p.months + p.orgFee + p.uniformCost, s.roundStep);
+ if (!player) return seasonPrice(p.perPlayerTeam + p.coachPerPlayer + s.membershipMonthly * p.months + p.orgFee + p.uniformCost, s.roundStep);
  const teamPart = player.roleType === "po" ? p.perPlayerTeam * (s.poTeamCostPct / 100) : p.perPlayerTeam;
  const org = p.orgFee;
  const membership = s.membershipMonthly * membershipMonths(team, player);
  const uniform = player.uniformWaived ? 0 : p.uniformCost;
- return roundTo(teamPart + p.coachPerPlayer + membership + org + uniform, s.roundStep);
+ return seasonPrice(teamPart + p.coachPerPlayer + membership + org + uniform, s.roundStep);
 }
 
 /* What the family actually owes. Once they sign, the number is frozen at the
@@ -153,8 +156,8 @@ function priceTeam(state, team) {
  const uniformCost = pkg ? pkg.price : 0;
  const orgFee = clamp(team.orgFee, s.orgFeeMin, s.orgFeeMax);
  const raw = perPlayerTeam + coachPerPlayer + membershipPerPlayer + orgFee + uniformCost;
- const published = roundTo(raw, s.roundStep);
- const publishedNoUniform = roundTo(raw - uniformCost, s.roundStep);
+ const published = seasonPrice(raw, s.roundStep);
+ const publishedNoUniform = seasonPrice(raw - uniformCost, s.roundStep);
 
  const base = { perPlayerTeam, coachPerPlayer, months, orgFee, uniformCost, published };
  const active = team.roster.filter((pl) => !pl.withdrawn);
@@ -196,8 +199,10 @@ function playerBalance(state, team, player) {
 
 
 function depositFor(state, team, player) {
+ if (player?.planLock) return player.planLock.dep;
  const p = priceTeam(state, team);
- return roundTo(p.perPlayerTeam + p.orgFee * 0.5, 25);
+ const net = roundTo(p.perPlayerTeam + p.orgFee * 0.5, 25);
+ return player?.feeLock ? net : processingInclusiveCents(Math.round(net * 100), 2500) / 100;
 }
 
 

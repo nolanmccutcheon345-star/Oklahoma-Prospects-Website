@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { DeskCard, NumRows } from "@/components/teams/desk-kit";
 import { useTeams } from "@/lib/teams/context";
@@ -40,12 +40,7 @@ export function SignFlow({
   const numberOk = Number.isInteger(num) && num >= 1 && num <= 99;
   const conflict = numberOk && taken.has(String(num));
 
-  const surchargeCopy = useMemo(() => {
-    if (!os.state.settings.cardSurchargeEnabled || charge.fee === 0) {
-      return "No card surcharge on this deposit.";
-    }
-    return `Card surcharge ${os.state.settings.cardFeePct}% is ${formatTeamMoney(charge.fee)}. Shown before you confirm.`;
-  }, [os.state.settings, charge.fee]);
+  const surchargeCopy = "Processing costs are included in the displayed price. No added card fee.";
 
   function nextFromOne() {
     if (!nameOk) {

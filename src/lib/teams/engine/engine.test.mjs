@@ -159,7 +159,7 @@ describe("Pricing engine", () => {
     assert.equal(priced.orgFee, 600);
     assert.equal(priced.uniformCost, 325);
     assert.equal(priced.raw, 2354.5);
-    assert.equal(priced.published, 2375);
+    assert.equal(priced.published, 2450);
   });
 
   it("adds two extra players at twice published-minus-uniform margin", () => {

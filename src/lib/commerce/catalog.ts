@@ -1,6 +1,6 @@
 import { PRICES } from "../pricing";
 import type { Product } from "./contracts";
-export const CATALOG_VERSION = "2026-09-square-1";
+export const CATALOG_VERSION = "2026-09-processing-included";
 /** Availability is operational; approved amounts cannot be overwritten by a browser or dollar-valued desk row. */
 export function approvedProducts(rows: Product[]): Product[] {
   return rows

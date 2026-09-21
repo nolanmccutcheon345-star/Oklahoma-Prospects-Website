@@ -94,12 +94,12 @@ function sheetClub() {
 }
 
 describe("Family money", () => {
-  it("charges the card fee for real and records amount, fee, and total separately", () => {
+  it("uses the same posted amount for card and bank payments", () => {
     const { club } = sheetClub();
     const card = chargeOf(club, 1000, "card");
     assert.equal(card.amount, 1000);
-    assert.equal(card.fee, 30);
-    assert.equal(card.totalCharged, 1030);
+    assert.equal(card.fee, 0);
+    assert.equal(card.totalCharged, 1000);
     const ach = chargeOf(club, 1000, "ach");
     assert.equal(ach.fee, 0);
     assert.equal(ach.totalCharged, 1000);
@@ -199,7 +199,7 @@ describe("Admin money", () => {
       actor: "parent",
     });
     assert.equal(made.ok, true);
-    assert.equal(made.charge.fee, Math.round(due * 0.03));
+    assert.equal(made.charge.fee, 0);
     assert.equal(made.charge.totalCharged, due + made.charge.fee);
     const last = player.payments.at(-1);
     assert.equal(last.amount, due);

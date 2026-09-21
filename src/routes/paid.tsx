@@ -77,7 +77,7 @@ function Paid() {
       </h1>
       <p className="my-5" role="status">
         {status === "pending_fee"
-          ? "Your membership payment was received. The separate $50 first-month fee is still due. No booking is confirmed until both payments succeed."
+          ? "Your membership payment was received. The separate first-month fee shown in your order is still due. No booking is confirmed until both payments succeed."
           : status === "paid"
             ? `${formatMoney(amount)} received. Your saved booking and receipt are in your account. An assessment stays incomplete until your coach completes it.`
             : status === "payment_review"

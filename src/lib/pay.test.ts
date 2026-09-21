@@ -6,7 +6,7 @@ import { calculateQuote, type Product } from "./commerce/contracts";
 
 const catalog = buildPublicCatalog([]);
 
-test("household booking keeps its $50 rate and choices through sign-in", () => {
+test("household booking keeps its posted rate and choices through sign-in", () => {
   const selection = parsePaySearch({ kind: "cage", id: "individual", cages: "1", minutes: 60,
     date: "2026-09-18", time: "16:00", use: "household", athleteCount: 2 });
   const restored = parsePaySearch(Object.fromEntries(new URL(checkoutReturnPath(selection), "https://example.com").searchParams));
@@ -17,7 +17,7 @@ test("household booking keeps its $50 rate and choices through sign-in", () => {
   const quote = calculateQuote({ requestId: "unused", productId: "individual", kind: "cage",
     laneIds: ["1"], duration: restored.minutes, household: party.household, athleteCount: party.count,
     consent: false, name: "Test", email: "test@example.com" }, rates.find(p => p.id === "individual")!, false, rates);
-  assert.equal(quote.totalCents, 5000);
+  assert.equal(quote.totalCents, 5250);
   assert.equal(quote.teamRate, false);
 });
 
@@ -35,32 +35,32 @@ test("sign-in return path excludes payment and assessment claims and retains tea
 test("two cages at two hours charge for both", () => {
   const item = quoteCages(catalog, { rate: "individual", laneIds: ["1", "2"], minutes: 120 });
   assert.ok(item);
-  assert.equal(item.price, 200);
+  assert.equal(item.price, 210);
   assert.equal(item.lines.length, 2);
   assert.ok(item.title.includes("2 cages"));
 });
 
-test("two cages at 90 minutes is $150 not $50", () => {
+test("two cages at 90 minutes use the combined posted price", () => {
   const item = quoteCheckout(
     { kind: "cage", id: "individual", cages: "1,2", minutes: 90, use: "household" },
     catalog,
     true,
   );
   assert.ok(item);
-  assert.equal(item.price, 150);
-  assert.equal(item.lines.reduce((sum, line) => sum + line.amount, 0), 150);
+  assert.equal(item.price, 157.5);
+  assert.equal(item.lines.reduce((sum, line) => sum + line.amount, 0), 157.5);
 });
 
 test("fielding plus a hitting lane at one hour", () => {
   const item = quoteCages(catalog, { rate: "individual", laneIds: ["6", "3-4"], minutes: 60 });
   assert.ok(item);
-  assert.equal(item.price, 125);
+  assert.equal(item.price, 130.5);
 });
 
 test("team rate applies to cage lanes only", () => {
   const item = quoteCages(catalog, { rate: "team", laneIds: ["1", "3-4"], minutes: 60, use: "team" });
   assert.ok(item);
-  assert.equal(item.price, 135);
+  assert.equal(item.price, 140.5);
 });
 
 test("three cages force the team rate", () => {
@@ -71,7 +71,7 @@ test("three cages force the team rate", () => {
     use: "household",
   });
   assert.ok(item);
-  assert.equal(item.price, 180);
+  assert.equal(item.price, 187.5);
   assert.equal(item.use, "team");
 });
 
@@ -81,7 +81,7 @@ test("resolvePayItem reads cages from the search string", () => {
     catalog,
   );
   assert.ok(item);
-  assert.equal(item.price, 150);
+  assert.equal(item.price, 157.5);
   assert.deepEqual(item.laneIds, ["1", "5"]);
 });
 
@@ -91,16 +91,16 @@ test("hour lesson is locked until assessment completion", () => {
   assert.match(item.error || "", /assessment/i);
 });
 
-test("hour lesson with assessment stays $100", () => {
+test("hour lesson with assessment uses its posted price", () => {
   const item = quoteCheckout({ kind: "lesson", id: "s3" }, catalog, true);
   assert.ok(item);
-  assert.equal(item.price, 100);
+  assert.equal(item.price, 104);
 });
 
-test("development first month without assessment is $289", () => {
+test("development first month includes the posted setup price", () => {
   const item = quoteCheckout({ kind: "membership", id: "m1" }, catalog, false);
   assert.ok(item);
-  assert.equal(item.price, 289);
+  assert.equal(item.price, 299);
 });
 
 test("household cage plan is blocked for team use", () => {

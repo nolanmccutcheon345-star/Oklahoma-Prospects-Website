@@ -1,3 +1,4 @@
+import { PRICES, formatMoney as priceMoney } from "@/lib/pricing";
 import { checkoutLessonService } from "@/lib/commerce/coach-services";
 import { pageHead } from "@/lib/seo";
 import { createFileRoute, Link } from "@tanstack/react-router";
@@ -332,7 +333,7 @@ function PayPage() {
             {quote?.teamRate ? (
               <p className="mt-2 text-powder">
                 Team rate applies to three or more athletes, three or more spaces, or non-household
-                use. Fielding is always $75/hour.
+                use. Fielding is {priceMoney(PRICES.field)}/hour.
               </p>
             ) : null}
             {recurring && quote ? (

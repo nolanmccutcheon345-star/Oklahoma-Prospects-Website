@@ -1,4 +1,4 @@
-import { dollars } from "./pricing";
+import { dollars, formatMoney, PRICES } from "./pricing";
 export const CLUB = {
   name: "Oklahoma Prospects",
   shortName: "Oklahoma Prospects",
@@ -109,7 +109,7 @@ export const RENTALS: {
   {
     id: "individual",
     name: "Individual cage",
-    price: 50,
+    price: dollars("individual"),
     unit: "/ hour",
     summary: "One cage. Focused hitting or pitching work.",
     lanes: "Lanes 1, 2, 5, 6, 7",
@@ -138,9 +138,9 @@ export const MEMBERSHIPS = [
     price: dollars("prospect"),
     period: "/ month",
     hours: 2,
-    hourly: "$39.50 / included hour",
+    hourly: `${formatMoney(Math.round(PRICES.prospect / 2))} / included hour`,
     bestFor: "One athlete · two sessions a month",
-    savings: "About $21 vs two drop-in hours",
+    savings: `${formatMoney(2 * PRICES.individual - PRICES.prospect)} vs two drop-in hours`,
     featured: false,
     perks: [
       "Two 1-hour cage rentals included",
@@ -152,9 +152,9 @@ export const MEMBERSHIPS = [
     price: dollars("all-star"),
     period: "/ month",
     hours: 4,
-    hourly: "$34.75 / included hour",
+    hourly: `${formatMoney(Math.round(PRICES["all-star"] / 4))} / included hour`,
     bestFor: "The weekly trainer",
-    savings: "About $61 vs four drop-in hours",
+    savings: `${formatMoney(4 * PRICES.individual - PRICES["all-star"])} vs four drop-in hours`,
     featured: true,
     perks: [
       "Four 1-hour cage rentals included",
@@ -167,7 +167,7 @@ export const MEMBERSHIPS = [
     price: dollars("elite-family"),
     period: "/ month",
     hours: 6,
-    hourly: "$33.17 / included hour",
+    hourly: `${formatMoney(Math.round(PRICES["elite-family"] / 6))} / included hour`,
     bestFor: "Two household athletes",
     savings: "Six hours to split across the household",
     featured: false,
@@ -361,7 +361,7 @@ export const FAQ = [
   },
   {
     q: "I’m new. Where do I start?",
-    a: "Want reps today? Book a cage. Want coaching? Start with an assessment — pitching 75 min / $149, hitting 60 min / $150. Private hours are $100 after that. Ordinary lessons and packages unlock after your coach completes your assessment. Monthly coaching is four sessions a month from $239.",
+    a: `Want reps today? Book a cage. Want coaching? Start with an assessment — pitching 75 min / ${formatMoney(PRICES.s1)}, hitting 60 min / ${formatMoney(PRICES.s9)}. Private hours are ${formatMoney(PRICES.s3)} after that. Ordinary lessons and packages unlock after your coach completes your assessment. Monthly coaching is four sessions a month from ${formatMoney(PRICES.m1)}.`,
   },
   {
     q: "What if I need to cancel?",

@@ -38,29 +38,29 @@ const product = (id: keyof typeof PRICES, kind: string): Product => ({
 
 test("all approved products use independently specified base prices", () => {
   const expected = {
-    prospect: 7900,
-    "all-star": 13900,
-    "elite-family": 19900,
-    m1: 23900,
-    m2: 38900,
-    m3: 44900,
-    m4: 15900,
-    m5: 17900,
-    p1: 22000,
-    p2: 38500,
-    p3: 74000,
-    s1: 14900,
-    s2: 6000,
-    s3: 10000,
-    s4: 12900,
-    s5: 4500,
-    s6: 15900,
-    s7: 6000,
-    s8: 10000,
-    s9: 15000,
-    s10: 6000,
-    s11: 10000,
-    s12: 10000,
+    prospect: 8200,
+    "all-star": 14400,
+    "elite-family": 20600,
+    m1: 24700,
+    m2: 40100,
+    m3: 46300,
+    m4: 16500,
+    m5: 18500,
+    p1: 22700,
+    p2: 39700,
+    p3: 76300,
+    s1: 15400,
+    s2: 6300,
+    s3: 10400,
+    s4: 13400,
+    s5: 4700,
+    s6: 16500,
+    s7: 6300,
+    s8: 10400,
+    s9: 15500,
+    s10: 6300,
+    s11: 10400,
+    s12: 10400,
   };
   for (const [key, cents] of Object.entries(expected)) {
     const id = key as keyof typeof PRICES;
@@ -103,7 +103,7 @@ test("all ordinary lessons and packages are locked until assessment completion; 
       product(id, "membership"),
       false,
     );
-    assert.equal(quote.totalCents, PRICES[id] + 5000);
+    assert.equal(quote.totalCents, PRICES[id] + 5200);
     assert.equal(quote.regularCents, PRICES[id]);
   }
 });
@@ -125,10 +125,10 @@ test("checkout rejects price, assessment, total and fee tampering", () => {
 test("team rate at three athletes or spaces; fielding cents and duplicate lanes", () => {
   const rates = [product("individual", "cage"), product("team", "cage"), product("field", "cage")];
   const base = request({ kind: "cage", productId: "individual", duration: 30, laneIds: ["3-4"] });
-  assert.equal(calculateQuote(base, rates[0], false, rates).totalCents, 3750);
+  assert.equal(calculateQuote(base, rates[0], false, rates).totalCents, 3900);
   assert.equal(
     calculateQuote({ ...base, laneIds: ["1", "1"] }, rates[0], false, rates).totalCents,
-    2500,
+    2625,
   );
   const team = calculateQuote(
     { ...base, duration: 60, laneIds: ["1", "2", "5"] },
@@ -136,7 +136,7 @@ test("team rate at three athletes or spaces; fielding cents and duplicate lanes"
     false,
     rates,
   );
-  assert.equal(team.totalCents, 18000);
+  assert.equal(team.totalCents, 18750);
   assert.equal(team.teamRate, true);
   assert.equal(
     calculateQuote(
@@ -145,7 +145,7 @@ test("team rate at three athletes or spaces; fielding cents and duplicate lanes"
       false,
       rates,
     ).totalCents,
-    6000,
+    6250,
   );
   assert.throws(
     () =>
