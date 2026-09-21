@@ -26,3 +26,21 @@ export function validatePayment(p: any, row: any, location: string) {
     refunded,
   };
 }
+
+export function validCheckoutUrl(value: unknown, environment: string): boolean {
+  if (typeof value !== "string") return false;
+  try {
+    const url = new URL(value);
+    const hosts =
+      environment === "sandbox" ? ["sandbox.square.link"] : ["square.link", "checkout.square.site"];
+    return (
+      url.protocol === "https:" &&
+      !url.username &&
+      !url.password &&
+      !url.port &&
+      hosts.includes(url.hostname)
+    );
+  } catch {
+    return false;
+  }
+}

@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { PGlite } from "@electric-sql/pglite";
-import { validatePayment } from "./payment-validation";
+import { validatePayment, validCheckoutUrl } from "./payment-validation";
 
 const row = { order_id: "fundraising-order", amount: 5000 };
 const payment = {
@@ -102,4 +102,17 @@ test("Postgres fundraising migration enforces ownership and unique payment attri
   } finally {
     await pg.close();
   }
+});
+
+test("checkout links stay on the matching Square environment", () => {
+  assert.ok(validCheckoutUrl("https://sandbox.square.link/u/test", "sandbox"));
+  assert.ok(validCheckoutUrl("https://square.link/u/test", "production"));
+  for (const url of [
+    "https://sandbox.square.link/u/test",
+    "https://square.link.evil.test/",
+    "http://square.link/u/test",
+    "https://user:pass@square.link/u/test",
+  ])
+    assert.equal(validCheckoutUrl(url, "production"), false);
+  assert.equal(validCheckoutUrl("https://square.link/u/test", "sandbox"), false);
 });

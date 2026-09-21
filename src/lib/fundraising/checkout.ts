@@ -1,3 +1,4 @@
+import { validCheckoutUrl } from "./payment-validation";
 import {
   body,
   db,
@@ -87,10 +88,7 @@ export async function POST(req: Request) {
       payment_note: `Prospects fundraiser ${id}; player ${player.id}`,
     });
     const link = result.payment_link;
-    if (
-      !link?.order_id ||
-      !/^https:\/\/(square\.link|checkout\.square\.site)\//.test(link.url || "")
-    )
+    if (!link?.order_id || !validCheckoutUrl(link.url, c.SQUARE_ENVIRONMENT))
       throw new AppError("Square could not open a verified checkout.", 503);
     await db()
       .prepare("UPDATE fundraising_contributions SET order_id=$1,checkout_url=$2 WHERE id=$3")
