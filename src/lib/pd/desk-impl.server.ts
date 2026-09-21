@@ -14,6 +14,7 @@ import { seedDevelopment } from "./seed";
 import type { DevelopmentData, Family, Message } from "./types";
 
 import { withCommerceRecords } from "../commerce/development.server";
+import { currentCatalogPrice } from "../pricing";
 
 const FILE_ID = "club";
 
@@ -27,8 +28,10 @@ export async function readWorkingFile(): Promise<DevelopmentData> {
   const empty = emptyDevelopment();
   // Curriculum/catalog defaults are public. Never manufacture athletes or household data.
   const defaults = seedDevelopment();
-  empty.services = defaults.services; empty.packages = defaults.packages;
-  empty.memberships = defaults.memberships; empty.videoStandards = defaults.videoStandards;
+  empty.services = defaults.services.map(currentCatalogPrice);
+  empty.packages = defaults.packages.map(currentCatalogPrice);
+  empty.memberships = defaults.memberships.map(currentCatalogPrice);
+  empty.videoStandards = defaults.videoStandards;
   if (!row) return withCommerceRecords(sql, { ...empty, revision: 0 });
   const parsed = typeof row.payload === "string" ? JSON.parse(row.payload) : row.payload;
   return withCommerceRecords(sql, { ...hydrateWorkingFile(parsed, empty), revision: row.revision });

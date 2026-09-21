@@ -46,3 +46,17 @@ All 502 tests passed; a final focused team-pricing run passed 18 tests after ret
 Automatic approval review rejected GitHub create_tree twice. It required explicit permission to publish modified source to the public `nolanmccutcheon345-star/Oklahoma-Prospects-Website` repository, even after read-only verification of the connected user's admin/push rights and that repository's README identifying prospectsbaseball.club. Do not retry the upload until that explicit approval is supplied. The complete change is committed locally on `processing-inclusive-prices`; no PR or remote branch was created.
 
 Netlify CLI login is awaiting owner reconnection. No Netlify credentials were retrieved or changed. Resume the supported authentication and release workflow after approval. Preserve current paid records, live gates, release locks, and existing subscription prices.
+
+## Published release and catalog follow-up
+
+PR #14 passed GitHub CI and was published from `89a823d631ae72490ad48d967ea3e1242561f2c9` on September 21, 2026 at 20:58 UTC. Netlify deployment `6ab19a5658d87dd6cfa6447f` is ready in production with its release lock restored. Netlify confirms migrations 0025 and 0026 applied; recovery snapshots were created before and during publishing. Public HTTP checks passed on preview and production, and browser checks verified rental prices and half-hour totals. See PR #14 for complete release evidence.
+
+The final membership-page review identified older standalone monthly team rates and a few catalog defaults outside `PRICES`. The follow-up applies the same processing budget to those posted team rates and reads private lesson and development catalog defaults from shared current prices. Historical seed bookings retain their saved amounts. All-Star per-hour copy now follows its current monthly price.
+
+| Team monthly plan (four visits) | 1 hour | 90 min | 2 hours |
+|---|---:|---:|---:|
+| One cage | $226 | $340 | $453 |
+| Two cages | $412 | $618 | $824 |
+| Field / team area | $298 | $443 | $566 |
+
+These remain office-invoiced plans; the follow-up does not create or reprice existing invoices or subscriptions.
