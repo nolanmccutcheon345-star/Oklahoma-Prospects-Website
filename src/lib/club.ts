@@ -1,4 +1,5 @@
 import { dollars, formatMoney, PRICES } from "./pricing";
+import { processingInclusiveCents } from "./processing-prices.js";
 export const CLUB = {
   name: "Oklahoma Prospects",
   shortName: "Oklahoma Prospects",
@@ -179,7 +180,7 @@ export const MEMBERSHIPS = [
   },
 ] as const;
 
-export const TEAM_MEMBERSHIPS = [
+const TEAM_MEMBERSHIP_NET_RATES = [
   {
     space: "One cage",
     rates: [
@@ -206,6 +207,14 @@ export const TEAM_MEMBERSHIPS = [
   },
 ] as const;
 
+export const TEAM_MEMBERSHIPS = TEAM_MEMBERSHIP_NET_RATES.map(row => ({
+  ...row,
+  rates: row.rates.map(rate => ({
+    ...rate,
+    price: processingInclusiveCents(rate.price * 100, 100) / 100,
+  })),
+}));
+
 export const LESSONS = [
   {
     name: "New Pitcher Assessment",
@@ -223,13 +232,13 @@ export const LESSONS = [
     name: "Private 30",
     detail: "Pitching, hitting, or catching",
     dest: "lessons" as const,
-    prices: [{ label: "30 min", price: 60 }],
+    prices: [{ label: "30 min", price: dollars("s2") }],
   },
   {
     name: "Private 60",
     detail: "Pitching, hitting, catching, or fielding",
     dest: "lessons" as const,
-    prices: [{ label: "60 min", price: 100 }],
+    prices: [{ label: "60 min", price: dollars("s3") }],
   },
 ] as const;
 
@@ -345,7 +354,7 @@ export const FAQ = [
   },
   {
     q: "What does a cage hour cost?",
-    a: "That is the one-off household rate for one cage. A monthly cage pass brings the hour down — All-Star is under $35 an hour with first pick of times.",
+    a: `One household cage hour is ${formatMoney(PRICES.individual)}. A monthly cage pass brings the hour down — All-Star is ${formatMoney(Math.round(PRICES["all-star"] / 4))} per included hour, with first pick of times.`,
   },
   {
     q: "Are you open during the day?",

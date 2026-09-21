@@ -18,6 +18,11 @@ export const PRICES = Object.fromEntries(Object.entries(NET_PRICES).map(([id, ne
 export const ASSESSMENT_PRODUCTS = new Set<string>(["s1", "s4", "s9"]);
 export const FIRST_MONTH_SETUP_CENTS = processingInclusiveCents(5000, 100);
 export function dollars(id: keyof typeof PRICES) { return PRICES[id] / 100; }
+/** Apply current catalog defaults without changing saved bookings or payments. */
+export function currentCatalogPrice<T extends { id: string; price: number }>(item: T): T {
+  const cents = PRICES[item.id as keyof typeof PRICES];
+  return cents === undefined ? item : { ...item, price: cents / 100 };
+}
 export function formatMoney(cents: number) {
   return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(cents / 100);
 }
