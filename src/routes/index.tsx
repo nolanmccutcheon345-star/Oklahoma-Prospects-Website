@@ -1,3 +1,4 @@
+import { PRICES, formatMoney } from "@/lib/pricing";
 import {useLiveCatalog} from "@/lib/use-catalog";
 import {pageHead} from "@/lib/seo";
 import { createFileRoute, Link } from "@tanstack/react-router";
@@ -75,7 +76,7 @@ function Home() {
         <div className="mt-5 grid gap-3">
           <PathCard
             to="/book"
-            kicker="From $50 / hour"
+            kicker={`From ${formatMoney(PRICES.individual)} / hour`}
             title="Book a cage"
             body="One cage or several at the same time. Payment is required to confirm your booking."
           />

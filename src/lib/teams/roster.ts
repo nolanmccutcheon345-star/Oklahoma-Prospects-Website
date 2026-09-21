@@ -151,9 +151,7 @@ export function takenNumbers(team: OsTeam, exceptId?: string | null): Set<string
 
 export function depositChargeFor(club: ClubOs, team: OsTeam): OsDepositCharge {
   const amount = Number(depositFor(club, team, null)) || 0;
-  const pct = club.settings.cardSurchargeEnabled ? Number(club.settings.cardFeePct) || 0 : 0;
-  const fee = Math.round(amount * (pct / 100));
-  return { amount, fee, totalCharged: amount + fee };
+  return { amount, fee: 0, totalCharged: amount };
 }
 
 export function scheduleCommitted(team: OsTeam): boolean {

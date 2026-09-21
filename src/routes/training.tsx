@@ -1,3 +1,4 @@
+import { FIRST_MONTH_SETUP_CENTS, formatMoney } from "@/lib/pricing";
 import {pageHead} from "@/lib/seo";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
@@ -79,7 +80,7 @@ function CatalogAndBook() {
         <h2 className="mt-2 text-3xl">Monthly development</h2>
         <p className="mt-2 text-sm text-muted">
           Four coached sessions a month, a written plan, and tracking. First month
-          adds $50 if there is no assessment on file.
+          adds {formatMoney(FIRST_MONTH_SETUP_CENTS)} if there is no assessment on file.
         </p>
         <div className="mt-4 grid gap-3">
           {catalog.memberships.map((plan) => {

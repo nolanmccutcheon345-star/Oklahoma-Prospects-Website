@@ -1,3 +1,4 @@
+import { processingInclusiveCents } from "../processing-prices.js";
 import type { ClubRecord, Player, Settings, Team } from "./types";
 
 export function roundUp(value: number, step: number) {
@@ -35,8 +36,8 @@ export function priceComponents(
   );
   const teamCostPart = roleType === "po" ? teamShare * 0.7 : teamShare;
   const raw = teamCostPart + coachShare + membership + orgFee + uniformPrice;
-  const published = roundUp(raw, settings.roundTo);
-  const deposit = roundUp(teamCostPart + orgFee / 2, settings.roundTo);
+  const published = processingInclusiveCents(Math.round(roundUp(raw, settings.roundTo) * 100), Math.max(1, Math.round(settings.roundTo * 100)), 13) / 100;
+  const deposit = processingInclusiveCents(Math.round((teamCostPart + orgFee / 2) * 100), Math.max(1, Math.round(settings.roundTo * 100))) / 100;
   return {
     teamCost: teamCostPart,
     coaching: coachShare,

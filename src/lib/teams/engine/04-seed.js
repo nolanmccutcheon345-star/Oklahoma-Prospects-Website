@@ -503,7 +503,7 @@ function seedState() {
    membershipMonthly: 200,
    facilityPerTeamMonth: 500,
    fundingPlayers: 10,
-   cardFeePct: 3,
+   cardFeePct: 0,
    orgFeeMin: 300,
    orgFeeMax: 750,
    coachMin: 1250,
@@ -518,7 +518,7 @@ function seedState() {
    orgName: "Oklahoma Prospects",
    poTeamCostPct: 70,          // pitcher-only share of the team-cost component
    sponsorCreditPct: 50,        // share of a sold sponsorship credited to that family
-   cardSurchargeEnabled: true,
+   cardSurchargeEnabled: false,
    acquisitionSpend: 0,
    membershipIncludes: [
     "Weekly cage time at the Broken Arrow facility",

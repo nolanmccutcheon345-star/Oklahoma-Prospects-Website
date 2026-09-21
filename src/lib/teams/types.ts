@@ -246,7 +246,7 @@ export const DEFAULT_SETTINGS: Settings = {
   membershipMonthly: 200,
   facilityMonthly: 500,
   fundingPlayers: 10,
-  cardFeePct: 0.03,
+  cardFeePct: 0,
   orgFeeFloor: 300,
   orgFeeCeiling: 750,
   coachPayMin: 1250,

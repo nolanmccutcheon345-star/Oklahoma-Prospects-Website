@@ -1,3 +1,4 @@
+import { dollars } from "@/lib/pricing";
 import {pageHead} from "@/lib/seo";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState, type FormEvent } from "react";
@@ -85,8 +86,8 @@ function BookingFunnel({ initial }: { initial?: string }) {
   useEffect(()=>{let cancelled=false;setSlots([]);setError("");if(!lanes.length)return;setLoadingSlots(true);void getCageAvailability({data:{date,duration,laneIds:lanes}}).then(rows=>{if(!cancelled)setSlots(rows);}).catch(e=>{if(!cancelled)setError(e instanceof Error?e.message:"Availability could not load.");}).finally(()=>{if(!cancelled)setLoadingSlots(false);});return()=>{cancelled=true;};},[date,duration,lanes]);
   const quote = quoteCages(catalog, { rate, laneIds: lanes, minutes: duration, use });
   const total = quote?.price ?? 0;
-  const householdHour = catalog.cages.find((row) => row.id === "individual")?.price ?? 50;
-  const teamHour = catalog.cages.find((row) => row.id === "team")?.price ?? 60;
+  const householdHour = catalog.cages.find((row) => row.id === "individual")?.price ?? dollars("individual");
+  const teamHour = catalog.cages.find((row) => row.id === "team")?.price ?? dollars("team");
 
   function toggleLane(id: BookableLaneId) {
     setLanes((prev) => (prev.includes(id) ? prev.filter((row) => row !== id) : [...prev, id]));
@@ -188,7 +189,7 @@ function BookingFunnel({ initial }: { initial?: string }) {
           const on = lanes.includes(item.id);
           const hourly =
             item.group === "field"
-              ? catalog.cages.find((row) => row.id === "field")?.price ?? 75
+              ? catalog.cages.find((row) => row.id === "field")?.price ?? dollars("field")
               : catalog.cages.find((row) => row.id === rate)?.price ?? (rate === "team" ? 60 : 50);
           return (
             <label

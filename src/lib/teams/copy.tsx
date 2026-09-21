@@ -62,7 +62,7 @@ const EN: Record<string, string> = {
   "family.noSession": "No session posted.",
   "family.fees": "Fees",
   "family.payTitleClear": "This invoice is clear.",
-  "family.payCopy": "Bank draft is free. Card adds a surcharge — amount, fee, and total charged are recorded separately.",
+  "family.payCopy": "Processing costs are included in the displayed price. No added card fee.",
   "player.noRoster": "You are not on a roster yet.",
   "player.noRosterCopy": "When the invite is accepted, this desk fills in.",
   "player.noStats": "No stats yet.",

@@ -116,7 +116,7 @@ export const recordTeamPayment = createServerFn({ method: "POST" })
     if (due > 0 && data.amount > due + 1) {
       throw new Error(`That is more than the balance (${due}).`);
     }
-    const fee = data.method === "card" ? Math.round(data.amount * stored.settings.cardFeePct * 100) / 100 : 0;
+    const fee = 0; // Processing is included in new offers; no method-specific add-on.
     player.payments.push({
       date: new Date().toISOString().slice(0, 10),
       amount: data.amount,

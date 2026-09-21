@@ -8,7 +8,8 @@ test("office mutations reject malformed amounts, roles, privileges and split ass
     expires_days:0,hours:0,featured:false,detail:"",includes:[],unit:"",lanes:"",period:"",hourly:"",
     bestFor:"",savings:"",perks:[],active:true};
   assert.equal(serviceInput.parse(service).price,149);
-  for (const price of [-1,149.50,Infinity,"149"]) assert.throws(()=>serviceInput.parse({...service,price}));
+  assert.equal(serviceInput.parse({...service,price:149.50}).price,149.50);
+  for (const price of [-1,149.501,Infinity,"149"]) assert.throws(()=>serviceInput.parse({...service,price}));
   assert.throws(()=>serviceInput.parse({...service,active:"false"}));
   const account={name:"Coach",email:"coach@example.invalid",role:"coach",playerName:""};
   assert.throws(()=>accountInput.parse({...account,emailVerified:true}));

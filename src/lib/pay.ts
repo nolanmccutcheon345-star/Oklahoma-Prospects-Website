@@ -1,4 +1,4 @@
-import { eligibility } from "./pricing";
+import { eligibility, dollars } from "./pricing";
 import { BOOKABLE_LANES, HOUSEHOLD_CAGE_PLAN_IDS, type BookableLaneId } from "@/lib/club";
 import { ASSESSMENT_IDS, findLesson } from "@/lib/catalog";
 import { PD_POLICY } from "@/lib/pd";
@@ -90,7 +90,7 @@ function hourlyFor(
   catalog: PublicCatalog,
   id: "individual" | "team" | "field",
 ) {
-  return catalog.cages.find((item) => item.id === id)?.price ?? (id === "field" ? 75 : id === "team" ? 60 : 50);
+  return catalog.cages.find((item) => item.id === id)?.price ?? dollars(id);
 }
 
 export function isTeamUse(use: string | undefined, laneIds: string[]): boolean {

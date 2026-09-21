@@ -9,8 +9,8 @@ test("catalog paste is complete", () => {
   assert.equal(PACKAGES_INIT.length, 3);
   assert.equal(MEMBERSHIPS_INIT.length, 5);
   assert.equal(SERVICES_INIT[0].coachSplit, 55);
-  assert.equal(MEMBERSHIPS_INIT[2].price, 449);
-  assert.equal(MEMBERSHIPS_INIT[0].price, 239);
+  assert.equal(MEMBERSHIPS_INIT[2].price, 463);
+  assert.equal(MEMBERSHIPS_INIT[0].price, 247);
 });
 
 test("earnings stay pending until complete", () => {

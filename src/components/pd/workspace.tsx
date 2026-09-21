@@ -1,3 +1,4 @@
+import { PRICES, formatMoney } from "@/lib/pricing";
 import {DevelopmentBoard} from "@/components/commerce/development-board";
 import {CoachProfile} from "@/components/commerce/coach-profile";
 import { CoachSessions } from "@/components/commerce/coach-sessions";
@@ -317,7 +318,7 @@ function HomeDesk({
               ? "Private 30s and 60s are open."
               : hideMoney
                 ? "Book with a parent. Assessment still needed before private lessons."
-                : "Private lessons are open with a $50 first-lesson fee until an assessment is on file. An hour is $150 instead of $100."}
+                : "Complete an assessment with your coach before buying ordinary lessons or packages."}
           </p>
           <div className="mt-4 grid grid-cols-2 gap-2">
             <Stat label="Upcoming" value={String(reservations.length)} inverse />
@@ -666,7 +667,7 @@ function AssessDesk({ athlete, onSaved }: { athlete: string; onSaved: () => void
   return (
     <section>
       <h3 className="text-2xl">New pitcher assessment</h3>
-      <p className="mt-1 text-sm text-muted">75 minutes. Health screen, then eight phases. $149. Not an ordinary lesson.</p>
+      <p className="mt-1 text-sm text-muted">75 minutes. Health screen, then eight phases. {formatMoney(PRICES.s1)}. Not an ordinary lesson.</p>
       <ol className="mt-4 grid gap-2">
         {ASSESSMENT_PHASES.map((phase, index) => (
           <li key={phase} className="flex gap-3 rounded-xl bg-paper-2 px-4 py-3 shadow-border">

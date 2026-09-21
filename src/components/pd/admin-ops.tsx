@@ -90,8 +90,10 @@ function NumberField({
   label,
   value,
   onChange,
+  step = 1,
 }: {
   label: string;
+  step?: number;
   value: number;
   onChange: (n: number) => void;
 }) {
@@ -100,6 +102,7 @@ function NumberField({
       {label}
       <input
         type="number"
+        step={step}
         min={0}
         value={Number.isFinite(value) ? value : 0}
         onChange={(event) => onChange(Number(event.target.value) || 0)}
@@ -209,7 +212,7 @@ export function AdminServicesDesk() {
             />
           </label>
           <div className="grid grid-cols-2 gap-3">
-            <NumberField label="Price ($)" value={editing.price} onChange={(price) => setEditing({ ...editing, price })} />
+            <NumberField label="Price ($)" step={0.01} value={editing.price} onChange={(price) => setEditing({ ...editing, price })} />
             <NumberField label="Minutes" value={editing.minutes} onChange={(minutes) => setEditing({ ...editing, minutes })} />
           </div>
           <label className="text-sm font-semibold">

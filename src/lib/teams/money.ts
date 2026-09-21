@@ -88,13 +88,8 @@ export function chargeOf(
   amount: number,
   method: OsPayMethod,
 ): { amount: number; fee: number; totalCharged: number; method: OsPayMethod } {
-  const n = Math.max(0, Math.round(Number(amount) || 0));
-  if (method === "ach") {
-    return { amount: n, fee: 0, totalCharged: n, method };
-  }
-  const pct = club.settings.cardSurchargeEnabled ? Number(club.settings.cardFeePct) || 0 : 0;
-  const fee = Math.round(n * (pct / 100));
-  return { amount: n, fee, totalCharged: n + fee, method };
+  const n = Math.max(0, Math.round((Number(amount) || 0) * 100) / 100);
+  return { amount: n, fee: 0, totalCharged: n, method };
 }
 
 export function receiptText(player: OsPlayer, team: OsTeam, pay: OsPayment): string {

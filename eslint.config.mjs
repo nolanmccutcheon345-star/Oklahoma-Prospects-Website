@@ -10,6 +10,8 @@ export default tseslint.config(
   {
     ignores: [
       "dist/**",
+      // Generated bundle emitted by the checkout render test; source is linted below.
+      "artifacts/discount-checkout-render.mjs",
       ".output/**",
       ".vercel/**",
       ".nitro/**",

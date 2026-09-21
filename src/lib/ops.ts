@@ -1,3 +1,4 @@
+import { PRICES, formatMoney } from "./pricing";
 import { revokeStaffAccess } from './staff-access.server';
 import { createServerFn } from "@tanstack/react-start";
 import { authMiddleware } from "@/lib/auth/middleware";
@@ -282,7 +283,7 @@ function mapService(row: ServiceRow): ClubService {
     kind: asKind(row.kind),
     name: row.name,
     discipline: row.discipline || "",
-    price: asInt(row.price),
+    price: Math.round(Number(row.price) * 100) / 100,
     minutes: asInt(row.minutes),
     purpose: row.purpose || "",
     entry: asBool(row.entry),
@@ -412,9 +413,9 @@ export function buildPublicCatalog(rows: ClubService[]): PublicCatalog {
           price: row.price,
           period: row.period || "/ month",
           hours: row.hours || row.credits,
-          hourly: row.hourly,
+          hourly: (row.hours || row.credits) > 0 ? `${formatMoney(Math.round(row.price * 100 / (row.hours || row.credits)))} / included hour` : row.hourly,
           bestFor: row.bestFor,
-          savings: row.savings,
+          savings: ["prospect", "all-star"].includes(row.id) ? `${formatMoney(Math.max(0, (row.hours || row.credits) * PRICES.individual - Math.round(row.price * 100)))} vs ${row.hours || row.credits} drop-in hours` : row.savings,
           featured: row.featured,
           perks: row.perks.length ? row.perks : row.includes,
         }))
@@ -452,7 +453,7 @@ async function requireAdmin(userId: string) {
   return me;
 }
 
-async function loadServices(sql: Sql) {
+export async function loadServices(sql: Sql) {
   const rows = await sql<ServiceRow>`
     select id, kind, name, discipline, price, minutes, purpose, entry, group_session,
            requires_assessment, credits, remote, expires_days, hours, featured, detail,
