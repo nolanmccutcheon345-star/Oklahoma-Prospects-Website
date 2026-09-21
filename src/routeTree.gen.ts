@@ -37,11 +37,24 @@ import { Route as VisitRouteImport } from './routes/visit'
 import { Route as VisitsRouteImport } from './routes/visits'
 import { Route as WaiverRouteImport } from './routes/waiver'
 import { Route as ApiSiteAlertsRouteImport } from './routes/api/site-alerts'
+import { Route as FundraisingIndexRouteImport } from './routes/fundraising.index'
+import { Route as FundraisingExampleRouteImport } from './routes/fundraising.example'
+import { Route as FundraisingMyRouteImport } from './routes/fundraising.my'
+import { Route as FundraisingOfficeRouteImport } from './routes/fundraising.office'
+import { Route as FundraisingThankYouRouteImport } from './routes/fundraising.thank-you'
 import { Route as GoDestRouteImport } from './routes/go.$dest'
 import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
+import { Route as ApiFundraisingCheckoutRouteImport } from './routes/api/fundraising/checkout'
+import { Route as ApiFundraisingDashboardRouteImport } from './routes/api/fundraising/dashboard'
+import { Route as ApiFundraisingExportRouteImport } from './routes/api/fundraising/export'
+import { Route as ApiFundraisingPlayersRouteImport } from './routes/api/fundraising/players'
+import { Route as ApiFundraisingReceiptRouteImport } from './routes/api/fundraising/receipt'
+import { Route as ApiFundraisingReconcileRouteImport } from './routes/api/fundraising/reconcile'
 import { Route as ApiSquareReconcileRouteImport } from './routes/api/square/reconcile'
 import { Route as ApiSquareWebhookRouteImport } from './routes/api/square/webhook'
 import { Route as ApiStripeWebhookRouteImport } from './routes/api/stripe/webhook'
+import { Route as FundraisingPIdRouteImport } from './routes/fundraising.p.$id'
+import { Route as ApiFundraisingPlayersIdRouteImport } from './routes/api/fundraising/players.$id'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -183,6 +196,31 @@ const ApiSiteAlertsRoute = ApiSiteAlertsRouteImport.update({
   path: '/api/site-alerts',
   getParentRoute: () => rootRouteImport,
 } as any)
+const FundraisingIndexRoute = FundraisingIndexRouteImport.update({
+  id: '/fundraising/',
+  path: '/fundraising/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const FundraisingExampleRoute = FundraisingExampleRouteImport.update({
+  id: '/fundraising/example',
+  path: '/fundraising/example',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const FundraisingMyRoute = FundraisingMyRouteImport.update({
+  id: '/fundraising/my',
+  path: '/fundraising/my',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const FundraisingOfficeRoute = FundraisingOfficeRouteImport.update({
+  id: '/fundraising/office',
+  path: '/fundraising/office',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const FundraisingThankYouRoute = FundraisingThankYouRouteImport.update({
+  id: '/fundraising/thank-you',
+  path: '/fundraising/thank-you',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const GoDestRoute = GoDestRouteImport.update({
   id: '/go/$dest',
   path: '/go/$dest',
@@ -191,6 +229,36 @@ const GoDestRoute = GoDestRouteImport.update({
 const ApiAuthSplatRoute = ApiAuthSplatRouteImport.update({
   id: '/api/auth/$',
   path: '/api/auth/$',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiFundraisingCheckoutRoute = ApiFundraisingCheckoutRouteImport.update({
+  id: '/api/fundraising/checkout',
+  path: '/api/fundraising/checkout',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiFundraisingDashboardRoute = ApiFundraisingDashboardRouteImport.update({
+  id: '/api/fundraising/dashboard',
+  path: '/api/fundraising/dashboard',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiFundraisingExportRoute = ApiFundraisingExportRouteImport.update({
+  id: '/api/fundraising/export',
+  path: '/api/fundraising/export',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiFundraisingPlayersRoute = ApiFundraisingPlayersRouteImport.update({
+  id: '/api/fundraising/players',
+  path: '/api/fundraising/players',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiFundraisingReceiptRoute = ApiFundraisingReceiptRouteImport.update({
+  id: '/api/fundraising/receipt',
+  path: '/api/fundraising/receipt',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiFundraisingReconcileRoute = ApiFundraisingReconcileRouteImport.update({
+  id: '/api/fundraising/reconcile',
+  path: '/api/fundraising/reconcile',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiSquareReconcileRoute = ApiSquareReconcileRouteImport.update({
@@ -207,6 +275,16 @@ const ApiStripeWebhookRoute = ApiStripeWebhookRouteImport.update({
   id: '/api/stripe/webhook',
   path: '/api/stripe/webhook',
   getParentRoute: () => rootRouteImport,
+} as any)
+const FundraisingPIdRoute = FundraisingPIdRouteImport.update({
+  id: '/fundraising/p/$id',
+  path: '/fundraising/p/$id',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiFundraisingPlayersIdRoute = ApiFundraisingPlayersIdRouteImport.update({
+  id: '/$id',
+  path: '/$id',
+  getParentRoute: () => ApiFundraisingPlayersRoute,
 } as any)
 
 export interface FileRoutesByFullPath {
@@ -238,11 +316,24 @@ export interface FileRoutesByFullPath {
   '/visits': typeof VisitsRoute
   '/waiver': typeof WaiverRoute
   '/api/site-alerts': typeof ApiSiteAlertsRoute
+  '/fundraising/example': typeof FundraisingExampleRoute
+  '/fundraising/my': typeof FundraisingMyRoute
+  '/fundraising/office': typeof FundraisingOfficeRoute
+  '/fundraising/thank-you': typeof FundraisingThankYouRoute
   '/go/$dest': typeof GoDestRoute
+  '/fundraising/': typeof FundraisingIndexRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
+  '/api/fundraising/checkout': typeof ApiFundraisingCheckoutRoute
+  '/api/fundraising/dashboard': typeof ApiFundraisingDashboardRoute
+  '/api/fundraising/export': typeof ApiFundraisingExportRoute
+  '/api/fundraising/players': typeof ApiFundraisingPlayersRouteWithChildren
+  '/api/fundraising/receipt': typeof ApiFundraisingReceiptRoute
+  '/api/fundraising/reconcile': typeof ApiFundraisingReconcileRoute
   '/api/square/reconcile': typeof ApiSquareReconcileRoute
   '/api/square/webhook': typeof ApiSquareWebhookRoute
   '/api/stripe/webhook': typeof ApiStripeWebhookRoute
+  '/fundraising/p/$id': typeof FundraisingPIdRoute
+  '/api/fundraising/players/$id': typeof ApiFundraisingPlayersIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -273,11 +364,24 @@ export interface FileRoutesByTo {
   '/visits': typeof VisitsRoute
   '/waiver': typeof WaiverRoute
   '/api/site-alerts': typeof ApiSiteAlertsRoute
+  '/fundraising/example': typeof FundraisingExampleRoute
+  '/fundraising/my': typeof FundraisingMyRoute
+  '/fundraising/office': typeof FundraisingOfficeRoute
+  '/fundraising/thank-you': typeof FundraisingThankYouRoute
   '/go/$dest': typeof GoDestRoute
+  '/fundraising': typeof FundraisingIndexRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
+  '/api/fundraising/checkout': typeof ApiFundraisingCheckoutRoute
+  '/api/fundraising/dashboard': typeof ApiFundraisingDashboardRoute
+  '/api/fundraising/export': typeof ApiFundraisingExportRoute
+  '/api/fundraising/players': typeof ApiFundraisingPlayersRouteWithChildren
+  '/api/fundraising/receipt': typeof ApiFundraisingReceiptRoute
+  '/api/fundraising/reconcile': typeof ApiFundraisingReconcileRoute
   '/api/square/reconcile': typeof ApiSquareReconcileRoute
   '/api/square/webhook': typeof ApiSquareWebhookRoute
   '/api/stripe/webhook': typeof ApiStripeWebhookRoute
+  '/fundraising/p/$id': typeof FundraisingPIdRoute
+  '/api/fundraising/players/$id': typeof ApiFundraisingPlayersIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -309,11 +413,24 @@ export interface FileRoutesById {
   '/visits': typeof VisitsRoute
   '/waiver': typeof WaiverRoute
   '/api/site-alerts': typeof ApiSiteAlertsRoute
+  '/fundraising/example': typeof FundraisingExampleRoute
+  '/fundraising/my': typeof FundraisingMyRoute
+  '/fundraising/office': typeof FundraisingOfficeRoute
+  '/fundraising/thank-you': typeof FundraisingThankYouRoute
   '/go/$dest': typeof GoDestRoute
+  '/fundraising/': typeof FundraisingIndexRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
+  '/api/fundraising/checkout': typeof ApiFundraisingCheckoutRoute
+  '/api/fundraising/dashboard': typeof ApiFundraisingDashboardRoute
+  '/api/fundraising/export': typeof ApiFundraisingExportRoute
+  '/api/fundraising/players': typeof ApiFundraisingPlayersRouteWithChildren
+  '/api/fundraising/receipt': typeof ApiFundraisingReceiptRoute
+  '/api/fundraising/reconcile': typeof ApiFundraisingReconcileRoute
   '/api/square/reconcile': typeof ApiSquareReconcileRoute
   '/api/square/webhook': typeof ApiSquareWebhookRoute
   '/api/stripe/webhook': typeof ApiStripeWebhookRoute
+  '/fundraising/p/$id': typeof FundraisingPIdRoute
+  '/api/fundraising/players/$id': typeof ApiFundraisingPlayersIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -346,11 +463,24 @@ export interface FileRouteTypes {
     | '/visits'
     | '/waiver'
     | '/api/site-alerts'
+    | '/fundraising/example'
+    | '/fundraising/my'
+    | '/fundraising/office'
+    | '/fundraising/thank-you'
     | '/go/$dest'
+    | '/fundraising/'
     | '/api/auth/$'
+    | '/api/fundraising/checkout'
+    | '/api/fundraising/dashboard'
+    | '/api/fundraising/export'
+    | '/api/fundraising/players'
+    | '/api/fundraising/receipt'
+    | '/api/fundraising/reconcile'
     | '/api/square/reconcile'
     | '/api/square/webhook'
     | '/api/stripe/webhook'
+    | '/fundraising/p/$id'
+    | '/api/fundraising/players/$id'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -381,11 +511,24 @@ export interface FileRouteTypes {
     | '/visits'
     | '/waiver'
     | '/api/site-alerts'
+    | '/fundraising/example'
+    | '/fundraising/my'
+    | '/fundraising/office'
+    | '/fundraising/thank-you'
     | '/go/$dest'
+    | '/fundraising'
     | '/api/auth/$'
+    | '/api/fundraising/checkout'
+    | '/api/fundraising/dashboard'
+    | '/api/fundraising/export'
+    | '/api/fundraising/players'
+    | '/api/fundraising/receipt'
+    | '/api/fundraising/reconcile'
     | '/api/square/reconcile'
     | '/api/square/webhook'
     | '/api/stripe/webhook'
+    | '/fundraising/p/$id'
+    | '/api/fundraising/players/$id'
   id:
     | '__root__'
     | '/'
@@ -416,11 +559,24 @@ export interface FileRouteTypes {
     | '/visits'
     | '/waiver'
     | '/api/site-alerts'
+    | '/fundraising/example'
+    | '/fundraising/my'
+    | '/fundraising/office'
+    | '/fundraising/thank-you'
     | '/go/$dest'
+    | '/fundraising/'
     | '/api/auth/$'
+    | '/api/fundraising/checkout'
+    | '/api/fundraising/dashboard'
+    | '/api/fundraising/export'
+    | '/api/fundraising/players'
+    | '/api/fundraising/receipt'
+    | '/api/fundraising/reconcile'
     | '/api/square/reconcile'
     | '/api/square/webhook'
     | '/api/stripe/webhook'
+    | '/fundraising/p/$id'
+    | '/api/fundraising/players/$id'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -452,11 +608,23 @@ export interface RootRouteChildren {
   VisitsRoute: typeof VisitsRoute
   WaiverRoute: typeof WaiverRoute
   ApiSiteAlertsRoute: typeof ApiSiteAlertsRoute
+  FundraisingExampleRoute: typeof FundraisingExampleRoute
+  FundraisingMyRoute: typeof FundraisingMyRoute
+  FundraisingOfficeRoute: typeof FundraisingOfficeRoute
+  FundraisingThankYouRoute: typeof FundraisingThankYouRoute
   GoDestRoute: typeof GoDestRoute
+  FundraisingIndexRoute: typeof FundraisingIndexRoute
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
+  ApiFundraisingCheckoutRoute: typeof ApiFundraisingCheckoutRoute
+  ApiFundraisingDashboardRoute: typeof ApiFundraisingDashboardRoute
+  ApiFundraisingExportRoute: typeof ApiFundraisingExportRoute
+  ApiFundraisingPlayersRoute: typeof ApiFundraisingPlayersRouteWithChildren
+  ApiFundraisingReceiptRoute: typeof ApiFundraisingReceiptRoute
+  ApiFundraisingReconcileRoute: typeof ApiFundraisingReconcileRoute
   ApiSquareReconcileRoute: typeof ApiSquareReconcileRoute
   ApiSquareWebhookRoute: typeof ApiSquareWebhookRoute
   ApiStripeWebhookRoute: typeof ApiStripeWebhookRoute
+  FundraisingPIdRoute: typeof FundraisingPIdRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -657,6 +825,41 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiSiteAlertsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/fundraising/': {
+      id: '/fundraising/'
+      path: '/fundraising'
+      fullPath: '/fundraising/'
+      preLoaderRoute: typeof FundraisingIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/fundraising/example': {
+      id: '/fundraising/example'
+      path: '/fundraising/example'
+      fullPath: '/fundraising/example'
+      preLoaderRoute: typeof FundraisingExampleRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/fundraising/my': {
+      id: '/fundraising/my'
+      path: '/fundraising/my'
+      fullPath: '/fundraising/my'
+      preLoaderRoute: typeof FundraisingMyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/fundraising/office': {
+      id: '/fundraising/office'
+      path: '/fundraising/office'
+      fullPath: '/fundraising/office'
+      preLoaderRoute: typeof FundraisingOfficeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/fundraising/thank-you': {
+      id: '/fundraising/thank-you'
+      path: '/fundraising/thank-you'
+      fullPath: '/fundraising/thank-you'
+      preLoaderRoute: typeof FundraisingThankYouRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/go/$dest': {
       id: '/go/$dest'
       path: '/go/$dest'
@@ -669,6 +872,48 @@ declare module '@tanstack/react-router' {
       path: '/api/auth/$'
       fullPath: '/api/auth/$'
       preLoaderRoute: typeof ApiAuthSplatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/fundraising/checkout': {
+      id: '/api/fundraising/checkout'
+      path: '/api/fundraising/checkout'
+      fullPath: '/api/fundraising/checkout'
+      preLoaderRoute: typeof ApiFundraisingCheckoutRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/fundraising/dashboard': {
+      id: '/api/fundraising/dashboard'
+      path: '/api/fundraising/dashboard'
+      fullPath: '/api/fundraising/dashboard'
+      preLoaderRoute: typeof ApiFundraisingDashboardRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/fundraising/export': {
+      id: '/api/fundraising/export'
+      path: '/api/fundraising/export'
+      fullPath: '/api/fundraising/export'
+      preLoaderRoute: typeof ApiFundraisingExportRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/fundraising/players': {
+      id: '/api/fundraising/players'
+      path: '/api/fundraising/players'
+      fullPath: '/api/fundraising/players'
+      preLoaderRoute: typeof ApiFundraisingPlayersRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/fundraising/receipt': {
+      id: '/api/fundraising/receipt'
+      path: '/api/fundraising/receipt'
+      fullPath: '/api/fundraising/receipt'
+      preLoaderRoute: typeof ApiFundraisingReceiptRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/fundraising/reconcile': {
+      id: '/api/fundraising/reconcile'
+      path: '/api/fundraising/reconcile'
+      fullPath: '/api/fundraising/reconcile'
+      preLoaderRoute: typeof ApiFundraisingReconcileRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/square/reconcile': {
@@ -692,8 +937,35 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiStripeWebhookRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/fundraising/p/$id': {
+      id: '/fundraising/p/$id'
+      path: '/fundraising/p/$id'
+      fullPath: '/fundraising/p/$id'
+      preLoaderRoute: typeof FundraisingPIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/fundraising/players/$id': {
+      id: '/api/fundraising/players/$id'
+      path: '/$id'
+      fullPath: '/api/fundraising/players/$id'
+      preLoaderRoute: typeof ApiFundraisingPlayersIdRouteImport
+      parentRoute: typeof ApiFundraisingPlayersRoute
+    }
   }
 }
+
+interface ApiFundraisingPlayersRouteChildren {
+  ApiFundraisingPlayersIdRoute: typeof ApiFundraisingPlayersIdRoute
+}
+
+const ApiFundraisingPlayersRouteChildren: ApiFundraisingPlayersRouteChildren = {
+  ApiFundraisingPlayersIdRoute: ApiFundraisingPlayersIdRoute,
+}
+
+const ApiFundraisingPlayersRouteWithChildren =
+  ApiFundraisingPlayersRoute._addFileChildren(
+    ApiFundraisingPlayersRouteChildren,
+  )
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
@@ -724,11 +996,23 @@ const rootRouteChildren: RootRouteChildren = {
   VisitsRoute: VisitsRoute,
   WaiverRoute: WaiverRoute,
   ApiSiteAlertsRoute: ApiSiteAlertsRoute,
+  FundraisingExampleRoute: FundraisingExampleRoute,
+  FundraisingMyRoute: FundraisingMyRoute,
+  FundraisingOfficeRoute: FundraisingOfficeRoute,
+  FundraisingThankYouRoute: FundraisingThankYouRoute,
   GoDestRoute: GoDestRoute,
+  FundraisingIndexRoute: FundraisingIndexRoute,
   ApiAuthSplatRoute: ApiAuthSplatRoute,
+  ApiFundraisingCheckoutRoute: ApiFundraisingCheckoutRoute,
+  ApiFundraisingDashboardRoute: ApiFundraisingDashboardRoute,
+  ApiFundraisingExportRoute: ApiFundraisingExportRoute,
+  ApiFundraisingPlayersRoute: ApiFundraisingPlayersRouteWithChildren,
+  ApiFundraisingReceiptRoute: ApiFundraisingReceiptRoute,
+  ApiFundraisingReconcileRoute: ApiFundraisingReconcileRoute,
   ApiSquareReconcileRoute: ApiSquareReconcileRoute,
   ApiSquareWebhookRoute: ApiSquareWebhookRoute,
   ApiStripeWebhookRoute: ApiStripeWebhookRoute,
+  FundraisingPIdRoute: FundraisingPIdRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
