@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { squareWebhook } from "@/lib/commerce/square-webhook.server";
+import { fundraisingSquareWebhook } from "@/lib/fundraising/webhook.server";
 export const Route = createFileRoute("/api/square/webhook")({
-  server: { handlers: { POST: ({ request }) => squareWebhook(request) } },
+  server: { handlers: { POST: ({ request }) => fundraisingSquareWebhook(request) } },
 });
