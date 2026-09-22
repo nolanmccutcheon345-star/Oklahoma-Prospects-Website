@@ -153,6 +153,7 @@ export function paymentReady() {
     const c = squareConfig();
     return (
       process.env.FUNDRAISING_PAYMENTS_ENABLED === "true" &&
+      process.env.FUNDRAISING_LEDGER_ENABLED === "true" &&
       (c.environment === "sandbox" || process.env.FUNDRAISING_SANDBOX_VERIFIED === "true")
     );
   } catch {
