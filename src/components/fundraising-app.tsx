@@ -97,9 +97,7 @@ function checkoutId() {
 function Brand() {
   return (
     <a className="brand" href="/fundraising" aria-label="Oklahoma Prospects fundraising home">
-      <span className="brand-mark">
-        OP<span>★</span>
-      </span>
+      <img className="fundraising-crest" src="/brand/crest.png" width="52" height="52" alt="" />
       <span className="brand-name">
         OKLAHOMA PROSPECTS<small>PLAYER FUNDRAISING</small>
       </span>
@@ -699,7 +697,14 @@ export default function FundraisingApp({ mode, playerId }: { mode: Mode; playerI
                       </h1>
                     </div>
                     <div className="jersey-number">
-                      {player.number || "OP"}
+                      {player.number || (
+                        <img
+                          src="/brand/crest.png"
+                          width="112"
+                          height="112"
+                          alt="Oklahoma Prospects"
+                        />
+                      )}
                       <small>PROSPECTS</small>
                     </div>
                   </div>

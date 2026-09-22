@@ -110,6 +110,16 @@
     gap: 12px;
     color: #11283f;
   }
+  .fundraising-crest {
+    width: 52px;
+    height: 52px;
+    flex: 0 0 52px;
+    object-fit: contain;
+  }
+  .player-hero,
+  .scoreboard {
+    border-top: 4px solid #802b41;
+  }
   .brand-mark {
     display: flex;
     position: relative;

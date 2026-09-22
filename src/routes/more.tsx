@@ -85,6 +85,9 @@ function VisitPage() {
           <Link to="/account" className="no-underline">
             <Row icon={LogIn} title="Member sign-in" body="Development plans, drills, and tracking" />
           </Link>
+          <Link to="/fundraising" className="no-underline">
+            <Row icon={Shirt} title="Player fundraising" body="Sponsor a player or share your family’s fundraising page" />
+          </Link>
           <ContinueIn dest="coaches" plain>
             <Row icon={GraduationCap} title="Talk to a coach" body="Lessons, teams, evaluations" />
           </ContinueIn>
