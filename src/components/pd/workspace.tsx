@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { AthleteRoster } from "@/components/pd/athlete-record";
 import { RetentionDesk } from "@/components/pd/retention";
 import { PdErrorBoundary } from "@/components/pd/error-boundary";
+import { StaffDirectoryDesk } from "@/components/staff/directory-desk";
 import { AdminAccountsDesk, AdminServicesDesk, AdminStaffDesk } from "@/components/pd/admin-ops";
 import { LaunchChecklist } from "@/components/launch-checklist";
 import {
@@ -477,6 +478,7 @@ function BusinessDesk() {
           { id: "launch", label: "Launch" },
           { id: "services", label: "Services" },
           { id: "accounts", label: "Accounts" },
+          { id: "staff", label: "Staff directory" },
           { id: "payments", label: "Payments" },
           { id: "policy", label: "Policy" },
         ]}
@@ -486,6 +488,7 @@ function BusinessDesk() {
       {pane === "launch" ? <LaunchChecklist /> : null}
       {pane === "services" ? <AdminServicesDesk /> : null}
       {pane === "accounts" ? <AdminAccountsDesk /> : null}
+      {pane === "staff" ? <StaffDirectoryDesk /> : null}
       {pane === "payments" ? (
         <section className="rounded-2xl bg-paper-2 shadow-border">
           <div className="pd-card">
