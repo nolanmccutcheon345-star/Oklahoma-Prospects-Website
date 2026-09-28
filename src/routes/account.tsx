@@ -10,6 +10,7 @@ import { DevelopmentProvider } from "@/lib/pd/context";
 const PdWorkspace=lazy(()=>import("@/components/pd/workspace").then(m=>({default:m.PdWorkspace})));
 import { PdErrorBoundary } from "@/components/pd/error-boundary";
 import { getProfile, saveProfile, type ClubRole } from "@/lib/club-data";
+import { getRegistrationAccess } from "@/lib/registrations-api";
 import { ROLE_LABEL } from "@/lib/pd";
 
 export const Route = createFileRoute("/account")({head:()=>pageHead("/account","Player Development Account","Your assigned development work, coaching notes, and player progress.",true), component: AccountPage });
@@ -34,6 +35,12 @@ function AccountHome() {
   const [playerName, setPlayerName] = useState("");
   const [name, setName] = useState(user?.displayName ?? "");
   const [loadError, setLoadError] = useState("");
+  const [registrationAccess, setRegistrationAccess] = useState(false);
+  useEffect(() => {
+    let active = true;
+    getRegistrationAccess().then(a => { if (active) setRegistrationAccess(a.allowed); }).catch(() => { if (active) setRegistrationAccess(false); });
+    return () => { active = false; };
+  }, []);
   useEffect(() => {
     let cancelled = false;
     async function load(attempt = 0) {
@@ -161,6 +168,7 @@ function AccountHome() {
         image="/brand/training.jpg"
         actions={
           <>
+            {registrationAccess ? <Button asChild><a href="/registrations">Registrations & inquiries</a></Button> : null}
             {profile.role === "admin" ? (
               <Button asChild>
                 <Link to="/office">Front office</Link>
