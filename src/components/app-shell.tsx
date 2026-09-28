@@ -70,7 +70,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   ] as const;
 
   return (
-    <div className="flex min-h-dvh flex-col bg-paper text-fg">
+    <div className="flex min-h-dvh flex-col bg-paper pb-[calc(7rem+1px+env(safe-area-inset-bottom))] text-fg sm:pb-[calc(3.5rem+1px+env(safe-area-inset-bottom))]">
       <a
         href="#main"
         className="sr-only focus:not-sr-only focus:absolute focus:top-2 focus:left-2 focus:z-50 focus:rounded-md focus:bg-paper-2 focus:px-4 focus:py-2 focus:text-ink"
@@ -122,7 +122,7 @@ export function AppShell({ children }: { children: ReactNode }) {
 
       <nav
         aria-label="Primary"
-        className="sticky bottom-0 z-40 border-t border-fg-inverse/10 bg-ink/96 text-fg-inverse backdrop-blur-md"
+        className="fixed inset-x-0 bottom-0 z-40 border-t border-fg-inverse/10 bg-ink/96 text-fg-inverse backdrop-blur-md"
         style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
       >
         <ul className="mx-auto grid max-w-3xl grid-cols-4 sm:grid-cols-8">
