@@ -48,6 +48,7 @@ function Home() {
               <Link to="/tryouts">Free Spring tryout</Link>
             </Button>
           </div>
+          <p className="mt-5"><a href="https://oklahoma-prospects-live.stevemccutcheon89.chatgpt.site/" className="inline-flex min-h-11 items-center gap-2 font-semibold text-powder underline underline-offset-4">Watch Live · Free for families <ArrowRight className="size-4" aria-hidden="true" /></a></p>
           <p className="mt-4 text-sm text-fg-soft"><a href={LINKS.maps} className="underline">{CLUB.addressLine1}, {CLUB.addressLine2}</a></p>
         </div>
         <div className="absolute inset-x-0 bottom-0 h-1 bg-gradient-to-r from-maroon from-70% to-powder" />

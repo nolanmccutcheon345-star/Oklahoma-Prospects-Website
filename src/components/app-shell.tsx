@@ -6,6 +6,7 @@ import {
   Home,
   MapPin,
   Users,
+  Tv,
 } from "lucide-react";
 import type { ReactNode } from "react";
 import { CLUB } from "@/lib/club";
@@ -120,7 +121,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         className="sticky bottom-0 z-40 border-t border-fg-inverse/10 bg-ink/96 text-fg-inverse backdrop-blur-md"
         style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
       >
-        <ul className="mx-auto grid max-w-3xl grid-cols-5">
+        <ul className="mx-auto grid max-w-3xl grid-cols-6">
           {tabs.map((tab) => {
             const active = tab.match(pathname);
             const Icon = tab.icon;
@@ -140,6 +141,12 @@ export function AppShell({ children }: { children: ReactNode }) {
               </li>
             );
           })}
+          <li>
+            <a href="https://oklahoma-prospects-live.stevemccutcheon89.chatgpt.site/" className="flex min-h-14 flex-col items-center justify-center gap-1 text-[0.65rem] font-semibold tracking-wide text-powder no-underline uppercase">
+              <Tv className="size-5" aria-hidden="true" />
+              Watch Live
+            </a>
+          </li>
         </ul>
       </nav>
     </div>
