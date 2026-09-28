@@ -1,7 +1,8 @@
 import { useState, type FormEvent } from "react";
 import {sendInquiry} from "@/lib/portal-api";
 import { Button } from "@/components/ui/button";
-import { AGE_GROUPS, TRYOUT_AGES, TRYOUT_DAYS } from "@/lib/club";
+import { AGE_GROUPS, TRYOUT_AGES, SOFTBALL_AGES, SOFTBALL_TRYOUT_SESSION } from "@/lib/club";
+import { BASEBALL_TRYOUT_SESSIONS } from "@/lib/tryout-registration";
 import { cn } from "@/lib/utils";
 
 const fieldClass =
@@ -92,34 +93,31 @@ export function ContactForm() {
   );
 }
 
-const TRYOUT_SESSIONS = TRYOUT_DAYS.flatMap((day) =>
-  day.sessions.map((session) => ({
-    value: `${day.weekday} ${day.date} · ${session.age} · ${session.time}`,
-    age: session.age,
-    label: `${session.age} · ${day.weekday} ${session.time}`,
-  })),
-);
-
 export function TryoutForm({
   initialAge = "",
+  initialSport = "Baseball",
   intent = "register",
 }: {
   initialAge?: string;
+  initialSport?: "Baseball" | "Softball";
   intent?: "register" | "inquiry";
 }) {
-  const ages = intent === "register" ? TRYOUT_AGES : AGE_GROUPS;
+  const initialAges: readonly string[] = initialSport === "Softball" ? SOFTBALL_AGES : intent === "register" ? TRYOUT_AGES : AGE_GROUPS;
   const [values, setValues] = useState<TryoutValues>({
     player: "",
-    age: ages.includes(initialAge as (typeof TRYOUT_AGES)[number]) || AGE_GROUPS.includes(initialAge as (typeof AGE_GROUPS)[number])
+    age: initialAges.includes(initialAge)
       ? initialAge
       : "",
     parent: "",
     phone: "",
     email: "",
     notes: "",
-    sport: "",
-    session: "",
+    sport: initialSport,
+    session: initialSport === "Softball" && intent === "register" ? SOFTBALL_TRYOUT_SESSION : "",
   });
+
+  const softball = values.sport === "Softball";
+  const ages: readonly string[] = softball ? SOFTBALL_AGES : intent === "register" ? TRYOUT_AGES : AGE_GROUPS;
 
   const [busy,setBusy]=useState(false);const [error,setError]=useState("");const [sent,setSent]=useState(false);const [requestId]=useState(()=>crypto.randomUUID());
   async function onSubmit(event: FormEvent) {
@@ -128,7 +126,19 @@ export function TryoutForm({
   }
 
   return (
-    <form onSubmit={onSubmit} className="grid gap-4">{error?<p role="alert" className="text-maroon">{error}</p>:null}{sent?<p role="status">Saved to the club’s front-office queue. Reference: {requestId}</p>:null}
+    <form onSubmit={onSubmit} className="grid gap-4">{error?<p role="alert" className="text-maroon">{error}</p>:null}{sent?<p role="status">Saved to the club’s front-office queue. {softball && intent === "register" ? "Softball tryout dates and times are to be announced. Prospects will contact you with details. " : ""}Reference: {requestId}</p>:null}
+      <label className="text-sm font-semibold">
+        Sport <span className="text-maroon">*</span>
+        <select required className={fieldClass} value={values.sport}
+          onChange={(e) => {
+            const sport = e.target.value;
+            const nextAges: readonly string[] = sport === "Softball" ? SOFTBALL_AGES : intent === "register" ? TRYOUT_AGES : AGE_GROUPS;
+            setValues((v) => ({ ...v, sport, age: nextAges.includes(v.age) ? v.age : "", session: sport === "Softball" && intent === "register" ? SOFTBALL_TRYOUT_SESSION : "" }));
+          }}>
+          <option value="Baseball">Baseball</option>
+          <option value="Softball">Softball</option>
+        </select>
+      </label>
       <div className="grid gap-4 sm:grid-cols-2">
         <label className="text-sm font-semibold">
           Player name <span className="text-maroon">*</span>
@@ -146,7 +156,7 @@ export function TryoutForm({
             required
             className={fieldClass}
             value={values.age}
-            onChange={(e) => setValues((v) => ({ ...v, age: e.target.value }))}
+            onChange={(e) => setValues((v) => ({ ...v, age: e.target.value, session: softball && intent === "register" ? SOFTBALL_TRYOUT_SESSION : "" }))}
           >
             <option value="">Select age group</option>
             {ages.map((age) => (
@@ -157,21 +167,12 @@ export function TryoutForm({
           </select>
         </label>
       </div>
-      <div className="grid gap-4 sm:grid-cols-2">
-        <label className="text-sm font-semibold">
-          Sport <span className="text-maroon">*</span>
-          <select
-            required
-            className={fieldClass}
-            value={values.sport}
-            onChange={(e) => setValues((v) => ({ ...v, sport: e.target.value }))}
-          >
-            <option value="">Baseball or softball</option>
-            <option value="Baseball">Baseball</option>
-            <option value="Softball">Softball</option>
-          </select>
-        </label>
-        {intent === "register" ? (
+      <div>
+        {intent === "register" && softball ? (
+          <p className="rounded-md border border-powder bg-paper p-4 text-sm">
+            <strong>Softball tryout dates and times to be announced.</strong> Register now for {SOFTBALL_AGES.join(", ")}. Prospects will contact you with tryout details. This does not reserve a November baseball session.
+          </p>
+        ) : intent === "register" ? (
           <label className="text-sm font-semibold">
             Session <span className="text-maroon">*</span>
             <select
@@ -180,7 +181,7 @@ export function TryoutForm({
               value={values.session}
               onChange={(e) => {
                 const session = e.target.value;
-                const match = TRYOUT_SESSIONS.find((row) => row.value === session);
+                const match = BASEBALL_TRYOUT_SESSIONS.find((row) => row.value === session);
                 setValues((v) => ({
                   ...v,
                   session,
@@ -189,7 +190,7 @@ export function TryoutForm({
               }}
             >
               <option value="">Pick a session</option>
-              {TRYOUT_SESSIONS.filter((row) => !values.age || row.age === values.age).map((row) => (
+              {BASEBALL_TRYOUT_SESSIONS.filter((row) => !values.age || row.age === values.age).map((row) => (
                 <option key={row.value} value={row.value}>
                   {row.label}
                 </option>

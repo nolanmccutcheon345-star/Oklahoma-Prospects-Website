@@ -61,6 +61,9 @@ export const AGE_GROUPS = [
 
 export const TRYOUT_AGES = ["5U", "8U", "9U", "10U", "13U", "15U"] as const;
 
+export const SOFTBALL_AGES = ["10U", "12U", "14U", "16U"] as const;
+export const SOFTBALL_TRYOUT_SESSION = "Softball tryouts · Date and time to be announced";
+
 export const TRYOUT_DAYS = [
   {
     date: "2026-11-14",
