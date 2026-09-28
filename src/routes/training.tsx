@@ -21,14 +21,18 @@ function TrainingPage() {
       <PdErrorBoundary section="Train · catalog">
         <PageHero
         eyebrow="Player development"
-        title="Monthly coaching."
-        accent="That’s how the game moves."
-        copy="Four coached sessions a month, a plan, and tracking. Baseball and softball, ages 8 through college. Cage passes live on Book."
+        title="Book a lesson."
+        compact
+
+        copy="Choose your training, then your instructor and available time. Single lessons, assessments, and monthly coaching."
         image="/brand/training.jpg"
         actions={
           <>
             <Button asChild>
-              <a href="#memberships">Start a monthly plan</a>
+              <a href="#lessons">Book a Lesson</a>
+            </Button>
+            <Button asChild variant="outline">
+              <a href="#memberships">Monthly Training Plans</a>
             </Button>
             <SignedOut>
               <Button asChild variant="outline">
@@ -72,8 +76,51 @@ function CatalogAndBook() {
   const groups = ["Pitching", "Hitting", "Catching", "Fielding"] as const;
   return (
     <div className="mx-auto max-w-3xl px-5 py-8">
+      <section id="lessons" className="scroll-mt-40" aria-label="Lesson booking">
       {athletes.length > 0 ? <label className="mb-6 grid gap-2">Athlete<select value={athleteId} onChange={e=>setAthleteId(e.target.value)} className="min-h-11 rounded-lg border p-3"><option value="">Select an athlete</option>{athletes.map(a=><option key={a.id} value={a.id}>{a.name}{a.assessmentComplete ? " · assessment completed" : " · assessment needed"}</option>)}</select></label> : null}
-      <section id="memberships" className="scroll-mt-24">
+        <nav aria-label="Lesson disciplines" className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
+          {groups.map(group => <Button asChild key={group} variant="outlineDark"><a href={`#lesson-${group.toLowerCase()}`}>{group}</a></Button>)}
+        </nav>
+        {!hasAssessment ? <aside className="mb-6 rounded-2xl bg-ink p-5 text-fg-inverse">
+          <h2 className="text-2xl">Start with an assessment</h2>
+          <p className="mt-2 text-base text-fg-soft">New athletes begin with an assessment. Once your coach records it as completed, lessons and packages unlock for that athlete.</p>
+          <div className="mt-4 flex flex-wrap gap-3">
+            {lessons.filter(item => item.id === "s1" || item.id === "s9").map(item => <Button asChild key={item.id} className="h-auto min-h-12 whitespace-normal text-center"><Link to="/pay" search={{kind: "lesson", id: item.id}}>Book {item.name}</Link></Button>)}
+          </div>
+          <p className="mt-3 text-sm text-fg-soft">Already assessed? Sign in and select your athlete. If their assessment is missing, contact your coach.</p>
+        </aside> : <p className="mb-6 text-base">Assessment completed. Choose a lesson below to book your next session.</p>}
+      <h2 className="text-3xl">Choose your lesson</h2>
+      <p className="mt-2 mb-8 text-sm text-muted">
+        Choose a discipline below. Select a service to see instructors and available times.
+      </p>
+
+      {groups.map((group) => {
+        const items = lessons.filter((item) => item.discipline === group);
+        if (items.length === 0) return null;
+        return (
+          <section key={group} id={`lesson-${group.toLowerCase()}`} className="mb-10 scroll-mt-40">
+            <h2 className="text-3xl">{group}</h2>
+            <div className="mt-4 grid gap-2">
+              {items.map((item) => (
+                <ServiceCard
+                  key={item.id}
+                  item={item}
+                  selected={selectedId === item.id}
+                  locked={!hasAssessment && item.requiresAssessment}
+                  onSelect={() => {
+                    setLessonId(item.id);
+                    void navigate({ to: "/pay", search: { kind: item.id === "s6" ? "membership" : "lesson", id: item.id === "s6" ? "m4" : item.id } });
+                  }}
+                />
+              ))}
+            </div>
+          </section>
+        );
+      })}
+
+      </section>
+
+      <section id="memberships" className="mt-12 scroll-mt-40">
         <p className="text-xs font-semibold tracking-[0.16em] text-maroon uppercase">
           How serious families train
         </p>
@@ -162,35 +209,6 @@ function CatalogAndBook() {
           </article>
         ))}
       </div>
-
-      <h2 className="mt-12 text-3xl">Single sessions</h2>
-      <p className="mt-2 mb-8 text-sm text-muted">
-        Ordinary lessons and packages remain locked until your coach records your assessment as completed. Assessments are available now; paying for one does not complete it.
-      </p>
-
-      {groups.map((group) => {
-        const items = lessons.filter((item) => item.discipline === group);
-        if (items.length === 0) return null;
-        return (
-          <section key={group} className="mb-10">
-            <h2 className="text-3xl">{group}</h2>
-            <div className="mt-4 grid gap-2">
-              {items.map((item) => (
-                <ServiceCard
-                  key={item.id}
-                  item={item}
-                  selected={selectedId === item.id}
-                  locked={!hasAssessment && item.requiresAssessment}
-                  onSelect={() => {
-                    setLessonId(item.id);
-                    void navigate({ to: "/pay", search: { kind: item.id === "s6" ? "membership" : "lesson", id: item.id === "s6" ? "m4" : item.id } });
-                  }}
-                />
-              ))}
-            </div>
-          </section>
-        );
-      })}
 
       <h2 className="mt-12 text-3xl">Pitching ladder · OP-1 through OP-7</h2>
       <p className="mt-2 text-sm text-muted">

@@ -36,12 +36,19 @@ function BookPage() {
     <main id="main">
       <PageHero
         eyebrow="Oklahoma Prospects"
-        title="Pick the lanes."
-        accent="Pay. Then it’s booked."
-        copy="One cage or several at the same time — 30 minutes to 3 hours. Household rate is for 1–2 family athletes. Team rate is for groups of three or more, or three or more spaces. Choose an available time and pay online to book."
+        title="What are we booking?"
+        compact
+        copy="Reserve cage time, book a lesson, or find a monthly training plan."
+        actions={
+          <nav aria-label="Booking options" className="grid w-full gap-3 sm:grid-cols-3">
+            <Button asChild className="h-auto min-h-12 whitespace-normal text-center"><a href="#cage-booking">Book a Cage</a></Button>
+            <Button asChild className="h-auto min-h-12 whitespace-normal text-center"><Link to="/training" hash="lessons">Book a Lesson</Link></Button>
+            <Button asChild className="h-auto min-h-12 whitespace-normal text-center"><Link to="/training" hash="memberships">Monthly Training Plans</Link></Button>
+          </nav>
+        }
         image="/brand/facility.jpg"
       />
-      <BookingFunnel initial={space} />
+      <div id="cage-booking" className="scroll-mt-40"><BookingFunnel initial={space} /></div>
       <section className="bg-ink py-10 text-fg-inverse">
         <div className="mx-auto max-w-3xl px-5">
           <h2 className="text-3xl">Cage passes</h2>
