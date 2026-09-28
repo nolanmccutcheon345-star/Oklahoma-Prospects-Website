@@ -79,7 +79,7 @@ function CatalogAndBook() {
       <section id="lessons" className="scroll-mt-40" aria-label="Lesson booking">
       {athletes.length > 0 ? <label className="mb-6 grid gap-2">Athlete<select value={athleteId} onChange={e=>setAthleteId(e.target.value)} className="min-h-11 rounded-lg border p-3"><option value="">Select an athlete</option>{athletes.map(a=><option key={a.id} value={a.id}>{a.name}{a.assessmentComplete ? " · assessment completed" : " · assessment needed"}</option>)}</select></label> : null}
         <nav aria-label="Lesson disciplines" className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
-          {groups.map(group => <Button asChild key={group} variant="outline"><a href={`#lesson-${group.toLowerCase()}`}>{group}</a></Button>)}
+          {groups.map(group => <Button asChild key={group} variant="outlineDark"><a href={`#lesson-${group.toLowerCase()}`}>{group}</a></Button>)}
         </nav>
         {!hasAssessment ? <aside className="mb-6 rounded-2xl bg-ink p-5 text-fg-inverse">
           <h2 className="text-2xl">Start with an assessment</h2>
