@@ -7,6 +7,8 @@ import {
   MapPin,
   Users,
   Tv,
+  HeartHandshake,
+  CircleDot,
 } from "lucide-react";
 import type { ReactNode } from "react";
 import { CLUB } from "@/lib/club";
@@ -49,6 +51,8 @@ export function AppShell({ children }: { children: ReactNode }) {
         path.startsWith("/family") ||
         path.startsWith("/office"),
     },
+    { to: "/softball", label: "Softball", icon: CircleDot, match: (path: string) => path.startsWith("/softball") },
+    { to: "/fundraising", label: "Donate", icon: HeartHandshake, match: (path: string) => path.startsWith("/fundraising") },
     {
       to: "/more",
       label: "Visit",
@@ -121,7 +125,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         className="sticky bottom-0 z-40 border-t border-fg-inverse/10 bg-ink/96 text-fg-inverse backdrop-blur-md"
         style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
       >
-        <ul className="mx-auto grid max-w-3xl grid-cols-6">
+        <ul className="mx-auto grid max-w-3xl grid-cols-4 sm:grid-cols-8">
           {tabs.map((tab) => {
             const active = tab.match(pathname);
             const Icon = tab.icon;

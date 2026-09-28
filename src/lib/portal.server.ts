@@ -6,7 +6,7 @@ import {getSql} from './db';
 import {clubIdentity} from './identity.server';
 import {assertSameSiteRequest} from './auth/isolation.server';
 import {rateLimit} from './commerce/checkout.server';
-import {TRYOUT_DAYS,TRYOUT_AGES} from './club';
+import {validateTryoutRegistration} from './tryout-registration';
 import {validDate,chicagoDate} from './scheduling';
 import {loadDeskForUser} from './pd/desk-impl.server';
 import {WAIVER_TEXT,WAIVER_VERSION} from './waiver-content';
@@ -14,9 +14,7 @@ import type {inquiryInput,athleteInput,waiverInput} from './portal-contracts';
 export async function submitInquiry(input:z.infer<typeof inquiryInput>) {
  assertSameSiteRequest();await rateLimit('inquiry',10);
  if(input.kind==='tryout'){
-  const sessions=TRYOUT_DAYS.flatMap(d=>d.sessions.map(s=>({age:s.age,value:`${d.weekday} ${d.date} · ${s.age} · ${s.time}`})));
-  if(input.sport!=='Baseball'||!TRYOUT_AGES.includes(input.age as typeof TRYOUT_AGES[number])||!sessions.some(s=>s.age===input.age&&s.value===input.session))throw new Error('Other ages and softball: use the team inquiry form.');
-  if(chicagoDate()>'2026-11-15')throw new Error('These tryouts have ended. Send a team inquiry for the next opportunity.');
+  validateTryoutRegistration(input,chicagoDate());
  }
  const sql=await getSql();await sql`insert into club_requests(id,user_id,kind,payload) values(${input.requestId},null,${input.kind},${JSON.stringify(input)}::jsonb) on conflict(id) do nothing`;
  return {ok:true,reference:input.requestId};
