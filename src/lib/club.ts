@@ -8,7 +8,7 @@ export const CLUB = {
   mindset: ["Grit", "Heart", "Pride"],
   phoneDisplay: "(918) 922-8114",
   phoneTel: "+19189228114",
-  email: "oklahomaprospectsbaseball@gmail.com",
+  email: "stevemccutcheon89@gmail.com",
   addressLine1: "3804 S. Elm Pl., Suite A",
   addressLine2: "Broken Arrow, OK 74011",
   city: "Broken Arrow, Oklahoma",
