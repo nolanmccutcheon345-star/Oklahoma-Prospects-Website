@@ -2,7 +2,7 @@ import { PRICES, formatMoney } from "@/lib/pricing";
 import {DevelopmentBoard} from "@/components/commerce/development-board";
 import {CoachProfile} from "@/components/commerce/coach-profile";
 import { CoachSessions } from "@/components/commerce/coach-sessions";
-import { Link } from "@tanstack/react-router";
+import { Link, useSearch } from "@tanstack/react-router";
 import { useEffect, useState, type ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import { AthleteRoster } from "@/components/pd/athlete-record";
@@ -124,7 +124,8 @@ function ScopedWorkspace({
   const trueRole = profile.role;
   const previewRole = trueRole;
   const tabs = [...(DESKS[previewRole] ?? DESKS.parent),{id:"development-tracks",label:"30-day plan & tracks"}];
-  const [tab, setTab] = useState<string>(tabs[0].id);
+  const search = useSearch({ strict: false }) as { desk?: string };
+  const [tab, setTab] = useState<string>(tabs.some(t => t.id === search.desk) ? search.desk! : tabs[0].id);
   const [reservations, setReservations] = useState<Reservation[]>([]);
   const [programs, setPrograms] = useState<Program[]>([]);
   const [drills, setDrills] = useState<Drill[]>([]);
@@ -290,7 +291,7 @@ function HomeDesk({
     <>
       {profile.role === "admin" || profile.role === "coach" ? (
         <AlertQueue
-          scope={{ role: profile.role, coachId: profile.role === "coach" ? "c-steve" : undefined }}
+          scope={{ role: profile.role, coachId: profile.role === "coach" ? data.coaches.find(c => c.email.toLowerCase() === profile.email.toLowerCase())?.id : undefined }}
           onOpenAthlete={(id) => {
             openAthlete(id);
             onOpenTab(profile.role === "admin" ? "athletes" : "roster");
@@ -311,11 +312,11 @@ function HomeDesk({
                   : "Your development"}
           </p>
           <h2 className="mt-2 text-3xl italic">
-            {profile.assessment_complete ? "Assessment on file." : "Start with the assessment."}
+            {profile.role === "admin" || profile.role === "coach" ? "Your athletes and coaching work." : self?.assessmentComplete ? "Assessment on file." : "Choose an athlete to get started."}
           </h2>
           <p className="mt-2 text-sm text-fg-soft">
-            {profile.assessment_complete
-              ? "Private 30s and 60s are open."
+            {profile.role === "admin" || profile.role === "coach" ? `${data.athletes.length} athletes available on your desk. Open an athlete to review their saved programs and lessons.` : self?.assessmentComplete
+              ? "View your assigned work or ask about your next lesson."
               : hideMoney
                 ? "Book with a parent. Assessment still needed before private lessons."
                 : "Complete an assessment with your coach before buying ordinary lessons or packages."}
@@ -659,7 +660,25 @@ function GoalsDesk() {
 }
 
 function ProgramsDesk() {
-  return <ProgramsCurriculum />;
+  const { data, slice, viewer, canCoach, updateAthleteProfile } = useDevelopment();
+  const [selected, setSelected] = useState("");
+  const id = data.athletes.some(a => a.id === selected) ? selected : data.athletes[0]?.id;
+  const current = id ? slice(id) : null;
+  const [section, setSection] = useState("strength");
+  return <div className="pd-stack">
+    <h2 className="text-3xl">My assigned programs</h2>
+    {data.athletes.length ? <label>Athlete<select className="pd-control block w-full" value={id} onChange={e => setSelected(e.target.value)}>{data.athletes.map(a => <option key={a.id} value={a.id}>{a.firstName} {a.lastName}</option>)}</select></label> : <p>No athletes are linked to this desk. <Link to="/family" className="underline">Add or review your athletes</Link>; contact the club if an existing athlete is missing. Existing history should be recovered before a replacement record is created.</p>}
+    {current ? <><details key={id}><summary className="min-h-12 cursor-pointer">Athlete profile · sport, position, date of birth</summary>
+      <form className="grid gap-3 rounded-xl border p-4" onSubmit={e => { e.preventDefault(); const f = new FormData(e.currentTarget); updateAthleteProfile(id!, { birthDate: String(f.get("birthDate")), sport: f.get("sport") as "baseball" | "softball", position: String(f.get("position")) }); }}>
+        <label>Date of birth<input type="date" required name="birthDate" max={clubDayIso()} defaultValue={current.athlete.birthDate} /></label>
+        <label>Sport<select name="sport" required defaultValue={current.athlete.sport}><option value="">Choose sport</option><option value="baseball">Baseball</option><option value="softball">Softball</option></select></label>
+        <label>Position(s)<input name="position" required maxLength={80} defaultValue={current.athlete.position} placeholder="Example: RHP / SS" /></label>
+        <Button type="submit">Save athlete profile</Button>
+      </form>
+    </details><div role="tablist" aria-label="Assigned programs" className="flex flex-wrap gap-2">{["strength", "throwing"].map(key => <Button key={key} role="tab" aria-selected={section === key} onClick={() => setSection(key)}>{key === "strength" ? "Strength" : "Throwing"}</Button>)}</div>
+    {section === "strength" ? <StrengthProgramView key={id} slice={current} role={canCoach(id) ? viewer?.role ?? "coach" : "parent"} /> : <ThrowingPlanView key={id} slice={current} role={canCoach(id) ? viewer?.role ?? "coach" : "parent"} />}</> : null}
+    <details><summary className="min-h-12 cursor-pointer">Curriculum library</summary><ProgramsCurriculum /></details>
+  </div>;
 }
 
 function AssessDesk({ athlete, onSaved }: { athlete: string; onSaved: () => void }) {

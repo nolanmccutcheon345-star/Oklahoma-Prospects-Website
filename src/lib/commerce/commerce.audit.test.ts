@@ -57,7 +57,7 @@ test("all approved products use independently specified base prices", () => {
     s6: 16500,
     s7: 6300,
     s8: 10400,
-    s9: 15500,
+    s9: 15400,
     s10: 6300,
     s11: 10400,
     s12: 10400,
@@ -97,15 +97,19 @@ test("all ordinary lessons and packages are locked until assessment completion; 
       calculateQuote(request({ productId: id }), product(id, "lesson"), false).totalCents,
       PRICES[id],
     );
-  for (const id of ["m1", "m2", "m3", "m4", "m5"] as const) {
+  for (const id of ["m1", "m2", "m3", "m4"] as const) {
     const quote = calculateQuote(
       request({ productId: id, kind: "membership" }),
       product(id, "membership"),
       false,
     );
-    assert.equal(quote.totalCents, PRICES[id] + 5200);
+    assert.equal(quote.totalCents, PRICES[id] + 5000);
     assert.equal(quote.regularCents, PRICES[id]);
   }
+});
+test("remote enrollment requires assessment and never advertises an unassessed first payment", () => {
+  assert.throws(() => calculateQuote(request({ productId: "m5", kind: "membership" }), product("m5", "membership"), false), /Complete your assessment/);
+  assert.equal(calculateQuote(request({ productId: "m5", kind: "membership" }), product("m5", "membership"), true).setupCents, 0);
 });
 test("checkout rejects price, assessment, total and fee tampering", () => {
   for (const field of ["price", "total", "assessed", "hasAssessment", "fee", "role", "userId"])

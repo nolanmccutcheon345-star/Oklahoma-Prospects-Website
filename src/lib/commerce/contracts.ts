@@ -47,6 +47,7 @@ export type Quote = {
   regularCents: number;
   setupCents: number;
   recurring: boolean;
+  initialBookingUsesCredit?: boolean;
   assessment: boolean;
   duration: number;
   sessionMinutes: number;
@@ -95,6 +96,7 @@ export function calculateQuote(
     regularCents: Math.round(product.price * 100),
     setupCents: rule.setupCents,
     recurring,
+    initialBookingUsesCredit: input.kind === "membership" && product.credits > 0,
     assessment: rule.assessment || rule.setupCents > 0,
     duration: product.minutes,
     sessionMinutes: product.minutes,

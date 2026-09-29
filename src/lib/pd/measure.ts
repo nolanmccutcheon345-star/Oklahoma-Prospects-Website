@@ -5,7 +5,7 @@ import {
   interventionStats,
   parseTrackingCsv,
 } from "./core-algorithms.js";
-import { ageOnClubDay, CLUB_DAY_ISO, cohortFor, toEngineData } from "./engines";
+import { ageOnClubDay, clubDayIso, cohortFor, toEngineData } from "./engines";
 import type { AthleteSlice } from "./context";
 import type { DevelopmentData } from "./types";
 
@@ -139,7 +139,7 @@ export function trackingApplyRows(
   parsed: Exclude<ReturnType<typeof parseTrackingFile>, { error: string }>,
   athleteId: string,
   throws: "R" | "L",
-  date = CLUB_DAY_ISO,
+  date = clubDayIso(),
 ) {
   const fb = parsed.byType.find((row) => /fb|fast|four|sink|ride|cut/i.test(row.type)) ?? parsed.byType[0];
   const identity =

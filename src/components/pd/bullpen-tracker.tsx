@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { SCORE_LABELS, scorePitch, tciOf } from "@/lib/pd/core-algorithms.js";
-import type { Bullpen, BullpenPitch } from "@/lib/pd/types";
+import type { Bullpen } from "@/lib/pd/types";
+import { useDevelopment } from "@/lib/pd/context";
 import { cn } from "@/lib/utils";
 
 const CELLS = [0, 1, 2, 3, 4];
@@ -29,21 +30,22 @@ export function BullpenTracker({
     }));
     return chart;
   }, [pen]);
-  const [extra, setExtra] = useState<BullpenPitch[]>([]);
+  const { addBullpenPitch, canCoach } = useDevelopment();
+  const canEdit = interactive && canCoach(pen.athleteId);
   const [intent, setIntent] = useState<{ row: number; col: number } | null>(null);
-  const pitches = [...seed, ...extra];
+  const pitches = seed;
   const tci = tciOf(pitches);
   const last = pitches[pitches.length - 1];
 
   function tap(row: number, col: number) {
-    if (!interactive) return;
+    if (!canEdit) return;
     if (!intent) {
       setIntent({ row, col });
       return;
     }
     const actual = { row, col };
     const score = scorePitch(intent, actual);
-    setExtra((rows) => [...rows, { intent, actual, score }]);
+    addBullpenPitch(pen, { intent, actual, score });
     setIntent(null);
   }
 
@@ -67,7 +69,7 @@ export function BullpenTracker({
               <button
                 key={`${row}-${col}`}
                 type="button"
-                disabled={!interactive}
+                disabled={!canEdit}
                 onClick={() => tap(row, col)}
                 className={cellClass(row, col, isIntent ? "intent" : isLast ? "actual" : null)}
                 aria-label={`Row ${row} column ${col}`}
@@ -78,7 +80,7 @@ export function BullpenTracker({
           }),
         )}
       </div>
-      {interactive ? (
+      {canEdit ? (
         <p className="text-sm text-muted">
           {intent ? "Tap the result." : "Tap the called location, then the result."}
         </p>

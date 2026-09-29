@@ -16,7 +16,12 @@ export const PRICES = Object.fromEntries(Object.entries(NET_PRICES).map(([id, ne
     : processingInclusiveCents(net, 100),
 ])) as Record<keyof typeof NET_PRICES, number>;
 export const ASSESSMENT_PRODUCTS = new Set<string>(["s1", "s4", "s9"]);
-export const FIRST_MONTH_SETUP_CENTS = processingInclusiveCents(5000, 100);
+/** Owner-approved customer premium. Processing is already included in the base price. */
+export const FIRST_MONTH_SETUP_CENTS = 5000;
+export const FIRST_ASSESSMENT_BASE = { s1: "s3", s9: "s8" } as const;
+for (const [assessment, base] of Object.entries(FIRST_ASSESSMENT_BASE)) {
+  PRICES[assessment as keyof typeof PRICES] = PRICES[base] + FIRST_MONTH_SETUP_CENTS;
+}
 export function dollars(id: keyof typeof PRICES) { return PRICES[id] / 100; }
 /** Apply current catalog defaults without changing saved bookings or payments. */
 export function currentCatalogPrice<T extends { id: string; price: number }>(item: T): T {
@@ -29,8 +34,8 @@ export function formatMoney(cents: number) {
 export function eligibility(kind: string, id: string, assessmentCompleted: boolean) {
   const assessment = ASSESSMENT_PRODUCTS.has(id);
   const recurring = kind === "membership" || id === "s6";
-  const locked = !assessmentCompleted && !assessment && !recurring && (kind === "lesson" || kind === "package");
-  return { locked, assessment, setupCents: recurring && !assessmentCompleted ? FIRST_MONTH_SETUP_CENTS : 0 };
+  const locked = !assessmentCompleted && (id === "m5" || (!assessment && !recurring && (kind === "lesson" || kind === "package")));
+  return { locked, assessment, setupCents: recurring && id !== "m5" && !assessmentCompleted ? FIRST_MONTH_SETUP_CENTS : 0 };
 }
 export function refundCents(paidCents: number, startsAt: Date, now = new Date()) {
   if (!Number.isSafeInteger(paidCents) || paidCents < 0 || !Number.isFinite(startsAt.getTime())) throw new Error("Invalid refund.");

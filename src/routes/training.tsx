@@ -1,3 +1,4 @@
+import { canPurchase } from "@/lib/purchase-availability";
 import { FIRST_MONTH_SETUP_CENTS, formatMoney } from "@/lib/pricing";
 import {pageHead} from "@/lib/seo";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
@@ -21,14 +22,18 @@ function TrainingPage() {
       <PdErrorBoundary section="Train · catalog">
         <PageHero
         eyebrow="Player development"
-        title="Monthly coaching."
-        accent="That’s how the game moves."
-        copy="Four coached sessions a month, a plan, and tracking. Baseball and softball, ages 8 through college. Cage passes live on Book."
+        title="Lessons & training."
+        compact
+
+        copy="Find private lessons, assessments, and monthly coaching. View current availability or ask the club to help you get started."
         image="/brand/training.jpg"
         actions={
           <>
             <Button asChild>
-              <a href="#memberships">Start a monthly plan</a>
+              <a href="#lessons">Find a Lesson</a>
+            </Button>
+            <Button asChild variant="outline">
+              <a href="#memberships">Monthly Training Plans</a>
             </Button>
             <SignedOut>
               <Button asChild variant="outline">
@@ -39,7 +44,7 @@ function TrainingPage() {
             </SignedOut>
             <SignedIn>
               <Button asChild variant="outline">
-                <Link to="/account">Open my development</Link>
+                <Link to="/account" search={{ desk: "programs" }}>My assigned programs</Link>
               </Button>
             </SignedIn>
           </>
@@ -72,22 +77,73 @@ function CatalogAndBook() {
   const groups = ["Pitching", "Hitting", "Catching", "Fielding"] as const;
   return (
     <div className="mx-auto max-w-3xl px-5 py-8">
+      {!canPurchase(catalog.purchaseAvailability, "lesson", "s1") ? <aside role="status" className="mb-6 rounded-xl border border-line p-4"><h2 className="text-xl">Lesson enrollment by inquiry</h2><p>Online lesson and training-plan purchases are not open yet. Ask about a service below and the club will help you arrange the next step. One-time cage availability is on Book.</p></aside> : null}
+      <section id="lessons" className="scroll-mt-40" aria-label="Lesson booking">
       {athletes.length > 0 ? <label className="mb-6 grid gap-2">Athlete<select value={athleteId} onChange={e=>setAthleteId(e.target.value)} className="min-h-11 rounded-lg border p-3"><option value="">Select an athlete</option>{athletes.map(a=><option key={a.id} value={a.id}>{a.name}{a.assessmentComplete ? " · assessment completed" : " · assessment needed"}</option>)}</select></label> : null}
-      <section id="memberships" className="scroll-mt-24">
+        <nav aria-label="Lesson disciplines" className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
+          {groups.map(group => <Button asChild key={group} variant="outlineDark"><a href={`#lesson-${group.toLowerCase()}`}>{group}</a></Button>)}
+        </nav>
+        {!hasAssessment ? <aside className="mb-6 rounded-2xl bg-ink p-5 text-fg-inverse">
+          <h2 className="text-2xl">Start with an assessment</h2>
+          <p className="mt-2 text-base text-fg-soft">New athletes begin with an assessment. Once your coach records it as completed, lessons and packages unlock for that athlete.</p>
+          <div className="mt-4 flex flex-wrap gap-3">
+            {lessons.filter(item => item.id === "s1" || item.id === "s9").map(item => <Button asChild key={item.id} className="h-auto min-h-12 whitespace-normal text-center">{canPurchase(catalog.purchaseAvailability, "lesson", item.id) ? <Link to="/pay" search={{kind: "lesson", id: item.id}}>Book {item.name}</Link> : <Link to="/contact" search={{ subject: item.name }}>Ask about {item.name}</Link>}</Button>)}
+          </div>
+          <p className="mt-3 text-sm text-fg-soft">Already assessed? Sign in and select your athlete. If their assessment is missing, contact your coach.</p>
+        </aside> : <p className="mb-6 text-base">Assessment completed. Choose a lesson below to book your next session.</p>}
+      <h2 className="text-3xl">Choose your lesson</h2>
+      <p className="mt-2 mb-8 text-sm text-muted">
+        Choose a discipline below. Select a service to see instructors and available times.
+      </p>
+
+      {groups.map((group) => {
+        const items = lessons.filter((item) => item.discipline === group);
+        if (items.length === 0) return null;
+        return (
+          <section key={group} id={`lesson-${group.toLowerCase()}`} className="mb-10 scroll-mt-40">
+            <h2 className="text-3xl">{group}</h2>
+            <div className="mt-4 grid gap-2">
+              {items.map((item) => (
+                <ServiceCard
+                  key={item.id}
+                  item={item}
+                  selected={selectedId === item.id}
+                  locked={canPurchase(catalog.purchaseAvailability, "lesson", item.id) && !hasAssessment && item.requiresAssessment}
+                  inquiry={!canPurchase(catalog.purchaseAvailability, "lesson", item.id)}
+                  onSelect={() => {
+                    if (!canPurchase(catalog.purchaseAvailability, "lesson", item.id)) { void navigate({ to: "/contact", search: { subject: item.name } }); return; }
+                    setLessonId(item.id);
+                    void navigate({ to: "/pay", search: { kind: item.id === "s6" ? "membership" : "lesson", id: item.id === "s6" ? "m4" : item.id } });
+                  }}
+                />
+              ))}
+            </div>
+          </section>
+        );
+      })}
+
+      <section id="youth-lessons" className="rounded-xl bg-paper-2 p-5">
+        <h2 className="text-2xl">Youth lessons · ages 10 and under</h2>
+        <p className="mt-2">Ask about 30- or 60-minute pitching, hitting, catching, and fielding lessons with a youth instructor. The club will confirm eligibility, the assessment requirement, and your price before booking.</p>
+        <Button asChild className="mt-3"><Link to="/contact" search={{ subject: "Youth lessons · age 10 and under" }}>Ask about youth lessons</Link></Button>
+      </section>
+      </section>
+
+      <section id="memberships" className="mt-12 scroll-mt-40">
         <p className="text-xs font-semibold tracking-[0.16em] text-maroon uppercase">
           How serious families train
         </p>
         <h2 className="mt-2 text-3xl">Monthly development</h2>
         <p className="mt-2 text-sm text-muted">
-          Four coached sessions a month, a written plan, and tracking. First month
-          adds {formatMoney(FIRST_MONTH_SETUP_CENTS)} if there is no assessment on file.
+          In-person plans include four coached sessions per billing month; remote coaching includes video reviews. The first month of an eligible in-person plan
+          adds {formatMoney(FIRST_MONTH_SETUP_CENTS)} if there is no assessment on file. The first assessment replaces one of that month’s four coached sessions.
         </p>
         <div className="mt-4 grid gap-3">
           {catalog.memberships.map((plan) => {
             const featured = plan.id === "m2" || plan.tier === "performance";
             const firstMonth =
-              !hasAssessment
-                ? plan.price + 50
+              !hasAssessment && plan.id !== "m5"
+                ? plan.price + FIRST_MONTH_SETUP_CENTS / 100
                 : plan.price;
             return (
               <article
@@ -111,6 +167,7 @@ function CatalogAndBook() {
                   ${plan.price}
                   <span className="ml-1 font-sans text-base font-medium opacity-80">/mo</span>
                 </p>
+                {plan.id === "m5" ? <p className="mt-2 text-sm">A completed assessment is required before remote enrollment.</p> : null}
                 {firstMonth !== plan.price ? (
                   <p className={`mt-1 text-sm ${featured ? "text-fg-soft" : "text-muted"}`}>
                     First month ${firstMonth} without an assessment on file, then ${plan.price}.
@@ -122,12 +179,7 @@ function CatalogAndBook() {
                   ))}
                 </ul>
                 <Button asChild className="mt-4" variant={featured ? "outline" : "primary"}>
-                  <Link
-                    to="/pay"
-                    search={{ kind: "membership", id: plan.id }}
-                  >
-                    Start {plan.name}
-                  </Link>
+                  {canPurchase(catalog.purchaseAvailability, "membership", plan.id) && (plan.id !== "m5" || hasAssessment) ? <Link to="/pay" search={{ kind: "membership", id: plan.id }}>Start {plan.name}</Link> : <Link to="/contact" search={{ subject: plan.name }}>Ask about {plan.name}</Link>}
                 </Button>
                 <a className="ml-4 inline-flex min-h-11 items-center underline" href={`/contact?subject=${encodeURIComponent(plan.name)}`}>Ask about this plan</a>
               </article>
@@ -153,7 +205,7 @@ function CatalogAndBook() {
               {pack.credits} credits · {pack.minutes} min · expires in {pack.expiresDays} days
             </p>
             <p className="mt-3 pd-num font-display text-3xl">${pack.price}</p>
-            {!hasAssessment ? <Button disabled className="mt-4">Locked until assessment completion</Button> : <Button asChild className="mt-4">
+            {!canPurchase(catalog.purchaseAvailability, "package", pack.id) ? <Button asChild className="mt-4"><Link to="/contact" search={{ subject: pack.name }}>Ask about this package</Link></Button> : !hasAssessment ? <Button disabled className="mt-4">Locked until assessment completion</Button> : <Button asChild className="mt-4">
               <Link to="/pay" search={{ kind: "package", id: pack.id }}>
                 Buy {pack.credits} sessions · ${pack.price}
               </Link>
@@ -162,35 +214,6 @@ function CatalogAndBook() {
           </article>
         ))}
       </div>
-
-      <h2 className="mt-12 text-3xl">Single sessions</h2>
-      <p className="mt-2 mb-8 text-sm text-muted">
-        Ordinary lessons and packages remain locked until your coach records your assessment as completed. Assessments are available now; paying for one does not complete it.
-      </p>
-
-      {groups.map((group) => {
-        const items = lessons.filter((item) => item.discipline === group);
-        if (items.length === 0) return null;
-        return (
-          <section key={group} className="mb-10">
-            <h2 className="text-3xl">{group}</h2>
-            <div className="mt-4 grid gap-2">
-              {items.map((item) => (
-                <ServiceCard
-                  key={item.id}
-                  item={item}
-                  selected={selectedId === item.id}
-                  locked={!hasAssessment && item.requiresAssessment}
-                  onSelect={() => {
-                    setLessonId(item.id);
-                    void navigate({ to: "/pay", search: { kind: item.id === "s6" ? "membership" : "lesson", id: item.id === "s6" ? "m4" : item.id } });
-                  }}
-                />
-              ))}
-            </div>
-          </section>
-        );
-      })}
 
       <h2 className="mt-12 text-3xl">Pitching ladder · OP-1 through OP-7</h2>
       <p className="mt-2 text-sm text-muted">
@@ -225,11 +248,13 @@ function ServiceCard({
   item,
   selected,
   locked,
+  inquiry,
   onSelect,
 }: {
   item: LessonService;
   selected: boolean;
   locked: boolean;
+  inquiry?: boolean;
   onSelect: () => void;
 }) {
   const due = item.price;
@@ -251,6 +276,7 @@ function ServiceCard({
       <span className="mt-1 block text-sm opacity-80">
         {item.minutes} min · {item.purpose}
       </span>
+      {inquiry ? <span className="mt-2 block text-sm font-semibold">Ask about this lesson →</span> : null}
       {locked ? (
         <span className="mt-1 block text-xs font-semibold tracking-widest uppercase">
           Locked until assessment completion

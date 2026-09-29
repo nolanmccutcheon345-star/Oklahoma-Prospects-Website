@@ -8,7 +8,7 @@ export const CLUB = {
   mindset: ["Grit", "Heart", "Pride"],
   phoneDisplay: "(918) 922-8114",
   phoneTel: "+19189228114",
-  email: "oklahomaprospectsbaseball@gmail.com",
+  email: "stevemccutcheon89@gmail.com",
   addressLine1: "3804 S. Elm Pl., Suite A",
   addressLine2: "Broken Arrow, OK 74011",
   city: "Broken Arrow, Oklahoma",
@@ -60,6 +60,9 @@ export const AGE_GROUPS = [
 ] as const;
 
 export const TRYOUT_AGES = ["5U", "8U", "9U", "10U", "13U", "15U"] as const;
+
+export const SOFTBALL_AGES = ["10U", "12U", "14U", "16U"] as const;
+export const SOFTBALL_TRYOUT_SESSION = "Softball tryouts · Date and time to be announced";
 
 export const TRYOUT_DAYS = [
   {

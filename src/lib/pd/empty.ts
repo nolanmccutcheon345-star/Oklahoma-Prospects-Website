@@ -3,6 +3,9 @@ import type { DevelopmentData } from "./types";
 
 export function emptyDevelopment(): DevelopmentData {
   return {
+    strengthAssignments: [],
+    throwingDays: [],
+    educationProgress: {},
     athletes: [],
     families: [],
     coaches: [],

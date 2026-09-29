@@ -44,6 +44,8 @@ function sliceOf(id: string): AthleteSlice {
     skillPlans: of(data.skillPlans),
     warmups: of(data.warmups),
     strengthSets: of(data.strengthSets),
+    strengthAssignments: data.strengthAssignments.filter(row => row.athleteId === id),
+    throwingDays: data.throwingDays.filter(row => row.athleteId === id),
     throwingAssignments: of(data.throwingAssignments),
     bullpens: of(data.bullpens),
     workload: of(data.workload),

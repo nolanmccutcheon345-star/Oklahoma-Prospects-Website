@@ -9,9 +9,9 @@ const dates=()=>Array.from({length:30},(_,i)=>new Date(new Date(chicagoDate()+'T
 type Item=z.infer<typeof dayInput>['items'][number];
 const newItem=():Item=>({id:crypto.randomUUID(),name:'',track:'Strength',sets:1,reps:'',instructions:'',videoUrl:''});
 export function DevelopmentBoard(){
- const {data,viewer}=useDevelopment();const [id,setId]=useState(data.athletes[0]?.id||'');const [day,setDay]=useState(chicagoDate());
+ const {data,viewer,canCoach}=useDevelopment();const [id,setId]=useState(data.athletes[0]?.id||'');const [day,setDay]=useState(chicagoDate());
  const [progress,setProgress]=useState<Awaited<ReturnType<typeof getDevelopmentProgress>>>(),[error,setError]=useState(''),[busy,setBusy]=useState(false),[notice,setNotice]=useState('');
- const [items,setItems]=useState<Item[]>([]);const coach=viewer?.role==='coach'||viewer?.role==='admin';
+ const [items,setItems]=useState<Item[]>([]);const coach=canCoach(id);
  const selected=progress?.days.find(d=>d.day===day);
  async function reload(){if(id)setProgress(await getDevelopmentProgress({data:{athleteId:id}}));}
  useEffect(()=>{let active=true;setProgress(undefined);if(id)void getDevelopmentProgress({data:{athleteId:id}}).then(p=>{if(active)setProgress(p);}).catch(e=>{if(active)setError(e.message);});return()=>{active=false;};},[id]);

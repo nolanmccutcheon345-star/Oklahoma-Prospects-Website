@@ -244,6 +244,10 @@ export function OfficeOperations() {
               {data.counts.open_review}.
             </p>
             <p>
+              Claimed athletes: {data.counts.claimed_athletes}; unclaimed guest athletes: {data.counts.guest_athletes};
+              development-file athletes: {data.counts.development_athletes}; saved strength versions: {data.counts.strength_versions};
+              saved bullpens: {data.counts.saved_bullpens}. If a known athlete is missing, reconcile their verified household with a dated backup before creating a replacement.
+            </p><p>
               These counts identify records to review; they do not establish matching balances.
               Verify legacy receipts, assessments and reservations before recording opening
               balances. No legacy payment or completion flag is converted automatically.
