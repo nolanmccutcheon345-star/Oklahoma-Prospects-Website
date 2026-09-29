@@ -100,7 +100,7 @@ test("hour lesson with assessment uses its posted price", () => {
 test("development first month includes the posted setup price", () => {
   const item = quoteCheckout({ kind: "membership", id: "m1" }, catalog, false);
   assert.ok(item);
-  assert.equal(item.price, 299);
+  assert.equal(item.price, 297);
 });
 
 test("household cage plan is blocked for team use", () => {

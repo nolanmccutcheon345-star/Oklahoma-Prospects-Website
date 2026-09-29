@@ -98,7 +98,7 @@ export async function grantCredits(
       : [
           {
             kind: "lesson",
-            quantity: Math.max(0, q.credits - (input.initialBooking && !q.assessment ? 1 : 0)),
+            quantity: Math.max(0, q.credits - (input.initialBooking && (!q.assessment || q.initialBookingUsesCredit) ? 1 : 0)),
             minutes: q.sessionMinutes,
           },
           { kind: "remote-review", quantity: q.remote, minutes: 20 },

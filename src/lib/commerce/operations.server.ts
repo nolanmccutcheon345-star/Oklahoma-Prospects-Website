@@ -111,6 +111,11 @@ export async function officeOperations(userId: string) {
       lane_ids: string[] | null;
     }>`select s.id as service_id,s.name,r.lane_ids from club_services s left join service_resources r on r.service_id=s.id where s.kind='lesson' and s.active and s.id not in ('s5','s6') order by s.sort_order`,
     sql<{
+      claimed_athletes: number;
+      guest_athletes: number;
+      development_athletes: number;
+      strength_versions: number;
+      saved_bullpens: number;
       legacy_reservations: number;
       legacy_assessments: number;
       confirmed_bookings: number;
@@ -118,6 +123,11 @@ export async function officeOperations(userId: string) {
       paid_cents: number;
       open_review: number;
     }>`select
+   (select count(*)::integer from club_athletes where user_id is not null) as claimed_athletes,
+   (select count(*)::integer from club_athletes where user_id is null) as guest_athletes,
+   coalesce((select jsonb_array_length(payload::jsonb->'athletes') from pd_working_file where id='club'),0) as development_athletes,
+   coalesce((select jsonb_array_length(payload::jsonb->'strengthAssignments') from pd_working_file where id='club'),0) as strength_versions,
+   coalesce((select jsonb_array_length(payload::jsonb->'bullpens') from pd_working_file where id='club'),0) as saved_bullpens,
    (select count(*)::integer from reservations) as legacy_reservations,
    (select count(*)::integer from profiles where assessment_complete=true) as legacy_assessments,
    (select count(*)::integer from booking_records where status in ('confirmed','completed')) as confirmed_bookings,

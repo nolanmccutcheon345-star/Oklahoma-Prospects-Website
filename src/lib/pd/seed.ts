@@ -9,6 +9,9 @@ export const EMPTY_ATHLETE_ID = "a-empty";
 
 export function seedDevelopment(): DevelopmentData {
   const data: DevelopmentData = {
+    strengthAssignments: [],
+    throwingDays: [],
+    educationProgress: {},
     athletes: [
       {
         id: EMPTY_ATHLETE_ID,

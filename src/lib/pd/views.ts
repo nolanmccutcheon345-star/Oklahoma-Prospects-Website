@@ -26,7 +26,7 @@ export const RECORD_GROUPS: RecordGroupDef[] = [
     views: [
       { id: "skill-plan", label: "Skill Plan" },
       { id: "strength", label: "Strength" },
-      { id: "warmups", label: "Warm-Ups" },
+      { id: "warmups", label: "Throwing & Warm-Ups" },
       { id: "bullpens", label: "Bullpens/TCI" },
       { id: "workload", label: "Workload" },
       { id: "points", label: "Activity Points" },

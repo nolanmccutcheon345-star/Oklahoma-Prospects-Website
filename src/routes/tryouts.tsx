@@ -4,26 +4,27 @@ import { ContactForm, TryoutForm } from "@/components/inquiry-form";
 import { PageHero } from "@/components/page-hero";
 import { TryoutSchedule } from "@/components/tryout-schedule";
 import { Button } from "@/components/ui/button";
-import { CLUB, TRYOUT_AGES } from "@/lib/club";
+import { CLUB, TRYOUT_AGES, SOFTBALL_AGES } from "@/lib/club";
 
-type TryoutSearch = { age?: string };
+type TryoutSearch = { age?: string; sport?: "Baseball" | "Softball" };
 
-export const Route = createFileRoute("/tryouts")({head:()=>pageHead("/tryouts","Free Tryout Registration","Register for Spring 2027 evaluations on November 14\u201315, 2026. No payment required.",false),
+export const Route = createFileRoute("/tryouts")({head:()=>pageHead("/tryouts","Free Tryout Registration","Register for baseball evaluations November 14–15, 2026, or softball 10U, 12U, 14U and 16U tryouts. Softball dates to be announced. No payment required.",false),
   validateSearch: (search: Record<string, unknown>): TryoutSearch => ({
     age: typeof search.age === "string" ? search.age : undefined,
+    sport: search.sport === "Softball" || search.sport === "Baseball" ? search.sport : undefined,
   }),
   component: TryoutsPage,
 });
 
 function TryoutsPage() {
-  const { age } = Route.useSearch();
+  const { age, sport } = Route.useSearch();
   return (
     <main id="main">
       <PageHero
         eyebrow="Team opportunities"
-        title="Free Spring 2027 evaluations."
-        accent="November 14–15."
-        copy="Baseball and softball in Broken Arrow. No payment to register. Saturday morning sessions use special hours — doors open at 8:45 AM for 5U."
+        title="Baseball & softball tryouts."
+        accent="Find your team."
+        copy="Free registration in Broken Arrow. Baseball evaluations: November 14–15. Softball: 10U, 12U, 14U and 16U, with dates and times to be announced."
         actions={
           <>
             <Button asChild>
@@ -36,21 +37,32 @@ function TryoutsPage() {
         }
       />
 
+      <section id="softball" className="scroll-mt-24 bg-navy py-10 text-fg-inverse">
+        <div className="mx-auto max-w-3xl px-5">
+          <p className="text-xs font-semibold tracking-[0.16em] text-powder uppercase">Oklahoma Prospects softball</p>
+          <h2 className="mt-2 text-4xl">{SOFTBALL_AGES.join(" · ")}</h2>
+          <p className="mt-3 text-fg-soft">Sarah Blankenship, Softball Program Coordinator, is adding teams in these four age groups. Tryout dates and times are to be announced. Register now and Prospects will follow up with details.</p>
+          <Button asChild className="mt-6">
+            <Link to="/tryouts" search={{ sport: "Softball" }} hash="register">Sign up for softball tryouts</Link>
+          </Button>
+        </div>
+      </section>
+
       <section className="mx-auto max-w-3xl px-5 py-10">
         <p className="text-xs font-semibold tracking-[0.16em] text-maroon uppercase">
-          Free evaluations · Spring 2027
+          Baseball evaluations · Spring 2027
         </p>
         <h2 className="mt-2 text-4xl">November 14–15, 2026</h2>
         <p className="mt-3 text-muted">
           {TRYOUT_AGES.join(", ")}. Check in 15 minutes early. Times are
           Central. Regular weekend cage hours (1–8 PM) still apply after evaluations.
-          Other ages and softball: send a team inquiry below.
+          Saturday doors open at 8:45 AM for 5U. Other baseball ages: send a team inquiry below.
         </p>
         <div className="mt-6">
           <TryoutSchedule />
         </div>
         <Button asChild className="mt-6 w-full">
-          <a href="#register">Register for a session</a>
+          <Link to="/tryouts" search={{ sport: "Baseball" }} hash="register">Register for a baseball session</Link>
         </Button>
         <p className="mt-4 text-sm text-muted">
           Just need a cage?{" "}
@@ -66,11 +78,11 @@ function TryoutsPage() {
           <p className="text-xs font-semibold tracking-[0.16em] text-maroon uppercase">
             Register
           </p>
-          <h2 className="mt-2 text-3xl">Put your player on the November list.</h2>
+          <h2 className="mt-2 text-3xl">Sign up for tryouts.</h2>
           <p className="mt-2 mb-6 text-muted">
-            Free. Pick the session and save your registration directly to the club.
+            Free. Choose your sport and age group. Baseball families select a November session; softball families register for details when dates are announced.
           </p>
-          <TryoutForm intent="register" initialAge={age} />
+          <TryoutForm key={`${sport ?? "Baseball"}:${age ?? ""}`} intent="register" initialAge={age} initialSport={sport} />
         </div>
       </section>
 
@@ -82,7 +94,7 @@ function TryoutsPage() {
             </p>
             <h2 className="mt-2 text-3xl">Tell us about your player.</h2>
             <p className="mt-2 mb-6 text-muted">
-              For openings outside November 14–15. Prospects will contact you
+              For other age groups or seasons. Prospects will contact you
               with the next step.
             </p>
             <ContactForm />

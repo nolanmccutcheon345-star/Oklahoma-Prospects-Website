@@ -19,7 +19,7 @@ import {
   type LbMetricId,
   type PdAlert,
 } from "@/lib/pd/automation";
-import { CLUB_DAY_ISO } from "@/lib/pd/engines";
+import { clubDayIso } from "@/lib/pd/engines";
 import type { ViewerRole } from "@/lib/pd/types";
 import { cn } from "@/lib/utils";
 
@@ -161,7 +161,7 @@ export function PointsBoard({
       </section>
       <ul className="grid gap-2">
         {POINT_ACTIVITIES.map((row) => {
-          const logged = alreadyLogged(data.pointsLog, slice.athlete.id, CLUB_DAY_ISO, row.key);
+          const logged = alreadyLogged(data.pointsLog, slice.athlete.id, clubDayIso(), row.key);
           const high = (HIGH_VALUE_KEYS as readonly string[]).includes(row.key);
           return (
             <li key={row.key} className="pd-row rounded-xl bg-paper-2 shadow-border">

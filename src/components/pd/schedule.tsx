@@ -89,7 +89,6 @@ export function CoachFloor({
   const rows = data.bookings.filter(
     (row) =>
       row.status === "paid" &&
-      row.date >= "2026-09-12" &&
       (!coachId || row.coachId === coachId || !row.coachId),
   );
   return (

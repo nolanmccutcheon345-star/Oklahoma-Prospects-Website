@@ -27,14 +27,7 @@ import type { RecordGroupId, RecordViewId, ViewerRole } from "@/lib/pd/types";
 import { RECORD_GROUPS, groupForView, viewsForRole } from "@/lib/pd/views";
 import { cn } from "@/lib/utils";
 
-function ageOnClubDay(iso: string) {
-  const day = new Date("2026-09-14T12:00:00Z");
-  const born = new Date(`${iso}T12:00:00Z`);
-  let age = day.getUTCFullYear() - born.getUTCFullYear();
-  const month = day.getUTCMonth() - born.getUTCMonth();
-  if (month < 0 || (month === 0 && day.getUTCDate() < born.getUTCDate())) age -= 1;
-  return age;
-}
+import { ageOnClubDay } from "@/lib/pd/engines";
 
 function displayName(slice: AthleteSlice) {
   return `${slice.athlete.firstName} ${slice.athlete.lastName}`;
@@ -583,8 +576,9 @@ export function AthleteRecord({
   onBack?: () => void;
   onStartLesson?: (athleteId: string) => void;
 }) {
-  const { slice } = useDevelopment();
+  const { slice, canCoach } = useDevelopment();
   const current = slice(athleteId);
+  role = role === "coach" && !canCoach(athleteId) ? "parent" : role;
   const groups = viewsForRole(role);
   const [group, setGroup] = useState<RecordGroupId>("development");
   const [view, setView] = useState<RecordViewId>("overview");

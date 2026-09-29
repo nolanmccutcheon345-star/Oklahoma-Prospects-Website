@@ -203,7 +203,7 @@ export async function fulfillSquarePayment(
       end,
       initialBooking: false,
     });
-    if (bookings.length && !order.snapshot.assessment) {
+    if (bookings.length && (!order.snapshot.assessment || order.snapshot.initialBookingUsesCredit)) {
       const [grant] = await sql<{
         id: string;
       }>`update credit_grants set remaining=remaining-1 where source_key=${"square:" + (order.square_payment_id || id) + ":lesson"} and remaining>0 returning id`;

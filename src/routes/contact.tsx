@@ -8,9 +8,10 @@ import { PeopleCards } from "@/components/people";
 import { Button } from "@/components/ui/button";
 import { CLUB, LINKS } from "@/lib/club";
 
-export const Route = createFileRoute("/contact")({head:()=>pageHead("/contact","Contact the Front Desk","Call (918) 922-8114 or send Oklahoma Prospects a question about cages, lessons, and teams.",false), component: ContactPage });
+export const Route = createFileRoute("/contact")({head:()=>pageHead("/contact","Contact the Front Desk","Call (918) 922-8114 or send Oklahoma Prospects a question about cages, lessons, and teams.",false), validateSearch: (search: Record<string, unknown>): { subject?: string } => ({ subject: typeof search.subject === "string" ? search.subject.slice(0, 200) : "" }), component: ContactPage });
 
 function ContactPage() {
+  const { subject } = Route.useSearch();
   return (
     <main id="main">
       <PageHero
@@ -31,7 +32,7 @@ function ContactPage() {
           <p className="mt-2 mb-6 text-muted">
             Send an inquiry and Prospects will follow up.
           </p>
-          <ContactForm />
+          <ContactForm key={subject} initialSubject={subject} />
         </div>
         <aside className="rounded-2xl bg-ink p-5 text-fg-inverse">
           <p className="text-xs font-semibold tracking-[0.16em] text-powder uppercase">

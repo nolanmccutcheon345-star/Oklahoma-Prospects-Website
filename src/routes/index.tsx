@@ -1,3 +1,4 @@
+import { ProspectsLiveLink } from "@/components/prospects-live-link";
 import { PRICES, formatMoney } from "@/lib/pricing";
 import {useLiveCatalog} from "@/lib/use-catalog";
 import {pageHead} from "@/lib/seo";
@@ -47,6 +48,11 @@ function Home() {
             <Button asChild variant="outline">
               <Link to="/tryouts">Free Spring tryout</Link>
             </Button>
+          </div>
+          <div className="mt-5"><ProspectsLiveLink /></div>
+          <div className="mt-4 flex flex-wrap gap-3">
+            <Button asChild variant="outline"><Link to="/softball">Softball teams & tryouts</Link></Button>
+            <Button asChild variant="outline"><Link to="/fundraising">Donations & sponsorships</Link></Button>
           </div>
           <p className="mt-4 text-sm text-fg-soft"><a href={LINKS.maps} className="underline">{CLUB.addressLine1}, {CLUB.addressLine2}</a></p>
         </div>
