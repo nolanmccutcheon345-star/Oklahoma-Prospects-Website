@@ -24,5 +24,19 @@ test('manual source archives retain exact commit provenance and migration checks
   await writeFile(join(dir,'source-commit.txt'),'$Format:%H$\n');
   result=spawnSync(process.execPath,[script],{cwd:dir,env,encoding:'utf8'});
   assert.notEqual(result.status,0);assert.match(result.stderr,/full source commit/);
+  // Drop may create its own commit after unpacking. It must not replace the
+  // immutable source archive's provenance with that synthetic build identity.
+  await writeFile(join(dir,'source-commit.txt'),commit+'\n');
+  const runGit=(args)=>{
+   const run=spawnSync('git',args,{cwd:dir,encoding:'utf8'});
+   assert.equal(run.status,0,run.stderr);return run.stdout.trim();
+  };
+  runGit(['init']);runGit(['add','.']);
+  runGit(['-c','user.name=Release test','-c','user.email=release@example.test','commit','-m','Synthetic drop source']);
+  const syntheticCommit=runGit(['rev-parse','HEAD']);
+  assert.notEqual(syntheticCommit,commit);
+  result=spawnSync(process.execPath,[script],{cwd:dir,env:{...env,COMMIT_REF:syntheticCommit},encoding:'utf8'});
+  assert.equal(result.status,0,result.stderr);
+  assert.equal(JSON.parse(await readFile(join(dir,'public/release.json'),'utf8')).commit,commit);
  }finally{await rm(dir,{recursive:true,force:true});}
 });

@@ -3,10 +3,10 @@ import { createHash } from 'node:crypto';
 import { readdir, readFile, writeFile } from 'node:fs/promises';
 
 function git(args) { try { return execFileSync('git', args, {encoding:'utf8',stdio:['ignore','pipe','ignore']}).trim(); } catch { return ''; } }
-// Netlify Drop builds a source archive without .git and may label COMMIT_REF as
-// "HEAD". git archive stamps source-commit.txt with the actual archived commit.
+// Netlify Drop may wrap an uploaded archive in a synthetic git repository.
+// Prefer git archive's stamped source commit over that temporary build commit.
 const archivedCommit = await readFile('source-commit.txt', 'utf8').then(s=>s.trim()).catch(()=> '');
-const commit = [git(['rev-parse','HEAD']), archivedCommit, process.env.COMMIT_REF, process.env.GITHUB_SHA]
+const commit = [archivedCommit, git(['rev-parse','HEAD']), process.env.COMMIT_REF, process.env.GITHUB_SHA]
   .find(value => /^[a-f0-9]{40}$/i.test(value ?? ''));
 if (!commit) throw new Error('A release must identify its full source commit.');
 const migrations = await Promise.all((await readdir('migrations')).filter(f=>f.endsWith('.sql')).sort().map(async name=>({
