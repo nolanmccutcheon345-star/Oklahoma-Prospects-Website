@@ -709,6 +709,19 @@ test("Queued receipts isolate environments, retry safely, and restrict Sandbox t
     await sql`insert into payment_notifications(id,order_id,kind) values('owner-review:paid-cages','paid-cages','owner-payment-review')`;
     await deliverPaymentNotifications(sql, production, email, undefined, send, "paid-cages", true);
     assert.match(calls.at(-1)!.body.text, /no booking was confirmed/);
+    await deliverPaymentNotifications(sql, production, email, undefined, send, "paid-cages");
+    const thanks = calls.at(-1)!;
+    assert.deepEqual(thanks.body.to, ["customer@example.test"]);
+    assert.match(thanks.body.subject, /Thank you for booking/);
+    assert.match(thanks.body.text, /look forward to seeing you at your reserved time/);
+    assert.match(thanks.body.text, /Saturday, April 17, 2027/);
+    assert.match(thanks.body.text, /3:00 PM CDT–4:00 PM CDT/);
+    assert.match(thanks.body.text, /Lane 5/);
+    assert.match(thanks.body.text, /Lane 6/);
+    assert.match(thanks.body.text, /3804 S\. Elm Pl\./);
+    const thankedCount = calls.length;
+    await deliverPaymentNotifications(sql, production, email, undefined, send, "paid-cages");
+    assert.equal(calls.length, thankedCount, "thank-you is the existing receipt, sent once");
   } finally {
     await db.close();
   }
