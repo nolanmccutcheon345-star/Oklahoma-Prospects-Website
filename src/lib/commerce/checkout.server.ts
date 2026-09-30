@@ -15,6 +15,7 @@ import { approvedProducts, CATALOG_VERSION } from "./catalog";
 import { assertSquareCheckoutScope } from "./square-config";
 import { expireHolds } from "./store.server";
 import { quoteWithDiscount, assertDiscountCurrent } from "./discounts.server";
+import { assertBreakTheBatAvailable } from "./break-the-bat.server";
 
 export async function rateLimit(bucket: string, maximum = 30) {
   const request = getRequest();
@@ -118,6 +119,11 @@ export async function quoteForRequest(
     requireConsent,
   );
   const quote = await quoteWithDiscount(sql, baseQuote, input.discountCode);
+  await assertBreakTheBatAvailable(sql, quote, {
+    userId: me.userId,
+    email: me.email,
+    environment: quote.discount ? squareConfig().environment : "",
+  });
   if (quote.kind !== "cage" && quote.kind !== "cage-plan" && !athleteId) {
     throw new Error("Add your athlete in the family portal, then select that athlete to continue.");
   }
