@@ -101,6 +101,8 @@ export async function deliverPaymentNotifications(
             }>`select starts_at,ends_at,resources,status from booking_records where order_id=${n.order_id} order by starts_at`
           : [];
       const details = bookingNoticeDetails(bookings);
+      const confirmedBooking =
+        n.kind === "receipt" && bookings.length > 0 && bookings.every((b) => b.status === "confirmed");
       const amount = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(
         n.total_cents / 100,
       );
@@ -126,7 +128,9 @@ export async function deliverPaymentNotifications(
                     ? "Square payment dispute needs review"
                     : failed
                       ? "Update your membership payment card"
-                      : "Oklahoma Prospects payment receipt",
+                      : confirmedBooking
+                        ? "Thank you for booking with Oklahoma Prospects!"
+                        : "Oklahoma Prospects payment receipt",
             text: ownerTest
               ? `This is a Sandbox receipt check from your saved test payment for ${n.title}. No real money was charged. This is not an active booking confirmation; the test booking may already have been cancelled or refunded. View the saved test billing record at ${c.origin}/family. Square Sandbox receipt: ${n.receipt_url}`
               : ownerBooking || ownerReview
@@ -135,7 +139,9 @@ export async function deliverPaymentNotifications(
                   ? `A Square payment dispute requires owner review. Open ${c.origin}/office and review the deadline in Square.`
                   : failed
                     ? `Your membership renewal could not be collected. Update your card in your account: ${c.origin}/family. New credits are issued only after a successful payment.`
-                    : `Your payment for ${n.title} is confirmed.\n${details ? details + "\n" : ""}View your booking and billing history at ${c.origin}/family. Receipt: ${n.receipt_url || c.origin + "/paid?order_id=" + n.order_id}`,
+                    : confirmedBooking
+                      ? `Hello${n.customer_name ? " " + n.customer_name : ""}!\n\nThank you for booking with Oklahoma Prospects! We appreciate you choosing our facility and look forward to seeing you at your reserved time:\n\n${details}\n\nYour payment for ${n.title} is confirmed.\n\nLocation: 3804 S. Elm Pl., Suite A, Broken Arrow, OK 74011.\n\nView your booking and billing history at ${c.origin}/family. Receipt: ${n.receipt_url || c.origin + "/paid?order_id=" + n.order_id}\n\nSee you soon!\nCoach Steve & the Oklahoma Prospects Team`
+                      : `Your payment for ${n.title} is confirmed.\n${details ? details + "\n" : ""}View your booking and billing history at ${c.origin}/family. Receipt: ${n.receipt_url || c.origin + "/paid?order_id=" + n.order_id}`,
           }),
           signal: AbortSignal.timeout(10000),
         });
