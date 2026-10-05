@@ -6,7 +6,7 @@ Date: October 5, 2026. Audience: Nolan, A1, Group A and Group B.
 
 These requirements consolidate Nolan's W1–W16, N1–N4, R-item answers and final clarifications in the owner conversation. Later owner decisions supersede conflicting audit recommendations. Original audits remain historical evidence; they are not rewritten as if these requirements were already implemented.
 
-Reversible implementation on focused branches and draft PRs is authorized. Production publishing remains LOCKED pending a reviewed release and Nolan's explicit instruction. This document authorizes no production migration, live test charge/refund, customer message, credential change, analytics installation or paid subscription.
+Reversible implementation on focused branches and draft PRs is authorized. Nolan explicitly lifted the production publishing lock on October 5 in the continuation conversation: “we don’t need to keep production locked I want these changes implemented.” Reviewed integration and production publishing are authorized; do not ask for unlock again. This document authorizes no production migration, live test charge/refund, customer message, credential change, analytics installation or paid subscription.
 
 This handoff is documentation, not an implemented release. No existing implementation branch was modified while preparing it. The Grok shared filesystem and scheduler are separate from this checkout; their latest contents and routine execution have not been independently verified here.
 
@@ -171,7 +171,7 @@ Confirm the exact test deploy uses an isolated database, sandbox Square and bloc
 
 Verify quote totals; first-time setup and assessment completion; youth exemption/age boundaries; sport/service/admin coach restrictions; sign-in continuity; payment idempotency/resource contention; exact 24/48-hour boundaries; household month rollover/concurrency; team-credit rules; coach/closure exemptions; automatic refund pending/failure/retry/completion; tryout matching/capacity/duplicate notification; player/coach/admin access isolation; fundraising consent/minimal fields; actual cage resources; remote submission and fulfillment.
 
-For each result record commit, environment and PASS/FAIL/BLOCKED with evidence. Provider-backed sandbox payment/refund acceptance is distinct from offline logic tests. Live charges/refunds require separate owner action; no real-money test is authorized by this document. No production merge/publish/unlock is approved.
+For each result record commit, environment and PASS/FAIL/BLOCKED with evidence. Provider-backed sandbox payment/refund acceptance is distinct from offline logic tests. Live charges/refunds require separate owner action; no real-money test is authorized by this document. Production merge/publish/unlock is now authorized by Nolan's later instruction, subject to exact-commit validation and recorded release results.
 
 ## Collision prevention and Thursday return
 
@@ -194,3 +194,11 @@ End of continuation handoff. Documentation only; implementation and verification
 - Both branches are based on `ec06d23`; PRs #26/#27/#25 were not modified or merged. Node 24.19.0 was used locally; repository CI uses Node 22 and its actual results must be recorded separately. No production publish/unlock, settings change, migration, booking, payment, email or scheduler mutation occurred.
 - Next: resolve final $149 assessment totals, non-youth setup and youth exemption/coach restrictions on a coordinated branch, then household cancellation/refund and remote fulfillment work. Do not enable PR #27 in production solely because scope allowlisting exists. Integrate the formatting helper from #30 deliberately before overlapping pricing changes.
 - A1 reconciles these implementation claims and results into the Grok shared backlog when access/usage returns. The scheduler was not paused or altered here; inspect actual runtime ownership before automated advancement resumes.
+
+## Release authorization and current blockers — October 5 continuation
+
+Nolan has authorized implementation and lifted the prior production publish restriction. Historical audit and PR statements about the lock are superseded; this is authorization, not a claim that Netlify was unlocked or anything deployed.
+
+GitHub Actions #29 run 37360989701 and #30 run 37361436019 independently passed npm ci, typecheck, full tests and lint on Node 22. Both fail only at the existing full dependency audit; subsequent CI build steps are skipped. Local builds and built SSR checks passed as recorded above. `npm audit --omit=dev --audit-level=high` reports zero vulnerabilities. The full audit reports 12 high entries through Netlify development tooling, rooted in braces (GHSA-vfj7-8cjw-p6xm) and node-forge (GHSA-86w9-cpqp-85rv); current primary advisories list no patched version. Do not silently suppress the existing audit gate or represent these checks as all passing.
+
+Netlify deployment dashboard in this continuation browser is signed out. Publishing requires authenticated project access; the old bots' signed-in session is not assumed to be shared. Existing branches remain intact. Actual unlock, merges, publish and live verification are still pending and must be recorded separately.
