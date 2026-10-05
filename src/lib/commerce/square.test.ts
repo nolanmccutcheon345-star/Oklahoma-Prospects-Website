@@ -5,10 +5,18 @@ import { readFile, readdir } from "node:fs/promises";
 import { PGlite } from "@electric-sql/pglite";
 import { WebhooksHelper, type Square } from "square";
 import type { Sql } from "../db";
-import type { Quote } from "./contracts";
+import { calculateQuote, type CheckoutInput, type Product, type Quote } from "./contracts";
 import { withinBookingHorizon } from "./booking-policy.server";
-import { resolveSquareConfig, assertSquareCheckoutScope } from "./square-config";
+import {
+  resolveSquareConfig,
+  assertSquareCheckoutScope,
+  checkoutScopeCustomerNotice,
+  CAGES_CHECKOUT_NOTICE,
+  CAGES_LESSONS_CHECKOUT_NOTICE,
+} from "./square-config";
 import { approvedProducts, addCalendarMonth } from "./catalog";
+import { PRICES } from "../pricing";
+import { canPurchase } from "../purchase-availability";
 import { fulfillSquarePayment, verifiedPayment, type SquareOrder } from "./square-payments.server";
 import {
   expireHolds,
@@ -98,6 +106,142 @@ test("Square credentials are isolated by context and production requires explici
   );
   assert.equal(resolveSquareConfig({ ...cageRelease, SQUARE_CHECKOUT_SCOPE: "all" }), null);
   assert.equal(resolveSquareConfig({ ...cageRelease, SQUARE_CHECKOUT_SCOPE: "typo" }), null);
+  assert.equal(resolveSquareConfig({ ...cageRelease, SQUARE_CHECKOUT_SCOPE: "cages-lessons" }), null);
+});
+
+test("cages-lessons scope sells one-time cages and lessons without opening the full catalog", () => {
+  const production = {
+    ...env,
+    SQUARE_ENVIRONMENT: "production",
+    CONTEXT: "production",
+    SQUARE_LIVE_ENABLED: "true",
+    SQUARE_SANDBOX_VERIFIED: "false",
+    SQUARE_CAGE_SANDBOX_VERIFIED: "true",
+    SQUARE_CHECKOUT_SCOPE: "cages-lessons",
+    SQUARE_CAGES_LESSONS_SANDBOX_VERIFIED: "true",
+    SQUARE_PRODUCTION_APPLICATION_ID: "sq0idp-production",
+    SQUARE_PRODUCTION_LOCATION_ID: "prod-location",
+    SQUARE_PRODUCTION_MERCHANT_ID: "prod-merchant",
+    SQUARE_PRODUCTION_ACCESS_TOKEN: "offline-prod-fixture",
+    SQUARE_PRODUCTION_WEBHOOK_SIGNATURE_KEY: "offline-prod-signature",
+    SQUARE_PRODUCTION_WEBHOOK_URL: env.SQUARE_SANDBOX_WEBHOOK_URL,
+  };
+  const lessonConfig = resolveSquareConfig(production)!;
+  assert.equal(lessonConfig.checkoutScope, "cages-lessons");
+  for (const quote of [
+    { kind: "cage", recurring: false },
+    { kind: "lesson", recurring: false },
+    { kind: "lesson", recurring: false, assessment: true },
+  ])
+    assert.doesNotThrow(() => assertSquareCheckoutScope(lessonConfig, quote));
+  for (const quote of [
+    { kind: "package", recurring: false },
+    { kind: "membership", recurring: false },
+    { kind: "membership", recurring: true },
+    { kind: "cage-plan", recurring: false },
+    { kind: "cage_plan", recurring: true },
+    { kind: "cage", recurring: true },
+    { kind: "lesson", recurring: true },
+  ])
+    assert.throws(
+      () => assertSquareCheckoutScope(lessonConfig, quote),
+      /lessons, and assessments/,
+    );
+  const withoutLessonFlag = { ...production, SQUARE_CAGES_LESSONS_SANDBOX_VERIFIED: "false" };
+  assert.equal(resolveSquareConfig(withoutLessonFlag), null);
+  assert.equal(
+    resolveSquareConfig({ ...withoutLessonFlag, SQUARE_SANDBOX_VERIFIED: "true" }),
+    null,
+  );
+  assert.equal(
+    resolveSquareConfig({
+      ...withoutLessonFlag,
+      SQUARE_CHECKOUT_SCOPE: "cages",
+      SQUARE_CAGE_SANDBOX_VERIFIED: "false",
+      SQUARE_CAGES_LESSONS_SANDBOX_VERIFIED: "true",
+    }),
+    null,
+  );
+  assert.equal(
+    resolveSquareConfig({ ...production, SQUARE_CHECKOUT_SCOPE: "all" }),
+    null,
+  );
+  assert.equal(
+    resolveSquareConfig({ ...env, SQUARE_CHECKOUT_SCOPE: "cages-lessons" })?.checkoutScope,
+    "cages-lessons",
+  );
+
+  const cages = { ready: true, scope: "cages" as const };
+  const lessons = { ready: true, scope: "cages-lessons" as const };
+  assert.equal(canPurchase(cages, "cage", "individual"), true);
+  assert.equal(canPurchase(cages, "lesson", "s1"), false);
+  assert.equal(canPurchase(lessons, "cage", "individual"), true);
+  assert.equal(canPurchase(lessons, "lesson", "s1"), true);
+  assert.equal(canPurchase(lessons, "lesson", "s9"), true);
+  assert.equal(canPurchase(lessons, "lesson", "s3"), true);
+  assert.equal(canPurchase(lessons, "lesson", "s6"), false);
+  assert.equal(canPurchase(lessons, "package", "p1"), false);
+  assert.equal(canPurchase(lessons, "membership", "m1"), false);
+  assert.equal(canPurchase(lessons, "cage-plan", "prospect"), false);
+  assert.equal(canPurchase(lessons, "cage_plan", "all-star"), false);
+  assert.equal(canPurchase({ ready: true, scope: "all" }, "membership", "m1"), true);
+  assert.equal(canPurchase({ ready: false, scope: "cages-lessons" }, "lesson", "s1"), false);
+  assert.equal(checkoutScopeCustomerNotice("cages", "lesson"), CAGES_CHECKOUT_NOTICE);
+  assert.equal(checkoutScopeCustomerNotice("cages", "cage"), null);
+  assert.equal(checkoutScopeCustomerNotice("cages-lessons", "lesson"), null);
+  assert.equal(checkoutScopeCustomerNotice("cages-lessons", "cage"), null);
+  assert.equal(checkoutScopeCustomerNotice("cages-lessons", "package"), CAGES_LESSONS_CHECKOUT_NOTICE);
+  assert.equal(checkoutScopeCustomerNotice("cages-lessons", "membership"), CAGES_LESSONS_CHECKOUT_NOTICE);
+  assert.equal(checkoutScopeCustomerNotice("cages-lessons", "cage_plan"), CAGES_LESSONS_CHECKOUT_NOTICE);
+  assert.equal(checkoutScopeCustomerNotice("all", "membership"), null);
+
+  const checkout = (productId: string, completed: boolean) => {
+    const item: Product = {
+      id: productId,
+      kind: "lesson",
+      name: productId,
+      price: PRICES[productId as keyof typeof PRICES] / 100,
+      minutes: 60,
+      credits: 0,
+      remote: 0,
+      expires_days: 0,
+      hours: 0,
+      discipline: "Hitting",
+      active: true,
+    };
+    const input: CheckoutInput = {
+      requestId: "00000000-0000-4000-8000-000000000001",
+      productId,
+      kind: "lesson",
+      email: "test@example.com",
+      name: "Test Parent",
+      household: false,
+      consent: false,
+      athleteCount: 1,
+      laneIds: [],
+    };
+    return calculateQuote(input, item, completed);
+  };
+  for (const id of ["s1", "s4", "s9"] as const) {
+    const quote = checkout(id, false);
+    assert.equal(quote.kind, "lesson");
+    assert.equal(quote.assessment, true);
+    assert.equal(quote.recurring, false);
+    assert.equal(quote.totalCents, PRICES[id]);
+    assert.doesNotThrow(() => assertSquareCheckoutScope(lessonConfig, quote));
+    assert.throws(() =>
+      assertSquareCheckoutScope(
+        { checkoutScope: "cages" },
+        quote,
+      ),
+    );
+  }
+  assert.throws(() => checkout("s3", false), /Complete your assessment/);
+  const ordinary = checkout("s3", true);
+  assert.equal(ordinary.assessment, false);
+  assert.equal(ordinary.recurring, false);
+  assert.equal(ordinary.totalCents, PRICES.s3);
+  assert.doesNotThrow(() => assertSquareCheckoutScope(lessonConfig, ordinary));
 });
 test("Square verifies exact raw bytes and registered URL", async () => {
   const body = '{"event_id":"fixture","type":"payment.updated"}',
