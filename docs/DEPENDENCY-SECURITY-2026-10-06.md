@@ -1,23 +1,32 @@
 # Dependency security continuation — October 6, 2026
 
-Claim: existing release dependency audit blocker. Base main `e7f5515a3e8af1684f8e1fbc300183cda05d5ba2`. Separate branch `fix/dependency-security`; existing bot and continuation branches are preserved. No application, checkout, payment, database, environment, scheduler or customer-facing policy changes.
+Claim: existing release dependency audit blocker. Base main `e7f5515a3e8af1684f8e1fbc300183cda05d5ba2`. Branch `fix/dependency-security`, PR #35. Existing bots' branches are preserved.
 
-## Available patches applied
+## Final remediation
 
-| Package | Previous | Updated | Advisory |
-| --- | --- | --- | --- |
-| sharp | 0.35.4 | 0.35.5 | GHSA-wq5f-xc86-pv6w |
-| source-map-js | 1.2.1 | 1.2.2 | GHSA-68fv-2mgg-jv7q |
-| smol-toml | 1.8.0 | 1.9.0 | GHSA-r4xh-jqrq-34v2 |
+The dependency gate originally reported 14 high and 1 moderate findings. Published patches for sharp, source-map-js and smol-toml reduced it to 12 high and zero moderate. Rechecking the registry and primary advisories confirmed braces 3.0.3 and node-forge 1.4.0 still have no published patched release:
 
-The sharp override remains pinned, now to the patched release. Its platform binaries and libvips packages are updated consistently. No other package version changed. Preserve existing nested lockfile entries: npm 11 initially removed copies that CI's npm 10 still requires; the first CI run caught this incompatibility and the follow-up restores them. A fresh `npm ci --ignore-scripts --no-audit --no-fund` succeeded in an independent installation; npm 10 validation and exact-head CI results are recorded in the PR.
+- https://github.com/advisories/GHSA-vfj7-8cjw-p6xm
+- https://github.com/advisories/GHSA-86w9-cpqp-85rv
 
-Full audit before: 14 high, 1 moderate. After: 12 high, 0 moderate. The three patched packages no longer appear in the audit. The remaining 12 entries trace to braces and node-forge via Netlify development tooling. Primary advisories GHSA-vfj7-8cjw-p6xm and GHSA-86w9-cpqp-85rv, and the npm registry, still report no published fixed release. Do not invent patched versions, weaken CI's audit threshold, bypass branch protection or mark the remaining findings resolved. Square sandbox acceptance is unrelated to this patch.
+Both remaining roots were installed solely through `@netlify/vite-plugin-tanstack-start` → `@netlify/vite-plugin` → Netlify's local development emulator. Application development already uses the ordinary Vite server. Replace that deployment adapter with the small repository-owned `scripts/netlify-build-plugin.mjs`, which runs only for the SSR build and emits the existing Netlify Functions entry contract:
+
+- `.netlify/v1/functions/server.mjs` imports the actual sole server entry chunk.
+- Default export is the application's fetch handler.
+- Catch-all `path: "/*"` and `preferStatic: true` preserve static assets and SSR routing.
+- Missing or ambiguous server entry chunks fail the build.
+- No emulator, certificate generator or image proxy is installed.
+
+Netlify database/function packages, scheduled application functions, migration packaging, TanStack application rendering and the Grok/Vercel build path remain in place. This adapter is intentionally build-only; it does not provide Netlify's local emulation. Future TanStack/Vite upgrades must retain adapter tests and exact hosted preview verification.
+
+Regenerating the lock with npm 10 removes 514 package entries, adds none, and changes no surviving package versions. Fresh npm 10 `ci` succeeds. Full `npm audit --audit-level=high` now reports **zero vulnerabilities**; the workflow threshold and branch protection are unchanged. This is dependency removal, not an advisory suppression or an invented patched package.
 
 ## Verification
 
-Typecheck and full lint PASS. All 574 offline regression tests PASS on Node 24. Netlify deploy-preview-context build and existing built SSR/security checks PASS. Native sharp SVG-to-PNG conversion PASS with sharp 0.35.5 and librsvg 2.63.2. Exact-head GitHub CI results are recorded in the PR. No hosted mutable tests, financial actions, real messages or database migrations were performed. Browser hydration/mobile verification is not claimed by the dependency checks.
+The focused adapter test imports its generated handler and checks request handling, static preference, SSR-only operation and invalid entry counts. `verify:build` now imports the generated Netlify Function itself rather than bypassing it to import the server bundle. Full tests, typecheck, lint, Netlify preview-context build and generated-function SSR/security checks are run before pushing; exact results and hosted checks are recorded in the PR.
 
-## Handoff
+No hosted mutable tests, financial actions, real customer messages or production database migrations are part of this change. Browser hydration and authenticated role acceptance remain separate gates. Prior available-patch verification passed 574 tests and native sharp SVG conversion; sharp is now removed with the unused image emulator, while source-map-js/smol-toml retain their patched surviving versions where present.
 
-A1 should reference this patch once in the shared backlog and retain the unresolved dependency gate separately from completed owner requirements. PR #34 public branding and discovery, PR #33 cancellation flows, and the bots' PRs remain independent. Production publishing is authorized, but this patch is not itself a production release; record an actual reviewed integration and live verification separately.
+## A1 handoff
+
+Reference PR #35 once against the release dependency blocker. PR #34 branding, PR #36 consented fundraising, PR #33 cancellation/payment flows, and existing bot PRs remain separate. Production publishing is authorized, but this branch is not itself a production release. Confirm exact-head CI and hosted preview before integrating; record the reviewed integration commit and live release independently. Square sandbox acceptance remains required for payment changes, independent of this dependency remediation.

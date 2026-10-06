@@ -12,7 +12,7 @@ import { grokPwaPlugin } from "./scripts/grok-pwa-plugin.mjs";
 import { appEnvPlugin } from "./scripts/app-env-plugin.mjs";
 import { isMigrationFile } from "./scripts/migration-plan.mjs";
 // @ts-expect-error JS plugin alongside the TS vite config
-import netlify from "@netlify/vite-plugin-tanstack-start";
+import { netlifyBuildPlugin } from "./scripts/netlify-build-plugin.mjs";
 
 /** The files `src/lib/db.ts` globs — same directory, same non-recursive scope. */
 function hasGlobbedMigrations(root: string): boolean {
@@ -145,10 +145,10 @@ function authPopupPlugin(): Plugin {
 }
 
 function deployPlugins(command: "build" | "serve", isPreview: boolean | undefined): Plugin[] {
-  // Netlify production builds set NETLIFY=true. Use the official TanStack Start
-  // plugin there so prospectsbaseball.club gets SSR. Grok/Vercel keeps nitro.
+  // Netlify builds set NETLIFY=true. Use our build-only TanStack Start
+  // build adapter there so prospectsbaseball.club gets SSR. Grok/Vercel keeps nitro.
   if (process.env.NETLIFY) {
-    return [netlify() as Plugin];
+    return [netlifyBuildPlugin() as Plugin];
   }
   if (command === "build" || isPreview) {
     return [
