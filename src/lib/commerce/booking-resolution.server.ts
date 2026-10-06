@@ -27,6 +27,8 @@ async function lockedBooking(tx: Sql, id: string) {
     total_cents: number;
     square_payment_id: string | null;
     payment_provider: string;
+    square_fee_payment_id: string | null;
+    kind: string;
     snapshot: { recurring: boolean };
   }>`select * from commerce_orders where id=${ref.order_id} for update`;
   const [booking] = await tx<Booking>`select * from booking_records where id=${id} for update`;
@@ -94,62 +96,84 @@ export async function saveClubCancellationRefund(sql: Sql, id: string, me: Ident
       await tx<Resolution>`select * from club_requests where id=${clubKey(id)} for update`;
     if (!choice) throw new Error("No club cancellation choice is available.");
     const key = "club-refund:" + id;
-    const [existing] = await tx<{
-      id: string;
-      amount_cents: number;
-      status: string;
-    }>`select * from commerce_refunds where request_key=${key}`;
-    if (existing) return existing;
+    type Refund = { id: string; amount_cents: number; status: string };
+    const summarize = (refunds: Refund[]) => ({
+      ...refunds[0],
+      amount_cents: refunds.reduce((s, r) => s + r.amount_cents, 0),
+      status: refunds.every((r) => r.status === "completed") ? "completed" : "pending",
+      refunds,
+    });
+    const existing =
+      await tx<Refund>`select id,amount_cents,status from commerce_refunds where request_key=${key} or request_key=${key + ":setup"} order by request_key`;
+    if (existing.length) return summarize(existing);
     if (choice.status !== "pending" || b.status !== "cancelled" || order.status !== "paid")
       throw new Error("This cancellation choice has already been resolved.");
     const uses = await tx<{
       id: string;
     }>`select id from credit_uses where booking_id=${id} for update`;
-    let amount = order.total_cents,
-      paymentId = order.square_payment_id;
+    const funding: { paymentId: string; amount: number; key: string }[] = [];
     if (uses.length) {
       const value = await lessonRefundValue(tx, id, order.id, b.household_id!, true);
-      amount = value.paidCents;
-      paymentId = value.paymentId;
-      if (amount > value.availableCents)
+      if (value.paidCents > value.availableCents)
         throw new Error("Original lesson funding requires office review.");
+      funding.push({ paymentId: value.paymentId, amount: value.paidCents, key });
     } else {
-      if (order.snapshot.recurring || !paymentId)
-        throw new Error("Original payment requires office review.");
-      const [p] = await tx<{
-        amount_cents: number;
-        refunded_cents: number;
-        order_id: string;
-        purpose: string;
-        status: string;
-      }>`select amount_cents,refunded_cents,order_id,purpose,status from square_payments where id=${paymentId} for update`;
-      const [pending] = await tx<{
-        completed: string;
-        pending: string;
-      }>`select coalesce(sum(amount_cents) filter(where status='completed'),0) as completed,coalesce(sum(amount_cents) filter(where status not in ('completed','rejected')),0) as pending from commerce_refunds where square_payment_id=${paymentId}`;
       if (
-        !p ||
-        p.order_id !== order.id ||
-        p.purpose !== "base" ||
-        p.status !== "COMPLETED" ||
-        amount >
-          p.amount_cents -
-            Math.max(p.refunded_cents, Number(pending.completed)) -
-            Number(pending.pending)
+        order.snapshot.recurring ||
+        !order.square_payment_id ||
+        !["lesson", "cage"].includes(order.kind)
       )
         throw new Error("Original payment requires office review.");
+      const ids = [
+        order.square_payment_id,
+        ...(order.square_fee_payment_id ? [order.square_fee_payment_id] : []),
+      ];
+      const payments = await tx<{
+        id: string;
+        amount_cents: number;
+        refunded_cents: number;
+        purpose: string;
+        status: string;
+      }>`select id,amount_cents,refunded_cents,purpose,status from square_payments where order_id=${order.id} and id=any(${ids}::text[]) order by id for update`;
+      if (
+        payments.length !== ids.length ||
+        payments.reduce((s, p) => s + p.amount_cents, 0) !== order.total_cents
+      )
+        throw new Error("Original payment requires office review.");
+      for (const payment of payments) {
+        const isSetup = payment.id === order.square_fee_payment_id;
+        const [reserved] = await tx<{
+          completed: string;
+          pending: string;
+        }>`select coalesce(sum(amount_cents) filter(where status='completed'),0) as completed,coalesce(sum(amount_cents) filter(where status not in ('completed','rejected')),0) as pending from commerce_refunds where square_payment_id=${payment.id}`;
+        if (
+          payment.status !== "COMPLETED" ||
+          payment.purpose !== (isSetup ? "setup-fee" : "base") ||
+          payment.amount_cents -
+            Math.max(payment.refunded_cents, Number(reserved.completed)) -
+            Number(reserved.pending) <
+            payment.amount_cents
+        )
+          throw new Error("Original payment requires office review.");
+        funding.push({
+          paymentId: payment.id,
+          amount: payment.amount_cents,
+          key: isSetup ? key + ":setup" : key,
+        });
+      }
     }
-    if (order.payment_provider !== "square" || amount <= 0)
+    if (order.payment_provider !== "square" || funding.some((f) => f.amount <= 0))
       throw new Error("Original payment requires office review.");
-    const [r] = await tx<{
-      id: string;
-      amount_cents: number;
-      status: string;
-    }>`insert into commerce_refunds(id,order_id,booking_id,user_id,amount_cents,status,reason,square_payment_id,request_key)
-      values(${randomUUID()},${order.id},${id},${me.userId},${amount},'pending',${choice.payload.initiator === "facility" ? "Facility closure refund" : "Coach initiated cancellation"},${paymentId},${key}) returning *`;
+    const refunds: Refund[] = [];
+    for (const f of funding) {
+      const [r] =
+        await tx<Refund>`insert into commerce_refunds(id,order_id,booking_id,user_id,amount_cents,status,reason,square_payment_id,request_key)
+        values(${randomUUID()},${order.id},${id},${me.userId},${f.amount},'pending',${choice.payload.initiator === "facility" ? "Facility closure refund" : "Coach initiated cancellation"},${f.paymentId},${f.key}) returning id,amount_cents,status`;
+      refunds.push(r);
+    }
     await tx`update credit_uses set reversed_at=now(),restored_quantity=0 where booking_id=${id} and reversed_at is null`;
     await tx`update club_requests set status='refund_pending',payload=payload || '{"choice":"refund"}'::jsonb where id=${choice.id}`;
-    return r;
+    return summarize(refunds);
   });
 }
 
@@ -184,7 +208,10 @@ export async function saveBookingReschedule(
       throw new Error("Choose a future confirmed booking that has not checked in.");
     if (order.status !== "paid")
       throw new Error("Successful payment is required before rescheduling.");
-    if (!clubChange && parentCancellationRefund(100, new Date(b.starts_at), true, currentTime) !== 100)
+    if (
+      !clubChange &&
+      parentCancellationRefund(100, new Date(b.starts_at), true, currentTime) !== 100
+    )
       throw new Error(
         "Online free rescheduling requires at least 48 hours' notice. Later changes require fee collection.",
       );
@@ -207,7 +234,14 @@ export async function saveBookingReschedule(
       throw new Error("Choose a time within the original credit period.");
     if (
       !clubChange &&
-      !(await consumeHouseholdChange(tx, b.household_id!, me.userId, key, "reschedule", currentTime))
+      !(await consumeHouseholdChange(
+        tx,
+        b.household_id!,
+        me.userId,
+        key,
+        "reschedule",
+        currentTime,
+      ))
     )
       throw new Error("Your household has already used this month's change allowance.");
     await tx`delete from booking_occupancy where booking_id=${id}`;

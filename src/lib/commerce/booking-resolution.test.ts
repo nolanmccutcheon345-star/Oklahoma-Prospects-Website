@@ -223,6 +223,66 @@ test("club cancellations and free reschedules preserve funds, allowance and reso
           assert.equal(await householdChangeAvailable(sql, id, "other", now), true);
       },
     );
+    await t.test(
+      "full standalone-session refund includes a separately charged setup payment exactly once",
+      async () => {
+        await seed("setup-full");
+        await sql`update commerce_orders set total_cents=17000,square_fee_payment_id='setup-payment' where id='setup-full'`;
+        await sql`insert into square_payments(id,order_id,environment,amount_cents,status,purpose) values('setup-payment','setup-full','sandbox',5000,'COMPLETED','setup-fee')`;
+        await staffCancel("setup-full");
+        const refund = await saveClubCancellationRefund(sql, "setup-full", parent("setup-full"));
+        assert.equal(refund.amount_cents, 17000);
+        assert.equal(refund.refunds.length, 2);
+        assert.deepEqual(
+          (
+            await sql<{
+              square_payment_id: string;
+              amount_cents: number;
+            }>`select square_payment_id,amount_cents from commerce_refunds where booking_id='setup-full' order by amount_cents`
+          ).map((r) => [r.square_payment_id, r.amount_cents]),
+          [
+            ["setup-payment", 5000],
+            ["payment:setup-full", 12000],
+          ],
+        );
+        await sql`update commerce_refunds set status='completed' where square_payment_id='payment:setup-full'`;
+        const partial = await saveClubCancellationRefund(sql, "setup-full", parent("setup-full"));
+        assert.equal(partial.amount_cents, 17000);
+        assert.equal(partial.status, "pending");
+        assert.equal(
+          (await sql`select id from commerce_refunds where booking_id='setup-full'`).length,
+          2,
+        );
+        await sql`update commerce_refunds set status='completed' where square_payment_id='setup-payment'`;
+        assert.equal(
+          (await saveClubCancellationRefund(sql, "setup-full", parent("setup-full"))).status,
+          "completed",
+        );
+      },
+    );
+    await t.test(
+      "a setup payment mismatch or existing refund rolls back the entire refund choice",
+      async () => {
+        for (const id of ["setup-mismatch", "setup-spent"]) {
+          await seed(id);
+          await sql`update commerce_orders set total_cents=17000,square_fee_payment_id=${"fee:" + id} where id=${id}`;
+          await sql`insert into square_payments(id,order_id,environment,amount_cents,refunded_cents,status,purpose) values(${"fee:" + id},${id},'sandbox',${id === "setup-mismatch" ? 4000 : 5000},${id === "setup-spent" ? 1000 : 0},'COMPLETED','setup-fee')`;
+          await staffCancel(id);
+          await assert.rejects(saveClubCancellationRefund(sql, id, parent(id)), /office review/);
+          assert.equal(
+            (await sql`select id from commerce_refunds where booking_id=${id}`).length,
+            0,
+          );
+          assert.equal(
+            (
+              await sql`select status from club_requests where id=${"club-booking-cancellation:" + id}`
+            )[0].status,
+            "pending",
+          );
+          assert.equal(await householdChangeAvailable(sql, id, "other", now), true);
+        }
+      },
+    );
   } finally {
     await db.close();
   }

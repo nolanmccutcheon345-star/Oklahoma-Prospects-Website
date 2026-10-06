@@ -103,6 +103,7 @@ async function cancellationContext(userId: string, bookingId: string) {
     total_cents: number;
     square_payment_id: string;
     payment_provider: string;
+    kind: string;
     snapshot: { recurring: boolean };
   }>`select * from commerce_orders where id=${b.order_id}`;
   const uses = await sql<{
@@ -120,7 +121,7 @@ async function cancellationContext(userId: string, bookingId: string) {
   }>`select amount_cents from commerce_refunds where request_key=${"booking:" + b.id}`;
   const isCredit = uses.length > 0;
   let lessonValue: Awaited<ReturnType<typeof lessonRefundValue>> | undefined;
-  let review = !b.household_id || (!isCredit && (!order.square_payment_id || order.snapshot.recurring));
+  let review = !b.household_id || (!isCredit && (!order.square_payment_id || !["lesson","cage"].includes(order.kind) || order.snapshot.recurring));
   if (isCredit && fraction === 0.5 && !existing) {
     try {
       lessonValue = await lessonRefundValue(sql, b.id, order.id, b.household_id!);

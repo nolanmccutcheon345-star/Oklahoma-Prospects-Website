@@ -214,3 +214,10 @@ For a qualifying 24-to-under-48-hour parent cancellation, refund 50% of that ind
 ## Cancellation continuation status — October 5 CT
 
 PR #33 now includes staff/private-session cancellation and admin facility-closure actions, household full individual-session refund/free reschedule choices, and parent free rescheduling at 48+ hours using the shared monthly allowance. Occupancy reassignment is atomic; refunds/reschedules are mutually exclusive and idempotent. Full membership session refunds are limited to that individual session's funded value, without refunding the whole membership or restoring the same credit. Late reschedule fee collection, the separate team-credit policy and hosted role/payment acceptance remain outstanding. No real payments, refunds or family messages were performed. Existing PRs #26/#27/#30 are preserved. See HOUSEHOLD-CANCELLATION-IMPLEMENTATION.md for claims and acceptance limits.
+
+
+### Funding and team-ledger continuation — October 6
+
+PR #33 records original payment/source grant provenance for newly issued rollover credits so the individual lesson refund uses the original membership lesson count. Standalone coach/facility full refunds include separately paid setup amounts, returned to each original payment/card with idempotent pending/completed tracking. Historical funding is not invented.
+
+N3 remains assigned but not complete: the current TeamsProvider cage board uses demo/client state without authoritative reservation IDs; production ClubRecord does not persist this booking ledger. Real team account/credit/booking integration is required before the coach monthly forfeiture rule can be enforced. Preserve this finding for A1/A2 rather than treating a visual demo counter as a fix. Late reschedule fees, parent setup-inclusive split-payment cancellations, historical/split funding and hosted financial/role acceptance remain open. See HOUSEHOLD-CANCELLATION-IMPLEMENTATION.md.
