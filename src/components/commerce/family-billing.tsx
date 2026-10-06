@@ -72,15 +72,15 @@ export function FamilyBilling({ bookingsOnly = false }: { bookingsOnly?: boolean
         setError(e instanceof Error ? e.message : "Billing could not load."),
       );
   }, [user?.id]);
-  async function action(work: () => Promise<unknown>, message: string) {
+  async function action<T>(work: () => Promise<T>, message: string | ((result: T) => string)) {
     if (busy) return;
     setBusy(true);
     setError("");
     setNotice("");
     try {
-      await work();
+      const result = await work();
       await load();
-      setNotice(message);
+      setNotice(typeof message === "function" ? message(result) : message);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Changes did not save. Please retry.");
       await load().catch(() => undefined);
@@ -204,8 +204,15 @@ export function FamilyBilling({ bookingsOnly = false }: { bookingsOnly?: boolean
               : preview.credit
                 ? preview.restoresCredit
                   ? "This booking will be cancelled and its credit restored with the original expiration date."
-                  : "This booking will be cancelled. Under 24 hours, its credit is not restored."
+                  : "This booking will be cancelled without restoring its credit under the cancellation policy."
                 : `Paid ${formatMoney(preview.paidCents)} · refund ${formatMoney(preview.refundCents || 0)} under the 48/24-hour policy.`}
+          </p>
+          <p className="mt-2 text-sm">
+            {preview.householdAllowanceAvailable
+              ? "Your household has one cancellation or reschedule allowance this calendar month, shared across all athletes."
+              : "Your household has used this month's cancellation or reschedule allowance. You can still cancel, but no refund is due."}
+            {" "}The allowance resets on the first of the month in America/Chicago.
+            The amount is checked again when you confirm.
           </p>
           <div className="mt-3 flex gap-3">
             <Button
@@ -213,12 +220,17 @@ export function FamilyBilling({ bookingsOnly = false }: { bookingsOnly?: boolean
               onClick={() => {
                 void action(
                   async () => {
-                    await requestRefund({ data: { id: preview.orderId } });
+                    const result = await requestRefund({ data: { id: preview.orderId } });
                     setPreview(null);
+                    return result;
                   },
-                  preview.requiresReview
+                  (result) => result.status === "review_requested"
                     ? "Refund review requested."
-                    : "Cancellation saved. Any refund is returning to the original card.",
+                    : result.status === "completed"
+                      ? (result.refundCents ? "Cancellation saved. Your refund is confirmed." : "Cancellation saved. No cash refund is due.")
+                      : result.status === "failed" || result.status === "rejected"
+                        ? "Booking cancelled, but the refund was not completed. The office needs to review it."
+                        : "Booking cancelled. Your refund is pending confirmation from the payment provider.",
                 );
               }}
             >
