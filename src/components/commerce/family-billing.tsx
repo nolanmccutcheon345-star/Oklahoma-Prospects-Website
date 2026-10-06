@@ -204,8 +204,10 @@ export function FamilyBilling({ bookingsOnly = false }: { bookingsOnly?: boolean
               : preview.credit
                 ? preview.restoresCredit
                   ? "This booking will be cancelled and its credit restored with the original expiration date."
-                  : "This booking will be cancelled without restoring its credit under the cancellation policy."
-                : `Paid ${formatMoney(preview.paidCents)} · refund ${formatMoney(preview.refundCents || 0)} under the 48/24-hour policy.`}
+                  : preview.refundCents
+                    ? `This lesson’s prepaid membership value is ${formatMoney(preview.paidCents || 0)}. A 50% refund of ${formatMoney(preview.refundCents)} will be sent to its original card. Its credit will not be restored.`
+                    : "This booking will be cancelled without restoring its credit under the cancellation policy."
+                : `Paid ${formatMoney(preview.paidCents || 0)} · refund ${formatMoney(preview.refundCents || 0)} under the 48/24-hour policy.`}
           </p>
           <p className="mt-2 text-sm">
             {preview.householdAllowanceAvailable

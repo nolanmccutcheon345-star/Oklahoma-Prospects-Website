@@ -5,6 +5,7 @@ import { assertPaymentRequest } from "./square-payments.server";
 import { rateLimit } from "./checkout.server";
 import { syncSquareSubscription, syncSquareRefund } from "./square-webhook.server";
 import { parentCancellationRefund, householdChangeAvailable } from "./booking-change-policy.server";
+import { lessonRefundValue } from "./lesson-refund-value.server";
 import { saveParentBookingCancellation } from "./family-cancellation.server";
 
 export async function ownedSubscription(userId: string, id: string, ownerOnly = false) {
@@ -118,8 +119,14 @@ async function cancellationContext(userId: string, bookingId: string) {
     amount_cents: number;
   }>`select amount_cents from commerce_refunds where request_key=${"booking:" + b.id}`;
   const isCredit = uses.length > 0;
-  // A half-credit and its expiry are not silently invented as financial policy.
-  const review = !b.household_id || (isCredit ? fraction === 0.5 : !order.square_payment_id || order.snapshot.recurring);
+  let lessonValue: Awaited<ReturnType<typeof lessonRefundValue>> | undefined;
+  let review = !b.household_id || (!isCredit && (!order.square_payment_id || order.snapshot.recurring));
+  if (isCredit && fraction === 0.5 && !existing) {
+    try {
+      lessonValue = await lessonRefundValue(sql, b.id, order.id, b.household_id!);
+      review = order.payment_provider !== "square" || lessonValue.halfRefundCents > lessonValue.availableCents;
+    } catch { review = true; }
+  }
   return {
     sql,
     me,
@@ -129,9 +136,10 @@ async function cancellationContext(userId: string, bookingId: string) {
     isCredit,
     review,
     allowanceAvailable,
+    paidCents: isCredit ? lessonValue?.paidCents ?? null : order.total_cents,
     amount:
       existing?.amount_cents ??
-      (isCredit ? 0 : parentCancellationRefund(order.total_cents, new Date(b.starts_at), allowanceAvailable, now)),
+      (isCredit ? lessonValue?.halfRefundCents ?? 0 : parentCancellationRefund(order.total_cents, new Date(b.starts_at), allowanceAvailable, now)),
     restore: isCredit && fraction === 1,
   };
 }
@@ -141,7 +149,7 @@ export async function squareRefundPreview(userId: string, bookingId: string) {
     throw new Error("Completed or past bookings require office review.");
   return {
     orderId: c.b.id,
-    paidCents: c.order.total_cents,
+    paidCents: c.paidCents,
     refundCents: c.review ? null : c.amount,
     requiresReview: c.review,
     credit: c.isCredit,
@@ -155,7 +163,7 @@ export async function cancelSquareBooking(userId: string, bookingId: string) {
   await rateLimit("square-refund", 15);
   const c = await cancellationContext(userId, bookingId);
   if (c.review) {
-    await c.sql`insert into club_requests(id,user_id,kind,payload) values(${"refund-review:" + c.b.id},${userId},'refund-review',${JSON.stringify({ bookingId: c.b.id, orderId: c.order.id, reason: c.isCredit ? "Half-credit policy requires review." : "Historical processor review." })}::jsonb) on conflict do nothing`;
+    await c.sql`insert into club_requests(id,user_id,kind,payload) values(${"refund-review:" + c.b.id},${userId},'refund-review',${JSON.stringify({ bookingId: c.b.id, orderId: c.order.id, reason: c.isCredit ? "Original lesson funding requires review." : "Historical processor review." })}::jsonb) on conflict do nothing`;
     return { status: "review_requested", refundCents: null };
   }
   const refund = await saveParentBookingCancellation(c.sql, c.b.id, c.order.id, userId, c.me);

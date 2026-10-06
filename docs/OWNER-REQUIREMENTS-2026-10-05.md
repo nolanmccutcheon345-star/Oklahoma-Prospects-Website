@@ -206,3 +206,7 @@ Netlify deployment dashboard in this continuation browser is signed out. Publish
 ### Assessment price continuation
 
 PR #31 https://github.com/nolanmccutcheon345-star/Oklahoma-Prospects-Website/pull/31 implements GB-07 / R2: exact $149 totals for s1 and s9. Head `1b7e0297f0e638731bd6b43075ea2710c95f1c9d`; tree `17f87420692c683bd29ed77bdaecc04c7fd81596`; base ec06d23. Six files: pricing.ts; processing-price, commerce audit and Square regression expectations; pricing documentation; implementation note. 26 focused tests, typecheck, changed-file lint, deploy-preview build and built SSR/security passed locally. GitHub CI/hosted acceptance pending. No production changes. Historical migration test expecting saved s9=155 remains unchanged deliberately; current public/server catalog normalizes saved defaults through currentCatalogPrice. Youth/setup/remote implementation remains open. Retain #30's independent formatter when resolving the pricing.ts overlap.
+
+## Final membership lesson refund clarification — October 6
+
+For a qualifying 24-to-under-48-hour parent cancellation, refund 50% of that individual lesson's prepaid membership value to the original card that funded it. Divide the actual membership period's base payment by its included lesson count; never refund half the full membership, include the separate setup charge, use a current catalog price, or refund an initial payment for a lesson funded by a renewal. The used lesson credit is not also restored. The existing shared household monthly allowance still applies.

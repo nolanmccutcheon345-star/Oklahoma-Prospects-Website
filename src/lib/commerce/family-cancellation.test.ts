@@ -28,8 +28,11 @@ test("actual cancellation transaction preserves funds, ownership and household p
         values(${id},${id},'parent','s3',${start.toISOString()},${end.toISOString()},'[]'::jsonb,'confirmed',${household})`;
       await sql`insert into booking_occupancy(resource_id,slot_at,booking_id) values(${"coach:" + id},${start.toISOString()},${id})`;
       if (credit) {
+        await sql`insert into square_payments(id,order_id,environment,amount_cents,status) values(${"renewal:" + id},${id},'sandbox',24000,'COMPLETED')`;
+
         await sql`insert into credit_grants(id,order_id,source_key,kind,minutes,quantity,remaining,starts_at,expires_at,household_id)
           values(${id},${id},${id},'lesson',60,4,3,${now.toISOString()},'2027-01-01T00:00:00Z',${household})`;
+        await sql`update credit_grants set payment_id=${"renewal:" + id} where id=${id}`;
         await sql`insert into credit_uses(id,grant_id,booking_id,quantity) values(${id},${id},${id},1)`;
       }
     }
@@ -76,11 +79,38 @@ test("actual cancellation transaction preserves funds, ownership and household p
       const [grant] = await sql<{remaining:number;expires_at:Date}>`select remaining,expires_at from credit_grants where id='credit-one'`;
       assert.equal(grant.remaining,4); assert.equal(new Date(grant.expires_at).toISOString(),"2027-01-01T00:00:00.000Z");
     });
-    await t.test("unresolved half-credit adjustment cannot partially cancel or consume allowance", async () => {
+    await t.test("half refund uses individual lesson value and original renewal card, without restoring credit", async () => {
       await booking("half-credit","half-credit",24,true);
-      await assert.rejects(cancel("half-credit","half-credit"), /Half-credit policy/);
-      assert.equal((await sql`select status from booking_records where id='half-credit'`)[0].status,"confirmed");
-      assert.equal(await householdChangeAvailable(sql,"half-credit","another",now),true);
+      const r = await cancel("half-credit","half-credit");
+      assert.equal(r.amount_cents,3000); assert.equal(r.status,"pending");
+      assert.equal((await sql`select square_payment_id from commerce_refunds where id=${r.id}`)[0].square_payment_id,"renewal:half-credit");
+      assert.equal((await sql`select remaining from credit_grants where id='half-credit'`)[0].remaining,3);
+      assert.equal((await sql`select restored_quantity from credit_uses where id='half-credit'`)[0].restored_quantity,0);
+      assert.equal((await cancel("half-credit","half-credit")).id,r.id);
+    });
+    await t.test("actual discounted base payment excludes setup and rounds the final refund once", async () => {
+      await booking("discount","discount",30,true);
+      await sql`update square_payments set amount_cents=20003 where id='renewal:discount'`;
+      await sql`insert into square_payments(id,order_id,environment,amount_cents,status,purpose) values('setup:discount','discount','sandbox',5000,'COMPLETED','setup-fee')`;
+      assert.equal((await cancel("discount","discount")).amount_cents,2500);
+    });
+    await t.test("missing funding or insufficient refundable balance rolls back allowance and booking", async () => {
+      for (const id of ["missing-funding","spent-funding"]) {
+        await booking(id,id,30,true);
+        if (id === "missing-funding") await sql`update credit_grants set payment_id=null where id=${id}`;
+        else await sql`update square_payments set refunded_cents=23000 where id=${"renewal:" + id}`;
+        await assert.rejects(cancel(id,id), /funding requires office review/);
+        assert.equal((await sql`select status from booking_records where id=${id}`)[0].status,"confirmed");
+        assert.equal(await householdChangeAvailable(sql,id,"another",now),true);
+      }
+    });
+    await t.test("pending refunds reserve funding; setup payments never qualify as lesson funding", async () => {
+      await booking("reserved","reserved",30,true);
+      await sql`insert into commerce_refunds(id,order_id,user_id,amount_cents,status,square_payment_id,reason) values('reserved-other','reserved','parent',22000,'pending','renewal:reserved','Other refund')`;
+      await assert.rejects(cancel("reserved","reserved"), /funding requires office review/);
+      await booking("wrong-purpose","wrong-purpose",30,true);
+      await sql`update square_payments set purpose='setup-fee' where id='renewal:wrong-purpose'`;
+      await assert.rejects(cancel("wrong-purpose","wrong-purpose"), /funding requires office review/);
     });
   } finally { await db.close(); }
 });

@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import type { Sql } from "../db";
 import { consumeHouseholdChange, parentCancellationRefund } from "./booking-change-policy.server";
+import { lessonRefundValue } from "./lesson-refund-value.server";
 
 /** Identity comes from clubIdentity, never the request body. Provider execution follows
  * this committed, idempotent transaction so a retry cannot consume another allowance. */
@@ -47,10 +48,16 @@ export async function saveParentBookingCancellation(
     const allowance = await consumeHouseholdChange(tx, booking.household_id, userId,
       "booking:" + bookingId, "cancellation", now);
     // Recompute after locking: preview quotes can cross a 48/24-hour or month boundary.
-    const amount = isCredit ? 0 : parentCancellationRefund(order.total_cents, new Date(booking.starts_at), allowance, now);
+    let amount = isCredit ? 0 : parentCancellationRefund(order.total_cents, new Date(booking.starts_at), allowance, now);
+    let refundPaymentId = order.square_payment_id;
     const fraction = parentCancellationRefund(100, new Date(booking.starts_at), allowance, now) / 100;
-    if (isCredit && fraction === 0.5)
-      throw new Error("Half-credit policy requires office review. No cancellation was applied.");
+    if (isCredit && fraction === 0.5) {
+      const value = await lessonRefundValue(tx, bookingId, orderId, booking.household_id, true);
+      if (order.payment_provider !== "square" || value.halfRefundCents > value.availableCents)
+        throw new Error("Lesson funding requires office review. No cancellation was applied.");
+      amount = value.halfRefundCents;
+      refundPaymentId = value.paymentId;
+    }
     const restore = isCredit && fraction === 1;
     for (const u of uses) {
       if (u.reversed_at) continue;
@@ -67,7 +74,7 @@ export async function saveParentBookingCancellation(
       status: string;
       square_refund_id: string | null;
     }>`insert into commerce_refunds(id,order_id,booking_id,user_id,amount_cents,status,reason,square_payment_id,request_key)
-      values(${randomUUID()},${orderId},${bookingId},${userId},${amount},${amount ? "pending" : "completed"},${isCredit ? "Credit booking cancellation" : "Family booking cancellation"},${order.square_payment_id || null},${"booking:" + bookingId}) returning *`;
+      values(${randomUUID()},${orderId},${bookingId},${userId},${amount},${amount ? "pending" : "completed"},${isCredit ? "Credit booking cancellation" : "Family booking cancellation"},${refundPaymentId || null},${"booking:" + bookingId}) returning *`;
     return r;
   });
 }
