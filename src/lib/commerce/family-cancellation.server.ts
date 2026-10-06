@@ -7,7 +7,7 @@ import { lessonRefundValue } from "./lesson-refund-value.server";
  * this committed, idempotent transaction so a retry cannot consume another allowance. */
 export async function saveParentBookingCancellation(
   sql: Sql, bookingId: string, orderId: string, userId: string,
-  identity: { role: string; billingHouseholdIds: string[] }, now = new Date(),
+  identity: { role: string; billingHouseholdIds: string[] }, now?: Date,
 ) {
   if (identity.role === "player") throw new Error("A parent account is required to manage bookings.");
   return sql.transaction(async tx => {
@@ -34,7 +34,8 @@ export async function saveParentBookingCancellation(
         (identity.role !== "admin" && !identity.billingHouseholdIds.includes(booking.household_id)))
       throw new Error("Booking ownership changed. Refresh before cancelling.");
     if (existing) return existing;
-    if (booking.status !== "confirmed" || new Date(booking.starts_at).getTime() <= now.getTime())
+    const confirmedAt = now || new Date();
+    if (booking.status !== "confirmed" || new Date(booking.starts_at).getTime() <= confirmedAt.getTime())
       throw new Error("Only a future confirmed booking can be cancelled.");
     const uses = await tx<{
       id: string;
@@ -46,11 +47,11 @@ export async function saveParentBookingCancellation(
     if (!isCredit && (!order.square_payment_id || order.payment_provider !== "square" || order.snapshot.recurring))
       throw new Error("This booking requires office refund review.");
     const allowance = await consumeHouseholdChange(tx, booking.household_id, userId,
-      "booking:" + bookingId, "cancellation", now);
+      "booking:" + bookingId, "cancellation", confirmedAt);
     // Recompute after locking: preview quotes can cross a 48/24-hour or month boundary.
-    let amount = isCredit ? 0 : parentCancellationRefund(order.total_cents, new Date(booking.starts_at), allowance, now);
+    let amount = isCredit ? 0 : parentCancellationRefund(order.total_cents, new Date(booking.starts_at), allowance, confirmedAt);
     let refundPaymentId = order.square_payment_id;
-    const fraction = parentCancellationRefund(100, new Date(booking.starts_at), allowance, now) / 100;
+    const fraction = parentCancellationRefund(100, new Date(booking.starts_at), allowance, confirmedAt) / 100;
     if (isCredit && fraction === 0.5) {
       const value = await lessonRefundValue(tx, bookingId, orderId, booking.household_id, true);
       if (order.payment_provider !== "square" || value.halfRefundCents > value.availableCents)

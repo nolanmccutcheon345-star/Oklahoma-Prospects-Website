@@ -19,6 +19,7 @@ import { formatMoney } from "@/lib/pricing";
 import { HouseholdAccess } from "@/components/household-access";
 import { Participants } from "./operations";
 import { AddAthlete } from "./athletes";
+import { ClubCancellationChoices, RescheduleBooking } from "./booking-changes";
 import { CreditBooking } from "./credit-booking";
 import { Button } from "@/components/ui/button";
 const dateText = (value: Date | string) =>
@@ -127,6 +128,7 @@ export function FamilyBilling({ bookingsOnly = false }: { bookingsOnly?: boolean
           Connect my guest purchases
         </Button>
       ) : null}
+      {data ? <ClubCancellationChoices onSaved={load}/> : null}
       {data?.bookings.length === 0 ? (
         <p>
           No bookings yet.{" "}
@@ -176,6 +178,7 @@ export function FamilyBilling({ bookingsOnly = false }: { bookingsOnly?: boolean
               </Button>
             </div>
           ) : null}
+          {b.status === "confirmed" && !b.checked_in_at ? <RescheduleBooking id={b.id} onSaved={load}/> : null}
           {b.status === "confirmed" && !b.checked_in_at ? (
             <>
               <Participants

@@ -210,3 +210,7 @@ PR #31 https://github.com/nolanmccutcheon345-star/Oklahoma-Prospects-Website/pul
 ## Final membership lesson refund clarification — October 6
 
 For a qualifying 24-to-under-48-hour parent cancellation, refund 50% of that individual lesson's prepaid membership value to the original card that funded it. Divide the actual membership period's base payment by its included lesson count; never refund half the full membership, include the separate setup charge, use a current catalog price, or refund an initial payment for a lesson funded by a renewal. The used lesson credit is not also restored. The existing shared household monthly allowance still applies.
+
+## Cancellation continuation status — October 5 CT
+
+PR #33 now includes staff/private-session cancellation and admin facility-closure actions, household full individual-session refund/free reschedule choices, and parent free rescheduling at 48+ hours using the shared monthly allowance. Occupancy reassignment is atomic; refunds/reschedules are mutually exclusive and idempotent. Full membership session refunds are limited to that individual session's funded value, without refunding the whole membership or restoring the same credit. Late reschedule fee collection, the separate team-credit policy and hosted role/payment acceptance remain outstanding. No real payments, refunds or family messages were performed. Existing PRs #26/#27/#30 are preserved. See HOUSEHOLD-CANCELLATION-IMPLEMENTATION.md for claims and acceptance limits.

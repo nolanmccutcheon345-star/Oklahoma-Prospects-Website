@@ -1,3 +1,4 @@
+import { StaffBookingChanges } from "@/components/commerce/booking-changes";
 import { pageHead } from "@/lib/seo";
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
@@ -117,6 +118,7 @@ function OfficePage() {
           <SquareOffice />
           <DiscountOffice />
           <OfficeOperations />
+      <StaffBookingChanges />
           <OfficeRequests />
           <div className="grid gap-2">
             <Button
@@ -153,6 +155,7 @@ function OfficePage() {
       <SquareOffice />
       <DiscountOffice />
       <OfficeOperations />
+      <StaffBookingChanges />
       <OfficeApp
         club={club}
         onChange={setClub}
