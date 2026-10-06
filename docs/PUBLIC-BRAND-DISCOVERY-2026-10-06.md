@@ -25,3 +25,7 @@ This slice does not enable lesson checkout or change prices/policies, fabricate 
 ## W13 continuation — homepage fundraising removal
 
 Removed the homepage hero's Donations & sponsorships button and the shared footer's Donate & sponsor link. Homepage visitors are no longer directed to the aggregate fundraiser page by these prompts. Existing donation pages and consent work remain separate (PR36); no donor/payment records change. Verify the rendered homepage contains no fundraising link or donation prompt. Public team/roster/player routes still need explicit links between fundraising records and actual team/roster IDs; age labels are not authoritative team mappings. Public consent checks remain mandatory for those routes.
+
+## Release integration
+
+Integrate main `6dfbcb8abf8303fc131f75d7b028938a0e22b7ed` (the live PR #35 dependency remediation) into this owned branch without rewriting or deleting prior commits. Update the navigation regression's obsolete footer donation-link expectation to the retained Contact link; removal is the approved W13 behavior. Preserve the rest of the existing navigation coverage. Full regression checks and exact-head CI/hosted results are recorded in PR #34 before release. No Square acceptance is waived; this branch changes public branding/copy/navigation only.

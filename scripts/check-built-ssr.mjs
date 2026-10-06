@@ -4,10 +4,17 @@ import assert from "node:assert/strict";
 // database, or payment mutation. Browser hydration still needs a hosted preview.
 process.env.NODE_ENV = "production";
 process.env.CONTEXT = "deploy-preview";
-const { default: entry } = await import("../dist/server/server.js");
+const { default: fetch, config } = await import("../.netlify/v1/functions/server.mjs");
+assert.equal(config.path, "/*");
+assert.equal(config.preferStatic, true);
 const nonces = new Set();
-for (const [path, status] of [["/", 200], ["/__audit_missing_page__", 404], ["/login?next=%2Faccount", 200], ["/", 200]]) {
-  const response = await entry.fetch(new Request(`https://preview.example.invalid${path}`));
+for (const [path, status] of [
+  ["/", 200],
+  ["/__audit_missing_page__", 404],
+  ["/login?next=%2Faccount", 200],
+  ["/", 200],
+]) {
+  const response = await fetch(new Request(`https://preview.example.invalid${path}`));
   const html = await response.text();
   assert.equal(response.status, status, path);
   assert.equal(response.headers.get("cache-control"), "private, no-store", path);
@@ -17,13 +24,20 @@ for (const [path, status] of [["/", 200], ["/__audit_missing_page__", 404], ["/l
   nonces.add(nonce);
   const scripts = [...html.matchAll(/<script\b([^>]*)>/g)];
   assert.ok(scripts.length > 0, "Expected application scripts");
-  for (const script of scripts) assert.ok(script[1].includes(`nonce="${nonce}"`), "Every rendered script must match the CSP nonce");
+  for (const script of scripts)
+    assert.ok(
+      script[1].includes(`nonce="${nonce}"`),
+      "Every rendered script must match the CSP nonce",
+    );
   assert.ok(html.includes('property="csp-nonce"'), "Client hydration needs the server nonce");
   if (path.startsWith("/login")) {
     assert.match(html, /type="email"/, "Netlify must retain email sign-in");
     assert.match(html, /type="password"/, "Netlify must retain password sign-in");
-    assert.doesNotMatch(html, /Continue with (Google|X)/,
-      "Default Netlify builds must not offer unregistered Grok OAuth callbacks");
+    assert.doesNotMatch(
+      html,
+      /Continue with (Google|X)/,
+      "Default Netlify builds must not offer unregistered Grok OAuth callbacks",
+    );
   }
   console.log(`PASS ${status} ${path}: matching CSP, script and hydration nonces; private cache`);
 }
