@@ -43,4 +43,16 @@ Coach/facility full refunds of standalone lessons/cages now return each linked b
 
 Validation: 51 isolated transaction/provider tests pass, including rollover denominator/payment preservation, historical provenance rejection, full setup-inclusive refund batches, partial completion retry and insufficient/mismatched payment rollback. TypeScript and changed-file lint pass with zero errors. No hosted financial tests or real transactions were executed. Build and exact commit evidence are recorded in the PR.
 
-Remaining: late parent reschedule fee collection; real team booking/credit integration and its separate monthly counter; historical rollover/split-renewal allocations; parent cancellation of standalone setup-inclusive split payments; authenticated hosted/browser acceptance after runtime isolation is confirmed. These limits do not reopen resolved owner decisions.
+Remaining: late parent reschedule fee collection; real team booking/credit integration and its separate monthly counter; historical rollover/split-renewal allocations; authenticated hosted/browser acceptance after runtime isolation is confirmed. These limits do not reopen resolved owner decisions.
+
+## Parent split-payment continuation — October 6
+
+Parent cash cancellations now allocate the policy refund across the original standalone lesson/cage base and setup payments, each returned to its own original card. The batch total equals the rounded full or half refund for that standalone session; cumulative allocation avoids extra cents when both payments have odd amounts. Membership credit bookings continue to use only the individual funded lesson value, excluding setup and never half the entire membership.
+
+Shared funding validation checks paid order, original payment ownership, purpose, amount, completed provider status and remaining balance (including pending refunds). Failure rolls back the booking, occupancy and household allowance. No-refund cancellations retain a completed zero-value audit record. Each positive refund has its own stable request/provider idempotency key. The same batch settlement helper handles parent and club refunds; provider failure after one completed refund preserves the remaining record, and retries skip completed records. The family sees completion only after all payments are refunded.
+
+New acceptance tests cover full/half split refunds, rounding, original-card IDs, one household allowance use, missing/mismatched/foreign funding and reserved balances, atomic rollback and provider partial-failure retry. Prior head 37324fcf passed GitHub full tests/type/lint; its CI failed on the existing dependency audit and skipped subsequent build checks. Exact current validation belongs in the PR. No real transaction, family message, production migration or hosting setting was changed.
+
+Remaining financial implementation: late parent reschedule fees; authoritative team account/credit/booking integration; historical rollover and split-renewal allocations; hosted/browser role and provider acceptance after runtime isolation.
+
+Current continuation validation: 65 targeted policy/transaction/provider tests PASS, TypeScript PASS, changed-file lint zero errors, Netlify deploy-preview build PASS and built SSR nonce/cache checks PASS. Hosted provider/browser acceptance remains unperformed. Claimed shared helper: src/lib/commerce/refund-funding.server.ts.

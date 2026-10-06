@@ -4,6 +4,7 @@ import { readFile, readdir } from "node:fs/promises";
 import { PGlite } from "@electric-sql/pglite";
 import type { Sql } from "../db";
 import { saveParentBookingCancellation } from "./family-cancellation.server";
+import { settleRefundBatch } from "./refund-funding.server";
 import { carryOneSession } from "./store.server";
 import { householdChangeAvailable } from "./booking-change-policy.server";
 
@@ -35,6 +36,7 @@ test("actual cancellation transaction preserves funds, ownership and household p
       await sql`insert into booking_records(id,order_id,user_id,product_id,starts_at,ends_at,resources,status,household_id)
         values(${id},${id},'parent','s3',${start.toISOString()},${end.toISOString()},'[]'::jsonb,'confirmed',${household})`;
       await sql`insert into booking_occupancy(resource_id,slot_at,booking_id) values(${"coach:" + id},${start.toISOString()},${id})`;
+      await sql`insert into square_payments(id,order_id,environment,amount_cents,status) values(${"payment:" + id},${id},'sandbox',10001,'COMPLETED')`;
       if (credit) {
         await sql`insert into square_payments(id,order_id,environment,amount_cents,status) values(${"renewal:" + id},${id},'sandbox',24000,'COMPLETED')`;
 
@@ -53,6 +55,125 @@ test("actual cancellation transaction preserves funds, ownership and household p
         { role, billingHouseholdIds: [household] },
         now,
       );
+    await t.test(
+      "standalone split payments apply full/half rules to each original card and round the batch once",
+      async () => {
+        for (const [id, hours, expected] of [
+          ["split-full", 72, 15002],
+          ["split-half", 30, 7501],
+        ] as const) {
+          await booking(id, id, hours);
+          await sql`update commerce_orders set total_cents=15002,square_fee_payment_id=${"setup:" + id} where id=${id}`;
+          await sql`insert into square_payments(id,order_id,environment,amount_cents,status,purpose) values(${"setup:" + id},${id},'sandbox',5001,'COMPLETED','setup-fee')`;
+          const r = await cancel(id, id);
+          assert.equal(r.amount_cents, expected);
+          assert.equal(r.refunds.length, 2);
+          const rows = await sql<{
+            square_payment_id: string;
+            amount_cents: number;
+          }>`select square_payment_id,amount_cents from commerce_refunds where booking_id=${id} order by square_payment_id`;
+          assert.deepEqual(
+            rows.map((x) => x.square_payment_id),
+            ["payment:" + id, "setup:" + id],
+          );
+          assert.equal(
+            rows.reduce((sum, x) => sum + x.amount_cents, 0),
+            expected,
+          );
+          assert.equal(rows[0].amount_cents, hours === 72 ? 10001 : 5001);
+          assert.equal(rows[1].amount_cents, hours === 72 ? 5001 : 2500);
+          assert.equal((await cancel(id, id)).amount_cents, expected);
+          assert.equal(
+            (await sql`select id from commerce_refunds where booking_id=${id}`).length,
+            2,
+          );
+          assert.equal(await householdChangeAvailable(sql, id, "other", now), false);
+        }
+      },
+    );
+    await t.test(
+      "a partially completed provider batch retries only the unfinished refund",
+      async () => {
+        const r = await cancel("split-full", "split-full");
+        const completed = r.refunds[0].id;
+        await sql`update commerce_refunds set status='completed' where id=${completed}`;
+        let retry = await cancel("split-full", "split-full");
+        const calls: string[] = [];
+        const result = await settleRefundBatch(sql, retry.refunds, async (id) => {
+          calls.push(id);
+          await sql`update commerce_refunds set status='completed' where id=${id}`;
+        });
+        assert.deepEqual(calls, [r.refunds[1].id]);
+        assert.equal(result.status, "completed");
+        assert.equal(result.amount_cents, 15002);
+        retry = await cancel("split-full", "split-full");
+        await settleRefundBatch(sql, retry.refunds, async () => {
+          throw new Error("Must not refund again");
+        });
+        assert.equal(retry.status, "completed");
+      },
+    );
+    await t.test(
+      "missing, mismatched or reserved original payments roll back both cancellation and allowance",
+      async () => {
+        for (const kind of ["missing", "mismatch", "reserved", "wrong-order"] as const) {
+          const id = "cash-funding-" + kind;
+          await booking(id, id, 30);
+          if (kind === "missing")
+            await sql`delete from square_payments where id=${"payment:" + id}`;
+          if (kind === "mismatch")
+            await sql`update square_payments set amount_cents=10000 where id=${"payment:" + id}`;
+          if (kind === "reserved")
+            await sql`insert into commerce_refunds(id,order_id,user_id,amount_cents,status,square_payment_id,reason) values(${"reserve:" + id},${id},'parent',9000,'pending',${"payment:" + id},'Other refund')`;
+          if (kind === "wrong-order") {
+            await booking(id + "-other", id + "-other", 30);
+            await sql`update square_payments set order_id=${id + "-other"} where id=${"payment:" + id}`;
+          }
+          await assert.rejects(cancel(id, id), /Original payment requires office review/);
+          assert.equal(
+            (await sql`select status from booking_records where id=${id}`)[0].status,
+            "confirmed",
+          );
+          assert.equal(
+            (await sql`select id from commerce_refunds where booking_id=${id}`).length,
+            0,
+          );
+          assert.equal(await householdChangeAvailable(sql, id, "other", now), true);
+          assert.equal(
+            (await sql`select booking_id from booking_occupancy where booking_id=${id}`).length,
+            1,
+          );
+        }
+      },
+    );
+    await t.test(
+      "provider failure after one refund retains the same remaining record and monthly allowance",
+      async () => {
+        const r = await cancel("split-half", "split-half");
+        let count = 0;
+        await assert.rejects(
+          settleRefundBatch(sql, r.refunds, async (id) => {
+            if (++count === 2) throw new Error("Provider unavailable");
+            await sql`update commerce_refunds set status='completed' where id=${id}`;
+          }),
+          /Provider unavailable/,
+        );
+        const retry = await cancel("split-half", "split-half");
+        assert.equal(retry.status, "pending");
+        assert.equal(retry.refunds.length, 2);
+        const calls: string[] = [];
+        await settleRefundBatch(sql, retry.refunds, async (id) => {
+          calls.push(id);
+          await sql`update commerce_refunds set status='completed' where id=${id}`;
+        });
+        assert.equal(calls.length, 1);
+        assert.equal(
+          (await sql`select id from commerce_refunds where booking_id='split-half'`).length,
+          2,
+        );
+        assert.equal(await householdChangeAvailable(sql, "split-half", "other", now), false);
+      },
+    );
     await t.test(
       "first family cancellation queues the refund, second athlete gets no refund",
       async () => {

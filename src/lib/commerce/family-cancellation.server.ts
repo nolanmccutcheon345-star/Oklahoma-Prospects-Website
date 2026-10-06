@@ -2,6 +2,11 @@ import { randomUUID } from "node:crypto";
 import type { Sql } from "../db";
 import { consumeHouseholdChange, parentCancellationRefund } from "./booking-change-policy.server";
 import { lessonRefundValue } from "./lesson-refund-value.server";
+import {
+  summarizeRefunds,
+  standaloneRefundFunding,
+  type RefundRecord,
+} from "./refund-funding.server";
 
 /** Identity comes from clubIdentity, never the request body. Provider execution follows
  * this committed, idempotent transaction so a retry cannot consume another allowance. */
@@ -23,15 +28,14 @@ export async function saveParentBookingCancellation(
       square_payment_id: string | null;
       payment_provider: string;
       kind: string;
+      status: string;
+      square_fee_payment_id: string | null;
       snapshot: { recurring: boolean };
     }>`select * from commerce_orders where id=${orderId} for update`;
     if (!order) throw new Error("Booking order not found.");
-    const [existing] = await tx<{
-      id: string;
-      amount_cents: number;
-      status: string;
-      square_refund_id: string | null;
-    }>`select * from commerce_refunds where request_key=${"booking:" + bookingId}`;
+    const key = "booking:" + bookingId;
+    const existing =
+      await tx<RefundRecord>`select id,amount_cents,status from commerce_refunds where request_key=${key} or request_key=${key + ":setup"} order by request_key`;
     const [booking] = await tx<{
       status: string;
       starts_at: Date;
@@ -46,7 +50,9 @@ export async function saveParentBookingCancellation(
       (identity.role !== "admin" && !identity.billingHouseholdIds.includes(booking.household_id))
     )
       throw new Error("Booking ownership changed. Refresh before cancelling.");
-    if (existing) return existing;
+    if (existing.length) return summarizeRefunds(existing);
+    if (order.status !== "paid")
+      throw new Error("Successful payment is required before cancelling.");
     const confirmedAt = now || new Date();
     if (
       booking.status !== "confirmed" ||
@@ -95,6 +101,10 @@ export async function saveParentBookingCancellation(
       amount = value.halfRefundCents;
       refundPaymentId = value.paymentId;
     }
+    const funding =
+      !isCredit && amount > 0
+        ? await standaloneRefundFunding(tx, order, fraction, true)
+        : [{ paymentId: refundPaymentId, amount, setup: false }];
     const restore = isCredit && fraction === 1;
     for (const u of uses) {
       if (u.reversed_at) continue;
@@ -105,13 +115,13 @@ export async function saveParentBookingCancellation(
     }
     await tx`update booking_records set status='cancelled' where id=${bookingId}`;
     await tx`delete from booking_occupancy where booking_id=${bookingId}`;
-    const [r] = await tx<{
-      id: string;
-      amount_cents: number;
-      status: string;
-      square_refund_id: string | null;
-    }>`insert into commerce_refunds(id,order_id,booking_id,user_id,amount_cents,status,reason,square_payment_id,request_key)
-      values(${randomUUID()},${orderId},${bookingId},${userId},${amount},${amount ? "pending" : "completed"},${isCredit ? "Credit booking cancellation" : "Family booking cancellation"},${refundPaymentId || null},${"booking:" + bookingId}) returning *`;
-    return r;
+    const refunds: RefundRecord[] = [];
+    for (const f of funding) {
+      const [r] =
+        await tx<RefundRecord>`insert into commerce_refunds(id,order_id,booking_id,user_id,amount_cents,status,reason,square_payment_id,request_key)
+        values(${randomUUID()},${orderId},${bookingId},${userId},${f.amount},${f.amount ? "pending" : "completed"},${isCredit ? "Credit booking cancellation" : "Family booking cancellation"},${f.paymentId || null},${f.setup ? key + ":setup" : key}) returning id,amount_cents,status`;
+      refunds.push(r);
+    }
+    return summarizeRefunds(refunds);
   });
 }

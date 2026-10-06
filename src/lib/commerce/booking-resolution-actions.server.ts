@@ -9,6 +9,7 @@ import {
   saveBookingReschedule,
 } from "./booking-resolution.server";
 import { executeSquareRefund } from "./square-management.server";
+import { settleRefundBatch } from "./refund-funding.server";
 import { coachAvailable } from "./availability";
 import { requireCoachService } from "./coach-services.server";
 export async function staffCancellationContext(userId: string) {
@@ -34,15 +35,7 @@ export async function clubRefundAction(userId: string, id: string) {
   const me = await clubIdentity(userId),
     sql = await getSql();
   const r = await saveClubCancellationRefund(sql, id, me);
-  for (const refund of r.refunds)
-    if (refund.status !== "completed") await executeSquareRefund(refund.id);
-  const states = await sql<{
-    status: string;
-  }>`select status from commerce_refunds where id=any(${r.refunds.map((refund) => refund.id)}::text[])`;
-  const status =
-    states.length === r.refunds.length && states.every((row) => row.status === "completed")
-      ? "completed"
-      : "pending";
+  const { status } = await settleRefundBatch(sql, r.refunds, executeSquareRefund);
   if (status === "completed")
     await sql`update club_requests set status='completed' where id=${"club-booking-cancellation:" + id} and status='refund_pending'`;
   return { status, refundCents: r.amount_cents };
