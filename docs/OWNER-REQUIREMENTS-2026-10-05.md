@@ -231,3 +231,10 @@ PR #33 now supports automatic parent cancellation refunds across separately fund
 ### Late reschedule quote status — October 6
 
 PR #33 adds read-only server-verified 24–48-hour fee quotes in the Family reschedule UI. Fees use the individual prepaid session value and exclude setup; free club/facility changes remain exempt from the household allowance. The quote cannot authorize payment or mutate a booking. Paid reschedule fulfillment/fee collection remains open. Under-24-hour no-refund cancellation wording is preserved without inferring a new 100% reschedule fee. Prior head 957d116 passed GitHub full tests/type/lint; the existing dependency-audit gate failed and downstream CI build steps were skipped.
+
+
+### Paid reschedule continuation — October 6 (latest status)
+
+PR #33 now connects the Family reschedule screen to dedicated 24–48-hour fee checkout. The 50% fee is based on that individual session's original funded value, excluding setup; membership lesson counts and discounts are retained. Verified Square confirmation moves the original session and consumes one household allowance atomically. It does not create another booking or credit. Expired/changed/conflicting paid moves preserve the original session and queue an idempotent original-card fee refund. Unknown/pending payment attempts cannot start a duplicate fee for that booking. Free changes and coach/facility exemptions remain intact.
+
+This supersedes the earlier quote-only limitation, but is source/local implementation rather than hosted provider acceptance or production release. Exact preview isolation and authenticated card/refund/reconciliation acceptance remain pending, as do N3's authoritative team ledger and ambiguous historical funding. No real charges/refunds/messages or production migrations/settings were made. Existing Grok/Cursor PRs remain preserved. The under-24-hour no-refund rule does not imply approval of a new 100% reschedule fee. See HOUSEHOLD-CANCELLATION-IMPLEMENTATION.md and PR #33 for current claims, tests and remaining gates.

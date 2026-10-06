@@ -1,5 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
+import { paymentAuth } from "./payment-auth";
 import { authMiddleware } from "../auth/middleware";
 const id = z.object({ id: z.string().min(1).max(150) }).strict();
 export const getClubCancellationChoices = createServerFn({ method: "GET" })
@@ -66,4 +67,25 @@ export const rescheduleBooking = createServerFn({ method: "POST" })
   .handler(async ({ context, data }) => {
     const { rescheduleBookingAction } = await import("./booking-resolution-actions.server");
     return rescheduleBookingAction(context.userId, data);
+  });
+
+export const startBookingRescheduleFee = createServerFn({ method: "POST" })
+  .middleware([paymentAuth])
+  .validator(
+    id.extend({
+      date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+      time: z.string().regex(/^\d{2}:\d{2}$/),
+      requestId: z.string().uuid(),
+    }),
+  )
+  .handler(async ({ context, data }) => {
+    const { startRescheduleFeeAction } = await import("./booking-resolution-actions.server");
+    return startRescheduleFeeAction(context.paymentUserId, data);
+  });
+export const getBookingRescheduleFeeStatus = createServerFn({ method: "GET" })
+  .middleware([authMiddleware])
+  .validator(z.object({ orderId: z.string().uuid() }).strict())
+  .handler(async ({ context, data }) => {
+    const { rescheduleFeeStatus } = await import("./booking-resolution-actions.server");
+    return rescheduleFeeStatus(context.userId, data.orderId);
   });

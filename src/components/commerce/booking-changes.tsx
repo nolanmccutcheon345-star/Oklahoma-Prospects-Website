@@ -1,4 +1,6 @@
 import { useEffect, useState } from "react";
+import { SquareCard } from "./square-card";
+import { submitSquarePayment } from "@/lib/commerce/api";
 import { Button } from "@/components/ui/button";
 import {
   getClubCancellationChoices,
@@ -7,6 +9,8 @@ import {
   chooseClubCancellationRefund,
   rescheduleBooking,
   getBookingRescheduleQuote,
+  startBookingRescheduleFee,
+  getBookingRescheduleFeeStatus,
 } from "@/lib/commerce/booking-resolution-api";
 
 export function RescheduleBooking({
@@ -22,6 +26,27 @@ export function RescheduleBooking({
     [busy, setBusy] = useState(false),
     [error, setError] = useState("");
   const [requestId, setRequestId] = useState<string>();
+  const [checkout, setCheckout] = useState<Awaited<ReturnType<typeof startBookingRescheduleFee>>>();
+  const [notice, setNotice] = useState("");
+  async function checkFee() {
+    if (!checkout) return;
+    const state = await getBookingRescheduleFeeStatus({ data: { orderId: checkout.orderId } });
+    if (state.completed) {
+      setCheckout(undefined);
+      setOpen(false);
+      setRequestId(undefined);
+      setNotice("Your paid reschedule is confirmed.");
+      await onSaved();
+    } else if (state.status === "payment_review" || state.status === "refunded")
+      setNotice(
+        "The move could not complete. Your original booking was kept; the fee is being refunded or has been refunded.",
+      );
+    else
+      setNotice(
+        "Payment confirmation is pending. Check this same payment before starting another.",
+      );
+    return state;
+  }
   const [quote, setQuote] = useState<Awaited<ReturnType<typeof getBookingRescheduleQuote>>>();
   return (
     <div className="mt-3">
@@ -37,6 +62,7 @@ export function RescheduleBooking({
           setError("");
           try {
             setQuote(await getBookingRescheduleQuote({ data: { id } }));
+            setNotice("");
             setOpen(true);
             if (!requestId) setRequestId(crypto.randomUUID());
           } catch (e) {
@@ -49,6 +75,7 @@ export function RescheduleBooking({
         {clubChange ? "Choose free reschedule" : "Review reschedule"}
       </Button>
       {error ? <p role="alert">{error}</p> : null}
+      {notice ? <p role="status">{notice}</p> : null}
       {open && quote?.mode !== "free" ? (
         <div className="mt-3 rounded border p-3" role="status">
           {quote?.mode === "payment_required" ? (
@@ -57,8 +84,9 @@ export function RescheduleBooking({
               {new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(
                 quote.feeCents / 100,
               )}
-              , based on this individual session’s prepaid value. Paid rescheduling is not available
-              yet. Your booking and household allowance have not changed.
+              , based on this individual session’s prepaid value. Select a new time and review
+              payment. Your booking stays at its original time until payment and the move are
+              confirmed.
             </p>
           ) : (
             <p>
@@ -68,27 +96,30 @@ export function RescheduleBooking({
           )}
         </div>
       ) : null}
-      {open && quote?.mode === "free" ? (
+      {open && !checkout && (quote?.mode === "free" || quote?.mode === "payment_required") ? (
         <form
           className="mt-3 grid gap-3"
           onSubmit={async (e) => {
             e.preventDefault();
-            if (busy || !requestId || quote?.mode !== "free") return;
+            if (busy || !requestId || !quote) return;
             const form = new FormData(e.currentTarget);
             setBusy(true);
             setError("");
             try {
-              await rescheduleBooking({
-                data: {
-                  id,
-                  date: String(form.get("date")),
-                  time: String(form.get("time")),
-                  requestId,
-                },
-              });
-              setOpen(false);
-              setRequestId(undefined);
-              await onSaved();
+              const input = {
+                id,
+                date: String(form.get("date")),
+                time: String(form.get("time")),
+                requestId,
+              };
+              if (quote.mode === "payment_required") {
+                setCheckout(await startBookingRescheduleFee({ data: input }));
+              } else {
+                await rescheduleBooking({ data: input });
+                setOpen(false);
+                setRequestId(undefined);
+                await onSaved();
+              }
             } catch (e) {
               setError(e instanceof Error ? e.message : "Reschedule did not save.");
             } finally {
@@ -99,7 +130,7 @@ export function RescheduleBooking({
           <p>
             {quote.householdExempt
               ? "Your household allowance will not be used. Select a new available time with the same coach and resources."
-              : "One cancellation or reschedule is shared by your household each Chicago calendar month. This free reschedule requires at least 48 hours’ notice; later changes require fee collection."}{" "}
+              : "One cancellation or reschedule is shared by your household each Chicago calendar month. Changes at 48+ hours are free; 24–48-hour changes require the displayed individual-session fee."}{" "}
             All times are America/Chicago. Paid credits retain their original expiration.
           </p>
           <label>
@@ -117,9 +148,57 @@ export function RescheduleBooking({
             />
           </label>
           <Button type="submit" disabled={busy}>
-            Confirm free reschedule
+            {quote.mode === "free" ? "Confirm free reschedule" : "Review fee payment"}
           </Button>
         </form>
+      ) : null}
+      {open && checkout ? (
+        <div className="mt-3 grid gap-3">
+          <p>
+            Pay{" "}
+            {new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(
+              checkout.totalCents / 100,
+            )}{" "}
+            to move this session to {checkout.date} at {checkout.time} (America/Chicago). This uses
+            your household’s monthly allowance. If the move cannot complete, the fee enters the
+            original-card refund process and the original booking stays intact.
+          </p>
+          <SquareCard
+            config={checkout.config}
+            amountCents={checkout.totalCents}
+            name={checkout.name}
+            email={checkout.email}
+            expiresAt={checkout.expiresAt}
+            onToken={async (sourceId, attemptId) => {
+              const result = await submitSquarePayment({
+                data: { orderId: checkout.orderId, sourceId, attemptId },
+              });
+              if (result.declined) return result;
+              const state = await checkFee();
+              return {
+                message: state?.completed
+                  ? "Paid reschedule confirmed."
+                  : result.message || "Confirmation is pending. Check this same payment.",
+              };
+            }}
+          />
+          <Button
+            variant="outlineDark"
+            disabled={busy}
+            onClick={async () => {
+              setBusy(true);
+              try {
+                await checkFee();
+              } catch (e) {
+                setError(e instanceof Error ? e.message : "Status unavailable.");
+              } finally {
+                setBusy(false);
+              }
+            }}
+          >
+            Check fee payment status
+          </Button>
+        </div>
       ) : null}
     </div>
   );

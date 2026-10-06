@@ -1,4 +1,11 @@
 import test from "node:test";
+import { randomUUID } from "node:crypto";
+import {
+  prepareRescheduleFee,
+  completePaidReschedule,
+  validatePreparedRescheduleFee,
+} from "./reschedule-fee.server";
+import { fulfillSquarePayment } from "./square-payments.server";
 import assert from "node:assert/strict";
 import { readFile, readdir } from "node:fs/promises";
 import { PGlite } from "@electric-sql/pglite";
@@ -67,6 +74,224 @@ test("club cancellations and free reschedules preserve funds, allowance and reso
         async () => available,
         now,
       );
+    const feeInput = () => ({ date: "2026-10-10", time: "14:00", requestId: randomUUID() });
+    async function feeFor(id: string, input = feeInput()) {
+      return prepareRescheduleFee(
+        sql,
+        id,
+        { ...parent(id), email: id + "@example.invalid" },
+        input,
+        "sandbox",
+        async () => true,
+        now,
+      );
+    }
+    async function recordFee(fee: Awaited<ReturnType<typeof feeFor>>) {
+      const paymentId = "fee-payment:" + fee.id;
+      await sql`insert into square_payments(id,order_id,environment,amount_cents,status,purpose) values(${paymentId},${fee.id},'sandbox',${fee.total_cents},'COMPLETED','reschedule-fee')`;
+      await sql`update commerce_orders set square_payment_id=${paymentId} where id=${fee.id}`;
+      return { ...fee, square_payment_id: paymentId };
+    }
+    await t.test(
+      "fee preparation binds its original booking and retry key without charging or using allowance",
+      async () => {
+        await seed("fee-prepare", "fee-prepare", 30, true);
+        const input = feeInput();
+        const fee = await feeFor("fee-prepare", input);
+        assert.equal(fee.total_cents, 3000);
+        assert.equal(fee.kind, "reschedule-fee");
+        assert.equal((await feeFor("fee-prepare", input)).id, fee.id);
+        await assert.rejects(
+          feeFor("fee-prepare", { ...input, time: "15:00" }),
+          /another payment or time/,
+        );
+        await assert.rejects(feeFor("fee-prepare"), /already exists/);
+        assert.equal(
+          (await sql`select id from booking_records where order_id=${fee.id}`).length,
+          0,
+        );
+        assert.equal(
+          (await sql`select id from square_payments where order_id=${fee.id}`).length,
+          0,
+        );
+        assert.equal(await householdChangeAvailable(sql, "fee-prepare", "other", now), true);
+        await assert.rejects(
+          validatePreparedRescheduleFee(
+            sql,
+            fee.id,
+            { ...parent("fee-prepare"), userId: "someone-else" },
+            now,
+          ),
+          /no longer applies/,
+        );
+      },
+    );
+    await t.test(
+      "verified fee moves only the existing lesson, preserves credits and consumes allowance once",
+      async () => {
+        await seed("fee-success", "fee-success", 30, true);
+        const fee = await recordFee(await feeFor("fee-success"));
+        const result = await sql.transaction((tx) =>
+          completePaidReschedule(tx, fee, async () => true, now),
+        );
+        assert.equal(result.status, "paid");
+        const [b] = await sql<{
+          starts_at: Date;
+        }>`select starts_at from booking_records where id='fee-success'`;
+        assert.equal(new Date(b.starts_at).toISOString(), "2026-10-10T19:00:00.000Z");
+        assert.equal(
+          (await sql`select remaining from credit_grants where id='fee-success'`)[0].remaining,
+          3,
+        );
+        assert.equal(
+          (await sql`select id from booking_records where order_id=${fee.id}`).length,
+          0,
+        );
+        assert.equal(await householdChangeAvailable(sql, "fee-success", "other", now), false);
+        await sql.transaction((tx) => completePaidReschedule(tx, fee, async () => true, now));
+        assert.equal(
+          (
+            await sql`select id from club_requests where id=${"reschedule:" + fee.snapshot.rescheduleFee.requestId}`
+          ).length,
+          1,
+        );
+      },
+    );
+    await t.test(
+      "failed paid move rolls back occupancy and allowance and queues exactly one fee refund",
+      async () => {
+        for (const reason of [
+          "conflict",
+          "expired",
+          "allowance",
+          "coach",
+          "price",
+          "credit",
+        ] as const) {
+          const id = "fee-fail-" + reason;
+          await seed(id, id, 30, reason === "credit");
+          const fee = await recordFee(await feeFor(id));
+          const old = (
+            await sql<{ starts_at: Date }>`select starts_at from booking_records where id=${id}`
+          )[0].starts_at;
+          if (reason === "conflict") {
+            await seed(id + "-block");
+            await sql`insert into booking_occupancy(resource_id,slot_at,booking_id) values(${"coach:" + id},'2026-10-10T19:30:00Z',${id + "-block"})`;
+          }
+          if (reason === "expired")
+            await sql`update commerce_orders set hold_until=${now.toISOString()} where id=${fee.id}`;
+          if (reason === "price") {
+            await sql`update square_payments set amount_cents=14000 where id=${"payment:" + id}`;
+            await sql`update commerce_orders set total_cents=14000 where id=${id}`;
+          }
+          if (reason === "credit")
+            await sql`update credit_grants set expires_at='2026-10-09T00:00:00Z' where id=${id}`;
+          if (reason === "allowance")
+            await consumeHouseholdChange(sql, id, "parent", "other-booking", "cancellation", now);
+          const result = await sql.transaction((tx) =>
+            completePaidReschedule(tx, fee, async () => reason !== "coach", now),
+          );
+          assert.equal(result.status, "payment_review");
+          const [b] = await sql<{
+            starts_at: Date;
+            status: string;
+          }>`select starts_at,status from booking_records where id=${id}`;
+          assert.equal(+new Date(b.starts_at), +new Date(old));
+          assert.equal(b.status, "confirmed");
+          assert.equal(
+            (await sql`select booking_id from booking_occupancy where booking_id=${id}`).length,
+            1,
+          );
+          assert.equal(await householdChangeAvailable(sql, id, "new", now), reason !== "allowance");
+          const refunds = await sql<{
+            amount_cents: number;
+          }>`select amount_cents from commerce_refunds where order_id=${fee.id}`;
+          assert.deepEqual(refunds, [{ amount_cents: fee.total_cents }]);
+          await sql.transaction((tx) => completePaidReschedule(tx, fee, async () => false, now));
+          assert.equal(
+            (await sql`select id from commerce_refunds where order_id=${fee.id}`).length,
+            1,
+          );
+        }
+      },
+    );
+    await t.test("unpaid, refunded or wrong-environment fees cannot authorize a move", async () => {
+      for (const kind of ["unpaid", "refunded", "environment"] as const) {
+        const id = "fee-proof-" + kind;
+        await seed(id, id, 30);
+        let fee = await feeFor(id);
+        if (kind !== "unpaid") {
+          fee = await recordFee(fee);
+          if (kind === "refunded")
+            await sql`update square_payments set refunded_cents=1000 where order_id=${fee.id}`;
+          else
+            await sql`update square_payments set environment='production' where order_id=${fee.id}`;
+        }
+        const result = await sql.transaction((tx) =>
+          completePaidReschedule(tx, fee, async () => true, now),
+        );
+        assert.equal(result.status, "payment_review");
+        assert.equal(await householdChangeAvailable(sql, id, "other", now), true);
+        assert.equal(
+          (await sql`select status from booking_records where id=${id}`)[0].status,
+          "confirmed",
+        );
+      }
+    });
+    await t.test(
+      "Square fulfillment of a fee bypasses ordinary booking and credit issuance",
+      async () => {
+        const current = new Date(Math.floor(Date.now() / 300000) * 300000);
+        const id = "fee-event";
+        await seed(id, id, 30);
+        await sql`update booking_records set starts_at=${new Date(+current + 30 * 3600000).toISOString()},ends_at=${new Date(+current + 31 * 3600000).toISOString()},coach_id=null where id=${id}`;
+        await sql`update commerce_orders set kind='cage' where id=${id}`;
+        const date = new Date(+current + 5 * 86400000).toISOString().slice(0, 10);
+        const fee = await prepareRescheduleFee(
+          sql,
+          id,
+          { ...parent(id), email: id + "@example.invalid" },
+          { date, time: "16:00", requestId: randomUUID() },
+          "sandbox",
+          async () => true,
+          current,
+        );
+        await sql`update commerce_orders set square_customer_id='fee-customer' where id=${fee.id}`;
+        const payment: Parameters<typeof fulfillSquarePayment>[1] = {
+          id: "fee-event-payment",
+          referenceId: fee.id,
+          customerId: "fee-customer",
+          locationId: "fee-location",
+          sourceType: "CARD",
+          status: "COMPLETED",
+          amountMoney: { amount: BigInt(fee.total_cents), currency: "USD" },
+          totalMoney: { amount: BigInt(fee.total_cents), currency: "USD" },
+        };
+        await sql.transaction((tx) =>
+          fulfillSquarePayment(tx, payment, { environment: "sandbox", locationId: "fee-location" }),
+        );
+        assert.equal(
+          (await sql`select status from commerce_orders where id=${fee.id}`)[0].status,
+          "paid",
+        );
+        assert.equal(
+          (await sql`select purpose from square_payments where order_id=${fee.id}`)[0].purpose,
+          "reschedule-fee",
+        );
+        assert.equal((await sql`select id from credit_grants where order_id=${fee.id}`).length, 0);
+        assert.equal(
+          (await sql`select id from booking_records where order_id=${fee.id}`).length,
+          0,
+        );
+        await sql.transaction((tx) =>
+          fulfillSquarePayment(tx, payment, { environment: "sandbox", locationId: "fee-location" }),
+        );
+        assert.equal(
+          (await sql`select id from square_payments where order_id=${fee.id}`).length,
+          1,
+        );
+      },
+    );
     await t.test(
       "read-only reschedule quotes apply exact notice boundaries without consuming allowance",
       async () => {

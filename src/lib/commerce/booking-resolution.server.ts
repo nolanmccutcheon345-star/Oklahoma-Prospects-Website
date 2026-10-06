@@ -9,8 +9,8 @@ import { lessonRefundValue } from "./lesson-refund-value.server";
 import { summarizeRefunds, standaloneRefundFunding } from "./refund-funding.server";
 import { validateWindow } from "../scheduling";
 
-type Identity = { role: string; billingHouseholdIds: string[]; userId: string };
-type Booking = {
+export type Identity = { role: string; billingHouseholdIds: string[]; userId: string };
+export type Booking = {
   id: string;
   order_id: string;
   household_id: string | null;
@@ -23,7 +23,7 @@ type Booking = {
   product_id: string;
   participant_count: number;
 };
-async function lockedBooking(tx: Sql, id: string) {
+export async function lockedBooking(tx: Sql, id: string) {
   const [ref] = await tx<{ order_id: string }>`select order_id from booking_records where id=${id}`;
   if (!ref) throw new Error("Booking not found.");
   const [order] = await tx<{
@@ -41,7 +41,7 @@ async function lockedBooking(tx: Sql, id: string) {
     throw new Error("Booking ownership changed.");
   return { order, booking };
 }
-function familyAccess(b: Booking, me: Identity) {
+export function familyAccess(b: Booking, me: Identity) {
   if (
     me.role === "player" ||
     !b.household_id ||
@@ -141,49 +141,55 @@ export async function saveClubCancellationRefund(sql: Sql, id: string, me: Ident
 
 /** Read-only fee preview. Payment confirmation must revalidate this quote; it is not an authorization to charge. */
 export async function bookingRescheduleQuote(sql: Sql, id: string, me: Identity, now?: Date) {
-  return sql.transaction(async (tx) => {
-    const { booking: b, order } = await lockedBooking(tx, id);
-    familyAccess(b, me);
-    const at = now || new Date();
-    const [club] = await tx<Resolution>`select * from club_requests where id=${clubKey(id)}`;
-    const exempt = club?.status === "pending" && b.status === "cancelled";
-    if (!exempt && (b.status !== "confirmed" || new Date(b.starts_at) <= at || b.checked_in_at))
-      throw new Error("Choose a future confirmed booking that has not checked in.");
-    if (order.status !== "paid")
-      throw new Error("Successful payment is required before rescheduling.");
-    if (
-      !exempt &&
-      !(await householdChangeAvailable(tx, b.household_id!, "reschedule-quote:" + id, at))
-    )
-      throw new Error(
-        "Your household has already used this month's change allowance. Cancellation remains possible without a refund.",
-      );
-    const fraction = parentCancellationRefund(100, new Date(b.starts_at), true, at) / 100;
-    const common = {
-      bookingId: id,
-      quotedAt: at.toISOString(),
-      currency: "USD" as const,
-      householdExempt: exempt,
-    };
-    if (exempt || fraction === 1)
-      return { ...common, mode: "free" as const, feeCents: 0, sessionPaidCents: null };
-    // The owner specifies no refund under 24h, but has not approved a new 100% reschedule charge.
-    if (fraction === 0)
-      return { ...common, mode: "unavailable" as const, feeCents: null, sessionPaidCents: null };
-    const uses = await tx`select id from credit_uses where booking_id=${id}`;
-    let sessionPaidCents: number, feeCents: number;
-    if (uses.length) {
-      const value = await lessonRefundValue(tx, id, order.id, b.household_id!);
-      sessionPaidCents = value.paidCents;
-      feeCents = value.halfRefundCents;
-    } else {
-      const original = await standaloneRefundFunding(tx, order, 1);
-      sessionPaidCents = original.filter((f) => !f.setup).reduce((sum, f) => sum + f.amount, 0);
-      feeCents = Math.round(sessionPaidCents / 2);
-    }
-    if (sessionPaidCents <= 0) throw new Error("Original session funding requires office review.");
-    return { ...common, mode: "payment_required" as const, feeCents, sessionPaidCents };
-  });
+  return sql.transaction((tx) => bookingRescheduleQuoteInTransaction(tx, id, me, now));
+}
+export async function bookingRescheduleQuoteInTransaction(
+  tx: Sql,
+  id: string,
+  me: Identity,
+  now?: Date,
+) {
+  const { booking: b, order } = await lockedBooking(tx, id);
+  familyAccess(b, me);
+  const at = now || new Date();
+  const [club] = await tx<Resolution>`select * from club_requests where id=${clubKey(id)}`;
+  const exempt = club?.status === "pending" && b.status === "cancelled";
+  if (!exempt && (b.status !== "confirmed" || new Date(b.starts_at) <= at || b.checked_in_at))
+    throw new Error("Choose a future confirmed booking that has not checked in.");
+  if (order.status !== "paid")
+    throw new Error("Successful payment is required before rescheduling.");
+  if (
+    !exempt &&
+    !(await householdChangeAvailable(tx, b.household_id!, "reschedule-quote:" + id, at))
+  )
+    throw new Error(
+      "Your household has already used this month's change allowance. Cancellation remains possible without a refund.",
+    );
+  const fraction = parentCancellationRefund(100, new Date(b.starts_at), true, at) / 100;
+  const common = {
+    bookingId: id,
+    quotedAt: at.toISOString(),
+    currency: "USD" as const,
+    householdExempt: exempt,
+  };
+  if (exempt || fraction === 1)
+    return { ...common, mode: "free" as const, feeCents: 0, sessionPaidCents: null };
+  // The owner specifies no refund under 24h, but has not approved a new 100% reschedule charge.
+  if (fraction === 0)
+    return { ...common, mode: "unavailable" as const, feeCents: null, sessionPaidCents: null };
+  const uses = await tx`select id from credit_uses where booking_id=${id}`;
+  let sessionPaidCents: number, feeCents: number;
+  if (uses.length) {
+    const value = await lessonRefundValue(tx, id, order.id, b.household_id!);
+    sessionPaidCents = value.paidCents;
+    feeCents = value.halfRefundCents;
+  } else {
+    const original = await standaloneRefundFunding(tx, order, 1);
+    sessionPaidCents = original.filter((f) => !f.setup).reduce((sum, f) => sum + f.amount, 0);
+    feeCents = Math.round(sessionPaidCents / 2);
+  }
+  if (sessionPaidCents <= 0) throw new Error("Original session funding requires office review.");
+  return { ...common, mode: "payment_required" as const, feeCents, sessionPaidCents };
 }
 
 export async function saveBookingReschedule(
@@ -194,79 +200,89 @@ export async function saveBookingReschedule(
   available: (b: Booking, date: string, time: string, minutes: number, tx: Sql) => Promise<boolean>,
   now?: Date,
 ) {
-  return sql.transaction(async (tx) => {
-    const { booking: b, order } = await lockedBooking(tx, id);
-    const currentTime = now || new Date();
-    familyAccess(b, me);
-    const key = "reschedule:" + input.requestId;
-    const [previous] = await tx<{
-      payload: { bookingId: string };
-    }>`select payload from club_requests where id=${key} and user_id=${me.userId}`;
-    if (previous) {
-      if (previous.payload.bookingId !== id)
-        throw new Error("This request was used for another booking.");
-      return { status: "completed" };
-    }
-    const [club] =
-      await tx<Resolution>`select * from club_requests where id=${clubKey(id)} for update`;
-    const clubChange = club?.status === "pending" && b.status === "cancelled";
-    if (
-      !clubChange &&
-      (b.status !== "confirmed" || new Date(b.starts_at) <= currentTime || b.checked_in_at)
-    )
-      throw new Error("Choose a future confirmed booking that has not checked in.");
-    if (order.status !== "paid")
-      throw new Error("Successful payment is required before rescheduling.");
-    if (
-      !clubChange &&
-      parentCancellationRefund(100, new Date(b.starts_at), true, currentTime) !== 100
-    )
-      throw new Error(
-        "Online free rescheduling requires at least 48 hours' notice. Later changes require fee collection.",
-      );
-    if (!b.resources.length) throw new Error("Booking resource mapping requires office review.");
-    const minutes = (new Date(b.ends_at).getTime() - new Date(b.starts_at).getTime()) / 60000;
-    const window = validateWindow(input.date, input.time, minutes, currentTime);
-    if (window.start.getTime() === new Date(b.starts_at).getTime())
-      throw new Error("Choose a different session time.");
-    if (!(await available(b, input.date, input.time, minutes, tx)))
-      throw new Error("This coach or booking resource is unavailable for that time.");
-    const credits = await tx<{
-      expires_at: Date;
-      starts_at: Date;
-    }>`select g.expires_at,g.starts_at from credit_grants g join credit_uses u on u.grant_id=g.id where u.booking_id=${id} and u.reversed_at is null`;
-    if (
-      credits.some(
-        (g) => window.end > new Date(g.expires_at) || window.start < new Date(g.starts_at),
-      )
-    )
-      throw new Error("Choose a time within the original credit period.");
-    if (
-      !clubChange &&
-      !(await consumeHouseholdChange(
-        tx,
-        b.household_id!,
-        me.userId,
-        key,
-        "reschedule",
-        currentTime,
-      ))
-    )
-      throw new Error("Your household has already used this month's change allowance.");
-    await tx`delete from booking_occupancy where booking_id=${id}`;
-    for (const resource of [...new Set(b.resources)].sort())
-      for (let ms = +window.start; ms < +window.end; ms += 300000) {
-        const inserted =
-          await tx`insert into booking_occupancy(resource_id,slot_at,booking_id) values(${resource},${new Date(ms).toISOString()},${id}) on conflict do nothing returning booking_id`;
-        if (!inserted.length)
-          throw new Error(
-            "That time was just booked. Your original booking and allowance are unchanged.",
-          );
-      }
-    await tx`update booking_records set status='confirmed',starts_at=${window.start.toISOString()},ends_at=${window.end.toISOString()} where id=${id}`;
-    await tx`insert into club_requests(id,user_id,kind,payload,status) values(${key},${me.userId},'booking-reschedule',${JSON.stringify({ bookingId: id, initiator: clubChange ? club!.payload.initiator : "parent", oldStart: new Date(b.starts_at).toISOString(), newStart: window.start.toISOString() })}::jsonb,'completed')`;
-    if (clubChange)
-      await tx`update club_requests set status='completed',payload=payload || '{"choice":"reschedule"}'::jsonb where id=${club!.id}`;
+  return sql.transaction((tx) => applyBookingReschedule(tx, id, me, input, available, now));
+}
+export async function applyBookingReschedule(
+  tx: Sql,
+  id: string,
+  me: Identity,
+  input: { date: string; time: string; requestId: string },
+  available: (b: Booking, date: string, time: string, minutes: number, tx: Sql) => Promise<boolean>,
+  now?: Date,
+  paidFeeOrderId?: string,
+) {
+  const { booking: b, order } = await lockedBooking(tx, id);
+  const currentTime = now || new Date();
+  familyAccess(b, me);
+  const key = "reschedule:" + input.requestId;
+  const [previous] = await tx<{
+    payload: { bookingId: string };
+  }>`select payload from club_requests where id=${key} and user_id=${me.userId}`;
+  if (previous) {
+    if (previous.payload.bookingId !== id)
+      throw new Error("This request was used for another booking.");
     return { status: "completed" };
-  });
+  }
+  const [club] =
+    await tx<Resolution>`select * from club_requests where id=${clubKey(id)} for update`;
+  const clubChange = club?.status === "pending" && b.status === "cancelled";
+  if (
+    !clubChange &&
+    (b.status !== "confirmed" || new Date(b.starts_at) <= currentTime || b.checked_in_at)
+  )
+    throw new Error("Choose a future confirmed booking that has not checked in.");
+  if (order.status !== "paid")
+    throw new Error("Successful payment is required before rescheduling.");
+  if (paidFeeOrderId) {
+    const { validatePreparedRescheduleFee } = await import("./reschedule-fee.server");
+    const fee = await validatePreparedRescheduleFee(tx, paidFeeOrderId, me, currentTime, true);
+    if (
+      fee.snapshot.rescheduleFee.requestId !== input.requestId ||
+      fee.snapshot.rescheduleFee.date !== input.date ||
+      fee.snapshot.rescheduleFee.time !== input.time ||
+      fee.snapshot.rescheduleFee.bookingId !== id
+    )
+      throw new Error("Paid reschedule does not match this move.");
+  } else if (
+    !clubChange &&
+    parentCancellationRefund(100, new Date(b.starts_at), true, currentTime) !== 100
+  )
+    throw new Error(
+      "Online free rescheduling requires at least 48 hours' notice. Later changes require fee collection.",
+    );
+  if (!b.resources.length) throw new Error("Booking resource mapping requires office review.");
+  const minutes = (new Date(b.ends_at).getTime() - new Date(b.starts_at).getTime()) / 60000;
+  const window = validateWindow(input.date, input.time, minutes, currentTime);
+  if (window.start.getTime() === new Date(b.starts_at).getTime())
+    throw new Error("Choose a different session time.");
+  if (!(await available(b, input.date, input.time, minutes, tx)))
+    throw new Error("This coach or booking resource is unavailable for that time.");
+  const credits = await tx<{
+    expires_at: Date;
+    starts_at: Date;
+  }>`select g.expires_at,g.starts_at from credit_grants g join credit_uses u on u.grant_id=g.id where u.booking_id=${id} and u.reversed_at is null`;
+  if (
+    credits.some((g) => window.end > new Date(g.expires_at) || window.start < new Date(g.starts_at))
+  )
+    throw new Error("Choose a time within the original credit period.");
+  if (
+    !clubChange &&
+    !(await consumeHouseholdChange(tx, b.household_id!, me.userId, key, "reschedule", currentTime))
+  )
+    throw new Error("Your household has already used this month's change allowance.");
+  await tx`delete from booking_occupancy where booking_id=${id}`;
+  for (const resource of [...new Set(b.resources)].sort())
+    for (let ms = +window.start; ms < +window.end; ms += 300000) {
+      const inserted =
+        await tx`insert into booking_occupancy(resource_id,slot_at,booking_id) values(${resource},${new Date(ms).toISOString()},${id}) on conflict do nothing returning booking_id`;
+      if (!inserted.length)
+        throw new Error(
+          "That time was just booked. Your original booking and allowance are unchanged.",
+        );
+    }
+  await tx`update booking_records set status='confirmed',starts_at=${window.start.toISOString()},ends_at=${window.end.toISOString()} where id=${id}`;
+  await tx`insert into club_requests(id,user_id,kind,payload,status) values(${key},${me.userId},'booking-reschedule',${JSON.stringify({ bookingId: id, initiator: clubChange ? club!.payload.initiator : "parent", oldStart: new Date(b.starts_at).toISOString(), newStart: window.start.toISOString(), feeOrderId: paidFeeOrderId || null })}::jsonb,'completed')`;
+  if (clubChange)
+    await tx`update club_requests set status='completed',payload=payload || '{"choice":"reschedule"}'::jsonb where id=${club!.id}`;
+  return { status: "completed" };
 }

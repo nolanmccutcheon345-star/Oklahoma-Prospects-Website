@@ -10,8 +10,6 @@ import {
 } from "./booking-resolution.server";
 import { executeSquareRefund } from "./square-management.server";
 import { settleRefundBatch } from "./refund-funding.server";
-import { coachAvailable } from "./availability";
-import { requireCoachService } from "./coach-services.server";
 export async function staffCancellationContext(userId: string) {
   const me = await clubIdentity(userId),
     sql = await getSql();
@@ -47,15 +45,61 @@ export async function rescheduleBookingAction(
   assertPaymentRequest();
   await rateLimit("booking-reschedule", 30);
   const me = await clubIdentity(userId),
+    sql = await getSql();
+  const { currentMoveAvailability } = await import("./reschedule-fee.server");
+  return saveBookingReschedule(sql, input.id, me, input, currentMoveAvailability);
+}
+
+export async function startRescheduleFeeAction(
+  userId: string,
+  input: { id: string; date: string; time: string; requestId: string },
+) {
+  assertPaymentRequest();
+  await rateLimit("reschedule-fee", 15);
+  const { squareConfig, squarePublicConfig } = await import("./square.server");
+  const { assertSquareCheckoutScope } = await import("./square-config");
+  const { prepareRescheduleFee } = await import("./reschedule-fee.server");
+  const me = await clubIdentity(userId),
     sql = await getSql(),
-    file = await readWorkingFile();
-  return saveBookingReschedule(sql, input.id, me, input, async (b, date, time, minutes, tx) => {
-    if (!b.coach_id) {
-      const { checkCageBookingWindow } = await import("./booking-policy.server");
-      await checkCageBookingWindow(me.billingHouseholdIds, date);
-      return true;
-    }
-    await requireCoachService(tx, file.coaches, b.coach_id, b.product_id);
-    return coachAvailable(file.availability, b.coach_id, date, time, minutes);
+    config = squareConfig();
+  // Scope is enforced before creating a fee order, independently of browser controls.
+  const [original] = await sql<{
+    kind: string;
+  }>`select o.kind from commerce_orders o join booking_records b on b.order_id=o.id where b.id=${input.id} and b.household_id=any(${me.billingHouseholdIds}::text[])`;
+  if (!original) throw new Error("Booking not found.");
+  assertSquareCheckoutScope(config, {
+    kind: original.kind === "cage" ? "cage" : "lesson",
+    recurring: false,
   });
+  const fee = await prepareRescheduleFee(
+    sql,
+    input.id,
+    { ...me, userId },
+    input,
+    config.environment,
+  );
+  const publicConfig = squarePublicConfig();
+  if (!publicConfig) throw new Error("Payment configuration is unavailable.");
+  return {
+    orderId: fee.id,
+    totalCents: fee.total_cents,
+    expiresAt: new Date(fee.hold_until).toISOString(),
+    date: fee.snapshot.rescheduleFee.date,
+    time: fee.snapshot.rescheduleFee.time,
+    config: publicConfig,
+    name: me.name,
+    email: me.email,
+  };
+}
+export async function rescheduleFeeStatus(userId: string, orderId: string) {
+  const me = await clubIdentity(userId),
+    sql = await getSql();
+  if (me.role === "player") throw new Error("Parent billing access required.");
+  const [fee] = await sql<
+    import("./reschedule-fee.server").FeeOrder
+  >`select * from commerce_orders where id=${orderId} and kind='reschedule-fee' and user_id=${userId} and household_id=any(${me.billingHouseholdIds}::text[])`;
+  if (!fee) throw new Error("Reschedule fee not found.");
+  const [saved] =
+    await sql`select id from club_requests where id=${"reschedule:" + fee.snapshot.rescheduleFee.requestId} and status='completed' and payload->>'feeOrderId'=${fee.id}`;
+  return { status: fee.status, completed: fee.status === "paid" && Boolean(saved) };
 }
