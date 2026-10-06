@@ -3,8 +3,7 @@ import { CLUB, LINKS } from "@/lib/club";
 export const LOCAL_BUSINESS_JSONLD = {
   "@context": "https://schema.org",
   "@type": "SportsActivityLocation",
-  name: "Oklahoma Prospects",
-  legalName: "Oklahoma Prospects",
+  name: CLUB.name,
   alternateName: ["Oklahoma Prospects Baseball", "Oklahoma Prospects Softball"],
   description:
     "Book indoor batting cages, private baseball and softball lessons, and competitive teams in Broken Arrow, Oklahoma. Est. 2008.",
@@ -37,6 +36,6 @@ export const LOCAL_BUSINESS_JSONLD = {
   sameAs: [LINKS.googleReview, LINKS.maps],
   brand: {
     "@type": "Brand",
-    name: "Oklahoma Prospects",
+    name: CLUB.name,
   },
 };

@@ -9,3 +9,9 @@ Migration 0031 adds explicit team_id and roster_player_id with paired-null valid
 Private My fundraising and Office remain management views. Public `/teams` has links to actual team pages with public players. New share buttons use the team/player route; the player page links back to its team roster. Legacy payment receipts can still use their fundraiser reference.
 
 Checks: real migrated Postgres tests cover forged/disabled/player identities, household isolation, exact team/player pairs, duplicate links, consent withdrawal, demo state and roster removal. Full regression, type/lint/build and rendered route checks are recorded in PR36. Hosted role/migration and browser verification remain release acceptance tasks. Homepage/footer solicitations are removed separately in PR34. No real transactions, customer messages, roster mutations or production deployment were performed.
+
+## Integration with the current production code
+
+This branch incorporates main `334cf4a316506649e477b2891e0b01199e7ce0e1` through a merge commit, preserving the existing consent/roster work and other bot branches. Academy branding, homepage/footer solicitation removal, the shared contact response wording, and the dependency/security build adapter are included. The homepage/footer removal is already live via PR34; this PR adds the consent and roster controls.
+
+Production promotion still requires verification of migrations 0030/0031 on an isolated database and authenticated parent/admin/player workflows. Builds prepare migration copies but do not prove hosted isolation or apply the schema themselves. Existing public pages without explicit consent and roster links intentionally become unavailable; no automatic legacy backfill is permitted. Do not mark hosted role acceptance complete based on public route GETs or local tests.

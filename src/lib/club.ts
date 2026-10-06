@@ -1,8 +1,8 @@
 import { dollars, formatMoney, PRICES } from "./pricing";
 import { processingInclusiveCents } from "./processing-prices.js";
 export const CLUB = {
-  name: "Oklahoma Prospects",
-  shortName: "Oklahoma Prospects",
+  name: "Oklahoma Prospects Academy",
+  shortName: "Prospects",
   tagline: "Indoor baseball & softball in Broken Arrow.",
   established: 2008,
   mindset: ["Grit", "Heart", "Pride"],
@@ -36,7 +36,7 @@ export const LINKS = {
   checkin: "/visits",
   maps: "https://www.google.com/maps/search/?api=1&query=3804+S.+Elm+Pl.+Suite+A+Broken+Arrow+OK+74011",
   site: "https://prospectsbaseball.club/",
-  googleReview: "https://www.google.com/maps/search/?api=1&query=Oklahoma+Prospects+3804+S+Elm+Pl+Broken+Arrow+OK",
+  googleReview: "https://www.google.com/maps/search/?api=1&query=Oklahoma+Prospects+Academy+3804+S+Elm+Pl+Broken+Arrow+OK",
 } as const;
 
 export function smsHref(tel: string, body: string) {
@@ -369,7 +369,7 @@ export const FAQ = [
   },
   {
     q: "Do you offer baseball and softball?",
-    a: "Yes. Baseball and softball both train here. Lane 7 is the dual-use machine and hitting lane. Select your sport when you book.",
+    a: "Yes. Baseball and softball both train here. Lane 7 is the dual-use machine and hitting lane. Choose baseball or softball when you add each athlete in your account.",
   },
   {
     q: "I’m new. Where do I start?",
