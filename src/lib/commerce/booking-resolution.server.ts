@@ -1,6 +1,10 @@
 import { randomUUID } from "node:crypto";
 import type { Sql } from "../db";
-import { consumeHouseholdChange, parentCancellationRefund } from "./booking-change-policy.server";
+import {
+  consumeHouseholdChange,
+  householdChangeAvailable,
+  parentCancellationRefund,
+} from "./booking-change-policy.server";
 import { lessonRefundValue } from "./lesson-refund-value.server";
 import { summarizeRefunds, standaloneRefundFunding } from "./refund-funding.server";
 import { validateWindow } from "../scheduling";
@@ -132,6 +136,53 @@ export async function saveClubCancellationRefund(sql: Sql, id: string, me: Ident
     await tx`update credit_uses set reversed_at=now(),restored_quantity=0 where booking_id=${id} and reversed_at is null`;
     await tx`update club_requests set status='refund_pending',payload=payload || '{"choice":"refund"}'::jsonb where id=${choice.id}`;
     return summarizeRefunds(refunds);
+  });
+}
+
+/** Read-only fee preview. Payment confirmation must revalidate this quote; it is not an authorization to charge. */
+export async function bookingRescheduleQuote(sql: Sql, id: string, me: Identity, now?: Date) {
+  return sql.transaction(async (tx) => {
+    const { booking: b, order } = await lockedBooking(tx, id);
+    familyAccess(b, me);
+    const at = now || new Date();
+    const [club] = await tx<Resolution>`select * from club_requests where id=${clubKey(id)}`;
+    const exempt = club?.status === "pending" && b.status === "cancelled";
+    if (!exempt && (b.status !== "confirmed" || new Date(b.starts_at) <= at || b.checked_in_at))
+      throw new Error("Choose a future confirmed booking that has not checked in.");
+    if (order.status !== "paid")
+      throw new Error("Successful payment is required before rescheduling.");
+    if (
+      !exempt &&
+      !(await householdChangeAvailable(tx, b.household_id!, "reschedule-quote:" + id, at))
+    )
+      throw new Error(
+        "Your household has already used this month's change allowance. Cancellation remains possible without a refund.",
+      );
+    const fraction = parentCancellationRefund(100, new Date(b.starts_at), true, at) / 100;
+    const common = {
+      bookingId: id,
+      quotedAt: at.toISOString(),
+      currency: "USD" as const,
+      householdExempt: exempt,
+    };
+    if (exempt || fraction === 1)
+      return { ...common, mode: "free" as const, feeCents: 0, sessionPaidCents: null };
+    // The owner specifies no refund under 24h, but has not approved a new 100% reschedule charge.
+    if (fraction === 0)
+      return { ...common, mode: "unavailable" as const, feeCents: null, sessionPaidCents: null };
+    const uses = await tx`select id from credit_uses where booking_id=${id}`;
+    let sessionPaidCents: number, feeCents: number;
+    if (uses.length) {
+      const value = await lessonRefundValue(tx, id, order.id, b.household_id!);
+      sessionPaidCents = value.paidCents;
+      feeCents = value.halfRefundCents;
+    } else {
+      const original = await standaloneRefundFunding(tx, order, 1);
+      sessionPaidCents = original.filter((f) => !f.setup).reduce((sum, f) => sum + f.amount, 0);
+      feeCents = Math.round(sessionPaidCents / 2);
+    }
+    if (sessionPaidCents <= 0) throw new Error("Original session funding requires office review.");
+    return { ...common, mode: "payment_required" as const, feeCents, sessionPaidCents };
   });
 }
 

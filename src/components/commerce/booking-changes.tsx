@@ -6,6 +6,7 @@ import {
   cancelClubSession,
   chooseClubCancellationRefund,
   rescheduleBooking,
+  getBookingRescheduleQuote,
 } from "@/lib/commerce/booking-resolution-api";
 
 export function RescheduleBooking({
@@ -21,24 +22,58 @@ export function RescheduleBooking({
     [busy, setBusy] = useState(false),
     [error, setError] = useState("");
   const [requestId, setRequestId] = useState<string>();
+  const [quote, setQuote] = useState<Awaited<ReturnType<typeof getBookingRescheduleQuote>>>();
   return (
     <div className="mt-3">
       <Button
         variant="outlineDark"
         disabled={busy}
-        onClick={() => {
-          setOpen(!open);
-          if (!requestId) setRequestId(crypto.randomUUID());
+        onClick={async () => {
+          if (open) {
+            setOpen(false);
+            return;
+          }
+          setBusy(true);
+          setError("");
+          try {
+            setQuote(await getBookingRescheduleQuote({ data: { id } }));
+            setOpen(true);
+            if (!requestId) setRequestId(crypto.randomUUID());
+          } catch (e) {
+            setError(e instanceof Error ? e.message : "Reschedule fee could not load.");
+          } finally {
+            setBusy(false);
+          }
         }}
       >
-        {clubChange ? "Choose free reschedule" : "Reschedule (48+ hours ahead)"}
+        {clubChange ? "Choose free reschedule" : "Review reschedule"}
       </Button>
-      {open ? (
+      {error ? <p role="alert">{error}</p> : null}
+      {open && quote?.mode !== "free" ? (
+        <div className="mt-3 rounded border p-3" role="status">
+          {quote?.mode === "payment_required" ? (
+            <p>
+              The 24–48-hour reschedule fee is{" "}
+              {new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(
+                quote.feeCents / 100,
+              )}
+              , based on this individual session’s prepaid value. Paid rescheduling is not available
+              yet. Your booking and household allowance have not changed.
+            </p>
+          ) : (
+            <p>
+              Under 24 hours, cancellation gives no refund. Online rescheduling is not available for
+              this session. Your booking and household allowance have not changed.
+            </p>
+          )}
+        </div>
+      ) : null}
+      {open && quote?.mode === "free" ? (
         <form
           className="mt-3 grid gap-3"
           onSubmit={async (e) => {
             e.preventDefault();
-            if (busy || !requestId) return;
+            if (busy || !requestId || quote?.mode !== "free") return;
             const form = new FormData(e.currentTarget);
             setBusy(true);
             setError("");
@@ -62,7 +97,7 @@ export function RescheduleBooking({
           }}
         >
           <p>
-            {clubChange
+            {quote.householdExempt
               ? "Your household allowance will not be used. Select a new available time with the same coach and resources."
               : "One cancellation or reschedule is shared by your household each Chicago calendar month. This free reschedule requires at least 48 hours’ notice; later changes require fee collection."}{" "}
             All times are America/Chicago. Paid credits retain their original expiration.
@@ -84,7 +119,6 @@ export function RescheduleBooking({
           <Button type="submit" disabled={busy}>
             Confirm free reschedule
           </Button>
-          {error ? <p role="alert">{error}</p> : null}
         </form>
       ) : null}
     </div>

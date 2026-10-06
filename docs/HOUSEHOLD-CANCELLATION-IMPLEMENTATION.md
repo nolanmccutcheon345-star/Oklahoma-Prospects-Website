@@ -56,3 +56,13 @@ New acceptance tests cover full/half split refunds, rounding, original-card IDs,
 Remaining financial implementation: late parent reschedule fees; authoritative team account/credit/booking integration; historical rollover and split-renewal allocations; hosted/browser role and provider acceptance after runtime isolation.
 
 Current continuation validation: 65 targeted policy/transaction/provider tests PASS, TypeScript PASS, changed-file lint zero errors, Netlify deploy-preview build PASS and built SSR nonce/cache checks PASS. Hosted provider/browser acceptance remains unperformed. Claimed shared helper: src/lib/commerce/refund-funding.server.ts.
+
+## Read-only reschedule fee preview — October 6
+
+The authenticated Family reschedule flow now loads an original-funding fee quote before offering a move. At 48+ hours (or a pending coach/facility cancellation choice) it offers the existing free reschedule. At 24 to under 48 hours it shows the 50% fee based on the individual prepaid membership lesson or standalone base session payment, excluding setup. Discounts and original grant denominators are retained, with final half-value rounding. The server rejects player/foreign-household access, used monthly allowance and ambiguous original funding. Quote reads do not spend allowance, move occupancy, create requests or submit payments. Confirmation still rechecks timing and availability.
+
+The paid-reschedule button remains unavailable: an ordinary lesson checkout would grant another booking rather than pay a change fee. A dedicated idempotent fee-payment/fulfillment/reconciliation path, resource conflict compensation and hosted sandbox acceptance remain required. Under 24 hours the owner has specified no cancellation refund; a new 100% reschedule charge is not inferred. The UI states that online rescheduling is unavailable there. This is a quote/UX continuation, not a claim that late fee collection is complete.
+
+Tests cover exact 48/24-hour boundaries, discounted membership per-lesson quotes, standalone setup exclusion, wrong-role/household denial, used monthly allowance, missing funding and coach/facility exemption. Existing provider and transaction regressions are checked; exact results belong in the PR. No provider calls, customer messages, migrations or hosting settings changed.
+
+Fee-preview validation: 69 targeted policy/transaction/provider tests PASS; TypeScript PASS; changed-file lint zero errors; Netlify deploy-preview build PASS; built SSR nonce/private-cache checks PASS. Authenticated rendered browser/provider acceptance remains unperformed.

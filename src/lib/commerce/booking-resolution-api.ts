@@ -31,6 +31,15 @@ export const getStaffCancellationBookings = createServerFn({ method: "GET" })
       athlete_name: string | null;
     }>`select b.id,b.starts_at,b.product_id,b.coach_id,a.name as athlete_name from booking_records b left join club_athletes a on a.id=b.athlete_id where b.status='confirmed' and b.starts_at>now() and b.checked_in_at is null and b.household_id is not null and (${me.role === "admin"} or (b.coach_id=${coachId} and b.participant_count=1)) order by b.starts_at limit 100`;
   });
+export const getBookingRescheduleQuote = createServerFn({ method: "GET" })
+  .middleware([authMiddleware])
+  .validator(id)
+  .handler(async ({ context, data }) => {
+    const { getSql } = await import("../db"),
+      { clubIdentity } = await import("../identity.server"),
+      { bookingRescheduleQuote } = await import("./booking-resolution.server");
+    return bookingRescheduleQuote(await getSql(), data.id, await clubIdentity(context.userId));
+  });
 export const cancelClubSession = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
   .validator(id.extend({ initiator: z.enum(["coach", "facility"]) }))

@@ -7,6 +7,7 @@ import {
   saveClubBookingCancellation,
   saveClubCancellationRefund,
   saveBookingReschedule,
+  bookingRescheduleQuote,
 } from "./booking-resolution.server";
 import { consumeHouseholdChange, householdChangeAvailable } from "./booking-change-policy.server";
 test("club cancellations and free reschedules preserve funds, allowance and resource ownership", async (t) => {
@@ -66,6 +67,103 @@ test("club cancellations and free reschedules preserve funds, allowance and reso
         async () => available,
         now,
       );
+    await t.test(
+      "read-only reschedule quotes apply exact notice boundaries without consuming allowance",
+      async () => {
+        for (const [hours, mode, fee] of [
+          [48, "free", 0],
+          [24, "payment_required", 6000],
+          [23, "unavailable", null],
+        ] as const) {
+          const id = "quote-" + hours;
+          await seed(id, id, hours);
+          const quote = await bookingRescheduleQuote(sql, id, parent(id), now);
+          assert.equal(quote.mode, mode);
+          assert.equal(quote.feeCents, fee);
+          assert.equal(await householdChangeAvailable(sql, id, "other", now), true);
+          assert.equal(
+            (await sql`select status from booking_records where id=${id}`)[0].status,
+            "confirmed",
+          );
+        }
+        assert.equal(
+          (await sql`select id from commerce_refunds where booking_id like 'quote-%'`).length,
+          0,
+        );
+      },
+    );
+    await t.test(
+      "membership fee quotes use individual discounted renewal funding and exclude setup",
+      async () => {
+        await seed("quote-member", "quote-member", 30, true);
+        await sql`update square_payments set amount_cents=20003 where id='payment:quote-member'`;
+        const quote = await bookingRescheduleQuote(
+          sql,
+          "quote-member",
+          parent("quote-member"),
+          now,
+        );
+        assert.equal(quote.sessionPaidCents, 5001);
+        assert.equal(quote.feeCents, 2500);
+        await seed("quote-setup", "quote-setup", 30);
+        await sql`update commerce_orders set total_cents=17000,square_fee_payment_id='quote-setup-fee' where id='quote-setup'`;
+        await sql`insert into square_payments(id,order_id,environment,amount_cents,status,purpose) values('quote-setup-fee','quote-setup','sandbox',5000,'COMPLETED','setup-fee')`;
+        const standalone = await bookingRescheduleQuote(
+          sql,
+          "quote-setup",
+          parent("quote-setup"),
+          now,
+        );
+        assert.equal(standalone.sessionPaidCents, 12000);
+        assert.equal(standalone.feeCents, 6000);
+      },
+    );
+    await t.test(
+      "fee quote rejects players, foreign households, used allowance and unresolved funding",
+      async () => {
+        await seed("quote-deny", "quote-deny", 30, true);
+        await assert.rejects(
+          bookingRescheduleQuote(sql, "quote-deny", parent("foreign"), now),
+          /parent with billing/,
+        );
+        await assert.rejects(
+          bookingRescheduleQuote(
+            sql,
+            "quote-deny",
+            { ...parent("quote-deny"), role: "player" },
+            now,
+          ),
+          /parent with billing/,
+        );
+        await sql`update credit_grants set payment_id=null where id='quote-deny'`;
+        await assert.rejects(
+          bookingRescheduleQuote(sql, "quote-deny", parent("quote-deny"), now),
+          /funding requires office review/,
+        );
+        await consumeHouseholdChange(sql, "quote-deny", "parent", "earlier", "cancellation", now);
+        await assert.rejects(
+          bookingRescheduleQuote(sql, "quote-deny", parent("quote-deny"), now),
+          /already used/,
+        );
+      },
+    );
+    await t.test(
+      "club cancellation quote remains free after a household used its allowance",
+      async () => {
+        await seed("quote-exempt", "quote-exempt", 12);
+        await consumeHouseholdChange(sql, "quote-exempt", "parent", "earlier", "cancellation", now);
+        await staffCancel("quote-exempt");
+        const quote = await bookingRescheduleQuote(
+          sql,
+          "quote-exempt",
+          parent("quote-exempt"),
+          now,
+        );
+        assert.equal(quote.mode, "free");
+        assert.equal(quote.feeCents, 0);
+        assert.equal(quote.householdExempt, true);
+      },
+    );
     await t.test(
       "only assigned coaches or admins cancel, and only admins close facilities",
       async () => {

@@ -226,3 +226,8 @@ N3 remains assigned but not complete: the current TeamsProvider cage board uses 
 ### Parent refunds across original payments — October 6
 
 PR #33 now supports automatic parent cancellation refunds across separately funded standalone lesson/cage and setup payments, applying the full/half session policy and original-card allocation with one household allowance use. Membership cancellations remain based on the individual prepaid lesson value, excluding setup. Atomic validation prevents changes when original funds are missing/ambiguous/insufficient; partial provider completion is retryable without issuing another completed refund. The remaining fees/team-ledger/historical funding/hosted verification tasks stay assigned and open. See HOUSEHOLD-CANCELLATION-IMPLEMENTATION.md.
+
+
+### Late reschedule quote status — October 6
+
+PR #33 adds read-only server-verified 24–48-hour fee quotes in the Family reschedule UI. Fees use the individual prepaid session value and exclude setup; free club/facility changes remain exempt from the household allowance. The quote cannot authorize payment or mutate a booking. Paid reschedule fulfillment/fee collection remains open. Under-24-hour no-refund cancellation wording is preserved without inferring a new 100% reschedule fee. Prior head 957d116 passed GitHub full tests/type/lint; the existing dependency-audit gate failed and downstream CI build steps were skipped.
