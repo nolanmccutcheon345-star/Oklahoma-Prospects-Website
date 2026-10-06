@@ -4,6 +4,7 @@ import {
   prepareRescheduleFee,
   completePaidReschedule,
   validatePreparedRescheduleFee,
+  unfinishedRescheduleFee,
 } from "./reschedule-fee.server";
 import { fulfillSquarePayment } from "./square-payments.server";
 import assert from "node:assert/strict";
@@ -92,6 +93,66 @@ test("club cancellations and free reschedules preserve funds, allowance and reso
       await sql`update commerce_orders set square_payment_id=${paymentId} where id=${fee.id}`;
       return { ...fee, square_payment_id: paymentId };
     }
+    await t.test(
+      "reload recovery keeps unknown and expired fee payments status-only and denies foreign users",
+      async () => {
+        await seed("fee-reload", "fee-reload", 30);
+        assert.equal(
+          await unfinishedRescheduleFee(sql, "fee-reload", parent("fee-reload"), now),
+          null,
+        );
+        const fee = await feeFor("fee-reload");
+        const fresh = await unfinishedRescheduleFee(sql, "fee-reload", parent("fee-reload"), now);
+        assert.equal(fresh?.fee.id, fee.id);
+        assert.equal(fresh?.canPay, true);
+        await sql`insert into square_payment_attempts(id,order_id,token_hash,status) values(${randomUUID()},${fee.id},'redacted-test-hash','unknown')`;
+        assert.equal(
+          (await unfinishedRescheduleFee(sql, "fee-reload", parent("fee-reload"), now))?.canPay,
+          false,
+        );
+        await sql`update commerce_orders set status='expired',hold_until=${now.toISOString()} where id=${fee.id}`;
+        const uncertain = await unfinishedRescheduleFee(
+          sql,
+          "fee-reload",
+          parent("fee-reload"),
+          now,
+        );
+        assert.equal(uncertain?.fee.id, fee.id);
+        assert.equal(uncertain?.canPay, false);
+        assert.equal(
+          await unfinishedRescheduleFee(
+            sql,
+            "fee-reload",
+            { ...parent("fee-reload"), userId: "another-parent" },
+            now,
+          ),
+          null,
+        );
+        await assert.rejects(
+          unfinishedRescheduleFee(sql, "fee-reload", parent("foreign"), now),
+          /billing access/,
+        );
+        await assert.rejects(
+          unfinishedRescheduleFee(
+            sql,
+            "fee-reload",
+            { ...parent("fee-reload"), role: "player" },
+            now,
+          ),
+          /billing access/,
+        );
+        assert.equal(await householdChangeAvailable(sql, "fee-reload", "other", now), true);
+        assert.equal(
+          (await sql`select id from booking_records where order_id=${fee.id}`).length,
+          0,
+        );
+        await sql`update square_payment_attempts set status='declined' where order_id=${fee.id}`;
+        assert.equal(
+          await unfinishedRescheduleFee(sql, "fee-reload", parent("fee-reload"), now),
+          null,
+        );
+      },
+    );
     await t.test(
       "fee preparation binds its original booking and retry key without charging or using allowance",
       async () => {

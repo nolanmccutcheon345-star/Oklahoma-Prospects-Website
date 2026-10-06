@@ -11,6 +11,7 @@ import {
   getBookingRescheduleQuote,
   startBookingRescheduleFee,
   getBookingRescheduleFeeStatus,
+  resumeBookingRescheduleFee,
 } from "@/lib/commerce/booking-resolution-api";
 
 export function RescheduleBooking({
@@ -26,7 +27,8 @@ export function RescheduleBooking({
     [busy, setBusy] = useState(false),
     [error, setError] = useState("");
   const [requestId, setRequestId] = useState<string>();
-  const [checkout, setCheckout] = useState<Awaited<ReturnType<typeof startBookingRescheduleFee>>>();
+  const [checkout, setCheckout] =
+    useState<NonNullable<Awaited<ReturnType<typeof resumeBookingRescheduleFee>>>>();
   const [notice, setNotice] = useState("");
   async function checkFee() {
     if (!checkout) return;
@@ -61,8 +63,14 @@ export function RescheduleBooking({
           setBusy(true);
           setError("");
           try {
-            setQuote(await getBookingRescheduleQuote({ data: { id } }));
-            setNotice("");
+            const resume = await resumeBookingRescheduleFee({ data: { id } });
+            setCheckout(resume || undefined);
+            setQuote(resume ? undefined : await getBookingRescheduleQuote({ data: { id } }));
+            setNotice(
+              resume && !resume.canPay
+                ? "An earlier fee payment needs a status check. Do not start another payment."
+                : "",
+            );
             setOpen(true);
             if (!requestId) setRequestId(crypto.randomUUID());
           } catch (e) {
@@ -76,7 +84,7 @@ export function RescheduleBooking({
       </Button>
       {error ? <p role="alert">{error}</p> : null}
       {notice ? <p role="status">{notice}</p> : null}
-      {open && quote?.mode !== "free" ? (
+      {open && !checkout && quote?.mode !== "free" ? (
         <div className="mt-3 rounded border p-3" role="status">
           {quote?.mode === "payment_required" ? (
             <p>
@@ -155,33 +163,35 @@ export function RescheduleBooking({
       {open && checkout ? (
         <div className="mt-3 grid gap-3">
           <p>
-            Pay{" "}
+            {checkout.canPay ? "Pay " : "Existing fee: "}
             {new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(
               checkout.totalCents / 100,
             )}{" "}
-            to move this session to {checkout.date} at {checkout.time} (America/Chicago). This uses
-            your household’s monthly allowance. If the move cannot complete, the fee enters the
-            original-card refund process and the original booking stays intact.
+            for the requested move to {checkout.date} at {checkout.time} (America/Chicago). A
+            confirmed move uses your household’s monthly allowance. If the move cannot complete, the
+            fee enters the original-card refund process and the original booking stays intact.
           </p>
-          <SquareCard
-            config={checkout.config}
-            amountCents={checkout.totalCents}
-            name={checkout.name}
-            email={checkout.email}
-            expiresAt={checkout.expiresAt}
-            onToken={async (sourceId, attemptId) => {
-              const result = await submitSquarePayment({
-                data: { orderId: checkout.orderId, sourceId, attemptId },
-              });
-              if (result.declined) return result;
-              const state = await checkFee();
-              return {
-                message: state?.completed
-                  ? "Paid reschedule confirmed."
-                  : result.message || "Confirmation is pending. Check this same payment.",
-              };
-            }}
-          />
+          {checkout.canPay && checkout.config ? (
+            <SquareCard
+              config={checkout.config}
+              amountCents={checkout.totalCents}
+              name={checkout.name}
+              email={checkout.email}
+              expiresAt={checkout.expiresAt}
+              onToken={async (sourceId, attemptId) => {
+                const result = await submitSquarePayment({
+                  data: { orderId: checkout.orderId, sourceId, attemptId },
+                });
+                if (result.declined) return result;
+                const state = await checkFee();
+                return {
+                  message: state?.completed
+                    ? "Paid reschedule confirmed."
+                    : result.message || "Confirmation is pending. Check this same payment.",
+                };
+              }}
+            />
+          ) : null}
           <Button
             variant="outlineDark"
             disabled={busy}

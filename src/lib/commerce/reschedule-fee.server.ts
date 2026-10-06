@@ -55,6 +55,29 @@ export const currentMoveAvailability: MoveAvailability = async (b, date, time, m
   return coachAvailable(file.availability, b.coach_id, date, time, minutes);
 };
 
+/** Recover an unfinished fee after reload without reading card tokens or making a payment. */
+export async function unfinishedRescheduleFee(
+  sql: Sql,
+  id: string,
+  me: Identity,
+  now = new Date(),
+) {
+  const [booking] = await sql<Booking>`select * from booking_records where id=${id}`;
+  if (!booking) throw new Error("Booking not found.");
+  familyAccess(booking, me);
+  const [fee] = await sql<FeeOrder & { uncertain: boolean }>`select o.*,
+    exists(select 1 from square_payment_attempts a where a.order_id=o.id and a.status in ('pending','unknown')) as uncertain
+    from commerce_orders o where o.kind='reschedule-fee' and o.user_id=${me.userId}
+    and o.household_id=${booking.household_id} and o.snapshot->'rescheduleFee'->>'bookingId'=${id}
+    and (o.status in ('pending','payment_review') or exists(select 1 from square_payment_attempts a where a.order_id=o.id and a.status in ('pending','unknown')))
+    order by o.created_at desc limit 1`;
+  if (!fee) return null;
+  return {
+    fee,
+    canPay: fee.status === "pending" && !fee.uncertain && +new Date(fee.hold_until) > +now,
+  };
+}
+
 /** No payment, new booking, credit or allowance is created here. */
 export async function prepareRescheduleFee(
   sql: Sql,

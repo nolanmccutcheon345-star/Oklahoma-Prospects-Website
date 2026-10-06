@@ -89,3 +89,10 @@ export const getBookingRescheduleFeeStatus = createServerFn({ method: "GET" })
     const { rescheduleFeeStatus } = await import("./booking-resolution-actions.server");
     return rescheduleFeeStatus(context.userId, data.orderId);
   });
+export const resumeBookingRescheduleFee = createServerFn({ method: "GET" })
+  .middleware([authMiddleware])
+  .validator(id)
+  .handler(async ({ context, data }) => {
+    const { resumeRescheduleFeeAction } = await import("./booking-resolution-actions.server");
+    return resumeRescheduleFeeAction(context.userId, data.id);
+  });

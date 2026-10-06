@@ -58,7 +58,7 @@ export async function startRescheduleFeeAction(
   await rateLimit("reschedule-fee", 15);
   const { squareConfig, squarePublicConfig } = await import("./square.server");
   const { assertSquareCheckoutScope } = await import("./square-config");
-  const { prepareRescheduleFee } = await import("./reschedule-fee.server");
+  const { prepareRescheduleFee, unfinishedRescheduleFee } = await import("./reschedule-fee.server");
   const me = await clubIdentity(userId),
     sql = await getSql(),
     config = squareConfig();
@@ -71,6 +71,8 @@ export async function startRescheduleFeeAction(
     kind: original.kind === "cage" ? "cage" : "lesson",
     recurring: false,
   });
+  const publicConfig = squarePublicConfig();
+  if (!publicConfig) throw new Error("Payment configuration is unavailable.");
   const fee = await prepareRescheduleFee(
     sql,
     input.id,
@@ -78,8 +80,7 @@ export async function startRescheduleFeeAction(
     input,
     config.environment,
   );
-  const publicConfig = squarePublicConfig();
-  if (!publicConfig) throw new Error("Payment configuration is unavailable.");
+  const resume = await unfinishedRescheduleFee(sql, input.id, { ...me, userId });
   return {
     orderId: fee.id,
     totalCents: fee.total_cents,
@@ -89,6 +90,37 @@ export async function startRescheduleFeeAction(
     config: publicConfig,
     name: me.name,
     email: me.email,
+    canPay: Boolean(resume?.fee.id === fee.id && resume.canPay),
+  };
+}
+export async function resumeRescheduleFeeAction(userId: string, bookingId: string) {
+  const me = await clubIdentity(userId),
+    sql = await getSql();
+  const { unfinishedRescheduleFee } = await import("./reschedule-fee.server");
+  const resume = await unfinishedRescheduleFee(sql, bookingId, { ...me, userId });
+  if (!resume) return null;
+  const { squareConfig, squarePublicConfig } = await import("./square.server");
+  const { assertSquareCheckoutScope } = await import("./square-config");
+  let canPay = false;
+  try {
+    const config = squareConfig();
+    if (resume.canPay && resume.fee.payment_environment === config.environment) {
+      assertSquareCheckoutScope(config, resume.fee.snapshot);
+      canPay = true;
+    }
+  } catch {
+    /* Status recovery remains available when checkout is disabled. */
+  }
+  return {
+    orderId: resume.fee.id,
+    totalCents: resume.fee.total_cents,
+    expiresAt: new Date(resume.fee.hold_until).toISOString(),
+    date: resume.fee.snapshot.rescheduleFee.date,
+    time: resume.fee.snapshot.rescheduleFee.time,
+    config: squarePublicConfig(),
+    name: me.name,
+    email: me.email,
+    canPay,
   };
 }
 export async function rescheduleFeeStatus(userId: string, orderId: string) {
