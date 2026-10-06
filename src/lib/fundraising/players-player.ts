@@ -1,3 +1,5 @@
+import { getSql } from "../db";
+import { recordConsent } from "./publication";
 import {
   body,
   requireUser,
@@ -28,6 +30,8 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     const { id } = await params;
     const b = await body(req);
     const { user, admin } = await requireUser();
+    if (user.role === "player")
+      throw new AppError("A parent or guardian must manage publication permission.", 403);
     const p = await db()
       .prepare("SELECT * FROM fundraising_players WHERE id=$1")
       .bind(id)
@@ -40,6 +44,15 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
         .prepare("UPDATE fundraising_players SET shares=shares+1 WHERE id=$1")
         .bind(id)
         .run();
+    } else if (b.action === "withdraw") {
+      if (p.owner_id !== user.userId)
+        throw new AppError("Only the page owner can withdraw consent.", 403);
+      await (
+        await getSql()
+      ).transaction(async (tx) => {
+        await tx.query("UPDATE fundraising_players SET active=0 WHERE id=$1", [id]);
+        await recordConsent(tx, id, user.userId, "withdraw");
+      });
     } else if (b.action === "approve" || b.action === "pause" || b.action === "resume") {
       if (!admin) throw new AppError("Only Prospects owners can approve or pause pages.", 403);
       await db()
@@ -52,12 +65,20 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
         .run();
     } else {
       const v = playerInput(b);
-      await db()
-        .prepare(
-          "UPDATE fundraising_players SET name=$1,team=$2,number=$3,goal=$4,story=$5,approved=$6 WHERE id=$7",
-        )
-        .bind(v.name, v.team, v.number, v.goal, v.story, admin ? 1 : 0, id)
-        .run();
+      await (
+        await getSql()
+      ).transaction(async (tx) => {
+        await tx.query(
+          "UPDATE fundraising_players SET name=$1,team=$2,number=$3,goal=$4,story=$5,approved=$6,active=CASE WHEN owner_id=$8 THEN 1 ELSE active END WHERE id=$7",
+          [v.name, v.team, v.number, v.goal, v.story, admin ? 1 : 0, id, user.userId],
+        );
+        await recordConsent(
+          tx,
+          id,
+          user.userId,
+          p.owner_id === user.userId ? "accept" : "invalidate",
+        );
+      });
     }
     return json({ ok: true });
   } catch (e) {

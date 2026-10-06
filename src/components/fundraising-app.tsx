@@ -245,7 +245,8 @@ function PlayerForm({
         <Checkbox checked={consent} onCheckedChange={(v) => setConsent(v === true)} />
         <span>
           I am this player’s parent/guardian, or have their permission to publish this name, team,
-          and message.
+          and message. I understand these fields will be public after approval, and I can withdraw
+          publication permission from My fundraising.
         </span>
       </label>
       {!admin && (
@@ -543,9 +544,11 @@ export default function FundraisingApp({ mode, playerId }: { mode: Mode; playerI
       toast.success(
         action === "approve"
           ? "Player page approved."
-          : action === "pause"
-            ? "Player page paused."
-            : "Player page reopened.",
+          : action === "withdraw"
+            ? "Publication permission withdrawn. The page is no longer public."
+            : action === "pause"
+              ? "Player page paused."
+              : "Player page reopened.",
       );
       await load();
     } catch (e) {
@@ -862,14 +865,14 @@ export default function FundraisingApp({ mode, playerId }: { mode: Mode; playerI
                               <span className={"page-status " + (!p.approved ? "pending" : "")}>
                                 {!p.approved
                                   ? "Awaiting approval"
-                                  : p.active
+                                  : p.publication_allowed
                                     ? "Page active"
-                                    : "Page paused"}
+                                    : "Page paused or permission needed"}
                               </span>
                             )}
                             <Meter player={p} />
                             <div className="card-actions">
-                              {p.approved && p.active ? (
+                              {!managed || p.publication_allowed ? (
                                 <Button asChild variant={managed ? "outline" : "default"}>
                                   <a href={"/fundraising/p/" + p.id}>
                                     {managed ? "View page" : "Sponsor player"}
@@ -886,7 +889,7 @@ export default function FundraisingApp({ mode, playerId }: { mode: Mode; playerI
                                     size="icon"
                                     title="Share player page"
                                     aria-label={"Share " + p.name}
-                                    disabled={!p.approved || !p.active}
+                                    disabled={!p.publication_allowed}
                                     onClick={() => setShare(p)}
                                   >
                                     <Share2 />
@@ -909,6 +912,15 @@ export default function FundraisingApp({ mode, playerId }: { mode: Mode; playerI
                             {managed && (
                               <div className="card-admin">
                                 <span>{p.shares || 0} shares started</span>
+                                {!office && (
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => void action(p, "withdraw")}
+                                  >
+                                    Withdraw publication permission
+                                  </Button>
+                                )}
                                 {office &&
                                   (!p.approved ? (
                                     <Button size="sm" onClick={() => void action(p, "approve")}>

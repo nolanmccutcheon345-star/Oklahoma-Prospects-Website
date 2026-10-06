@@ -1,3 +1,4 @@
+import { publicationPlayers, publishedPlayer } from "./publication";
 import { AppError } from "./errors";
 export { AppError } from "./errors";
 import { getSql } from "../db";
@@ -94,23 +95,11 @@ export async function requireAdmin() {
     );
   return i;
 }
-const projection = `p.id,p.name,p.team,p.number,p.goal,p.story,p.approved,p.active,COALESCE(SUM(CASE WHEN c.status='completed' THEN GREATEST(0,c.amount-c.refunded) ELSE 0 END),0) AS raised,COUNT(CASE WHEN c.status='completed' AND c.amount>c.refunded THEN 1 END) AS sponsors`;
 export async function listPlayers(scope: "home" | "my" | "office", userId?: string) {
-  const where =
-    scope === "home" ? "p.approved=1 AND p.active=1" : scope === "my" ? "p.owner_id=$1" : "1=1";
-  const privateFields = scope === "home" ? "" : ",p.parent_email,p.shares,p.created";
-  const stmt = db().prepare(
-    `SELECT ${projection}${privateFields} FROM fundraising_players p LEFT JOIN fundraising_contributions c ON c.player_id=p.id WHERE ${where} GROUP BY p.id ORDER BY p.created DESC`,
-  );
-  return (await (scope === "my" ? stmt.bind(userId) : stmt).all()).results;
+  return publicationPlayers(await getSql(), scope, userId);
 }
 export async function publicPlayer(id: string) {
-  return db()
-    .prepare(
-      `SELECT ${projection} FROM fundraising_players p LEFT JOIN fundraising_contributions c ON c.player_id=p.id WHERE p.id=$1 AND p.approved=1 AND p.active=1 GROUP BY p.id`,
-    )
-    .bind(id)
-    .first<any>();
+  return publishedPlayer(await getSql(), id);
 }
 export function amount(value: unknown, min = 100, max = 1000000) {
   if (typeof value !== "number" || !Number.isSafeInteger(value) || value < min || value > max)

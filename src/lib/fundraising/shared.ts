@@ -3,13 +3,14 @@ export type Player = {
   id: string;
   name: string;
   team: string;
-  number: string;
+  number?: string;
   goal: number;
   story: string;
-  approved: number;
-  active: number;
+  approved?: number;
+  active?: number;
   raised: number;
   sponsors: number;
+  publication_allowed?: boolean;
   shares?: number;
   parent_email?: string;
   created?: string;
