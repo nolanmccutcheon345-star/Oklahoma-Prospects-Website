@@ -195,7 +195,12 @@ test('isolated full account and lesson journey through real server commands',asy
    await assert.rejects(api.registrationRowsFor(sql,other),/viewing access/);
   });
   await t.test('fundraising page creation is pending owner approval and public response excludes family contact details',async()=>{
-   const input={name:'Audit Fundraiser',team:'12U',number:'8',goal:100000,story:'Isolated audit fundraising story.',consent:true};
+   const me=await api.clubIdentity(parent);
+   const team={id:'audit-team',name:'Audit 12U',sport:'baseball',age:'12U',seasonLabel:'2027',roster:[{id:'audit-roster',name:'Private full roster name',familyId:me.familyIds[0],parents:[{email:'parent@audit.example.invalid'}]}]};
+   await sql`insert into club_state(id,payload,demo) values('oklahoma-prospects',${JSON.stringify({teams:[team]})}::jsonb,false) on conflict(id) do update set payload=excluded.payload,demo=false`;
+   const options=await api.fundraisingRoster.GET(new Request(base+'/api/fundraising/teams?scope=my'));
+   assert.equal(options.status,200);assert.equal((await options.json()).choices[0].rosterPlayerId,'audit-roster');
+   const input={name:'Audit Fundraiser',teamId:'audit-team',rosterPlayerId:'audit-roster',number:'8',goal:100000,story:'Isolated audit fundraising story.',consent:true};
    const request=new Request(base+'/api/fundraising/players',{method:'POST',headers:{origin:base,'content-type':'application/json',cookie:parentCookie},body:JSON.stringify(input)});
    const response=await api.fundraisingPlayers.POST(request);assert.equal(response.status,201,await response.clone().text());
    const made=await response.json();assert.equal(made.approved,false);h.fundraiser=made.id;
@@ -206,13 +211,17 @@ test('isolated full account and lesson journey through real server commands',asy
    await sql`update fundraising_players set approved=1 where id=${made.id}`;
    const published=await api.fundraising.publicPlayer(made.id);assert.equal(published.name,'Audit Fundraiser');
    assert.equal('parent_email' in published,false);assert.equal('owner_id' in published,false);
+   const rosterResponse=await api.fundraisingRoster.GET(new Request(base+'/api/fundraising/teams?teamId=audit-team'));
+   assert.equal(rosterResponse.status,200);const roster=(await rosterResponse.json()).team;
+   assert.equal(roster.players.length,1);assert.equal(roster.players[0].name,'Audit Fundraiser');assert.equal(roster.players[0].roster_player_id,'audit-roster');
+   assert.equal('parents' in roster.players[0],false);
   });
   await t.test('public fundraising totals include completed payments less refunds and exclude pending/failed payments',async()=>{
    for(const [id,status,amount,refunded] of [['paid','completed',5000,1200],['pending','pending',2000,0],['failed','failed',1000,0]])
     await sql`insert into fundraising_contributions(id,player_id,donor,email,amount,refunded,status,created) values(${id},${h.fundraiser},'Audit Donor','donor@audit.example.invalid',${amount},${refunded},${status},${new Date().toISOString()})`;
    const row=await api.fundraising.publicPlayer(h.fundraiser);assert.equal(Number(row.raised),3800);assert.equal(Number(row.sponsors),1);
    const dashboard=await api.fundraisingDashboard.GET(new Request(base+'/api/fundraising/dashboard?scope=home'));
-   const json=await dashboard.json();assert.deepEqual(json.contributions,[]);assert.equal(json.paymentReady,false);
+   const json=await dashboard.json();assert.deepEqual(json.contributions,[]);assert.deepEqual(json.players,[]);assert.equal(json.paymentReady,false);
    await sql`update fundraising_players set active=0 where id=${h.fundraiser}`;
    assert.equal(await api.fundraising.publicPlayer(h.fundraiser),null);
   });
