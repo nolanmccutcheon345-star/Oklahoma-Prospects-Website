@@ -1,11 +1,11 @@
-import { publicationPlayers, publishedPlayer } from "./publication";
+import { publicationPlayers } from "./publication";
 import { AppError } from "./errors";
 export { AppError } from "./errors";
 import { getSql } from "../db";
 import { getSessionUser } from "../auth/verify.server";
 import { clubIdentity } from "../identity.server";
 import { squareConfig } from "../commerce/square.server";
-import { TEAMS } from "./shared";
+import { linkedPlayer } from "./roster-links";
 export function config(): Record<string, string> {
   const c = squareConfig();
   return {
@@ -96,10 +96,18 @@ export async function requireAdmin() {
   return i;
 }
 export async function listPlayers(scope: "home" | "my" | "office", userId?: string) {
-  return publicationPlayers(await getSql(), scope, userId);
+  if (scope === "home") return [];
+  const sql = await getSql();
+  const rows = await publicationPlayers(sql, scope, userId);
+  return Promise.all(
+    rows.map(async (p) => ({
+      ...p,
+      publication_allowed: Boolean(await linkedPlayer(sql, String(p.id))),
+    })),
+  );
 }
 export async function publicPlayer(id: string) {
-  return publishedPlayer(await getSql(), id);
+  return linkedPlayer(await getSql(), id);
 }
 export function amount(value: unknown, min = 100, max = 1000000) {
   if (typeof value !== "number" || !Number.isSafeInteger(value) || value < min || value > max)
@@ -114,14 +122,14 @@ export function text(value: unknown, max: number, required = true) {
 }
 export function playerInput(b: any) {
   const name = text(b.name, 40);
-  if (!TEAMS.includes(b.team)) throw new AppError("Choose a Prospects team.");
+  const team = text(b.team, 80);
   const number = text(b.number, 2, false);
   if (number && !/^\d{1,2}$/.test(number)) throw new AppError("Jersey number must be 0–99.");
   if (b.consent !== true)
     throw new AppError("Confirm parent or guardian permission to publish this player page.");
   return {
     name,
-    team: b.team,
+    team,
     number,
     goal: amount(b.goal, 10000, 1000000),
     story: text(b.story, 1200),

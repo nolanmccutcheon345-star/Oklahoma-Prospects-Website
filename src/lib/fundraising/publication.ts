@@ -56,7 +56,7 @@ export async function publicationPlayers(
   const fields =
     scope === "home"
       ? ""
-      : `,p.parent_email,p.shares,p.created,(${publicationGate}) AS publication_allowed`;
+      : `,p.parent_email,p.shares,p.created,p.team_id,p.roster_player_id,(${publicationGate}) AS publication_allowed`;
   const rows = await sql.query(
     `SELECT ${projection}${fields} FROM fundraising_players p LEFT JOIN fundraising_contributions c ON c.player_id=p.id WHERE ${where} GROUP BY p.id ORDER BY p.created DESC`,
     scope === "my" ? [userId] : [],

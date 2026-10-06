@@ -19,7 +19,11 @@ test("publication requires explicit owner consent, approval and active status; w
     await pg.exec(
       `CREATE TABLE "user"(id text PRIMARY KEY); INSERT INTO "user" VALUES('owner'),('other'),('admin');`,
     );
-    for (const name of ["0027_player_fundraising.sql", "0030_fundraising_publication_consent.sql"])
+    for (const name of [
+      "0027_player_fundraising.sql",
+      "0030_fundraising_publication_consent.sql",
+      "0031_fundraising_roster_links.sql",
+    ])
       await pg.exec(
         await readFile(new URL("../../../migrations/" + name, import.meta.url), "utf8"),
       );

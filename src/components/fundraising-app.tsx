@@ -54,7 +54,7 @@ import {
 import { Skeleton } from "@/components/fundraising-ui/skeleton";
 import { toast } from "sonner";
 import {
-  TEAMS,
+  playerDestination,
   money,
   examplePlayer,
   type Player,
@@ -96,7 +96,7 @@ function checkoutId() {
 }
 function Brand() {
   return (
-    <a className="brand" href="/fundraising" aria-label="Oklahoma Prospects fundraising home">
+    <a className="brand" href="/teams" aria-label="Oklahoma Prospects teams">
       <img className="fundraising-crest" src="/brand/crest.png" width="52" height="52" alt="" />
       <span className="brand-name">
         OKLAHOMA PROSPECTS<small>PLAYER FUNDRAISING</small>
@@ -128,10 +128,12 @@ function TeamSelect({
   value,
   onChange,
   all = false,
+  options,
 }: {
   value: string;
   onChange: (v: string) => void;
   all?: boolean;
+  options: string[];
 }) {
   return (
     <Select value={value} onValueChange={onChange}>
@@ -140,9 +142,9 @@ function TeamSelect({
       </SelectTrigger>
       <SelectContent>
         {all && <SelectItem value="all">All teams</SelectItem>}
-        {TEAMS.map((t) => (
+        {options.map((t) => (
           <SelectItem value={t} key={t}>
-            {t} Prospects
+            {t}
           </SelectItem>
         ))}
       </SelectContent>
@@ -159,7 +161,40 @@ function PlayerForm({
   admin: boolean;
 }) {
   const [name, setName] = useState(player?.name || "");
-  const [team, setTeam] = useState(player?.team || "13U");
+  const [choices, setChoices] = useState<
+    {
+      teamId: string;
+      rosterPlayerId: string;
+      teamName: string;
+      sport: string;
+      playerName: string;
+    }[]
+  >([]);
+  const [selection, setSelection] = useState(
+    player?.team_id && player?.roster_player_id
+      ? JSON.stringify([player.team_id, player.roster_player_id])
+      : "",
+  );
+  const [choicesReady, setChoicesReady] = useState(false);
+  useEffect(() => {
+    let cancelled = false;
+    api("/api/teams?scope=my")
+      .then((d) => {
+        if (!cancelled) {
+          setChoices(d.choices);
+          setChoicesReady(true);
+        }
+      })
+      .catch((e) => {
+        if (!cancelled) {
+          setError(e.message);
+          setChoicesReady(true);
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
   const [number, setNumber] = useState(player?.number || "");
   const [goal, setGoal] = useState(player ? String(player.goal / 100) : "1000");
   const [story, setStory] = useState(player?.story || examplePlayer.story);
@@ -173,7 +208,8 @@ function PlayerForm({
     try {
       await api(player ? "/api/players/" + player.id : "/api/players", player ? "PATCH" : "POST", {
         name,
-        team,
+        teamId: selection ? JSON.parse(selection)[0] : null,
+        rosterPlayerId: selection ? JSON.parse(selection)[1] : null,
         number,
         goal: Math.round(Number(goal) * 100),
         story,
@@ -204,7 +240,27 @@ function PlayerForm({
       <div className="form-pair">
         <label>
           Team
-          <TeamSelect value={team} onChange={setTeam} />
+          <select
+            required
+            value={selection}
+            onChange={(e) => setSelection(e.target.value)}
+            className="min-h-11 w-full rounded border p-2"
+          >
+            <option value="">
+              {choicesReady ? "Select your roster player" : "Loading your roster players…"}
+            </option>
+            {choices.map((c) => (
+              <option
+                key={JSON.stringify([c.teamId, c.rosterPlayerId])}
+                value={JSON.stringify([c.teamId, c.rosterPlayerId])}
+              >
+                {c.teamName} · {c.sport} · {c.playerName}
+              </option>
+            ))}
+          </select>
+          {choicesReady && !choices.length && (
+            <small>No eligible roster player is linked to this household yet.</small>
+          )}
         </label>
         <label>
           Jersey number <span className="optional">optional</span>
@@ -259,7 +315,11 @@ function PlayerForm({
           {error}
         </p>
       )}
-      <Button className="full-button" disabled={busy || !consent} type="submit">
+      <Button
+        className="full-button"
+        disabled={busy || !consent || !selection || !choicesReady}
+        type="submit"
+      >
         {busy ? "Saving…" : player ? "Save player page" : "Create player page"}
         <ArrowUpRight size={16} />
       </Button>
@@ -268,7 +328,8 @@ function PlayerForm({
 }
 function ShareDialog({ player: p, onTracked }: { player: Player; onTracked: () => void }) {
   const [url, setUrl] = useState("");
-  useEffect(() => setUrl(location.origin + "/fundraising/p/" + p.id), [p.id]);
+  const sharePath = playerDestination(p);
+  useEffect(() => setUrl(location.origin + sharePath), [sharePath]);
   const message = `Help ${p.name} make the most of their ${p.team} season with Oklahoma Prospects! Sponsor their player fundraiser here: ${url} Thank you for being in their corner!`;
   async function track() {
     try {
@@ -492,7 +553,17 @@ function Sponsor({
   );
 }
 
-export default function FundraisingApp({ mode, playerId }: { mode: Mode; playerId?: string }) {
+export default function FundraisingApp({
+  mode,
+  playerId,
+  publicTeamId,
+  publicRosterId,
+}: {
+  mode: Mode;
+  playerId?: string;
+  publicTeamId?: string;
+  publicRosterId?: string;
+}) {
   const [data, setData] = useState<Data>(initial);
   const [player, setPlayer] = useState<Player | null>(mode === "example" ? examplePlayer : null);
   const [loading, setLoading] = useState(mode !== "example");
@@ -517,7 +588,14 @@ export default function FundraisingApp({ mode, playerId }: { mode: Mode; playerI
         if (!id) throw new Error("No sponsorship reference was found.");
         setReceipt(await api("/api/receipt", "POST", { id }));
       } else if (mode === "player") {
-        const d = await api("/api/players/" + playerId);
+        const d = await api(
+          publicTeamId && publicRosterId
+            ? "/api/teams?teamId=" +
+                encodeURIComponent(publicTeamId) +
+                "&rosterPlayerId=" +
+                encodeURIComponent(publicRosterId)
+            : "/api/players/" + playerId,
+        );
         setPlayer(d.player);
         setData((v) => ({ ...v, paymentReady: d.paymentReady }));
       } else setData(await api("/api/dashboard?scope=" + mode));
@@ -526,7 +604,7 @@ export default function FundraisingApp({ mode, playerId }: { mode: Mode; playerI
     } finally {
       setLoading(false);
     }
-  }, [mode, playerId]);
+  }, [mode, playerId, publicTeamId, publicRosterId]);
   useEffect(() => {
     void load();
   }, [load]);
@@ -569,8 +647,8 @@ export default function FundraisingApp({ mode, playerId }: { mode: Mode; playerI
         <div className="topbar-inner">
           <Brand />
           <nav aria-label="Main navigation">
-            <a className={mode === "home" ? "nav-link selected" : "nav-link"} href="/fundraising">
-              Sponsor a player
+            <a className={mode === "home" ? "nav-link selected" : "nav-link"} href="/teams">
+              Teams
             </a>
             <a className={mode === "my" ? "nav-link selected" : "nav-link"} href="/fundraising/my">
               My fundraising
@@ -614,7 +692,7 @@ export default function FundraisingApp({ mode, playerId }: { mode: Mode; playerI
                 Try again
               </Button>
               <Button asChild variant="outline">
-                <a href="/fundraising">Fundraising home</a>
+                <a href="/teams">Teams</a>
               </Button>
               {managed && (
                 <a
@@ -670,7 +748,10 @@ export default function FundraisingApp({ mode, playerId }: { mode: Mode; playerI
           </section>
         ) : detail && player ? (
           <>
-            <a href="/fundraising" className="back-link">
+            <a
+              href={player?.team_id ? "/teams/" + encodeURIComponent(player.team_id) : "/teams"}
+              className="back-link"
+            >
               <ArrowLeft size={17} />
               All player fundraisers
             </a>
@@ -850,7 +931,12 @@ export default function FundraisingApp({ mode, playerId }: { mode: Mode; playerI
                           onChange={(e) => setQuery(e.target.value)}
                         />
                       </div>
-                      <TeamSelect value={team} onChange={setTeam} all />
+                      <TeamSelect
+                        value={team}
+                        onChange={setTeam}
+                        all
+                        options={[...new Set(data.players.map((p) => p.team))]}
+                      />
                     </div>
                     {filtered.length ? (
                       <div className="player-grid">
@@ -874,7 +960,7 @@ export default function FundraisingApp({ mode, playerId }: { mode: Mode; playerI
                             <div className="card-actions">
                               {!managed || p.publication_allowed ? (
                                 <Button asChild variant={managed ? "outline" : "default"}>
-                                  <a href={"/fundraising/p/" + p.id}>
+                                  <a href={playerDestination(p)}>
                                     {managed ? "View page" : "Sponsor player"}
                                     <ArrowUpRight />
                                   </a>
@@ -1089,7 +1175,7 @@ export default function FundraisingApp({ mode, playerId }: { mode: Mode; playerI
                   {office && (
                     <TabsContent value="teams">
                       <div className="team-totals">
-                        {TEAMS.map((t) => {
+                        {[...new Set(data.players.map((p) => p.team))].map((t) => {
                           const ps = data.players.filter((p) => p.team === t);
                           const raised = ps.reduce((s, p) => s + p.raised, 0);
                           const goal = ps.reduce((s, p) => s + p.goal, 0);
@@ -1097,7 +1183,7 @@ export default function FundraisingApp({ mode, playerId }: { mode: Mode; playerI
                             <div className="team-row" key={t}>
                               <span className="team-square">{t}</span>
                               <div>
-                                <strong>{t} Oklahoma Prospects</strong>
+                                <strong>{t}</strong>
                                 <p>
                                   {ps.length} player{" "}
                                   {ps.length === 1 ? "fundraiser" : "fundraisers"}

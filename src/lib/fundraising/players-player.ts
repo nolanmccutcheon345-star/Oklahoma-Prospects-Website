@@ -1,3 +1,4 @@
+import { requireRosterChoice } from "./roster-links";
 import { getSql } from "../db";
 import { recordConsent } from "./publication";
 import {
@@ -64,13 +65,30 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
         .bind(...(b.action === "approve" ? [id] : [b.action === "resume" ? 1 : 0, id]))
         .run();
     } else {
-      const v = playerInput(b);
+      const choice = await requireRosterChoice(
+        await getSql(),
+        user.userId,
+        b.teamId,
+        b.rosterPlayerId,
+      );
+      const v = playerInput({ ...b, team: choice.teamName });
       await (
         await getSql()
       ).transaction(async (tx) => {
         await tx.query(
-          "UPDATE fundraising_players SET name=$1,team=$2,number=$3,goal=$4,story=$5,approved=$6,active=CASE WHEN owner_id=$8 THEN 1 ELSE active END WHERE id=$7",
-          [v.name, v.team, v.number, v.goal, v.story, admin ? 1 : 0, id, user.userId],
+          "UPDATE fundraising_players SET name=$1,team=$2,number=$3,goal=$4,story=$5,approved=$6,team_id=$9,roster_player_id=$10,active=CASE WHEN owner_id=$8 THEN 1 ELSE active END WHERE id=$7",
+          [
+            v.name,
+            v.team,
+            v.number,
+            v.goal,
+            v.story,
+            admin ? 1 : 0,
+            id,
+            user.userId,
+            choice.teamId,
+            choice.rosterPlayerId,
+          ],
         );
         await recordConsent(
           tx,
