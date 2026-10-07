@@ -29,7 +29,10 @@ test("parent of Eli cannot fetch Ryder even by id", () => {
     filtered.athletes.map((row) => row.id),
     ["a-down"],
   );
-  assert.equal(filtered.athletes.some((row) => row.id === "a-full"), false);
+  assert.equal(
+    filtered.athletes.some((row) => row.id === "a-full"),
+    false,
+  );
 });
 
 test("coach-private notes never reach a parent payload", () => {
@@ -38,8 +41,14 @@ test("coach-private notes never reach a parent payload", () => {
     data,
   );
   const filtered = filterDevelopmentData(data, scope);
-  assert.equal(filtered.messages.some((row) => row.channel === "coach"), false);
-  assert.equal(filtered.messages.some((row) => /UCL/i.test(row.body)), false);
+  assert.equal(
+    filtered.messages.some((row) => row.channel === "coach"),
+    false,
+  );
+  assert.equal(
+    filtered.messages.some((row) => /UCL/i.test(row.body)),
+    false,
+  );
   assert.ok(filtered.messages.some((row) => /recover/i.test(row.body)));
   assert.equal(filtered.athletes[0]?.notes, "");
 });
@@ -86,6 +95,91 @@ test("parent cannot write a coach-channel note", () => {
     () => authorizeMessage(scope, { athleteId: "a-down", body: "secret", channel: "coach" }),
     /Forbidden/,
   );
-  const family = authorizeMessage(scope, { athleteId: "a-down", body: "We will rest Thursday.", channel: "family" });
+  const family = authorizeMessage(scope, {
+    athleteId: "a-down",
+    body: "We will rest Thursday.",
+    channel: "family",
+  });
   assert.equal(family.channel, "family");
+});
+test("player training payload keeps own schedule and programs without household finances", () => {
+  const full = seedDevelopment();
+  const self = full.athletes.find((row) => row.id === "a-down")!;
+  const family = full.families.find((row) => row.id === self.familyId)!;
+  family.plan = { type: "performance", lessonCredits: 987, lessons: 25 };
+  family.athleteIds.push("unrelated-sibling");
+  full.plans.push({
+    id: "assigned-player-plan",
+    athleteId: self.id,
+    focus: "Mechanics",
+    constraint: "Balance",
+    status: "active",
+  });
+  full.throwingAssignments.push({
+    id: "assigned-throwing-plan",
+    athleteId: self.id,
+    templateId: "synthetic-template",
+    dayType: "Recovery",
+  });
+  Object.assign(family, { billingAccount: "private-billing-token" });
+  full.bookings.push({
+    id: "private-appointment",
+    athleteId: self.id,
+    serviceId: full.services[0].id,
+    date: "2030-05-01",
+    time: "16:00",
+    status: "paid",
+    price: 54321,
+    coachId: self.coachIds[0],
+    payout: "paid",
+    rescheduledMonth: "2030-05",
+  });
+  Object.assign(full.bookings.at(-1)!, { providerPaymentId: "private-payment-token" });
+  const scope = scopeForViewer(
+    viewer({
+      role: "player",
+      email: family.email,
+      playerName: `${self.firstName} ${self.lastName}`,
+    }),
+    full,
+  );
+  const filtered = filterDevelopmentData(full, scope);
+  assert.deepEqual(
+    filtered.athletes.map((row) => row.id),
+    [self.id],
+  );
+  const appointment = filtered.bookings.find((row) => row.id === "private-appointment")!;
+  assert.equal(appointment.date, "2030-05-01");
+  assert.equal(appointment.time, "16:00");
+  assert.equal(appointment.coachId, self.coachIds[0]);
+  assert.equal(appointment.price, 0);
+  assert.equal(appointment.payout, undefined);
+  assert.equal(appointment.rescheduledMonth, undefined);
+  assert.equal(filtered.families[0].plan?.lessonCredits, 0);
+  assert.equal(filtered.families[0].plan?.type, "performance");
+  assert.equal(filtered.families[0].plan?.lessons, undefined);
+  assert.deepEqual(filtered.families[0].athleteIds, [self.id]);
+  assert.equal(filtered.packages.length, 0);
+  assert.equal(filtered.memberships.length, 0);
+  assert.equal(filtered.waitlist.length, 0);
+  assert.ok(filtered.services.every((row) => row.price === 0));
+  assert.deepEqual(
+    filtered.plans,
+    full.plans.filter((row) => row.athleteId === self.id),
+  );
+  assert.deepEqual(
+    filtered.throwingAssignments,
+    full.throwingAssignments.filter((row) => row.athleteId === self.id),
+  );
+  assert.doesNotMatch(
+    JSON.stringify(filtered),
+    /private-billing-token|private-payment-token|54321|unrelated-sibling/,
+  );
+  const parent = filterDevelopmentData(
+    full,
+    scopeForViewer(viewer({ role: "parent", email: family.email }), full),
+  );
+  assert.equal(parent.families.find((row) => row.id === family.id)?.plan?.lessonCredits, 987);
+  assert.equal(parent.bookings.find((row) => row.id === "private-appointment")?.price, 54321);
+  assert.equal(full.bookings.at(-1)?.price, 54321);
 });
