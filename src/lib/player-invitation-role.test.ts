@@ -45,8 +45,13 @@ test('household player invitations restrict new accounts while guardian invitati
     const oldSql=state.__pgSqlPromise__,oldUrl=process.env.DATABASE_URL,oldContext=process.env.CONTEXT;
     try {
       process.env.DATABASE_URL='postgresql://unused.invalid/disposable';process.env.CONTEXT='dev';state.__pgSqlPromise__=Promise.resolve(sql);
+      const {acceptInvitation,issueInvitation}=await import('./invitations.server');
       const {clubIdentity}=await import('./identity.server');
-      const {acceptInvitation}=await import('./invitations.server');
+      await assert.rejects(()=>issueInvitation('no-account','not-email','coach'),/Invalid email/);
+      await assert.rejects(()=>issueInvitation('no-account','valid@example.invalid','forged'),/Invalid option/);
+      await sql`insert into owner_grants(email) values('parent@example.invalid')`;
+      await assert.rejects(()=>issueInvitation('parent','valid@example.invalid','parent','missing-household'),/existing household/);
+      assert.equal((await sql`select id from club_invites`).length,0);
       const parent=await clubIdentity('parent'),family=parent.billingHouseholdIds[0];
       await sql`insert into "user"(id,email,name,"emailVerified","createdAt","updatedAt") values('child','child@example.invalid','Child',true,now(),now())`;
       await sql`insert into profiles(user_id,email,name,role) values('child','child@example.invalid','Child','parent')`;

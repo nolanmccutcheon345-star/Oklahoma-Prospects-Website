@@ -1,11 +1,15 @@
+import {z} from 'zod';
 import {randomUUID,createHash} from 'node:crypto';
 import {getSql} from './db';
 import {clubIdentity} from './identity.server';
 import {isOwnerEmail} from './owners';
 
+const invitationInput=z.object({email:z.string().trim().email().max(254),role:z.enum(['admin','coach','parent','player']),familyId:z.string().trim().min(1).max(150).nullable()}).strict();
+
 /** Acceptance requires this exact verified email. No administrator sets a password. */
 export async function issueInvitation(actor:string,email:string,role:string,familyId:string|null=null) {
- const me=await clubIdentity(actor);const normalized=email.trim().toLowerCase();
+ const parsed=invitationInput.parse({email,role,familyId});email=parsed.email;role=parsed.role;familyId=parsed.familyId;
+ const me=await clubIdentity(actor);const normalized=email.toLowerCase();
  if(role==='admin'&&!await isOwnerEmail(normalized))throw new Error('Owner grants are limited to the approved owners.');
  const sql=await getSql();
  if(me.role!=='admin') {
@@ -15,6 +19,7 @@ export async function issueInvitation(actor:string,email:string,role:string,fami
  }
  const id=randomUUID(),hash=createHash('sha256').update(randomUUID()).digest('hex');
  await sql.transaction(async tx=>{
+  if(familyId){const homes=await tx`select id from club_households where id=${familyId} for update`;if(!homes.length)throw new Error('Choose an existing household for this invitation.');}
   await tx`update club_invites set status='revoked' where lower(email)=${normalized} and role=${role} and family_id is not distinct from ${familyId} and status='pending'`;
   await tx`insert into club_invites(id,token_hash,email,family_id,invited_by,role,expires_at) values(${id},${hash},${normalized},${familyId},${actor},${role},now()+interval '7 days')`;
  });
