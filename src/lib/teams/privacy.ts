@@ -61,7 +61,7 @@ export function scopeClub(
     .filter((team) => team.roster.some((p) => visiblePlayer(p,role,identity)))
     .map((team) => ({
       ...team,
-      staff: team.staff.map((s) => ({ ...s, monthly: 0, applyAmount: 0 })),
+      staff: team.staff.map((s) => ({ ...s, monthly: 0, applyAmount: 0, childId: "", w9: false, backgroundCheck: false, safeSport: false, expires: "" })),
       orgFee: 0,
       coachMonthly: 0,
       eventBudget: 0,
