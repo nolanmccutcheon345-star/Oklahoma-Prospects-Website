@@ -1,0 +1,121 @@
+{
+  "baseline": "18f236940fe075eb59b43c8c48be43f248cbf559",
+  "items": [
+    {
+      "n": 1,
+      "head": "15c7ab4c6cebd6fe55ee5a87648878cae7dc7cde",
+      "tree": "89e89c1c053576e8d7f00f3afb1577575b35ab3c",
+      "branch": "fix/new-coach-id-collisions",
+      "title": "fix: prevent new coach identifier collisions",
+      "pr": 86,
+      "merged": true,
+      "mergeSha": "be55df8433fb684858675d92809be06199c9a6b2"
+    },
+    {
+      "n": 2,
+      "head": "8461f9ae7259d523741ef324675472c55b2e84cf",
+      "tree": "6f5da2009cd04abeedc69ed5a4a43f3afb22236c",
+      "branch": "fix/team-coach-identity",
+      "title": "fix: reject blank coach identities and normalize team access",
+      "body": "Team read and save gates now share normalized, nonempty coach identity checks. Blank identities cannot acquire unassigned teams. Thirteen focused permission tests pass.",
+      "pr": 85,
+      "merged": true,
+      "mergeSha": "edf21f20400f1a3a7fe959318387461ada577f47"
+    },
+    {
+      "n": 3,
+      "head": "a6086bdbee679b963ec7f3e99233c87ace8d5284",
+      "tree": "1d68eb427c4de31a56eea24337d2c10c1823708d",
+      "branch": "fix/player-team-billing-projection",
+      "title": "fix: remove remaining billing status from player roster responses",
+      "body": "Player responses now neutralize payment plan, deposit, waiver and overage status. Parent billing and player statistics remain available. Twelve focused tests pass.",
+      "pr": 87,
+      "merged": true,
+      "mergeSha": "c7c9393e515142375422bb425702389cd7173783"
+    },
+    {
+      "n": 4,
+      "head": "24337a90258e1588851303d970bf6cdcd71e7713",
+      "tree": "ce49aeb5388ca14630a34f5d03556f65349c5e83",
+      "branch": "fix/family-staff-private-fields",
+      "title": "fix: hide staff employment records from family team views",
+      "body": "Family responses neutralize staff child linkage, tax/compliance status and expiry fields. Coach and admin records are preserved. Twelve focused permission tests pass.",
+      "pr": 93,
+      "merged": true,
+      "mergeSha": "18ef0140e080565639c1d9c8f1eaf07487e8950c"
+    },
+    {
+      "n": 5,
+      "head": "36efbd3d6c49204ade2eb19c32bd7b4c580b4ab9",
+      "tree": "c9c3359e6f91d052b1d88d8edb55981c509828e5",
+      "branch": "fix/athlete-row-id-ownership",
+      "title": "fix: protect athlete row identifier ownership during scoped saves",
+      "body": "Scoped row saves reject duplicate identifiers and identifiers already belonging to another athlete. Athlete-keyed intake/recruiting profiles remain supported. Eight focused tests pass.",
+      "pr": 88,
+      "merged": true,
+      "mergeSha": "874cc8f890ce712948467487b703e543505ab64f"
+    },
+    {
+      "n": 6,
+      "head": "5881c5b17d8e58b41d98dc020c95811ac380219a",
+      "tree": "04c746b1af7d857307741860156f3079f49da256",
+      "branch": "fix/prescription-version-identifiers",
+      "title": "fix: reject duplicate prescription versions before appending history",
+      "body": "Append-only strength and throwing prescriptions reject duplicate new version IDs, preserving immutable existing history. Seven focused tests pass.",
+      "pr": 89,
+      "merged": true,
+      "mergeSha": "c3045f6c5caa26906e638e54b7042904f85fa61e"
+    },
+    {
+      "n": 7,
+      "head": "371226b7aa24329e63606e1396618529be8379af",
+      "tree": "0cbb7bca10ce72a7ba5bc664494890dce0217f54",
+      "branch": "fix/message-new-identifiers",
+      "title": "fix: reject duplicate newly submitted development messages",
+      "body": "Scoped message saves reject duplicate newly submitted IDs while retaining existing history and permissions. Seven focused tests pass.",
+      "pr": 90,
+      "merged": true,
+      "mergeSha": "d7d73852326e48ab2f15b1ccb87232b3f47a5352"
+    },
+    {
+      "n": 8,
+      "head": "ad20db9fe752a06ba0099d4f129cc745bf43f643",
+      "tree": "41c7182b9b66017283b85adb1f2cb4811a481229",
+      "branch": "fix/team-record-identifiers",
+      "title": "fix: validate unique team and team-local staff identifiers",
+      "body": "Club saves reject blank or duplicate team IDs and team-local staff IDs. Staff can legitimately serve multiple teams. Two focused tests pass.",
+      "pr": 91,
+      "merged": true,
+      "mergeSha": "b1bbc177822b9160fc8ddc232d6802ff7676f327"
+    },
+    {
+      "n": 9,
+      "head": "47f2fdbfeee37ee9192dd774fb57ed97c313c1ee",
+      "tree": "6425d30ee23ff5977cab7aac0aa43c441b2f31fc",
+      "branch": "fix/pd-viewer-public-projection",
+      "title": "fix: project development viewers without internal identity grants",
+      "body": "Development responses now use an explicit viewer projection. Player viewers omit guardian emails; internal IDs and grants stay server-side while guardian lookup emails remain supported. Two focused tests pass.",
+      "pr": 92,
+      "merged": true,
+      "mergeSha": "c6463d4878e4e682721bbd0200b7f01b726994c4"
+    }
+  ],
+  "previousPendingMerged": [
+    82,
+    83,
+    84
+  ],
+  "main": "c6463d4878e4e682721bbd0200b7f01b726994c4",
+  "live": {
+    "commit": "c6463d4878e4e682721bbd0200b7f01b726994c4",
+    "dirty": false,
+    "pages": [
+      "/",
+      "/book",
+      "/training",
+      "/login",
+      "/teams"
+    ],
+    "status": 200
+  }
+}
