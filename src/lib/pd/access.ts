@@ -230,7 +230,7 @@ export function filterDevelopmentData(data: DevelopmentData, scope: PdScope): De
     ...data,
     athletes,
     coaches: staff ? data.coaches : data.coaches.map(({id,name,email,specialties,active}) => ({
-      id, name, email: scope.coachId === id ? email : "", specialties, active,
+      id, name, email: scope.role === "coach" && email.trim().toLowerCase() === scope.viewerEmail ? email : "", specialties, active,
     })),
     families: player ? playerFamilies : families,
     services: player
