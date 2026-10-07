@@ -24,7 +24,9 @@ export async function addAthlete(userId:string,input:z.infer<typeof athleteInput
  const me=await clubIdentity(userId);
  if(me.role==='player')throw new Error('A parent or guardian account is required to add athletes.');
  if(!validDate(input.birthDate)||input.birthDate>chicagoDate())throw new Error('Enter a valid date of birth.');
- await loadDeskForUser(userId);const sql=await getSql();const id=`athlete:${userId}:${input.requestId}`;
+ const sql=await getSql();const id=`athlete:${userId}:${input.requestId}`;
+ const [existing]=await sql`select id from club_athletes where id=${id}`;
+ if(!existing)await loadDeskForUser(userId);
  await sql`insert into club_athletes(id,user_id,household_email,name,birth_date,profile) values(${id},${userId},${me.email},${input.name},${input.birthDate},${JSON.stringify({sport:input.sport,throws:input.throws,bats:input.bats})}::jsonb) on conflict(id) do nothing`;
  const [saved]=await sql`select id from club_athletes where id=${id} and user_id=${userId} and household_email=${me.email} and name=${input.name} and birth_date=${input.birthDate} and profile=${JSON.stringify({sport:input.sport,throws:input.throws,bats:input.bats})}::jsonb`;
  if(!saved)throw new Error('This athlete request was already used with different details. Start a new request.');
