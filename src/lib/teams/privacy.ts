@@ -141,7 +141,6 @@ export function mergeSave(
         return {
           ...p,
           rsvp: incomingP.rsvp,
-          publicProfile: incomingP.publicProfile,
         };
       });
     }
