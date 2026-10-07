@@ -98,7 +98,8 @@ async function provisionViewer(viewer: PdViewer, full: DevelopmentData): Promise
     await writeWorkingFile(next);
     return next;
   }
-  if (familyForViewer(viewer, full)) return full;
+  // Opening a player desk must not provision a household or create a new link.
+  if (viewer.role === "player" || familyForViewer(viewer, full)) return full;
   const family: Family = {
     id: `fam-${(viewer as PdViewer & {userId:string}).userId}`,
     name: "Your household", parentName: viewer.name, email: viewer.email,

@@ -70,6 +70,8 @@ function mergeAthleteRows<T extends { athleteId: string }>(
 }
 
 function mergeAthletes(full: Athlete[], incoming: Athlete[], scope: PdScope): Athlete[] {
+  // Player identity, eligibility and household records belong to parents/staff.
+  if (scope.role === "player") return full;
   return full.map(prev => {
     const row = incoming.find(item => item.id === prev.id);
     if (!row || !keepAthlete(scope, prev.id)) return prev;
@@ -88,6 +90,7 @@ function mergeAthletes(full: Athlete[], incoming: Athlete[], scope: PdScope): At
 }
 
 function mergeFamilies(full: Family[], incoming: Family[], scope: PdScope): Family[] {
+  if (scope.role === "player") return full;
   return full.map(prev => {
     const row = incoming.find(item => item.id === prev.id);
     const allowed = scope.familyIds === "all" || scope.familyIds.has(prev.id);
