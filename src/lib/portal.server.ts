@@ -21,6 +21,7 @@ export async function submitInquiry(input:z.infer<typeof inquiryInput>) {
 }
 export async function addAthlete(userId:string,input:z.infer<typeof athleteInput>){
  const me=await clubIdentity(userId);
+ if(me.role==='player')throw new Error('A parent or guardian account is required to add athletes.');
  if(!validDate(input.birthDate)||input.birthDate>chicagoDate())throw new Error('Enter a valid date of birth.');
  await loadDeskForUser(userId);const sql=await getSql();const id=`athlete:${userId}:${input.requestId}`;
  await sql`insert into club_athletes(id,user_id,household_email,name,birth_date,profile) values(${id},${userId},${me.email},${input.name},${input.birthDate},${JSON.stringify({sport:input.sport,throws:input.throws,bats:input.bats})}::jsonb) on conflict(id) do nothing`;
