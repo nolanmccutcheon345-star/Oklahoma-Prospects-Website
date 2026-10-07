@@ -113,6 +113,7 @@ function mergeMessages(full:Message[],incoming:Message[],scope:PdScope):Message[
  const existing=new Set(full.map(row=>row.id));
  const additions=incoming.filter(row=>!existing.has(row.id)&&keepAthlete(scope,row.athleteId)&&(canCoachAthlete(scope,row.athleteId)||row.channel!=='coach'))
   .map(row=>({...row,...authorizeMessage(scope,row)}));
+ if(new Set(additions.map(row=>row.id)).size!==additions.length)throw new Error("New message identifiers must be unique.");
  return [...full,...additions];
 }
 
