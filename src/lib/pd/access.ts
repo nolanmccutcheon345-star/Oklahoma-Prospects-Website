@@ -39,7 +39,11 @@ export function resolveViewerRole(email: string, profileRole?: string | null): V
 export function familyForViewer(viewer: PdViewer, data: DevelopmentData) {
   const email = viewer.email.trim().toLowerCase();
   if (email) {
-    const byEmail = data.families.find((row) => row.email.trim().toLowerCase() === email || viewer.householdEmails?.includes(row.email.trim().toLowerCase()));
+    const byEmail = data.families.find(
+      (row) =>
+        row.email.trim().toLowerCase() === email ||
+        viewer.householdEmails?.includes(row.email.trim().toLowerCase()),
+    );
     if (byEmail) return byEmail;
   }
   return undefined;
@@ -51,9 +55,7 @@ export function athleteForPlayer(viewer: PdViewer, data: DevelopmentData) {
   const kids = data.athletes.filter((row) => family.athleteIds.includes(row.id));
   const needle = viewer.playerName.trim().toLowerCase();
   if (needle) {
-    return kids.find(
-      (row) => `${row.firstName} ${row.lastName}`.toLowerCase() === needle,
-    );
+    return kids.find((row) => `${row.firstName} ${row.lastName}`.toLowerCase() === needle);
   }
   return kids.length === 1 ? kids[0] : undefined;
 }
@@ -73,16 +75,28 @@ export function scopeForViewer(viewer: PdViewer, data: DevelopmentData): PdScope
   }
   if (viewer.role === "coach") {
     const me = data.coaches.find(
-      (row) => row.active !== false && row.email.trim().toLowerCase() === viewer.email.trim().toLowerCase(),
+      (row) =>
+        row.active !== false &&
+        row.email.trim().toLowerCase() === viewer.email.trim().toLowerCase(),
     );
     // Only verified ledger bookings (overlaid by the server) grant booking-derived access.
     // Cancellation removes this grant; explicit owner assignments remain independent.
-    const booked = new Set(data.bookings.filter(b => me && b.coachId === me.id &&
-      (b.status === "paid" || b.status === "completed")).map(b => b.athleteId));
-    const coachingAthleteIds = new Set(data.athletes.filter(a => me &&
-      (a.coachIds.includes(me.id) || booked.has(a.id))).map(a => a.id));
+    const booked = new Set(
+      data.bookings
+        .filter(
+          (b) => me && b.coachId === me.id && (b.status === "paid" || b.status === "completed"),
+        )
+        .map((b) => b.athleteId),
+    );
+    const coachingAthleteIds = new Set(
+      data.athletes
+        .filter((a) => me && (a.coachIds.includes(me.id) || booked.has(a.id)))
+        .map((a) => a.id),
+    );
     const emails = new Set([viewer.email.trim().toLowerCase(), ...(viewer.householdEmails || [])]);
-    const ownIds = data.families.filter(f => emails.has(f.email.trim().toLowerCase())).flatMap(f => f.athleteIds);
+    const ownIds = data.families
+      .filter((f) => emails.has(f.email.trim().toLowerCase()))
+      .flatMap((f) => f.athleteIds);
     const ids = new Set([...coachingAthleteIds, ...ownIds]);
     const familyIds = new Set(
       data.athletes.filter((row) => ids.has(row.id)).map((row) => row.familyId),
@@ -114,10 +128,10 @@ export function scopeForViewer(viewer: PdViewer, data: DevelopmentData): PdScope
       includeCoachOps: false,
     };
   }
-  const emails=new Set([viewer.email.trim().toLowerCase(),...(viewer.householdEmails||[])]);
-  const families=data.families.filter(f=>emails.has(f.email.trim().toLowerCase()));
-  const ids = new Set(families.flatMap(f=>f.athleteIds));
-  const familyIds = new Set(families.map(f=>f.id));
+  const emails = new Set([viewer.email.trim().toLowerCase(), ...(viewer.householdEmails || [])]);
+  const families = data.families.filter((f) => emails.has(f.email.trim().toLowerCase()));
+  const ids = new Set(families.flatMap((f) => f.athleteIds));
+  const familyIds = new Set(families.map((f) => f.id));
   return {
     role: "parent",
     viewerEmail: viewer.email.trim().toLowerCase(),
@@ -131,12 +145,21 @@ export function scopeForViewer(viewer: PdViewer, data: DevelopmentData): PdScope
 }
 
 export function canCoachAthlete(scope: PdScope, athleteId: string) {
-  return scope.includeCoachNotes && (scope.coachingAthleteIds === "all" ||
-    (scope.coachingAthleteIds ? scope.coachingAthleteIds.has(athleteId) : canAccessAthlete(scope, athleteId)));
+  return (
+    scope.includeCoachNotes &&
+    (scope.coachingAthleteIds === "all" ||
+      (scope.coachingAthleteIds
+        ? scope.coachingAthleteIds.has(athleteId)
+        : canAccessAthlete(scope, athleteId)))
+  );
 }
 
 export function coachingScope(scope: PdScope): PdScope {
-  return { ...scope, athleteIds: scope.coachingAthleteIds ?? (scope.includeCoachNotes ? scope.athleteIds : new Set()) };
+  return {
+    ...scope,
+    athleteIds:
+      scope.coachingAthleteIds ?? (scope.includeCoachNotes ? scope.athleteIds : new Set()),
+  };
 }
 
 export function canAccessAthlete(scope: PdScope, athleteId: string) {
@@ -160,30 +183,65 @@ function ofAthlete<T extends { athleteId: string }>(rows: T[], scope: PdScope) {
 export function filterDevelopmentData(data: DevelopmentData, scope: PdScope): DevelopmentData {
   const athletes = data.athletes
     .filter((row) => keepId(scope, row.id))
-    .map((row) =>
-      canCoachAthlete(scope, row.id)
-        ? row
-        : { ...row, notes: "" },
-    );
+    .map((row) => (canCoachAthlete(scope, row.id) ? row : { ...row, notes: "" }));
   const familyIds = scope.familyIds;
   const families =
     familyIds === "all" ? data.families : data.families.filter((row) => familyIds.has(row.id));
 
   let messages = ofAthlete(data.messages, scope);
-  messages = messages.filter(row => row.channel !== "coach" || canCoachAthlete(scope, row.athleteId));
+  messages = messages.filter(
+    (row) => row.channel !== "coach" || canCoachAthlete(scope, row.athleteId),
+  );
 
   const staff = scope.includeStaffOps;
   const coachOps = scope.includeCoachOps;
+  const player = scope.role === "player";
+  // Players need their appointment schedule, not the household's purchase record.
+  const bookings = ofAthlete(data.bookings, scope).map((row) =>
+    player
+      ? {
+          id: row.id,
+          athleteId: row.athleteId,
+          serviceId: row.serviceId,
+          date: row.date,
+          time: row.time,
+          status: row.status,
+          coachId: row.coachId,
+          dateLabel: row.dateLabel,
+          price: 0,
+        }
+      : row,
+  );
+  const playerFamilies = families.map((row) => ({
+    id: row.id,
+    name: row.name,
+    parentName: row.parentName,
+    email: row.email,
+    phone: row.phone,
+    athleteIds: row.athleteIds.filter((id) => keepId(scope, id)),
+    leaderboardOptOut: row.leaderboardOptOut,
+    plan: row.plan ? { type: row.plan.type, tier: row.plan.tier, lessonCredits: 0 } : undefined,
+  }));
 
   return {
     ...data,
     athletes,
-    families,
-    educationProgress: scope.viewerEmail ? { [scope.viewerEmail]: data.educationProgress?.[scope.viewerEmail] ?? [] } : {},
-    strengthAssignments: ofAthlete(data.strengthAssignments ?? [], scope).filter(row => row.status === "published" || canCoachAthlete(scope, row.athleteId)),
+    families: player ? playerFamilies : families,
+    services: player
+      ? data.services.map(({ id, name, kind, minutes }) => ({ id, name, kind, minutes, price: 0 }))
+      : data.services,
+    packages: player ? [] : data.packages,
+    memberships: player ? [] : data.memberships,
+    policy: player ? { ...data.policy, newFamilyCredit: 0 } : data.policy,
+    educationProgress: scope.viewerEmail
+      ? { [scope.viewerEmail]: data.educationProgress?.[scope.viewerEmail] ?? [] }
+      : {},
+    strengthAssignments: ofAthlete(data.strengthAssignments ?? [], scope).filter(
+      (row) => row.status === "published" || canCoachAthlete(scope, row.athleteId),
+    ),
     throwingDays: ofAthlete(data.throwingDays ?? [], scope),
-    bookings: ofAthlete(data.bookings, scope),
-    waitlist: ofAthlete(data.waitlist, scope),
+    bookings,
+    waitlist: player ? [] : ofAthlete(data.waitlist, scope),
     leads: staff ? data.leads : [],
     outings: ofAthlete(data.outings, scope),
     workoutLog: ofAthlete(data.workoutLog, scope),
@@ -196,7 +254,11 @@ export function filterDevelopmentData(data: DevelopmentData, scope: PdScope): De
     interventions: ofAthlete(data.interventions, coachingScope(scope)),
     calibration: ofAthlete(data.calibration, coachingScope(scope)),
     calibrationScores: staff ? data.calibrationScores : [],
-    coachPayouts: staff ? data.coachPayouts : coachOps ? data.coachPayouts.filter(row => row.coachId === scope.coachId) : [],
+    coachPayouts: staff
+      ? data.coachPayouts
+      : coachOps
+        ? data.coachPayouts.filter((row) => row.coachId === scope.coachId)
+        : [],
     coachOverrides: staff ? data.coachOverrides : [],
     certifications: ofAthlete(data.certifications, scope),
     auditLog: staff ? data.auditLog : [],
@@ -206,7 +268,9 @@ export function filterDevelopmentData(data: DevelopmentData, scope: PdScope): De
     cohorts: data.cohorts
       .map((row) => ({
         ...row,
-        athleteIds: row.athleteIds.filter((id) => keepId(scope.includeCoachNotes ? coachingScope(scope) : scope, id)),
+        athleteIds: row.athleteIds.filter((id) =>
+          keepId(scope.includeCoachNotes ? coachingScope(scope) : scope, id),
+        ),
       }))
       .filter((row) => row.athleteIds.length > 0),
     gameIq: ofAthlete(data.gameIq, coachingScope(scope)),
