@@ -13,6 +13,9 @@ function visibleNotifications(club:ClubRecord,teams:Team[],role:string) {
  const ids=new Set(teams.map(t=>t.id));
  return club.notifications.filter(n=>ids.has(n.teamId)&&(n.audience==='all'||n.audience===(role==='coach'?'coach':'family')));
 }
+function dropPlayerBilling(player: Player): Player {
+  return { ...dropPayment(player), planType: "", depositPaid: false, uniformWaived: false, cageOverage: 0 };
+}
 function dropPayment(player: Player): Player {
   const { feeLock: _f, planLock: _p, credits: _c, payments: _pay, cards: _cards, ...rest } = player;
   return rest as Player;
@@ -64,7 +67,7 @@ export function scopeClub(
       eventBudget: 0,
       otherCosts: { insurance: 0, balls: 0, fields: 0, admin: 0, travel: 0 },
       roster: team.roster.filter(p => visiblePlayer(p,role,identity)).map(p =>
-        role === "player" ? dropPayment(p) : p),
+        role === "player" ? dropPlayerBilling(p) : p),
     }));
   return {
     ...next,
