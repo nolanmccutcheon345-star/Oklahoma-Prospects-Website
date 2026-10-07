@@ -6,6 +6,9 @@ function ownsPlayer(player:Player, identity:{email:string;familyId:string;family
  return Boolean(identity.email) && (player.familyId===identity.familyId
    && (player.parents.some(parent=>norm(parent.email)===norm(identity.email)) || norm(player.email)===norm(identity.email)));
 }
+function visiblePlayer(player:Player,role:string,identity:{email:string;familyId:string;familyIds?:string[]}) {
+ return role==='player' ? Boolean(norm(identity.email)) && norm(player.email)===norm(identity.email) : ownsPlayer(player,identity);
+}
 function visibleNotifications(club:ClubRecord,teams:Team[],role:string) {
  const ids=new Set(teams.map(t=>t.id));
  return club.notifications.filter(n=>ids.has(n.teamId)&&(n.audience==='all'||n.audience===(role==='coach'?'coach':'family')));
@@ -56,7 +59,7 @@ export function scopeClub(
   }
 
   const teams: Team[] = club.teams
-    .filter((team) => team.roster.some((p) => ownsPlayer(p,identity)))
+    .filter((team) => team.roster.some((p) => visiblePlayer(p,role,identity)))
     .map((team) => ({
       ...team,
       staff: team.staff.map((s) => ({ ...s, monthly: 0, applyAmount: 0 })),
@@ -64,7 +67,7 @@ export function scopeClub(
       coachMonthly: 0,
       eventBudget: 0,
       otherCosts: { insurance: 0, balls: 0, fields: 0, admin: 0, travel: 0 },
-      roster: team.roster.filter(p => ownsPlayer(p,identity)).map(p =>
+      roster: team.roster.filter(p => visiblePlayer(p,role,identity)).map(p =>
         role === "player" ? dropPayment(p) : p),
     }));
   return {
@@ -131,7 +134,7 @@ export function mergeSave(
     const next = structuredClone(stored);
     for (const team of next.teams) {
       team.roster = team.roster.map((p) => {
-        if (!ownsPlayer(p,identity)) return p;
+        if (!visiblePlayer(p,role,identity)) return p;
         const incomingTeam = incoming.teams.find((t) => t.id === team.id);
         const incomingP = incomingTeam?.roster.find((x) => x.id === p.id);
         if (!incomingP) return p;
@@ -192,7 +195,7 @@ export function canFetchTeam(
   if (!team) return false;
   if (role === "admin") return true;
   if (role === "coach") return coachHoldsTeam(club, identity.email, teamId);
-  return team.roster.some((p) => ownsPlayer(p,identity));
+  return team.roster.some((p) => visiblePlayer(p,role,identity));
 }
 
 export function canFetchPlayer(
@@ -209,10 +212,7 @@ export function canFetchPlayer(
     return team ? coachHoldsTeam(club, identity.email, team.id) : false;
   }
   if (role === "parent") return club.teams.some(t=>t.roster.some(p=>p.id===playerId&&ownsPlayer(p,identity)));
-  const e = identity.email.toLowerCase();
-  return club.teams.some((t) =>
-    t.roster.some((p) => p.id === playerId && p.email.toLowerCase() === e),
-  );
+  return club.teams.some(t=>t.roster.some(p=>p.id===playerId&&visiblePlayer(p,role,identity)));
 }
 
 /** Crafted roster request. Returns null instead of leaking another team's names. */
