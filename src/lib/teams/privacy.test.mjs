@@ -218,3 +218,21 @@ it('v2: browser saves cannot replace administrative audit history',()=>{
  const raw=club(),incoming={...structuredClone(raw),audit:[]};
  assert.deepEqual(mergeSave(raw,incoming,'admin',{email:'owner@example.invalid',familyId:''}).audit,raw.audit);
 });
+
+it('linked players see and edit their own roster record, while guardians retain sibling access',()=>{
+ const raw=club(),me={email:'  CADE@example.com ',familyId:'fam-cade',familyIds:['fam-cade']};
+ raw.teams[0].roster[1].familyId='fam-cade';raw.teams[1].roster[0].familyId='fam-cade';
+ const scoped=scopeClub(raw,'player',me);
+ assert.deepEqual(scoped.teams.map(t=>t.id),['t-13u-navy']);
+ assert.deepEqual(scoped.teams[0].roster.map(p=>p.id),['p-cade']);
+ assert.equal(fetchTeamRecord(raw,'player',me,'t-foreign'),null);
+ assert.equal(fetchPlayerRecord(raw,'player',me,'p-other'),null);
+ assert.equal(fetchPlayerRecord(raw,'player',me,'p-cade').id,'p-cade');
+ assert.equal(scopeClub(raw,'player',{...me,email:''}).teams.length,0);
+ const incoming=structuredClone(raw);for(const t of incoming.teams)for(const p of t.roster)p.rsvp={practice:'yes'};
+ const changed=mergeSave(raw,incoming,'player',me);
+ assert.deepEqual(changed.teams[0].roster[0].rsvp,{practice:'yes'});
+ assert.deepEqual(changed.teams[0].roster[1].rsvp,{});
+ assert.deepEqual(changed.teams[1].roster[0].rsvp,{});
+ assert.equal(scopeClub(raw,'parent',{...me,email:'guardian@example.invalid'}).teams.flatMap(t=>t.roster).length,3);
+});
