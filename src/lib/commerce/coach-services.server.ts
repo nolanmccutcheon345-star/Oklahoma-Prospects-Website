@@ -1,10 +1,14 @@
+import type { Product } from "./contracts";
 import type { Sql } from "../db";
 import type { Availability, Coach } from "../pd/types";
 import { coachHasBookingWindow } from "./availability";
 
 /** Picker eligibility combines admin service assignments with usable recurring availability. */
-export async function coachesWithAvailability(sql: Sql, roster: Coach[], availability: Availability[]) {
-  return (await bookableCoaches(sql, roster)).filter(coach => coachHasBookingWindow(availability, coach.id));
+export async function coachesWithAvailability(sql: Sql, roster: Coach[], availability: Availability[], services: Pick<Product, "id" | "minutes" | "discipline">[]) {
+  return (await bookableCoaches(sql, roster)).flatMap(coach => {
+    const offered = services.filter(service => coach.serviceIds.includes(service.id) && coachHasBookingWindow(availability, coach.id, service.minutes));
+    return offered.length ? [{...coach, serviceIds: offered.map(service => service.id), specialties: [...new Set(offered.map(service => service.discipline))]}] : [];
+  });
 }
 
 /** Public booking choices come from admin assignments, never editable coach bios. */

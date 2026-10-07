@@ -3,13 +3,14 @@ import type { Availability } from "../pd/types";
 const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
 /** Does this recurring schedule offer any valid half-hour booking window? */
-export function coachHasBookingWindow(rows: Availability[], coachId: string) {
+export function coachHasBookingWindow(rows: Availability[], coachId: string, duration = 30) {
+  if (!Number.isSafeInteger(duration) || duration < 20 || duration > 180) return false;
   // A representative week checks recurring weekday rules; it does not create appointments.
   for (let day = 0; day < 7; day++) {
     const date = new Date(Date.UTC(2000, 0, 2 + day)).toISOString().slice(0, 10);
-    for (let start = openingMinutes(date); start + 30 <= 20 * 60; start += 30) {
+    for (let start = openingMinutes(date); start + duration <= 20 * 60; start += 30) {
       const time = `${String(Math.floor(start / 60)).padStart(2, "0")}:${String(start % 60).padStart(2, "0")}`;
-      if (coachAvailable(rows, coachId, date, time, 30)) return true;
+      if (coachAvailable(rows, coachId, date, time, duration)) return true;
     }
   }
   return false;
