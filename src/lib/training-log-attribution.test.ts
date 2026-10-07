@@ -62,6 +62,12 @@ test('training log edits validate assigned drills and retain the latest writer i
       assert.equal((await sql<{user_id:string}>`select user_id from athlete_training_logs`)[0].user_id,'coach');
       await logTraining('parent',log);
       assert.equal((await sql<{user_id:string}>`select user_id from athlete_training_logs`)[0].user_id,'parent');
+      await setTrainingDay('coach',{...plan,items:[]});
+      await assert.rejects(()=>logTraining('parent',{...log,reps:99}),/not on the assigned plan/);
+      assert.equal((await sql<{reps:number}>`select reps from athlete_training_logs`)[0].reps,10);
+      await setTrainingDay('coach',plan);
+      await logTraining('coach',{...log,reps:15});
+      assert.equal((await sql<{reps:number}>`select reps from athlete_training_logs`)[0].reps,15);
     } finally {
       state.__pgSqlPromise__=oldSql;
       if(oldUrl===undefined)delete process.env.DATABASE_URL;else process.env.DATABASE_URL=oldUrl;
