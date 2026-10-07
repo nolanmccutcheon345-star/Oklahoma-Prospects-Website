@@ -117,7 +117,7 @@ test('isolated full account and lesson journey through real server commands',asy
    const input={requestId:randomUUID(),grantId:grant,serviceId:'s2',coachId,date:future,time:'18:00',household:false,athleteCount:1};
    h.redemption=input;
    await assert.rejects(api.creditSlots(parent,input),/facility space/);
-   await sql`insert into service_resources(service_id,lane_ids) values('s2','["cage-1"]'::jsonb)`;
+   await sql`insert into service_resources(service_id,lane_ids) values('s2','["1"]'::jsonb)`;
    assert.ok((await api.creditSlots(parent,input)).some(s=>s.value==='18:00'));
    await assert.rejects(api.creditSlots(other,input),/unavailable/);
    await assert.rejects(api.creditSlots(parent,{...input,serviceId:'s7'}),/not assigned/);
