@@ -31,6 +31,7 @@ test("public coach query exposes publication fields only and excludes drafts or 
       internalNotes: "Private staff note",
     };
     await sql`insert into coach_profiles(id,user_id,profile,published) values('visible','account-visible',${JSON.stringify(profile)}::jsonb,true),('draft','account-draft',${JSON.stringify(profile)}::jsonb,false),('invalid','account-invalid','{"name":null}'::jsonb,true)`;
+    await sql`insert into coach_profiles(id,user_id,profile,published) values('empty-bio','account-empty-bio',${JSON.stringify({...profile,career:"   "})}::jsonb,true)`;
     const rows = await publicCoachProfilesFor(sql);
     assert.equal(rows.length, 1);
     assert.equal(rows[0].id, "visible");
