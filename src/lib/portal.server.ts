@@ -16,8 +16,8 @@ export async function submitInquiry(input:z.infer<typeof inquiryInput>) {
  if(input.kind==='tryout'){
   validateTryoutRegistration(input,chicagoDate());
  }
- const sql=await getSql();await sql`insert into club_requests(id,user_id,kind,payload) values(${input.requestId},null,${input.kind},${JSON.stringify(input)}::jsonb) on conflict(id) do nothing`;
- return {ok:true,reference:input.requestId};
+ const {recordInquiryFor}=await import('./tryout-enrollment.server');
+ return recordInquiryFor(await getSql(),input);
 }
 export async function addAthlete(userId:string,input:z.infer<typeof athleteInput>){
  const me=await clubIdentity(userId);

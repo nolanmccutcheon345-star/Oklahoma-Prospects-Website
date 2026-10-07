@@ -1,6 +1,10 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { Button } from "./ui/button";
-import { getAdminTryoutEvents, saveTryoutEvent } from "@/lib/tryout-events-api";
+import {
+  getAdminTryoutEvents,
+  getAdminTryoutEnrollments,
+  saveTryoutEvent,
+} from "@/lib/tryout-events-api";
 import type { TryoutEvent, TryoutEventInput } from "@/lib/tryout-events-contracts";
 const field = "mt-1 min-h-11 w-full rounded-md border bg-paper px-3";
 const blank = (): TryoutEventInput => ({
@@ -17,6 +21,9 @@ const blank = (): TryoutEventInput => ({
   status: "draft",
 });
 export function TryoutEventEditor() {
+  const [enrollments, setEnrollments] = useState<
+    Awaited<ReturnType<typeof getAdminTryoutEnrollments>>
+  >([]);
   const [events, setEvents] = useState<TryoutEvent[]>([]);
   const [draft, setDraft] = useState(blank);
   const [ages, setAges] = useState("");
@@ -25,6 +32,7 @@ export function TryoutEventEditor() {
   const [busy, setBusy] = useState(false);
   async function load() {
     setEvents(await getAdminTryoutEvents());
+    setEnrollments(await getAdminTryoutEnrollments());
   }
   useEffect(() => {
     void load().catch((e) => setError(e instanceof Error ? e.message : "Could not load events."));
@@ -65,8 +73,8 @@ export function TryoutEventEditor() {
     <section className="mb-8 rounded-xl border bg-paper-2 p-5">
       <h2 className="text-3xl">Tryout schedule</h2>
       <p className="mt-2 text-sm">
-        Owner-managed events. Times are America/Chicago. Saving an event does not enroll or notify
-        applicants yet.
+        Owner-managed events. Times are America/Chicago. Published events enroll matching requests
+        while capacity allows. Notifications are queued; delivery is not active yet.
       </p>
       {error ? (
         <p role="alert" className="mt-3 text-maroon">
@@ -103,6 +111,14 @@ export function TryoutEventEditor() {
             <Button disabled={busy} variant="outlineDark" onClick={() => edit(event)}>
               Edit event
             </Button>
+          </li>
+        ))}
+      </ul>
+      <h3 className="text-xl">Group enrollments</h3>
+      <ul className="my-4 grid gap-2">
+        {enrollments.map((row) => (
+          <li key={row.id} className="rounded-md border p-3">
+            {row.player} · {row.email} · {row.status} · Notice: {row.notification}
           </li>
         ))}
       </ul>

@@ -29,6 +29,7 @@ export async function registrationRowsFor(sql: Sql, userId: string) {
     "age",
     "sport",
     "session",
+    "season",
     "email",
     "phone",
     "notes",
