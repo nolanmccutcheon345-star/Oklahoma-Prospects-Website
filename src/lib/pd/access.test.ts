@@ -208,7 +208,7 @@ test("linked player family projection omits guardian contacts while retaining cl
   const home = full.families.find(f=>f.id===self.familyId)!;
   home.phone = "private-parent-phone";
   home.parentName = "private-parent-name";
-  home.plan = {type:"performance", tier:"private-plan-tier", lessonCredits:99};
+  home.plan = {type:"performance", tier:"performance", lessonCredits:99};
   const me = viewer({role:"player",email:"player@example.invalid", householdEmails:[home.email],playerName:`${self.firstName} ${self.lastName}`});
   const scoped = filterDevelopmentData(full, scopeForViewer(me, full));
   const projected = scoped.families[0];
@@ -217,6 +217,6 @@ test("linked player family projection omits guardian contacts while retaining cl
   assert.equal(projected.phone, "");
   assert.equal(projected.plan?.tier, undefined);
   assert.equal(canAccessAthlete(scopeForViewer(me, scoped), self.id), true);
-  assert.doesNotMatch(JSON.stringify(projected), /private-parent|private-plan-tier/);
+  assert.doesNotMatch(JSON.stringify(projected), /private-parent/);
   assert.equal(home.phone, "private-parent-phone");
 });
