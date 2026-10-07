@@ -40,11 +40,7 @@ export function scopeClub(
 
   if (role === "coach") {
     const teams = club.teams
-      .filter(
-        (team) =>
-          team.coachEmail.trim().toLowerCase() === identity.email ||
-          team.staff.some((s) => s.email.trim().toLowerCase() === identity.email),
-      )
+      .filter(team => coachHoldsTeam(club, identity.email, team.id))
       .map((team) => ({
         ...team,
         roster: team.roster.map(dropPayment),
@@ -92,9 +88,7 @@ export function mergeSave(
     for (const team of incoming.teams) {
       const idx = next.teams.findIndex((t) => t.id === team.id);
       if (idx < 0) continue;
-      const owned =
-        next.teams[idx].coachEmail.trim().toLowerCase() === identity.email ||
-        next.teams[idx].staff.some((s) => s.email.trim().toLowerCase() === identity.email);
+      const owned = coachHoldsTeam(stored, identity.email, team.id);
       if (!owned) continue;
       next.teams[idx] = {
         ...next.teams[idx],
@@ -108,7 +102,7 @@ export function mergeSave(
         notes: team.notes,
         staff: next.teams[idx].staff.map((s) => {
           const incomingStaff = team.staff.find((x) => x.id === s.id);
-          if (incomingStaff && s.email === identity.email) {
+          if (incomingStaff && norm(s.email) === norm(identity.email)) {
             return { ...s, applyAmount: incomingStaff.applyAmount };
           }
           return s;
@@ -173,7 +167,7 @@ export function mergeSave(
 
 export function coachHoldsTeam(club: ClubRecord, email: string, teamId: string) {
   const team = club.teams.find((t) => t.id === teamId);
-  if (!team) return false;
+  if (!team || !norm(email)) return false;
   return (
     team.coachEmail.trim().toLowerCase() === email.trim().toLowerCase() ||
     team.staff.some((s) => s.email.trim().toLowerCase() === email.trim().toLowerCase())
