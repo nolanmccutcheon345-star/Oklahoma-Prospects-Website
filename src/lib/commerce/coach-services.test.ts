@@ -4,7 +4,7 @@ import { readFile } from "node:fs/promises";
 import { PGlite } from "@electric-sql/pglite";
 import type { Sql } from "../db";
 import type { Coach } from "../pd/types";
-import { bookableCoaches, replaceCoachServices, requireCoachService } from "./coach-services.server";
+import { bookableCoaches, coachesWithAvailability, replaceCoachServices, requireCoachService } from "./coach-services.server";
 import { checkoutLessonService } from "./coach-services";
 
 test("admin service assignments persist, control exact booking services, and fail closed", async () => {
@@ -33,6 +33,12 @@ test("admin service assignments persist, control exact booking services, and fai
     await sql.transaction(tx => replaceCoachServices(tx, "staff-test", [{serviceId:"s2",profitSplit:65}]));
     const choices = await bookableCoaches(sql, roster);
     assert.deepEqual(choices, [{id:"existing-coach",name:"Test coach",serviceIds:["s2"],specialties:["Pitching"]}]);
+    assert.deepEqual(await coachesWithAvailability(sql,roster,[]),[]);
+    const schedules=[{id:'window',coachId:'existing-coach',weekday:'Mon–Fri',window:'16:00–20:00'}];
+    assert.deepEqual(await coachesWithAvailability(sql,roster,schedules),choices);
+    assert.deepEqual(await coachesWithAvailability(sql,roster,[{...schedules[0],coachId:'other'}]),[]);
+    assert.deepEqual(await coachesWithAvailability(sql,roster,[{...schedules[0],window:'10:00–11:00'}]),[]);
+    assert.deepEqual(await coachesWithAvailability(sql,roster,[{...schedules[0],window:'invalid'}]),[]);
     assert.equal((await requireCoachService(sql, roster, "existing-coach", "s2")).id,"existing-coach");
     await assert.rejects(requireCoachService(sql, roster, "existing-coach", "s3"), /not assigned/);
     await assert.rejects(requireCoachService(sql, roster, "existing-coach", "s7"), /not assigned/);
@@ -43,6 +49,7 @@ test("admin service assignments persist, control exact booking services, and fai
     await sql.transaction(tx => replaceCoachServices(tx,"staff-test",[{serviceId:"s1",profitSplit:70},{serviceId:"s3",profitSplit:65}]));
     assert.deepEqual((await bookableCoaches(sql,roster))[0].serviceIds,["s1","s3"]);
     await assert.rejects(requireCoachService(sql,roster,"existing-coach","s2"),/not assigned/);
+    assert.deepEqual((await coachesWithAvailability(sql,roster,schedules))[0].serviceIds,['s1','s3']);
     await sql.transaction(tx => replaceCoachServices(tx,"staff-off",[{serviceId:"s3",profitSplit:60}]));
     await sql.transaction(tx => replaceCoachServices(tx,"staff-parent",[{serviceId:"s3",profitSplit:60}]));
     assert.equal((await bookableCoaches(sql,roster)).length,1);
