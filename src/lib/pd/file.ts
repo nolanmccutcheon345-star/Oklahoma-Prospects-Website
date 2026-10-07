@@ -59,13 +59,22 @@ function keepAthlete(scope: PdScope, athleteId: string) {
   return canAccessAthlete(scope, athleteId);
 }
 
-function mergeAthleteRows<T extends { athleteId: string }>(
+function mergeAthleteRows<T extends { athleteId: string; id?: string }>(
   full: T[],
   incoming: T[],
   scope: PdScope,
 ): T[] {
   const outside = full.filter((row) => !keepAthlete(scope, row.athleteId));
   const next = incoming.filter((row) => keepAthlete(scope, row.athleteId));
+  const owners = new Map(full.map(row => [row.id, row.athleteId]));
+  const ids = new Set<string>();
+  for (const row of next) {
+    // Intake and recruiting profiles are keyed by athlete, not a row ID.
+    if (!("id" in row)) continue;
+    if (!row.id?.trim() || row.id.length > 150 || ids.has(row.id)) throw new Error("Athlete row identifiers must be nonempty and unique.");
+    if (owners.has(row.id) && owners.get(row.id) !== row.athleteId) throw new Error("Athlete row identifier belongs to another athlete.");
+    ids.add(row.id);
+  }
   return [...outside, ...next];
 }
 
