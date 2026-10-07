@@ -32,7 +32,7 @@ export async function addAthlete(userId:string,input:z.infer<typeof athleteInput
  if(!saved)throw new Error('This athlete request was already used with different details. Start a new request.');
  return {id};
 }
-export async function myWaivers(userId:string){const me=await clubIdentity(userId);const sql=await getSql();return sql<{id:string;athlete_id:string;athlete_name:string;signer_name:string;signed_at:Date;expires_at:Date}>`select w.id,w.athlete_id,a.name as athlete_name,w.signer_name,w.signed_at,w.signed_at+interval '1 year' as expires_at from club_waivers w join club_athletes a on a.id=w.athlete_id where a.household_id=any(${me.billingHouseholdIds}::text[]) and w.signed_at+interval '1 year'>now() order by signed_at desc`;}
+export async function myWaivers(userId:string){const me=await clubIdentity(userId);const sql=await getSql();return sql<{id:string;athlete_id:string;athlete_name:string;signer_name:string;signed_at:Date;expires_at:Date}>`select w.id,w.athlete_id,a.name as athlete_name,w.signer_name,w.signed_at,w.signed_at+interval '1 year' as expires_at from club_waivers w join club_athletes a on a.id=w.athlete_id where a.household_id=any(${me.billingHouseholdIds}::text[]) and w.signed_at<=now() and w.signed_at+interval '1 year'>now() order by signed_at desc`;}
 export async function signWaiver(userId:string,input:z.infer<typeof waiverInput>){
  const me=await clubIdentity(userId);const sql=await getSql();const [athlete]=await sql<{id:string;name:string;birth_date:string}>`select id,name,birth_date from club_athletes where id=${input.athleteId} and household_id=any(${me.billingHouseholdIds}::text[])`;
  if(!athlete)throw new Error('Choose an athlete in your household.');
