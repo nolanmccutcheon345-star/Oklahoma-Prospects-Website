@@ -28,6 +28,10 @@ test("training coach directory omits private contacts except the coach's own rec
   assert.doesNotMatch(JSON.stringify(filtered.coaches), /private-directory-token/);
   const admin = filterDevelopmentData(full, scopeForViewer(viewer({role:"admin",email:"owner@example.invalid"}), full));
   assert.deepEqual(admin.coaches, full.coaches);
+  own.active = false;
+  const inactive = filterDevelopmentData(full, scopeForViewer(viewer({role:"coach",email:own.email}), full));
+  assert.equal(inactive.coaches.find(c=>c.id===own.id)?.email, own.email);
+  assert.equal(canAccessAthlete(scopeForViewer(viewer({role:"coach",email:own.email}), full), "a-down"), false);
 });
 
 function viewer(partial: Partial<PdViewer> & Pick<PdViewer, "role" | "email">): PdViewer {
