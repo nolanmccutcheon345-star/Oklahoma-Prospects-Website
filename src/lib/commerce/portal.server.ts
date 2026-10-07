@@ -220,7 +220,8 @@ export async function completeSession(userId: string, bookingId: string, notes: 
       snapshot: Quote;
       total_cents: number;
       status: string;
-    }>`select snapshot,total_cents,status from commerce_orders where id = ${booking.order_id}`;
+    }>`select snapshot,total_cents,status from commerce_orders where id = ${booking.order_id} for update`;
+    if (!order || order.status !== "paid") throw new Error("A verified paid order is required before completing this session.");
     if (ASSESSMENT_PRODUCTS.has(booking.product_id)) {
       await tx`insert into athlete_assessments (id,athlete_id,discipline,coach_user_id,completed_at,notes,booking_id,delivery)
         values (${"assessment:" + booking.id},${booking.athlete_id},${order?.snapshot.discipline || "Pitching"},${userId},now(),${notes},${booking.id},${order?.snapshot.productId === "m5" ? "remote" : "in-person"})
