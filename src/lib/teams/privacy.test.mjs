@@ -236,3 +236,14 @@ it('linked players see and edit their own roster record, while guardians retain 
  assert.deepEqual(changed.teams[1].roster[0].rsvp,{});
  assert.equal(scopeClub(raw,'parent',{...me,email:'guardian@example.invalid'}).teams.flatMap(t=>t.roster).length,3);
 });
+
+it('player RSVPs cannot publish a public profile; guardians retain publication controls',()=>{
+ const raw=club(),incoming=structuredClone(raw),me={email:'cade@example.com',familyId:'fam-cade',familyIds:['fam-cade']};
+ incoming.teams[0].roster[0].publicProfile={enabled:true,bio:'Forged public bio',slug:'public-player'};
+ incoming.teams[0].roster[0].rsvp={practice:'yes'};
+ const player=mergeSave(raw,incoming,'player',me).teams[0].roster[0];
+ assert.deepEqual(player.publicProfile,raw.teams[0].roster[0].publicProfile);
+ assert.deepEqual(player.rsvp,{practice:'yes'});
+ const parent=mergeSave(raw,incoming,'parent',{...me,email:'guardian@example.invalid'}).teams[0].roster[0];
+ assert.deepEqual(parent.publicProfile,incoming.teams[0].roster[0].publicProfile);
+});
