@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { readFile, readdir } from "node:fs/promises";
 import { PGlite } from "@electric-sql/pglite";
 import type { Sql } from "./db";
-import { createLegacyProgram, addLegacyDrill } from "./legacy-training.server";
+import { createLegacyProgram, addLegacyDrill, completeLegacyDrill, createLegacyLog, legacyDrillCompletionInput, legacyLogInput } from "./legacy-training.server";
 test('legacy programs require an author role and drills require the same account owner',async()=>{
   const db = new PGlite();
   const wrap = (query: PGlite["query"]): Sql => {
@@ -44,5 +44,22 @@ test('legacy programs require an author role and drills require the same account
     assert.equal((await sql`select id from programs where user_id='player'`).length,0);
     await assert.rejects(()=>createLegacyProgram(sql,parent,{...program,focus:''}),/Too small/);
     await assert.rejects(()=>addLegacyDrill(sql,parent,{...drill,programId:-1}),/Too small/);
+    const [parentDrill]=await sql<{id:number}>`select id from drills where user_id='parent'`;
+    await assert.rejects(()=>completeLegacyDrill(sql,player,{id:parentDrill.id,done:true}),/belonging to your account/);
+    await assert.rejects(()=>completeLegacyDrill(sql,parent,{id:99999,done:true}),/belonging to your account/);
+    await completeLegacyDrill(sql,parent,{id:parentDrill.id,done:true});
+    assert.equal((await sql<{done:boolean}>`select done from drills where id=${parentDrill.id}`)[0].done,true);
+    await createLegacyLog(sql,player,{athlete:' Test Athlete ',note:' Completed assigned reps ',metric:''});
+    const [log]=await sql<{user_id:string;athlete:string;note:string}>`select user_id,athlete,note from athlete_logs`;
+    assert.deepEqual(log,{user_id:'player',athlete:'Test Athlete',note:'Completed assigned reps'});
+    for(const invalid of [{athlete:'',note:'Valid note',metric:''},{athlete:'Test',note:' ',metric:''},{athlete:'Test',note:'x'.repeat(3001),metric:''}])
+      await assert.rejects(()=>createLegacyLog(sql,player,invalid),/Too small|Too big/);
+    assert.equal((await sql`select id from athlete_logs`).length,1);
   } finally {await db.close();}
+});
+test('legacy completion and log contracts reject forged and malformed fields',()=>{
+ assert.equal(legacyDrillCompletionInput.safeParse({id:1,done:'true'}).success,false);
+ assert.equal(legacyDrillCompletionInput.safeParse({id:-1,done:true}).success,false);
+ assert.equal(legacyDrillCompletionInput.safeParse({id:1,done:true,userId:'other'}).success,false);
+ assert.equal(legacyLogInput.safeParse({athlete:'Test',note:'Valid note',metric:'',userId:'other'}).success,false);
 });
