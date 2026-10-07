@@ -123,3 +123,14 @@ test('old outings stop affecting season inference and tracked bullpens reach wor
   slice.workload=[{id:'w',athleteId:athlete.id,date:'2027-10-20',throws:30,rpe:3}];
   assert.equal(dailyLoad(slice).history.at(-1),30);
 });
+
+test('coach training families contain assigned athlete IDs and exclude other household purchase plans',()=>{
+ const data=fixture();data.families[0].plan={type:'development',lessonCredits:3};data.families[1].plan={type:'performance',lessonCredits:999};
+ const filtered=filterDevelopmentData(data,scopeForViewer(viewer,data));
+ assert.deepEqual(filtered.families.find(f=>f.id==='other')!.athleteIds,['coached']);
+ assert.equal(filtered.families.find(f=>f.id==='other')!.plan,undefined);
+ assert.equal(filtered.families.find(f=>f.id==='own')!.plan?.lessonCredits,3);
+ const admin=filterDevelopmentData(data,scopeForViewer({...viewer,role:'admin'},data));
+ assert.deepEqual(admin.families[1].athleteIds,['coached','unrelated']);
+ assert.equal(admin.families[1].plan?.lessonCredits,999);
+});

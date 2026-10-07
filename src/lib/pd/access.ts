@@ -15,6 +15,7 @@ export type PdScope = {
   coachingAthleteIds?: "all" | Set<string>;
   athleteIds: "all" | Set<string>;
   familyIds: "all" | Set<string>;
+  householdFamilyIds?: Set<string>;
   includeCoachNotes: boolean;
   includeStaffOps: boolean;
   includeCoachOps: boolean;
@@ -106,6 +107,7 @@ export function scopeForViewer(viewer: PdViewer, data: DevelopmentData): PdScope
       coachId: me?.id,
       viewerEmail: viewer.email.trim().toLowerCase(),
       coachingAthleteIds,
+      householdFamilyIds: new Set(data.families.filter(f=>emails.has(f.email.trim().toLowerCase())).map(f=>f.id)),
       athleteIds: ids,
       familyIds,
       includeCoachNotes: true,
@@ -185,8 +187,9 @@ export function filterDevelopmentData(data: DevelopmentData, scope: PdScope): De
     .filter((row) => keepId(scope, row.id))
     .map((row) => (canCoachAthlete(scope, row.id) ? row : { ...row, notes: "" }));
   const familyIds = scope.familyIds;
-  const families =
-    familyIds === "all" ? data.families : data.families.filter((row) => familyIds.has(row.id));
+  const families = (familyIds === "all" ? data.families : data.families.filter((row) => familyIds.has(row.id)))
+    .map(row=>scope.includeStaffOps ? row : {...row,athleteIds:row.athleteIds.filter(id=>keepId(scope,id)),
+      ...(scope.role==='coach'&&!scope.householdFamilyIds?.has(row.id)?{plan:undefined}:{})});
 
   let messages = ofAthlete(data.messages, scope);
   messages = messages.filter(
