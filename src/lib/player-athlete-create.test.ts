@@ -48,7 +48,7 @@ test('player athlete creation is denied before administrative writes; parent cre
       const {addAthlete}=await import('./portal.server');
       await sql`insert into "user"(id,email,name,"emailVerified","createdAt","updatedAt") values('player','player@example.invalid','Player',true,now(),now())`;
       await sql`insert into profiles(user_id,email,name,role) values('player','player@example.invalid','Player','player')`;
-      const input={requestId:randomUUID(),name:'New Athlete',birthDate:'2018-01-01',sport:'Baseball' as const,throws:'R' as const,bats:'R' as const};
+      const input={requestId:randomUUID(),name:'New Athlete',birthDate:'2018-01-01',sport:'baseball' as const,throws:'R' as const,bats:'R' as const};
       await assert.rejects(addAthlete('player',input),/parent or guardian/);
       assert.equal((await sql`select id from club_athletes where user_id='player'`).length,0);
       assert.equal((await sql<{revision:number}>`select revision from pd_working_file where id='club'`)[0].revision,7);

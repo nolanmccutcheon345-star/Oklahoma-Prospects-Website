@@ -46,10 +46,10 @@ test('identical athlete retries succeed; changed details cannot reuse a request'
     try {
       process.env.DATABASE_URL='postgresql://unused.invalid/disposable';process.env.CONTEXT='dev';state.__pgSqlPromise__=Promise.resolve(sql);
       const {addAthlete}=await import('./portal.server');
-      const input={requestId:randomUUID(),name:'New Athlete',birthDate:'2018-01-01',sport:'Baseball' as const,throws:'R' as const,bats:'R' as const};
+      const input={requestId:randomUUID(),name:'New Athlete',birthDate:'2018-01-01',sport:'baseball' as const,throws:'R' as const,bats:'R' as const};
       const first=await addAthlete('parent',input);
       assert.deepEqual(await addAthlete('parent',input),first);
-      for(const change of [{name:'Different'},{birthDate:'2019-01-01'},{sport:'Softball' as const},{throws:'L' as const},{bats:'L' as const}])
+      for(const change of [{name:'Different'},{birthDate:'2019-01-01'},{sport:'softball' as const},{throws:'L' as const},{bats:'L' as const}])
         await assert.rejects(addAthlete('parent',{...input,...change}),/already used/);
       assert.equal((await sql`select id from club_athletes where id=${first.id}`).length,1);
       assert.equal((await sql<{name:string}>`select name from club_athletes where id=${first.id}`)[0].name,'New Athlete');
