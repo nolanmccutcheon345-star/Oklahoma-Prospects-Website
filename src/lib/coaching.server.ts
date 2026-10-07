@@ -1,5 +1,6 @@
 import type {z} from 'zod';
 import {getSql} from './db';
+import {publicCoachProfilesFor} from './coach-public-profiles.server';
 import {clubIdentity} from './identity.server';
 import {readWorkingFile,writeWorkingFile,loadDeskForUser} from './pd/desk-impl.server';
 import {scopeForViewer,assertAthleteAccess,canCoachAthlete} from './pd/access';
@@ -8,7 +9,7 @@ import type {profileInput,availabilityInput,trackInput,metricInput,dayInput,logI
 async function coach(userId:string){const me=await clubIdentity(userId);if(!['admin','coach'].includes(me.role))throw new Error('Coach access required.');const {data}=await loadDeskForUser(userId);const row=data.coaches.find(c=>c.email.toLowerCase()===me.email);if(!row)throw new Error('Coach profile is not assigned.');return {me,row};}
 async function access(userId:string,athleteId:string,coached=false){const me=await clubIdentity(userId),file=await readWorkingFile();const scope=scopeForViewer(me,file);assertAthleteAccess(scope,athleteId);if(coached&&!canCoachAthlete(scope,athleteId))throw new Error('Only an assigned coach can change the plan or OP level.');return me;}
 function validateDay(day:string){if(!validDate(day))throw new Error('Invalid date.');}
-export async function publicCoaches(){const sql=await getSql();return sql<{id:string;profile:z.infer<typeof profileInput>}>`select id,profile from coach_profiles where published=true order by profile->>'name'`;}
+export async function publicCoaches(){return publicCoachProfilesFor(await getSql());}
 export async function myCoach(userId:string){const {row}=await coach(userId);const sql=await getSql();const [profile]=await sql<{profile:z.infer<typeof profileInput>}>`select profile from coach_profiles where user_id=${userId}`;const file=await readWorkingFile();return {coach:row,profile:profile?.profile,availability:file.availability.filter(a=>a.coachId===row.id)};}
 export async function saveCoach(userId:string,input:z.infer<typeof profileInput>){const {row}=await coach(userId);const sql=await getSql();await sql`insert into coach_profiles(id,user_id,profile,published) values(${row.id},${userId},${JSON.stringify(input)}::jsonb,${input.published}) on conflict(user_id) do update set profile=excluded.profile,published=excluded.published,updated_at=now()`;const file=await readWorkingFile();await writeWorkingFile({...file,coaches:file.coaches.map(c=>c.id===row.id?{...c,name:input.name,specialties:input.specialties}:c)});return {ok:true};}
 export async function saveAvailability(userId:string,input:z.infer<typeof availabilityInput>){const {row}=await coach(userId);for(const w of input.windows){const start=timeMinutes(w.start),end=timeMinutes(w.end),open=['Sat','Sun'].includes(w.weekday)?13*60:16*60;if(start<open||end>20*60||start>=end)throw new Error('Availability must fit the club’s opening hours.');}const file=await readWorkingFile();await writeWorkingFile({...file,availability:[...file.availability.filter(a=>a.coachId!==row.id),...input.windows.map((w,i)=>({id:`availability:${row.id}:${i}`,coachId:row.id,weekday:w.weekday,window:`${w.start}–${w.end}`}))]});return {ok:true};}
