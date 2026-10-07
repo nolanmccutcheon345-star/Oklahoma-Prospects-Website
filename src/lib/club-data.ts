@@ -3,6 +3,7 @@ import { authMiddleware } from "@/lib/auth/middleware";
 import { getSql } from "@/lib/db";
 import { clubIdentity } from "@/lib/identity.server";
 import { z } from "zod";
+import { readAccountProfile, readLegacySchedule } from "./account-records.server";
 
 export type ClubRole = "player" | "parent" | "coach" | "admin";
 
@@ -24,8 +25,7 @@ export const getProfile = createServerFn({ method: "GET" })
   .handler(async ({ context }) => {
     const me = await clubIdentity(context.userId);
     const sql = await getSql();
-    const [row] = await sql<Profile>`select * from profiles where user_id = ${context.userId}`;
-    return row ? { ...row, email: me.email, role: me.role } : null;
+    return readAccountProfile(sql, me);
   });
 
 export const saveProfile = createServerFn({ method: "POST" })
@@ -58,40 +58,7 @@ export const listReservations = createServerFn({ method: "GET" })
   .handler(async ({ context }) => {
     const sql = await getSql();
     const me = await clubIdentity(context.userId);
-    // Legacy reservations have no coach assignment. Only front office can see all.
-    if (me.role === "admin") {
-      return sql<{
-        id: number;
-        user_id: string;
-        kind: string;
-        title: string;
-        date: string;
-        start_time: string;
-        duration_min: number;
-        price: number;
-        status: string;
-      }>`
-        select id, user_id, kind, title, date, start_time, duration_min, price, status
-        from reservations
-        order by date desc, start_time desc
-      `;
-    }
-    return sql<{
-      id: number;
-      user_id: string;
-      kind: string;
-      title: string;
-      date: string;
-      start_time: string;
-      duration_min: number;
-      price: number;
-      status: string;
-    }>`
-      select id, user_id, kind, title, date, start_time, duration_min, price, status
-      from reservations
-      where user_id = ${context.userId}
-      order by date desc, start_time desc
-    `;
+    return readLegacySchedule(sql, me);
   });
 
 export const listPrograms = createServerFn({ method: "GET" })
