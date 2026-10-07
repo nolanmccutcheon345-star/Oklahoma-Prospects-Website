@@ -10,6 +10,7 @@ import {
 import { rateLimit } from "./checkout.server";
 import { assertPaymentRequest } from "./square-payments.server";
 import { readWorkingFile } from "../pd/desk-impl.server";
+import {assignedCoachIdFor} from "./coach-access.server";
 import type { Quote } from "./contracts";
 
 export async function familyBilling(userId: string, page = 0) {
@@ -181,7 +182,7 @@ export async function coachBookings(userId: string) {
   const me = await clubIdentity(userId);
   if (me.role !== "admin" && me.role !== "coach") throw new Error("Coach access required.");
   const file = await readWorkingFile();
-  const coachId = file.coaches.find((c) => c.email.toLowerCase() === me.email)?.id || "";
+  const coachId = assignedCoachIdFor(me,file);
   const sql = await getSql();
   return sql<{
     id: string;
@@ -200,7 +201,7 @@ export async function completeSession(userId: string, bookingId: string, notes: 
   const me = await clubIdentity(userId);
   if (me.role !== "coach" && me.role !== "admin") throw new Error("Coach access required.");
   const file = await readWorkingFile();
-  const coachId = file.coaches.find((c) => c.email.toLowerCase() === me.email)?.id || "";
+  const coachId = assignedCoachIdFor(me,file);
   const sql = await getSql();
   return sql.transaction(async (tx) => {
     const [booking] = await tx<{

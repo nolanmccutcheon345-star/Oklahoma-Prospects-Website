@@ -1,6 +1,7 @@
 import { getSql } from "../db";
 import { commerceIdentity as clubIdentity } from "./access.server";
 import { readWorkingFile } from "../pd/desk-impl.server";
+import {assignedCoachIdFor} from "./coach-access.server";
 import { BOOKABLE_LANES } from "../club";
 
 export async function setParticipants(userId: string, id: string, athleteIds: string[]) {
@@ -45,7 +46,7 @@ export async function earnings(userId: string) {
   const me = await clubIdentity(userId);
   if (me.role !== "admin" && me.role !== "coach") throw new Error("Coach access required.");
   const file = await readWorkingFile();
-  const coach = file.coaches.find((c) => c.email.trim().toLowerCase() === me.email);
+  const coachId = assignedCoachIdFor(me,file);
   const sql = await getSql();
   const rows = await sql<{
     booking_id: string;
@@ -56,7 +57,7 @@ export async function earnings(userId: string) {
     status: string;
     transfer_id: string | null;
     updated_at: Date;
-  }>`select * from contractor_earnings where coach_id=${coach?.id || ""} or ${me.role === "admin"} order by updated_at desc limit 500`;
+  }>`select * from contractor_earnings where coach_id=${coachId} or ${me.role === "admin"} order by updated_at desc limit 500`;
   return { canSettle: me.role === "admin", rows };
 }
 
