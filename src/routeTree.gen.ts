@@ -39,6 +39,7 @@ import { Route as VisitRouteImport } from './routes/visit'
 import { Route as VisitsRouteImport } from './routes/visits'
 import { Route as WaiverRouteImport } from './routes/waiver'
 import { Route as ApiSiteAlertsRouteImport } from './routes/api/site-alerts'
+import { Route as ApiTryoutNotificationsRouteImport } from './routes/api/tryout-notifications'
 import { Route as FundraisingIndexRouteImport } from './routes/fundraising.index'
 import { Route as FundraisingExampleRouteImport } from './routes/fundraising.example'
 import { Route as FundraisingMyRouteImport } from './routes/fundraising.my'
@@ -208,6 +209,11 @@ const ApiSiteAlertsRoute = ApiSiteAlertsRouteImport.update({
   path: '/api/site-alerts',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiTryoutNotificationsRoute = ApiTryoutNotificationsRouteImport.update({
+  id: '/api/tryout-notifications',
+  path: '/api/tryout-notifications',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const FundraisingIndexRoute = FundraisingIndexRouteImport.update({
   id: '/fundraising/',
   path: '/fundraising/',
@@ -330,6 +336,7 @@ export interface FileRoutesByFullPath {
   '/visits': typeof VisitsRoute
   '/waiver': typeof WaiverRoute
   '/api/site-alerts': typeof ApiSiteAlertsRoute
+  '/api/tryout-notifications': typeof ApiTryoutNotificationsRoute
   '/fundraising/example': typeof FundraisingExampleRoute
   '/fundraising/my': typeof FundraisingMyRoute
   '/fundraising/office': typeof FundraisingOfficeRoute
@@ -380,6 +387,7 @@ export interface FileRoutesByTo {
   '/visits': typeof VisitsRoute
   '/waiver': typeof WaiverRoute
   '/api/site-alerts': typeof ApiSiteAlertsRoute
+  '/api/tryout-notifications': typeof ApiTryoutNotificationsRoute
   '/fundraising/example': typeof FundraisingExampleRoute
   '/fundraising/my': typeof FundraisingMyRoute
   '/fundraising/office': typeof FundraisingOfficeRoute
@@ -431,6 +439,7 @@ export interface FileRoutesById {
   '/visits': typeof VisitsRoute
   '/waiver': typeof WaiverRoute
   '/api/site-alerts': typeof ApiSiteAlertsRoute
+  '/api/tryout-notifications': typeof ApiTryoutNotificationsRoute
   '/fundraising/example': typeof FundraisingExampleRoute
   '/fundraising/my': typeof FundraisingMyRoute
   '/fundraising/office': typeof FundraisingOfficeRoute
@@ -483,6 +492,7 @@ export interface FileRouteTypes {
     | '/visits'
     | '/waiver'
     | '/api/site-alerts'
+    | '/api/tryout-notifications'
     | '/fundraising/example'
     | '/fundraising/my'
     | '/fundraising/office'
@@ -533,6 +543,7 @@ export interface FileRouteTypes {
     | '/visits'
     | '/waiver'
     | '/api/site-alerts'
+    | '/api/tryout-notifications'
     | '/fundraising/example'
     | '/fundraising/my'
     | '/fundraising/office'
@@ -583,6 +594,7 @@ export interface FileRouteTypes {
     | '/visits'
     | '/waiver'
     | '/api/site-alerts'
+    | '/api/tryout-notifications'
     | '/fundraising/example'
     | '/fundraising/my'
     | '/fundraising/office'
@@ -634,6 +646,7 @@ export interface RootRouteChildren {
   VisitsRoute: typeof VisitsRoute
   WaiverRoute: typeof WaiverRoute
   ApiSiteAlertsRoute: typeof ApiSiteAlertsRoute
+  ApiTryoutNotificationsRoute: typeof ApiTryoutNotificationsRoute
   FundraisingExampleRoute: typeof FundraisingExampleRoute
   FundraisingMyRoute: typeof FundraisingMyRoute
   FundraisingOfficeRoute: typeof FundraisingOfficeRoute
@@ -865,6 +878,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiSiteAlertsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/tryout-notifications': {
+      id: '/api/tryout-notifications'
+      path: '/api/tryout-notifications'
+      fullPath: '/api/tryout-notifications'
+      preLoaderRoute: typeof ApiTryoutNotificationsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/fundraising/': {
       id: '/fundraising/'
       path: '/fundraising'
@@ -1038,6 +1058,7 @@ const rootRouteChildren: RootRouteChildren = {
   VisitsRoute: VisitsRoute,
   WaiverRoute: WaiverRoute,
   ApiSiteAlertsRoute: ApiSiteAlertsRoute,
+  ApiTryoutNotificationsRoute: ApiTryoutNotificationsRoute,
   FundraisingExampleRoute: FundraisingExampleRoute,
   FundraisingMyRoute: FundraisingMyRoute,
   FundraisingOfficeRoute: FundraisingOfficeRoute,

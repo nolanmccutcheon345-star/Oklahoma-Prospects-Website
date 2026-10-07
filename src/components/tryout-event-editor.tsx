@@ -74,7 +74,8 @@ export function TryoutEventEditor() {
       <h2 className="text-3xl">Tryout schedule</h2>
       <p className="mt-2 text-sm">
         Owner-managed events. Times are America/Chicago. Published events enroll matching requests
-        while capacity allows. Notifications are queued; delivery is not active yet.
+        while capacity allows. Notification status shows pending delivery, provider acceptance, or
+        owner review.
       </p>
       {error ? (
         <p role="alert" className="mt-3 text-maroon">
