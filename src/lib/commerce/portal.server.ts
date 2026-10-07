@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { getSql, type Sql } from "../db";
-import { clubIdentity } from "../identity.server";
+import { commerceIdentity as clubIdentity, assertCommerceRole } from "./access.server";
 import { ASSESSMENT_PRODUCTS } from "../pricing";
 import {
   changeRenewal,
@@ -22,6 +22,7 @@ export async function readFamilyBilling(
   me: Awaited<ReturnType<typeof clubIdentity>>,
   page = 0,
 ) {
+  assertCommerceRole(me);
   const [orders, bookings, subscriptions, invoices, credits, athletes, requests, payments] =
     await Promise.all([
       sql<{

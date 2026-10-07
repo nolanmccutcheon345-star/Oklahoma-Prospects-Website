@@ -1,5 +1,5 @@
 import { getSql } from "../db";
-import { clubIdentity } from "../identity.server";
+import { commerceIdentity as clubIdentity } from "./access.server";
 import { readWorkingFile } from "../pd/desk-impl.server";
 import { BOOKABLE_LANES } from "../club";
 

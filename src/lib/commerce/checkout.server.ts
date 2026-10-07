@@ -5,7 +5,7 @@ import { getRequest } from "@tanstack/react-start/server";
 import { getSql } from "../db";
 import { getSessionUser } from "../auth/verify.server";
 import { assertSameSiteRequest } from "../auth/isolation.server";
-import { clubIdentity } from "../identity.server";
+import { commerceIdentity as clubIdentity } from "./access.server";
 import { readWorkingFile, loadDeskForUser } from "../pd/desk-impl.server";
 import { calculateQuote, type CheckoutInput, type Product, type Quote } from "./contracts";
 import { slotsFor, validateWindow, validDate } from "../scheduling";
