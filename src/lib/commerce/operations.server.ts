@@ -102,7 +102,7 @@ export async function officeOperations(userId: string) {
       missing_waivers: number;
     }>`select b.id,b.product_id,b.starts_at,b.ends_at,b.resources,b.status,b.checked_in_at,b.participant_count,o.email as customer_email,o.total_cents,
    string_agg(a.name,', ') as participant_names,
-   count(*) filter(where a.id is null or not exists(select 1 from club_waivers w where w.athlete_id=a.id and w.signed_at+interval '1 year'>now()))::integer as missing_waivers
+   count(*) filter(where a.id is null or not exists(select 1 from club_waivers w where w.athlete_id=a.id and w.signed_at<=now() and w.signed_at+interval '1 year'>now()))::integer as missing_waivers
    from booking_records b left join commerce_orders o on o.id=b.order_id left join booking_participants p on p.booking_id=b.id left join club_athletes a on a.id=p.athlete_id
    where b.starts_at>now()-interval '1 day' and b.starts_at<now()+interval '14 days' and b.status='confirmed' group by b.id,o.id order by b.starts_at limit 200`,
     sql<{
