@@ -11,14 +11,14 @@ const publicProfile = z.object({
   achievements: z.string().trim().max(2000),
   welcome: z.string().trim().max(1000),
 });
-export async function publicCoachProfilesFor(sql: Sql) {
+export async function publicCoachProfilesFor(sql: Sql, activeCoachIds: string[]) {
   const rows = await sql<{ id: string; profile: unknown }>`
     select id,jsonb_build_object(
       'name',profile->'name', 'specialties',profile->'specialties',
       'career',profile->'career', 'approach',profile->'approach',
       'ages',profile->'ages', 'achievements',profile->'achievements',
       'welcome',profile->'welcome'
-    ) as profile from coach_profiles where published=true order by profile->>'name',id`;
+    ) as profile from coach_profiles where published=true and id=any(${activeCoachIds}::text[]) order by profile->>'name',id`;
   return rows.flatMap(({ id, profile }) => {
     const result = publicProfile.safeParse(profile);
     return result.success ? [{ id, profile: result.data }] : [];
