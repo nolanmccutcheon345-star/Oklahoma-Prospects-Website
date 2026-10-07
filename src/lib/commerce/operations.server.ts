@@ -165,11 +165,11 @@ export async function saveServiceResources(userId: string, serviceId: string, la
 
 export async function lessonResources(serviceId: string, sql: Awaited<ReturnType<typeof getSql>>) {
   const [row] = await sql<{
-    lane_ids: string[];
+    lane_ids: unknown;
   }>`select lane_ids from service_resources where service_id=${serviceId}`;
-  if (!row?.lane_ids.length)
+  if (!Array.isArray(row?.lane_ids) || !row.lane_ids.length || row.lane_ids.some((id) => typeof id !== "string" || !BOOKABLE_LANES.some((lane) => lane.id === id)))
     throw new Error(
       "This lesson is unavailable until a facility space is assigned. Choose another available service.",
     );
-  return row.lane_ids.map((id) => "lane:" + id);
+  return [...new Set(row.lane_ids as string[])].map((id) => "lane:" + id);
 }
