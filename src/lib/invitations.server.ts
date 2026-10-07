@@ -34,11 +34,15 @@ export async function acceptInvitation(userId:string,id:string) {
    const grants=await tx`select email from owner_grants where email=${me.email} and revoked_at is null and (user_id is null or user_id=${userId})`;
    if(!grants.length)throw new Error('This account has no approved owner grant.');
   }
+  if(invite.role==='coach') {
+   const staff=await tx`select id from club_staff where lower(trim(email))=${me.email} and active and role in ('coach','admin') and (user_id='' or user_id=${userId}) for update`;
+   if(!staff.length)throw new Error('An active staff assignment is required to accept this coach invitation. Contact the club owner.');
+  }
   // A guardian invitation adds household access without demoting a coach or owner.
   const role=invite.family_id&&invite.role==='parent'?me.role:invite.role;
   await tx`insert into profiles(user_id,name,email,role,family_id) values(${userId},${me.name},${me.email},${role},${invite.family_id||me.familyId}) on conflict(user_id) do update set role=excluded.role`;
   if(invite.family_id)await tx`insert into household_members(household_id,user_id) values(${invite.family_id},${userId}) on conflict do nothing`;
-  if(role==='coach')await tx`update club_staff set user_id=${userId} where lower(email)=${me.email}`;
+  if(role==='coach')await tx`update club_staff set user_id=${userId} where lower(trim(email))=${me.email} and active and role in ('coach','admin') and (user_id='' or user_id=${userId})`;
   await tx`update club_invites set status='accepted',accepted_by=${userId} where id=${id}`;
   return {ok:true};
  });
