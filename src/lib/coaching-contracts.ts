@@ -8,7 +8,10 @@ const availabilityWindow=z.object({weekday:z.enum(['Mon','Tue','Wed','Thu','Fri'
   const start=minutes(w.start),end=minutes(w.end),open=['Sat','Sun'].includes(w.weekday)?13*60:16*60;
   return start>=open&&end<=20*60&&start<end;
 },{message:'Availability must fit the club’s opening hours.',path:['start']});
-export const availabilityInput=z.object({windows:z.array(availabilityWindow).max(28)}).strict();
+export const availabilityInput=z.object({windows:z.array(availabilityWindow).max(28)}).strict().refine(({windows}) =>
+  windows.every((window,index) => !windows.slice(index+1).some(other =>
+    window.weekday===other.weekday && window.start<other.end && other.start<window.end)),
+  {message:'Availability windows on the same day cannot overlap.',path:['windows']});
 const athleteId=z.string().min(1).max(150),day=z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
 export const trackInput=z.object({athleteId,track:z.enum(TRACKS),level:z.number().int().min(1).max(7),evidence:z.string().trim().min(10).max(5000)}).strict();
 export const metricInput=z.object({id:z.string().uuid(),athleteId,track:z.enum(TRACKS),day,successes:z.number().int().min(0).max(10000),attempts:z.number().int().min(1).max(10000),notes:z.string().trim().min(3).max(2000)}).strict().refine(v=>v.successes<=v.attempts);
