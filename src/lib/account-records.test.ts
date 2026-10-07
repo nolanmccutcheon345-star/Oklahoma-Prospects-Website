@@ -3,10 +3,12 @@ import assert from "node:assert/strict";
 import { readFile, readdir } from "node:fs/promises";
 import { PGlite } from "@electric-sql/pglite";
 import type { Sql } from "./db";
+import { athleteForPlayer } from "./pd/access";
+import { emptyDevelopment } from "./pd/empty";
 import { resolveIdentity } from "./identity.server";
-import { readAccountProfile, readLegacySchedule } from "./account-records.server";
+import { readAccountProfile, readLegacySchedule, saveAccountProfile } from "./account-records.server";
 
-test("account readers preserve player schedule while excluding money and unlisted profile columns", async () => {
+test("account readers redact player money and player saves cannot switch household athletes", async () => {
   const db = new PGlite();
   const wrap = (query: PGlite["query"]): Sql => {
     const sql = (async (parts: TemplateStringsArray, ...values: unknown[]) =>
@@ -63,6 +65,36 @@ test("account readers preserve player schedule while excluding money and unliste
         assert.equal(schedule[0].price, 104);
       }
     }
+    const playerBefore = await resolveIdentity(sql, 'player');
+    const training = emptyDevelopment();
+    training.families = [{id:'linked-family',name:'Family',parentName:'Parent',email:playerBefore.email,phone:'',athleteIds:['self','sibling'],plan:{type:'none',lessonCredits:0}}];
+    training.athletes = [
+      {id:'self',familyId:'linked-family',firstName:'Synthetic',lastName:'Athlete'},
+      {id:'sibling',familyId:'linked-family',firstName:'Other',lastName:'Athlete'},
+    ] as typeof training.athletes;
+    assert.equal(athleteForPlayer(playerBefore, training)?.id, 'self');
+    const save = await saveAccountProfile(sql, playerBefore, {name:'Updated Player',role:'admin',playerName:'Other Athlete'});
+    assert.equal(save.role, 'player');
+    const playerAfter = await resolveIdentity(sql, 'player');
+    assert.equal(playerAfter.name, 'Updated Player');
+    assert.equal(playerAfter.role, 'player');
+    assert.equal(playerAfter.playerName, 'Synthetic Athlete');
+    assert.equal(athleteForPlayer(playerAfter, training)?.id, 'self');
+    const afterSave = await readAccountProfile(sql, playerAfter);
+    assert.equal(afterSave?.email, 'player@example.invalid');
+    const [unchanged] = await sql.query<{family_id:string;lesson_credits:number;plan_price:number}>("select family_id,lesson_credits,plan_price from profiles where user_id='player'");
+    assert.equal(unchanged.lesson_credits, 17);
+    assert.equal(unchanged.plan_price, 247);
+    await assert.rejects(()=>saveAccountProfile(sql,{...playerAfter,userId:'missing-player'},{name:'Missing',role:'parent',playerName:'Other Athlete'}),/linked by the club/);
+    assert.equal(await readAccountProfile(sql,{...playerAfter,userId:'missing-player'}), null);
+    const parentViewer = await resolveIdentity(sql, 'parent');
+    await saveAccountProfile(sql, parentViewer, {name:'Updated Parent',role:'admin',playerName:'Other Athlete'});
+    const parentAfter = await resolveIdentity(sql, 'parent');
+    assert.equal(parentAfter.role, 'parent');
+    assert.equal(parentAfter.playerName, 'Other Athlete');
+    assert.equal(parentAfter.familyId, parentViewer.familyId);
+    const [storedRole] = await sql.query<{role:string}>("select role from profiles where user_id='parent'");
+    assert.equal(storedRole.role, 'parent');
     const admin = {userId:'owner',email:'owner@example.invalid',role:'admin' as const};
     assert.equal((await readLegacySchedule(sql, admin)).length, 3);
     assert.equal(await readAccountProfile(sql, admin), null);

@@ -3,7 +3,7 @@ import { authMiddleware } from "@/lib/auth/middleware";
 import { getSql } from "@/lib/db";
 import { clubIdentity } from "@/lib/identity.server";
 import { z } from "zod";
-import { readAccountProfile, readLegacySchedule } from "./account-records.server";
+import { readAccountProfile, readLegacySchedule, saveAccountProfile } from "./account-records.server";
 
 export type ClubRole = "player" | "parent" | "coach" | "admin";
 
@@ -36,12 +36,7 @@ export const saveProfile = createServerFn({ method: "POST" })
   .handler(async ({ context, data }) => {
     const me = await clubIdentity(context.userId);
     const sql = await getSql();
-    // Self-service never changes role, household ownership, email or financial fields.
-    const role = me.role === "parent" && data.role === "player" ? "player" : me.role;
-    await sql`insert into profiles (user_id, name, email, role, player_name, family_id)
-      values (${me.userId}, ${data.name}, ${me.email}, ${role}, ${data.playerName}, ${me.familyId})
-      on conflict (user_id) do update set name = excluded.name, player_name = excluded.player_name`;
-    return { ok: true, role };
+    return saveAccountProfile(sql, me, data);
   });
 
 /** Retired browser mutation: completion belongs to the assigned coach. */

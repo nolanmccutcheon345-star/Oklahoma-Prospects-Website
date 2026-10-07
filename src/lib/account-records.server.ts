@@ -3,6 +3,26 @@ import type { Profile } from "./club-data";
 
 type AccountViewer = { userId: string; email: string; role: Profile["role"] };
 
+/** The player_name field currently selects a household athlete; players cannot relink it. */
+export async function saveAccountProfile(
+  sql: Sql,
+  viewer: AccountViewer & { familyId: string },
+  input: { name: string; role: Profile["role"]; playerName: string },
+) {
+  if (viewer.role === "player") {
+    const rows = await sql`update profiles set name = ${input.name}
+      where user_id = ${viewer.userId} returning user_id`;
+    if (!rows.length) throw new Error("Your player profile must be linked by the club before editing it.");
+    return { ok: true, role: viewer.role };
+  }
+  // Preserve the existing initial player/parent setup, without allowing role escalation.
+  const role = viewer.role === "parent" && input.role === "player" ? "player" : viewer.role;
+  await sql`insert into profiles (user_id, name, email, role, player_name, family_id)
+    values (${viewer.userId}, ${input.name}, ${viewer.email}, ${role}, ${input.playerName}, ${viewer.familyId})
+    on conflict (user_id) do update set name = excluded.name, player_name = excluded.player_name`;
+  return { ok: true, role };
+}
+
 /** Project only account fields the workspace uses; never serialize the whole row. */
 export async function readAccountProfile(sql: Sql, viewer: AccountViewer): Promise<Profile | null> {
   const player = viewer.role === "player";
