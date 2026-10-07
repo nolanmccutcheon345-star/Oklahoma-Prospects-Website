@@ -13,3 +13,11 @@ test('coach picker accepts valid recurring windows and rejects unusable schedule
   for(const [day,window] of [['Mon','10:00–12:00'],['Sat','12:00–13:00'],['Tue','19:45–20:00'],['Tue','20:00–21:00'],['Tue','18:00–17:00'],['Unknown','16:00–20:00'],['Tue','invalid']])
     assert.equal(coachHasBookingWindow(schedule(day,window),'coach'),false,`${day} ${window}`);
 });
+
+test('coach windows must fit the actual offered duration',()=>{
+  const rows=schedule('Tue','18:00–19:00');
+  assert.equal(coachHasBookingWindow(rows,'coach',30),true);
+  assert.equal(coachHasBookingWindow(rows,'coach',60),true);
+  assert.equal(coachHasBookingWindow(rows,'coach',75),false);
+  for(const minutes of [0,-1,NaN,Infinity,30.5,181]) assert.equal(coachHasBookingWindow(rows,'coach',minutes),false);
+});

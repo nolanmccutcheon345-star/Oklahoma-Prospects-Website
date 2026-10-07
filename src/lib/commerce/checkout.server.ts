@@ -47,13 +47,14 @@ export async function checkoutContext(verifiedUserId?: string) {
   ]);
   const done = new Set(assessments.map((a) => a.athlete_id));
   // Parent-scoped desk data omits staff schedules; use the full file only on the server.
+  const publicProducts = approvedProducts(products);
   const bookingFile = session ? await readWorkingFile() : file;
-  const coaches = await coachesWithAvailability(sql, bookingFile.coaches, bookingFile.availability);
+  const coaches = await coachesWithAvailability(sql, bookingFile.coaches, bookingFile.availability, publicProducts);
   // Guest callers receive only coach names/specialties and the public catalog.
   return {
     mode: paymentMode(),
     square: squarePublicConfig(),
-    products: approvedProducts(products),
+    products: publicProducts,
     athletes: session
       ? file.athletes.map((a) => ({
           id: a.id,
