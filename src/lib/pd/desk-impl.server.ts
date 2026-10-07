@@ -1,3 +1,4 @@
+import { publicPdViewer } from "./viewer";
 import { getSql, type Sql } from "@/lib/db";
 import { clubIdentity } from "@/lib/identity.server";
 import {
@@ -115,7 +116,7 @@ export async function loadDeskForUser(userId: string) {
   const viewer = await viewerFromUserId(userId);
   const full = await provisionViewer(viewer, await readWorkingFile());
   const { data } = scopedDesk(viewer, full);
-  return { viewer, data };
+  return { viewer: publicPdViewer(viewer), data };
 }
 
 export async function loadAthleteForUser(userId: string, athleteId: string) {
@@ -125,7 +126,7 @@ export async function loadAthleteForUser(userId: string, athleteId: string) {
   assertAthleteAccess(scope, athleteId);
   const athlete = data.athletes.find((row) => row.id === athleteId);
   if (!athlete) throw new Error("Forbidden");
-  return { viewer, athleteId, ok: true as const };
+  return { viewer: publicPdViewer(viewer), athleteId, ok: true as const };
 }
 
 export async function writeMessageForUser(
