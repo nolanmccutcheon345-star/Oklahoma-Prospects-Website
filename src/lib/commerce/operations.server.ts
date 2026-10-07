@@ -155,8 +155,12 @@ export async function saveServiceResources(userId: string, serviceId: string, la
   if (!laneIds.length || laneIds.some((id) => !BOOKABLE_LANES.some((l) => l.id === id)))
     throw new Error("Choose the physical space this lesson needs.");
   const sql = await getSql();
-  await sql`insert into service_resources(service_id,lane_ids) values(${serviceId},${JSON.stringify([...new Set(laneIds)])}::jsonb) on conflict(service_id) do update set lane_ids=excluded.lane_ids`;
-  return { ok: true };
+  return sql.transaction(async (tx) => {
+    const [service] = await tx`select id from club_services where id=${serviceId} and kind='lesson' and active for update`;
+    if (!service) throw new Error("Choose an active lesson to assign its facility space.");
+    await tx`insert into service_resources(service_id,lane_ids) values(${serviceId},${JSON.stringify([...new Set(laneIds)])}::jsonb) on conflict(service_id) do update set lane_ids=excluded.lane_ids`;
+    return { ok: true };
+  });
 }
 
 export async function lessonResources(serviceId: string, sql: Awaited<ReturnType<typeof getSql>>) {
