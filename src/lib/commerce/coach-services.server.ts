@@ -2,6 +2,7 @@ import type { Product } from "./contracts";
 import type { Sql } from "../db";
 import type { Availability, Coach } from "../pd/types";
 import { coachHasBookingWindow } from "./availability";
+import {newCoachId} from "../coach-id.server";
 
 /** Picker eligibility combines admin service assignments with usable recurring availability. */
 export async function coachesWithAvailability(sql: Sql, roster: Coach[], availability: Availability[], services: Pick<Product, "id" | "minutes" | "discipline">[]) {
@@ -34,7 +35,7 @@ export async function bookableCoaches(sql: Sql, roster: Coach[]) {
     const email = row.email.trim().toLowerCase();
     const coach = roster.find((c) => c.email.trim().toLowerCase() === email);
     // Same identifier as first-sign-in provisioning; existing schedule IDs stay intact.
-    const id = coach?.id || `c-${email.replace(/[^a-z0-9]/g, "").slice(0, 18) || "staff"}`;
+    const id = coach?.id || newCoachId(email);
     if (coach?.active === false || seen.has(id)) return [];
     seen.add(id);
     return [{ id, name: row.name, serviceIds: row.service_ids, specialties: row.specialties }];

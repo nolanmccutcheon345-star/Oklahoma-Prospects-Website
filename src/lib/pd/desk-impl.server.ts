@@ -15,6 +15,7 @@ import type { DevelopmentData, Family, Message } from "./types";
 
 import { withCommerceRecords } from "../commerce/development.server";
 import { currentCatalogPrice } from "../pricing";
+import {newCoachId} from "../coach-id.server";
 
 const FILE_ID = "club";
 
@@ -66,7 +67,7 @@ async function provisionViewer(viewer: PdViewer, full: DevelopmentData): Promise
         coaches: [
           ...full.coaches,
           {
-            id: `c-${email.replace(/[^a-z0-9]/g, "").slice(0, 18) || "admin"}`,
+            id: newCoachId(email),
             name: viewer.name || "Admin",
             email,
             specialties: [] as string[],
@@ -87,7 +88,7 @@ async function provisionViewer(viewer: PdViewer, full: DevelopmentData): Promise
       coaches: [
         ...full.coaches,
         {
-          id: `c-${email.replace(/[^a-z0-9]/g, "").slice(0, 18) || "staff"}`,
+          id: newCoachId(email),
           name: viewer.name || "Coach",
           email,
           specialties: [] as string[],
