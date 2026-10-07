@@ -7,7 +7,7 @@ import {scopeForViewer,assertAthleteAccess,canCoachAthlete} from './pd/access';
 import {validDate,chicagoDate,timeMinutes} from './scheduling';
 import {profileInput} from './coaching-contracts';
 import type {availabilityInput,trackInput,metricInput,dayInput,logInput} from './coaching-contracts';
-async function coach(userId:string){const me=await clubIdentity(userId);if(!['admin','coach'].includes(me.role))throw new Error('Coach access required.');const {data}=await loadDeskForUser(userId);const row=data.coaches.find(c=>c.email.toLowerCase()===me.email);if(!row)throw new Error('Coach profile is not assigned.');return {me,row};}
+async function coach(userId:string){const me=await clubIdentity(userId);if(!['admin','coach'].includes(me.role))throw new Error('Coach access required.');const {data}=await loadDeskForUser(userId);const row=data.coaches.find(c=>c.email.toLowerCase()===me.email);if(!row)throw new Error('Coach profile is not assigned.');if(me.role==='coach'&&row.active===false)throw new Error('Coach access is inactive. Contact the club administrator.');return {me,row};}
 async function access(userId:string,athleteId:string,coached=false){const me=await clubIdentity(userId),file=await readWorkingFile();const scope=scopeForViewer(me,file);assertAthleteAccess(scope,athleteId);if(coached&&!canCoachAthlete(scope,athleteId))throw new Error('Only an assigned coach can change the plan or OP level.');return me;}
 function validateDay(day:string){if(!validDate(day))throw new Error('Invalid date.');}
 export async function publicCoaches(){return publicCoachProfilesFor(await getSql());}
