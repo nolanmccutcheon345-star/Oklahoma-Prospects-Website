@@ -1,3 +1,4 @@
+import {z} from "zod";
 import { randomUUID } from "node:crypto";
 import { getSql, type Sql } from "../db";
 import { commerceIdentity as clubIdentity, assertCommerceRole } from "./access.server";
@@ -197,7 +198,9 @@ export async function coachBookings(userId: string) {
     from booking_records b join club_athletes a on a.id = b.athlete_id
     where (b.coach_id = ${coachId} or ${me.role === "admin"}) and b.status in ('confirmed','completed') order by b.starts_at desc limit 200`;
 }
+export const sessionCompletionInput=z.object({id:z.string().trim().min(1).max(150),notes:z.string().trim().min(5).max(5000)}).strict();
 export async function completeSession(userId: string, bookingId: string, notes: string) {
+  const input=sessionCompletionInput.parse({id:bookingId,notes});bookingId=input.id;notes=input.notes;
   const me = await clubIdentity(userId);
   if (me.role !== "coach" && me.role !== "admin") throw new Error("Coach access required.");
   const file = await readWorkingFile();
