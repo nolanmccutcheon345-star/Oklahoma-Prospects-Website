@@ -4,6 +4,7 @@ import { getSql } from "@/lib/db";
 import { clubIdentity } from "@/lib/identity.server";
 import { z } from "zod";
 import { readAccountProfile, readLegacySchedule, saveAccountProfile } from "./account-records.server";
+import { createLegacyProgram, addLegacyDrill, legacyProgramInput, legacyDrillInput } from "./legacy-training.server";
 
 export type ClubRole = "player" | "parent" | "coach" | "admin";
 
@@ -75,15 +76,10 @@ export const listPrograms = createServerFn({ method: "GET" })
 
 export const createProgram = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
-  .validator((input: { athlete: string; focus: string }) => input)
+  .validator(legacyProgramInput)
   .handler(async ({ context, data }) => {
     const sql = await getSql();
-    const rows = await sql<{ id: number }>`
-      insert into programs (user_id, athlete, focus)
-      values (${context.userId}, ${data.athlete}, ${data.focus})
-      returning id
-    `;
-    return { id: rows[0].id };
+    return createLegacyProgram(sql, await clubIdentity(context.userId), data);
   });
 
 export const listDrills = createServerFn({ method: "GET" })
@@ -106,16 +102,10 @@ export const listDrills = createServerFn({ method: "GET" })
 
 export const addDrill = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
-  .validator(
-    (input: { programId: number; name: string; detail: string }) => input,
-  )
+  .validator(legacyDrillInput)
   .handler(async ({ context, data }) => {
     const sql = await getSql();
-    await sql`
-      insert into drills (program_id, user_id, name, detail)
-      values (${data.programId}, ${context.userId}, ${data.name}, ${data.detail})
-    `;
-    return { ok: true };
+    return addLegacyDrill(sql, await clubIdentity(context.userId), data);
   });
 
 export const toggleDrill = createServerFn({ method: "POST" })
