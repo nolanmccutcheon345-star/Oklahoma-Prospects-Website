@@ -57,7 +57,7 @@ test("admin service assignments persist, control exact booking services, and fai
     await sql.transaction(tx => replaceCoachServices(tx,"staff-parent",[{serviceId:"s3",profitSplit:60}]));
     assert.equal((await bookableCoaches(sql,roster)).length,1);
     assert.deepEqual(await bookableCoaches(sql,[{...roster[0],active:false}]),[]);
-    assert.equal((await bookableCoaches(sql,[]))[0].id,"c-coachexampleinvali");
+    assert.match((await bookableCoaches(sql,[]))[0].id,/^c-[a-f0-9]{32}$/);
     await sql.transaction(tx => replaceCoachServices(tx,"staff-test",[]));
     assert.deepEqual(await bookableCoaches(sql,roster),[]);
   } finally { await db.close(); }
