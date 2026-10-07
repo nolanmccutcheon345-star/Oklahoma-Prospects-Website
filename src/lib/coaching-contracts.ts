@@ -1,6 +1,6 @@
 import {z} from 'zod';
 export const TRACKS=['Pitching','Hitting','Fielding','Catching','Softball'] as const;
-export const profileInput=z.object({name:z.string().trim().min(1).max(120),specialties:z.array(z.string().max(60)).max(8),career:z.string().trim().max(3000),approach:z.string().trim().max(2000),ages:z.string().trim().max(500),achievements:z.string().trim().max(2000),welcome:z.string().trim().max(1000),published:z.boolean()}).strict();
+export const profileInput=z.object({name:z.string().trim().min(1).max(120),specialties:z.array(z.string().max(60)).max(8),career:z.string().trim().max(3000),approach:z.string().trim().max(2000),ages:z.string().trim().max(500),achievements:z.string().trim().max(2000),welcome:z.string().trim().max(1000),published:z.boolean()}).strict().refine(profile => !profile.published || profile.career.length > 0, {message:"Add a short bio in Career & background before publishing.",path:["career"]});
 export const availabilityInput=z.object({windows:z.array(z.object({weekday:z.enum(['Mon','Tue','Wed','Thu','Fri','Sat','Sun']),start:z.string().regex(/^\d{2}:\d{2}$/),end:z.string().regex(/^\d{2}:\d{2}$/)}).strict()).max(28)}).strict();
 const athleteId=z.string().min(1).max(150),day=z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
 export const trackInput=z.object({athleteId,track:z.enum(TRACKS),level:z.number().int().min(1).max(7),evidence:z.string().trim().min(10).max(5000)}).strict();

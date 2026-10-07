@@ -5,7 +5,7 @@ import type { Sql } from "./db";
 const publicProfile = z.object({
   name: z.string().trim().min(1).max(120),
   specialties: z.array(z.string().max(60)).max(8),
-  career: z.string().trim().max(3000),
+  career: z.string().trim().min(1).max(3000),
   approach: z.string().trim().max(2000),
   ages: z.string().trim().max(500),
   achievements: z.string().trim().max(2000),
