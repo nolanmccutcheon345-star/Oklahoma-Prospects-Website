@@ -1,5 +1,11 @@
 import type { Sql } from "../db";
-import type { Coach } from "../pd/types";
+import type { Availability, Coach } from "../pd/types";
+import { coachHasBookingWindow } from "./availability";
+
+/** Picker eligibility combines admin service assignments with usable recurring availability. */
+export async function coachesWithAvailability(sql: Sql, roster: Coach[], availability: Availability[]) {
+  return (await bookableCoaches(sql, roster)).filter(coach => coachHasBookingWindow(availability, coach.id));
+}
 
 /** Public booking choices come from admin assignments, never editable coach bios. */
 export async function bookableCoaches(sql: Sql, roster: Coach[]) {
