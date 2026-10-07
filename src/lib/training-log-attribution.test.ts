@@ -68,6 +68,14 @@ test('training log edits validate assigned drills and retain the latest writer i
       await setTrainingDay('coach',plan);
       await logTraining('coach',{...log,reps:15});
       assert.equal((await sql<{reps:number}>`select reps from athlete_training_logs`)[0].reps,15);
+      const {chicagoDate}=await import('./scheduling');
+      const future={...plan,day:'2099-01-01'};
+      await setTrainingDay('coach',future);
+      await assert.rejects(()=>logTraining('parent',{...log,day:future.day}),/cannot be dated in the future/);
+      const today={...plan,day:chicagoDate()};
+      await setTrainingDay('coach',today);
+      await logTraining('parent',{...log,day:today.day});
+      assert.equal((await sql`select day from athlete_training_logs`).length,2);
     } finally {
       state.__pgSqlPromise__=oldSql;
       if(oldUrl===undefined)delete process.env.DATABASE_URL;else process.env.DATABASE_URL=oldUrl;
