@@ -229,6 +229,9 @@ export function filterDevelopmentData(data: DevelopmentData, scope: PdScope): De
   return {
     ...data,
     athletes,
+    coaches: staff ? data.coaches : data.coaches.map(({id,name,email,specialties,active}) => ({
+      id, name, email: scope.coachId === id ? email : "", specialties, active,
+    })),
     families: player ? playerFamilies : families,
     services: player
       ? data.services.map(({ id, name, kind, minutes }) => ({ id, name, kind, minutes, price: 0 }))

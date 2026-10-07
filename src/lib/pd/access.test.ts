@@ -12,6 +12,24 @@ import { seedDevelopment } from "./seed";
 
 const data = seedDevelopment();
 
+test("training coach directory omits private contacts except the coach's own record", () => {
+  const full = seedDevelopment();
+  Object.assign(full.coaches[0], { privateContactToken: "private-directory-token" });
+  for (const role of ["parent", "player"] as const) {
+    const filtered = filterDevelopmentData(full, scopeForViewer(viewer({role,email:"marisol.navarro@example.com"}), full));
+    assert.ok(filtered.coaches.every(c => c.email === ""));
+    assert.doesNotMatch(JSON.stringify(filtered.coaches), /private-directory-token/);
+    assert.deepEqual(filtered.coaches.map(c => c.name), full.coaches.map(c => c.name));
+  }
+  const own = full.coaches[0];
+  const filtered = filterDevelopmentData(full, scopeForViewer(viewer({role:"coach",email:own.email}), full));
+  assert.equal(filtered.coaches.find(c=>c.id===own.id)?.email, own.email);
+  assert.ok(filtered.coaches.filter(c=>c.id!==own.id).every(c=>c.email===""));
+  assert.doesNotMatch(JSON.stringify(filtered.coaches), /private-directory-token/);
+  const admin = filterDevelopmentData(full, scopeForViewer(viewer({role:"admin",email:"owner@example.invalid"}), full));
+  assert.deepEqual(admin.coaches, full.coaches);
+});
+
 function viewer(partial: Partial<PdViewer> & Pick<PdViewer, "role" | "email">): PdViewer {
   return { name: "", playerName: "", ...partial };
 }
