@@ -35,7 +35,7 @@ export async function acceptInvitation(userId:string,id:string) {
    if(!grants.length)throw new Error('This account has no approved owner grant.');
   }
   // A guardian invitation adds household access without demoting a coach or owner.
-  const role=invite.family_id?me.role:invite.role;
+  const role=invite.family_id&&invite.role==='parent'?me.role:invite.role;
   await tx`insert into profiles(user_id,name,email,role,family_id) values(${userId},${me.name},${me.email},${role},${invite.family_id||me.familyId}) on conflict(user_id) do update set role=excluded.role`;
   if(invite.family_id)await tx`insert into household_members(household_id,user_id) values(${invite.family_id},${userId}) on conflict do nothing`;
   if(role==='coach')await tx`update club_staff set user_id=${userId} where lower(email)=${me.email}`;
