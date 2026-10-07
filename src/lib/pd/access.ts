@@ -218,12 +218,12 @@ export function filterDevelopmentData(data: DevelopmentData, scope: PdScope): De
   const playerFamilies = families.map((row) => ({
     id: row.id,
     name: row.name,
-    parentName: row.parentName,
-    email: row.email,
-    phone: row.phone,
+    parentName: "",
+    email: scope.viewerEmail || "",
+    phone: "",
     athleteIds: row.athleteIds.filter((id) => keepId(scope, id)),
     leaderboardOptOut: row.leaderboardOptOut,
-    plan: row.plan ? { type: row.plan.type, tier: row.plan.tier, lessonCredits: 0 } : undefined,
+    plan: row.plan ? { type: "none" as const, lessonCredits: 0 } : undefined,
   }));
 
   return {

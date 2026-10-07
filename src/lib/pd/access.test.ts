@@ -174,7 +174,7 @@ test("player training payload keeps own schedule and programs without household 
   assert.equal(appointment.payout, undefined);
   assert.equal(appointment.rescheduledMonth, undefined);
   assert.equal(filtered.families[0].plan?.lessonCredits, 0);
-  assert.equal(filtered.families[0].plan?.type, "performance");
+  assert.equal(filtered.families[0].plan?.type, "none");
   assert.equal(filtered.families[0].plan?.lessons, undefined);
   assert.deepEqual(filtered.families[0].athleteIds, [self.id]);
   assert.equal(filtered.packages.length, 0);
@@ -200,4 +200,23 @@ test("player training payload keeps own schedule and programs without household 
   assert.equal(parent.families.find((row) => row.id === family.id)?.plan?.lessonCredits, 987);
   assert.equal(parent.bookings.find((row) => row.id === "private-appointment")?.price, 54321);
   assert.equal(full.bookings.at(-1)?.price, 54321);
+});
+
+test("linked player family projection omits guardian contacts while retaining client self lookup", () => {
+  const full = seedDevelopment();
+  const self = full.athletes.find(a=>a.id==="a-down")!;
+  const home = full.families.find(f=>f.id===self.familyId)!;
+  home.phone = "private-parent-phone";
+  home.parentName = "private-parent-name";
+  home.plan = {type:"performance", tier:"private-plan-tier", lessonCredits:99};
+  const me = viewer({role:"player",email:"player@example.invalid", householdEmails:[home.email],playerName:`${self.firstName} ${self.lastName}`});
+  const scoped = filterDevelopmentData(full, scopeForViewer(me, full));
+  const projected = scoped.families[0];
+  assert.equal(projected.email, me.email);
+  assert.equal(projected.parentName, "");
+  assert.equal(projected.phone, "");
+  assert.equal(projected.plan?.tier, undefined);
+  assert.equal(canAccessAthlete(scopeForViewer(me, scoped), self.id), true);
+  assert.doesNotMatch(JSON.stringify(projected), /private-parent|private-plan-tier/);
+  assert.equal(home.phone, "private-parent-phone");
 });
