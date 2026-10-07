@@ -4,6 +4,16 @@ import { availabilityInput } from "./coaching-contracts";
 import { saveAvailability } from "./coaching.server";
 import { coachAvailable } from "./commerce/availability";
 import type { Availability } from "./pd/types";
+test('availability rejects same-day duplicate and overlapping intervals but allows adjacency',async()=>{
+ const first={weekday:'Mon' as const,start:'16:00',end:'18:00'};
+ for(const second of [first,{...first,start:'17:00',end:'19:00'},{...first,start:'16:30',end:'17:00'}]){
+  const input={windows:[first,second]};
+  assert.equal(availabilityInput.safeParse(input).success,false);
+  await assert.rejects(()=>saveAvailability('no-account',input),/cannot overlap/);
+ }
+ assert.equal(availabilityInput.safeParse({windows:[first,{...first,start:'18:00',end:'20:00'}]}).success,true);
+ assert.equal(availabilityInput.safeParse({windows:[first,{...first,weekday:'Tue'}]}).success,true);
+});
 test('availability input uses real clocks and club hours before any coach lookup',async()=>{
  const window={weekday:'Mon' as const,start:'16:00',end:'20:00'};
  assert.ok(availabilityInput.safeParse({windows:[window]}).success);
