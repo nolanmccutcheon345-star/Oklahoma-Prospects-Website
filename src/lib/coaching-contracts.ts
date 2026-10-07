@@ -1,7 +1,14 @@
 import {z} from 'zod';
 export const TRACKS=['Pitching','Hitting','Fielding','Catching','Softball'] as const;
 export const profileInput=z.object({name:z.string().trim().min(1).max(120),specialties:z.array(z.string().max(60)).max(8),career:z.string().trim().max(3000),approach:z.string().trim().max(2000),ages:z.string().trim().max(500),achievements:z.string().trim().max(2000),welcome:z.string().trim().max(1000),published:z.boolean()}).strict().refine(profile => !profile.published || profile.career.length > 0, {message:"Add a short bio in Career & background before publishing.",path:["career"]});
-export const availabilityInput=z.object({windows:z.array(z.object({weekday:z.enum(['Mon','Tue','Wed','Thu','Fri','Sat','Sun']),start:z.string().regex(/^\d{2}:\d{2}$/),end:z.string().regex(/^\d{2}:\d{2}$/)}).strict()).max(28)}).strict();
+const availabilityClock=z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/);
+const availabilityWindow=z.object({weekday:z.enum(['Mon','Tue','Wed','Thu','Fri','Sat','Sun']),start:availabilityClock,end:availabilityClock}).strict().refine(w=>{
+  if(!/^([01]\d|2[0-3]):[0-5]\d$/.test(w.start)||!/^([01]\d|2[0-3]):[0-5]\d$/.test(w.end))return true;
+  const minutes=(clock:string)=>Number(clock.slice(0,2))*60+Number(clock.slice(3));
+  const start=minutes(w.start),end=minutes(w.end),open=['Sat','Sun'].includes(w.weekday)?13*60:16*60;
+  return start>=open&&end<=20*60&&start<end;
+},{message:'Availability must fit the club’s opening hours.',path:['start']});
+export const availabilityInput=z.object({windows:z.array(availabilityWindow).max(28)}).strict();
 const athleteId=z.string().min(1).max(150),day=z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
 export const trackInput=z.object({athleteId,track:z.enum(TRACKS),level:z.number().int().min(1).max(7),evidence:z.string().trim().min(10).max(5000)}).strict();
 export const metricInput=z.object({id:z.string().uuid(),athleteId,track:z.enum(TRACKS),day,successes:z.number().int().min(0).max(10000),attempts:z.number().int().min(1).max(10000),notes:z.string().trim().min(3).max(2000)}).strict().refine(v=>v.successes<=v.attempts);
