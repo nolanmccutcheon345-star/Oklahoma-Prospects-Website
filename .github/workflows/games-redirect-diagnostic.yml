@@ -1,0 +1,39 @@
+name: Read-only Games redirect diagnostic
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'src/routes/games.tsx'
+      - 'scripts/check-hosted.mjs'
+      - '.github/workflows/games-redirect-diagnostic.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  inspect-public-get:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Inspect redirect status and redacted target only
+        shell: bash
+        run: |
+          node --input-type=module <<'NODE'
+          const origin = "https://prospectsbaseball.club";
+          for (const path of ["/games", "/games?view=watch", "/games/"]) {
+            const response = await fetch(new URL(path, origin), {
+              method: "GET", redirect: "manual",
+              signal: AbortSignal.timeout(12000),
+              headers: { Accept: "text/html", "Cache-Control": "no-cache" },
+            });
+            const raw = response.headers.get("location");
+            let target = "none";
+            if (raw) {
+              const parsed = new URL(raw, origin);
+              // No query, fragment, credentials, body, cookies or customer data in logs.
+              target = parsed.origin === origin ? "same-origin:" + parsed.pathname : "external-origin";
+            }
+            console.log(path.split("?")[0] + (path.includes("?") ? "?view=[redacted]" : ""),
+              "HTTP", response.status, "redirect-target", target);
+          }
+          NODE
