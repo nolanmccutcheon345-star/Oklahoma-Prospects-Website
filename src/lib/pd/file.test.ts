@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { scopeForViewer } from "./access";
+import { filterDevelopmentData, scopeForViewer } from "./access";
 import { hydrateWorkingFile, mergeScopedFile } from "./file";
 import { seedDevelopment } from "./seed";
 
@@ -84,4 +84,26 @@ test('v2: every new or changed cohort member must be assigned to the coach',()=>
  assert.throws(()=>mergeScopedFile(full,{...full,cohorts:[{id:'new',name:'New',athleteIds:['a-down','a-full']}]},scope),/assigned athletes/);
  assert.throws(()=>mergeScopedFile(full,{...full,cohorts:[{id:'existing',name:'Edited',athleteIds:['a-down','a-full']}]},scope),/assigned athletes/);
  assert.deepEqual(mergeScopedFile(full,{...full,cohorts:[{id:'new',name:'New',athleteIds:['a-down']}]},scope).cohorts.map(c=>c.id),['new']);
+});
+
+
+test("player desk saves preserve athlete identity and household records but retain training logs", () => {
+  const athlete = seed.athletes.find(a=>a.id==='a-down')!;
+  const family = seed.families.find(f=>f.id===athlete.familyId)!;
+  const viewer = {role:'player' as const,email:family.email,name:'Player',playerName:`${athlete.firstName} ${athlete.lastName}`};
+  const scope = scopeForViewer(viewer, seed);
+  const incoming = filterDevelopmentData(seed, scope);
+  Object.assign(incoming.athletes[0], {firstName:'Changed',lastName:'Identity',birthDate:'invalid',sport:'invalid',coachIds:['forged'],familyId:'other',assessmentComplete:true});
+  Object.assign(incoming.families[0], {name:'Changed household',parentName:'Changed parent',phone:'forged',leaderboardOptOut:false});
+  incoming.workoutLog = [{id:'player-log',athleteId:athlete.id,date:'2026-10-07',focus:'Assigned practice',rpe:3,notes:'Completed'}];
+  const merged = mergeScopedFile(seed,incoming,scope);
+  assert.deepEqual(merged.athletes,seed.athletes);
+  assert.deepEqual(merged.families,seed.families);
+  assert.ok(merged.workoutLog.some(row=>row.id==='player-log'));
+  const parentIncoming = filterDevelopmentData(seed,scopeForViewer({...viewer,role:'parent'},seed));
+  parentIncoming.athletes[0].school='Parent-updated school';
+  parentIncoming.families[0].phone='Parent-updated phone';
+  const parentSaved=mergeScopedFile(seed,parentIncoming,scopeForViewer({...viewer,role:'parent'},seed));
+  assert.equal(parentSaved.athletes.find(a=>a.id===athlete.id)?.school,'Parent-updated school');
+  assert.equal(parentSaved.families.find(f=>f.id===family.id)?.phone,'Parent-updated phone');
 });
