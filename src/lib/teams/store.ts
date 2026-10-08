@@ -6,7 +6,7 @@ import { authMiddleware } from "@/lib/auth/middleware";
 import { getSql, type Sql } from "@/lib/db";
 import { getProfile } from "@/lib/club-data";
 import { clubIdentity } from "@/lib/identity.server";
-import { mergeSave, scopeClub, fetchTeamRecord, fetchPlayerRecord } from "./privacy";
+import { mergeSave, scopeClub, fetchTeamRecord, fetchPlayerRecordForTeam } from "./privacy";
 import { emptyClub, sampleClub } from "./seed";
 import type { ClubRecord, Player, Team } from "./types";
 import type { ClubRole } from "@/lib/club-data";
@@ -159,12 +159,8 @@ export const getPlayerRecord = createServerFn({ method: "POST" })
     const me = await identity(context.userId);
     const club = await loadRaw();
     if (!club) throw new Error("Club is not open.");
-    if (me.role === "coach") {
-      const team = fetchTeamRecord(club, me.role, me, data.teamId);
-      if (!team) throw new Error("Not your team.");
-    }
-    const player = fetchPlayerRecord(club, me.role, me, data.playerId);
-    if (!player) throw new Error("Not your player.");
+    const player = fetchPlayerRecordForTeam(club, me.role, me, data.teamId, data.playerId);
+    if (!player) throw new Error("Player is not accessible on the requested team.");
     return { ok: true as const, player };
   });
 

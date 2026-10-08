@@ -224,6 +224,8 @@ export type Notification = {
   title: string;
   body: string;
   audience: "admin" | "coach" | "family" | "all";
+  /** Explicit household recipient required before family-specific notices are shown. */
+  recipientFamilyId?: string;
 };
 
 export type ClubRecord = {

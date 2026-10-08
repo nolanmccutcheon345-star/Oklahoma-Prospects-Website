@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { coachHoldsTeam, familyHoldsPlayer, fetchPlayerRecord, fetchTeamRecord, mergeSave, scopeClub } from "./privacy.ts";
+import { coachHoldsTeam, familyHoldsPlayer, fetchPlayerRecord, fetchPlayerRecordForTeam, fetchTeamRecord, mergeSave, scopeClub } from "./privacy.ts";
 
 function club() {
   const cade = {
@@ -204,7 +204,7 @@ it('v2: a colliding family identifier does not reveal or edit an unrelated house
  const scoped=scopeClub(raw,'parent',me);
  assert.deepEqual(scoped.teams.map(t=>t.id),['t-13u-navy']);
  assert.deepEqual(scoped.teams[0].roster.map(p=>p.id),['p-cade']);
- assert.deepEqual(scoped.notifications.map(n=>n.id),['family']);
+ assert.deepEqual(scoped.notifications.map(n=>n.id),[]); // Unaddressed "family" notices are private, not a team broadcast.
  const incoming=structuredClone(raw);incoming.teams[0].roster[1].order.number='99';
  assert.equal(mergeSave(raw,incoming,'parent',me).teams[0].roster[1].order.number,'7');
 });
@@ -246,4 +246,34 @@ it('player RSVPs cannot publish a public profile; guardians retain publication c
  assert.deepEqual(player.rsvp,{practice:'yes'});
  const parent=mergeSave(raw,incoming,'parent',{...me,email:'guardian@example.invalid'}).teams[0].roster[0];
  assert.deepEqual(parent.publicProfile,incoming.teams[0].roster[0].publicProfile);
+});
+
+it("v3: private family notices require a matching recipient and team", () => {
+ const raw=club(),me={email:"ty@prospectsbaseball.club",familyId:"fam-cade",familyIds:["fam-cade"]};
+ raw.notifications=[
+  {id:"broadcast",ts:"2026-10-08",teamId:"t-13u-navy",kind:"practice",title:"Practice",body:"Open for all",audience:"all"},
+  {id:"ours",ts:"2026-10-08",teamId:"t-13u-navy",kind:"family",title:"Family",body:"Our private note",audience:"family",recipientFamilyId:"fam-cade"},
+  {id:"theirs",ts:"2026-10-08",teamId:"t-13u-navy",kind:"family",title:"Family",body:"Other private note",audience:"family",recipientFamilyId:"fam-other"},
+  {id:"unaddressed",ts:"2026-10-08",teamId:"t-13u-navy",kind:"family",title:"Legacy",body:"May belong to anyone",audience:"family"},
+  {id:"coach",ts:"2026-10-08",teamId:"t-13u-navy",kind:"staff",title:"Coach",body:"Staff only",audience:"coach"},
+  {id:"foreign",ts:"2026-10-08",teamId:"t-foreign",kind:"family",title:"Family",body:"Wrong team",audience:"family",recipientFamilyId:"fam-cade"},
+ ];
+ const p=scopeClub(raw,"parent",me),player=scopeClub(raw,"player",{email:"cade@example.com",familyId:"fam-cade",familyIds:["fam-cade"]});
+ assert.deepEqual(p.notifications.map(n=>n.id),["broadcast","ours"]);
+ assert.deepEqual(player.notifications.map(n=>n.id),["broadcast","ours"]);
+ assert.deepEqual(scopeClub(raw,"coach",me).notifications.map(n=>n.id),["broadcast","coach"]);
+ assert.equal(scopeClub(raw,"admin",me).notifications.length,6);
+ assert.deepEqual(scopeClub(raw,"parent",{...me,familyIds:[]}).notifications,[]);
+});
+
+it("v3: the player endpoint cannot mix an authorized player ID with a foreign team ID", () => {
+ const raw=club(),parent={email:"ty@prospectsbaseball.club",familyId:"fam-cade",familyIds:["fam-cade"]};
+ const player={email:"cade@example.com",familyId:"fam-cade",familyIds:["fam-cade"]};
+ const coach={email:"ty@prospectsbaseball.club",familyId:"fam-cade"};
+ for(const [role,who] of [["parent",parent],["player",player],["coach",coach],["admin",parent]]) {
+  assert.equal(fetchPlayerRecordForTeam(raw,role,who,"t-foreign","p-cade"),null);
+  assert.equal(fetchPlayerRecordForTeam(raw,role,who,"t-13u-navy","p-foreign"),null);
+  assert.equal(fetchPlayerRecordForTeam(raw,role,who,"t-13u-navy","p-cade")?.id,"p-cade");
+ }
+ assert.equal(fetchPlayerRecordForTeam(raw,"parent",parent,"t-13u-navy","p-other"),null);
 });
