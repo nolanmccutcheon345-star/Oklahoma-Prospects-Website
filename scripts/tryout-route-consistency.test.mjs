@@ -14,6 +14,8 @@ test("homepage and teams route consume the published tryout source, never a fixe
   assert.doesNotMatch(home, /getPublicTryoutEvents\(\)/);
   assert.match(teams.slice(teams.indexOf("function TeamsPublic()")), /const events = Route\.useLoaderData\(\)/);
   assert.match(teams, /TryoutSchedule events=\{events\} sport="Baseball"/);
+  assert.match(teams, /TryoutSchedule events=\{events\} sport="Softball"/);
+  assert.match(teams, /hasSoftballDates\s*\?/);
   assert.match(teams, /hasBaseballDates\s*\?/);
   assert.doesNotMatch(teams, /<TryoutSchedule\s*\/>/);
 });
