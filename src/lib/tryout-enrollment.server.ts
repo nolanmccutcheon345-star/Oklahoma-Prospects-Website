@@ -30,7 +30,7 @@ export async function queueTryoutNotice(
     payload: Record<string, unknown>;
   }>`select e.revision,jsonb_build_object('email',r.payload->>'email','player',r.payload->>'player','sport',e.sport,'season',e.season,'date',e.event_date::text,'startTime',e.start_time,'endTime',e.end_time,'location',e.location) as payload from tryout_events e join tryout_enrollments n on n.event_id=e.id join club_requests r on r.id=n.request_id where n.id=${enrollmentId} and e.id=${eventId}`;
   if (!row) throw new Error("Enrollment notice could not be recorded.");
-  await tx`update tryout_notification_outbox set status='superseded' where enrollment_id=${enrollmentId} and status='pending'`;
+  await tx`update tryout_notification_outbox set status='superseded' where enrollment_id=${enrollmentId} and status in ('pending','processing')`;
   await tx`insert into tryout_notification_outbox(id,enrollment_id,event_revision,kind,payload) values(${randomUUID()},${enrollmentId},${row.revision},${kind},${JSON.stringify(row.payload)}::jsonb) on conflict(enrollment_id,event_revision,kind) do nothing`;
 }
 // Caller owns the transaction. Locks serialize enrollment against event edits/capacity.
