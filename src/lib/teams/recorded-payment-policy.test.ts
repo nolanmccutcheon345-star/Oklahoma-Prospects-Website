@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { assertRecordableTeamPayment, remainingTeamPaymentCents } from "./recorded-payment-policy";
+import { assertRecordableTeamPayment, remainingTeamPaymentCents, newRecordedTeamPaymentReceipt } from "./recorded-payment-policy";
 
 const player = (fee: number | null, payments: number[] = [], credits: number[] = []) => ({
   feeLock: fee === null ? null : { amount: fee, lockedAt: "2026-10-08", policyVersion: "1", components: {} },
@@ -34,4 +34,11 @@ test("an absent signed fee and sub-cent or invalid inputs fail closed", () => {
   assert.throws(() => assertRecordableTeamPayment(player(100), Infinity), /greater than zero/);
   assert.throws(() => remainingTeamPaymentCents(player(100, [-1])), /Invalid past payment/);
   assert.throws(() => remainingTeamPaymentCents(player(100, [], [-1])), /Invalid credit/);
+});
+
+test("manual office receipts are full UUID identities, not repeating clock fragments", () => {
+  const issued = Array.from({ length: 256 }, () => newRecordedTeamPaymentReceipt());
+  assert.equal(new Set(issued).size, issued.length);
+  for (const receipt of issued)
+    assert.match(receipt, /^R-[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/);
 });
