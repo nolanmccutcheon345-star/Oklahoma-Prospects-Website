@@ -79,6 +79,7 @@ function TryoutsPage() {
             intent="register"
             initialAge={age}
             initialSport={sport}
+            publishedEvents={events}
           />
         </div>
       </section>
