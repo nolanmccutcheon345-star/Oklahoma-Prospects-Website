@@ -10,8 +10,17 @@ function visiblePlayer(player:Player,role:string,identity:{email:string;familyId
  return role==='player' ? Boolean(norm(identity.email)) && norm(player.email)===norm(identity.email) : ownsPlayer(player,identity);
 }
 function visibleNotifications(club:ClubRecord,teams:Team[],role:string) {
- const ids=new Set(teams.map(t=>t.id));
- return club.notifications.filter(n=>ids.has(n.teamId)&&(n.audience==='all'||n.audience===(role==='coach'?'coach':'family')));
+ const teamIds=new Set(teams.map(t=>t.id));
+ // Scoped teams contain only authorized athletes for parent/player viewers.
+ // A team-wide "family" notice has no recipient identity and must never
+ // be exposed to every household merely because they share a roster.
+ const familyIds=new Set(teams.flatMap(t=>t.roster.map(p=>p.familyId)));
+ return club.notifications.filter(n=>{
+  if(!teamIds.has(n.teamId))return false;
+  if(role==='coach')return n.audience==='all'||n.audience==='coach';
+  if(n.audience==='all')return true;
+  return n.audience==='family' && Boolean(n.recipientFamilyId) && familyIds.has(n.recipientFamilyId!);
+ });
 }
 function dropPlayerBilling(player: Player): Player {
   return { ...dropPayment(player), planType: "", depositPaid: false, uniformWaived: false, cageOverage: 0 };
@@ -233,4 +242,16 @@ export function fetchPlayerRecord(
   if (!canFetchPlayer(club, role, identity, playerId)) return null;
   const scoped = scopeClub(club, role, identity);
   return scoped.teams.flatMap((t) => t.roster).find((p) => p.id === playerId) ?? null;
+}
+
+/** Match both request identifiers before returning any roster data to the caller. */
+export function fetchPlayerRecordForTeam(
+  club: ClubRecord,
+  role: "admin" | "coach" | "parent" | "player",
+  identity: { email: string; familyId: string; familyIds?:string[] },
+  teamId: string,
+  playerId: string,
+): Player | null {
+  const team = fetchTeamRecord(club, role, identity, teamId);
+  return team?.roster.find(player => player.id === playerId && player.teamId === teamId) ?? null;
 }
