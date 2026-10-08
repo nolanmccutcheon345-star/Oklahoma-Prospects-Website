@@ -212,6 +212,10 @@ export function mergeScopedFile(
     patch[key] = takeIf(scope.includeStaffOps, incoming[key], full[key]);
   }
   for (const key of CATALOG_KEYS) {
+    if (scope.includeStaffOps) {
+      const rows = incoming[key];
+      if (rows.some(row => typeof row.id !== "string" || !row.id.trim() || row.id.length > 150) || new Set(rows.map(row => row.id)).size !== rows.length) throw new Error("Catalog identifiers must be nonempty, bounded, and unique within each catalog.");
+    }
     patch[key] = takeIf(scope.includeStaffOps, incoming[key], full[key]);
   }
   if (scope.role === "coach" && scope.coachId) {
