@@ -22,6 +22,7 @@ const privateCache = (response) => {
 const nonces = new Set();
 const pages = [
   ["/", 200], ["/book", 200], ["/training", 200], ["/memberships", 200],
+  ["/teams", 200], ["/tryouts", 200],
   ["/login?next=%2Faccount", 200], ["/__audit_missing_page__", 404], ["/", 200],
 ];
 for (const [path, expected] of pages) {
