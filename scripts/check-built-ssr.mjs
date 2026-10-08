@@ -13,6 +13,7 @@ for (const [path, status] of [
   ["/__audit_missing_page__", 404],
   ["/login?next=%2Faccount", 200],
   ["/games", 200],
+  ["/games?view=watch", 200],
   ["/", 200],
 ]) {
   const response = await fetch(new Request(`https://preview.example.invalid${path}`));
