@@ -12,6 +12,7 @@ test("homepage and teams route consume the published tryout source, never a fixe
   assert.doesNotMatch(home, /Nov\s*14|Nov\s*15|2026-11-14|2026-11-15/);
   assert.match(home, /Free · request a tryout/);
   assert.doesNotMatch(home, /getPublicTryoutEvents\(\)/);
+  assert.match(teams.slice(teams.indexOf("function TeamsPublic()")), /const events = Route\.useLoaderData\(\)/);
   assert.match(teams, /TryoutSchedule events=\{events\} sport="Baseball"/);
   assert.match(teams, /hasBaseballDates\s*\?/);
   assert.doesNotMatch(teams, /<TryoutSchedule\s*\/>/);
