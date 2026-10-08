@@ -83,3 +83,39 @@ test("owner, coach, and targeted family notices stay out of unrelated snapshots"
   assert.deepEqual(coach.state.notifications.map((n) => n.id), ["staff", "general", "price"]);
   assert.equal(admin.state.notifications.length, 6);
 });
+
+test("scoped snapshots omit other families' booking usage and owner-only records", () => {
+  const { club, team, own, other } = household();
+  const unrelated = club.teams.find((t) =>
+    t.id !== team.id && !t.roster.some((p) => p.familyId === own.familyId),
+  );
+  assert.ok(unrelated);
+  club.bookings = [
+    { scope: "player", ownerId: own.id, week: "2026-10-04", hours: 1 },
+    { scope: "player", ownerId: other.id, week: "2026-10-04", hours: 2 },
+    { scope: "team", ownerId: team.id, week: "2026-10-04", hours: 3 },
+    { scope: "team", ownerId: unrelated.id, week: "2026-10-04", hours: 4 },
+  ];
+  club.archive = [{ teamId: team.id, name: team.name, seasonLabel: "Prior", closedAt: "2026-08-01", realized: 10000, roster: [] }];
+  club.disruptions = [{ confidential: "owner notes" }];
+  club.onboarding = { staffOnly: "private" };
+  club.cancelled = [
+    { id: "mine", teamId: team.id, eventId: "ev1", name: "Team event", month: "2026-10", at: "2026-10-08", reason: "Weather" },
+    { id: "theirs", teamId: unrelated.id, eventId: "ev2", name: "Other event", month: "2026-10", at: "2026-10-08", reason: "Weather" },
+  ];
+  const who = { email: own.email || "", teamId: team.id, familyId: own.familyId, playerId: own.id };
+  for (const role of ["parent", "player"]) {
+    const view = scopeClub(club, { ...who, role }).state;
+    assert.deepEqual(view.bookings.map((b) => b.ownerId), [own.id, team.id]);
+    assert.deepEqual(view.archive, []);
+    assert.deepEqual(view.disruptions, []);
+    assert.deepEqual(view.onboarding, {});
+    assert.deepEqual(view.cancelled.map((e) => e.id), ["mine"]);
+  }
+  const coach = scopeClub(club, { ...who, role: "coach" }).state;
+  assert.deepEqual(coach.bookings.map((b) => b.ownerId), [own.id, other.id, team.id]);
+  assert.deepEqual(coach.archive, []);
+  const admin = scopeClub(club, { ...who, role: "admin" }).state;
+  assert.equal(admin.bookings.length, 4);
+  assert.equal(admin.archive[0].realized, 10000);
+});
