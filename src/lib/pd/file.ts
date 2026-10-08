@@ -59,17 +59,28 @@ function keepAthlete(scope: PdScope, athleteId: string) {
   return canAccessAthlete(scope, athleteId);
 }
 
-function mergeAthleteRows<T extends { athleteId: string }>(
+function mergeAthleteRows<T extends { athleteId: string; id?: string }>(
   full: T[],
   incoming: T[],
   scope: PdScope,
 ): T[] {
   const outside = full.filter((row) => !keepAthlete(scope, row.athleteId));
   const next = incoming.filter((row) => keepAthlete(scope, row.athleteId));
+  const owners = new Map(full.map(row => [row.id, row.athleteId]));
+  const ids = new Set<string>();
+  for (const row of next) {
+    // Intake and recruiting profiles are keyed by athlete, not a row ID.
+    if (!("id" in row)) continue;
+    if (!row.id?.trim() || row.id.length > 150 || ids.has(row.id)) throw new Error("Athlete row identifiers must be nonempty and unique.");
+    if (owners.has(row.id) && owners.get(row.id) !== row.athleteId) throw new Error("Athlete row identifier belongs to another athlete.");
+    ids.add(row.id);
+  }
   return [...outside, ...next];
 }
 
 function mergeAthletes(full: Athlete[], incoming: Athlete[], scope: PdScope): Athlete[] {
+  // Player identity, eligibility and household records belong to parents/staff.
+  if (scope.role === "player") return full;
   return full.map(prev => {
     const row = incoming.find(item => item.id === prev.id);
     if (!row || !keepAthlete(scope, prev.id)) return prev;
@@ -88,6 +99,7 @@ function mergeAthletes(full: Athlete[], incoming: Athlete[], scope: PdScope): At
 }
 
 function mergeFamilies(full: Family[], incoming: Family[], scope: PdScope): Family[] {
+  if (scope.role === "player") return full;
   return full.map(prev => {
     const row = incoming.find(item => item.id === prev.id);
     const allowed = scope.familyIds === "all" || scope.familyIds.has(prev.id);
@@ -101,6 +113,7 @@ function mergeMessages(full:Message[],incoming:Message[],scope:PdScope):Message[
  const existing=new Set(full.map(row=>row.id));
  const additions=incoming.filter(row=>!existing.has(row.id)&&keepAthlete(scope,row.athleteId)&&(canCoachAthlete(scope,row.athleteId)||row.channel!=='coach'))
   .map(row=>({...row,...authorizeMessage(scope,row)}));
+ if(additions.some(row=>typeof row.id!=="string"||!row.id.trim()||row.id.length>150)||new Set(additions.map(row=>row.id)).size!==additions.length)throw new Error("New message identifiers must be nonempty, bounded, and unique.");
  return [...full,...additions];
 }
 
@@ -199,9 +212,16 @@ export function mergeScopedFile(
     patch[key] = takeIf(scope.includeStaffOps, incoming[key], full[key]);
   }
   for (const key of CATALOG_KEYS) {
+    if (scope.includeStaffOps) {
+      const rows = incoming[key];
+      if (rows.some(row => typeof row.id !== "string" || !row.id.trim() || row.id.length > 150) || new Set(rows.map(row => row.id)).size !== rows.length) throw new Error("Catalog identifiers must be nonempty, bounded, and unique within each catalog.");
+    }
     patch[key] = takeIf(scope.includeStaffOps, incoming[key], full[key]);
   }
   if (scope.role === "coach" && scope.coachId) {
+    const ownAvailability = incoming.availability.filter(row => row.coachId === scope.coachId);
+    const outsideIds = new Set(full.availability.filter(row => row.coachId !== scope.coachId).map(row => row.id));
+    if (ownAvailability.some(row => typeof row.id !== "string" || !row.id.trim() || row.id.length > 150 || outsideIds.has(row.id)) || new Set(ownAvailability.map(row => row.id)).size !== ownAvailability.length) throw new Error("Availability identifiers must be nonempty, unique, and belong to this coach.");
     next.availability = [...full.availability.filter(row => row.coachId !== scope.coachId),
       ...incoming.availability.filter(row => row.coachId === scope.coachId)];
     next.coaches = full.coaches.map(row => row.id === scope.coachId
@@ -214,6 +234,7 @@ export function mergeScopedFile(
     const ids = new Set(previous.map(row => row.id));
     const additions = (incoming[key] ?? []).filter(row => !ids.has(row.id) && canCoachAthlete(scope, row.athleteId))
       .map(row => ({ ...row, createdAt: new Date().toISOString(), createdBy: scope.viewerEmail ?? "" }));
+    if (additions.some(row => typeof row.id !== "string" || !row.id.trim() || row.id.length > 150) || new Set(additions.map(row => row.id)).size !== additions.length) throw new Error("Prescription version identifiers must be nonempty, bounded, and unique.");
     if (key === "strengthAssignments") {
       for (const raw of additions) {
         const row = raw as DevelopmentData["strengthAssignments"][number];

@@ -4,7 +4,7 @@ import { createHash } from "node:crypto";
 import type { Square } from "square";
 import { getSql, type Sql } from "../db";
 import { getSessionUser } from "../auth/verify.server";
-import { clubIdentity } from "../identity.server";
+import { commerceIdentity as clubIdentity } from "./access.server";
 import { getRequest } from "@tanstack/react-start/server";
 import { assertSameSiteRequest } from "../auth/isolation.server";
 import {

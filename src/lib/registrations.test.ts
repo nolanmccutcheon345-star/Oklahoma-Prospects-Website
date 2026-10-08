@@ -31,6 +31,11 @@ test('coordinator capability is read only, identity bound, owner managed and rev
   for(const id of ['disabled','unverified','missing']) await assert.rejects(()=>setRegistrationReaderFor(sql,'owner',{userId:id,enabled:true}));
   for(const kind of ['tryout','team-inquiry','contact','membership-pause','refund-review','future-sensitive-kind'])
    await sql`insert into club_requests(id,kind,payload) values(${kind},${kind},${JSON.stringify({player:'Test Player',sport:'Softball',email:'parent@example.invalid',phone:'555-0100',notes:'Development',medicalNotes:'hidden',paymentId:'hidden',rosterPlayerId:'hidden'})}::jsonb)`;
+  await assert.rejects(()=>setRegistrationReaderFor(sql,'owner',{userId:'player',enabled:true}),/non-player/);
+  await sql`insert into registration_readers(user_id,email,active,granted_by) values('player','player@example.invalid',true,'owner')`;
+  assert.deepEqual(await registrationAccessFor(sql,'player'),{allowed:false,owner:false});
+  await assert.rejects(()=>registrationRowsFor(sql,'player'),/Registration viewing/);
+  await setRegistrationReaderFor(sql,'owner',{userId:'player',enabled:false});
   await setRegistrationReaderFor(sql,'owner',{userId:'reader',enabled:true});
   assert.deepEqual(await registrationAccessFor(sql,'reader'),{allowed:true,owner:false});
   const rows=await registrationRowsFor(sql,'reader');

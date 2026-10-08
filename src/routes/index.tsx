@@ -1,5 +1,5 @@
 import { ProspectsLiveLink } from "@/components/prospects-live-link";
-import { PRICES, formatMoney } from "@/lib/pricing";
+import { PRICES, formatMoney, formatDollars } from "@/lib/pricing";
 import {useLiveCatalog} from "@/lib/use-catalog";
 import {pageHead} from "@/lib/seo";
 import { createFileRoute, Link } from "@tanstack/react-router";
@@ -87,7 +87,7 @@ function Home() {
           />
           <PathCard
             to="/training"
-            kicker={`From $${catalog.memberships.find(m=>m.id==="m1")?.price ?? 239} / mo`}
+            kicker={`From ${formatDollars(catalog.memberships.find(m=>m.id==="m1")?.price ?? 239)} / mo`}
             title="Start monthly development"
             body="Four coached sessions a month, a plan, and tracking. Baseball and softball, 8U through college."
           />
@@ -109,14 +109,14 @@ function Home() {
 
       <section className="bg-paper-2 py-10">
         <div className="mx-auto max-w-3xl px-5">
-          <div className="flex items-end justify-between gap-4">
+          <div className="flex flex-col items-stretch gap-4 sm:flex-row sm:items-end sm:justify-between">
             <div>
               <h2 className="text-3xl">Cage rates</h2>
               <p className="mt-1 text-muted">
                 Pay at checkout to book your time. {CANCEL_POLICY.short}.
               </p>
             </div>
-            <Button asChild variant="outlineDark" size="sm">
+            <Button asChild variant="outlineDark" size="sm" className="min-h-11 w-full shrink-0 whitespace-nowrap sm:w-auto">
               <Link to="/book">Book a cage</Link>
             </Button>
           </div>
@@ -136,7 +136,7 @@ function Home() {
                 </span>
                 <span className="shrink-0 text-right">
                   <span className="block font-display text-3xl font-extrabold">
-                    ${rental.price}
+                    {formatDollars(rental.price)}
                   </span>
                   <span className="text-xs text-muted">per hour</span>
                 </span>
