@@ -3,6 +3,8 @@ import { sendInquiry } from "@/lib/portal-api";
 import { Button } from "@/components/ui/button";
 import { TRYOUT_AGE_GROUPS, TRYOUT_REQUEST_SESSION } from "@/lib/club";
 import { getPublicTryoutTeams } from "@/lib/tryout-events-api";
+import type { TryoutEvent } from "@/lib/tryout-events-contracts";
+import { publishedTryoutSeasons } from "@/lib/tryout-season-options";
 import type { PublicTryoutTeam } from "@/lib/tryout-preferences.server";
 import { cn } from "@/lib/utils";
 
@@ -123,10 +125,12 @@ export function TryoutForm({
   initialAge = "",
   initialSport = "Baseball",
   intent = "register",
+  publishedEvents = [],
 }: {
   initialAge?: string;
   initialSport?: "Baseball" | "Softball";
   intent?: "register" | "inquiry";
+  publishedEvents?: TryoutEvent[];
 }) {
   const [values, setValues] = useState<TryoutValues>({
     player: "",
@@ -157,6 +161,7 @@ export function TryoutForm({
   }, [intent]);
   const eligibleTeams = teams.filter(team => team.sport === values.sport && team.age.toLowerCase() === values.age.trim().toLowerCase());
   const selectedTeam = eligibleTeams.find(team => team.id === values.preferredTeamId);
+  const availableSeasons = publishedTryoutSeasons(publishedEvents, values.sport, values.age);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [sent, setSent] = useState(false);
@@ -215,6 +220,7 @@ export function TryoutForm({
               preferredTeamId: "",
               preferredCoachId: "",
               autoEnroll: false,
+              season: "",
               session: intent === "register" ? TRYOUT_REQUEST_SESSION : "",
             }));
           }}
@@ -243,7 +249,7 @@ export function TryoutForm({
             onChange={(e) => {
               const nextAge = e.target.value;
               setAgeChoice(nextAge);
-              setValues(v => ({ ...v, age: nextAge, preferredTeamId: "", preferredCoachId: "", autoEnroll: false }));
+              setValues(v => ({ ...v, age: nextAge, season: "", preferredTeamId: "", preferredCoachId: "", autoEnroll: false }));
             }}
           >
             <option value="">Choose age group</option>
@@ -255,14 +261,32 @@ export function TryoutForm({
         <>
           <label className="text-sm font-semibold">
             Season <span className="text-maroon">*</span>
-            <input
-              required
-              className={fieldClass}
-              maxLength={120}
-              value={values.season}
-              placeholder="For example, Spring 2027"
-              onChange={(e) => setValues((v) => ({ ...v, season: e.target.value }))}
-            />
+            {availableSeasons.length ? (
+              <>
+                <select
+                  required
+                  className={fieldClass}
+                  value={availableSeasons.includes(values.season) ? values.season : ""}
+                  onChange={e => setValues(v => ({ ...v, season: e.target.value, autoEnroll: false }))}
+                >
+                  <option value="">Choose a published tryout season</option>
+                  {availableSeasons.map(season => <option key={season} value={season}>{season}</option>)}
+                </select>
+                <span className="mt-1 block text-xs text-muted">Published group evaluations matching this sport and age use these exact season names.</span>
+              </>
+            ) : (
+              <>
+                <input
+                  required
+                  className={fieldClass}
+                  maxLength={120}
+                  value={values.season}
+                  placeholder="For example, Spring 2027"
+                  onChange={e => setValues(v => ({ ...v, season: e.target.value, autoEnroll: false }))}
+                />
+                <span className="mt-1 block text-xs text-muted">No group date is published for this sport and age. Request an individual evaluation; the office will confirm its season and any appointment.</span>
+              </>
+            )}
           </label>
           <fieldset className="grid gap-3 rounded-xl border border-line p-4">
             <legend className="px-2 font-semibold">Team and coach preference (optional)</legend>
