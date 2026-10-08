@@ -21,3 +21,11 @@ export const saveTryoutEvent = createServerFn({ method: "POST" })
     const { saveTryoutEventFor } = await import("./tryout-events.server");
     return saveTryoutEventFor(await getSql(), context.userId, data);
   });
+
+export const getAdminTryoutEnrollments = createServerFn({ method: "GET" })
+  .middleware([authMiddleware])
+  .handler(async ({ context }) => {
+    const { getSql } = await import("./db");
+    const { adminTryoutEnrollmentsFor } = await import("./tryout-enrollment.server");
+    return adminTryoutEnrollmentsFor(await getSql(), context.userId);
+  });

@@ -5,11 +5,12 @@ import {
   type TryoutEvent,
   type TryoutEventInput,
 } from "./tryout-events-contracts";
+import { matchTryoutApplicants, queueTryoutNotice } from "./tryout-enrollment.server";
 const fields = `id,sport,season,age_groups as "ageGroups",event_date::text as date,start_time as "startTime",end_time as "endTime",location,capacity,status,revision`;
 export async function publicTryoutEventsFor(sql: Sql) {
   try {
     return await sql.query<TryoutEvent>(
-      `select ${fields} from tryout_events where status='published' and event_date >= (now() at time zone 'America/Chicago')::date order by event_date,start_time,id limit 200`,
+      `select ${fields} from tryout_events where status='published' and (event_date+start_time::time) at time zone 'America/Chicago'>now() order by event_date,start_time,id limit 200`,
     );
   } catch (error) {
     // Unapplied event schema means no public schedule, never invented records.
@@ -29,6 +30,30 @@ export async function saveTryoutEventFor(sql: Sql, userId: string, raw: TryoutEv
     throw new Error("Owner access required.");
   const input = tryoutEventInput.parse(raw);
   return sql.transaction(async (tx) => {
+    // Matchers and editors acquire event locks in the same order.
+    await tx`select id from tryout_events order by event_date,start_time,id for update`;
+    const active = await tx<{
+      id: string;
+    }>`select id from tryout_enrollments where event_id=${input.id} and status='enrolled'`;
+    if (input.capacity < active.length)
+      throw new Error("Capacity cannot be lower than existing enrollments.");
+    if (active.length) {
+      const [prior] = await tx<{
+        sport: string;
+        season: string;
+        age_groups: string[];
+      }>`select sport,season,age_groups from tryout_events where id=${input.id}`;
+      if (
+        prior.sport !== input.sport ||
+        prior.season !== input.season ||
+        JSON.stringify(prior.age_groups) !== JSON.stringify(input.ageGroups)
+      )
+        throw new Error(
+          "Cancel the event before changing sport, season or age groups with enrolled players.",
+        );
+      if (input.status === "draft")
+        throw new Error("Cancel an enrolled event instead of hiding it as a draft.");
+    }
     if (input.revision === 0) {
       const rows =
         await tx`insert into tryout_events(id,sport,season,age_groups,event_date,start_time,end_time,location,capacity,status,updated_by)
@@ -40,6 +65,17 @@ export async function saveTryoutEventFor(sql: Sql, userId: string, raw: TryoutEv
       if (!rows.length)
         throw new Error("Another editor changed this event. Refresh before editing.");
     }
+    for (const enrollment of active) {
+      if (input.status === "cancelled")
+        await tx`update tryout_enrollments set status='cancelled' where id=${enrollment.id}`;
+      await queueTryoutNotice(
+        tx,
+        enrollment.id,
+        input.id,
+        input.status === "cancelled" ? "cancelled" : "updated",
+      );
+    }
+    await matchTryoutApplicants(tx);
     return { ok: true };
   });
 }

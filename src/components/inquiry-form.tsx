@@ -23,6 +23,8 @@ type TryoutValues = {
   notes: string;
   sport: string;
   session: string;
+  season: string;
+  autoEnroll: boolean;
 };
 
 export function ContactForm({ initialSubject = "" }: { initialSubject?: string }) {
@@ -130,6 +132,8 @@ export function TryoutForm({
     email: "",
     notes: "",
     sport: initialSport,
+    season: "",
+    autoEnroll: false,
     session: intent === "register" ? TRYOUT_REQUEST_SESSION : "",
   });
 
@@ -170,7 +174,7 @@ export function TryoutForm({
         <p role="status">
           Saved to the club’s front-office queue.{" "}
           {intent === "register"
-            ? "Your request does not reserve an appointment. Prospects will respond with next steps. "
+            ? "Your request was saved for matching group enrollment. Group enrollment depends on eligibility and capacity; private appointments require agreement. "
             : ""}
           Reference: {requestId}
         </p>
@@ -224,11 +228,35 @@ export function TryoutForm({
         </label>
       </div>
       {intent === "register" ? (
-        <p className="rounded-md border border-powder bg-paper p-4 text-sm">
-          All age groups are welcome for baseball and softball. Submit your player information to
-          request an individual tryout. A coach can arrange a private tryout with you; submitting
-          does not assign an appointment.
-        </p>
+        <>
+          <label className="text-sm font-semibold">
+            Season <span className="text-maroon">*</span>
+            <input
+              required
+              className={fieldClass}
+              maxLength={120}
+              value={values.season}
+              placeholder="For example, Spring 2027"
+              onChange={(e) => setValues((v) => ({ ...v, season: e.target.value }))}
+            />
+          </label>
+          <label className="rounded-md border border-powder bg-paper p-4 text-sm">
+            <input
+              type="checkbox"
+              required
+              checked={values.autoEnroll}
+              onChange={(e) => setValues((v) => ({ ...v, autoEnroll: e.target.checked }))}
+              className="mr-2"
+            />
+            When a group tryout matches my player's sport, age group and season, automatically
+            enroll my player if capacity allows. One matching group appointment will be selected.
+            Private appointments require agreement with a coach.
+          </label>
+          <p className="text-sm text-muted">
+            All ages are welcome. If no matching place is available, your request stays open.
+            Private appointments require agreement with a coach.
+          </p>
+        </>
       ) : null}
       <div className="grid gap-4 sm:grid-cols-2">
         <label className="text-sm font-semibold">

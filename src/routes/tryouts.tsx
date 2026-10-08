@@ -76,7 +76,7 @@ function TryoutsPage() {
         <h2 className="mt-2 text-4xl">All baseball age groups</h2>
         <p className="mt-3 text-muted">
           Request an individual tryout for your player. Group dates will be published when
-          scheduled; no appointment is assigned by submitting a request.
+          scheduled; private appointments require agreement with a coach.
         </p>
         <div className="mt-6">
           <TryoutSchedule events={events} sport="Baseball" />
