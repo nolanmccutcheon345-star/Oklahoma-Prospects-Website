@@ -215,6 +215,9 @@ export function mergeScopedFile(
     patch[key] = takeIf(scope.includeStaffOps, incoming[key], full[key]);
   }
   if (scope.role === "coach" && scope.coachId) {
+    const ownAvailability = incoming.availability.filter(row => row.coachId === scope.coachId);
+    const outsideIds = new Set(full.availability.filter(row => row.coachId !== scope.coachId).map(row => row.id));
+    if (ownAvailability.some(row => typeof row.id !== "string" || !row.id.trim() || row.id.length > 150 || outsideIds.has(row.id)) || new Set(ownAvailability.map(row => row.id)).size !== ownAvailability.length) throw new Error("Availability identifiers must be nonempty, unique, and belong to this coach.");
     next.availability = [...full.availability.filter(row => row.coachId !== scope.coachId),
       ...incoming.availability.filter(row => row.coachId === scope.coachId)];
     next.coaches = full.coaches.map(row => row.id === scope.coachId
