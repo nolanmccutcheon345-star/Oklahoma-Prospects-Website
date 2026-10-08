@@ -421,24 +421,26 @@ export function alertsForRole(
     );
   }
   if (role === "parent") {
-    const names = new Set(
-      club.teams.flatMap((t) =>
-        t.roster.filter((p) => p.familyId === identity.familyId).map((p) => p.name),
-      ),
-    );
+    if (!identity.familyId) return [];
+    // Names are not identifiers: two athletes can share a name, including on the same team.
     return all.filter(
       (a) =>
-        (a.playerId &&
-          club.teams.some((t) => t.roster.some((p) => p.id === a.playerId && p.familyId === identity.familyId))) ||
-        [...names].some((n) => a.text.includes(n)),
+        Boolean(a.playerId) &&
+        club.teams.some(
+          (t) =>
+            t.id === a.teamId &&
+            t.roster.some((p) => p.id === a.playerId && p.familyId === identity.familyId),
+        ),
     );
   }
+  if (!identity.teamId || !identity.playerId) return [];
   return all.filter((a) => {
     if (a.band === "money" || a.kind === "Money") return false;
     if (/\$|usd|\bbudget\b|% of budget|entry fee/i.test(a.text)) return false;
-    if (identity.playerId && a.playerId && a.playerId !== identity.playerId) return false;
-    if (identity.teamId && a.teamId !== identity.teamId) return false;
-    return a.band === "health" || a.band === "safety" || a.band === "ops";
+    if (a.teamId !== identity.teamId) return false;
+    // A team membership never grants another athlete's health or paperwork details.
+    if (a.playerId) return a.playerId === identity.playerId;
+    return a.kind === "Schedule" || a.kind === "Roster" || a.kind === "Field";
   });
 }
 
