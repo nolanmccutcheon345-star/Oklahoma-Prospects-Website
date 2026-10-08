@@ -49,6 +49,7 @@ export function smsHref(tel: string, body: string) {
 }
 
 export const AGE_GROUPS = [
+  "4U",
   "5U",
   "6U",
   "7U",
@@ -61,7 +62,11 @@ export const AGE_GROUPS = [
   "14U",
   "15U",
   "16U",
+  "17U",
+  "18U",
 ] as const;
+
+export const TRYOUT_AGE_GROUPS = [...AGE_GROUPS, "19U", "20U", "Adult"] as const;
 
 export const SOFTBALL_AGES = ["10U", "12U", "14U", "16U"] as const;
 // An intake request is not a reservation for an invented event.
