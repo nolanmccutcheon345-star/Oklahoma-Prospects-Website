@@ -1,3 +1,4 @@
+import { CLUB } from "@/lib/club";
 import { useCallback, useEffect, useState } from "react";
 import {
   ArrowUpRight,
@@ -96,10 +97,10 @@ function checkoutId() {
 }
 function Brand() {
   return (
-    <a className="brand" href="/teams" aria-label="Oklahoma Prospects teams">
+    <a className="brand" href="/teams" aria-label={`${CLUB.name} teams`}>
       <img className="fundraising-crest" src="/brand/crest.png" width="52" height="52" alt="" />
       <span className="brand-name">
-        OKLAHOMA PROSPECTS<small>PLAYER FUNDRAISING</small>
+        {CLUB.name.toUpperCase()}<small>PLAYER FUNDRAISING</small>
       </span>
     </a>
   );
@@ -330,7 +331,7 @@ function ShareDialog({ player: p, onTracked }: { player: Player; onTracked: () =
   const [url, setUrl] = useState("");
   const sharePath = playerDestination(p);
   useEffect(() => setUrl(location.origin + sharePath), [sharePath]);
-  const message = `Help ${p.name} make the most of their ${p.team} season with Oklahoma Prospects! Sponsor their player fundraiser here: ${url} Thank you for being in their corner!`;
+  const message = `Help ${p.name} make the most of their ${p.team} season with ${CLUB.name}! Sponsor their player fundraiser here: ${url} Thank you for being in their corner!`;
   async function track() {
     try {
       await api("/api/players/" + p.id, "PATCH", { action: "share" });
@@ -354,7 +355,7 @@ function ShareDialog({ player: p, onTracked }: { player: Player; onTracked: () =
         <span className="player-initial">{p.name.charAt(0)}</span>
         <div>
           <strong>{p.name}</strong>
-          <p>{p.team} Oklahoma Prospects</p>
+          <p>{p.team} {CLUB.name}</p>
         </div>
       </div>
       <label>
@@ -714,7 +715,7 @@ export default function FundraisingApp({
             <div className="thank-icon">
               {receipt?.status === "completed" ? <Check size={36} /> : <RefreshCw size={34} />}
             </div>
-            <span className="eyebrow">OKLAHOMA PROSPECTS</span>
+            <span className="eyebrow">{CLUB.name.toUpperCase()}</span>
             <h1>
               {receipt?.status === "completed"
                 ? "You’re part of their season."
@@ -722,7 +723,7 @@ export default function FundraisingApp({
             </h1>
             <p>
               {receipt?.status === "completed"
-                ? `${money(receipt.amount - receipt.refunded)} has been confirmed for this player’s fundraiser. Thank you for supporting Oklahoma Prospects.`
+                ? `${money(receipt.amount - receipt.refunded)} has been confirmed for this player’s fundraiser. Thank you for supporting ${CLUB.name}.`
                 : receipt?.status === "failed"
                   ? "Square did not complete this payment. No sponsorship has been credited."
                   : "We’re waiting for Square to confirm the payment. Your player’s total will update once it is confirmed."}
@@ -765,7 +766,7 @@ export default function FundraisingApp({
               <section>
                 <div className="player-hero">
                   <div className="player-meta">
-                    <span>{player.team} OKLAHOMA PROSPECTS</span>
+                    <span>{player.team} {CLUB.name.toUpperCase()}</span>
                     <span>PLAYER FUNDRAISER</span>
                   </div>
                   <div className="player-identity">
@@ -786,7 +787,7 @@ export default function FundraisingApp({
                           src="/brand/crest.png"
                           width="112"
                           height="112"
-                          alt="Oklahoma Prospects"
+                          alt={CLUB.name}
                         />
                       )}
                       <small>PROSPECTS</small>
@@ -833,7 +834,7 @@ export default function FundraisingApp({
                     ? "FRONT OFFICE"
                     : mode === "my"
                       ? "PARENT DASHBOARD"
-                      : "OKLAHOMA PROSPECTS • BROKEN ARROW, OK"}
+                      : `${CLUB.name.toUpperCase()} • BROKEN ARROW, OK`}
                 </span>
                 <h1>
                   {office ? (
@@ -885,7 +886,7 @@ export default function FundraisingApp({
               <div className="scoreboard-motto">
                 FOR THE LOVE
                 <br />
-                OF THE GAME.<span>OKLAHOMA PROSPECTS</span>
+                OF THE GAME.<span>{CLUB.name.toUpperCase()}</span>
               </div>
             </section>
             {managed && !data.paymentReady && (

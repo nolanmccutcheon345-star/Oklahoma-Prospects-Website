@@ -1,3 +1,7 @@
+/**
+ * Preserved reference to Steve's existing Prospects Live project.
+ * Do not render this from public pages. /games must not iframe or redirect to it.
+ */
 import { Play, Radio } from "lucide-react";
 
 export const LIVE_URL = "https://oklahoma-prospects-live.stevemccutcheon89.chatgpt.site/";

@@ -120,7 +120,7 @@ function FacilityPage() {
         </div>
         <address className="mt-8 rounded-2xl bg-ink p-5 not-italic text-fg-inverse">
           <p className="text-xs font-semibold tracking-[0.16em] text-powder uppercase">
-            Oklahoma Prospects
+            {CLUB.venueName}
           </p>
           <p className="mt-2 font-display text-3xl">Find our house.</p>
           <p className="mt-3 text-fg-soft">

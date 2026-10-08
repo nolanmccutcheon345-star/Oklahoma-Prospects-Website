@@ -1,3 +1,4 @@
+import { CLUB } from "@/lib/club";
 import { getPublicStaff } from "@/lib/staff-directory-api";
 import { pageHead } from "@/lib/seo";
 import { createFileRoute, Link } from "@tanstack/react-router";
@@ -8,7 +9,7 @@ export const Route = createFileRoute("/coaches")({
     pageHead(
       "/coaches",
       "Coaches & Staff",
-      "Meet Oklahoma Prospects instructors, coordinators and recruiting staff.",
+      `Meet ${CLUB.name} instructors, coordinators and recruiting staff.`,
       false,
     ),
   loader: async () => {
@@ -31,9 +32,9 @@ function Coaches() {
   return (
     <main id="main">
       <PageHero
-        eyebrow="Oklahoma Prospects"
+        eyebrow={CLUB.name}
         title="Coaches & staff."
-        copy="Meet the people helping your family train, find a team and grow with Oklahoma Prospects."
+        copy={`Meet the people helping your family train, find a team and grow with ${CLUB.name}.`}
         compact
       />
       <section aria-label="Program staff" className="mx-auto grid max-w-3xl gap-5 px-5 pt-8">

@@ -24,7 +24,7 @@ function VisitPage() {
   return (
     <main id="main">
       <PageHero
-        eyebrow="Visit Oklahoma Prospects"
+        eyebrow={`Visit ${CLUB.venueName}`}
         title="Arrive ready."
         accent="Then train."
         copy="Waiver, directions, uniforms, and member tools in one place."
@@ -34,6 +34,8 @@ function VisitPage() {
       <div className="mt-6 rounded-2xl bg-ink p-5 text-fg-inverse">
         <HoursChip />
         <p className="mt-3 font-display text-2xl">
+          {CLUB.venueName}
+          <br />
           {CLUB.addressLine1}
           <br />
           {CLUB.addressLine2}

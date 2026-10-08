@@ -1,11 +1,9 @@
 import { createFileRoute, Outlet, useRouterState } from "@tanstack/react-router";
 import { PublicTeamRoster } from "@/components/public-team-roster";
+import { CLUB } from "@/lib/club";
 export const Route = createFileRoute("/teams/$teamId")({
   head: () => ({
-    meta: [
-      { title: "Team roster | Oklahoma Prospects Academy" },
-      { name: "robots", content: "noindex" },
-    ],
+    meta: [{ title: `Team roster | ${CLUB.name}` }, { name: "robots", content: "noindex" }],
   }),
   component: Page,
 });

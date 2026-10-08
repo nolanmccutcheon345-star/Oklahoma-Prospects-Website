@@ -5,7 +5,7 @@ import { useEffect, useState, type FormEvent } from "react";
 import { Button } from "@/components/ui/button";
 import { PageHero } from "@/components/page-hero";
 import { CancelNote } from "@/components/square-pay";
-import { BOOKABLE_LANES, CANCEL_POLICY, type BookableLaneId } from "@/lib/club";
+import { BOOKABLE_LANES, CANCEL_POLICY, CLUB, type BookableLaneId } from "@/lib/club";
 import {getCageAvailability} from "@/lib/commerce/api";
 import { reservationSlots, chicagoDateISO } from "@/lib/hours";
 import { quoteCages } from "@/lib/pay";
@@ -35,7 +35,7 @@ function BookPage() {
   return (
     <main id="main">
       <PageHero
-        eyebrow="Oklahoma Prospects"
+        eyebrow={CLUB.name}
         title="What are we booking?"
         compact
         copy="Reserve cage time, book a lesson, or find a monthly training plan."

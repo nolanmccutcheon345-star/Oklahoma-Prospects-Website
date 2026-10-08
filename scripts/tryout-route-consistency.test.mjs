@@ -10,7 +10,9 @@ test("homepage and teams route consume the published tryout source, never a fixe
     assert.match(content, /loader:\s*\(\) => getPublicTryoutEvents\(\)/, page + " missing canonical schedule loader");
   }
   assert.doesNotMatch(home, /Nov\s*14|Nov\s*15|2026-11-14|2026-11-15/);
-  assert.match(home, /Free · request a tryout/);
+  assert.equal((home.match(/to="\/tryouts"/g) || []).length, 1);
+  assert.match(home, />Tryouts</);
+  assert.doesNotMatch(home, /Free · request a tryout|Earn a roster spot/);
   assert.doesNotMatch(home, /getPublicTryoutEvents\(\)/);
   assert.match(teams.slice(teams.indexOf("function TeamsPublic()")), /const events = Route\.useLoaderData\(\)/);
   assert.match(teams, /TryoutSchedule events=\{events\} sport="Baseball"/);

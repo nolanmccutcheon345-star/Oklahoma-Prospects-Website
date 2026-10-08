@@ -8,7 +8,7 @@ import { TryoutSchedule } from "@/components/tryout-schedule";
 import { Button } from "@/components/ui/button";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
 import { getProfile, type ClubRole } from "@/lib/club-data";
-import { AGE_GROUPS, SOFTBALL_AGES } from "@/lib/club";
+import { AGE_GROUPS, CLUB } from "@/lib/club";
 import { cn } from "@/lib/utils";
 import { getPublicTryoutEvents } from "@/lib/tryout-events-api";
 
@@ -17,7 +17,7 @@ export const Route = createFileRoute("/teams")({
     pageHead(
       "/teams",
       "Teams & Spring 2027 Tryouts",
-      "Oklahoma Prospects baseball and softball teams in Broken Arrow. Free individual tryout requests at every age; group event dates appear when published.",
+      "Baseball and softball teams in Broken Arrow. Free individual tryout requests at every age; group event dates appear when published.",
       false,
     ),
   loader: () => getPublicTryoutEvents(),
@@ -113,7 +113,7 @@ function TeamsPublic() {
   return (
     <>
       <PageHero
-        eyebrow="Oklahoma Prospects teams"
+        eyebrow={`${CLUB.name} teams`}
         title="Find your team."
         accent="Bring your game."
         copy="Competitive baseball and softball, purposeful development, and a place to belong. Free Spring 2027 evaluations in Broken Arrow."
@@ -135,34 +135,24 @@ function TeamsPublic() {
       <section id="softball" className="scroll-mt-24 bg-navy py-10 text-fg-inverse">
         <div className="mx-auto max-w-3xl px-5">
           <p className="text-xs font-semibold tracking-[0.16em] text-powder uppercase">
-            Oklahoma Prospects softball
+            Softball
           </p>
-          <h2 className="mt-2 text-4xl">Teams forming: {SOFTBALL_AGES.join(" · ")}</h2>
+          <h2 className="mt-2 text-4xl">Softball tryouts</h2>
           <p className="mt-3 text-fg-soft">
-            Sarah Blankenship, Softball Program Coordinator, is adding four softball age groups.
-            Register your interest below.{" "}
+            Baseball and softball use the same tryout registration.{" "}
             {hasSoftballDates
-              ? "Published softball group event dates are listed below; Prospects will confirm any enrollment."
-              : "No softball group date is posted yet. Prospects will coordinate private requests with families."}
+              ? "Published softball group dates are listed below. A request does not reserve a roster spot."
+              : "No softball group date is posted yet. Individual requests stay on the tryouts page."}
           </p>
           <div className="mt-5 text-ink">
             <TryoutSchedule events={events} sport="Softball" />
           </div>
-          <p className="mt-4 font-semibold">14U B Softball · Head Coach Rusty</p>
-          <p className="mt-2 text-fg-soft">
-            Rusty also offers softball hitting and defense instruction.{" "}
-            <Link to="/softball" className="underline">
-              Meet Coach Rusty and ask about lessons.
-            </Link>
-          </p>
-          <div className="mt-6 grid gap-3 sm:grid-cols-2">
-            {SOFTBALL_AGES.map((group) => (
-              <Button asChild key={group}>
-                <Link to="/tryouts" search={{ sport: "Softball", age: group }} hash="register">
-                  {group} softball tryout signup
-                </Link>
-              </Button>
-            ))}
+          <div className="mt-6">
+            <Button asChild>
+              <Link to="/tryouts" search={{ sport: "Softball" }} hash="register">
+                Tryouts
+              </Link>
+            </Button>
           </div>
         </div>
       </section>

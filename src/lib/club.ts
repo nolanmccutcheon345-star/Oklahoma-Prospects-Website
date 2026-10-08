@@ -1,7 +1,10 @@
 import { dollars, formatMoney, PRICES } from "./pricing";
 import { processingInclusiveCents } from "./processing-prices.js";
 export const CLUB = {
-  name: "Oklahoma Prospects Academy",
+  name: "Prospects Sports Academy",
+  venueName: "Prospects Sports Facility",
+  // Existing Google Business listing query. This site rename does not change that listing.
+  googleListingName: "Oklahoma Prospects Academy",
   shortName: "Prospects",
   tagline: "Indoor baseball & softball in Broken Arrow.",
   established: 2008,

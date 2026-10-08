@@ -8,7 +8,7 @@ import { PeopleCards } from "@/components/people";
 import { Button } from "@/components/ui/button";
 import { CLUB, LINKS } from "@/lib/club";
 
-export const Route = createFileRoute("/contact")({head:()=>pageHead("/contact","Contact the Front Desk","Call (918) 922-8114 or send Oklahoma Prospects a question about cages, lessons, and teams.",false), validateSearch: (search: Record<string, unknown>): { subject?: string } => ({ subject: typeof search.subject === "string" ? search.subject.slice(0, 200) : "" }), component: ContactPage });
+export const Route = createFileRoute("/contact")({head:()=>pageHead("/contact","Contact the Front Desk",`Call (918) 922-8114 or send ${CLUB.name} a question about cages, lessons, and teams.`,false), validateSearch: (search: Record<string, unknown>): { subject?: string } => ({ subject: typeof search.subject === "string" ? search.subject.slice(0, 200) : "" }), component: ContactPage });
 
 function ContactPage() {
   const { subject } = Route.useSearch();

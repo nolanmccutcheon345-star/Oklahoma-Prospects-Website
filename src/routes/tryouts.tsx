@@ -51,7 +51,7 @@ function TryoutsPage() {
       <section id="softball" className="scroll-mt-24 bg-navy py-10 text-fg-inverse">
         <div className="mx-auto max-w-3xl px-5">
           <p className="text-xs font-semibold tracking-[0.16em] text-powder uppercase">
-            Oklahoma Prospects softball
+            {CLUB.name} softball
           </p>
           <h2 className="mt-2 text-4xl">All softball age groups</h2>
           <p className="mt-3 text-fg-soft">

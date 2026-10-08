@@ -1,3 +1,5 @@
+import { CLUB } from "../club";
+
 const EMAIL_UNAVAILABLE = "Account email is temporarily unavailable. Please try again shortly.";
 const DEPLOY_CONTEXTS = new Set(["production", "deploy-preview", "branch-deploy", "development", "dev"]);
 
@@ -44,7 +46,7 @@ export async function deliverAuthEmail(to: string, subject: string, url: string)
       from,
       to: [to.trim()],
       subject,
-      text: `Oklahoma Prospects\n\n${subject}:\n${url}\n\nIf you did not request this, you can ignore this email.`,
+      text: `${CLUB.name}\n\n${subject}:\n${url}\n\nIf you did not request this, you can ignore this email.`,
     }),
     signal: AbortSignal.timeout(10000),
   });

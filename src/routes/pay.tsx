@@ -16,7 +16,7 @@ import { eligibility, formatMoney } from "@/lib/pricing";
 import { chicagoDate, slotsFor } from "@/lib/scheduling";
 import { useCurrentUser } from "@/lib/auth/use-current-user";
 import { SquareCard } from "@/components/commerce/square-card";
-import { CANCEL_POLICY } from "@/lib/club";
+import { CANCEL_POLICY, CLUB } from "@/lib/club";
 import { checkoutScopeCustomerNotice } from "@/lib/commerce/square-config";
 
 export const Route = createFileRoute("/pay")({
@@ -264,7 +264,7 @@ function PayPage() {
   const recurring = quote?.recurring || kind === "membership" || kind === "cage-plan";
   return (
     <main id="main" className="mx-auto max-w-3xl px-5 py-8">
-      <p className="eyebrow">Oklahoma Prospects</p>
+      <p className="eyebrow">{CLUB.name}</p>
       <h1 className="mt-2 text-4xl">
         {recurring ? "Start your membership" : "Review your booking"}
       </h1>
