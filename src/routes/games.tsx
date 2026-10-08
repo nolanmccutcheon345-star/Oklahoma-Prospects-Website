@@ -31,12 +31,6 @@ export const Route = createFileRoute("/games")({
  component: GamesPage,
 });
 
-function dateLabel(date:string,time:string) {
- const parsed=new Date(`${date}T${time}:00`);
- return Number.isFinite(parsed.getTime())
-  ? parsed.toLocaleString("en-US",{month:"short",day:"numeric",year:"numeric",hour:"numeric",minute:"2-digit"})
-  : `${date} · ${time}`;
-}
 function GameStatus({game}:{game:PublicGameEvent}){
  const live=game.status==="live";
  return <span className={cn("inline-flex rounded-full border px-3 py-1 text-xs font-bold uppercase tracking-wide",live?"border-maroon bg-maroon text-fg-inverse":"border-line bg-paper-2 text-muted")}>
@@ -160,7 +154,8 @@ function GamesStudio(){
  const [busy,setBusy]=useState(false);
  useEffect(()=>{
   let alive=true;
-  if(!user){setAllowed(false);return;}
+  setAllowed(false);setGames([]);
+  if(!user)return;
   void getAdminGames().then(rows=>{if(alive){setAllowed(true);setGames(rows);}}).catch(()=>{if(alive)setAllowed(false);});
   return()=>{alive=false;};
  },[user?.id]);
