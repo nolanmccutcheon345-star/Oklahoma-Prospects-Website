@@ -1,18 +1,17 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { PRICES, NET_PRICES, FIRST_MONTH_SETUP_CENTS, FIRST_ASSESSMENT_BASE } from "./pricing";
+import { PRICES, NET_PRICES, FIRST_MONTH_SETUP_CENTS, ASSESSMENT_CUSTOMER_CENTS } from "./pricing";
 import { processingInclusiveCents } from "./processing-prices.js";
 import { buildPublicCatalog } from "./ops";
 import { quoteCages } from "./pay";
 import { serviceInput } from "./ops-contracts";
 const netAfterBudget = (cents: number) => cents - Math.round(cents * .029) - 30;
-test("posted products retain processing budgets except the explicit exact assessment premium",()=>{
+test("posted products retain processing budgets except owner-approved assessment totals",()=>{
  for(const [id,base] of Object.entries(NET_PRICES)){
   const price=PRICES[id as keyof typeof PRICES];
   const units=["individual","team","field"].includes(id)?2:1;
-  if (id in FIRST_ASSESSMENT_BASE) {
-    const standard = FIRST_ASSESSMENT_BASE[id as keyof typeof FIRST_ASSESSMENT_BASE];
-    assert.equal(price, PRICES[standard] + 5000, id);
+  if (id in ASSESSMENT_CUSTOMER_CENTS) {
+    assert.equal(price, 14900, id);
   } else assert.ok(netAfterBudget(price/units)>=base/units,id);
  }
  assert.equal(FIRST_MONTH_SETUP_CENTS,5000); // exact customer premium takes precedence over gross-up

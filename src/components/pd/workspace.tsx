@@ -242,7 +242,7 @@ function ScopedWorkspace({
             {ready && pdReady && tab === "progress" ? <AthleteRoster role={previewRole} selfName={athlete} /> : null}
             {ready && pdReady && tab === "training" ? (
               previewRole === "player" ? (
-                <DrillsDesk athlete={athlete} programs={programs} drills={drills} onChange={refresh} />
+                <DrillsDesk athlete={athlete} programs={programs} drills={drills} onChange={refresh} canAuthor={trueRole !== "player"} />
               ) : (
                 <ParentTrainingDesk />
               )
@@ -718,12 +718,14 @@ function AssessDesk({ athlete, onSaved }: { athlete: string; onSaved: () => void
 }
 
 function DrillsDesk({
+  canAuthor,
   athlete,
   programs,
   drills,
   onChange,
 }: {
   athlete: string;
+  canAuthor: boolean;
   programs: Program[];
   drills: Drill[];
   onChange: () => void;
@@ -731,7 +733,7 @@ function DrillsDesk({
   const [focus, setFocus] = useState("Pitching");
   return (
     <>
-      <form
+      {canAuthor ? <form
         className="flex flex-wrap gap-2"
         onSubmit={async (event) => {
           event.preventDefault();
@@ -750,7 +752,7 @@ function DrillsDesk({
           <option>Fielding</option>
         </select>
         <Button type="submit">Start {focus} program</Button>
-      </form>
+      </form> : <p>Follow the programs and drills assigned by your coach.</p>}
       {programs.length === 0 ? (
         <Empty text="No program yet." cta="Book an assessment" to="/training" />
       ) : (
