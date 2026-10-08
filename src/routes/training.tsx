@@ -115,7 +115,7 @@ function CatalogAndBook() {
       {user && !loadingAthletes && athletes.length === 0 ? <p className="mb-5"><Link to="/family" className="font-semibold underline">Add an athlete</Link> to your household before booking.</p> : null}
       {athletes.length > 0 ? <label className="mb-6 grid gap-2">Athlete<select value={athleteId} onChange={e=>setAthleteId(e.target.value)} className="min-h-11 rounded-lg border p-3"><option value="">Select an athlete</option>{athletes.map(a=><option key={a.id} value={a.id}>{a.name}{a.assessmentComplete ? " · assessment completed" : " · assessment needed"}</option>)}</select></label> : null}
         <nav aria-label="Lesson disciplines" className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
-          {groups.map(group => <Button asChild key={group} variant="outlineDark"><a href={`#lesson-${group.toLowerCase()}`}>{group}</a></Button>)}
+          {groups.filter(group => lessons.some(item => item.discipline === group && (hasAssessment || ASSESSMENT_PRODUCTS.has(item.id)))).map(group => <Button asChild key={group} variant="outlineDark"><a href={`#lesson-${group.toLowerCase()}`}>{group}</a></Button>)}
         </nav>
         {!hasAssessment ? <aside className="mb-6 rounded-2xl bg-ink p-5 text-fg-inverse">
           <h2 className="text-2xl">Start with an assessment</h2>
@@ -131,7 +131,7 @@ function CatalogAndBook() {
         </aside> : <p className="mb-6 text-base">Assessment completed. Choose a lesson below to book your next session.</p>}
       <h2 className="text-3xl">Choose your lesson</h2>
       <p className="mt-2 mb-8 text-sm text-muted">
-        ${hasAssessment ? 'Choose your service, then pick a qualified coach and available time during checkout.' : 'Only assessment lessons are available until the selected athlete has completed an assessment.'}
+        {hasAssessment ? "Choose your service, then pick a qualified coach and available time during checkout." : "Only assessment lessons are available until the selected athlete has completed an assessment."}
       </p>
 
       {groups.map((group) => {
