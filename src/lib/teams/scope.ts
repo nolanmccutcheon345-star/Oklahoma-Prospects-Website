@@ -130,6 +130,30 @@ function buildViewer(raw: ClubOs, identity: OsIdentity): OsViewer {
   const wk = weekOf();
 
   for (const team of raw.teams) {
+    // The viewer object also leaves this access boundary. Never compute or
+    // return all-team financial dashboards for a family or athlete account.
+    const teamVisible =
+      identity.role === "admin" ||
+      (identity.role === "coach" &&
+        (team.id === identity.teamId ||
+          team.coachEmail === identity.email ||
+          team.staff.some((s) => Boolean(s.email) && s.email?.toLowerCase() === identity.email.toLowerCase()))) ||
+      ((identity.role === "parent" || identity.role === "player") &&
+        Boolean(identity.familyId) &&
+        team.roster.some((p) =>
+          !p.withdrawn && p.familyId === identity.familyId &&
+          (identity.role === "parent" ||
+            (Boolean(identity.playerId) && p.id === identity.playerId && team.id === identity.teamId)),
+        ));
+    if (!teamVisible) continue;
+    if (identity.role === "parent" || identity.role === "player") {
+      // Only nonfinancial team utilization is needed for their cage summary.
+      cageByTeam[team.id] = {
+        teamHours: Number(team.teamCageHoursPerWeek) || 0,
+        used: Number(creditsUsed(raw, "team", team.id, wk)) || 0,
+      };
+      continue;
+    }
     try {
       const priced = priceTeam(raw, team) as { published: number; entryFees: number };
       publishedByTeam[team.id] = Number(priced.published) || 0;
@@ -200,21 +224,32 @@ function buildViewer(raw: ClubOs, identity: OsIdentity): OsViewer {
 function filterAlerts(raw: ClubOs, identity: OsIdentity, alerts: OsAlert[]): OsAlert[] {
   if (identity.role === "admin") return alerts;
   if (identity.role === "player") {
+    if (!identity.teamId || !identity.playerId) return [];
     return alerts.filter(
       (a) =>
         a.kind !== "Money" &&
         !/\$|usd|\bbudget\b|% of budget|entry fee/i.test(a.text) &&
-        a.teamId === identity.teamId,
+        a.teamId === identity.teamId &&
+        (a.playerId
+          ? a.playerId === identity.playerId
+          : a.kind === "Schedule" || a.kind === "Roster" || a.kind === "Field"),
     );
   }
   if (identity.role === "coach") {
     const mine = new Set(raw.teams.filter((t) => t.id === identity.teamId || t.coachEmail === identity.email).map((t) => t.id));
     return alerts.filter((a) => mine.has(a.teamId) && a.kind !== "Money" && !/\$/.test(a.text));
   }
-  const names = new Set(
-    raw.teams.flatMap((t) => t.roster.filter((p) => p.familyId === identity.familyId).map((p) => p.name)),
+  if (!identity.familyId) return [];
+  // Compare verified player/team/family IDs, never free-form alert text or names.
+  return alerts.filter(
+    (a) =>
+      Boolean(a.playerId) &&
+      raw.teams.some(
+        (t) =>
+          t.id === a.teamId &&
+          t.roster.some((p) => p.id === a.playerId && p.familyId === identity.familyId),
+      ),
   );
-  return alerts.filter((a) => names.size > 0 && [...names].some((n) => a.text.includes(n)));
 }
 
 function stripSettings(settings: ClubOs["settings"], role: OsRole): ClubOs["settings"] {
@@ -268,6 +303,70 @@ export function scopeClub(
   next.payouts = [];
   next.purchaseOrders = [];
   next.audit = [];
+  next.archive = [];
+  next.disruptions = [];
+  next.onboarding = {};
+
+  // Keep each booking tied to a team or athlete this identity actually holds.
+  // Archived financial results and free-form operational disruptions are owner-only.
+  const teamsInScope = raw.teams.filter((team) => {
+    if (identity.role === "coach") {
+      return (
+        team.id === identity.teamId ||
+        team.coachEmail === identity.email ||
+        team.staff.some((s) => Boolean(s.email) && s.email?.toLowerCase() === identity.email.toLowerCase())
+      );
+    }
+    return Boolean(identity.familyId) && team.roster.some(
+      (p) => !p.withdrawn && p.familyId === identity.familyId &&
+        (identity.role === "parent" ||
+          (Boolean(identity.playerId) && p.id === identity.playerId && team.id === identity.teamId)),
+    );
+  });
+  const permittedTeams = new Set(teamsInScope.map((team) => team.id));
+  const permittedPlayers = new Set(teamsInScope.flatMap((team) =>
+    team.roster.filter((p) =>
+      identity.role === "coach" ||
+      (p.familyId === identity.familyId &&
+        (identity.role === "parent" || p.id === identity.playerId)),
+    ).map((p) => p.id),
+  ));
+  next.bookings = next.bookings.filter((booking) =>
+    booking.scope === "team"
+      ? permittedTeams.has(booking.ownerId)
+      : booking.scope === "player" && permittedPlayers.has(booking.ownerId),
+  );
+  next.cancelled = next.cancelled.filter((event) => permittedTeams.has(event.teamId));
+
+  // Do not ship owner-only or another audience's notices in the viewer's data
+  // snapshot. Family-targeted notices have no familyId; they must not be
+  // broadcast to every household on the team.
+  next.notifications = next.notifications.filter((notice) => {
+    const ownsTeam = raw.teams.some((team) => {
+      if (team.id !== notice.teamId) return false;
+      if (identity.role === "coach") {
+        return (
+          team.id === identity.teamId ||
+          team.coachEmail === identity.email ||
+          team.staff.some((s) => Boolean(s.email) && s.email?.toLowerCase() === identity.email.toLowerCase())
+        );
+      }
+      if (!identity.familyId) return false;
+      return team.roster.some(
+        (player) =>
+          !player.withdrawn &&
+          player.familyId === identity.familyId &&
+          (identity.role === "parent" ||
+            (Boolean(identity.playerId) && player.id === identity.playerId && team.id === identity.teamId)),
+      );
+    });
+    if (!ownsTeam) return false;
+    if (identity.role === "coach") {
+      return notice.audience === "coach" || notice.audience === "all";
+    }
+    if (notice.audience !== "all") return false;
+    return !/\$|usd|\bbudget\b|% of budget|entry fee/i.test(notice.title + " " + notice.body);
+  });
 
   if (identity.role === "coach") {
     next.teams = next.teams
