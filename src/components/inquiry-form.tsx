@@ -194,7 +194,9 @@ export function TryoutForm({
         <p role="status">
           Saved to the club’s front-office queue.{" "}
           {intent === "register"
-            ? "Your request was saved for matching group enrollment. Group enrollment depends on eligibility and capacity; private appointments require agreement. "
+            ? values.preferredTeamId
+              ? "Your preferred team or coach request is saved for office review. It does not reserve a roster place, session or appointment. "
+              : "Your request was saved. Automatic group enrollment happens only if you opted in and an eligible published group has capacity; private appointments require coach confirmation. "
             : ""}
           Reference: {requestId}
         </p>
