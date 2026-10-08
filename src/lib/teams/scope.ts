@@ -283,13 +283,29 @@ export function scopeClub(
   // snapshot. Family-targeted notices have no familyId; they must not be
   // broadcast to every household on the team.
   next.notifications = next.notifications.filter((notice) => {
-    if (!raw.teams.some((t) => t.id === notice.teamId)) return false;
+    const ownsTeam = raw.teams.some((team) => {
+      if (team.id !== notice.teamId) return false;
+      if (identity.role === "coach") {
+        return (
+          team.id === identity.teamId ||
+          team.coachEmail === identity.email ||
+          team.staff.some((s) => Boolean(s.email) && s.email?.toLowerCase() === identity.email.toLowerCase())
+        );
+      }
+      if (!identity.familyId) return false;
+      return team.roster.some(
+        (player) =>
+          !player.withdrawn &&
+          player.familyId === identity.familyId &&
+          (identity.role === "parent" ||
+            (Boolean(identity.playerId) && player.id === identity.playerId && team.id === identity.teamId)),
+      );
+    });
+    if (!ownsTeam) return false;
     if (identity.role === "coach") {
       return notice.audience === "coach" || notice.audience === "all";
     }
-    if (!identity.teamId && !identity.familyId) return false;
-    const ownsTeam = next.teams.some((t) => t.id === notice.teamId);
-    if (!ownsTeam || notice.audience !== "all") return false;
+    if (notice.audience !== "all") return false;
     return !/\$|usd|\bbudget\b|% of budget|entry fee/i.test(notice.title + " " + notice.body);
   });
 
