@@ -33,9 +33,9 @@ function TryoutsPage() {
     <main id="main">
       <PageHero
         eyebrow="Team opportunities"
-        title="Baseball & softball tryouts."
+        title="Tryouts."
         accent="Find your team."
-        copy="Free individual tryout requests in Broken Arrow. Baseball and softball, all age groups."
+        copy="One registration for baseball and softball at every age group. Choose any published team or coach preference when one is available."
         actions={
           <>
             <Button asChild>
@@ -48,51 +48,23 @@ function TryoutsPage() {
         }
       />
 
-      <section id="softball" className="scroll-mt-24 bg-navy py-10 text-fg-inverse">
+      <section id="schedule" className="scroll-mt-24 bg-paper-2 py-10">
         <div className="mx-auto max-w-3xl px-5">
-          <p className="text-xs font-semibold tracking-[0.16em] text-powder uppercase">
-            {CLUB.name} softball
+          <p className="text-xs font-semibold tracking-[0.16em] text-maroon uppercase">
+            Baseball & softball
           </p>
-          <h2 className="mt-2 text-4xl">All softball age groups</h2>
-          <p className="mt-3 text-fg-soft">
-            Softball requests are open for all age groups. Tell us about your player, and Prospects
-            will respond with the next step.
+          <h2 className="mt-2 text-3xl">Upcoming group tryouts</h2>
+          <p className="mt-3 mb-6 text-muted">
+            Published group evaluation times for either sport appear here. You can submit one
+            free request below for any age group even when a matching group date is not posted.
+            Individual appointments are arranged with a coach; submitting does not reserve a time or roster place.
           </p>
-          <div className="mt-6 text-ink">
-            <TryoutSchedule events={events} sport="Softball" />
-          </div>
-          <Button asChild className="mt-6">
-            <Link to="/tryouts" search={{ sport: "Softball" }} hash="register">
-              Sign up for softball tryouts
-            </Link>
-          </Button>
+          <TryoutSchedule events={events} />
+          <p className="mt-5 text-sm text-muted">
+            Looking for independent training instead?{" "}
+            <Link to="/book" className="font-semibold underline">Book a cage</Link>.
+          </p>
         </div>
-      </section>
-
-      <section className="mx-auto max-w-3xl px-5 py-10">
-        <p className="text-xs font-semibold tracking-[0.16em] text-maroon uppercase">
-          Baseball tryouts
-        </p>
-        <h2 className="mt-2 text-4xl">All baseball age groups</h2>
-        <p className="mt-3 text-muted">
-          Request an individual tryout for your player. Group dates will be published when
-          scheduled; private appointments require agreement with a coach.
-        </p>
-        <div className="mt-6">
-          <TryoutSchedule events={events} sport="Baseball" />
-        </div>
-        <Button asChild className="mt-6 w-full">
-          <Link to="/tryouts" search={{ sport: "Baseball" }} hash="register">
-            Request a baseball tryout
-          </Link>
-        </Button>
-        <p className="mt-4 text-sm text-muted">
-          Just need a cage?{" "}
-          <Link to="/book" className="font-semibold text-ink">
-            Book an hour
-          </Link>
-          .
-        </p>
       </section>
 
       <section id="register" className="bg-paper-2 py-10">
@@ -100,8 +72,7 @@ function TryoutsPage() {
           <p className="text-xs font-semibold tracking-[0.16em] text-maroon uppercase">Register</p>
           <h2 className="mt-2 text-3xl">Request a tryout.</h2>
           <p className="mt-2 mb-6 text-muted">
-            Free. Choose baseball or softball and enter your age group. All age groups can submit
-            player information for an individual tryout.
+            Free. Choose baseball or softball, select an age group, and optionally choose a publicly assigned team or coach. All age groups are welcome.
           </p>
           <TryoutForm
             key={`${sport ?? "Baseball"}:${age ?? ""}`}
