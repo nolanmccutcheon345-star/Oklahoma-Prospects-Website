@@ -35,8 +35,6 @@ function TeamsPage() {
   return pathname !== "/teams" && pathname !== "/teams/" ? <Outlet/> : <TeamsOverview/>;
 }
 function TeamsOverview() {
-  const events = Route.useLoaderData();
-  const hasBaseballDates = events.some((event) => event.sport === "Baseball");
   const { user, isPending } = useCurrentUserState();
   const [profileRole, setProfileRole] = useState<ClubRole | null>(null);
   const [ready, setReady] = useState(!user);
@@ -107,6 +105,8 @@ function TeamsOverview() {
 }
 
 function TeamsPublic() {
+  const events = Route.useLoaderData();
+  const hasBaseballDates = events.some((event) => event.sport === "Baseball");
   const [age, setAge] = useState<(typeof AGE_GROUPS)[number] | null>(null);
 
   return (
