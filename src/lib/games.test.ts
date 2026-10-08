@@ -65,8 +65,7 @@ test("Games publication is owner-only, audited and never leaks private media wit
   assert.equal(vid.length,11);
   const [current]=await adminGamesFor(sql,"owner");
   await saveGameFor(sql,"owner",{...current,status:"final",videoId:vid,videoKind:"replay",mediaApproved:false,published:false});
-  const [unpublished]=await publicGamesFor(sql);
-  assert.equal(unpublished.videoId,"","Unpublished edits do not expose video");
+  assert.deepEqual(await publicGamesFor(sql),[],"Unpublished game edits are invisible to visitors");
   const [beforeRelease]=await adminGamesFor(sql,"owner");
   await assert.rejects(()=>saveGameFor(sql,"owner",{...beforeRelease,published:true}),/media publishing approvals/i);
   await saveGameFor(sql,"owner",{...beforeRelease,published:true,mediaApproved:true});
