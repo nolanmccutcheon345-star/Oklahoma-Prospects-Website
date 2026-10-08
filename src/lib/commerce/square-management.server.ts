@@ -4,8 +4,10 @@ import { squareClient, squareConfig, squareKey } from "./square.server";
 import { assertPaymentRequest } from "./square-payments.server";
 import { rateLimit } from "./checkout.server";
 import { syncSquareSubscription, syncSquareRefund } from "./square-webhook.server";
-import { refundCents } from "../pricing";
-import { randomUUID } from "node:crypto";
+import { parentCancellationRefund, householdChangeAvailable } from "./booking-change-policy.server";
+import { lessonRefundValue } from "./lesson-refund-value.server";
+import { standaloneRefundFunding, settleRefundBatch } from "./refund-funding.server";
+import { saveParentBookingCancellation } from "./family-cancellation.server";
 
 export async function ownedSubscription(userId: string, id: string, ownerOnly = false) {
   const me = await clubIdentity(userId),
@@ -87,9 +89,11 @@ export async function updateSquareCard(
 async function cancellationContext(userId: string, bookingId: string) {
   const me = await clubIdentity(userId),
     sql = await getSql();
+  if (me.role === "player") throw new Error("A parent account is required to manage bookings.");
   const [b] = await sql<{
     id: string;
     order_id: string;
+    household_id: string | null;
     starts_at: Date;
     ends_at: Date;
     status: string;
@@ -100,6 +104,9 @@ async function cancellationContext(userId: string, bookingId: string) {
     total_cents: number;
     square_payment_id: string;
     payment_provider: string;
+    kind: string;
+    status: string;
+    square_fee_payment_id: string | null;
     snapshot: { recurring: boolean };
   }>`select * from commerce_orders where id=${b.order_id}`;
   const uses = await sql<{
@@ -107,13 +114,40 @@ async function cancellationContext(userId: string, bookingId: string) {
     quantity: number;
     reversed_at: Date | null;
   }>`select id,quantity,reversed_at from credit_uses where booking_id=${b.id}`;
-  const fraction = refundCents(100, new Date(b.starts_at)) / 100;
-  const [existing] = await sql<{
+  const now = new Date();
+  const allowanceAvailable =
+    Boolean(b.household_id) &&
+    (await householdChangeAvailable(sql, b.household_id!, "booking:" + b.id, now));
+  const fraction =
+    parentCancellationRefund(100, new Date(b.starts_at), allowanceAvailable, now) / 100;
+  const existing = await sql<{
     amount_cents: number;
-  }>`select amount_cents from commerce_refunds where request_key=${"booking:" + b.id}`;
+  }>`select amount_cents from commerce_refunds where request_key=${"booking:" + b.id} or request_key=${"booking:" + b.id + ":setup"}`;
   const isCredit = uses.length > 0;
-  // A half-credit and its expiry are not silently invented as financial policy.
-  const review = isCredit ? fraction === 0.5 : !order.square_payment_id || order.snapshot.recurring;
+  let lessonValue: Awaited<ReturnType<typeof lessonRefundValue>> | undefined;
+  let review =
+    !b.household_id ||
+    (!isCredit &&
+      (!order.square_payment_id ||
+        !["lesson", "cage"].includes(order.kind) ||
+        order.snapshot.recurring));
+  if (isCredit && fraction === 0.5 && !existing.length) {
+    try {
+      lessonValue = await lessonRefundValue(sql, b.id, order.id, b.household_id!);
+      review =
+        order.payment_provider !== "square" ||
+        lessonValue.halfRefundCents > lessonValue.availableCents;
+    } catch {
+      review = true;
+    }
+  }
+  if (!isCredit && fraction > 0 && !existing.length && !review) {
+    try {
+      await standaloneRefundFunding(sql, order, fraction);
+    } catch {
+      review = true;
+    }
+  }
   return {
     sql,
     me,
@@ -122,9 +156,18 @@ async function cancellationContext(userId: string, bookingId: string) {
     uses,
     isCredit,
     review,
+    allowanceAvailable,
+    paidCents: isCredit ? (lessonValue?.paidCents ?? null) : order.total_cents,
     amount:
-      existing?.amount_cents ??
-      (isCredit ? 0 : refundCents(order.total_cents, new Date(b.starts_at))),
+      (existing.length ? existing.reduce((sum, r) => sum + r.amount_cents, 0) : undefined) ??
+      (isCredit
+        ? (lessonValue?.halfRefundCents ?? 0)
+        : parentCancellationRefund(
+            order.total_cents,
+            new Date(b.starts_at),
+            allowanceAvailable,
+            now,
+          )),
     restore: isCredit && fraction === 1,
   };
 }
@@ -134,11 +177,13 @@ export async function squareRefundPreview(userId: string, bookingId: string) {
     throw new Error("Completed or past bookings require office review.");
   return {
     orderId: c.b.id,
-    paidCents: c.order.total_cents,
+    paidCents: c.paidCents,
     refundCents: c.review ? null : c.amount,
     requiresReview: c.review,
     credit: c.isCredit,
     restoresCredit: c.restore,
+    householdAllowanceAvailable: c.allowanceAvailable,
+    allowanceResets: "First of each month in America/Chicago",
   };
 }
 export async function cancelSquareBooking(userId: string, bookingId: string) {
@@ -146,55 +191,11 @@ export async function cancelSquareBooking(userId: string, bookingId: string) {
   await rateLimit("square-refund", 15);
   const c = await cancellationContext(userId, bookingId);
   if (c.review) {
-    await c.sql`insert into club_requests(id,user_id,kind,payload) values(${"refund-review:" + c.b.id},${userId},'refund-review',${JSON.stringify({ bookingId: c.b.id, orderId: c.order.id, reason: c.isCredit ? "Half-credit policy requires review." : "Historical processor review." })}::jsonb) on conflict do nothing`;
+    await c.sql`insert into club_requests(id,user_id,kind,payload) values(${"refund-review:" + c.b.id},${userId},'refund-review',${JSON.stringify({ bookingId: c.b.id, orderId: c.order.id, reason: c.isCredit ? "Original lesson funding requires review." : "Historical processor review." })}::jsonb) on conflict do nothing`;
     return { status: "review_requested", refundCents: null };
   }
-  const refund = await c.sql.transaction(async (tx) => {
-    // Consistent parent-order lock is shared with fulfillment and credit redemption.
-    await tx`select id from commerce_orders where id=${c.order.id} for update`;
-    const [existing] = await tx<{
-      id: string;
-      amount_cents: number;
-      status: string;
-      square_refund_id: string | null;
-    }>`select * from commerce_refunds where request_key=${"booking:" + c.b.id}`;
-    if (existing) return existing;
-    const [booking] = await tx<{
-      status: string;
-      starts_at: Date;
-      ends_at: Date;
-    }>`select status,starts_at,ends_at from booking_records where id=${c.b.id} for update`;
-    if (booking.status !== "confirmed" || new Date(booking.starts_at).getTime() <= Date.now())
-      throw new Error("Only a future confirmed booking can be cancelled.");
-    const uses = await tx<{
-      id: string;
-      grant_id: string;
-      quantity: number;
-      reversed_at: Date | null;
-    }>`select * from credit_uses where booking_id=${c.b.id} for update`;
-    for (const u of uses) {
-      if (u.reversed_at) continue;
-      const restored = c.restore ? u.quantity : 0;
-      if (restored)
-        await tx`update credit_grants set remaining=least(quantity,remaining+${restored}) where id=${u.grant_id}`;
-      await tx`update credit_uses set reversed_at=now(),restored_quantity=${restored} where id=${u.id}`;
-    }
-    await tx`update booking_records set status='cancelled' where id=${c.b.id}`;
-    await tx`delete from booking_occupancy where booking_id=${c.b.id}`;
-    const [r] = await tx<{
-      id: string;
-      amount_cents: number;
-      status: string;
-      square_refund_id: string | null;
-    }>`insert into commerce_refunds(id,order_id,booking_id,user_id,amount_cents,status,reason,square_payment_id,request_key)
-      values(${randomUUID()},${c.order.id},${c.b.id},${userId},${c.amount},${c.amount ? "pending" : "completed"},${c.isCredit ? "Credit booking cancellation" : "Family booking cancellation"},${c.order.square_payment_id || null},${"booking:" + c.b.id}) returning *`;
-    return r;
-  });
-  if (refund.amount_cents > 0 && refund.status !== "completed")
-    await executeSquareRefund(refund.id);
-  const [confirmed] = await c.sql<{
-    status: string;
-  }>`select status from commerce_refunds where id=${refund.id}`;
+  const refund = await saveParentBookingCancellation(c.sql, c.b.id, c.order.id, userId, c.me);
+  const confirmed = await settleRefundBatch(c.sql, refund.refunds, executeSquareRefund);
   return { status: confirmed.status, refundCents: refund.amount_cents };
 }
 export async function executeSquareRefund(id: string) {

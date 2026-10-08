@@ -25,10 +25,12 @@ import { assertDiscountCurrent } from "./discounts.server";
 import { lockBreakTheBatCustomer } from "./break-the-bat.server";
 export type SquareOrder = {
   id: string;
+  kind?: string;
   user_id: string;
   email: string;
   athlete_id: string | null;
   snapshot: Quote & {
+    rescheduleFee?: import("./reschedule-fee.server").FeeOrder["snapshot"]["rescheduleFee"];
     bookingWindow?: {
       start: string;
       end: string;
@@ -120,7 +122,7 @@ export async function fulfillSquarePayment(
     ? chicagoInstant(nextBillingDate(paidAt), "00:00")
     : new Date(paidAt.getTime() + order.snapshot.expiresDays * 86400000);
   await sql`insert into square_payments(id,order_id,environment,amount_cents,status,receipt_url,period_start,period_end,purpose)
-    values(${id},${order.id},${config.environment},${expected},'COMPLETED',${payment.receiptUrl || null},${paidAt.toISOString()},${end.toISOString()},${fee ? "setup-fee" : "base"}) on conflict(id) do nothing`;
+    values(${id},${order.id},${config.environment},${expected},'COMPLETED',${payment.receiptUrl || null},${paidAt.toISOString()},${end.toISOString()},${order.kind === "reschedule-fee" ? "reschedule-fee" : fee ? "setup-fee" : "base"}) on conflict(id) do nothing`;
   await sql`update square_payment_attempts set status='completed',payment_id=${id} where order_id=${order.id} and status in ('pending','unknown')`;
   if (fee) await sql`update commerce_orders set square_fee_payment_id=${id} where id=${order.id}`;
   else
@@ -137,6 +139,14 @@ export async function fulfillSquarePayment(
     await sql`delete from booking_occupancy where booking_id in(select id from booking_records where order_id=${order.id} and status='expired')`;
     await queueExpiredCheckoutRefunds(sql, config.environment, order.id);
     await sql`insert into payment_notifications(id,order_id,kind) values(${"owner-review:" + order.id},${order.id},'owner-payment-review') on conflict do nothing`;
+    return;
+  }
+  if (order.kind === "reschedule-fee" || order.snapshot.rescheduleFee) {
+    const { completePaidReschedule } = await import("./reschedule-fee.server");
+    await completePaidReschedule(sql, {
+      ...order,
+      square_payment_id: id,
+    } as unknown as import("./reschedule-fee.server").FeeOrder);
     return;
   }
   const needsFee = order.snapshot.setupCents > 0 && !fee && !order.square_fee_payment_id;
@@ -337,7 +347,26 @@ export async function paySquareOrder(
       new Date(current.hold_until).getTime() <= Date.now()
     )
       throw new Error("This checkout expired. Check billing history before starting again.");
-    if (current.athlete_id) {
+    if (current.snapshot.rescheduleFee) {
+      const { validatePreparedRescheduleFee, currentMoveAvailability } =
+        await import("./reschedule-fee.server");
+      const fee = await validatePreparedRescheduleFee(tx, current.id, {
+        ...identity,
+        userId: session.id,
+      });
+      const { lockedBooking } = await import("./booking-resolution.server");
+      const { booking: b } = await lockedBooking(tx, fee.snapshot.rescheduleFee.bookingId);
+      const m = fee.snapshot.rescheduleFee;
+      const minutes = (+new Date(b.ends_at) - +new Date(b.starts_at)) / 60000;
+      if (!(await currentMoveAvailability(b, m.date, m.time, minutes, tx)))
+        throw new Error("The session is no longer available. No fee was submitted.");
+      const { validateWindow } = await import("../scheduling");
+      const target = validateWindow(m.date, m.time, minutes);
+      const occupied =
+        await tx`select booking_id from booking_occupancy where resource_id=any(${b.resources}::text[]) and slot_at>=${target.start.toISOString()} and slot_at<${target.end.toISOString()} and booking_id<>${b.id} limit 1`;
+      if (occupied.length) throw new Error("That time was just booked. No fee was submitted.");
+    }
+    if (current.athlete_id && !current.snapshot.rescheduleFee) {
       const [athlete] = await tx<{
         assessed: boolean;
       }>`select exists(select 1 from athlete_assessments a where a.athlete_id=c.id) as assessed from club_athletes c where c.id=${current.athlete_id} and c.household_id=any(${identity.billingHouseholdIds}::text[])`;
