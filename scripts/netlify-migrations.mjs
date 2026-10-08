@@ -18,6 +18,7 @@ const lateVersions = {
   '0032_tryout_events.sql': '0038',
   '0033_tryout_enrollment.sql': '0039',
   '0034_tryout_notice_delivery.sql': '0040',
+  '0036_games_events.sql': '0042',
 };
 export function netlifyMigrationSlug(name) {
   const versioned = lateVersions[name] ? name.replace(/^\d+/, lateVersions[name]) : name;
