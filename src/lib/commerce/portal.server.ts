@@ -1,6 +1,7 @@
+import {z} from "zod";
 import { randomUUID } from "node:crypto";
 import { getSql, type Sql } from "../db";
-import { clubIdentity } from "../identity.server";
+import { commerceIdentity as clubIdentity, assertCommerceRole } from "./access.server";
 import { ASSESSMENT_PRODUCTS } from "../pricing";
 import {
   changeRenewal,
@@ -10,6 +11,7 @@ import {
 import { rateLimit } from "./checkout.server";
 import { assertPaymentRequest } from "./square-payments.server";
 import { readWorkingFile } from "../pd/desk-impl.server";
+import {assignedCoachIdFor} from "./coach-access.server";
 import type { Quote } from "./contracts";
 
 export async function familyBilling(userId: string, page = 0) {
@@ -22,6 +24,7 @@ export async function readFamilyBilling(
   me: Awaited<ReturnType<typeof clubIdentity>>,
   page = 0,
 ) {
+  assertCommerceRole(me);
   const [orders, bookings, subscriptions, invoices, credits, athletes, requests, payments] =
     await Promise.all([
       sql<{
@@ -180,7 +183,7 @@ export async function coachBookings(userId: string) {
   const me = await clubIdentity(userId);
   if (me.role !== "admin" && me.role !== "coach") throw new Error("Coach access required.");
   const file = await readWorkingFile();
-  const coachId = file.coaches.find((c) => c.email.toLowerCase() === me.email)?.id || "";
+  const coachId = assignedCoachIdFor(me,file);
   const sql = await getSql();
   return sql<{
     id: string;
@@ -195,11 +198,13 @@ export async function coachBookings(userId: string) {
     from booking_records b join club_athletes a on a.id = b.athlete_id
     where (b.coach_id = ${coachId} or ${me.role === "admin"}) and b.status in ('confirmed','completed') order by b.starts_at desc limit 200`;
 }
+export const sessionCompletionInput=z.object({id:z.string().trim().min(1).max(150),notes:z.string().trim().min(5).max(5000)}).strict();
 export async function completeSession(userId: string, bookingId: string, notes: string) {
+  const input=sessionCompletionInput.parse({id:bookingId,notes});bookingId=input.id;notes=input.notes;
   const me = await clubIdentity(userId);
   if (me.role !== "coach" && me.role !== "admin") throw new Error("Coach access required.");
   const file = await readWorkingFile();
-  const coachId = file.coaches.find((c) => c.email.toLowerCase() === me.email)?.id || "";
+  const coachId = assignedCoachIdFor(me,file);
   const sql = await getSql();
   return sql.transaction(async (tx) => {
     const [booking] = await tx<{
@@ -218,7 +223,8 @@ export async function completeSession(userId: string, bookingId: string, notes: 
       snapshot: Quote;
       total_cents: number;
       status: string;
-    }>`select snapshot,total_cents,status from commerce_orders where id = ${booking.order_id}`;
+    }>`select snapshot,total_cents,status from commerce_orders where id = ${booking.order_id} for update`;
+    if (!order || order.status !== "paid") throw new Error("A verified paid order is required before completing this session.");
     if (ASSESSMENT_PRODUCTS.has(booking.product_id)) {
       await tx`insert into athlete_assessments (id,athlete_id,discipline,coach_user_id,completed_at,notes,booking_id,delivery)
         values (${"assessment:" + booking.id},${booking.athlete_id},${order?.snapshot.discipline || "Pitching"},${userId},now(),${notes},${booking.id},${order?.snapshot.productId === "m5" ? "remote" : "in-person"})
