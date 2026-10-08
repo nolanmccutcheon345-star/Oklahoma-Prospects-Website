@@ -277,3 +277,34 @@ it("v3: the player endpoint cannot mix an authorized player ID with a foreign te
  }
  assert.equal(fetchPlayerRecordForTeam(raw,"parent",parent,"t-13u-navy","p-other"),null);
 });
+
+it("v4: coaches retain their own pay but not coworkers' payroll or owner budgets",()=>{
+ const raw=club();
+ const team=raw.teams[0];
+ team.staff.push({
+  ...team.staff[0],id:"st-colleague",email:"colleague@example.com",
+  name:"Colleague",monthly:2300,applyAmount:450,childId:"p-other",
+  w9:true,backgroundCheck:true,safeSport:true,expires:"2027-08-01",
+ });
+ const coach=scopeClub(raw,"coach",{email:"ty@prospectsbaseball.club",familyId:"fam-cade"});
+ assert.equal(coach.teams.length,1);
+ const scoped=coach.teams[0];
+ const mine=scoped.staff.find(s=>s.id==="st-ty");
+ const other=scoped.staff.find(s=>s.id==="st-colleague");
+ assert.equal(mine.monthly,1500);
+ assert.equal(mine.w9,true);
+ assert.equal(other.monthly,0);
+ assert.equal(other.applyAmount,0);
+ assert.equal(other.childId,"");
+ assert.equal(other.w9,false);
+ assert.equal(other.backgroundCheck,false);
+ assert.equal(other.safeSport,false);
+ assert.equal(other.expires,"");
+ assert.equal(scoped.orgFee,0);
+ assert.equal(scoped.coachMonthly,0);
+ assert.equal(scoped.eventBudget,0);
+ assert.ok(Object.values(scoped.otherCosts).every(v=>v===0));
+ const admin=scopeClub(raw,"admin",{email:"owner@example.com",familyId:""});
+ assert.equal(admin.teams[0].staff[1].monthly,2300);
+ assert.equal(admin.teams[0].eventBudget,3600);
+});
