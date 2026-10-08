@@ -1,5 +1,6 @@
 import {z} from "zod";
 import {parseClubSave} from "./contracts";
+import { assertTeamInquiryPlacement } from "./inquiry-placement";
 import { assertRecordableTeamPayment, newRecordedTeamPaymentReceipt } from "./recorded-payment-policy";
 import { randomUUID } from "node:crypto";
 import { createServerFn } from "@tanstack/react-start";
@@ -324,18 +325,19 @@ export const officeAddPlayer = createServerFn({ method: "POST" })
 
 
 export const reviewTeamInquiry=createServerFn({method:'POST'}).middleware([authMiddleware])
- .validator(z.object({id:z.string().min(1).max(150),teamId:z.string().min(1).max(150),stage:z.enum(['registered','evaluated','offer','accepted','waitlist'])}).strict())
+ .validator(z.object({id:z.string().min(1).max(150),teamId:z.string().min(1).max(150),stage:z.enum(['registered','evaluated','offer','accepted','waitlist']),acknowledgePreferenceOverride:z.boolean().default(false)}).strict())
  .handler(async({context,data})=>{
   const me=await identity(context.userId);if(me.role!=='admin')throw new Error('Front office only.');
   const sql=await getSql();
   return sql.transaction(async tx=>{
-   const [request]=await tx<{kind:string;payload:{player:string;parent:string;email:string;age:string;rosterPlayerId?:string}}> `select kind,payload from club_requests where id=${data.id} for update`;
+   const [request]=await tx<{kind:string;payload:{player:string;parent:string;email:string;sport:string;age:string;preferredTeamId?:string;preferredCoachId?:string;rosterPlayerId?:string}}> `select kind,payload from club_requests where id=${data.id} for update`;
    if(!request||!['tryout','team-inquiry'].includes(request.kind))throw new Error('Choose a tryout or team inquiry.');
    const [row]=await tx<{payload:ClubRecord;rev:number}>`select payload,rev from club_state where id='oklahoma-prospects' for update`;
    if(!row)throw new Error('Open the club record first.');
    const club={...row.payload,_rev:row.rev},team=club.teams.find(t=>t.id===data.teamId);
    if(!team)throw new Error('Choose a current team.');
    if(request.payload.rosterPlayerId)return {ok:true,message:'This registration is already on a roster.'};
+   assertTeamInquiryPlacement(request.payload,team,data.acknowledgePreferenceOverride);
    const leadId='inquiry-'+data.id,prior=club.leads.find(l=>l.id===leadId);
    const lead={id:leadId,name:request.payload.player,age:request.payload.age,stage:data.stage,grades:prior?.grades||{},teamId:team.id};
    club.leads=[...club.leads.filter(l=>l.id!==leadId),lead];
