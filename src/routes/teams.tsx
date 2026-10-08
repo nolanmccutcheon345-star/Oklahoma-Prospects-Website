@@ -16,7 +16,7 @@ export const Route = createFileRoute("/teams")({
   head: () =>
     pageHead(
       "/teams",
-      "Teams & Spring 2027 Tryouts",
+      "Teams & Tryouts",
       "Baseball and softball teams in Broken Arrow. Free individual tryout requests at every age; group event dates appear when published.",
       false,
     ),
@@ -116,7 +116,7 @@ function TeamsPublic() {
         eyebrow={`${CLUB.name} teams`}
         title="Find your team."
         accent="Bring your game."
-        copy="Competitive baseball and softball, purposeful development, and a place to belong. Free Spring 2027 evaluations in Broken Arrow."
+        copy="Competitive baseball and softball, purposeful development, and a place to belong. Request a free individual tryout at any age group."
         image="/brand/team.jpg"
         actions={
           <>
@@ -158,7 +158,7 @@ function TeamsPublic() {
       </section>
 
       <section id="baseball" className="mx-auto max-w-3xl scroll-mt-24 px-5 py-10">
-        <h2 className="text-3xl">Spring 2027 baseball evaluations</h2>
+        <h2 className="text-3xl">Baseball tryouts & evaluations</h2>
         <p className="mt-2 mb-6 text-muted">
           {hasBaseballDates
             ? "Free. No payment to register. Check in 15 minutes before your confirmed group event."
