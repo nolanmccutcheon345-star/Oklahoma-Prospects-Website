@@ -1,7 +1,7 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { sendInquiry } from "@/lib/portal-api";
 import { Button } from "@/components/ui/button";
-import { AGE_GROUPS, TRYOUT_REQUEST_SESSION } from "@/lib/club";
+import { TRYOUT_AGE_GROUPS, TRYOUT_REQUEST_SESSION } from "@/lib/club";
 import { getPublicTryoutTeams } from "@/lib/tryout-events-api";
 import type { PublicTryoutTeam } from "@/lib/tryout-preferences.server";
 import { cn } from "@/lib/utils";
@@ -143,7 +143,7 @@ export function TryoutForm({
     session: intent === "register" ? TRYOUT_REQUEST_SESSION : "",
   });
   const [ageChoice, setAgeChoice] = useState(
-    initialAge ? AGE_GROUPS.some(group => group === initialAge) ? initialAge : "Other" : ""
+    initialAge && TRYOUT_AGE_GROUPS.some(group => group === initialAge) ? initialAge : ""
   );
   const [teams, setTeams] = useState<PublicTryoutTeam[]>([]);
   const [teamError, setTeamError] = useState("");
@@ -241,23 +241,14 @@ export function TryoutForm({
             className={fieldClass}
             value={ageChoice}
             onChange={(e) => {
-              const choice = e.target.value;
-              setAgeChoice(choice);
-              setValues(v => ({ ...v, age: choice === "Other" ? "" : choice, preferredTeamId: "", preferredCoachId: "", autoEnroll: false }));
+              const nextAge = e.target.value;
+              setAgeChoice(nextAge);
+              setValues(v => ({ ...v, age: nextAge, preferredTeamId: "", preferredCoachId: "", autoEnroll: false }));
             }}
           >
             <option value="">Choose age group</option>
-            {AGE_GROUPS.map(age => <option key={age} value={age}>{age}</option>)}
-            <option value="Other">Other age group / Adult</option>
+            {TRYOUT_AGE_GROUPS.map(age => <option key={age} value={age}>{age}</option>)}
           </select>
-          {ageChoice === "Other" ? <input
-            required
-            className={fieldClass}
-            value={values.age}
-            maxLength={120}
-            placeholder="Enter age group, for example 19U or Adult"
-            onChange={e => setValues(v => ({...v,age:e.target.value,preferredTeamId:"",preferredCoachId:"",autoEnroll:false}))}
-          /> : null}
         </label>
       </div>
       {intent === "register" ? (
