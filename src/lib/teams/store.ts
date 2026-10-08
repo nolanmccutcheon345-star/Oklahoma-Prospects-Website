@@ -1,6 +1,6 @@
 import {z} from "zod";
 import {parseClubSave} from "./contracts";
-import { assertRecordableTeamPayment } from "./recorded-payment-policy";
+import { assertRecordableTeamPayment, newRecordedTeamPaymentReceipt } from "./recorded-payment-policy";
 import { randomUUID } from "node:crypto";
 import { createServerFn } from "@tanstack/react-start";
 import { authMiddleware } from "@/lib/auth/middleware";
@@ -124,7 +124,7 @@ export const recordTeamPayment = createServerFn({ method: "POST" })
       charged: data.amount + fee,
       method: data.method,
       label: data.label,
-      receipt: `R-${randomUUID()}`,
+      receipt: newRecordedTeamPaymentReceipt(),
     });
     if (!player.depositPaid && data.label.toLowerCase().includes("deposit")) {
       player.depositPaid = true;
