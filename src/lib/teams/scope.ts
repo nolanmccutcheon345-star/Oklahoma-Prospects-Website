@@ -130,6 +130,30 @@ function buildViewer(raw: ClubOs, identity: OsIdentity): OsViewer {
   const wk = weekOf();
 
   for (const team of raw.teams) {
+    // The viewer object also leaves this access boundary. Never compute or
+    // return all-team financial dashboards for a family or athlete account.
+    const teamVisible =
+      identity.role === "admin" ||
+      (identity.role === "coach" &&
+        (team.id === identity.teamId ||
+          team.coachEmail === identity.email ||
+          team.staff.some((s) => Boolean(s.email) && s.email?.toLowerCase() === identity.email.toLowerCase()))) ||
+      ((identity.role === "parent" || identity.role === "player") &&
+        Boolean(identity.familyId) &&
+        team.roster.some((p) =>
+          !p.withdrawn && p.familyId === identity.familyId &&
+          (identity.role === "parent" ||
+            (Boolean(identity.playerId) && p.id === identity.playerId && team.id === identity.teamId)),
+        ));
+    if (!teamVisible) continue;
+    if (identity.role === "parent" || identity.role === "player") {
+      // Only nonfinancial team utilization is needed for their cage summary.
+      cageByTeam[team.id] = {
+        teamHours: Number(team.teamCageHoursPerWeek) || 0,
+        used: Number(creditsUsed(raw, "team", team.id, wk)) || 0,
+      };
+      continue;
+    }
     try {
       const priced = priceTeam(raw, team) as { published: number; entryFees: number };
       publishedByTeam[team.id] = Number(priced.published) || 0;
