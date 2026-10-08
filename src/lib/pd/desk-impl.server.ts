@@ -24,8 +24,8 @@ async function viewerFromUserId(userId: string): Promise<PdViewer> {
   return clubIdentity(userId);
 }
 
-export async function readWorkingFile(): Promise<DevelopmentData> {
-  const sql = await getSql();
+export async function readWorkingFile(transaction?: Sql): Promise<DevelopmentData> {
+  const sql = transaction || await getSql();
   const [row] = await sql<{ payload: string; revision: number }>`select payload, revision from pd_working_file where id = ${FILE_ID}`;
   const empty = emptyDevelopment();
   // Curriculum/catalog defaults are public. Never manufacture athletes or household data.
