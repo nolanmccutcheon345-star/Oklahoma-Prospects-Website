@@ -55,6 +55,17 @@ export function scopeClub(
       .filter(team => coachHoldsTeam(club, identity.email, team.id))
       .map((team) => ({
         ...team,
+        // A coach needs their own pay, not coworkers' wages or HR records.
+        staff: team.staff.map(member =>
+          norm(member.email) === norm(identity.email)
+            ? member
+            : { ...member, monthly: 0, applyAmount: 0, childId: "", w9: false,
+                backgroundCheck: false, safeSport: false, expires: "" },
+        ),
+        orgFee: 0,
+        coachMonthly: 0,
+        eventBudget: 0,
+        otherCosts: { insurance: 0, balls: 0, fields: 0, admin: 0, travel: 0 },
         roster: team.roster.map(dropPayment),
       }));
     return {
