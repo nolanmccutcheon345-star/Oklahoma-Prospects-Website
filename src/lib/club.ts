@@ -66,6 +66,8 @@ export const AGE_GROUPS = [
   "18U",
 ] as const;
 
+export const TRYOUT_AGE_GROUPS = [...AGE_GROUPS, "19U", "20U", "Adult"] as const;
+
 export const SOFTBALL_AGES = ["10U", "12U", "14U", "16U"] as const;
 // An intake request is not a reservation for an invented event.
 export const TRYOUT_REQUEST_SESSION = "Individual tryout request";
