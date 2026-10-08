@@ -1,5 +1,6 @@
 import type { Sql } from "./db";
 import type { ClubRecord, Team } from "./teams/types";
+import { chicagoDate, validDate } from "./scheduling";
 
 export type PublicTryoutCoach = { id: string; name: string };
 export type PublicTryoutTeam = {
@@ -22,9 +23,10 @@ const normal = (value: string) => value.trim().replace(/\s+/g, " ").toLowerCase(
  * staff who are currently assigned to a non-closed, real team may appear.
  * Never return roster members, child data, staff contacts or staff pay.
  */
-export function listedTryoutTeams(teams: readonly Team[], staff: readonly PublishedStaff[]): PublicTryoutTeam[] {
+export function listedTryoutTeams(teams: readonly Team[], staff: readonly PublishedStaff[], asOf = chicagoDate()): PublicTryoutTeam[] {
   return teams.flatMap((team) => {
-    if (team.closed || !team.id || !team.name || !team.age) return [];
+    // A still-open historical team is not an active tryout choice.
+    if (team.closed || !team.id || !team.name || !team.age || !validDate(team.seasonEnd) || team.seasonEnd < asOf) return [];
     if (team.sport !== "baseball" && team.sport !== "softball") return [];
     const sport = team.sport === "baseball" ? "Baseball" as const : "Softball" as const;
     const assigned = new Set([
