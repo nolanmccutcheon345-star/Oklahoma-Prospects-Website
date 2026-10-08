@@ -4,7 +4,7 @@ import { TRYOUT_REQUEST_SESSION } from "./club";
 import { validateTryoutRegistration } from "./tryout-registration";
 import { inquiryInput } from "./portal-contracts";
 
-test("both sports accept any age group without a fabricated session or deadline", () => {
+test("both sports accept approved age groups without a fabricated session or deadline", () => {
   for (const sport of ["Baseball", "Softball"]) {
     for (const age of ["4U", "6U", "7U", "11U", "12U", "14U", "16U", "18U", "Adult"]) {
       const input = inquiryInput.parse({
@@ -48,7 +48,7 @@ test("intake rejects missing age and invalid sport before saving", () => {
       ),
     /Choose/,
   );
-  for (const age of ["", "  ", "x".repeat(121)]) {
+  for (const age of ["", "  ", "x".repeat(121), "22U", "Unknown", "16-u", "0U"]) {
     assert.throws(
       () =>
         validateTryoutRegistration(
