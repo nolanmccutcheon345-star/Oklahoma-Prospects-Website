@@ -1,4 +1,4 @@
-import { TRYOUT_REQUEST_SESSION } from "./club";
+import { TRYOUT_REQUEST_SESSION, TRYOUT_AGE_GROUPS } from "./club";
 
 export function validateTryoutRegistration(
   input: { sport: string; age: string; session: string; season?: string; autoEnroll?: boolean },
@@ -7,7 +7,7 @@ export function validateTryoutRegistration(
   if (input.sport !== "Baseball" && input.sport !== "Softball") {
     throw new Error("Choose baseball or softball.");
   }
-  if (!input.age.trim() || input.age.length > 120) {
+  if (!TRYOUT_AGE_GROUPS.some(group => group === input.age.trim())) {
     throw new Error("Enter the player's age group.");
   }
   if (input.autoEnroll && !input.season?.trim())
