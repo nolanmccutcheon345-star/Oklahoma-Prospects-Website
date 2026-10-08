@@ -1,3 +1,4 @@
+import { CLUB } from "@/lib/club";
 import { canPurchase } from "@/lib/purchase-availability";
 import { FIRST_MONTH_SETUP_CENTS, formatMoney, formatDollars } from "@/lib/pricing";
 import {pageHead} from "@/lib/seo";
@@ -14,7 +15,7 @@ import { useCurrentUser } from "@/lib/auth/use-current-user";
 import { SignedIn, SignedOut } from "@/lib/auth/gates";
 import { PdErrorBoundary } from "@/components/pd/error-boundary";
 
-export const Route = createFileRoute("/training")({head:()=>pageHead("/training","Train & Player Development","Assessments, private coaching, packages, and monthly development at Oklahoma Prospects.",false), component: TrainingPage });
+export const Route = createFileRoute("/training")({head:()=>pageHead("/training","Train & Player Development",`Assessments, private coaching, packages, and monthly development at ${CLUB.name}.`,false), component: TrainingPage });
 
 const subscribeToHydration = () => () => {};
 const clientHydrated = () => true;

@@ -1,3 +1,4 @@
+import { CLUB } from "@/lib/club";
 import { ClientOnly, createFileRoute } from "@tanstack/react-router";
 import { pageHead } from "@/lib/seo";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
@@ -10,7 +11,7 @@ export const Route = createFileRoute("/evaluations")({
     pageHead(
       "/evaluations",
       "Tryout Evaluations",
-      "Private Oklahoma Prospects coach evaluations and owner results.",
+      `Private ${CLUB.name} coach evaluations and owner results.`,
       true,
     ),
   component: Page,

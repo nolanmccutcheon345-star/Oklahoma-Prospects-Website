@@ -1,3 +1,4 @@
+import { CLUB } from "@/lib/club";
 import { publicationPlayers } from "./publication";
 import { AppError } from "./errors";
 export { AppError } from "./errors";
@@ -90,7 +91,7 @@ export async function requireAdmin() {
   const i = await requireUser();
   if (!i.admin)
     throw new AppError(
-      "This page is for Oklahoma Prospects owners. Sign in with the authorized owner account.",
+      `This page is for ${CLUB.name} owners. Sign in with the authorized owner account.`,
       403,
     );
   return i;

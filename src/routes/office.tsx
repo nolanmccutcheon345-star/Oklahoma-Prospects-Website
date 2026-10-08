@@ -1,3 +1,4 @@
+import { CLUB } from "@/lib/club";
 import { StaffBookingChanges } from "@/components/commerce/booking-changes";
 import { pageHead } from "@/lib/seo";
 import { createFileRoute, Link } from "@tanstack/react-router";
@@ -18,7 +19,7 @@ import type { ClubRecord } from "@/lib/teams/types";
 
 export const Route = createFileRoute("/office")({
   head: () =>
-    pageHead("/office", "Front Office", "Manage Oklahoma Prospects club operations.", true),
+    pageHead("/office", "Front Office", `Manage ${CLUB.name} club operations.`, true),
   component: Page,
 });
 

@@ -91,12 +91,6 @@ function Home() {
           />
           <MemberPathCard />
           <PathCard
-            to="/tryouts"
-            kicker="Free · request a tryout"
-            title="Earn a roster spot"
-            body="See published group evaluation dates or request a free individual baseball or softball tryout for any age."
-          />
-          <PathCard
             to="/more"
             kicker="First visit"
             title="Check in & waiver"
@@ -232,7 +226,7 @@ function PathCard({
   title,
   body,
 }: {
-  to: "/book" | "/training" | "/tryouts" | "/more" | "/account" | "/login";
+  to: "/book" | "/training" | "/more" | "/account" | "/login";
   kicker: string;
   title: string;
   body: string;

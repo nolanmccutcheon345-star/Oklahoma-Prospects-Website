@@ -5,6 +5,7 @@ import {useCurrentUser} from '@/lib/auth/use-current-user';
 import {getFamilyBilling} from '@/lib/commerce/portal-api';
 import {getMyWaivers,saveAnnualWaiver} from '@/lib/portal-api';
 import {WAIVER_PARAGRAPHS} from '@/lib/waiver-content';
+import { CLUB } from '@/lib/club';
 import {PageHero} from '@/components/page-hero';
 import {Button} from '@/components/ui/button';
 import {AddAthlete} from '@/components/commerce/athletes';
@@ -14,7 +15,7 @@ function Waiver(){
  const [error,setError]=useState(''),[busy,setBusy]=useState(false),[saved,setSaved]=useState(false);
  async function load(){const [billing,records]=await Promise.all([getFamilyBilling(),getMyWaivers()]);setAthletes(billing.athletes);setWaivers(records);}
  useEffect(()=>{if(user)void load().catch(e=>setError(e.message));},[user?.id]);
- return <main id="main"><PageHero eyebrow="Required before you train" title="One waiver." accent="One year." copy="Parent or guardian signs for athletes under 18. This is the Oklahoma Prospects facility waiver." compact/>
+ return <main id="main"><PageHero eyebrow="Required before you train" title="One waiver." accent="One year." copy={`Parent or guardian signs for athletes under 18. This is the ${CLUB.venueName} waiver.`} compact/>
  <section className="mx-auto grid max-w-3xl gap-5 px-5 py-8"><article className="rounded-xl bg-ink p-5 text-fg-inverse"><h2 className="text-2xl">Facility Waiver & Release</h2>{WAIVER_PARAGRAPHS.map(p=><p className="mt-3" key={p}>{p}</p>)}</article>
  {!user?<p><Link to="/login" search={{next:'/waiver'}} className="underline">Sign in or create an account</Link> to attach a signed waiver to your athlete.</p>:<>
  {waivers.map(w=><p role="status" key={w.id}>{w.athlete_name} · signed by {w.signer_name} · valid through {new Date(w.expires_at).toLocaleDateString('en-US',{timeZone:'America/Chicago'})}</p>)}<AddAthlete onSaved={load}/>

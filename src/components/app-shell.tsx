@@ -13,6 +13,27 @@ import { useCurrentUserState } from "@/lib/auth/use-current-user";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
+const headerAccountClass = "px-2.5 tracking-normal max-[360px]:px-2";
+
+function ClubWordmark({ name }: { name: string }) {
+  const splitAt = name.lastIndexOf(" ");
+  const lines = splitAt > 0 ? [name.slice(0, splitAt), name.slice(splitAt + 1)] : [name];
+  return (
+    <span className="club-wordmark" data-club-wordmark>
+      {lines.map((line, index) => (
+        <span className="club-wordmark-line" key={line}>
+          {index > 0 ? (
+            <span className="club-wordmark-gap" aria-hidden="true">
+              {" "}
+            </span>
+          ) : null}
+          {line}
+        </span>
+      ))}
+    </span>
+  );
+}
+
 export function AppShell({ children }: { children: ReactNode }) {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const { user, isPending } = useCurrentUserState();
@@ -34,35 +55,33 @@ export function AppShell({ children }: { children: ReactNode }) {
       </a>
       <header className="sticky top-0 z-40 border-b border-fg-inverse/10 bg-ink text-fg-inverse">
         <div className="h-1 bg-maroon" />
-        <div className="mx-auto flex min-h-16 max-w-3xl items-center justify-between gap-2 px-3 py-2 sm:gap-3 sm:px-4">
-          <Link to="/" aria-label={`${CLUB.name} home`} className="flex min-w-0 flex-1 items-center gap-2 no-underline sm:gap-3">
+        <div className="mx-auto flex min-h-16 max-w-3xl items-center justify-between gap-2 overflow-visible px-2.5 py-2 sm:gap-3 sm:px-4">
+          <Link to="/" aria-label={`${CLUB.name} home`} className="flex min-w-0 flex-1 items-center gap-2 overflow-visible no-underline sm:gap-3">
             <img
               src="/brand/mark.png"
               alt=""
               width={40}
               height={40}
-              className="size-9 shrink-0 object-contain sm:size-10"
+              className="size-8 shrink-0 object-contain min-[400px]:size-10"
             />
-            <span className="min-w-0">
-              <span className="block font-display text-[1.02rem] leading-[0.95] font-extrabold tracking-normal text-balance italic min-[400px]:text-lg min-[400px]:leading-none min-[400px]:tracking-wide">
-                {CLUB.name}
-              </span>
-              <span className="mt-1 block text-[0.58rem] leading-tight font-medium tracking-[0.08em] text-fg-soft uppercase min-[400px]:text-[0.65rem] min-[400px]:tracking-[0.14em]">
+            <span className="min-w-0 overflow-visible">
+              <ClubWordmark name={CLUB.name} />
+              <span className="mt-1 block text-[0.56rem] leading-tight font-medium tracking-[0.04em] text-fg-soft uppercase min-[400px]:text-[0.65rem] min-[400px]:tracking-[0.14em]">
                 Baseball & softball · Est. {CLUB.established}
               </span>
             </span>
           </Link>
-          <div className="flex shrink-0 items-center gap-2">
+          <div className="flex shrink-0 items-center">
             {isPending ? (
-              <Button size="sm" variant="primary" disabled>
+              <Button size="sm" variant="primary" className={headerAccountClass} disabled>
                 Account
               </Button>
             ) : user ? (
-              <Button asChild size="sm" variant="primary">
+              <Button asChild size="sm" variant="primary" className={headerAccountClass}>
                 <Link to="/account">Account</Link>
               </Button>
             ) : (
-              <Button asChild size="sm" variant="primary">
+              <Button asChild size="sm" variant="primary" className={headerAccountClass}>
                 <Link to="/login" search={{ next: "/account" }}>
                   Sign in
                 </Link>

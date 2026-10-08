@@ -1,3 +1,4 @@
+import { CLUB } from "@/lib/club";
 import {pageHead} from "@/lib/seo";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState } from "react";
@@ -14,7 +15,7 @@ import { safeNext } from "@/lib/auth/redirect";
 
 type LoginSearch = { next?: string; token?: string };
 
-export const Route = createFileRoute("/login")({head:()=>pageHead("/login","Sign In","Sign in to your Oklahoma Prospects account.",true),
+export const Route = createFileRoute("/login")({head:()=>pageHead("/login","Sign In",`Sign in to your ${CLUB.name} account.`,true),
   validateSearch: (search: Record<string, unknown>): LoginSearch => ({
     next: safeNext(search.next),
     token: typeof search.token === "string" ? search.token.slice(0,1000) : undefined,
@@ -111,7 +112,7 @@ function Login() {
   return (
     <main id="main">
       <PageHero
-        eyebrow="Oklahoma Prospects"
+        eyebrow={CLUB.name}
         title="Sign in."
         accent="One account."
         copy="Parents, players, coaches, and the front office. Cages, lessons, and teams share this login."

@@ -38,10 +38,10 @@ export const BENCHMARKS_INIT = {
       "12U": [[25, 40], [50, 45], [75, 50], [90, 53]], "14U": [[25, 42], [50, 47], [75, 52], [90, 56]], "16U": [[25, 50], [50, 56], [75, 61], [90, 65]], "18U": [[25, 54], [50, 60], [75, 64], [90, 68]], "College": [[25, 58], [50, 63], [75, 68], [90, 72]] } },
   },
   internal: {
-    tci: { label: "Target Command Index", unit: "", source: "Oklahoma Prospects internal norms", bands: {
+    tci: { label: "Target Command Index", unit: "", source: "Prospects Sports Academy internal norms", bands: {
       1: [[25, 30], [50, 40], [75, 50], [90, 58]], 2: [[25, 38], [50, 47], [75, 56], [90, 64]], 3: [[25, 45], [50, 54], [75, 63], [90, 70]], 4: [[25, 52], [50, 61], [75, 69], [90, 76]],
       5: [[25, 58], [50, 66], [75, 74], [90, 80]], 6: [[25, 64], [50, 72], [75, 79], [90, 85]], 7: [[25, 70], [50, 77], [75, 83], [90, 88]] } },
-    movementScore: { label: "Movement score", unit: "/100", source: "Oklahoma Prospects internal norms", bands: {
+    movementScore: { label: "Movement score", unit: "/100", source: "Prospects Sports Academy internal norms", bands: {
       1: [[25, 40], [50, 50], [75, 60], [90, 68]], 2: [[25, 46], [50, 55], [75, 64], [90, 72]], 3: [[25, 52], [50, 60], [75, 69], [90, 76]], 4: [[25, 58], [50, 66], [75, 74], [90, 81]],
       5: [[25, 63], [50, 71], [75, 79], [90, 85]], 6: [[25, 68], [50, 76], [75, 83], [90, 89]], 7: [[25, 74], [50, 81], [75, 87], [90, 92]] } },
   },

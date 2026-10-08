@@ -1,3 +1,4 @@
+import { CLUB } from "@/lib/club";
 import { cloneElement, useEffect, useId, useState, type ReactElement } from "react";
 import { getTryoutEvaluations, saveTryoutEvaluation } from "@/lib/tryout-evaluations-api";
 import {
@@ -234,7 +235,7 @@ export function TryoutEvaluations() {
           <header className="flex flex-wrap items-start justify-between gap-4 border-b-4 border-maroon pb-5">
             <div>
               <p className="mb-1 text-sm font-semibold text-muted">
-                Oklahoma Prospects · {workspace.owner ? "Owner results" : "Coach workspace"}
+                {CLUB.name} · {workspace.owner ? "Owner results" : "Coach workspace"}
               </p>
               <h1 className="text-3xl sm:text-4xl">Tryout evaluations</h1>
               <p className="mt-2 text-sm text-muted">

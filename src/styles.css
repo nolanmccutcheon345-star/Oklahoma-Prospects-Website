@@ -428,3 +428,27 @@
 }
 
 :root { --bottom-nav-height: 3.5rem; --bottom-nav-space: calc(var(--bottom-nav-height) + 1px + env(safe-area-inset-bottom, 0px)); }
+
+.club-wordmark {
+  display: block;
+  overflow: visible;
+  text-overflow: clip;
+  white-space: normal;
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-style: italic;
+  font-size: 1.125rem;
+  line-height: 1;
+  letter-spacing: 0.025em;
+}
+.club-wordmark-line { display: inline; }
+.club-wordmark-gap { display: inline; }
+@media (max-width: 360px) {
+  .club-wordmark {
+    font-size: 0.95rem;
+    line-height: 0.95;
+    letter-spacing: 0;
+  }
+  .club-wordmark-line { display: block; }
+  .club-wordmark-gap { display: none; }
+}

@@ -12,7 +12,7 @@ export const Route = createFileRoute("/paid")({
     pageHead(
       "/paid",
       "Payment Status",
-      "Check the verified status of your Oklahoma Prospects payment.",
+      `Check the verified status of your ${CLUB.name} payment.`,
       true,
     ),
   validateSearch: (search: Record<string, unknown>) => ({

@@ -4,7 +4,7 @@ export const LOCAL_BUSINESS_JSONLD = {
   "@context": "https://schema.org",
   "@type": "SportsActivityLocation",
   name: CLUB.name,
-  alternateName: ["Oklahoma Prospects Baseball", "Oklahoma Prospects Softball"],
+  alternateName: [`${CLUB.shortName} Baseball`, `${CLUB.shortName} Softball`],
   description: `${CLUB.name} at the ${CLUB.venueName}. Book indoor batting cages, private baseball and softball lessons, and competitive teams in Broken Arrow, Oklahoma. Est. 2008.`,
   url: LINKS.site,
   telephone: CLUB.phoneTel,

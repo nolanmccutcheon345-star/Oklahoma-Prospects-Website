@@ -3,7 +3,7 @@ import {pageHead} from "@/lib/seo";
 import { createFileRoute, Link } from "@tanstack/react-router";
 
 
-export const Route = createFileRoute("/privacy")({head:()=>pageHead("/privacy","Privacy","How Oklahoma Prospects handles household and club account information.",false), component: PrivacyPage });
+export const Route = createFileRoute("/privacy")({head:()=>pageHead("/privacy","Privacy",`How ${CLUB.name} handles household and club account information.`,false), component: PrivacyPage });
 
 function PrivacyPage() {
   return (

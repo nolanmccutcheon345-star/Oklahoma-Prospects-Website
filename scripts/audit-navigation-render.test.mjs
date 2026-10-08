@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {build} from 'esbuild';
+import {readFileSync} from 'node:fs';
 import {mkdtemp,rm} from 'node:fs/promises';
 import {pathToFileURL} from 'node:url';
 import {JSDOM} from 'jsdom';
@@ -45,6 +46,15 @@ test('public navigation, sport links and purchase availability agree with the li
   assert.equal(document.querySelector('a[href*="chatgpt.site"]'),null);
   assert.match(document.querySelector('header')?.textContent??'',/Prospects Sports Academy/);
   assert.doesNotMatch(document.querySelector('header')?.textContent??'',/Oklahoma Prospects Academy/);
+  const wordmark=document.querySelector('[data-club-wordmark]');
+  assert.equal(wordmark?.textContent?.replace(/\s+/g,' ').trim(),'Prospects Sports Academy');
+  assert.deepEqual([...wordmark.querySelectorAll('.club-wordmark-line')].map(node=>node.textContent.replace(/\s+/g,' ').trim()),['Prospects Sports','Academy']);
+  assert.doesNotMatch(document.querySelector('header')?.innerHTML??'',/truncate|text-ellipsis|ellipsis/);
+  const css=readFileSync(new URL('../src/styles.css',import.meta.url),'utf8');
+  assert.match(css,/\.club-wordmark\s*\{[^}]*overflow:\s*visible;[^}]*text-overflow:\s*clip;/);
+  const narrow=css.slice(css.lastIndexOf('@media (max-width: 360px)'));
+  assert.match(narrow,/\.club-wordmark-line \{ display: block; \}/);
+  assert.match(narrow,/\.club-wordmark-gap \{ display: none; \}/);
   assert.ok(document.querySelector('footer a[href="/contact"]'));
   assert.equal(document.querySelectorAll('a[href^="/pay"]').length,0);
   assert.match(document.body.textContent,/Lesson enrollment by inquiry/);
@@ -80,6 +90,8 @@ test('public navigation, sport links and purchase availability agree with the li
   assert.equal([...document.querySelectorAll('a')].some(a=>/Softball teams & tryouts|Free Spring tryout|Prospects Live/.test(a.textContent)),false);
   assert.equal(document.querySelector('a[href*="chatgpt.site"], a[aria-label*="Prospects Live"]'),null);
   assert.match(document.body.textContent,/Tryouts is for baseball and softball/);
+  assert.doesNotMatch(document.body.textContent,/Free · request a tryout|Earn a roster spot/);
+  assert.equal([...document.querySelectorAll('a[href="/tryouts"]')].length,1);
   const listing=document.querySelector('a[href*="Oklahoma+Prospects+Academy"]');
   assert.match(listing?.textContent??'',/Oklahoma Prospects Academy/);
   assert.match(document.body.textContent,/Prospects Sports Facility/);
