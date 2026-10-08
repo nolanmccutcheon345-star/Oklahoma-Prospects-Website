@@ -17,7 +17,7 @@ export const Route = createFileRoute("/teams")({
     pageHead(
       "/teams",
       "Teams & Spring 2027 Tryouts",
-      "Oklahoma Prospects baseball and softball teams in Broken Arrow. Softball 10U, 12U, 14U and 16U tryout registration is open; dates to be announced.",
+      "Oklahoma Prospects baseball and softball teams in Broken Arrow. Free individual tryout requests at every age; group event dates appear when published.",
       false,
     ),
   loader: () => getPublicTryoutEvents(),
@@ -107,6 +107,7 @@ function TeamsOverview() {
 function TeamsPublic() {
   const events = Route.useLoaderData();
   const hasBaseballDates = events.some((event) => event.sport === "Baseball");
+  const hasSoftballDates = events.some((event) => event.sport === "Softball");
   const [age, setAge] = useState<(typeof AGE_GROUPS)[number] | null>(null);
 
   return (
@@ -139,9 +140,14 @@ function TeamsPublic() {
           <h2 className="mt-2 text-4xl">Teams forming: {SOFTBALL_AGES.join(" · ")}</h2>
           <p className="mt-3 text-fg-soft">
             Sarah Blankenship, Softball Program Coordinator, is adding four softball age groups.
-            Sign up for tryouts below. Dates and times are to be announced; Prospects will contact
-            registered families with details.
+            Register your interest below.{" "}
+            {hasSoftballDates
+              ? "Published softball group event dates are listed below; Prospects will confirm any enrollment."
+              : "No softball group date is posted yet. Prospects will coordinate private requests with families."}
           </p>
+          <div className="mt-5 text-ink">
+            <TryoutSchedule events={events} sport="Softball" />
+          </div>
           <p className="mt-4 font-semibold">14U B Softball · Head Coach Rusty</p>
           <p className="mt-2 text-fg-soft">
             Rusty also offers softball hitting and defense instruction.{" "}
