@@ -48,6 +48,9 @@
   html {
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+    /* Room for keyboard focus outlines beyond sticky header and bottom tabs. */
+    scroll-padding-top: 6rem;
+    scroll-padding-bottom: calc(var(--bottom-nav-space) + 0.75rem);
   }
 
   html,
