@@ -25,6 +25,7 @@ export function assertRecordableTeamPayment(player: RecordablePlayer, amount: nu
   if (!Number.isFinite(amount) || amount <= 0)
     throw new Error("Enter a payment amount greater than zero.");
   const requested = cents(amount, "new payment");
+  if (requested < 1) throw new Error("A recorded payment must be at least one cent.");
   const available = remainingTeamPaymentCents(player);
   if (available === 0)
     throw new Error("No balance remains to record another payment.");
