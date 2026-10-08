@@ -5,7 +5,7 @@
  * the published formulas that follow.
  */
 
-import { slotsFor, timeMinutes, chicagoDate } from '../scheduling.ts';
+import { slotsFor, timeMinutes, chicagoDate, chicagoInstant } from '../scheduling.ts';
 import { coachAvailable } from '../commerce/availability.ts';
 function NOW() { return new Date(); }
 
@@ -488,11 +488,11 @@ function planExecutionSteps(membership, athlete) {
 /* ===== Reschedule policy gate ===== */
 function canReschedule(booking, family, data) {
   const p = data.policy;
-  const days = (new Date(`${booking.date}T12:00:00`) - NOW()) / 864e5;
+  const days = (chicagoInstant(booking.date, booking.time || "12:00") - NOW()) / 864e5;
   if (days < p.rescheduleDaysNotice) {
     return { ok: false, reason: `Inside the ${p.rescheduleDaysNotice}-day window`, detail: `This session is ${days < 1 ? "less than a day" : `${Math.floor(days)} day${Math.floor(days) === 1 ? "" : "s"}`} away. Changes need ${p.rescheduleDaysNotice} days' notice so the slot can be re-offered. Call us if something genuinely unavoidable has come up.` };
   }
-  const month = NOW().toISOString().slice(0, 7);
+  const month = chicagoDate(NOW()).slice(0, 7);
   const used = (data.bookings || []).filter((b) => family.athleteIds.includes(b.athleteId) && b.rescheduledMonth === month).length;
   if (used >= p.reschedulesPerMonth) {
     return { ok: false, reason: "Monthly limit reached", detail: `Your plan includes ${p.reschedulesPerMonth} reschedule${p.reschedulesPerMonth === 1 ? "" : "s"} a month and you've used ${used}. The limit resets on the 1st. You can still cancel under the normal policy.` };

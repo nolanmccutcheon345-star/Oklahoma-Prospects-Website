@@ -13,7 +13,7 @@ export function ClubReceiptCard({ receipt }: { receipt: ClubReceipt }) {
       <div className="h-1 bg-maroon" />
       <div className="p-5">
         <p className="text-xs font-semibold tracking-[0.16em] text-powder uppercase">
-          Oklahoma Prospects receipt
+          {CLUB.name} receipt
         </p>
         <p className="mt-2 font-display text-sm tracking-widest text-fg-soft uppercase">
           {receipt.id}
@@ -25,7 +25,7 @@ export function ClubReceiptCard({ receipt }: { receipt: ClubReceipt }) {
         </p>
         <p className="mt-4 font-display text-5xl">${receipt.price}</p>
         <p className="mt-2 text-xs font-semibold tracking-[0.16em] text-powder uppercase">
-          Paid · Oklahoma Prospects
+          Paid · {CLUB.name}
         </p>
         <p className="mt-4 text-sm text-fg-soft">
           {CLUB.addressLine1}

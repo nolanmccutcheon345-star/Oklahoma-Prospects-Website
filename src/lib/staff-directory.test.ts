@@ -33,9 +33,15 @@ test("staff listings persist independently of accounts and only published record
       ["owner", "stevemccutcheon89@gmail.com"],
       ["parent", "parent@example.invalid"],
       ["coach", "coach@example.invalid"],
+      ["forged-admin", "forged@example.invalid"],
+      ["unverified", "unverified@example.invalid"],
+      ["disabled", "disabled@example.invalid"],
     ])
       await sql`insert into "user"(id,name,email,"emailVerified","createdAt","updatedAt") values(${id},${id},${email},true,now(),now())`;
     await sql`insert into profiles(user_id,email,role) values('coach','coach@example.invalid','coach')`;
+    await sql`insert into profiles(user_id,email,role) values('forged-admin','forged@example.invalid','admin')`;
+    await sql`update "user" set "emailVerified"=false where id='unverified'`;
+    await sql`update "user" set "disabledAt"=now() where id='disabled'`;
     await saveStaffListingFor(sql, "owner", {
       id: "4ebfbe1d-5772-43e6-a0cf-ef56e74619aa",
       version: 0,
@@ -53,7 +59,7 @@ test("staff listings persist independently of accounts and only published record
     assert.equal(initial[0].phone, "+1 (918) 555-0101");
     assert.equal("version" in initial[0], false);
     const [staff] = await listStaffDirectoryFor(sql, "owner");
-    for (const id of ["parent", "coach", "missing"]) {
+    for (const id of ["parent", "coach", "missing", "forged-admin", "unverified", "disabled"]) {
       await assert.rejects(listStaffDirectoryFor(sql, id));
       await assert.rejects(saveStaffListingFor(sql, id, staff));
     }
@@ -87,6 +93,9 @@ test("staff listings persist independently of accounts and only published record
       3,
     );
     assert.throws(() => staffListingInput.parse({ ...saved, phone: "javascript:alert(1)" }));
+    await sql`update owner_grants set revoked_at=now() where user_id='owner'`;
+    await assert.rejects(listStaffDirectoryFor(sql, 'owner'), /Owner access required/);
+    await assert.rejects(saveStaffListingFor(sql, 'owner', saved), /Owner access required/);
   } finally {
     await db.close();
   }

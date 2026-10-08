@@ -38,7 +38,7 @@ export function clubDayIso(now = new Date()) {
 
 export const CLUB_DAY_ISO = clubDayIso();
 
-export function ageOnClubDay(iso: string, dayIso = CLUB_DAY_ISO) {
+export function ageOnClubDay(iso: string, dayIso = clubDayIso()) {
   const day = new Date(`${dayIso}T12:00:00Z`);
   const born = new Date(`${iso}T12:00:00Z`);
   if (!Number.isFinite(born.getTime())) return 0;
@@ -62,7 +62,7 @@ function engineStatus(row: Booking) {
   if (row.status === "cancelled") return "Cancelled";
   if (row.status === "waitlist") return "Waitlist";
   if (row.status === "unconfirmed") return "Paid";
-  if (row.date < CLUB_DAY_ISO) return "Completed";
+  if (row.date < clubDayIso()) return "Completed";
   return "Paid";
 }
 
@@ -201,18 +201,22 @@ export function cohortFor(slice: AthleteSlice, data: DevelopmentData, metricKey 
 }
 
 export function dailyLoad(slice: AthleteSlice) {
-  const end = NOW();
-  const map = new Map(slice.workload.map((row) => [row.date, row.throws]));
+  const end = new Date(`${clubDayIso()}T12:00:00Z`);
+  const map = new Map(slice.workload.map(row => [row.date, row.throws]));
+  const tracked = new Map<string, number>();
+  for (const row of [...slice.outings, ...slice.bullpens]) tracked.set(row.date, (tracked.get(row.date) ?? 0) + (row.pitches ?? 0));
+  // A family's total workload may already include these pitches; count known pitching as a floor.
+  for (const [day, pitches] of tracked) map.set(day, Math.max(map.get(day) ?? 0, pitches));
   const out: number[] = [];
   const labels: string[] = [];
   for (let i = 27; i >= 0; i--) {
     const d = new Date(end.getTime());
-    d.setDate(d.getDate() - i);
+    d.setUTCDate(d.getUTCDate() - i);
     const iso = d.toISOString().slice(0, 10);
     labels.push(iso);
     out.push(map.get(iso) ?? 0);
   }
-  if (!slice.workload.length) return { history: [] as number[], labels: [] as string[] };
+  if (!map.size) return { history: [] as number[], labels: [] as string[] };
   return { history: out, labels };
 }
 

@@ -482,7 +482,7 @@ function Shell({
       data-density="compact"
       style={{
         top: "4.25rem",
-        bottom: "calc(3.5rem + env(safe-area-inset-bottom))",
+        bottom: "var(--bottom-nav-space)",
       }}
     >
       {children}

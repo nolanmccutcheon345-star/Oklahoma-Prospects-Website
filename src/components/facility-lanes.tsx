@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { LANES } from "@/lib/club";
+import { CLUB, LANES } from "@/lib/club";
 import { cn } from "@/lib/utils";
 
 const TONE: Record<(typeof LANES)[number]["tone"], string> = {
@@ -17,7 +17,7 @@ export function FacilityLanes() {
     <div className="grid gap-4">
       <div className="rounded-2xl bg-ink p-3 text-fg-inverse">
         <p className="px-2 pt-1 pb-3 text-[0.7rem] font-semibold tracking-[0.16em] text-powder uppercase">
-          Oklahoma Prospects
+          {CLUB.name}
         </p>
         <div className="grid gap-1.5">
           {LANES.map((item) => (

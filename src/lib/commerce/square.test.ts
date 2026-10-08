@@ -132,7 +132,7 @@ test("approved cents override editable dollar rows; month end is calendar based"
     discipline: "Hitting",
     active: true,
   };
-  assert.equal(approvedProducts([row])[0].price, 155);
+  assert.equal(approvedProducts([row])[0].price, 149);
   assert.equal(approvedProducts([{ ...row, id: "forged" }]).length, 0);
   assert.equal(
     addCalendarMonth(new Date("2028-01-31T12:00:00Z")).toISOString(),
@@ -432,10 +432,10 @@ test("Square payment fulfillment commits once and never turns unpaid holds into 
       },
     );
     await t.test(
-      "membership assessment leaves all four ordinary credits; ordinary initial lesson records its use",
+      "legacy membership terms are preserved; new assessment appointments use one included session",
       async () => {
-        for (const assessed of [false, true]) {
-          const id = assessed ? "assessed" : "assessment";
+        for (const [assessed, currentTerms] of [[false, false], [true, false], [false, true]]) {
+          const id = currentTerms ? "current-assessment" : assessed ? "assessed" : "assessment";
           const cents = assessed ? 22900 : 27900;
           await order(id, {
             productId: "m1",
@@ -444,10 +444,11 @@ test("Square payment fulfillment commits once and never turns unpaid holds into 
             regularCents: 22900,
             setupCents: assessed ? 0 : 5000,
             assessment: !assessed,
+            initialBookingUsesCredit: currentTerms,
             recurring: true,
             needsSlot: true,
           });
-          const start = new Date(assessed ? "2027-01-20T22:00:00Z" : "2027-01-21T22:00:00Z"),
+          const start = new Date(currentTerms ? "2027-01-22T22:00:00Z" : assessed ? "2027-01-20T22:00:00Z" : "2027-01-21T22:00:00Z"),
             end = new Date(+start + 3600000);
           const b = await sql.transaction((tx) =>
             holdWindow(tx, {
@@ -483,11 +484,11 @@ test("Square payment fulfillment commits once and never turns unpaid holds into 
                 remaining: number;
               }>`select remaining from credit_grants where order_id=${id} and kind='lesson'`
             )[0].remaining,
-            assessed ? 3 : 4,
+            assessed || currentTerms ? 3 : 4,
           );
           assert.equal(
             (await sql`select * from credit_uses where booking_id=${b}`).length,
-            assessed ? 1 : 0,
+            assessed || currentTerms ? 1 : 0,
           );
           assert.equal(
             (await sql<{ status: string }>`select status from booking_records where id=${b}`)[0]
@@ -708,6 +709,19 @@ test("Queued receipts isolate environments, retry safely, and restrict Sandbox t
     await sql`insert into payment_notifications(id,order_id,kind) values('owner-review:paid-cages','paid-cages','owner-payment-review')`;
     await deliverPaymentNotifications(sql, production, email, undefined, send, "paid-cages", true);
     assert.match(calls.at(-1)!.body.text, /no booking was confirmed/);
+    await deliverPaymentNotifications(sql, production, email, undefined, send, "paid-cages");
+    const thanks = calls.at(-1)!;
+    assert.deepEqual(thanks.body.to, ["customer@example.test"]);
+    assert.match(thanks.body.subject, /Thank you for booking/);
+    assert.match(thanks.body.text, /look forward to seeing you at your reserved time/);
+    assert.match(thanks.body.text, /Saturday, April 17, 2027/);
+    assert.match(thanks.body.text, /3:00 PM CDT–4:00 PM CDT/);
+    assert.match(thanks.body.text, /Lane 5/);
+    assert.match(thanks.body.text, /Lane 6/);
+    assert.match(thanks.body.text, /3804 S\. Elm Pl\./);
+    const thankedCount = calls.length;
+    await deliverPaymentNotifications(sql, production, email, undefined, send, "paid-cages");
+    assert.equal(calls.length, thankedCount, "thank-you is the existing receipt, sent once");
   } finally {
     await db.close();
   }

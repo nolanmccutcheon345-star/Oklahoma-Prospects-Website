@@ -334,3 +334,97 @@
   [role="alert"] {overflow-wrap:anywhere;}
   fieldset {min-width:0;}
 }
+
+/* The broadcast destination is branded LIVE; it does not imply a game is on air. */
+.prospects-live-card {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  width: 100%;
+  max-width: 29rem;
+  padding: 1rem;
+  border: 1px solid rgb(158 216 243 / 55%);
+  border-left: 4px solid var(--color-powder);
+  border-radius: 12px;
+  background: linear-gradient(115deg, #15374e, #071b31 72%);
+  color: var(--color-fg-inverse);
+  text-decoration: none;
+  box-shadow: 0 0 22px rgb(158 216 243 / 9%), inset 0 1px rgb(255 255 255 / 8%);
+  transition: border-color 160ms ease, box-shadow 160ms ease;
+}
+.prospects-live-card:hover {
+  border-color: var(--color-powder-strong);
+  box-shadow: 0 0 26px rgb(158 216 243 / 21%);
+}
+.prospects-live-play {
+  display: grid;
+  place-items: center;
+  flex: 0 0 3rem;
+  height: 3rem;
+  padding-left: 2px;
+  border-radius: 50%;
+  color: var(--color-ink);
+  background: var(--color-powder);
+  box-shadow: 0 0 0 5px rgb(158 216 243 / 10%), 0 0 20px rgb(158 216 243 / 20%);
+}
+.prospects-live-copy { min-width: 0; }
+.prospects-live-title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: .4rem;
+  font-family: var(--font-display);
+  font-size: 1.6rem;
+  line-height: 1.1;
+  font-weight: 800;
+  font-style: italic;
+  letter-spacing: .035em;
+}
+.prospects-live-title > span {
+  padding: .15rem .4rem;
+  border-radius: 3px;
+  background: var(--color-maroon);
+  color: white;
+  font-size: 1.1rem;
+  letter-spacing: .07em;
+}
+.prospects-live-subtitle { display: block; margin-top: .4rem; color: var(--color-fg-soft); font-size: .8rem; line-height: 1.5; }
+.prospects-live-signal { flex-shrink: 0; margin-left: auto; color: var(--color-powder); opacity: .85; }
+.prospects-live-tab {
+  display: flex;
+  min-height: 3.5rem;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: .2rem;
+  border-top: 2px solid var(--color-powder);
+  border-radius: 8px 8px 0 0;
+  background: linear-gradient(180deg, rgb(158 216 243 / 18%), rgb(158 216 243 / 4%));
+  color: var(--color-powder-strong);
+  font-size: .65rem;
+  font-weight: 800;
+  letter-spacing: .035em;
+  text-transform: uppercase;
+  text-decoration: none;
+}
+.prospects-live-tab-icon {
+  display: grid;
+  place-items: center;
+  width: 1.6rem;
+  height: 1.6rem;
+  padding-left: 1px;
+  border-radius: 50%;
+  color: var(--color-ink);
+  background: var(--color-powder);
+  box-shadow: 0 0 12px rgb(158 216 243 / 25%);
+}
+.prospects-live-tab:hover { background-color: rgb(158 216 243 / 12%); }
+@media (max-width: 360px) {
+  .prospects-live-card { gap: .75rem; padding: .85rem; }
+  .prospects-live-signal { display: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .prospects-live-card { transition: none; }
+}
+
+:root { --bottom-nav-height: 3.5rem; --bottom-nav-space: calc(var(--bottom-nav-height) + 1px + env(safe-area-inset-bottom, 0px)); }

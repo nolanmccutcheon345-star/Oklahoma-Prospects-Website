@@ -22,3 +22,8 @@ attachments/
 .grok/references/
 .project_id
 .node_modules.lock
+
+# Reproducible build metadata and isolated test bundles
+public/release.json
+scripts/.audit-runtime-*/
+scripts/.audit-ui-*/

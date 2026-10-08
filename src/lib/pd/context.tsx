@@ -9,8 +9,10 @@ import {
   type ReactNode,
 } from "react";
 import { emptyDevelopment } from "./empty";
-import { loadPdAthlete, loadPdDesk, savePdDesk, writePdMessage } from "./desk";
-import type { PdViewer } from "./access";
+import { loadPdAthlete, loadPdDesk, savePdDesk } from "./desk";
+import { authorizeMessage, canCoachAthlete, scopeForViewer, type PdViewer } from "./access";
+import { mergeDraft } from "./draft";
+import { tciOf, scorePitch } from "./core-algorithms.js";
 import { useCurrentUser } from "@/lib/auth/use-current-user";
 import type {
   Athlete,
@@ -19,17 +21,20 @@ import type {
   DevelopmentData,
   Policy,
   StrengthSet,
+  StrengthAssignment,
+  Bullpen,
+  BullpenPitch,
   ThrowingAssignment,
   ViewerRole,
   WaitlistEntry,
 } from "./types";
 import { viewsForRole } from "./views";
-import { progressOf, seedEducationProgress } from "./content/education";
+import { progressOf } from "./content/education";
 import { canReschedule } from "./core-algorithms.js";
 import { nextMatchingSlot, type ProposedSession } from "./commerce-engine";
 import { drillById } from "./content";
 import type { PublishLessonInput } from "./lesson";
-import { CLUB_DAY_ISO, ageOnClubDay } from "./engines";
+import { clubDayIso, ageOnClubDay } from "./engines";
 import { creditDecision } from "./automation";
 import { bandForAge, parseTrackingFile, trackingApplyRows } from "./measure";
 
@@ -63,6 +68,8 @@ export type AthleteSlice = {
   skillPlans: DevelopmentData["skillPlans"];
   warmups: DevelopmentData["warmups"];
   strengthSets: DevelopmentData["strengthSets"];
+  strengthAssignments: DevelopmentData["strengthAssignments"];
+  throwingDays: DevelopmentData["throwingDays"];
   throwingAssignments: DevelopmentData["throwingAssignments"];
   bullpens: DevelopmentData["bullpens"];
   workload: DevelopmentData["workload"];
@@ -109,6 +116,12 @@ type DevelopmentContextValue = {
   updatePolicy: (patch: Partial<Policy>) => void;
   publishLesson: (input: PublishLessonInput) => void;
   logStrengthSet: (row: Omit<StrengthSet, "id">) => void;
+  saveStrengthAssignment: (row: Omit<StrengthAssignment, "id" | "createdAt" | "createdBy">) => void;
+  selectThrowingDay: (athleteId: string, assignmentId: string, dayType: string) => void;
+  addBullpenPitch: (pen: Bullpen, pitch: BullpenPitch) => void;
+  startBullpen: (athleteId: string) => void;
+  canCoach: (athleteId: string) => boolean;
+  updateAthleteProfile: (id: string, patch: Pick<Athlete, "birthDate" | "sport" | "position">) => void;
   assignThrowing: (row: Omit<ThrowingAssignment, "id">) => void;
   creditPoints: (input: { athleteId: string; key: string; date?: string }) => { ok: boolean; reason?: string };
   verifyPoints: (id: string) => void;
@@ -131,24 +144,6 @@ type DevelopmentContextValue = {
   refreshDesk: () => Promise<void>;
 };
 
-const STORAGE_KEY = "op.pd.education.v1";
-
-function readEducation(): Record<string, string[]> {
-  const seed = seedEducationProgress();
-  if (typeof window === "undefined") return seed;
-  try {
-    const raw = window.localStorage.getItem(STORAGE_KEY);
-    if (!raw) {
-      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(seed));
-      return seed;
-    }
-    const parsed = JSON.parse(raw) as Record<string, string[]>;
-    return { ...seed, ...parsed };
-  } catch {
-    return seed;
-  }
-}
-
 export const DevelopmentContext = createContext<DevelopmentContextValue | null>(null);
 
 function ofAthlete<T extends { athleteId: string }>(rows: T[], id: string) {
@@ -163,8 +158,7 @@ export function DevelopmentProvider({ children }: { children: ReactNode }) {
   const user = useCurrentUser();
   const [data, setData] = useState<DevelopmentData>(() => emptyDevelopment());
   const [selectedAthleteId, setSelectedAthleteId] = useState<string | null>(null);
-  const [education, setEducation] = useState<Record<string, string[]>>(seedEducationProgress);
-  const [educationReady, setEducationReady] = useState(false);
+  const education = data.educationProgress;
   const [viewer, setViewer] = useState<PdViewer | null>(null);
   const [pdReady, setPdReady] = useState(false);
   const [saveError, setSaveError] = useState("");
@@ -176,105 +170,154 @@ export function DevelopmentProvider({ children }: { children: ReactNode }) {
   const persistChain = useRef(Promise.resolve());
   latestFile.current = data;
 
-  useEffect(() => {
-    setEducation(readEducation());
-    setEducationReady(true);
-  }, []);
+  const savedFile = useRef(data);
+  const sessionUser = useRef(user?.id);
+  const priorUser = useRef(user?.id);
+  sessionUser.current = user?.id;
+  const draftKey = (id: string) => `op.pd.draft.v2:${id}`;
+  const [draftAvailable, setDraftAvailable] = useState(false);
+  const [conflict, setConflict] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
-    if (!user) {
-      skipPersist.current = true;
-      setData(emptyDevelopment());
-      setViewer(null);
-      setPdReady(true);
-      return;
+    if (priorUser.current && priorUser.current !== user?.id) {
+      try { window.sessionStorage.removeItem(draftKey(priorUser.current)); } catch { /* unavailable storage */ }
     }
+    priorUser.current = user?.id;
+    skipPersist.current = true;
+    failedSave.current = false;
+    setSelectedAthleteId(null);
+    setData(emptyDevelopment());
+    setViewer(null);
+    setSaveError("");
+    setDraftAvailable(false);
+    setConflict(false);
+    try { window.localStorage.removeItem("op.pd.education.v1"); } catch { /* legacy demo progress */ }
+    if (!user) { setPdReady(true); return; }
     setPdReady(false);
-    loadPdDesk()
-      .then((payload) => {
-        if (cancelled) return;
-        skipPersist.current = true;
-        savedRevision.current = payload.data.revision ?? 0;
-        failedSave.current = false;
-        setSaveError("");
-        setData(payload.data);
-        setViewer(payload.viewer);
-        setPdReady(true);
-      })
-      .catch((error) => {
-        if (cancelled) return;
-        setSaveError(error instanceof Error ? error.message : "Could not load your saved records.");
-        skipPersist.current = true;
-        setData(emptyDevelopment());
-        setViewer(null);
-        setPdReady(true);
-      });
-    return () => {
-      cancelled = true;
-    };
+    loadPdDesk().then(payload => {
+      if (cancelled) return;
+      skipPersist.current = true;
+      savedRevision.current = payload.data.revision ?? 0;
+      savedFile.current = payload.data;
+      setData(payload.data);
+      setViewer(payload.viewer);
+      try { setDraftAvailable(Boolean(window.sessionStorage.getItem(draftKey(user.id)))); } catch { /* unavailable storage */ }
+      setPdReady(true);
+    }).catch(error => {
+      if (cancelled) return;
+      setSaveError(error instanceof Error ? error.message : "Could not load your saved records.");
+      setPdReady(true);
+    });
+    return () => { cancelled = true; };
   }, [user?.id]);
 
-  useEffect(() => {
-    if (!educationReady) return;
-    try {
-      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(education));
-    } catch {
-      /* ignore quota */
-    }
-  }, [education, educationReady]);
+  const persist = useCallback((snapshot: DevelopmentData, userId: string) => {
+    setSaving(true);
+    persistChain.current = persistChain.current.then(async () => {
+      if (sessionUser.current !== userId) return;
+      if (failedSave.current) { setSaving(false); return; }
+      try {
+        const result = await savePdDesk({ data: { file: { ...snapshot, revision: savedRevision.current } } });
+        if (sessionUser.current !== userId) return;
+        savedRevision.current = result.revision;
+        savedFile.current = { ...snapshot, revision: result.revision };
+        setSaveError("");
+        setConflict(false);
+        if (latestFile.current === snapshot) {
+          try { window.sessionStorage.removeItem(draftKey(userId)); } catch { /* unavailable storage */ }
+          setDraftAvailable(false);
+        }
+      } catch (error) {
+        if (sessionUser.current !== userId) return;
+        failedSave.current = true;
+        setSaveError(error instanceof Error ? error.message : "Changes have not saved. Please retry.");
+      } finally { if (sessionUser.current === userId) setSaving(false); }
+    });
+  }, []);
 
   useEffect(() => {
     if (!pdReady) return;
-    if (skipPersist.current) {
-      skipPersist.current = false;
-      return;
-    }
+    if (skipPersist.current) { skipPersist.current = false; return; }
     if (!viewer || !user) return;
     const snapshot = latestFile.current;
-    setSaving(true);
-    persistChain.current = persistChain.current.then(async () => {
-      if (failedSave.current) return;
-      try {
-        const result = await savePdDesk({ data: { file: { ...snapshot, revision: savedRevision.current } } });
-        savedRevision.current = result.revision;
-        setSaveError("");
-      } catch (error) {
-        failedSave.current = true;
-        setSaveError(error instanceof Error ? error.message : "Changes have not saved. Please retry.");
-      } finally { setSaving(false); }
-    });
-  }, [data, pdReady, viewer, user?.id]);
+    try { window.sessionStorage.setItem(draftKey(user.id), JSON.stringify({ base: savedFile.current, file: snapshot })); } catch { /* edits remain in memory */ }
+    persist(snapshot, user.id);
+  }, [data, pdReady, viewer, user?.id, persist]);
 
-
-  const openAthlete = useCallback(
-    (id: string) => {
-      if (data.athletes.some((row) => row.id === id)) {
-        setSelectedAthleteId(id);
-        return;
-      }
-      void loadPdAthlete({ data: { athleteId: id } }).catch(() => {
-        setSelectedAthleteId(null);
-      });
-    },
-    [data.athletes],
-  );
-
-  const refreshDesk = useCallback(async () => {
+  const retrySave = useCallback(async () => {
+    if (!user) return;
+    const userId = user.id;
     try {
+      await persistChain.current;
       const payload = await loadPdDesk();
-      skipPersist.current = true;
+      if (sessionUser.current !== userId) return;
+      let base = savedFile.current, local = latestFile.current;
+      if (draftAvailable) {
+        const raw = window.sessionStorage.getItem(draftKey(userId));
+        if (raw) { const draft = JSON.parse(raw); base = draft.base; local = draft.file; }
+      }
+      const merged = mergeDraft(base, local, payload.data);
+      savedFile.current = payload.data;
       savedRevision.current = payload.data.revision ?? 0;
       failedSave.current = false;
+      setConflict(false);
+      setData(merged);
       setSaveError("");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Could not retry. Your edits are still here.";
+      setConflict(message.startsWith("Conflicting edits"));
+      setSaveError(message);
+    }
+  }, [user?.id, draftAvailable]);
+
+  const refreshDesk = useCallback(async () => {
+    const userId = user?.id;
+    if (!userId) return;
+    // Never discard a failed or pending draft as a side effect of navigation.
+    if (failedSave.current || draftAvailable) { await retrySave(); return; }
+    await persistChain.current;
+    try {
+      const payload = await loadPdDesk();
+      if (sessionUser.current !== userId) return;
+      skipPersist.current = true;
+      savedRevision.current = payload.data.revision ?? 0;
+      savedFile.current = payload.data;
       setData(payload.data);
       setViewer(payload.viewer);
+      setSaveError("");
     } catch (error) {
+      if (sessionUser.current !== userId) return;
       setSaveError(error instanceof Error ? error.message : "Could not reload saved records. Your current edits remain visible.");
-    } finally {
-      setPdReady(true);
-    }
-  }, []);
+    } finally { if (sessionUser.current === userId) setPdReady(true); }
+  }, [user?.id, draftAvailable, retrySave]);
+
+  const openAthlete = useCallback((id: string) => {
+    if (data.athletes.some(row => row.id === id)) { setSelectedAthleteId(id); return; }
+    const userId = user?.id;
+    void (async () => {
+      try {
+        if (failedSave.current || draftAvailable) throw new Error("Save or recover your current changes before opening another record.");
+        await persistChain.current;
+        await loadPdAthlete({ data: { athleteId: id } });
+        const payload = await loadPdDesk();
+        if (sessionUser.current !== userId) return;
+        if (!payload.data.athletes.some(row => row.id === id)) throw new Error("Athlete record is no longer available.");
+        skipPersist.current = true;
+        savedRevision.current = payload.data.revision ?? 0;
+        savedFile.current = payload.data;
+        setData(payload.data);
+        setViewer(payload.viewer);
+        setSelectedAthleteId(id);
+      } catch (error) {
+        if (sessionUser.current !== userId) return;
+        setSelectedAthleteId(null);
+        setSaveError(error instanceof Error ? error.message : "Could not open this athlete.");
+      }
+    })();
+  }, [data.athletes, user?.id, draftAvailable]);
+
+  const canCoach = useCallback((id: string) => Boolean(viewer && canCoachAthlete(scopeForViewer(viewer, data), id)), [viewer, data]);
 
   const closeAthlete = useCallback(() => {
     setSelectedAthleteId(null);
@@ -321,6 +364,8 @@ export function DevelopmentProvider({ children }: { children: ReactNode }) {
         skillPlans: ofAthlete(data.skillPlans, id),
         warmups: ofAthlete(data.warmups, id),
         strengthSets: ofAthlete(data.strengthSets, id),
+        strengthAssignments: ofAthlete(data.strengthAssignments, id),
+        throwingDays: ofAthlete(data.throwingDays, id),
         throwingAssignments: ofAthlete(data.throwingAssignments, id),
         bullpens: ofAthlete(data.bullpens, id),
         workload: ofAthlete(data.workload, id),
@@ -359,15 +404,14 @@ export function DevelopmentProvider({ children }: { children: ReactNode }) {
   );
 
   const toggleEducation = useCallback((email: string, id: string) => {
-    const key = email.trim().toLowerCase();
-    if (!key) return;
-    setEducation((prev) => {
-      const current = new Set(prev[key] ?? []);
-      if (current.has(id)) current.delete(id);
-      else current.add(id);
-      return { ...prev, [key]: Array.from(current) };
+    const key = viewer?.email.trim().toLowerCase();
+    if (!key || key !== email.trim().toLowerCase()) return;
+    setData(prev => {
+      const current = new Set(prev.educationProgress[key] ?? []);
+      if (current.has(id)) current.delete(id); else current.add(id);
+      return { ...prev, educationProgress: { ...prev.educationProgress, [key]: [...current] } };
     });
-  }, []);
+  }, [viewer]);
 
   const confirmSessions = useCallback(
     (input: {
@@ -397,7 +441,7 @@ export function DevelopmentProvider({ children }: { children: ReactNode }) {
         detail?: string;
       };
       if (!gate.ok) return gate;
-      const month = new Date("2026-09-14T12:00:00").toISOString().slice(0, 7);
+      const month = clubDayIso().slice(0, 7);
       setData((prev) => ({
         ...prev,
         bookings: prev.bookings.map((row) =>
@@ -444,7 +488,7 @@ export function DevelopmentProvider({ children }: { children: ReactNode }) {
         {
           ...entry,
           id: nid("wl"),
-          createdAt: "2026-09-14",
+          createdAt: clubDayIso(),
           status: "open",
         },
       ],
@@ -513,7 +557,7 @@ export function DevelopmentProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const publishLesson = useCallback((input: PublishLessonInput) => {
-    const day = "2026-09-14";
+    const day = clubDayIso();
     setData((prev) => {
       const homework = input.homeworkIds
         .map((id) => drillById(id))
@@ -659,12 +703,37 @@ export function DevelopmentProvider({ children }: { children: ReactNode }) {
 
   const assignThrowing = useCallback((row: Omit<ThrowingAssignment, "id">) => {
     setData((prev) => {
-      const rest = prev.throwingAssignments.filter((item) => item.athleteId !== row.athleteId);
+      const rest = prev.throwingAssignments;
       return {
         ...prev,
         throwingAssignments: [{ ...row, id: nid("ta") }, ...rest],
       };
     });
+  }, []);
+
+  const updateAthleteProfile = useCallback((id: string, patch: Pick<Athlete, "birthDate" | "sport" | "position">) => {
+    setData(prev => ({ ...prev, athletes: prev.athletes.map(a => a.id === id ? { ...a, ...patch } : a) }));
+  }, []);
+
+  const selectThrowingDay = useCallback((athleteId: string, assignmentId: string, dayType: string) => {
+    const date = clubDayIso();
+    setData(prev => ({ ...prev, throwingDays: [{ id: nid("td"), athleteId, assignmentId, dayType, date }, ...prev.throwingDays] }));
+  }, []);
+
+  const saveStrengthAssignment = useCallback((row: Omit<StrengthAssignment, "id" | "createdAt" | "createdBy">) => {
+    setData(prev => ({ ...prev, strengthAssignments: [{ ...row, id: nid("sa"), createdAt: new Date().toISOString(), createdBy: viewer?.email ?? "" }, ...prev.strengthAssignments] }));
+  }, [viewer]);
+
+  const startBullpen = useCallback((athleteId: string) => {
+    setData(prev => ({ ...prev, bullpens: [{ id: nid("bp"), athleteId, date: clubDayIso(), pitches: 0, tci: 0, notes: "", chart: [] }, ...prev.bullpens] }));
+  }, []);
+
+  const addBullpenPitch = useCallback((pen: Bullpen, pitch: BullpenPitch) => {
+    setData(prev => ({ ...prev, bullpens: prev.bullpens.map(row => {
+      if (row.id !== pen.id || row.athleteId !== pen.athleteId) return row;
+      const chart = [...(row.chart ?? []), { ...pitch, score: scorePitch(pitch.intent, pitch.actual) }];
+      return { ...row, chart, pitches: Math.max(row.pitches + 1, chart.length), tci: tciOf(chart) };
+    }) }));
   }, []);
 
   const creditPoints = useCallback((input: { athleteId: string; key: string; date?: string }) => {
@@ -682,7 +751,7 @@ export function DevelopmentProvider({ children }: { children: ReactNode }) {
           {
             id: nid("pt"),
             athleteId: input.athleteId,
-            date: input.date ?? CLUB_DAY_ISO,
+            date: input.date ?? clubDayIso(),
             points: decision.points,
             reason: decision.reason,
             activity: input.key,
@@ -710,24 +779,14 @@ export function DevelopmentProvider({ children }: { children: ReactNode }) {
       body: string;
       channel?: "family" | "coach";
     }) => {
-      void writePdMessage({
-        data: {
-          athleteId: input.athleteId,
-          body: input.body,
-          channel: input.channel,
-        },
-      })
-        .then((result) => {
-          setData((prev) => ({
-            ...prev,
-            messages: [result.message, ...prev.messages.filter((row) => row.id !== result.message.id)],
-          }));
-        })
-        .catch(() => {
-          /* denied — nothing lands on this desk */
-        });
+      if (!viewer) return;
+      try {
+        const allowed = authorizeMessage(scopeForViewer(viewer, data), input);
+        setData(prev => ({ ...prev, messages: [{ id: nid("msg"), ...allowed,
+          fromName: viewer.name, fromRole: viewer.role, createdAt: new Date().toISOString() }, ...prev.messages] }));
+      } catch (error) { setSaveError(error instanceof Error ? error.message : "Message was not saved."); }
     },
-    [],
+    [viewer, data],
   );
 
   const setLeaderboardOptOut = useCallback((familyId: string, value: boolean) => {
@@ -746,7 +805,7 @@ export function DevelopmentProvider({ children }: { children: ReactNode }) {
         return {
           ...prev,
           calibrationScores: [
-            { id: nid("cs"), caseId: input.caseId, coachId: input.coachId, scores: input.scores, at: CLUB_DAY_ISO },
+            { id: nid("cs"), caseId: input.caseId, coachId: input.coachId, scores: input.scores, at: clubDayIso() },
             ...rest,
           ],
         };
@@ -821,6 +880,12 @@ export function DevelopmentProvider({ children }: { children: ReactNode }) {
       publishLesson,
       logStrengthSet,
       assignThrowing,
+      selectThrowingDay,
+      saveStrengthAssignment,
+      startBullpen,
+      addBullpenPitch,
+      canCoach,
+      updateAthleteProfile,
       creditPoints,
       verifyPoints,
       sendMessage,
@@ -832,6 +897,12 @@ export function DevelopmentProvider({ children }: { children: ReactNode }) {
       athlete,
       applyTracking,
       assignThrowing,
+      selectThrowingDay,
+      saveStrengthAssignment,
+      startBullpen,
+      addBullpenPitch,
+      canCoach,
+      updateAthleteProfile,
       cancelBooking,
       closeAthlete,
       completeBooking,
@@ -866,7 +937,12 @@ export function DevelopmentProvider({ children }: { children: ReactNode }) {
 
   return (
     <DevelopmentContext.Provider value={value}>
-      {saveError ? <div role="alert" className="border-b border-maroon bg-paper p-4 text-ink">{saveError} <button className="min-h-11 underline" onClick={() => { void refreshDesk(); }}>Reload saved records</button></div> : saving ? <p role="status" className="px-5 py-2 text-sm">Saving changes…</p> : null}
+      {draftAvailable && !saveError ? <div role="status" className="p-4">Unsaved work from this session is available. <button className="min-h-11 underline" onClick={() => void retrySave()}>Recover and save draft</button></div> : null}
+      {saveError ? <div role="alert" className="border-b border-maroon bg-paper p-4 text-ink">{saveError} {conflict ? "Your draft is retained; a coach must resolve the conflicting record before it can replace saved data." : null} <button className="min-h-11 underline" onClick={() => { void retrySave(); }}>Retry saved changes</button> <button className="min-h-11 underline" onClick={() => {
+        const blob = new Blob([JSON.stringify(latestFile.current, null, 2)], { type: "application/json" });
+        const url = URL.createObjectURL(blob); const link = document.createElement("a");
+        link.href = url; link.download = "prospects-unsaved-draft.json"; link.click(); URL.revokeObjectURL(url);
+      }}>Download my unsaved draft</button></div> : saving ? <p role="status" className="px-5 py-2 text-sm">Saving changes…</p> : null}
       {children}
     </DevelopmentContext.Provider>
   );

@@ -1,6 +1,7 @@
-import { PRICES, formatMoney } from "./pricing";
+import type { PurchaseAvailability } from "./purchase-availability";
+import { PRICES, formatMoney, currentCatalogPrice } from "./pricing";
 import { revokeStaffAccess } from './staff-access.server';
-import { createServerFn } from "@tanstack/react-start";
+import { createServerFn, createServerOnlyFn } from "@tanstack/react-start";
 import { authMiddleware } from "@/lib/auth/middleware";
 import {
   DEVELOPMENT_PLANS,
@@ -140,6 +141,7 @@ export type AccountInput = {
 };
 
 export type PublicCatalog = {
+  purchaseAvailability?: PurchaseAvailability;
   lessons: LessonService[];
   packages: {
     id: string;
@@ -355,7 +357,7 @@ function toLesson(row: ClubService): LessonService {
 }
 
 export function buildPublicCatalog(rows: ClubService[]): PublicCatalog {
-  const active = rows.filter((row) => row.active);
+  const active = rows.filter((row) => row.active && row.id in PRICES).map(currentCatalogPrice);
   const lessons = active.filter((row) => row.kind === "lesson");
   const packages = active.filter((row) => row.kind === "package");
   const memberships = active.filter((row) => row.kind === "membership");
@@ -381,8 +383,8 @@ export function buildPublicCatalog(rows: ClubService[]): PublicCatalog {
           lessons: row.credits,
           minutes: row.minutes,
           remote: row.remote,
-          detail: row.detail || row.purpose,
-          includes: row.includes,
+          detail: row.id === "m4" ? DEVELOPMENT_PLANS.find(p => p.id === "m4")!.detail : row.detail || row.purpose,
+          includes: row.id === "m4" ? DEVELOPMENT_PLANS.find(p => p.id === "m4")!.includes : row.includes.filter(line => !/quarterly.*(lab|assessment)/i.test(line)),
           tier: DEVELOPMENT_PLANS.find((plan) => plan.id === row.id)?.tier,
         }))
       : DEVELOPMENT_PLANS.map((item) => ({
@@ -461,7 +463,7 @@ export async function loadServices(sql: Sql) {
     from club_services
     order by sort_order, name
   `;
-  return rows.map(mapService);
+  return rows.map(mapService).map(currentCatalogPrice);
 }
 
 export const getServices = createServerFn({ method: "GET" }).handler(async () => {
@@ -469,10 +471,16 @@ export const getServices = createServerFn({ method: "GET" }).handler(async () =>
   return loadServices(sql);
 });
 
-export async function loadPublicCatalog() {
+export const getPurchaseAvailability = createServerFn({ method: "GET" }).handler(async (): Promise<PurchaseAvailability> => {
+  const { squarePublicConfig } = await import("./commerce/square.server");
+  const config = squarePublicConfig();
+  return { ready: true, scope: config?.checkoutScope ?? "disabled" };
+});
+
+export const loadPublicCatalog = createServerOnlyFn(async () => {
   const sql = await getSql();
   return buildPublicCatalog(await loadServices(sql));
-}
+});
 
 export const saveService = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
@@ -486,6 +494,9 @@ export const saveService = createServerFn({ method: "POST" })
     const prefix =
       kind === "cage_plan" ? "plan" : kind === "cage" ? "cage" : kind === "membership" ? "m" : kind === "package" ? "p" : "s";
     const id = data.id?.trim() || newId(prefix, name);
+    if (id in PRICES && Math.round(data.price * 100) !== PRICES[id as keyof typeof PRICES]) {
+      throw new Error("This service uses the published catalog price. Update the versioned price schedule before publishing a different amount.");
+    }
     const maxSort = await sql<{ n: number }>`
       select coalesce(max(sort_order), 0)::int as n from club_services
     `;
@@ -500,7 +511,7 @@ export const saveService = createServerFn({ method: "POST" })
         ${kind},
         ${name},
         ${data.discipline.trim()},
-        ${asInt(data.price)},
+        ${Math.round(Number(data.price) * 100) / 100},
         ${asInt(data.minutes)},
         ${data.purpose.trim()},
         ${Boolean(data.entry)},

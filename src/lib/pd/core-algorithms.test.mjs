@@ -165,7 +165,8 @@ describe("FEATURE_MIN_TIER rank gating", () => {
 });
 
 describe("canReschedule policy", () => {
-  it("blocks inside 5 days and caps one per month", () => {
+  it("blocks inside 5 days and caps one per month", (t) => {
+    t.mock.timers.enable({ apis: ["Date"], now: new Date("2026-09-14T12:00:00Z") });
     const data = {
       policy: { rescheduleDaysNotice: 5, reschedulesPerMonth: 1 },
       bookings: [],

@@ -54,7 +54,7 @@ export function Participants({
           </label>
         ))}
         <p>Add missing household athletes in Bookings & billing, then sign their annual waivers.</p>
-        <Button disabled={busy}>Save participants</Button>
+        <Button type="submit" disabled={busy}>Save participants</Button>
         {error ? <p role="alert">{error}</p> : null}
       </form>
     </details>
@@ -113,7 +113,7 @@ export function ContractorEarnings() {
                 <input type="checkbox" required />I confirm this payment was already sent to this
                 contractor.
               </label>
-              <Button disabled={busy}>Record paid settlement</Button>
+              <Button type="submit" disabled={busy}>Record paid settlement</Button>
             </form>
           ) : null}
         </article>
@@ -227,7 +227,7 @@ export function OfficeOperations() {
                 </label>
               ))}
             </fieldset>
-            <Button disabled={busy}>Save facility requirement</Button>
+            <Button type="submit" disabled={busy}>Save facility requirement</Button>
           </form>
         ))}
       </details>
@@ -244,6 +244,10 @@ export function OfficeOperations() {
               {data.counts.open_review}.
             </p>
             <p>
+              Claimed athletes: {data.counts.claimed_athletes}; unclaimed guest athletes: {data.counts.guest_athletes};
+              development-file athletes: {data.counts.development_athletes}; saved strength versions: {data.counts.strength_versions};
+              saved bullpens: {data.counts.saved_bullpens}. If a known athlete is missing, reconcile their verified household with a dated backup before creating a replacement.
+            </p><p>
               These counts identify records to review; they do not establish matching balances.
               Verify legacy receipts, assessments and reservations before recording opening
               balances. No legacy payment or completion flag is converted automatically.

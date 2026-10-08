@@ -1,3 +1,4 @@
+import { canPurchase } from "@/lib/purchase-availability";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Link } from "@tanstack/react-router";
@@ -8,9 +9,10 @@ export function MembershipPlans({
 }: {
   cta?: string;
 }) {
-  const { cagePlans } = useLiveCatalog();
+  const { cagePlans, purchaseAvailability } = useLiveCatalog();
   return (
     <div>
+      {!canPurchase(purchaseAvailability, "cage-plan", "prospect") ? <p role="status" className="mb-4">Cage-pass enrollment is by inquiry while online memberships are being prepared.</p> : null}
       <div className="grid gap-3 md:grid-cols-3">
         {cagePlans.map((plan) => (
           <article
@@ -41,9 +43,7 @@ export function MembershipPlans({
               ))}
             </ul>
             <Button asChild className="mt-4 w-full" variant={plan.featured ? "primary" : "outline"}>
-              <Link to="/pay" search={{ kind: "cage-plan", id: plan.id }}>
-                Start {plan.name} · ${plan.price}
-              </Link>
+              {canPurchase(purchaseAvailability, "cage-plan", plan.id) ? <Link to="/pay" search={{ kind: "cage-plan", id: plan.id }}>Start {plan.name} · ${plan.price}</Link> : <Link to="/contact" search={{ subject: plan.name }}>Ask about {plan.name}</Link>}
             </Button>
           </article>
         ))}

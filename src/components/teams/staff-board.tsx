@@ -1,3 +1,4 @@
+import { clubDayIso } from "@/lib/pd/engines";
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { DeskCard, NumRows } from "@/components/teams/desk-kit";
@@ -406,7 +407,7 @@ export function ReimburseBoard() {
                 teamId: row.team.id,
                 staffEmail: row.email,
                 amount: Number(amount) || 0,
-                date: "2026-09-15",
+                date: clubDayIso(),
                 note,
                 category,
                 purpose,

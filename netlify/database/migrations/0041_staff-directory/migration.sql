@@ -17,6 +17,8 @@ create table staff_directory (
   updated_at timestamptz not null default now()
 );
 create unique index staff_directory_email on staff_directory(lower(email));
+alter table staff_directory enable row level security;
+revoke all on staff_directory from public;
 
     INSERT INTO _migrations (name) VALUES ('0028_staff_directory.sql');
   END IF;
