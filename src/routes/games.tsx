@@ -28,7 +28,16 @@ export const Route = createFileRoute("/games")({
   view:validView(s.view),
   game:typeof s.game==="string" && /^[0-9a-f-]{36}$/.test(s.game) ? s.game : undefined,
  }),
- loader: () => getPublicGames(),
+ loader: async () => {
+  try {
+   return {games:await getPublicGames(),loaded:true};
+  } catch(error) {
+   // Keep the site accessible without claiming a failed feed contains no games.
+   // Never log customer details or raw database/connection error messages.
+   console.error("[games] Public feed unavailable", error instanceof Error ? error.name : "unknown");
+   return {games:[] as PublicGameEvent[],loaded:false};
+  }
+ },
  component: GamesPage,
 });
 
@@ -84,12 +93,13 @@ function VideoPlayer({game}:{game:PublicGameEvent}){
 function GamesPage(){
  const initial=Route.useLoaderData();
  const {view,game:gameId}=Route.useSearch();
- const [games,setGames]=useState<PublicGameEvent[]>(initial);
- const [loadError,setLoadError]=useState(false);
+ const [games,setGames]=useState<PublicGameEvent[]>(initial.games);
+ const [hasLoaded,setHasLoaded]=useState(initial.loaded);
+ const [loadError,setLoadError]=useState(!initial.loaded);
  useEffect(()=>{
   let alive=true;
   // Read-only scoreboard refresh; no cameras, accounts or payment requests.
-  const update=()=>void getPublicGames().then(rows=>{if(alive){setGames(rows);setLoadError(false);}}).catch(()=>{if(alive)setLoadError(true);});
+  const update=()=>void getPublicGames().then(rows=>{if(alive){setGames(rows);setHasLoaded(true);setLoadError(false);}}).catch(()=>{if(alive)setLoadError(true);});
   const timer=setInterval(update,30000);
   return()=>{alive=false;clearInterval(timer);};
  },[]);
@@ -110,7 +120,7 @@ function GamesPage(){
       className={cn("flex min-h-12 items-center justify-center rounded-lg px-1 text-center text-[0.68rem] font-semibold no-underline sm:text-sm",!gameId&&view===item.id?"bg-maroon text-fg-inverse":"text-ink hover:bg-paper")}>
       {item.label}</Link>)}
     </nav>
-    {loadError?<p role="status" className="mt-4 rounded-lg border border-line p-3 text-sm">Scores could not refresh. The latest loaded information remains on screen.</p>:null}
+    {loadError && hasLoaded?<p role="status" className="mt-4 rounded-lg border border-line p-3 text-sm">Scores could not refresh. The latest loaded information remains on screen.</p>:null}
     {active ? <div className="mt-7 space-y-5">
       <Link to="/games" search={{view,game:undefined}} className="inline-flex min-h-11 items-center font-semibold underline">← All games</Link>
       <GameCard game={active}/>
@@ -122,7 +132,7 @@ function GamesPage(){
         {view==="watch"?<Radio className="size-5 text-maroon"/>:view==="schedule"?<CalendarDays className="size-5 text-maroon"/>:view==="scores"?<Trophy className="size-5 text-maroon"/>:view==="replays"?<Clapperboard className="size-5 text-maroon"/>:<Users className="size-5 text-maroon"/>}
         <h2 className="text-3xl">{VIEWS.find(v=>v.id===view)?.label}</h2>
       </div>
-      {view==="teams" ? teams.length ? <div className="mt-5 grid gap-3 sm:grid-cols-2">{teams.map(t=><div key={t.sport+":"+t.name} className="rounded-xl bg-paper-2 p-5 shadow-border">
+      {!hasLoaded && games.length===0 ? <GamesUnavailable/> : view==="teams" ? teams.length ? <div className="mt-5 grid gap-3 sm:grid-cols-2">{teams.map(t=><div key={t.sport+":"+t.name} className="rounded-xl bg-paper-2 p-5 shadow-border">
        <p className="text-xs font-bold text-maroon uppercase">{t.sport} · {t.age||"Prospects"}</p>
        <h3 className="mt-2 font-display text-2xl">{t.name}</h3>
        <p className="mt-2 text-sm text-muted">Team shown because a published game is available.</p>
@@ -137,6 +147,12 @@ function GamesPage(){
   </div></section>
   <GamesStudio/>
  </main>;
+}
+function GamesUnavailable(){
+ return <div className="mt-5 rounded-2xl border border-line bg-paper-2 p-7" role="status">
+  <h3 className="text-xl font-bold">Games are temporarily unavailable.</h3>
+  <p className="mt-2 text-muted">Schedules, scores and approved videos could not load. Please check back shortly. No unverified game information is being shown.</p>
+ </div>;
 }
 function EmptyGames(){
  return <div className="mt-5 rounded-2xl border border-line bg-paper-2 p-7">
