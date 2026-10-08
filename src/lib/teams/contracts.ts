@@ -48,7 +48,7 @@ export function parseClubSave(input:{club:ClubRecord;baseRev:number}) {
  if(teamIds.some(id=>!id.trim())||new Set(teamIds).size!==teamIds.length)throw new Error('Team identifiers must be nonempty and unique.');
  for(const t of parsed.club.teams){const staffIds=t.staff.map(s=>s.id);if(staffIds.some(id=>!id.trim())||new Set(staffIds).size!==staffIds.length)throw new Error('Staff identifiers must be nonempty and unique within a team.');}
  const ids=parsed.club.teams.flatMap(t=>t.roster.map(p=>p.id));
- if(new Set(ids).size!==ids.length)throw new Error('Player identifiers must be unique.');
+ if(ids.some(id=>!id.trim())||new Set(ids).size!==ids.length)throw new Error('Player identifiers must be nonempty and unique.');
  for(const t of parsed.club.teams)if(t.roster.some(p=>p.teamId!==t.id))throw new Error('Player team does not match its roster.');
  return parsed as {club:ClubRecord;baseRev:number};
 }
