@@ -61,13 +61,17 @@ test("scoped family alerts require an exact player and team match", () => {
 
 test("owner, coach, and targeted family notices stay out of unrelated snapshots", () => {
   const { club, team, own } = household();
+  const foreignTeam = club.teams.find(
+    (t) => t.id !== team.id && !t.roster.some((p) => p.familyId === own.familyId),
+  );
+  assert.ok(foreignTeam, "need an unrelated real team");
   club.notifications = [
     { id: "owner", ts: 1, teamId: team.id, title: "Owner private", body: "Confidential", kind: "alert", audience: "admin" },
     { id: "staff", ts: 2, teamId: team.id, title: "Coach private", body: "Confidential", kind: "alert", audience: "coach" },
     { id: "family", ts: 3, teamId: team.id, title: "One household", body: "Private family notification", kind: "chase", audience: "family" },
     { id: "general", ts: 4, teamId: team.id, title: "Facility update", body: "Cages open", kind: "alert", audience: "all" },
     { id: "price", ts: 5, teamId: team.id, title: "Team budget", body: "$250 entry fee", kind: "alert", audience: "all" },
-    { id: "other-team", ts: 6, teamId: "unknown-team", title: "Not on team", body: "Elsewhere", kind: "alert", audience: "all" },
+    { id: "other-team", ts: 6, teamId: foreignTeam.id, title: "Not on team", body: "Elsewhere", kind: "alert", audience: "all" },
   ];
   const who = { email: own.email || "", teamId: team.id, familyId: own.familyId, playerId: own.id };
   const parent = scopeClub(club, { ...who, role: "parent" });
