@@ -174,12 +174,51 @@ try {
   const parent = await signedIn("parent@example.invalid");
   await parent.page.getByRole("alert").filter({ hasText: "Coach or owner access" }).waitFor();
   assert.doesNotMatch(await parent.page.locator("body").innerText(), /Tryout Test Player/);
+  // Match the live club's empty-team setup: coaches can still evaluate a walk-in,
+  // and owners can evaluate existing registrations without manufacturing teams.
+  await sql`delete from club_state where id='oklahoma-prospects'`;
+  await page.reload();
+  await page.getByRole("button", { name: "New evaluation", exact: true }).click();
+  await page.getByLabel("Player name", { exact: true }).fill("General Tryout Fixture");
+  await page.getByLabel("Age group", { exact: true }).fill("7U");
+  await page.getByLabel("Sport", { exact: true }).selectOption("softball");
+  await page
+    .getByRole("radio", { name: "Coachability / effort: 4", exact: true })
+    .locator("..")
+    .click();
+  await page.getByRole("button", { name: "Submit evaluation", exact: true }).click();
+  await page.getByRole("status").filter({ hasText: "Evaluation submitted" }).waitFor();
+  await page.reload();
+  await page.getByRole("button").filter({ hasText: "General Tryout Fixture" }).waitFor();
+  assert.doesNotMatch(await page.locator("main").innerText(), /Tryout Test Player/);
+  assert.equal(
+    await page.locator("html").evaluate((el) => el.scrollWidth > el.clientWidth + 1),
+    false,
+  );
+  await page.screenshot({ path: shots + "/prospects-general-tryout-mobile.png", fullPage: true });
+  await owner.page.reload();
+  await owner.page.getByLabel("Age group", { exact: true }).selectOption("7U");
+  await owner.page.getByRole("button").filter({ hasText: "General Tryout Fixture" }).waitFor();
+  assert.doesNotMatch(await owner.page.locator("main").innerText(), /Tryout Test Player/);
+  await owner.page.getByRole("button", { name: "Clear filters", exact: true }).click();
+  await owner.page.getByRole("button", { name: "New evaluation", exact: true }).click();
+  await owner.page.getByLabel("Registration", { exact: true }).selectOption("fixture-registration");
+  assert.equal(await owner.page.getByLabel("Age group", { exact: true }).inputValue(), "13U");
+  await owner.page.getByLabel("Recommendation", { exact: true }).selectOption("incomplete");
+  await owner.page.getByRole("button", { name: "Submit evaluation", exact: true }).click();
+  await owner.page.getByRole("status").filter({ hasText: "Evaluation submitted" }).waitFor();
+  const generalRows =
+    await sql`select team_id,age_group,sport from tryout_evaluations where team_id='' order by age_group`;
+  assert.deepEqual(generalRows, [
+    { team_id: "", age_group: "13U", sport: "baseball" },
+    { team_id: "", age_group: "7U", sport: "softball" },
+  ]);
   await context.close();
   await owner.context.close();
   await parent.context.close();
   assert.deepEqual(failures, []);
   console.log(
-    "PASS mobile draft -> reload -> submit -> separate owner session -> parent denial; database attribution verified.",
+    "PASS mobile draft/reload/submit, owner review, parent denial, general tryouts without teams, age filters, and registered owner evaluation; database attribution verified.",
   );
 } catch (error) {
   const page = browser?.contexts()[0]?.pages()[0];

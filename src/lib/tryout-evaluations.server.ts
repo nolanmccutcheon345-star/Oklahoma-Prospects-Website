@@ -111,7 +111,7 @@ export async function evaluationWorkspaceFor(
   const rows =
     me.role === "admin"
       ? await sql<EvaluationRow>`select * from tryout_evaluations order by evaluation_date desc,updated_at desc,id`
-      : await sql<EvaluationRow>`select * from tryout_evaluations where team_id=any(${teams.map((t) => t.id)}::text[]) order by evaluation_date desc,updated_at desc,id`;
+      : await sql<EvaluationRow>`select * from tryout_evaluations where team_id=any(${teams.map((t) => t.id)}::text[]) or (team_id='' and evaluator_id=${userId}) order by evaluation_date desc,updated_at desc,id`;
   return {
     owner: me.role === "admin",
     name: me.name,
@@ -119,7 +119,7 @@ export async function evaluationWorkspaceFor(
     candidates,
     evaluations: rows.map((r) => ({
       ...saved(r, userId),
-      canEdit: r.evaluator_id === userId && teams.some((t) => t.id === r.team_id),
+      canEdit: r.evaluator_id === userId && (!r.team_id || teams.some((t) => t.id === r.team_id)),
     })),
   };
 }
@@ -131,8 +131,17 @@ export async function saveEvaluationFor(
 ): Promise<SavedEvaluation> {
   const input = evaluationInput.parse(raw);
   const { me, teams } = await evaluationAccess(sql, userId);
-  const team = teams.find((t) => t.id === input.teamId);
+  const team = input.teamId
+    ? teams.find((t) => t.id === input.teamId)
+    : {
+        id: "",
+        name: "General tryout",
+        age: normalizedEvaluationAge(input.ageGroup),
+        sport: input.sport,
+      };
   if (!team) throw new Error("Choose one of your assigned active teams.");
+  if (!team.age && !input.registrationId)
+    throw new Error("Enter an age group for this general tryout.");
   if (input.status === "submitted" && input.evaluationDate > chicagoDate())
     throw new Error("A future evaluation can be saved as a draft, but cannot be submitted yet.");
   if (
@@ -147,16 +156,29 @@ export async function saveEvaluationFor(
     if (input.registrationId) {
       const [request] =
         await tx<RequestRow>`select id,kind,payload from club_requests where id=${input.registrationId} and kind in ('tryout','team-inquiry') for share`;
-      if (!request || !candidateFor(request, teams).teamIds.includes(team.id))
-        throw new Error("This registration does not match the selected team.");
-      playerName = candidateFor(request, teams).name;
+      if (!request) throw new Error("Registration not found.");
+      const candidate = candidateFor(request, teams);
+      if (
+        input.teamId
+          ? !candidate.teamIds.includes(team.id)
+          : me.role !== "admin" && !candidate.teamIds.length
+      )
+        throw new Error("This registration does not match your assigned teams.");
+      playerName = candidate.name;
       if (!playerName) throw new Error("This registration has no player name.");
+      if (!input.teamId) {
+        if (!candidate.age.trim() || !["baseball", "softball"].includes(candidate.sport))
+          throw new Error("This registration needs an age group and sport before evaluation.");
+        team.age = normalizedEvaluationAge(candidate.age);
+        team.sport = candidate.sport as "baseball" | "softball";
+      }
     }
     const [existing] =
       await tx<EvaluationRow>`select * from tryout_evaluations where id=${input.id} for update`;
     if (
       existing &&
-      (existing.evaluator_id !== userId || !teams.some((t) => t.id === existing.team_id))
+      (existing.evaluator_id !== userId ||
+        (existing.team_id && !teams.some((t) => t.id === existing.team_id)))
     )
       throw new Error(
         "Only the original evaluator can edit this evaluation while assigned to its team.",
@@ -171,6 +193,7 @@ export async function saveEvaluationFor(
       row.team_id === team.id &&
       row.registration_id === input.registrationId &&
       row.player_name === playerName &&
+      (input.teamId !== "" || (row.age_group === team.age && row.sport === team.sport)) &&
       saved(row, userId).evaluationDate === input.evaluationDate &&
       row.status === input.status &&
       row.recommendation === input.recommendation &&
@@ -189,6 +212,7 @@ export async function saveEvaluationFor(
       rows =
         await tx<EvaluationRow>`update tryout_evaluations set player_name=${playerName},evaluation_date=${input.evaluationDate}::date,
         status=${input.status},recommendation=${input.recommendation},payload=${JSON.stringify(input.payload)}::jsonb,
+        age_group=${input.teamId ? existing.age_group : team.age},sport=${input.teamId ? existing.sport : team.sport},
         revision=revision+1,updated_at=now() where id=${input.id} and evaluator_id=${userId} and revision=${input.baseRevision} returning *`;
     } else {
       rows =

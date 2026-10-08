@@ -2,15 +2,15 @@
 
 Open **Coach App → Tryout evaluations** or **Front Office → Tryout results**. Both use `/evaluations` and the existing club login.
 
-- Coaches select a matching registration or enter a walk-in, choose their assigned team, and save a draft or submit the evaluation. Age and sport come from the team.
+- Coaches can immediately enter a player under **General tryout / no team**, choose any age group and sport, and save a draft or submit. No team setup is required. Assigned teams remain an option; their age and sport come from the team record.
 - Seven ratings use 1–5 or Not observed. A total out of 35 appears only when all seven are rated. Notes, drill setup, rep counts, throwing readiness, and follow-up details are optional.
 - Owners can review drafts and submissions across teams and filter by player, team/age, sport, date, evaluator, and status. Refresh retrieves the latest saved results.
-- Active coaches can view their assigned teams. Only the original evaluator, while still assigned to an active team, can edit a record. Owners can view another coach's record without changing its attribution.
+- Active coaches can view their own general tryouts and their assigned teams. Only the original evaluator can edit; team records additionally require a current team assignment. Owners can view every evaluation without changing another coach's attribution. Owners can select any registration for a general tryout; coaches can select registrations matching their assigned teams and otherwise enter the player name.
 - Recommendations record the coach's judgment; they do not offer roster spots or send family messages. The downloadable baseball workout PDF remains fillable.
 
 ## Persistence and access
 
-`0035_tryout_evaluations.sql` adds an audited table with independent evaluation rows. The generated Netlify migration is included. Existing sessions and `owner_grants` control access; an active `club_staff` record and team assignment are additionally required for coaches. Family/player and registration-reader access do not grant evaluation access. Candidate responses omit household contact details.
+`0035_tryout_evaluations.sql` adds an audited table with independent evaluation rows. The generated Netlify migration is included. Existing sessions and `owner_grants` control access; coaches require an active `club_staff` record, with team assignments enforced for team evaluations. An empty `team_id` denotes a general tryout, visible only to its original coach and owners. Family/player and registration-reader access do not grant evaluation access. Candidate responses omit household contact details. Registered age and sport are resolved server-side.
 
 Each evaluation carries a stable UUID and revision. Identical retries are safe; stale edits and changes of registered player/team are rejected. Submitted future dates are rejected. Closed-team results remain visible to owners.
 
