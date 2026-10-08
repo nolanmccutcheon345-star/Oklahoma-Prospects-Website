@@ -23,17 +23,17 @@ test("Original Steve live project is not modified or embedded by the new Games h
 
 test("Games errors have an honest unavailable page separate from a genuinely empty schedule",()=>{
  const page=readFileSync("src/routes/games.tsx","utf8");
- assert.match(page,/loader:\\s*async\\s*\\(\\)\\s*=>/);
- assert.match(page,/games:\\[\\] as PublicGameEvent\\[\\],loaded:false/);
- assert.match(page,/function GamesUnavailable\\(\\)/);
- assert.match(page,/!hasLoaded && games.length===0/);
- assert.match(page,/No unverified game information is being shown/);
- assert.match(page,/function EmptyGames\\(\\)/);
+ assert.ok(page.includes("loader: async () => {"));
+ assert.ok(page.includes("games:[] as PublicGameEvent[],loaded:false"));
+ assert.ok(page.includes("function GamesUnavailable(){"));
+ assert.ok(page.includes("!hasLoaded && games.length===0"));
+ assert.ok(page.includes("No unverified game information is being shown"));
+ assert.ok(page.includes("function EmptyGames(){"));
 });
 
 test("Games default Watch tab does not force a redirect from the clean /games URL",()=>{
  const page=readFileSync("src/routes/games.tsx","utf8");
- assert.match(page,/const validView = .*GamesView\\|undefined/);
- assert.match(page,/requestedView\\?\\?"watch"/);
- assert.doesNotMatch(page,/VIEWS\\.find\\(v=>v\\.id===value\\)\\?\\.id \\?\\? "watch"/);
+ assert.ok(page.includes("const validView = (value:unknown):GamesView|undefined"));
+ assert.ok(page.includes('requestedView??"watch"'));
+ assert.ok(!page.includes('VIEWS.find(v=>v.id===value)?.id ?? "watch"'));
 });
