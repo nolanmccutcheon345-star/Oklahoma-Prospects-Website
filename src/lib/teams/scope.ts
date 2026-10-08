@@ -200,21 +200,32 @@ function buildViewer(raw: ClubOs, identity: OsIdentity): OsViewer {
 function filterAlerts(raw: ClubOs, identity: OsIdentity, alerts: OsAlert[]): OsAlert[] {
   if (identity.role === "admin") return alerts;
   if (identity.role === "player") {
+    if (!identity.teamId || !identity.playerId) return [];
     return alerts.filter(
       (a) =>
         a.kind !== "Money" &&
         !/\$|usd|\bbudget\b|% of budget|entry fee/i.test(a.text) &&
-        a.teamId === identity.teamId,
+        a.teamId === identity.teamId &&
+        (a.playerId
+          ? a.playerId === identity.playerId
+          : a.kind === "Schedule" || a.kind === "Roster" || a.kind === "Field"),
     );
   }
   if (identity.role === "coach") {
     const mine = new Set(raw.teams.filter((t) => t.id === identity.teamId || t.coachEmail === identity.email).map((t) => t.id));
     return alerts.filter((a) => mine.has(a.teamId) && a.kind !== "Money" && !/\$/.test(a.text));
   }
-  const names = new Set(
-    raw.teams.flatMap((t) => t.roster.filter((p) => p.familyId === identity.familyId).map((p) => p.name)),
+  if (!identity.familyId) return [];
+  // Compare verified player/team/family IDs, never free-form alert text or names.
+  return alerts.filter(
+    (a) =>
+      Boolean(a.playerId) &&
+      raw.teams.some(
+        (t) =>
+          t.id === a.teamId &&
+          t.roster.some((p) => p.id === a.playerId && p.familyId === identity.familyId),
+      ),
   );
-  return alerts.filter((a) => names.size > 0 && [...names].some((n) => a.text.includes(n)));
 }
 
 function stripSettings(settings: ClubOs["settings"], role: OsRole): ClubOs["settings"] {
@@ -268,6 +279,19 @@ export function scopeClub(
   next.payouts = [];
   next.purchaseOrders = [];
   next.audit = [];
+  // Do not ship owner-only or another audience's notices in the viewer's data
+  // snapshot. Family-targeted notices have no familyId; they must not be
+  // broadcast to every household on the team.
+  next.notifications = next.notifications.filter((notice) => {
+    if (!raw.teams.some((t) => t.id === notice.teamId)) return false;
+    if (identity.role === "coach") {
+      return notice.audience === "coach" || notice.audience === "all";
+    }
+    if (!identity.teamId && !identity.familyId) return false;
+    const ownsTeam = next.teams.some((t) => t.id === notice.teamId);
+    if (!ownsTeam || notice.audience !== "all") return false;
+    return !/\$|usd|\bbudget\b|% of budget|entry fee/i.test(notice.title + " " + notice.body);
+  });
 
   if (identity.role === "coach") {
     next.teams = next.teams
