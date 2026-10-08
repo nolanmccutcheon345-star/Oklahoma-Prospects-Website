@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { eligibility } from "../pricing";
+import { ASSESSMENT_LOCK_MESSAGE, eligibility } from "../pricing";
 import { BOOKABLE_LANES } from "../club";
 import type { AppliedDiscount } from "./discounts";
 
@@ -80,10 +80,7 @@ export function calculateQuote(
   )
     throw new Error("Product type does not match.");
   const rule = eligibility(input.kind, product.id, completed);
-  if (rule.locked)
-    throw new Error(
-      "Complete your assessment with your coach to unlock ordinary lessons and packages.",
-    );
+  if (rule.locked) throw new Error(ASSESSMENT_LOCK_MESSAGE);
   const recurring =
     input.kind === "membership" || input.kind === "cage-plan" || product.id === "s6";
   if (requireConsent && recurring && !input.consent)

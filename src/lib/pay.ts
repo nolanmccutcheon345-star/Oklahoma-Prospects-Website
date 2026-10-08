@@ -1,4 +1,4 @@
-import { eligibility, dollars, formatDollars } from "./pricing";
+import { ASSESSMENT_LOCK_MESSAGE, eligibility, dollars, formatDollars } from "./pricing";
 import { BOOKABLE_LANES, HOUSEHOLD_CAGE_PLAN_IDS, type BookableLaneId } from "@/lib/club";
 import { ASSESSMENT_IDS, findLesson } from "@/lib/catalog";
 import { PD_POLICY } from "@/lib/pd";
@@ -165,7 +165,7 @@ function needsAssessmentFee(kind: string, id: string): boolean {
 }
 
 export function applyAssessmentFee(item: PayItem, hasAssessment: boolean): PayItem {
-  if (eligibility(item.kind, item.id, hasAssessment).locked) return { ...item, error: "Complete your assessment with your coach to unlock ordinary lessons and packages." };
+  if (eligibility(item.kind, item.id, hasAssessment).locked) return { ...item, error: ASSESSMENT_LOCK_MESSAGE };
   if (hasAssessment) return item;
   if (!needsAssessmentFee(item.kind, item.id)) return item;
   const fee = PD_POLICY.assessmentSurcharge;

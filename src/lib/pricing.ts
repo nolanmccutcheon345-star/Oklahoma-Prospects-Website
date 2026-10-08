@@ -34,11 +34,26 @@ export function formatMoney(cents: number) {
 export function formatDollars(dollars: number) {
   return formatMoney(Math.round(dollars * 100));
 }
+/** Shown when a quote, checkout, or payment is refused for an athlete without a verified assessment. */
+export const ASSESSMENT_LOCK_MESSAGE =
+  "Complete your assessment with your coach to unlock ordinary lessons, packages, and memberships.";
+
 export function eligibility(kind: string, id: string, assessmentCompleted: boolean) {
   const assessment = ASSESSMENT_PRODUCTS.has(id);
   const recurring = kind === "membership" || id === "s6";
-  const locked = !assessmentCompleted && (id === "m5" || (!assessment && !recurring && (kind === "lesson" || kind === "package")));
-  return { locked, assessment, setupCents: recurring && id !== "m5" && !assessmentCompleted ? FIRST_MONTH_SETUP_CENTS : 0 };
+  const athleteSpecific =
+    kind === "lesson" || kind === "package" || kind === "membership" || id === "s6";
+  // V2: before a verified New Player Assessment, only assessment lessons are eligible.
+  // A membership id that collides with an assessment product is not an assessment lesson.
+  const eligibleAssessment = assessment && kind === "lesson";
+  const locked = !assessmentCompleted && athleteSpecific && !eligibleAssessment;
+  return {
+    locked,
+    assessment,
+    // Stored orders may still carry this fee. New unassessed memberships are locked
+    // before a quote is issued, so checkout does not add it.
+    setupCents: !locked && recurring && id !== "m5" && !assessmentCompleted ? FIRST_MONTH_SETUP_CENTS : 0,
+  };
 }
 export function refundCents(paidCents: number, startsAt: Date, now = new Date()) {
   if (!Number.isSafeInteger(paidCents) || paidCents < 0 || !Number.isFinite(startsAt.getTime())) throw new Error("Invalid refund.");

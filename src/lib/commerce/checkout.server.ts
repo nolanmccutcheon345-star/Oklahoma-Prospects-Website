@@ -16,6 +16,7 @@ import { assertSquareCheckoutScope } from "./square-config";
 import { expireHolds } from "./store.server";
 import { quoteWithDiscount, assertDiscountCurrent } from "./discounts.server";
 import { assertBreakTheBatAvailable } from "./break-the-bat.server";
+import { assertAthleteMayPurchase, householdAssessmentIds } from "./assessment-gate.server";
 
 export async function rateLimit(bucket: string, maximum = 30) {
   const request = getRequest();
@@ -38,14 +39,10 @@ export async function checkoutContext(verifiedUserId?: string) {
   const me = session ? await clubIdentity(session.id) : null;
   const sql = await getSql();
   const file = session ? (await loadDeskForUser(session.id)).data : await readWorkingFile();
-  const [products, assessments] = await Promise.all([
-    sql<Product>`select id,kind,name,price,minutes,credits,remote,expires_days,hours,discipline,active from club_services where active = true`,
-    session
-      ? sql<{ athlete_id: string }>`select distinct a.athlete_id from athlete_assessments a
-      join club_athletes c on c.id = a.athlete_id where c.household_id = any(${me!.billingHouseholdIds}::text[])`
-      : Promise.resolve([]),
-  ]);
-  const done = new Set(assessments.map((a) => a.athlete_id));
+  const products =
+    await sql<Product>`select id,kind,name,price,minutes,credits,remote,expires_days,hours,discipline,active from club_services where active = true`;
+  // A failed status lookup is an empty set: every athlete is not assessed.
+  const done = session ? await householdAssessmentIds(sql, me!.billingHouseholdIds) : new Set<string>();
   // Parent-scoped desk data omits staff schedules; use the full file only on the server.
   const publicProducts = approvedProducts(products);
   const bookingFile = session ? await readWorkingFile() : file;
@@ -86,26 +83,21 @@ export async function quoteForRequest(
   const file = await readWorkingFile();
   let athleteId: string | null = null;
   let completed = false;
-  if (input.athleteId) {
-    if (!me) throw new Error("Sign in to select an athlete on your account.");
-    const desk = await loadDeskForUser(me.userId);
-    const athlete = desk.data.athletes.find((a) => a.id === input.athleteId);
-    if (
-      !athlete ||
-      (me.role !== "admin" &&
-        !desk.data.families.some(
-          (f) =>
-            f.id === athlete.familyId &&
-            (me.householdEmails.includes(f.email.toLowerCase()) ||
-              f.email.toLowerCase() === me.email),
-        ))
-    )
-      throw new Error("This athlete is not in your household.");
-    athleteId = athlete.id;
-    const [result] = await sql<{
-      done: boolean;
-    }>`select exists(select 1 from athlete_assessments where athlete_id = ${athleteId}) as done`;
-    completed = result.done;
+  if (
+    input.athleteId ||
+    input.kind === "lesson" ||
+    input.kind === "package" ||
+    input.kind === "membership"
+  ) {
+    const gate = await assertAthleteMayPurchase(sql, {
+      athleteId: input.athleteId,
+      kind: input.kind,
+      productId: input.productId,
+      billingHouseholdIds: me.billingHouseholdIds,
+      role: me.role,
+    });
+    athleteId = gate.athleteId;
+    completed = gate.assessed;
   }
   if (input.productId === "all-star") {
     const { requirePriorityPolicy } = await import("./booking-policy.server");

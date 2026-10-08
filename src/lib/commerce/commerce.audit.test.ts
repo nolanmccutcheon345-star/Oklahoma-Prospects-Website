@@ -97,19 +97,31 @@ test("all ordinary lessons and packages are locked until assessment completion; 
       calculateQuote(request({ productId: id }), product(id, "lesson"), false).totalCents,
       PRICES[id],
     );
-  for (const id of ["m1", "m2", "m3", "m4"] as const) {
-    const quote = calculateQuote(
-      request({ productId: id, kind: "membership" }),
-      product(id, "membership"),
-      false,
+  for (const id of ["m1", "m2", "m3", "m4", "m5"] as const) {
+    assert.throws(
+      () =>
+        calculateQuote(
+          request({ productId: id, kind: "membership" }),
+          product(id, "membership"),
+          false,
+        ),
+      /Complete your assessment/,
     );
-    assert.equal(quote.totalCents, PRICES[id] + 5000);
-    assert.equal(quote.regularCents, PRICES[id]);
+    assert.equal(
+      calculateQuote(
+        request({ productId: id, kind: "membership" }),
+        product(id, "membership"),
+        true,
+      ).setupCents,
+      0,
+    );
   }
 });
 test("remote enrollment requires assessment and never advertises an unassessed first payment", () => {
   assert.throws(() => calculateQuote(request({ productId: "m5", kind: "membership" }), product("m5", "membership"), false), /Complete your assessment/);
-  assert.equal(calculateQuote(request({ productId: "m5", kind: "membership" }), product("m5", "membership"), true).setupCents, 0);
+  const enrolled = calculateQuote(request({ productId: "m5", kind: "membership" }), product("m5", "membership"), true);
+  assert.equal(enrolled.setupCents, 0);
+  assert.equal(enrolled.totalCents, PRICES.m5);
 });
 test("checkout rejects price, assessment, total and fee tampering", () => {
   for (const field of ["price", "total", "assessed", "hasAssessment", "fee", "role", "userId"])
@@ -121,7 +133,7 @@ test("checkout rejects price, assessment, total and fee tampering", () => {
       calculateQuote(
         request({ productId: "m1", kind: "membership", consent: false }),
         product("m1", "membership"),
-        false,
+        true,
       ),
     /renewal/,
   );

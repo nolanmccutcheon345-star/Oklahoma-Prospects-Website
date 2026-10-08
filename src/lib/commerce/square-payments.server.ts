@@ -23,9 +23,11 @@ import type { Quote } from "./contracts";
 import { applySquareRefundBalance, paymentRefundedCents } from "./square-refunds.server";
 import { assertDiscountCurrent } from "./discounts.server";
 import { lockBreakTheBatCustomer } from "./break-the-bat.server";
+import { assertStoredOrderAllowed } from "./assessment-gate.server";
 export type SquareOrder = {
   id: string;
   kind?: string;
+  product_id?: string;
   user_id: string;
   email: string;
   athlete_id: string | null;
@@ -366,20 +368,7 @@ export async function paySquareOrder(
         await tx`select booking_id from booking_occupancy where resource_id=any(${b.resources}::text[]) and slot_at>=${target.start.toISOString()} and slot_at<${target.end.toISOString()} and booking_id<>${b.id} limit 1`;
       if (occupied.length) throw new Error("That time was just booked. No fee was submitted.");
     }
-    if (current.athlete_id && !current.snapshot.rescheduleFee) {
-      const [athlete] = await tx<{
-        assessed: boolean;
-      }>`select exists(select 1 from athlete_assessments a where a.athlete_id=c.id) as assessed from club_athletes c where c.id=${current.athlete_id} and c.household_id=any(${identity.billingHouseholdIds}::text[])`;
-      if (!athlete) throw new Error("This athlete is no longer linked to your billing household.");
-      if (
-        ["lesson", "package"].includes(current.snapshot.kind) &&
-        !current.snapshot.assessment &&
-        !athlete.assessed
-      )
-        throw new Error(
-          "A completed assessment must remain on the athlete account before payment.",
-        );
-    }
+    await assertStoredOrderAllowed(tx, current, identity);
     if (current.snapshot.bookingWindow) {
       const window = current.snapshot.bookingWindow;
       if (current.snapshot.kind !== "cage") {
