@@ -36,7 +36,8 @@ export const LINKS = {
   checkin: "/visits",
   maps: "https://www.google.com/maps/search/?api=1&query=3804+S.+Elm+Pl.+Suite+A+Broken+Arrow+OK+74011",
   site: "https://prospectsbaseball.club/",
-  googleReview: "https://www.google.com/maps/search/?api=1&query=Oklahoma+Prospects+Academy+3804+S+Elm+Pl+Broken+Arrow+OK",
+  googleReview:
+    "https://www.google.com/maps/search/?api=1&query=Oklahoma+Prospects+Academy+3804+S+Elm+Pl+Broken+Arrow+OK",
 } as const;
 
 export function smsHref(tel: string, body: string) {
@@ -59,36 +60,9 @@ export const AGE_GROUPS = [
   "16U",
 ] as const;
 
-export const TRYOUT_AGES = ["5U", "8U", "9U", "10U", "13U", "15U"] as const;
-
 export const SOFTBALL_AGES = ["10U", "12U", "14U", "16U"] as const;
-export const SOFTBALL_TRYOUT_SESSION = "Softball tryouts · Date and time to be announced";
-
-export const TRYOUT_DAYS = [
-  {
-    date: "2026-11-14",
-    weekday: "Saturday",
-    sessions: [
-      { age: "5U", time: "9:00–10:00 AM" },
-      { age: "8U", time: "10:15–11:15 AM" },
-      { age: "9U", time: "11:30 AM–12:30 PM" },
-      { age: "10U", time: "1:00–2:00 PM" },
-    ],
-  },
-  {
-    date: "2026-11-15",
-    weekday: "Sunday",
-    sessions: [
-      { age: "13U", time: "1:00–2:30 PM" },
-      { age: "15U", time: "3:00–4:30 PM" },
-    ],
-  },
-] as const;
-
-export const TRYOUT_MAKEUP = {
-  date: "2026-11-21",
-  label: "November 21 by appointment",
-} as const;
+// An intake request is not a reservation for an invented event.
+export const TRYOUT_REQUEST_SESSION = "Individual tryout request";
 
 export const CANCEL_POLICY = {
   fullRefundHours: 48,
@@ -146,10 +120,7 @@ export const MEMBERSHIPS = [
     bestFor: "One athlete · two sessions a month",
     savings: `${formatMoney(2 * PRICES.individual - PRICES.prospect)} vs two drop-in hours`,
     featured: false,
-    perks: [
-      "Two 1-hour cage rentals included",
-      "Household athletes only — not for team practices",
-    ],
+    perks: ["Two 1-hour cage rentals included", "Household athletes only — not for team practices"],
   },
   {
     name: "All-Star",
@@ -210,9 +181,9 @@ const TEAM_MEMBERSHIP_NET_RATES = [
   },
 ] as const;
 
-export const TEAM_MEMBERSHIPS = TEAM_MEMBERSHIP_NET_RATES.map(row => ({
+export const TEAM_MEMBERSHIPS = TEAM_MEMBERSHIP_NET_RATES.map((row) => ({
   ...row,
-  rates: row.rates.map(rate => ({
+  rates: row.rates.map((rate) => ({
     ...rate,
     price: processingInclusiveCents(rate.price * 100, 100) / 100,
   })),
@@ -361,7 +332,7 @@ export const FAQ = [
   },
   {
     q: "Are you open during the day?",
-    a: "After school, on purpose. Monday–Friday 4–8 PM. Saturday–Sunday 1–8 PM, with a paid booking. Spring evaluations are November 14–15. November 14 uses Saturday morning hours — doors open at 8:45 AM for 5U.",
+    a: "After school, on purpose. Monday–Friday 4–8 PM. Saturday–Sunday 1–8 PM, with a paid booking. Tryout requests are open for all baseball and softball age groups.",
   },
   {
     q: "Can I rent more than one cage at the same time?",
