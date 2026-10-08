@@ -1,0 +1,26 @@
+name: Read-only preview database target comparison
+
+on:
+  workflow_dispatch:
+    inputs:
+      preview_origin:
+        description: "Exact deploy-preview-N--oklahoma-prospects.netlify.app HTTPS origin"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  compare-targets:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Compare only non-secret health endpoints
+        env:
+          PREVIEW_ORIGIN: ${{ inputs.preview_origin }}
+        run: node scripts/verify-preview-db-isolation.mjs "$PREVIEW_ORIGIN"
