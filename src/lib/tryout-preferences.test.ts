@@ -10,7 +10,7 @@ const base = {
   sport: "softball",
   closed: false,
   coachEmail: "assigned@example.invalid",
-  staff: [{ email: "assistant@example.invalid" }],
+  staff: [{ email: "assistant@example.invalid", role: "Assistant Coach" }, { email: "bookkeeper@example.invalid", role: "Treasurer" }],
   roster: [{ id: "minor-secret", name: "Private athlete", parents: [{ email: "guardian@example.invalid" }] }],
   notes: "Private coaching notes",
 } as unknown as ClubRecord["teams"][number];
@@ -18,6 +18,7 @@ const publisher = [
  {id:"published-a",name:"Published Coach",email:"assigned@example.invalid",program:"Softball"},
  {id:"published-b",name:"Assistant",email:"assistant@example.invalid",program:"Softball"},
  {id:"wrong-sport",name:"Other sport",email:"assistant@example.invalid",program:"Baseball"},
+ {id:"published-treasurer",name:"Treasurer",email:"bookkeeper@example.invalid",program:"Softball"},
 ];
 const teams = () => listedTryoutTeams([base], publisher);
 
