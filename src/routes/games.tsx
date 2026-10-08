@@ -101,14 +101,14 @@ function GamesPage(){
     copy="Game schedules, live scores, final results and approved video for our baseball and softball teams."/>
   <section className="mx-auto max-w-3xl px-5 py-8">
     <nav aria-label="Games views" className="grid grid-cols-5 gap-1 rounded-xl bg-paper-2 p-1 sm:gap-2">
-     {VIEWS.map(item=><Link key={item.id} to="/games" search={{view:item.id}}
+     {VIEWS.map(item=><Link key={item.id} to="/games" search={{view:item.id,game:undefined}}
       aria-current={!gameId&&view===item.id?"page":undefined}
       className={cn("flex min-h-12 items-center justify-center rounded-lg px-1 text-center text-[0.68rem] font-semibold no-underline sm:text-sm",!gameId&&view===item.id?"bg-maroon text-fg-inverse":"text-ink hover:bg-paper")}>
       {item.label}</Link>)}
     </nav>
     {loadError?<p role="status" className="mt-4 rounded-lg border border-line p-3 text-sm">Scores could not refresh. The latest loaded information remains on screen.</p>:null}
     {active ? <div className="mt-7 space-y-5">
-      <Link to="/games" search={{view}} className="inline-flex min-h-11 items-center font-semibold underline">← All games</Link>
+      <Link to="/games" search={{view,game:undefined}} className="inline-flex min-h-11 items-center font-semibold underline">← All games</Link>
       <GameCard game={active}/>
       <VideoPlayer game={active}/>
       <p className="text-sm text-muted">Times are Central Time. Scores are entered by Prospects staff and may update during play. The game feed refreshes approximately every 30 seconds.</p>
