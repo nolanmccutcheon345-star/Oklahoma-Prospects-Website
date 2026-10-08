@@ -132,6 +132,13 @@ function TeamsPublic() {
             Sign up for tryouts below. Dates and times are to be announced; Prospects will contact
             registered families with details.
           </p>
+          <p className="mt-4 font-semibold">14U B Softball · Head Coach Rusty</p>
+          <p className="mt-2 text-fg-soft">
+            Rusty also offers softball hitting and defense instruction.{" "}
+            <Link to="/softball" className="underline">
+              Meet Coach Rusty and ask about lessons.
+            </Link>
+          </p>
           <div className="mt-6 grid gap-3 sm:grid-cols-2">
             {SOFTBALL_AGES.map((group) => (
               <Button asChild key={group}>
