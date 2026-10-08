@@ -6,6 +6,8 @@ import { TryoutSchedule } from "@/components/tryout-schedule";
 import { Button } from "@/components/ui/button";
 import { CLUB } from "@/lib/club";
 
+import { getPublicTryoutEvents } from "@/lib/tryout-events-api";
+
 type TryoutSearch = { age?: string; sport?: "Baseball" | "Softball" };
 
 export const Route = createFileRoute("/tryouts")({
@@ -16,6 +18,7 @@ export const Route = createFileRoute("/tryouts")({
       "Request a free individual tryout for baseball or softball at any age group. Private appointments are arranged with a coach.",
       false,
     ),
+  loader: () => getPublicTryoutEvents(),
   validateSearch: (search: Record<string, unknown>): TryoutSearch => ({
     age: typeof search.age === "string" ? search.age : undefined,
     sport: search.sport === "Softball" || search.sport === "Baseball" ? search.sport : undefined,
@@ -25,6 +28,7 @@ export const Route = createFileRoute("/tryouts")({
 
 function TryoutsPage() {
   const { age, sport } = Route.useSearch();
+  const events = Route.useLoaderData();
   return (
     <main id="main">
       <PageHero
@@ -54,6 +58,9 @@ function TryoutsPage() {
             Softball requests are open for all age groups. Tell us about your player, and Prospects
             will respond with the next step.
           </p>
+          <div className="mt-6 text-ink">
+            <TryoutSchedule events={events} sport="Softball" />
+          </div>
           <Button asChild className="mt-6">
             <Link to="/tryouts" search={{ sport: "Softball" }} hash="register">
               Sign up for softball tryouts
@@ -72,7 +79,7 @@ function TryoutsPage() {
           scheduled; no appointment is assigned by submitting a request.
         </p>
         <div className="mt-6">
-          <TryoutSchedule />
+          <TryoutSchedule events={events} sport="Baseball" />
         </div>
         <Button asChild className="mt-6 w-full">
           <Link to="/tryouts" search={{ sport: "Baseball" }} hash="register">

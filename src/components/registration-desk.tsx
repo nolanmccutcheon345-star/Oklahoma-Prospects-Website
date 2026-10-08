@@ -8,6 +8,8 @@ import {
   setRegistrationReader,
 } from "@/lib/registrations-api";
 
+import { TryoutEventEditor } from "./tryout-event-editor";
+
 type Rows = Awaited<ReturnType<typeof getRegistrationRows>>;
 const labels: Record<string, string> = {
   player: "Player",
@@ -97,6 +99,7 @@ export function RegistrationDesk() {
           </section>
         ) : (
           <>
+            {access.owner ? <TryoutEventEditor /> : null}
             <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
               <div>
                 <h2 className="text-3xl">Registrations & inquiries</h2>

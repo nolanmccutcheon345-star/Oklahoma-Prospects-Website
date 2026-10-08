@@ -4,18 +4,23 @@ import { Button } from "@/components/ui/button";
 import { SOFTBALL_AGES } from "@/lib/club";
 import { pageHead } from "@/lib/seo";
 
+import { getPublicTryoutEvents } from "@/lib/tryout-events-api";
+import { TryoutSchedule } from "@/components/tryout-schedule";
+
 export const Route = createFileRoute("/softball")({
+  loader: () => getPublicTryoutEvents(),
   head: () =>
     pageHead(
       "/softball",
       "Softball Teams & Tryouts",
-      "Oklahoma Prospects softball: 10U, 12U, 14U and 16U. Free tryout registration. Dates and times to be announced.",
+      "Oklahoma Prospects softball: 10U, 12U, 14U and 16U. Free individual tryout requests for all age groups. View published upcoming tryouts.",
       false,
     ),
   component: SoftballPage,
 });
 
 function SoftballPage() {
+  const events = Route.useLoaderData();
   return (
     <main id="main">
       <PageHero
@@ -38,6 +43,9 @@ function SoftballPage() {
           Requests are open for every age group, including ages beyond the team cards below. Submit
           your player information, and Prospects will respond with next steps.
         </p>
+        <div className="mt-6">
+          <TryoutSchedule events={events} sport="Softball" />
+        </div>
         <div className="mt-6 grid gap-4 sm:grid-cols-2">
           {SOFTBALL_AGES.map((age) => (
             <article key={age} className="rounded-2xl bg-paper-2 p-5 shadow-border">
