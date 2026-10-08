@@ -77,7 +77,8 @@ test('public navigation, sport links and purchase availability agree with the li
   assert.equal(service.disabled,true,"Unverified checkout and no athlete must not be clickable");
   await act(async()=>service.click());assert.equal(state.navigate,null);
   const remote=[...document.querySelectorAll('article')].find(a=>a.textContent.includes('Remote HS Pitching'));
-  assert.match(remote.textContent,/completed assessment is required/);assert.doesNotMatch(remote.textContent,/First month/);
+  assert.equal(remote,undefined,"Development plans stay hidden until selected athlete is assessed");
+  assert.match(document.querySelector('#memberships').textContent,/New Player Assessment/);
   state.path='/teams';
   await act(async()=>root.render(createElement(ui.AppShell,null,createElement(ui.Teams.component))));
   assert.deepEqual([...document.querySelectorAll('nav[aria-label="Team sports"] a')].map(a=>a.textContent),['Baseball','Softball']);
