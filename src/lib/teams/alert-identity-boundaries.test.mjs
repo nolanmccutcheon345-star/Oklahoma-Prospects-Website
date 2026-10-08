@@ -119,3 +119,21 @@ test("scoped snapshots omit other families' booking usage and owner-only records
   assert.equal(admin.bookings.length, 4);
   assert.equal(admin.archive[0].realized, 10000);
 });
+
+test("family and athlete viewers never receive cross-team finances", () => {
+  const { club, team, own } = household();
+  const who = { email: own.email || "", teamId: team.id, familyId: own.familyId, playerId: own.id };
+  for (const role of ["parent", "player"]) {
+    const viewer = scopeClub(club, { ...who, role }).viewer;
+    for (const key of ["publishedByTeam", "entryByTeam", "travelByTeam", "eventShareByTeam"]) {
+      assert.deepEqual(viewer[key], {}, role + " must not see " + key);
+    }
+    assert.ok(Object.keys(viewer.cageByTeam).includes(team.id));
+    assert.equal(viewer.ownPay, null);
+    assert.equal(viewer.ownChild, null);
+  }
+  const coach = scopeClub(club, { ...who, role: "coach" }).viewer;
+  assert.deepEqual(Object.keys(coach.publishedByTeam), [team.id]);
+  const admin = scopeClub(club, { ...who, role: "admin" }).viewer;
+  assert.equal(Object.keys(admin.publishedByTeam).length, club.teams.length);
+});
