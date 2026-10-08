@@ -1,5 +1,6 @@
 import {z} from "zod";
 import {parseClubSave} from "./contracts";
+import { assertRecordableTeamPayment } from "./recorded-payment-policy";
 import { randomUUID } from "node:crypto";
 import { createServerFn } from "@tanstack/react-start";
 import { authMiddleware } from "@/lib/auth/middleware";
@@ -112,10 +113,9 @@ export const recordTeamPayment = createServerFn({ method: "POST" })
     const team = stored.teams.find((t) => t.id === data.teamId);
     const player = team?.roster.find((p) => p.id === data.playerId);
     if (!player) throw new Error("Player not found.");
-    const due = Math.max(0, (player.feeLock?.amount ?? 0) - player.payments.reduce((sum, row) => sum + row.amount, 0));
-    if (due > 0 && data.amount > due + 1) {
-      throw new Error(`That is more than the balance (${due}).`);
-    }
+    // Manual office ledger entries must never exceed the signed, credited
+    // outstanding balance. They do not initiate a Square payment.
+    assertRecordableTeamPayment(player, data.amount);
     const fee = 0; // Processing is included in new offers; no method-specific add-on.
     player.payments.push({
       date: new Date().toISOString().slice(0, 10),
