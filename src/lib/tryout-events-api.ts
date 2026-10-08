@@ -29,3 +29,10 @@ export const getAdminTryoutEnrollments = createServerFn({ method: "GET" })
     const { adminTryoutEnrollmentsFor } = await import("./tryout-enrollment.server");
     return adminTryoutEnrollmentsFor(await getSql(), context.userId);
   });
+
+/** Public, minimal coach/team labels for optional tryout preferences. */
+export const getPublicTryoutTeams = createServerFn({ method: "GET" }).handler(async () => {
+  const { getSql } = await import("./db");
+  const { publicTryoutTeamsFor } = await import("./tryout-preferences.server");
+  return publicTryoutTeamsFor(await getSql());
+});
