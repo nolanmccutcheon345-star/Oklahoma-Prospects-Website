@@ -18,6 +18,7 @@
     "typecheck": "tsc --noEmit",
     "verify:build": "node scripts/check-built-ssr.mjs",
     "verify:hosted": "node scripts/check-hosted.mjs",
+    "verify:db-isolation": "node scripts/check-preview-database.mjs",
     "check:auth": "node scripts/check-auth-invariant.mjs",
     "test": "node --import tsx --test --test-concurrency=1 'scripts/**/*.test.mjs' 'src/**/*.test.ts' 'src/**/*.test.mjs'",
     "lint": "eslint .",

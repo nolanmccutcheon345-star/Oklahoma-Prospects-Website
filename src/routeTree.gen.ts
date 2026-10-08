@@ -41,6 +41,7 @@ import { Route as VisitRouteImport } from './routes/visit'
 import { Route as VisitsRouteImport } from './routes/visits'
 import { Route as WaiverRouteImport } from './routes/waiver'
 import { Route as ApiSiteAlertsRouteImport } from './routes/api/site-alerts'
+import { Route as ApiHealthRouteImport } from './routes/api/health'
 import { Route as ApiTryoutNotificationsRouteImport } from './routes/api/tryout-notifications'
 import { Route as FundraisingIndexRouteImport } from './routes/fundraising.index'
 import { Route as FundraisingExampleRouteImport } from './routes/fundraising.example'
@@ -224,6 +225,11 @@ const ApiSiteAlertsRoute = ApiSiteAlertsRouteImport.update({
   path: '/api/site-alerts',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiHealthRoute = ApiHealthRouteImport.update({
+  id: '/api/health',
+  path: '/api/health',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiTryoutNotificationsRoute = ApiTryoutNotificationsRouteImport.update({
   id: '/api/tryout-notifications',
   path: '/api/tryout-notifications',
@@ -369,6 +375,7 @@ export interface FileRoutesByFullPath {
   '/visits': typeof VisitsRoute
   '/waiver': typeof WaiverRoute
   '/api/site-alerts': typeof ApiSiteAlertsRoute
+  '/api/health': typeof ApiHealthRoute
   '/api/tryout-notifications': typeof ApiTryoutNotificationsRoute
   '/fundraising/example': typeof FundraisingExampleRoute
   '/fundraising/my': typeof FundraisingMyRoute
@@ -425,6 +432,7 @@ export interface FileRoutesByTo {
   '/visits': typeof VisitsRoute
   '/waiver': typeof WaiverRoute
   '/api/site-alerts': typeof ApiSiteAlertsRoute
+  '/api/health': typeof ApiHealthRoute
   '/api/tryout-notifications': typeof ApiTryoutNotificationsRoute
   '/fundraising/example': typeof FundraisingExampleRoute
   '/fundraising/my': typeof FundraisingMyRoute
@@ -482,6 +490,7 @@ export interface FileRoutesById {
   '/visits': typeof VisitsRoute
   '/waiver': typeof WaiverRoute
   '/api/site-alerts': typeof ApiSiteAlertsRoute
+  '/api/health': typeof ApiHealthRoute
   '/api/tryout-notifications': typeof ApiTryoutNotificationsRoute
   '/fundraising/example': typeof FundraisingExampleRoute
   '/fundraising/my': typeof FundraisingMyRoute
@@ -540,6 +549,7 @@ export interface FileRouteTypes {
     | '/visits'
     | '/waiver'
     | '/api/site-alerts'
+    | '/api/health'
     | '/api/tryout-notifications'
     | '/fundraising/example'
     | '/fundraising/my'
@@ -596,6 +606,7 @@ export interface FileRouteTypes {
     | '/visits'
     | '/waiver'
     | '/api/site-alerts'
+    | '/api/health'
     | '/api/tryout-notifications'
     | '/fundraising/example'
     | '/fundraising/my'
@@ -652,6 +663,7 @@ export interface FileRouteTypes {
     | '/visits'
     | '/waiver'
     | '/api/site-alerts'
+    | '/api/health'
     | '/api/tryout-notifications'
     | '/fundraising/example'
     | '/fundraising/my'
@@ -709,6 +721,7 @@ export interface RootRouteChildren {
   VisitsRoute: typeof VisitsRoute
   WaiverRoute: typeof WaiverRoute
   ApiSiteAlertsRoute: typeof ApiSiteAlertsRoute
+  ApiHealthRoute: typeof ApiHealthRoute
   ApiTryoutNotificationsRoute: typeof ApiTryoutNotificationsRoute
   FundraisingExampleRoute: typeof FundraisingExampleRoute
   FundraisingMyRoute: typeof FundraisingMyRoute
@@ -956,6 +969,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiSiteAlertsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/health': {
+      id: '/api/health'
+      path: '/api/health'
+      fullPath: '/api/health'
+      preLoaderRoute: typeof ApiHealthRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/tryout-notifications': {
       id: '/api/tryout-notifications'
       path: '/api/tryout-notifications'
@@ -1181,6 +1201,7 @@ const rootRouteChildren: RootRouteChildren = {
   VisitsRoute: VisitsRoute,
   WaiverRoute: WaiverRoute,
   ApiSiteAlertsRoute: ApiSiteAlertsRoute,
+  ApiHealthRoute: ApiHealthRoute,
   ApiTryoutNotificationsRoute: ApiTryoutNotificationsRoute,
   FundraisingExampleRoute: FundraisingExampleRoute,
   FundraisingMyRoute: FundraisingMyRoute,
