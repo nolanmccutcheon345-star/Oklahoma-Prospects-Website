@@ -10,6 +10,7 @@ import { useCurrentUserState } from "@/lib/auth/use-current-user";
 import { getProfile, type ClubRole } from "@/lib/club-data";
 import { AGE_GROUPS, SOFTBALL_AGES } from "@/lib/club";
 import { cn } from "@/lib/utils";
+import { getPublicTryoutEvents } from "@/lib/tryout-events-api";
 
 export const Route = createFileRoute("/teams")({
   head: () =>
@@ -19,6 +20,7 @@ export const Route = createFileRoute("/teams")({
       "Oklahoma Prospects baseball and softball teams in Broken Arrow. Softball 10U, 12U, 14U and 16U tryout registration is open; dates to be announced.",
       false,
     ),
+  loader: () => getPublicTryoutEvents(),
   component: TeamsPage,
 });
 
@@ -33,6 +35,8 @@ function TeamsPage() {
   return pathname !== "/teams" && pathname !== "/teams/" ? <Outlet/> : <TeamsOverview/>;
 }
 function TeamsOverview() {
+  const events = Route.useLoaderData();
+  const hasBaseballDates = events.some((event) => event.sport === "Baseball");
   const { user, isPending } = useCurrentUserState();
   const [profileRole, setProfileRole] = useState<ClubRole | null>(null);
   const [ready, setReady] = useState(!user);
@@ -160,13 +164,15 @@ function TeamsPublic() {
       <section id="baseball" className="mx-auto max-w-3xl scroll-mt-24 px-5 py-10">
         <h2 className="text-3xl">Spring 2027 baseball evaluations</h2>
         <p className="mt-2 mb-6 text-muted">
-          Free. No payment to register. Check in 15 minutes early.
+          {hasBaseballDates
+            ? "Free. No payment to register. Check in 15 minutes before your confirmed group event."
+            : "Free individual evaluation requests. A coach will confirm any private appointment."}
         </p>
-        <TryoutSchedule />
+        <TryoutSchedule events={events} sport="Baseball" />
         <p className="mt-4">
-          Other baseball ages:{" "}
-          <Link to="/tryouts" hash="team-inquiry" className="underline">
-            send a team inquiry
+          Do not see a group event for your age?{" "}
+          <Link to="/tryouts" search={{ sport: "Baseball" }} hash="register" className="underline">
+            Request an individual tryout
           </Link>
           .
         </p>
