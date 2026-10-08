@@ -9,6 +9,8 @@ const base = {
   age: "12U",
   sport: "softball",
   closed: false,
+  seasonStart: "2027-01-01",
+  seasonEnd: "2027-08-01",
   coachEmail: "assigned@example.invalid",
   staff: [{ email: "assistant@example.invalid", role: "Assistant Coach" }, { email: "bookkeeper@example.invalid", role: "Treasurer" }],
   roster: [{ id: "minor-secret", name: "Private athlete", parents: [{ email: "guardian@example.invalid" }] }],
@@ -34,6 +36,9 @@ test("public tryout choices include only published, actually assigned coaches; n
 
 test("unpublished or closed teams do not produce public preferences", () => {
  assert.deepEqual(listedTryoutTeams([{...base,closed:true}],publisher),[]);
+ assert.deepEqual(listedTryoutTeams([{...base,seasonEnd:"2020-09-01"}],publisher),[]);
+ assert.deepEqual(listedTryoutTeams([{...base,seasonEnd:""}],publisher),[]);
+ assert.deepEqual(listedTryoutTeams([base],publisher,"2028-01-01"),[]);
  assert.deepEqual(listedTryoutTeams([base],[]),[]);
  assert.deepEqual(listedTryoutTeams([{...base,coachEmail:"none@example.invalid",staff:[]}],publisher),[]);
  const baseball = listedTryoutTeams([{...base,sport:"baseball"}],publisher);
