@@ -17,6 +17,7 @@ import { chicagoDate, slotsFor } from "@/lib/scheduling";
 import { useCurrentUser } from "@/lib/auth/use-current-user";
 import { SquareCard } from "@/components/commerce/square-card";
 import { CANCEL_POLICY } from "@/lib/club";
+import { checkoutScopeCustomerNotice } from "@/lib/commerce/square-config";
 
 export const Route = createFileRoute("/pay")({
   head: () =>
@@ -89,6 +90,9 @@ function PayPage() {
         ? "Contact your coach to arrange a remote assessment before starting remote coaching."
         : "";
   const locked = product ? eligibility(kind, product.id, assessed).locked : false;
+  const scopeNotice = product
+    ? checkoutScopeCustomerNotice(context?.square?.checkoutScope, product.kind)
+    : null;
   const input = useMemo<CheckoutInput>(
     () => ({
       requestId: requestId.current,
@@ -643,10 +647,9 @@ function PayPage() {
               Privacy
             </Link>
           </p>
-          {context?.square?.checkoutScope === "cages" && product.kind !== "cage" ? (
+          {scopeNotice ? (
             <p role="status" className="rounded-lg bg-paper-2 p-3">
-              Online checkout is open for one-time cage bookings. Memberships, lessons and packages
-              are not yet available for purchase.
+              {scopeNotice}
             </p>
           ) : context?.mode === "disabled" ? (
             <p className="rounded-lg bg-paper-2 p-3">

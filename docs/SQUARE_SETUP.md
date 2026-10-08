@@ -22,7 +22,7 @@ The checkout uses Square Web Payments SDK fields, verified account/athlete recor
 | `RESEND_API_KEY` | Secret transactional-email key |
 | `RESEND_FROM_EMAIL` | Verified sending address |
 
-Production uses the corresponding `SQUARE_PRODUCTION_*` variables. It also requires `SQUARE_LIVE_ENABLED=true` **and** `SQUARE_SANDBOX_VERIFIED=true`. Leave both false until the acceptance matrix below passes. Never scope production credentials to previews. The build pins its Netlify deploy context into the server bundle.
+Production uses the corresponding `SQUARE_PRODUCTION_*` variables. Full-catalog production also requires `SQUARE_LIVE_ENABLED=true` **and** `SQUARE_SANDBOX_VERIFIED=true`. Leave both false until the acceptance matrix below passes. Phased scopes use their own acceptance flags instead of `SQUARE_SANDBOX_VERIFIED`; see the cage and cages-lessons sections below. Do not set `SQUARE_CHECKOUT_SCOPE=all` to sell lessons. Never scope production credentials to previews. The build pins its Netlify deploy context into the server bundle.
 
 4. Review the approved catalog with `SQUARE_ENVIRONMENT=sandbox npm run square:catalog`. On a trusted terminal with the Sandbox environment already configured, run `npm run square:catalog -- --apply` to create one-time items and monthly STATIC plan variations. No customer or payment is created by this command. The output contains public catalog IDs, not secrets. Copy the eight `SQUARE_SANDBOX_PLAN_*` mappings into Netlify function variables. Repeat separately for production only after reviewing the live catalog. The retired `s6` alias resolves to `m4`; it is not a second subscription product.
 5. Create the webhook endpoint at the exact URL above. Subscribe to `payment.updated`, `refund.updated`, `subscription.updated`, `invoice.payment_made`, `invoice.scheduled_charge_failed`, `dispute.created`, and `card.automatically_updated`. Match the URL exactly, including its path; do not add a trailing slash. Copy its signature key directly into Netlify.
@@ -66,6 +66,21 @@ The owner payment console includes a receipt test addressed only to the authenti
 
 The queued receipt test now uses the same notification worker as normal receipts. It is restricted to Sandbox, the authenticated owner's user ID and verified email, and an existing pending receipt with a saved Square receipt URL. The email explicitly labels the Sandbox payment and does not claim an active booking. Normal Sandbox processing still suppresses customer mail. Both normal and test queue selection filter the payment provider and environment; production cannot drain pending Sandbox receipts. Provider failures leave notices pending, and repeated sends retain the same idempotency key. Offline regression tests exercise the real SQL selection and status updates with a simulated provider; hosted provider acceptance and inbox delivery must be recorded separately.
 
+## Owner-selected phased release: one-time cages, lessons, and assessments
+
+LESSON-CHECKOUT-001 (R1a) adds `SQUARE_CHECKOUT_SCOPE=cages-lessons`. Checkout creation and payment submission allow a server-approved quote only when:
+
+- `kind` is `cage` and the quote is not recurring, or
+- `kind` is `lesson` and the quote is not recurring.
+
+Assessments are lesson products (`s1`, `s4`, `s9`). `calculateQuote` stores them as `kind: "lesson"` with `assessment: true`. That flag does not widen checkout scope. Coach-gated eligibility still locks ordinary lessons and packages until a coach records the assessment, and approved catalog cents are unchanged.
+
+The same scope rejects recurring quotes, memberships, packages, and cage plans/passes, including a recurring quote whose kind is `cage` or `lesson`. `SQUARE_CHECKOUT_SCOPE=cages` is unchanged and still rejects lessons. Unknown scope values fail closed. `SQUARE_CHECKOUT_SCOPE=all` remains the separate full-catalog path and is not this release.
+
+Production for this scope requires `SQUARE_LIVE_ENABLED=true` and `SQUARE_CAGES_LESSONS_SANDBOX_VERIFIED=true`. It does **not** accept `SQUARE_CAGE_SANDBOX_VERIFIED` or `SQUARE_SANDBOX_VERIFIED` in place of that flag, so cage-only acceptance cannot open lessons and the full-catalog flag cannot open this allowlist. Leave `SQUARE_CAGES_LESSONS_SANDBOX_VERIFIED` unset until the later A5 environment gate. This repository change does not set production variables, does not publish, and does not run mutating hosted payment tests.
+
+Sandbox deploy previews can resolve the scope without the production acceptance flag, the same way `cages` does. Webhook requirements stay on `payment.updated` and `refund.updated` until scope is `all` or an owner explicitly prepares memberships.
+
 ## Owner catalog preparation in either environment
 
 The authenticated owner console can now prepare monthly plans and connect membership webhook events in its configured environment. The same location, merchant, currency, card capability, plan price and idempotency checks apply in production. Mappings stay isolated by environment/merchant/location/product. These setup actions create no customer, card, charge or subscription, and do not change checkout scope or acceptance flags. Production can be prepared while one-time cages remain the only enabled checkout. Webhook verification reports pending events instead of presenting an unconditional success message when only some events have processed.
@@ -74,4 +89,4 @@ The authenticated owner console can now prepare monthly plans and connect member
 
 Development is $239/month ($289 for the first month when the existing $50 no-assessment fee applies). Four 60-minute lessons cost $385; eight 60-minute lessons cost $740. Migration 0024 updates the editable catalog for new purchases, and the canonical server pricing and public copy use the same amounts. Historical paid orders and existing subscription agreements are not repriced.
 
-This confirmation covers prices only. It does not approve the proposed seven-day standard cage window or resolve other outstanding policies. Checkout stays cage-only pending provider-backed acceptance. Before membership activation, recreate/verify the Development Square plan mapping at $239 in each environment; an older $229 mapping must not be accepted.
+This confirmation covers prices only. It does not approve the proposed seven-day standard cage window or resolve other outstanding policies. Production checkout stayed cage-only at this date. LESSON-CHECKOUT-001 adds the `cages-lessons` allowlist in code; production remains on `cages` until `SQUARE_CAGES_LESSONS_SANDBOX_VERIFIED` is set outside this change. Before membership activation, recreate/verify the Development Square plan mapping at $239 in each environment; an older $229 mapping must not be accepted.
