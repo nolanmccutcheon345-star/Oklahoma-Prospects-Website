@@ -1,7 +1,7 @@
 import type { PurchaseAvailability } from "./purchase-availability";
 import { PRICES, formatMoney, currentCatalogPrice } from "./pricing";
 import { revokeStaffAccess } from './staff-access.server';
-import { createServerFn } from "@tanstack/react-start";
+import { createServerFn, createServerOnlyFn } from "@tanstack/react-start";
 import { authMiddleware } from "@/lib/auth/middleware";
 import {
   DEVELOPMENT_PLANS,
@@ -477,10 +477,10 @@ export const getPurchaseAvailability = createServerFn({ method: "GET" }).handler
   return { ready: true, scope: config?.checkoutScope ?? "disabled" };
 });
 
-export async function loadPublicCatalog() {
+export const loadPublicCatalog = createServerOnlyFn(async () => {
   const sql = await getSql();
   return buildPublicCatalog(await loadServices(sql));
-}
+});
 
 export const saveService = createServerFn({ method: "POST" })
   .middleware([authMiddleware])

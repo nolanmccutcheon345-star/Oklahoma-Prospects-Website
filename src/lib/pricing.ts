@@ -30,6 +30,10 @@ export function currentCatalogPrice<T extends { id: string; price: number }>(ite
 export function formatMoney(cents: number) {
   return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(cents / 100);
 }
+/** Catalog/UI amounts use dollars; route them through the shared cents formatter. */
+export function formatDollars(dollars: number) {
+  return formatMoney(Math.round(dollars * 100));
+}
 export function eligibility(kind: string, id: string, assessmentCompleted: boolean) {
   const assessment = ASSESSMENT_PRODUCTS.has(id);
   const recurring = kind === "membership" || id === "s6";
