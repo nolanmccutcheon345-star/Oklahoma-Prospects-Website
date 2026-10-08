@@ -6,9 +6,15 @@ function ownsPlayer(player:Player, identity:{email:string;familyId:string;family
  return Boolean(identity.email) && (player.familyId===identity.familyId
    && (player.parents.some(parent=>norm(parent.email)===norm(identity.email)) || norm(player.email)===norm(identity.email)));
 }
+function visiblePlayer(player:Player,role:string,identity:{email:string;familyId:string;familyIds?:string[]}) {
+ return role==='player' ? Boolean(norm(identity.email)) && norm(player.email)===norm(identity.email) : ownsPlayer(player,identity);
+}
 function visibleNotifications(club:ClubRecord,teams:Team[],role:string) {
  const ids=new Set(teams.map(t=>t.id));
  return club.notifications.filter(n=>ids.has(n.teamId)&&(n.audience==='all'||n.audience===(role==='coach'?'coach':'family')));
+}
+function dropPlayerBilling(player: Player): Player {
+  return { ...dropPayment(player), planType: "", depositPaid: false, uniformWaived: false, cageOverage: 0 };
 }
 function dropPayment(player: Player): Player {
   const { feeLock: _f, planLock: _p, credits: _c, payments: _pay, cards: _cards, ...rest } = player;
@@ -37,11 +43,7 @@ export function scopeClub(
 
   if (role === "coach") {
     const teams = club.teams
-      .filter(
-        (team) =>
-          team.coachEmail.trim().toLowerCase() === identity.email ||
-          team.staff.some((s) => s.email.trim().toLowerCase() === identity.email),
-      )
+      .filter(team => coachHoldsTeam(club, identity.email, team.id))
       .map((team) => ({
         ...team,
         roster: team.roster.map(dropPayment),
@@ -56,16 +58,16 @@ export function scopeClub(
   }
 
   const teams: Team[] = club.teams
-    .filter((team) => team.roster.some((p) => ownsPlayer(p,identity)))
+    .filter((team) => team.roster.some((p) => visiblePlayer(p,role,identity)))
     .map((team) => ({
       ...team,
-      staff: team.staff.map((s) => ({ ...s, monthly: 0, applyAmount: 0 })),
+      staff: team.staff.map((s) => ({ ...s, monthly: 0, applyAmount: 0, childId: "", w9: false, backgroundCheck: false, safeSport: false, expires: "" })),
       orgFee: 0,
       coachMonthly: 0,
       eventBudget: 0,
       otherCosts: { insurance: 0, balls: 0, fields: 0, admin: 0, travel: 0 },
-      roster: team.roster.filter(p => ownsPlayer(p,identity)).map(p =>
-        role === "player" ? dropPayment(p) : p),
+      roster: team.roster.filter(p => visiblePlayer(p,role,identity)).map(p =>
+        role === "player" ? dropPlayerBilling(p) : p),
     }));
   return {
     ...next,
@@ -89,9 +91,7 @@ export function mergeSave(
     for (const team of incoming.teams) {
       const idx = next.teams.findIndex((t) => t.id === team.id);
       if (idx < 0) continue;
-      const owned =
-        next.teams[idx].coachEmail.trim().toLowerCase() === identity.email ||
-        next.teams[idx].staff.some((s) => s.email.trim().toLowerCase() === identity.email);
+      const owned = coachHoldsTeam(stored, identity.email, team.id);
       if (!owned) continue;
       next.teams[idx] = {
         ...next.teams[idx],
@@ -105,7 +105,7 @@ export function mergeSave(
         notes: team.notes,
         staff: next.teams[idx].staff.map((s) => {
           const incomingStaff = team.staff.find((x) => x.id === s.id);
-          if (incomingStaff && s.email === identity.email) {
+          if (incomingStaff && norm(s.email) === norm(identity.email)) {
             return { ...s, applyAmount: incomingStaff.applyAmount };
           }
           return s;
@@ -131,14 +131,13 @@ export function mergeSave(
     const next = structuredClone(stored);
     for (const team of next.teams) {
       team.roster = team.roster.map((p) => {
-        if (!ownsPlayer(p,identity)) return p;
+        if (!visiblePlayer(p,role,identity)) return p;
         const incomingTeam = incoming.teams.find((t) => t.id === team.id);
         const incomingP = incomingTeam?.roster.find((x) => x.id === p.id);
         if (!incomingP) return p;
         return {
           ...p,
           rsvp: incomingP.rsvp,
-          publicProfile: incomingP.publicProfile,
         };
       });
     }
@@ -171,7 +170,7 @@ export function mergeSave(
 
 export function coachHoldsTeam(club: ClubRecord, email: string, teamId: string) {
   const team = club.teams.find((t) => t.id === teamId);
-  if (!team) return false;
+  if (!team || !norm(email)) return false;
   return (
     team.coachEmail.trim().toLowerCase() === email.trim().toLowerCase() ||
     team.staff.some((s) => s.email.trim().toLowerCase() === email.trim().toLowerCase())
@@ -192,7 +191,7 @@ export function canFetchTeam(
   if (!team) return false;
   if (role === "admin") return true;
   if (role === "coach") return coachHoldsTeam(club, identity.email, teamId);
-  return team.roster.some((p) => ownsPlayer(p,identity));
+  return team.roster.some((p) => visiblePlayer(p,role,identity));
 }
 
 export function canFetchPlayer(
@@ -209,10 +208,7 @@ export function canFetchPlayer(
     return team ? coachHoldsTeam(club, identity.email, team.id) : false;
   }
   if (role === "parent") return club.teams.some(t=>t.roster.some(p=>p.id===playerId&&ownsPlayer(p,identity)));
-  const e = identity.email.toLowerCase();
-  return club.teams.some((t) =>
-    t.roster.some((p) => p.id === playerId && p.email.toLowerCase() === e),
-  );
+  return club.teams.some(t=>t.roster.some(p=>p.id===playerId&&visiblePlayer(p,role,identity)));
 }
 
 /** Crafted roster request. Returns null instead of leaking another team's names. */

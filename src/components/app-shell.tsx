@@ -4,7 +4,6 @@ import {
   CalendarClock,
   Dumbbell,
   Home,
-  MapPin,
   Users,
 } from "lucide-react";
 import type { ReactNode } from "react";
@@ -17,55 +16,14 @@ export function AppShell({ children }: { children: ReactNode }) {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const { user, isPending } = useCurrentUserState();
   const tabs = [
-    { to: "/", label: "Home", icon: Home, match: (path: string) => path === "/" },
-    {
-      to: "/book",
-      label: "Book",
-      icon: CalendarClock,
-      match: (path: string) =>
-        path.startsWith("/book") ||
-        path.startsWith("/go") ||
-        path.startsWith("/memberships") ||
-        path.startsWith("/pay") ||
-        path.startsWith("/paid"),
-    },
-    {
-      to: "/training",
-      label: "Train",
-      icon: Dumbbell,
-      match: (path: string) =>
-        path.startsWith("/training") || path.startsWith("/account"),
-    },
-    {
-      to: "/teams",
-      label: "Teams",
-      icon: Users,
-      match: (path: string) =>
-        path.startsWith("/teams") ||
-        path.startsWith("/tryouts") ||
-        path.startsWith("/recruiting") ||
-        path.startsWith("/coach") ||
-        path.startsWith("/family") ||
-        path.startsWith("/office"),
-    },
-    {
-      to: "/more",
-      label: "Visit",
-      icon: MapPin,
-      match: (path: string) =>
-        path.startsWith("/more") ||
-        path.startsWith("/parents") ||
-        path.startsWith("/contact") ||
-        path.startsWith("/privacy") ||
-        path.startsWith("/visits") ||
-        path.startsWith("/facility") ||
-        path.startsWith("/waiver") ||
-        path.startsWith("/login"),
-    },
+    { to: "/", label: "Home", icon: Home, match: (path: string) => path === "/" || ["/more", "/fundraising", "/contact", "/facility", "/privacy", "/terms"].some(p => path.startsWith(p)) },
+    { to: "/training", label: "Train", icon: Dumbbell, match: (path: string) => path.startsWith("/training") || path.startsWith("/account") },
+    { to: "/teams", label: "Teams", icon: Users, match: (path: string) => ["/teams", "/softball", "/tryouts", "/recruiting", "/coach", "/family", "/office"].some(p => path.startsWith(p)) },
+    { to: "/book", label: "Book", icon: CalendarClock, match: (path: string) => ["/book", "/go", "/memberships", "/pay", "/paid"].some(p => path.startsWith(p)) },
   ] as const;
 
   return (
-    <div className="flex min-h-dvh flex-col bg-paper text-fg">
+    <div className="flex min-h-dvh flex-col bg-paper pb-[var(--bottom-nav-space)] text-fg">
       <a
         href="#main"
         className="sr-only focus:not-sr-only focus:absolute focus:top-2 focus:left-2 focus:z-50 focus:rounded-md focus:bg-paper-2 focus:px-4 focus:py-2 focus:text-ink"
@@ -75,7 +33,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       <header className="sticky top-0 z-40 border-b border-fg-inverse/10 bg-ink text-fg-inverse">
         <div className="h-1 bg-maroon" />
         <div className="mx-auto flex h-16 max-w-3xl items-center justify-between gap-3 px-4">
-          <Link to="/" aria-label="Oklahoma Prospects home" className="flex min-w-0 items-center gap-3 no-underline">
+          <Link to="/" aria-label={`${CLUB.name} home`} className="flex min-w-0 items-center gap-3 no-underline">
             <img
               src="/brand/mark.png"
               alt=""
@@ -85,7 +43,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             />
             <span className="min-w-0">
               <span className="block truncate font-display text-lg leading-none font-extrabold tracking-wide italic">
-                OKLAHOMA PROSPECTS
+                {CLUB.name}
               </span>
               <span className="mt-1 block text-[0.65rem] font-medium tracking-[0.18em] text-fg-soft uppercase">
                 Baseball & softball · Est. {CLUB.established}
@@ -117,10 +75,11 @@ export function AppShell({ children }: { children: ReactNode }) {
 
       <nav
         aria-label="Primary"
-        className="sticky bottom-0 z-40 border-t border-fg-inverse/10 bg-ink/96 text-fg-inverse backdrop-blur-md"
+        data-site-nav
+        className="fixed inset-x-0 bottom-0 z-40 border-t border-fg-inverse/10 bg-ink/96 text-fg-inverse backdrop-blur-md"
         style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
       >
-        <ul className="mx-auto grid max-w-3xl grid-cols-5">
+        <ul className="mx-auto grid max-w-3xl grid-cols-4">
           {tabs.map((tab) => {
             const active = tab.match(pathname);
             const Icon = tab.icon;
@@ -140,6 +99,7 @@ export function AppShell({ children }: { children: ReactNode }) {
               </li>
             );
           })}
+
         </ul>
       </nav>
     </div>

@@ -7,7 +7,7 @@ import {
 } from "./content/exercises";
 import { THROWING_PLANS, type ThrowGoal, type ThrowTemplate } from "./content/throwing";
 import { WARMUPS, warmupBandForAge, type WarmupPlan } from "./content/warmups";
-import { ageOnClubDay, CLUB_DAY_ISO } from "./engines";
+import { ageOnClubDay, clubDayIso } from "./engines";
 import { primaryDiscipline } from "./content";
 import type { StrengthSet } from "./types";
 
@@ -57,7 +57,7 @@ export type StrengthProgram = {
 };
 
 function monthOfClub() {
-  return Number(CLUB_DAY_ISO.slice(5, 7));
+  return Number(clubDayIso().slice(5, 7));
 }
 
 export function trackFromSlice(slice: AthleteSlice): StrengthTrack {
@@ -87,7 +87,7 @@ export function healthReturning(slice: AthleteSlice): boolean {
 
 export function phaseFromSlice(slice: AthleteSlice): SeasonPhase {
   const month = monthOfClub();
-  const recentOuting = slice.outings.some((row) => row.date >= "2026-09-01");
+  const recentOuting = slice.outings.some((row) => row.date <= clubDayIso() && row.date >= new Date(Date.parse(clubDayIso() + "T12:00:00Z") - 28 * 864e5).toISOString().slice(0, 10));
   const college = slice.athlete.opLevel === 7 || ageOnClubDay(slice.athlete.birthDate) >= 19;
   if (healthReturning(slice)) return "Postseason Recovery";
   if (month >= 11 || month === 12) return "Postseason Recovery";

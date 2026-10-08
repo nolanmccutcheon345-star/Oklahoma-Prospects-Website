@@ -1,11 +1,11 @@
-import { bookableCoaches, requireCoachService } from "./coach-services.server";
+import { coachesWithAvailability, requireCoachService } from "./coach-services.server";
 import { checkoutLessonService } from "./coach-services";
 import { createHash, randomUUID } from "node:crypto";
 import { getRequest } from "@tanstack/react-start/server";
 import { getSql } from "../db";
 import { getSessionUser } from "../auth/verify.server";
 import { assertSameSiteRequest } from "../auth/isolation.server";
-import { clubIdentity } from "../identity.server";
+import { commerceIdentity as clubIdentity } from "./access.server";
 import { readWorkingFile, loadDeskForUser } from "../pd/desk-impl.server";
 import { calculateQuote, type CheckoutInput, type Product, type Quote } from "./contracts";
 import { slotsFor, validateWindow, validDate } from "../scheduling";
@@ -15,6 +15,7 @@ import { approvedProducts, CATALOG_VERSION } from "./catalog";
 import { assertSquareCheckoutScope } from "./square-config";
 import { expireHolds } from "./store.server";
 import { quoteWithDiscount, assertDiscountCurrent } from "./discounts.server";
+import { assertBreakTheBatAvailable } from "./break-the-bat.server";
 
 export async function rateLimit(bucket: string, maximum = 30) {
   const request = getRequest();
@@ -45,11 +46,15 @@ export async function checkoutContext(verifiedUserId?: string) {
       : Promise.resolve([]),
   ]);
   const done = new Set(assessments.map((a) => a.athlete_id));
+  // Parent-scoped desk data omits staff schedules; use the full file only on the server.
+  const publicProducts = approvedProducts(products);
+  const bookingFile = session ? await readWorkingFile() : file;
+  const coaches = await coachesWithAvailability(sql, bookingFile.coaches, bookingFile.availability, publicProducts);
   // Guest callers receive only coach names/specialties and the public catalog.
   return {
     mode: paymentMode(),
     square: squarePublicConfig(),
-    products: approvedProducts(products),
+    products: publicProducts,
     athletes: session
       ? file.athletes.map((a) => ({
           id: a.id,
@@ -57,7 +62,7 @@ export async function checkoutContext(verifiedUserId?: string) {
           assessmentComplete: done.has(a.id),
         }))
       : [],
-    coaches: await bookableCoaches(sql, (await readWorkingFile()).coaches),
+    coaches,
   };
 }
 
@@ -118,6 +123,11 @@ export async function quoteForRequest(
     requireConsent,
   );
   const quote = await quoteWithDiscount(sql, baseQuote, input.discountCode);
+  await assertBreakTheBatAvailable(sql, quote, {
+    userId: me.userId,
+    email: me.email,
+    environment: quote.discount ? squareConfig().environment : "",
+  });
   if (quote.kind !== "cage" && quote.kind !== "cage-plan" && !athleteId) {
     throw new Error("Add your athlete in the family portal, then select that athlete to continue.");
   }

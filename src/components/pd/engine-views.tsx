@@ -1,3 +1,4 @@
+import { clubDayIso } from "@/lib/pd/engines";
 import { Link } from "@tanstack/react-router";
 import type { ReactNode } from "react";
 import { Button } from "@/components/ui/button";
@@ -148,7 +149,7 @@ export function WorkloadEngineView({ slice }: { slice: AthleteSlice }) {
   }
   const tone =
     w.stats.tone === "warn" ? "text-maroon" : w.stats.tone === "good" ? "text-ink" : "text-muted";
-  const upcoming = slice.bookings.filter((row) => row.date >= "2026-09-14" && row.status === "paid");
+  const upcoming = slice.bookings.filter((row) => row.date >= clubDayIso() && row.status === "paid");
   const days = [...slice.workload].sort((a, b) => a.date.localeCompare(b.date)).slice(-14);
   const spoken = `Workload last ${days.length} days. Acute ${w.stats.acuteAvg}, chronic ${w.stats.chronicAvg}, ratio ${w.stats.acwr || "unknown"}.`;
   return (
@@ -208,17 +209,15 @@ export function BullpenEngineView({
   slice: AthleteSlice;
   role: ViewerRole;
 }) {
+  const { startBullpen, canCoach } = useDevelopment();
+  const staff = canCoach(slice.athlete.id);
   if (slice.bullpens.length === 0) {
     return (
-      <Empty
-        title="No bullpens / TCI."
-        copy="Every pitch scored to a called location — after they throw one here."
-        action="Book a lab day"
-      />
+      <div><Empty title="No bullpens / TCI." copy="Your coach can start a bullpen and save every scored pitch here." action="Ask your coach" />
+      {staff ? <button type="button" className="min-h-12 underline" onClick={() => startBullpen(slice.athlete.id)}>Start a bullpen</button> : null}</div>
     );
   }
-  const staff = role === "admin" || role === "coach";
-  const pen = [...slice.bullpens].sort((a, b) => b.date.localeCompare(a.date))[0];
+  const pen = slice.bullpens[0];
   const live = scoredChart(pen);
   const trend = [...slice.bullpens].sort((a, b) => a.date.localeCompare(b.date));
   const spoken = `Command index ${live.tci}. ${trend.length} bullpens on file, latest ${pen.date}.`;
@@ -227,7 +226,8 @@ export function BullpenEngineView({
       <ChartFigure label={spoken}>
         <p className="sr-only">{spoken}</p>
       </ChartFigure>
-      <BullpenTracker pen={{ ...pen, chart: live.pitches }} interactive={staff} />
+      {staff ? <button type="button" className="min-h-12 underline" onClick={() => startBullpen(slice.athlete.id)}>Start another bullpen</button> : null}
+      <BullpenTracker key={pen.id} pen={{ ...pen, chart: live.pitches }} interactive={staff} />
       {slice.bullpens.length > 1 ? (
         <ul className="mt-4 grid gap-2">
           {slice.bullpens.map((row) => {

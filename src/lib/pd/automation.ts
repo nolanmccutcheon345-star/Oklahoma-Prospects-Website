@@ -1,7 +1,7 @@
 import { POINT_VALUES } from "./core-algorithms.js";
 import type { AthleteSlice } from "./context";
 import {
-  CLUB_DAY_ISO,
+  clubDayIso,
   ageOnClubDay,
   churnForFamily,
   sessionRestWarning,
@@ -56,7 +56,7 @@ export type AlertScope = {
   athleteId?: string;
 };
 
-const WEEK_START = weekStartIso(CLUB_DAY_ISO);
+const weekStart = () => weekStartIso(clubDayIso());
 
 function weekStartIso(day: string) {
   const d = new Date(`${day}T12:00:00Z`);
@@ -91,9 +91,9 @@ export function activityPoints(slice: {
   const age = ageOnClubDay(slice.athlete.birthDate);
   const band = pointsBandForAge(age);
   const target = POINTS_TARGETS[band];
-  const week = slice.pointsLog.filter((row) => row.date >= WEEK_START && countsTowardWeek(row));
+  const week = slice.pointsLog.filter((row) => row.date >= weekStart() && countsTowardWeek(row));
   const earned = week.reduce((sum, row) => sum + (Number(row.points) || 0), 0);
-  const pending = slice.pointsLog.filter((row) => row.date >= WEEK_START && row.status === "pending");
+  const pending = slice.pointsLog.filter((row) => row.date >= weekStart() && row.status === "pending");
   return { earned, target, met: earned >= target, band, pending: pending.length, week };
 }
 
@@ -107,7 +107,7 @@ export function creditDecision(
   data: DevelopmentData,
   input: { athleteId: string; key: string; date?: string },
 ): { ok: false; reason: string } | { ok: true; points: number; status: NonNullable<PointsLog["status"]>; reason: string } {
-  const date = input.date ?? CLUB_DAY_ISO;
+  const date = input.date ?? clubDayIso();
   const meta = activityMeta(input.key);
   if (!meta) return { ok: false, reason: "Unknown activity." };
   if (alreadyLogged(data.pointsLog, input.athleteId, date, input.key)) {
@@ -171,12 +171,12 @@ function measure(data: DevelopmentData, athleteId: string, metric: LbMetricId): 
     const last = rows[rows.length - 1];
     return last && Number.isFinite(last.value) ? last.value : null;
   }
-  const month = CLUB_DAY_ISO.slice(0, 7);
+  const month = clubDayIso().slice(0, 7);
   const n = data.bookings.filter(
     (row) =>
       row.athleteId === athleteId &&
       row.date.startsWith(month) &&
-      (row.status === "completed" || (row.status === "paid" && row.date < CLUB_DAY_ISO)),
+      (row.status === "completed" || (row.status === "paid" && row.date < clubDayIso())),
   ).length + data.lessons.filter((row) => row.athleteId === athleteId && row.date.startsWith(month)).length;
   return n > 0 ? n : null;
 }
@@ -272,6 +272,8 @@ function liteSlice(data: DevelopmentData, athleteId: string): AthleteSlice | nul
     skillPlans: of(data.skillPlans),
     warmups: of(data.warmups),
     strengthSets: of(data.strengthSets),
+    strengthAssignments: of(data.strengthAssignments),
+    throwingDays: of(data.throwingDays),
     throwingAssignments: of(data.throwingAssignments),
     bullpens: of(data.bullpens),
     workload: of(data.workload),
@@ -304,7 +306,7 @@ export function buildAlerts(data: DevelopmentData, scope: AlertScope): PdAlert[]
 
     const arm = [...slice.armCare].sort((a, b) => b.date.localeCompare(a.date))[0];
     if (arm && arm.feel >= 6) {
-      const today = arm.date >= "2026-09-13";
+      const today = arm.date === clubDayIso();
       out.push({
         id: `arm-${athlete.id}`,
         bucket: today ? "today" : "week",
@@ -333,7 +335,7 @@ export function buildAlerts(data: DevelopmentData, scope: AlertScope): PdAlert[]
       });
     }
 
-    const rest = sessionRestWarning(slice, { date: CLUB_DAY_ISO });
+    const rest = sessionRestWarning(slice, { date: clubDayIso() });
     if (rest?.inside) {
       out.push({
         id: `rest-${athlete.id}`,
@@ -531,7 +533,7 @@ export function alertsByBucket(rows: PdAlert[]) {
 }
 
 export function monthlyDigest(data: DevelopmentData, family: Family) {
-  const month = CLUB_DAY_ISO.slice(0, 7);
+  const month = clubDayIso().slice(0, 7);
   const athletes = data.athletes.filter((row) => family.athleteIds.includes(row.id));
   const sessions = data.lessons.filter((row) => family.athleteIds.includes(row.athleteId) && row.date.startsWith(month));
   const completed = data.bookings.filter(
@@ -551,10 +553,10 @@ export function monthlyDigest(data: DevelopmentData, family: Family) {
   });
   const watched = buildAlerts(data, { role: "parent", familyId: family.id });
   const next = data.bookings
-    .filter((row) => family.athleteIds.includes(row.athleteId) && row.date >= CLUB_DAY_ISO && row.status === "paid")
+    .filter((row) => family.athleteIds.includes(row.athleteId) && row.date >= clubDayIso() && row.status === "paid")
     .sort((a, b) => a.date.localeCompare(b.date) || a.time.localeCompare(b.time))[0];
   return {
-    sessions: sessions.length || completed.filter((row) => row.date < CLUB_DAY_ISO).length,
+    sessions: sessions.length || completed.filter((row) => row.date < clubDayIso()).length,
     moved,
     watched,
     next,

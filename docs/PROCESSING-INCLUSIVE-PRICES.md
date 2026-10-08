@@ -1,5 +1,7 @@
 # Processing-inclusive prices — September 21, 2026
 
+October 5 owner update: New Pitcher and Hitting Assessments now have exact $149 customer totals, including processing. These totals supersede the earlier assessment gross-up and lesson-plus-$50 formula. They apply to new quotes/catalog defaults, not historical paid records. The current setup premium is $50; the older $52 statement below is historical. Youth exemption, setup completion, household cancellations and the remaining owner requirements are tracked separately in `OWNER-REQUIREMENTS-2026-10-05.md`.
+
 Owner request: include processing in every posted price, including the Prospects register. This release budgets 2.9% + $0.30 into the product price for all payment methods. It does not add a checkout surcharge. Actual processor rates can differ from this budget.
 
 Rentals cover a minimum 30-minute purchase and round up to $0.25 per half-hour: household $52.50/hour, team $62.50/hour, field $78/hour. Other products round up to whole dollars. The separate first-month no-assessment business charge becomes $52. Free tryouts remain free. Discounts remain intentional reductions from the posted price.
@@ -17,8 +19,8 @@ Rentals cover a minimum 30-minute purchase and round up to $0.25 per half-hour: 
 | 4 × 30-min package | $227 |
 | 4 × 60-min package | $397 |
 | 8 × 60-min package | $763 |
-| New Pitcher Assessment | $154 |
-| Hitting Assessment | $155 |
+| New Pitcher Assessment | $149 |
+| Hitting Assessment | $149 |
 | Private 30 min | $63 |
 | Private 60 min | $104 |
 | Pitching Lab/reassessment | $134 |

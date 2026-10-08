@@ -1,5 +1,6 @@
+import { PublicTeamRoster } from "@/components/public-team-roster";
 import {pageHead} from "@/lib/seo";
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, Outlet, useRouterState } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { ContinueIn } from "@/components/continue-in";
 import { PageHero } from "@/components/page-hero";
@@ -7,10 +8,19 @@ import { TryoutSchedule } from "@/components/tryout-schedule";
 import { Button } from "@/components/ui/button";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
 import { getProfile, type ClubRole } from "@/lib/club-data";
-import { AGE_GROUPS } from "@/lib/club";
+import { AGE_GROUPS, SOFTBALL_AGES } from "@/lib/club";
 import { cn } from "@/lib/utils";
 
-export const Route = createFileRoute("/teams")({head:()=>pageHead("/teams","Teams & Spring 2027 Tryouts","Free November 14\u201315, 2026 evaluations in Broken Arrow. Other ages and softball: send a team inquiry.",false), component: TeamsPage });
+export const Route = createFileRoute("/teams")({
+  head: () =>
+    pageHead(
+      "/teams",
+      "Teams & Spring 2027 Tryouts",
+      "Oklahoma Prospects baseball and softball teams in Broken Arrow. Softball 10U, 12U, 14U and 16U tryout registration is open; dates to be announced.",
+      false,
+    ),
+  component: TeamsPage,
+});
 
 function deskFor(role: ClubRole | null) {
   if (role === "admin") return { to: "/office" as const, label: "Front office" };
@@ -19,6 +29,10 @@ function deskFor(role: ClubRole | null) {
 }
 
 function TeamsPage() {
+  const pathname=useRouterState({select:s=>s.location.pathname});
+  return pathname !== "/teams" && pathname !== "/teams/" ? <Outlet/> : <TeamsOverview/>;
+}
+function TeamsOverview() {
   const { user, isPending } = useCurrentUserState();
   const [profileRole, setProfileRole] = useState<ClubRole | null>(null);
   const [ready, setReady] = useState(!user);
@@ -74,8 +88,17 @@ function TeamsPage() {
           </div>
         </section>
       ) : null}
+      <nav aria-label="Team sports" className="mx-auto grid max-w-3xl grid-cols-2 gap-3 px-5 py-4">
+        <Button asChild variant="outlineDark">
+          <a href="#baseball">Baseball</a>
+        </Button>
+        <Button asChild variant="outlineDark">
+          <a href="#softball">Softball</a>
+        </Button>
+      </nav>
       <TeamsPublic />
-    </main>
+    <PublicTeamRoster/>
+      </main>
   );
 }
 
@@ -104,25 +127,62 @@ function TeamsPublic() {
         }
       />
 
-      <section className="mx-auto max-w-3xl px-5 py-10">
-        <h2 className="text-3xl">Spring 2027 evaluations</h2>
+      <section id="softball" className="scroll-mt-24 bg-navy py-10 text-fg-inverse">
+        <div className="mx-auto max-w-3xl px-5">
+          <p className="text-xs font-semibold tracking-[0.16em] text-powder uppercase">
+            Oklahoma Prospects softball
+          </p>
+          <h2 className="mt-2 text-4xl">Teams forming: {SOFTBALL_AGES.join(" · ")}</h2>
+          <p className="mt-3 text-fg-soft">
+            Sarah Blankenship, Softball Program Coordinator, is adding four softball age groups.
+            Sign up for tryouts below. Dates and times are to be announced; Prospects will contact
+            registered families with details.
+          </p>
+          <p className="mt-4 font-semibold">14U B Softball · Head Coach Rusty</p>
+          <p className="mt-2 text-fg-soft">
+            Rusty also offers softball hitting and defense instruction.{" "}
+            <Link to="/softball" className="underline">
+              Meet Coach Rusty and ask about lessons.
+            </Link>
+          </p>
+          <div className="mt-6 grid gap-3 sm:grid-cols-2">
+            {SOFTBALL_AGES.map((group) => (
+              <Button asChild key={group}>
+                <Link to="/tryouts" search={{ sport: "Softball", age: group }} hash="register">
+                  {group} softball tryout signup
+                </Link>
+              </Button>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <section id="baseball" className="mx-auto max-w-3xl scroll-mt-24 px-5 py-10">
+        <h2 className="text-3xl">Spring 2027 baseball evaluations</h2>
         <p className="mt-2 mb-6 text-muted">
           Free. No payment to register. Check in 15 minutes early.
         </p>
-        <TryoutSchedule /><p className="mt-4">Other ages & softball: <Link to="/tryouts" hash="team-inquiry" className="underline">send a team inquiry</Link>.</p>
+        <TryoutSchedule />
+        <p className="mt-4">
+          Other baseball ages:{" "}
+          <Link to="/tryouts" hash="team-inquiry" className="underline">
+            send a team inquiry
+          </Link>
+          .
+        </p>
         <Button asChild className="mt-6 w-full">
-          <Link to="/tryouts" hash="register">
-            Register for free
+          <Link to="/tryouts" search={{ sport: "Baseball" }} hash="register">
+            Register for baseball
           </Link>
         </Button>
       </section>
 
       <section className="bg-paper-2 py-10">
         <div className="mx-auto max-w-3xl px-5">
-          <h2 className="text-3xl">Start with your age group</h2>
+          <h2 className="text-3xl">Baseball: start with your age group</h2>
           <p className="mt-2 text-muted">
-            Team openings and rosters are confirmed directly with Prospects.
-            Fees are shared after you evaluate — not published as a public price list.
+            Team openings and rosters are confirmed directly with Prospects. Fees are shared after
+            you evaluate — not published as a public price list.
           </p>
           <div className="mt-6 flex flex-wrap gap-2" role="group" aria-label="Age groups">
             {AGE_GROUPS.map((group) => (
@@ -133,9 +193,7 @@ function TeamsPublic() {
                 onClick={() => setAge(group)}
                 className={cn(
                   "min-h-12 min-w-16 rounded-md px-4 text-sm font-bold transition-colors duration-150",
-                  age === group
-                    ? "bg-maroon text-fg-inverse"
-                    : "bg-paper text-ink shadow-border",
+                  age === group ? "bg-maroon text-fg-inverse" : "bg-paper text-ink shadow-border",
                 )}
               >
                 {group}
@@ -156,8 +214,12 @@ function TeamsPublic() {
             </p>
             <div className="mt-5 flex flex-wrap gap-3">
               <Button asChild>
-                <Link to="/tryouts" hash="register">
-                  {age ? `Register ${age}` : "Register for tryouts"}
+                <Link
+                  to="/tryouts"
+                  search={{ sport: "Baseball", age: age ?? undefined }}
+                  hash="register"
+                >
+                  {age ? `Request ${age} tryout` : "Request a tryout"}
                 </Link>
               </Button>
               <ContinueIn dest="coaches" variant="outlineDark">

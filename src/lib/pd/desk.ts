@@ -49,9 +49,10 @@ export const savePdDesk = createServerFn({ method: "POST" })
     }
     if (!Number.isSafeInteger(file.revision) || JSON.stringify(file).length > 5_000_000) throw new Error("Invalid record.");
     for (const [key, value] of Object.entries(file)) {
-      if (key === "policy" || key === "revision") continue;
+      if (key === "policy" || key === "revision" || key === "educationProgress") continue;
       if (!Array.isArray(value) || value.some(row => !row || typeof row !== "object")) throw new Error("Invalid record.");
     }
+    if (file.educationProgress && (typeof file.educationProgress !== "object" || Object.values(file.educationProgress).some(value => !Array.isArray(value) || value.some(id => typeof id !== "string")))) throw new Error("Invalid education progress.");
     for(const key of ['athletes','families','coaches','cohorts'] as const){
       const rows=file[key];
       if(!Array.isArray(rows)||rows.some(row=>typeof row.id!=='string'||!row.id||row.id.length>150)||new Set(rows.map(row=>row.id)).size!==rows.length)throw new Error('Invalid or duplicate record identifiers.');

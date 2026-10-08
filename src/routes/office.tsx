@@ -1,5 +1,6 @@
+import { StaffBookingChanges } from "@/components/commerce/booking-changes";
 import { pageHead } from "@/lib/seo";
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { RedirectToSignIn } from "@/lib/auth/gates";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
@@ -117,6 +118,7 @@ function OfficePage() {
           <SquareOffice />
           <DiscountOffice />
           <OfficeOperations />
+      <StaffBookingChanges />
           <OfficeRequests />
           <div className="grid gap-2">
             <Button
@@ -144,15 +146,18 @@ function OfficePage() {
       demo={club._demo}
       nav={[
         { to: "/office", label: "Office" },
+        { to: "/evaluations", label: "Evaluations" },
         { to: "/coach", label: "Coach" },
         { to: "/family", label: "Family" },
         { to: "/account", label: "Development" },
       ]}
     >
+      <section className="mb-5 rounded-xl border border-line bg-white p-4"><h2 className="text-2xl">Tryout results</h2><p className="mt-2 text-sm text-muted">Review coach scores, notes and next steps across all teams and age groups.</p><Button asChild className="mt-3"><Link to="/evaluations">Review evaluations</Link></Button></section>
       <OfficeRequests />
       <SquareOffice />
       <DiscountOffice />
       <OfficeOperations />
+      <StaffBookingChanges />
       <OfficeApp
         club={club}
         onChange={setClub}

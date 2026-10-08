@@ -2,9 +2,9 @@ import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { useDevelopment, type AthleteSlice } from "@/lib/pd/context";
 import { exerciseById, loadBandForAge, type Exercise } from "@/lib/pd/content/exercises";
-import { DAY_TYPES, THROWING_PLANS } from "@/lib/pd/content/throwing";
+import { THROWING_PLANS } from "@/lib/pd/content/throwing";
 import { WARMUP_PRINCIPLES } from "@/lib/pd/content/warmups";
-import { ageOnClubDay } from "@/lib/pd/engines";
+import { ageOnClubDay, clubDayIso } from "@/lib/pd/engines";
 import {
   EMPHASES,
   PHASES,
@@ -27,16 +27,20 @@ export function StrengthProgramView({
   slice: AthleteSlice;
   role: string;
 }) {
-  const coach = role === "admin" || role === "coach";
+  const { saveStrengthAssignment, canCoach } = useDevelopment();
+  const coach = canCoach(slice.athlete.id);
   const age = ageOnClubDay(slice.athlete.birthDate);
   const generated = useMemo(() => generateStrengthProgram(slice), [slice]);
-  const [track, setTrack] = useState<StrengthTrack>(generated.track);
-  const [phase, setPhase] = useState<SeasonPhase>(generated.phase);
-  const [emphasis, setEmphasis] = useState<Emphasis>(generated.emphasis);
-  const program = useMemo(
-    () => generateStrengthProgram(slice, { track, phase, emphasis }),
-    [slice, track, phase, emphasis],
-  );
+  const assignment = (slice.strengthAssignments ?? []).find(row => coach || row.status === "published");
+  const program = assignment?.program ?? generated;
+  const { track, phase, emphasis } = program;
+  const missing = [!slice.athlete.birthDate && "date of birth", !slice.athlete.sport && "sport", !slice.athlete.position && "position"].filter(Boolean);
+  function save(overrides: { track?: StrengthTrack; phase?: SeasonPhase; emphasis?: Emphasis }, status: "draft" | "published" = "draft") {
+    saveStrengthAssignment({ athleteId: slice.athlete.id, status, generatorVersion: "strength-v2",
+      inputs: { birthDate: slice.athlete.birthDate, sport: slice.athlete.sport, position: slice.athlete.position,
+        goals: slice.goals.map(g => `${g.title}: ${g.target}`), assessmentComplete: slice.athlete.assessmentComplete },
+      program: generateStrengthProgram(slice, { track, phase, emphasis, ...overrides }) });
+  }
   const [running, setRunning] = useState(false);
 
   return (
@@ -44,7 +48,7 @@ export function StrengthProgramView({
       <section className="rounded-2xl bg-ink text-fg-inverse">
         <div className="pd-card">
           <p className="text-xs font-semibold tracking-[0.16em] text-powder uppercase">
-            Strength — generated, not a template
+            {assignment?.status === "published" ? "Assigned strength program" : "Strength · coach review needed"}
           </p>
           <h3 className="mt-2 text-2xl italic">
             {program.track} · {program.phase}
@@ -71,37 +75,41 @@ export function StrengthProgramView({
           <Select
             label="Track"
             value={track}
-            onChange={(v) => setTrack(v as StrengthTrack)}
+            onChange={(v) => save({ track: v as StrengthTrack })}
             options={TRACKS}
           />
           <Select
             label="Season phase"
             value={phase}
-            onChange={(v) => setPhase(v as SeasonPhase)}
+            onChange={(v) => save({ phase: v as SeasonPhase })}
             options={PHASES}
           />
           <Select
             label="Emphasis"
             value={emphasis}
-            onChange={(v) => setEmphasis(v as Emphasis)}
+            onChange={(v) => save({ emphasis: v as Emphasis })}
             options={EMPHASES}
           />
         </div>
       ) : null}
 
+      {missing.length ? <p role="status">Complete the athlete profile: {missing.join(", ")}. Ask your coach to finish these details before publishing a program.</p> : null}
+      {!slice.athlete.assessmentComplete ? <p>Assessment completion is required before a coach publishes this program.</p> : null}
+      {coach ? <Button type="button" disabled={Boolean(missing.length || !slice.athlete.assessmentComplete || !program.slots.length)} onClick={() => save({}, "published")}>Publish reviewed program</Button> : null}
+      {assignment ? <p className="text-sm text-muted">{assignment.status === "published" ? "Published" : "Draft saved"} · {assignment.createdAt.slice(0, 10)} · {(slice.strengthAssignments ?? []).length} versions retained</p> : <p className="text-sm text-muted">Educational preview. Your coach has not assigned a strength program yet.</p>}
       {running ? (
-        <SessionRunner slice={slice} program={program} age={age} onDone={() => setRunning(false)} />
+        <SessionRunner slice={slice} program={program} assignmentId={assignment?.id} age={age} onDone={() => setRunning(false)} />
       ) : (
-        <Button type="button" className="min-h-12 w-full" data-run-session="true" onClick={() => setRunning(true)}>
+        <Button type="button" className="min-h-12 w-full" data-run-session="true" disabled={assignment?.status !== "published" || !program.slots.length || !!missing.length} onClick={() => setRunning(true)}>
           Run this session
         </Button>
       )}
 
       <ul className="grid gap-2">
-        {program.slots.map((slot) => {
+        {program.slots.map((slot, index) => {
           const ex = exerciseById(slot.exerciseId);
           if (!ex) return null;
-          return <ExerciseCard key={slot.exerciseId} exercise={ex} slot={slot} slice={slice} age={age} />;
+          return <ExerciseCard key={`${slot.exerciseId}-${index}`} exercise={ex} slot={slot} slice={slice} age={age} />;
         })}
       </ul>
     </div>
@@ -213,11 +221,13 @@ function ExerciseCard({
 function SessionRunner({
   slice,
   program,
+  assignmentId,
   age,
   onDone,
 }: {
   slice: AthleteSlice;
   program: ReturnType<typeof generateStrengthProgram>;
+  assignmentId?: string;
   age: number;
   onDone: () => void;
 }) {
@@ -264,7 +274,8 @@ function SessionRunner({
   function log() {
     logStrengthSet({
       athleteId: slice.athlete.id,
-      date: "2026-09-14",
+      date: clubDayIso(),
+      assignmentId,
       exerciseId: exercise!.id,
       setNumber,
       weight: Number(weight) || 0,
@@ -380,15 +391,15 @@ export function ThrowingPlanView({
   slice: AthleteSlice;
   role: string;
 }) {
-  const { assignThrowing } = useDevelopment();
+  const { assignThrowing, selectThrowingDay, canCoach } = useDevelopment();
   const options = throwingForSlice(slice);
   const assigned = slice.throwingAssignments[0];
   const fallback = options[0] ?? THROWING_PLANS.find((row) => row.goal === "Command");
   const template =
     THROWING_PLANS.find((row) => row.id === assigned?.templateId) ?? fallback;
-  const [dayType, setDayType] = useState(assigned?.dayType ?? template?.days[0]?.type ?? "Catch play");
+  const dayType = slice.throwingDays?.find(row => row.assignmentId === assigned?.id && row.date === clubDayIso())?.dayType ?? assigned?.dayType ?? template?.days[0]?.type ?? "Catch play";
   const today = template?.days.find((row) => row.type === dayType) ?? template?.days[0];
-  const coach = role === "admin" || role === "coach";
+  const coach = canCoach(slice.athlete.id);
 
   if (!template) {
     return (
@@ -405,6 +416,7 @@ export function ThrowingPlanView({
         <div className="pd-card">
           <p className="text-xs font-semibold tracking-[0.16em] text-powder uppercase">Throwing plan</p>
           <h3 className="mt-2 text-2xl italic">{template.name}</h3>
+          {!assigned ? <p>Suggested template only. Your coach has not assigned this plan.</p> : <p>Assigned plan · {slice.throwingAssignments.length} versions retained</p>}
           <p className="mt-2 text-sm text-fg-soft">{template.blurb}</p>
         </div>
       </section>
@@ -413,7 +425,7 @@ export function ThrowingPlanView({
           Assign template
           <select
             className="pd-control min-h-12 rounded-md border border-line bg-paper-2 px-3"
-            value={template.id}
+            value={assigned?.templateId ?? ""}
             onChange={(event) => {
               const id = event.target.value;
               const next = THROWING_PLANS.find((row) => row.id === id);
@@ -424,6 +436,7 @@ export function ThrowingPlanView({
               });
             }}
           >
+            <option value="" disabled>Select a template to assign</option>
             {options.map((row) => (
               <option key={row.id} value={row.id}>
                 {row.name}
@@ -437,14 +450,14 @@ export function ThrowingPlanView({
         <select
           className="pd-control min-h-12 rounded-md border border-line bg-paper-2 px-3"
           value={dayType}
+          disabled={!assigned}
           data-day-type="true"
           onChange={(event) => {
             const next = event.target.value;
-            setDayType(next);
-            assignThrowing({ athleteId: slice.athlete.id, templateId: template.id, dayType: next });
+            if (assigned) selectThrowingDay(slice.athlete.id, assigned.id, next);
           }}
         >
-          {(coach ? DAY_TYPES : template.days.map((row) => row.type)).map((row) => (
+          {([...new Set(template.days.map((row) => row.type))]).map((row) => (
             <option key={row} value={row}>
               {row}
             </option>
