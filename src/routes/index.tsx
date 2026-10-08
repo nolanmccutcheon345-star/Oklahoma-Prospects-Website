@@ -94,9 +94,9 @@ function Home() {
           <MemberPathCard />
           <PathCard
             to="/tryouts"
-            kicker="Free · Nov 14–15"
+            kicker="Free · request a tryout"
             title="Earn a roster spot"
-            body="Spring 2027 evaluations. Other ages: send a team inquiry."
+            body="See published group evaluation dates or request a free individual baseball or softball tryout for any age."
           />
           <PathCard
             to="/more"
