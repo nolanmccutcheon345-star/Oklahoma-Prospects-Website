@@ -5,7 +5,7 @@ export async function registrationAccessFor(sql: Sql, userId: string) {
   const me = await resolveIdentity(sql, userId);
   const [grant] = await sql<{ active: boolean }>`select active from registration_readers
     where user_id=${userId} and email=${me.email} and active=true`;
-  return { allowed: me.role === "admin" || !!grant, owner: me.role === "admin" };
+  return { allowed: me.role !== "player" && (me.role === "admin" || !!grant), owner: me.role === "admin" };
 }
 
 export async function registrationRowsFor(sql: Sql, userId: string) {
@@ -29,6 +29,7 @@ export async function registrationRowsFor(sql: Sql, userId: string) {
     "age",
     "sport",
     "session",
+    "season",
     "email",
     "phone",
     "notes",
@@ -63,9 +64,9 @@ export async function setRegistrationReaderFor(
   if ((await resolveIdentity(sql, actorId)).role !== "admin")
     throw new Error("Owner access required.");
   return sql.transaction(async (tx) => {
-    const [user] = await tx<{ email: string }>`select lower(email) as email from "user"
-      where id=${input.userId} and "disabledAt" is null and "emailVerified"=true for update`;
-    if (!user) throw new Error("Choose an active account with a verified email.");
+    const [user] = await tx<{ email: string }>`select lower(u.email) as email from "user" u
+      where u.id=${input.userId} and "disabledAt" is null and "emailVerified"=true and (${!input.enabled} or not exists(select 1 from profiles p where p.user_id=u.id and p.role='player')) for update`;
+    if (!user) throw new Error("Choose an active non-player account with a verified email.");
     await tx`insert into registration_readers(user_id,email,active,granted_by)
       values(${input.userId},${user.email},${input.enabled},${actorId})
       on conflict(user_id) do update set email=excluded.email,active=excluded.active,

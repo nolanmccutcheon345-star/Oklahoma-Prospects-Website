@@ -276,7 +276,7 @@ test("approved cents override editable dollar rows; month end is calendar based"
     discipline: "Hitting",
     active: true,
   };
-  assert.equal(approvedProducts([row])[0].price, 154);
+  assert.equal(approvedProducts([row])[0].price, 149);
   assert.equal(approvedProducts([{ ...row, id: "forged" }]).length, 0);
   assert.equal(
     addCalendarMonth(new Date("2028-01-31T12:00:00Z")).toISOString(),

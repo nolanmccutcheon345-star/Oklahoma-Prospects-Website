@@ -16,6 +16,12 @@
 
 # Old static-site paths that families and Google still hit.
 [[redirects]]
+  from = "/train"
+  to = "/training"
+  status = 301
+  force = true
+
+[[redirects]]
   from = "/visit"
   to = "/visits"
   status = 301

@@ -15,6 +15,7 @@ import { Route as BookRouteImport } from './routes/book'
 import { Route as CoachRouteImport } from './routes/coach'
 import { Route as CoachesRouteImport } from './routes/coaches'
 import { Route as ContactRouteImport } from './routes/contact'
+import { Route as EvaluationsRouteImport } from './routes/evaluations'
 import { Route as FacilityRouteImport } from './routes/facility'
 import { Route as FamilyRouteImport } from './routes/family'
 import { Route as InvitationsRouteImport } from './routes/invitations'
@@ -39,12 +40,14 @@ import { Route as VisitRouteImport } from './routes/visit'
 import { Route as VisitsRouteImport } from './routes/visits'
 import { Route as WaiverRouteImport } from './routes/waiver'
 import { Route as ApiSiteAlertsRouteImport } from './routes/api/site-alerts'
+import { Route as ApiTryoutNotificationsRouteImport } from './routes/api/tryout-notifications'
 import { Route as FundraisingIndexRouteImport } from './routes/fundraising.index'
 import { Route as FundraisingExampleRouteImport } from './routes/fundraising.example'
 import { Route as FundraisingMyRouteImport } from './routes/fundraising.my'
 import { Route as FundraisingOfficeRouteImport } from './routes/fundraising.office'
 import { Route as FundraisingThankYouRouteImport } from './routes/fundraising.thank-you'
 import { Route as GoDestRouteImport } from './routes/go.$dest'
+import { Route as TeamsTeamIdRouteImport } from './routes/teams.$teamId'
 import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
 import { Route as ApiFundraisingCheckoutRouteImport } from './routes/api/fundraising/checkout'
 import { Route as ApiFundraisingDashboardRouteImport } from './routes/api/fundraising/dashboard'
@@ -52,11 +55,13 @@ import { Route as ApiFundraisingExportRouteImport } from './routes/api/fundraisi
 import { Route as ApiFundraisingPlayersRouteImport } from './routes/api/fundraising/players'
 import { Route as ApiFundraisingReceiptRouteImport } from './routes/api/fundraising/receipt'
 import { Route as ApiFundraisingReconcileRouteImport } from './routes/api/fundraising/reconcile'
+import { Route as ApiFundraisingTeamsRouteImport } from './routes/api/fundraising/teams'
 import { Route as ApiSquareReconcileRouteImport } from './routes/api/square/reconcile'
 import { Route as ApiSquareWebhookRouteImport } from './routes/api/square/webhook'
 import { Route as ApiStripeWebhookRouteImport } from './routes/api/stripe/webhook'
 import { Route as FundraisingPIdRouteImport } from './routes/fundraising.p.$id'
 import { Route as ApiFundraisingPlayersIdRouteImport } from './routes/api/fundraising/players.$id'
+import { Route as TeamsTeamIdPlayersRosterPlayerIdRouteImport } from './routes/teams.$teamId.players.$rosterPlayerId'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -86,6 +91,11 @@ const CoachesRoute = CoachesRouteImport.update({
 const ContactRoute = ContactRouteImport.update({
   id: '/contact',
   path: '/contact',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const EvaluationsRoute = EvaluationsRouteImport.update({
+  id: '/evaluations',
+  path: '/evaluations',
   getParentRoute: () => rootRouteImport,
 } as any)
 const FacilityRoute = FacilityRouteImport.update({
@@ -208,6 +218,11 @@ const ApiSiteAlertsRoute = ApiSiteAlertsRouteImport.update({
   path: '/api/site-alerts',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiTryoutNotificationsRoute = ApiTryoutNotificationsRouteImport.update({
+  id: '/api/tryout-notifications',
+  path: '/api/tryout-notifications',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const FundraisingIndexRoute = FundraisingIndexRouteImport.update({
   id: '/fundraising/',
   path: '/fundraising/',
@@ -237,6 +252,11 @@ const GoDestRoute = GoDestRouteImport.update({
   id: '/go/$dest',
   path: '/go/$dest',
   getParentRoute: () => rootRouteImport,
+} as any)
+const TeamsTeamIdRoute = TeamsTeamIdRouteImport.update({
+  id: '/$teamId',
+  path: '/$teamId',
+  getParentRoute: () => TeamsRoute,
 } as any)
 const ApiAuthSplatRoute = ApiAuthSplatRouteImport.update({
   id: '/api/auth/$',
@@ -273,6 +293,11 @@ const ApiFundraisingReconcileRoute = ApiFundraisingReconcileRouteImport.update({
   path: '/api/fundraising/reconcile',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiFundraisingTeamsRoute = ApiFundraisingTeamsRouteImport.update({
+  id: '/api/fundraising/teams',
+  path: '/api/fundraising/teams',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiSquareReconcileRoute = ApiSquareReconcileRouteImport.update({
   id: '/api/square/reconcile',
   path: '/api/square/reconcile',
@@ -298,6 +323,12 @@ const ApiFundraisingPlayersIdRoute = ApiFundraisingPlayersIdRouteImport.update({
   path: '/$id',
   getParentRoute: () => ApiFundraisingPlayersRoute,
 } as any)
+const TeamsTeamIdPlayersRosterPlayerIdRoute =
+  TeamsTeamIdPlayersRosterPlayerIdRouteImport.update({
+    id: '/players/$rosterPlayerId',
+    path: '/players/$rosterPlayerId',
+    getParentRoute: () => TeamsTeamIdRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -306,6 +337,7 @@ export interface FileRoutesByFullPath {
   '/coach': typeof CoachRoute
   '/coaches': typeof CoachesRoute
   '/contact': typeof ContactRoute
+  '/evaluations': typeof EvaluationsRoute
   '/facility': typeof FacilityRoute
   '/family': typeof FamilyRoute
   '/invitations': typeof InvitationsRoute
@@ -321,7 +353,7 @@ export interface FileRoutesByFullPath {
   '/recruiting': typeof RecruitingRoute
   '/registrations': typeof RegistrationsRoute
   '/softball': typeof SoftballRoute
-  '/teams': typeof TeamsRoute
+  '/teams': typeof TeamsRouteWithChildren
   '/terms': typeof TermsRoute
   '/training': typeof TrainingRoute
   '/tryouts': typeof TryoutsRoute
@@ -330,11 +362,13 @@ export interface FileRoutesByFullPath {
   '/visits': typeof VisitsRoute
   '/waiver': typeof WaiverRoute
   '/api/site-alerts': typeof ApiSiteAlertsRoute
+  '/api/tryout-notifications': typeof ApiTryoutNotificationsRoute
   '/fundraising/example': typeof FundraisingExampleRoute
   '/fundraising/my': typeof FundraisingMyRoute
   '/fundraising/office': typeof FundraisingOfficeRoute
   '/fundraising/thank-you': typeof FundraisingThankYouRoute
   '/go/$dest': typeof GoDestRoute
+  '/teams/$teamId': typeof TeamsTeamIdRouteWithChildren
   '/fundraising/': typeof FundraisingIndexRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/fundraising/checkout': typeof ApiFundraisingCheckoutRoute
@@ -343,11 +377,13 @@ export interface FileRoutesByFullPath {
   '/api/fundraising/players': typeof ApiFundraisingPlayersRouteWithChildren
   '/api/fundraising/receipt': typeof ApiFundraisingReceiptRoute
   '/api/fundraising/reconcile': typeof ApiFundraisingReconcileRoute
+  '/api/fundraising/teams': typeof ApiFundraisingTeamsRoute
   '/api/square/reconcile': typeof ApiSquareReconcileRoute
   '/api/square/webhook': typeof ApiSquareWebhookRoute
   '/api/stripe/webhook': typeof ApiStripeWebhookRoute
   '/fundraising/p/$id': typeof FundraisingPIdRoute
   '/api/fundraising/players/$id': typeof ApiFundraisingPlayersIdRoute
+  '/teams/$teamId/players/$rosterPlayerId': typeof TeamsTeamIdPlayersRosterPlayerIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -356,6 +392,7 @@ export interface FileRoutesByTo {
   '/coach': typeof CoachRoute
   '/coaches': typeof CoachesRoute
   '/contact': typeof ContactRoute
+  '/evaluations': typeof EvaluationsRoute
   '/facility': typeof FacilityRoute
   '/family': typeof FamilyRoute
   '/invitations': typeof InvitationsRoute
@@ -371,7 +408,7 @@ export interface FileRoutesByTo {
   '/recruiting': typeof RecruitingRoute
   '/registrations': typeof RegistrationsRoute
   '/softball': typeof SoftballRoute
-  '/teams': typeof TeamsRoute
+  '/teams': typeof TeamsRouteWithChildren
   '/terms': typeof TermsRoute
   '/training': typeof TrainingRoute
   '/tryouts': typeof TryoutsRoute
@@ -380,11 +417,13 @@ export interface FileRoutesByTo {
   '/visits': typeof VisitsRoute
   '/waiver': typeof WaiverRoute
   '/api/site-alerts': typeof ApiSiteAlertsRoute
+  '/api/tryout-notifications': typeof ApiTryoutNotificationsRoute
   '/fundraising/example': typeof FundraisingExampleRoute
   '/fundraising/my': typeof FundraisingMyRoute
   '/fundraising/office': typeof FundraisingOfficeRoute
   '/fundraising/thank-you': typeof FundraisingThankYouRoute
   '/go/$dest': typeof GoDestRoute
+  '/teams/$teamId': typeof TeamsTeamIdRouteWithChildren
   '/fundraising': typeof FundraisingIndexRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/fundraising/checkout': typeof ApiFundraisingCheckoutRoute
@@ -393,11 +432,13 @@ export interface FileRoutesByTo {
   '/api/fundraising/players': typeof ApiFundraisingPlayersRouteWithChildren
   '/api/fundraising/receipt': typeof ApiFundraisingReceiptRoute
   '/api/fundraising/reconcile': typeof ApiFundraisingReconcileRoute
+  '/api/fundraising/teams': typeof ApiFundraisingTeamsRoute
   '/api/square/reconcile': typeof ApiSquareReconcileRoute
   '/api/square/webhook': typeof ApiSquareWebhookRoute
   '/api/stripe/webhook': typeof ApiStripeWebhookRoute
   '/fundraising/p/$id': typeof FundraisingPIdRoute
   '/api/fundraising/players/$id': typeof ApiFundraisingPlayersIdRoute
+  '/teams/$teamId/players/$rosterPlayerId': typeof TeamsTeamIdPlayersRosterPlayerIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -407,6 +448,7 @@ export interface FileRoutesById {
   '/coach': typeof CoachRoute
   '/coaches': typeof CoachesRoute
   '/contact': typeof ContactRoute
+  '/evaluations': typeof EvaluationsRoute
   '/facility': typeof FacilityRoute
   '/family': typeof FamilyRoute
   '/invitations': typeof InvitationsRoute
@@ -422,7 +464,7 @@ export interface FileRoutesById {
   '/recruiting': typeof RecruitingRoute
   '/registrations': typeof RegistrationsRoute
   '/softball': typeof SoftballRoute
-  '/teams': typeof TeamsRoute
+  '/teams': typeof TeamsRouteWithChildren
   '/terms': typeof TermsRoute
   '/training': typeof TrainingRoute
   '/tryouts': typeof TryoutsRoute
@@ -431,11 +473,13 @@ export interface FileRoutesById {
   '/visits': typeof VisitsRoute
   '/waiver': typeof WaiverRoute
   '/api/site-alerts': typeof ApiSiteAlertsRoute
+  '/api/tryout-notifications': typeof ApiTryoutNotificationsRoute
   '/fundraising/example': typeof FundraisingExampleRoute
   '/fundraising/my': typeof FundraisingMyRoute
   '/fundraising/office': typeof FundraisingOfficeRoute
   '/fundraising/thank-you': typeof FundraisingThankYouRoute
   '/go/$dest': typeof GoDestRoute
+  '/teams/$teamId': typeof TeamsTeamIdRouteWithChildren
   '/fundraising/': typeof FundraisingIndexRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/fundraising/checkout': typeof ApiFundraisingCheckoutRoute
@@ -444,11 +488,13 @@ export interface FileRoutesById {
   '/api/fundraising/players': typeof ApiFundraisingPlayersRouteWithChildren
   '/api/fundraising/receipt': typeof ApiFundraisingReceiptRoute
   '/api/fundraising/reconcile': typeof ApiFundraisingReconcileRoute
+  '/api/fundraising/teams': typeof ApiFundraisingTeamsRoute
   '/api/square/reconcile': typeof ApiSquareReconcileRoute
   '/api/square/webhook': typeof ApiSquareWebhookRoute
   '/api/stripe/webhook': typeof ApiStripeWebhookRoute
   '/fundraising/p/$id': typeof FundraisingPIdRoute
   '/api/fundraising/players/$id': typeof ApiFundraisingPlayersIdRoute
+  '/teams/$teamId/players/$rosterPlayerId': typeof TeamsTeamIdPlayersRosterPlayerIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -459,6 +505,7 @@ export interface FileRouteTypes {
     | '/coach'
     | '/coaches'
     | '/contact'
+    | '/evaluations'
     | '/facility'
     | '/family'
     | '/invitations'
@@ -483,11 +530,13 @@ export interface FileRouteTypes {
     | '/visits'
     | '/waiver'
     | '/api/site-alerts'
+    | '/api/tryout-notifications'
     | '/fundraising/example'
     | '/fundraising/my'
     | '/fundraising/office'
     | '/fundraising/thank-you'
     | '/go/$dest'
+    | '/teams/$teamId'
     | '/fundraising/'
     | '/api/auth/$'
     | '/api/fundraising/checkout'
@@ -496,11 +545,13 @@ export interface FileRouteTypes {
     | '/api/fundraising/players'
     | '/api/fundraising/receipt'
     | '/api/fundraising/reconcile'
+    | '/api/fundraising/teams'
     | '/api/square/reconcile'
     | '/api/square/webhook'
     | '/api/stripe/webhook'
     | '/fundraising/p/$id'
     | '/api/fundraising/players/$id'
+    | '/teams/$teamId/players/$rosterPlayerId'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -509,6 +560,7 @@ export interface FileRouteTypes {
     | '/coach'
     | '/coaches'
     | '/contact'
+    | '/evaluations'
     | '/facility'
     | '/family'
     | '/invitations'
@@ -533,11 +585,13 @@ export interface FileRouteTypes {
     | '/visits'
     | '/waiver'
     | '/api/site-alerts'
+    | '/api/tryout-notifications'
     | '/fundraising/example'
     | '/fundraising/my'
     | '/fundraising/office'
     | '/fundraising/thank-you'
     | '/go/$dest'
+    | '/teams/$teamId'
     | '/fundraising'
     | '/api/auth/$'
     | '/api/fundraising/checkout'
@@ -546,11 +600,13 @@ export interface FileRouteTypes {
     | '/api/fundraising/players'
     | '/api/fundraising/receipt'
     | '/api/fundraising/reconcile'
+    | '/api/fundraising/teams'
     | '/api/square/reconcile'
     | '/api/square/webhook'
     | '/api/stripe/webhook'
     | '/fundraising/p/$id'
     | '/api/fundraising/players/$id'
+    | '/teams/$teamId/players/$rosterPlayerId'
   id:
     | '__root__'
     | '/'
@@ -559,6 +615,7 @@ export interface FileRouteTypes {
     | '/coach'
     | '/coaches'
     | '/contact'
+    | '/evaluations'
     | '/facility'
     | '/family'
     | '/invitations'
@@ -583,11 +640,13 @@ export interface FileRouteTypes {
     | '/visits'
     | '/waiver'
     | '/api/site-alerts'
+    | '/api/tryout-notifications'
     | '/fundraising/example'
     | '/fundraising/my'
     | '/fundraising/office'
     | '/fundraising/thank-you'
     | '/go/$dest'
+    | '/teams/$teamId'
     | '/fundraising/'
     | '/api/auth/$'
     | '/api/fundraising/checkout'
@@ -596,11 +655,13 @@ export interface FileRouteTypes {
     | '/api/fundraising/players'
     | '/api/fundraising/receipt'
     | '/api/fundraising/reconcile'
+    | '/api/fundraising/teams'
     | '/api/square/reconcile'
     | '/api/square/webhook'
     | '/api/stripe/webhook'
     | '/fundraising/p/$id'
     | '/api/fundraising/players/$id'
+    | '/teams/$teamId/players/$rosterPlayerId'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -610,6 +671,7 @@ export interface RootRouteChildren {
   CoachRoute: typeof CoachRoute
   CoachesRoute: typeof CoachesRoute
   ContactRoute: typeof ContactRoute
+  EvaluationsRoute: typeof EvaluationsRoute
   FacilityRoute: typeof FacilityRoute
   FamilyRoute: typeof FamilyRoute
   InvitationsRoute: typeof InvitationsRoute
@@ -625,7 +687,7 @@ export interface RootRouteChildren {
   RecruitingRoute: typeof RecruitingRoute
   RegistrationsRoute: typeof RegistrationsRoute
   SoftballRoute: typeof SoftballRoute
-  TeamsRoute: typeof TeamsRoute
+  TeamsRoute: typeof TeamsRouteWithChildren
   TermsRoute: typeof TermsRoute
   TrainingRoute: typeof TrainingRoute
   TryoutsRoute: typeof TryoutsRoute
@@ -634,6 +696,7 @@ export interface RootRouteChildren {
   VisitsRoute: typeof VisitsRoute
   WaiverRoute: typeof WaiverRoute
   ApiSiteAlertsRoute: typeof ApiSiteAlertsRoute
+  ApiTryoutNotificationsRoute: typeof ApiTryoutNotificationsRoute
   FundraisingExampleRoute: typeof FundraisingExampleRoute
   FundraisingMyRoute: typeof FundraisingMyRoute
   FundraisingOfficeRoute: typeof FundraisingOfficeRoute
@@ -647,6 +710,7 @@ export interface RootRouteChildren {
   ApiFundraisingPlayersRoute: typeof ApiFundraisingPlayersRouteWithChildren
   ApiFundraisingReceiptRoute: typeof ApiFundraisingReceiptRoute
   ApiFundraisingReconcileRoute: typeof ApiFundraisingReconcileRoute
+  ApiFundraisingTeamsRoute: typeof ApiFundraisingTeamsRoute
   ApiSquareReconcileRoute: typeof ApiSquareReconcileRoute
   ApiSquareWebhookRoute: typeof ApiSquareWebhookRoute
   ApiStripeWebhookRoute: typeof ApiStripeWebhookRoute
@@ -695,6 +759,13 @@ declare module '@tanstack/react-router' {
       path: '/contact'
       fullPath: '/contact'
       preLoaderRoute: typeof ContactRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/evaluations': {
+      id: '/evaluations'
+      path: '/evaluations'
+      fullPath: '/evaluations'
+      preLoaderRoute: typeof EvaluationsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/facility': {
@@ -865,6 +936,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiSiteAlertsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/tryout-notifications': {
+      id: '/api/tryout-notifications'
+      path: '/api/tryout-notifications'
+      fullPath: '/api/tryout-notifications'
+      preLoaderRoute: typeof ApiTryoutNotificationsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/fundraising/': {
       id: '/fundraising/'
       path: '/fundraising'
@@ -906,6 +984,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/go/$dest'
       preLoaderRoute: typeof GoDestRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/teams/$teamId': {
+      id: '/teams/$teamId'
+      path: '/$teamId'
+      fullPath: '/teams/$teamId'
+      preLoaderRoute: typeof TeamsTeamIdRouteImport
+      parentRoute: typeof TeamsRoute
     }
     '/api/auth/$': {
       id: '/api/auth/$'
@@ -956,6 +1041,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiFundraisingReconcileRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/fundraising/teams': {
+      id: '/api/fundraising/teams'
+      path: '/api/fundraising/teams'
+      fullPath: '/api/fundraising/teams'
+      preLoaderRoute: typeof ApiFundraisingTeamsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/square/reconcile': {
       id: '/api/square/reconcile'
       path: '/api/square/reconcile'
@@ -991,8 +1083,37 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiFundraisingPlayersIdRouteImport
       parentRoute: typeof ApiFundraisingPlayersRoute
     }
+    '/teams/$teamId/players/$rosterPlayerId': {
+      id: '/teams/$teamId/players/$rosterPlayerId'
+      path: '/players/$rosterPlayerId'
+      fullPath: '/teams/$teamId/players/$rosterPlayerId'
+      preLoaderRoute: typeof TeamsTeamIdPlayersRosterPlayerIdRouteImport
+      parentRoute: typeof TeamsTeamIdRoute
+    }
   }
 }
+
+interface TeamsTeamIdRouteChildren {
+  TeamsTeamIdPlayersRosterPlayerIdRoute: typeof TeamsTeamIdPlayersRosterPlayerIdRoute
+}
+
+const TeamsTeamIdRouteChildren: TeamsTeamIdRouteChildren = {
+  TeamsTeamIdPlayersRosterPlayerIdRoute: TeamsTeamIdPlayersRosterPlayerIdRoute,
+}
+
+const TeamsTeamIdRouteWithChildren = TeamsTeamIdRoute._addFileChildren(
+  TeamsTeamIdRouteChildren,
+)
+
+interface TeamsRouteChildren {
+  TeamsTeamIdRoute: typeof TeamsTeamIdRouteWithChildren
+}
+
+const TeamsRouteChildren: TeamsRouteChildren = {
+  TeamsTeamIdRoute: TeamsTeamIdRouteWithChildren,
+}
+
+const TeamsRouteWithChildren = TeamsRoute._addFileChildren(TeamsRouteChildren)
 
 interface ApiFundraisingPlayersRouteChildren {
   ApiFundraisingPlayersIdRoute: typeof ApiFundraisingPlayersIdRoute
@@ -1014,6 +1135,7 @@ const rootRouteChildren: RootRouteChildren = {
   CoachRoute: CoachRoute,
   CoachesRoute: CoachesRoute,
   ContactRoute: ContactRoute,
+  EvaluationsRoute: EvaluationsRoute,
   FacilityRoute: FacilityRoute,
   FamilyRoute: FamilyRoute,
   InvitationsRoute: InvitationsRoute,
@@ -1029,7 +1151,7 @@ const rootRouteChildren: RootRouteChildren = {
   RecruitingRoute: RecruitingRoute,
   RegistrationsRoute: RegistrationsRoute,
   SoftballRoute: SoftballRoute,
-  TeamsRoute: TeamsRoute,
+  TeamsRoute: TeamsRouteWithChildren,
   TermsRoute: TermsRoute,
   TrainingRoute: TrainingRoute,
   TryoutsRoute: TryoutsRoute,
@@ -1038,6 +1160,7 @@ const rootRouteChildren: RootRouteChildren = {
   VisitsRoute: VisitsRoute,
   WaiverRoute: WaiverRoute,
   ApiSiteAlertsRoute: ApiSiteAlertsRoute,
+  ApiTryoutNotificationsRoute: ApiTryoutNotificationsRoute,
   FundraisingExampleRoute: FundraisingExampleRoute,
   FundraisingMyRoute: FundraisingMyRoute,
   FundraisingOfficeRoute: FundraisingOfficeRoute,
@@ -1051,6 +1174,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiFundraisingPlayersRoute: ApiFundraisingPlayersRouteWithChildren,
   ApiFundraisingReceiptRoute: ApiFundraisingReceiptRoute,
   ApiFundraisingReconcileRoute: ApiFundraisingReconcileRoute,
+  ApiFundraisingTeamsRoute: ApiFundraisingTeamsRoute,
   ApiSquareReconcileRoute: ApiSquareReconcileRoute,
   ApiSquareWebhookRoute: ApiSquareWebhookRoute,
   ApiStripeWebhookRoute: ApiStripeWebhookRoute,

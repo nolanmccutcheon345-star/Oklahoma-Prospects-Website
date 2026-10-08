@@ -77,7 +77,11 @@ test('v2 migrations, owner authority, households, audit events and visit gates',
    await sql`insert into profiles(user_id,email,role) values('guardian-b','similar.household.name+b@example.invalid','coach') on conflict(user_id) do update set role='coach'`;
    await sql`insert into "session"(id,"userId",token,"expiresAt","createdAt","updatedAt") values('staff-session','guardian-b','synthetic-staff-session',now()+interval '1 day',now(),now())`;
    await sql`insert into club_invites(id,invited_by,token_hash,email,role,expires_at) values('pending-staff','owner-b','synthetic-hash','similar.household.name+b@example.invalid','coach',now()+interval '1 day')`;
+   const household=(await resolveIdentity(sql,'guardian-b')).familyIds[0];
+   await sql`insert into club_invites(id,invited_by,token_hash,email,role,family_id,expires_at) values('household-staff','owner-b','household-hash',' similar.household.name+b@example.invalid ','coach',${household},now()+interval '1 day'),('guardian-link','owner-b','guardian-hash','similar.household.name+b@example.invalid','parent',${household},now()+interval '1 day')`;
    await sql.transaction(tx=>revokeStaffAccess(tx,{user_id:'guardian-b',email:'similar.household.name+b@example.invalid'}));
+   assert.equal((await sql<{status:string}>`select status from club_invites where id='household-staff'`)[0].status,'revoked');
+   assert.equal((await sql<{status:string}>`select status from club_invites where id='guardian-link'`)[0].status,'pending');
    assert.equal((await sql<{status:string}>`select status from club_invites where id='pending-staff'`)[0].status,'revoked');
    assert.equal((await sql`select id from "session" where id='staff-session'`).length,0);
    assert.equal((await resolveIdentity(sql,'guardian-b')).role,'parent');
