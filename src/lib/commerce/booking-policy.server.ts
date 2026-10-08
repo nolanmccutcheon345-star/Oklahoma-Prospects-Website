@@ -1,38 +1,30 @@
-import { getSql, type Sql } from "../db";
-import { chicagoDate } from "../scheduling";
-export async function requirePriorityPolicy(sql: Sql) {
-  const [policy] = await sql<{
-    value: { standardDays?: number };
-  }>`select value from commerce_policy where id='cage-booking-window'`;
-  if (
-    !policy ||
-    !Number.isInteger(policy.value.standardDays) ||
-    policy.value.standardDays! < 1 ||
-    policy.value.standardDays! >= 14
-  )
-    throw new Error(
-      "The office must configure the standard booking window before All-Star priority enrollment opens.",
-    );
-  return policy.value.standardDays!;
-}
+import type { Sql } from "../db";
+import { CAGE_BOOKING_DAYS, chicagoDate, validDate } from "../scheduling";
+
+/** Inclusive facility-local calendar days, not 14 * 24 hours of UTC time. */
 export function withinBookingHorizon(date: string, days: number, now = new Date()) {
+  if (!validDate(date) || !Number.isInteger(days) || days < 0) return false;
   const diff =
-    (Date.parse(date + "T12:00:00Z") - Date.parse(chicagoDate(now) + "T12:00:00Z")) / 86400000;
+    (Date.parse(date + "T12:00:00Z") -
+      Date.parse(chicagoDate(now) + "T12:00:00Z")) / 86_400_000;
   return Number.isInteger(diff) && diff >= 0 && diff <= days;
 }
+
+export function assertCageBookingHorizon(date: string, now = new Date()) {
+  if (!withinBookingHorizon(date, CAGE_BOOKING_DAYS, now)) {
+    throw new Error(`Cage bookings may be made today through ${CAGE_BOOKING_DAYS} days ahead.`);
+  }
+}
+
+/**
+ * All households, including All-Star members, have the same 14-day horizon.
+ * Retain the original call signature for existing quote/checkout callers.
+ * Historical commerce_policy priority values no longer affect new bookings.
+ */
 export async function checkCageBookingWindow(
-  householdIds: string[],
+  _householdIds: string[],
   date: string,
-  transaction?: Sql,
+  _transaction?: Sql,
 ) {
-  const sql = transaction || (await getSql());
-  const [policy] = await sql<{
-    value: { standardDays: number };
-  }>`select value from commerce_policy where id='cage-booking-window'`;
-  if (!policy) return; // Priority pass enrollment is disabled until this policy is set.
-  const [priority] =
-    await sql`select g.id from credit_grants g join commerce_orders o on o.id=g.order_id where g.household_id=any(${householdIds}::text[]) and o.product_id='all-star' and o.status='paid' and g.starts_at<=now() and g.expires_at>now() limit 1`;
-  const days = priority ? 14 : policy.value.standardDays;
-  if (!withinBookingHorizon(date, days))
-    throw new Error(`Your cage booking window is ${days} days ahead.`);
+  assertCageBookingHorizon(date);
 }
