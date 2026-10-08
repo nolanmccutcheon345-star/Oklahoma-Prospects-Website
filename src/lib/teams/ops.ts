@@ -102,8 +102,15 @@ function daysFromToday(value: string | Date | null | undefined): number | null {
 }
 
 function csvCell(value: unknown): string {
-  const s = String(value ?? "");
-  if (/[",\n]/.test(s)) return `"${s.replace(/"/g, '""')}"`;
+  const raw = String(value ?? "");
+  // Quoting an Excel/Sheets formula in CSV does not make it safe. Prefix
+  // untrusted text with an apostrophe, including formulas behind whitespace.
+  // Preserve actual numeric values (including negative amounts) as numbers.
+  const s =
+    typeof value === "string" && /^[\s\u200B\uFEFF]*[=+@-]/u.test(raw)
+      ? "'" + raw
+      : raw;
+  if (/[",\n\r\t]/.test(s)) return `"${s.replace(/"/g, '""')}"`;
   return s;
 }
 
