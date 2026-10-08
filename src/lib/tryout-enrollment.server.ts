@@ -1,6 +1,7 @@
 import { createHash, randomUUID } from "node:crypto";
 import type { Sql } from "./db";
 import { resolveIdentity } from "./identity.server";
+import { assertTryoutPreference, publicTryoutTeamsFor } from "./tryout-preferences.server";
 const normalize = (value: string) => value.trim().replace(/\s+/g, " ").toLowerCase();
 export type TryoutApplicant = {
   player: string;
@@ -9,6 +10,8 @@ export type TryoutApplicant = {
   age: string;
   season?: string;
   autoEnroll?: boolean;
+  preferredTeamId?: string;
+  preferredCoachId?: string;
 };
 export function applicantKey(input: TryoutApplicant) {
   return createHash("sha256")
@@ -49,6 +52,9 @@ export async function matchTryoutApplicants(tx: Sql) {
     }>`select id,payload from club_requests where kind='tryout' and status='open' and payload->>'autoEnroll'='true' order by created_at,id`;
     for (const request of requests) {
       const p = request.payload;
+      // Published group events do not identify a preferred team or coach.
+      // Staff must review the request instead of silently enrolling elsewhere.
+      if (p.preferredTeamId || p.preferredCoachId) continue;
       if (
         !p.season?.trim() ||
         !p.player?.trim() ||
@@ -78,6 +84,19 @@ export async function recordInquiryFor(
   input: { requestId: string; kind: string; [key: string]: unknown },
 ) {
   return sql.transaction(async (tx) => {
+    if (input.kind === "tryout") {
+      const preferredTeamId = typeof input.preferredTeamId === "string" ? input.preferredTeamId : "";
+      const preferredCoachId = typeof input.preferredCoachId === "string" ? input.preferredCoachId : "";
+      if (preferredTeamId || preferredCoachId) {
+        assertTryoutPreference(await publicTryoutTeamsFor(tx), {
+          sport: String(input.sport),
+          age: String(input.age),
+          preferredTeamId,
+          preferredCoachId,
+          autoEnroll: input.autoEnroll === true,
+        });
+      }
+    }
     await tx`insert into club_requests(id,user_id,kind,payload) values(${input.requestId},null,${input.kind},${JSON.stringify(input)}::jsonb) on conflict(id) do nothing`;
     if (input.kind === "tryout") await matchTryoutApplicants(tx);
     return { ok: true, reference: input.requestId };
