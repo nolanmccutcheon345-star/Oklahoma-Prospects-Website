@@ -308,3 +308,35 @@ it("v4: coaches retain their own pay but not coworkers' payroll or owner budgets
  assert.equal(admin.teams[0].staff[1].monthly,2300);
  assert.equal(admin.teams[0].eventBudget,3600);
 });
+
+it("v5: parent and player team snapshots never expose another athlete's pitch or attendance data, or coach notes", () => {
+ const raw=club(),team=raw.teams[0];
+ team.notes="Staff only: confidential performance and placement comments";
+ team.messages=[{id:"staff-chat",at:"2026-10-08",from:"Coach",body:"Coach-only note about another family"}];
+ team.announcements=[{id:"team-broadcast",title:"Practice",body:"Team practice",pin:false,arrive:"",uniform:"",hotel:""}];
+ team.attendance={practice1:{"p-cade":"present","p-other":"absent"}};
+ team.pitchLog=[
+  {id:"outing-cade",playerId:"p-cade",date:"2026-10-08",pitches:27},
+  {id:"outing-other",playerId:"p-other",date:"2026-10-08",pitches:90},
+ ];
+ const family={email:"ty@prospectsbaseball.club",familyId:"fam-cade",familyIds:["fam-cade"]};
+ for(const [role,identity] of [
+  ["parent",family],
+  ["player",{email:"cade@example.com",familyId:"fam-cade",familyIds:["fam-cade"]}],
+ ]) {
+  const scoped=scopeClub(raw,role,identity).teams[0];
+  assert.equal(scoped.notes,"");
+  assert.deepEqual(scoped.messages,[]);
+  assert.deepEqual(scoped.announcements,team.announcements);
+  assert.deepEqual(scoped.attendance,{practice1:{"p-cade":"present"}});
+  assert.deepEqual(scoped.pitchLog.map(row=>row.playerId),["p-cade"]);
+  assert.deepEqual(scoped.roster.map(row=>row.id),["p-cade"]);
+ }
+ const admin=scopeClub(raw,"admin",family).teams[0];
+ assert.equal(admin.notes,team.notes);
+ assert.equal(admin.messages.length,1);
+ assert.equal(admin.pitchLog.length,2);
+ const coach=scopeClub(raw,"coach",family).teams[0];
+ assert.equal(coach.pitchLog.length,2);
+ assert.equal(coach.attendance.practice1["p-other"],"absent");
+});

@@ -79,16 +79,31 @@ export function scopeClub(
 
   const teams: Team[] = club.teams
     .filter((team) => team.roster.some((p) => visiblePlayer(p,role,identity)))
-    .map((team) => ({
-      ...team,
-      staff: team.staff.map((s) => ({ ...s, monthly: 0, applyAmount: 0, childId: "", w9: false, backgroundCheck: false, safeSport: false, expires: "" })),
-      orgFee: 0,
-      coachMonthly: 0,
-      eventBudget: 0,
-      otherCosts: { insurance: 0, balls: 0, fields: 0, admin: 0, travel: 0 },
-      roster: team.roster.filter(p => visiblePlayer(p,role,identity)).map(p =>
-        role === "player" ? dropPlayerBilling(p) : p),
-    }));
+    .map((team) => {
+      const roster = team.roster.filter(p => visiblePlayer(p,role,identity)).map(p =>
+        role === "player" ? dropPlayerBilling(p) : p);
+      const permittedPlayerIds = new Set(roster.map(player => player.id));
+      // Roster scoping alone is not enough: team-level records may carry
+      // another family's attendance, health-related workload, or staff notes.
+      return {
+        ...team,
+        staff: team.staff.map((s) => ({ ...s, monthly: 0, applyAmount: 0, childId: "", w9: false, backgroundCheck: false, safeSport: false, expires: "" })),
+        orgFee: 0,
+        coachMonthly: 0,
+        eventBudget: 0,
+        otherCosts: { insurance: 0, balls: 0, fields: 0, admin: 0, travel: 0 },
+        notes: "",
+        messages: [],
+        attendance: Object.fromEntries(Object.entries(team.attendance).map(
+          ([practiceId, attendance]) => [
+            practiceId,
+            Object.fromEntries(Object.entries(attendance).filter(([playerId]) => permittedPlayerIds.has(playerId))),
+          ],
+        )),
+        pitchLog: team.pitchLog.filter(outing => permittedPlayerIds.has(outing.playerId)),
+        roster,
+      };
+    });
   return {
     ...next,
     teams,
