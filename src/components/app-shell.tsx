@@ -13,13 +13,17 @@ import { useCurrentUserState } from "@/lib/auth/use-current-user";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
-const headerAccountClass = "px-2.5 tracking-normal max-[360px]:px-2";
+const headerAccountClass =
+  "min-w-24 whitespace-nowrap px-2.5 tracking-normal max-[360px]:px-2";
 
 function ClubWordmark({ name }: { name: string }) {
   const splitAt = name.lastIndexOf(" ");
   const lines = splitAt > 0 ? [name.slice(0, splitAt), name.slice(splitAt + 1)] : [name];
   return (
-    <span className="club-wordmark" data-club-wordmark>
+    <span
+      className="club-wordmark max-[360px]:text-[0.94rem] max-[360px]:whitespace-nowrap"
+      data-club-wordmark
+    >
       {lines.map((line, index) => (
         <span className="club-wordmark-line" key={line}>
           {index > 0 ? (
@@ -66,8 +70,9 @@ export function AppShell({ children }: { children: ReactNode }) {
             />
             <span className="min-w-0 overflow-visible">
               <ClubWordmark name={CLUB.name} />
-              <span className="mt-1 block whitespace-nowrap text-[0.56rem] leading-tight font-medium tracking-[0.04em] text-fg-soft uppercase min-[400px]:text-[0.65rem] min-[400px]:tracking-[0.14em]">
-                Baseball & softball · Est. {CLUB.established}
+              <span className="mt-1 block text-[0.56rem] leading-tight font-medium tracking-[0.04em] text-fg-soft uppercase min-[400px]:text-[0.65rem] min-[400px]:tracking-[0.14em]">
+                Baseball & softball ·{" "}
+                <span className="whitespace-nowrap">Est. {CLUB.established}</span>
               </span>
             </span>
           </Link>
@@ -110,7 +115,7 @@ export function AppShell({ children }: { children: ReactNode }) {
                   to={tab.to}
                   aria-current={active ? "page" : undefined}
                   className={cn(
-                    "flex min-h-14 flex-col items-center justify-center gap-1 px-0.5 text-[0.62rem] leading-none font-semibold tracking-normal whitespace-nowrap no-underline uppercase min-[380px]:text-[0.7rem] min-[380px]:tracking-wide",
+                    "flex min-h-14 flex-col items-center justify-center gap-1 px-0.5 text-[0.62rem] leading-none font-semibold tracking-normal whitespace-nowrap no-underline uppercase focus-visible:outline-offset-[-3px] min-[380px]:text-[0.7rem] min-[380px]:tracking-wide",
                     active ? "text-powder" : "text-fg-soft",
                   )}
                 >

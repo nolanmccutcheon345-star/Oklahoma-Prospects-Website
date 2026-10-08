@@ -445,10 +445,11 @@
 .club-wordmark-gap { display: inline; }
 @media (max-width: 360px) {
   .club-wordmark {
-    font-size: 0.95rem;
+    font-size: 0.94rem;
     line-height: 0.95;
     letter-spacing: 0;
+    white-space: nowrap;
   }
-  .club-wordmark-line { display: block; }
+  .club-wordmark-line { display: block; white-space: nowrap; }
   .club-wordmark-gap { display: none; }
 }
