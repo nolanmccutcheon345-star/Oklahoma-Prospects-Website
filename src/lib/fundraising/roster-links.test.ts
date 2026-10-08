@@ -82,7 +82,9 @@ test("actual roster links isolate households, consent and team/player pairs", as
     const p = await linkedPlayer(sql, "fund");
     assert.ok(p);
     assert.equal(p.team, "13U Baseball");
-    assert.equal(playerDestination(p as any), "/teams/baseball-team/players/a");
+    assert.equal(playerDestination(p as any), "/fundraising/p/fund");
+    assert.equal("team_id" in p, false);
+    assert.equal("roster_player_id" in p, false);
     assert.deepEqual(
       (await publicRoster(sql)).teams?.map((t) => t.id),
       ["baseball-team"],
@@ -90,11 +92,20 @@ test("actual roster links isolate households, consent and team/player pairs", as
     const team = (await publicRoster(sql, "baseball-team")).team!;
     assert.equal(team.players.length, 1);
     assert.equal(team.players[0].name, "Public initial");
+    assert.deepEqual(Object.keys(team.players[0]).sort(), ["goal","id","name","raised"]);
+    assert.equal(playerDestination(team.players[0] as any), "/fundraising/p/fund");
+    assert.equal("story" in team.players[0], false);
+    assert.equal("roster_player_id" in team.players[0], false);
+    assert.equal("team_id" in team.players[0], false);
     assert.equal("medical" in team.players[0], false);
     assert.equal("parent_email" in team.players[0], false);
     await assert.rejects(publicRoster(sql, "softball-team", "a"));
     await assert.rejects(publicRoster(sql, "baseball-team", "hidden"));
-    assert.equal((await publicRoster(sql, "baseball-team", "a")).player?.id, "fund");
+    const direct = (await publicRoster(sql, "baseball-team", "a")).player!;
+    assert.equal(direct.id, "fund");
+    assert.equal(direct.story, "Public story");
+    assert.equal("team_id" in direct, false);
+    assert.equal("roster_player_id" in direct, false);
     await assert.rejects(
       sql`INSERT INTO fundraising_players(id,owner_id,parent_email,name,team,goal,story,created,team_id,roster_player_id) VALUES('dupe','parent','p','p','13U',10000,'s','d','baseball-team','a')`,
     );
