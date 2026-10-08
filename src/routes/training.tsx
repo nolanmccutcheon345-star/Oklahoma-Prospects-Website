@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { PageHero } from "@/components/page-hero";
 import { type LessonService } from "@/lib/catalog";
 import { getCheckoutContext } from "@/lib/commerce/api";
-import { MEMBERSHIP_RULES, OP_LEVELS } from "@/lib/pd";
+import { MEMBERSHIP_RULES } from "@/lib/pd";
 import { useLiveCatalog } from "@/lib/use-catalog";
 import { cn } from "@/lib/utils";
 import { useCurrentUser } from "@/lib/auth/use-current-user";
@@ -221,22 +221,6 @@ function CatalogAndBook() {
           </article>
         ))}
       </div>
-
-      <h2 className="mt-12 text-3xl">Pitching ladder · OP-1 through OP-7</h2>
-      <p className="mt-2 text-sm text-muted">
-        The pitching development ladder. Coaches use evidence from completed sessions to advance each athlete.
-      </p>
-      <ol className="mt-4 grid gap-2">
-        {OP_LEVELS.map((level) => (
-          <li key={level.code} className="rounded-xl bg-paper-2 px-4 py-3 shadow-border">
-            <span className="text-xs font-semibold tracking-[0.16em] text-maroon uppercase">
-              {level.code} · {level.ages}
-            </span>
-            <span className="mt-1 block font-display text-xl uppercase">{level.name}</span>
-            <span className="block text-sm text-muted">{level.goal}</span>
-          </li>
-        ))}
-      </ol>
 
       <section className="mt-12 rounded-2xl bg-ink p-5 text-fg-inverse">
         <h2 className="text-2xl">Need lane time without a coach?</h2>
