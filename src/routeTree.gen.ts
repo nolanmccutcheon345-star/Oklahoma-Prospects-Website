@@ -18,6 +18,7 @@ import { Route as ContactRouteImport } from './routes/contact'
 import { Route as EvaluationsRouteImport } from './routes/evaluations'
 import { Route as FacilityRouteImport } from './routes/facility'
 import { Route as FamilyRouteImport } from './routes/family'
+import { Route as GamesRouteImport } from './routes/games'
 import { Route as InvitationsRouteImport } from './routes/invitations'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as MembersRouteImport } from './routes/members'
@@ -106,6 +107,11 @@ const FacilityRoute = FacilityRouteImport.update({
 const FamilyRoute = FamilyRouteImport.update({
   id: '/family',
   path: '/family',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const GamesRoute = GamesRouteImport.update({
+  id: '/games',
+  path: '/games',
   getParentRoute: () => rootRouteImport,
 } as any)
 const InvitationsRoute = InvitationsRouteImport.update({
@@ -340,6 +346,7 @@ export interface FileRoutesByFullPath {
   '/evaluations': typeof EvaluationsRoute
   '/facility': typeof FacilityRoute
   '/family': typeof FamilyRoute
+  '/games': typeof GamesRoute
   '/invitations': typeof InvitationsRoute
   '/login': typeof LoginRoute
   '/members': typeof MembersRoute
@@ -395,6 +402,7 @@ export interface FileRoutesByTo {
   '/evaluations': typeof EvaluationsRoute
   '/facility': typeof FacilityRoute
   '/family': typeof FamilyRoute
+  '/games': typeof GamesRoute
   '/invitations': typeof InvitationsRoute
   '/login': typeof LoginRoute
   '/members': typeof MembersRoute
@@ -451,6 +459,7 @@ export interface FileRoutesById {
   '/evaluations': typeof EvaluationsRoute
   '/facility': typeof FacilityRoute
   '/family': typeof FamilyRoute
+  '/games': typeof GamesRoute
   '/invitations': typeof InvitationsRoute
   '/login': typeof LoginRoute
   '/members': typeof MembersRoute
@@ -508,6 +517,7 @@ export interface FileRouteTypes {
     | '/evaluations'
     | '/facility'
     | '/family'
+    | '/games'
     | '/invitations'
     | '/login'
     | '/members'
@@ -563,6 +573,7 @@ export interface FileRouteTypes {
     | '/evaluations'
     | '/facility'
     | '/family'
+    | '/games'
     | '/invitations'
     | '/login'
     | '/members'
@@ -618,6 +629,7 @@ export interface FileRouteTypes {
     | '/evaluations'
     | '/facility'
     | '/family'
+    | '/games'
     | '/invitations'
     | '/login'
     | '/members'
@@ -674,6 +686,7 @@ export interface RootRouteChildren {
   EvaluationsRoute: typeof EvaluationsRoute
   FacilityRoute: typeof FacilityRoute
   FamilyRoute: typeof FamilyRoute
+  GamesRoute: typeof GamesRoute
   InvitationsRoute: typeof InvitationsRoute
   LoginRoute: typeof LoginRoute
   MembersRoute: typeof MembersRoute
@@ -780,6 +793,13 @@ declare module '@tanstack/react-router' {
       path: '/family'
       fullPath: '/family'
       preLoaderRoute: typeof FamilyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/games': {
+      id: '/games'
+      path: '/games'
+      fullPath: '/games'
+      preLoaderRoute: typeof GamesRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/invitations': {
@@ -1138,6 +1158,7 @@ const rootRouteChildren: RootRouteChildren = {
   EvaluationsRoute: EvaluationsRoute,
   FacilityRoute: FacilityRoute,
   FamilyRoute: FamilyRoute,
+  GamesRoute: GamesRoute,
   InvitationsRoute: InvitationsRoute,
   LoginRoute: LoginRoute,
   MembersRoute: MembersRoute,

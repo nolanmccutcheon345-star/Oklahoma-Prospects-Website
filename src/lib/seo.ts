@@ -1,7 +1,7 @@
 import { CLUB } from "./club";
 const ORIGIN='https://prospectsbaseball.club';
 export function pageHead(path:string,title:string,description:string,privatePage=false){
- description=description.replace(/Oklahoma Prospects(?! Academy)/g,CLUB.name);
+ description=description.replaceAll("Oklahoma Prospects Academy",CLUB.name).replaceAll("Oklahoma Prospects",CLUB.name);
  const url=ORIGIN+(path==='/'?'/':path);
  return {meta:[{title:`${title} | ${CLUB.name}`},{name:'description',content:description},
   {property:'og:title',content:`${title} | ${CLUB.name}`},{property:'og:description',content:description},

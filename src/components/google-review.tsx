@@ -29,16 +29,16 @@ export function GoogleReview({
           className={cn("mt-1 size-5 shrink-0", dark ? "text-powder" : "text-maroon")}
         />
         <div>
-          <h2 className="font-display text-2xl uppercase">{CLUB.name}</h2>
+          <h2 className="font-display text-2xl uppercase">{CLUB.googleListingName}</h2>
           <p className={cn("mt-2 text-sm", dark ? "text-fg-soft" : "text-muted")}>
-            Search Google for {CLUB.name}, {CLUB.addressLine1}, Broken
+            Search Google for {CLUB.googleListingName}, {CLUB.addressLine1}, Broken
             Arrow. Leave a review on this club’s listing.
           </p>
         </div>
       </div>
       <Button asChild className="mt-4" variant={dark ? "primary" : "maroon"}>
         <a href={LINKS.googleReview} target="_blank" rel="noopener noreferrer">
-          Open the {CLUB.name} listing
+          Open the {CLUB.googleListingName} listing
           <span className="sr-only"> (opens in a new tab)</span>
         </a>
       </Button>

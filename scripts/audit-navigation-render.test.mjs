@@ -20,7 +20,7 @@ test('public navigation, sport links and purchase availability agree with the li
  globalThis.__auditNav=state;let root;
  globalThis.fetch=async url=>{assert.ok(String(url).startsWith("/api/fundraising/teams"));return Response.json({teams:[]});};
  try{
-  await build({stdin:{contents:`export {AppShell} from './src/components/app-shell';export {Route as Training} from './src/routes/training';export {Route as Teams} from './src/routes/teams';`,resolveDir:process.cwd(),loader:'tsx'},outfile,bundle:true,platform:'node',format:'esm',packages:'external',plugins:[{name:'ui-boundaries',setup(b){
+  await build({stdin:{contents:`export {AppShell} from './src/components/app-shell';export {Route as Training} from './src/routes/training';export {Route as Teams} from './src/routes/teams';export {Route as Home} from './src/routes/index';export {Route as Games} from './src/routes/games';`,resolveDir:process.cwd(),loader:'tsx'},outfile,bundle:true,platform:'node',format:'esm',packages:'external',plugins:[{name:'ui-boundaries',setup(b){
    b.onResolve({filter:/^@tanstack\/react-router$/},()=>({path:'router',namespace:'audit-nav'}));
    b.onResolve({filter:/use-current-user$/},()=>({path:'user',namespace:'audit-nav'}));
    b.onResolve({filter:/auth\/gates$/},()=>({path:'gates',namespace:'audit-nav'}));
@@ -35,9 +35,16 @@ test('public navigation, sport links and purchase availability agree with the li
   const ui=await import(pathToFileURL(process.cwd()+'/'+outfile));root=createRoot(document.getElementById('root'));
   await act(async()=>root.render(createElement(ui.AppShell,null,createElement(ui.Training.component))));
   const primary=[...document.querySelectorAll('nav[aria-label="Primary"] a')];
-  assert.deepEqual(primary.map(a=>a.textContent),['Home','Train','Teams','Book']);
+  assert.deepEqual(primary.map(a=>a.textContent),['Home','Train','Teams','Book','Games']);
+  assert.equal(primary.length,5);
+  assert.equal(document.querySelector('nav[aria-label="Primary"] ul')?.className.includes('grid-cols-5'),true);
   assert.equal(primary[1].getAttribute('aria-current'),'page');
-  assert.ok(document.querySelector('footer a[href*="prospects-live"]'));
+  assert.equal(primary[4].getAttribute('href'),'/games');
+  assert.equal(document.querySelector('footer a[href="/games"]')?.textContent,'Games');
+  assert.equal(document.querySelector('footer a[href*="prospects-live"]'),null);
+  assert.equal(document.querySelector('a[href*="chatgpt.site"]'),null);
+  assert.match(document.querySelector('header')?.textContent??'',/Prospects Sports Academy/);
+  assert.doesNotMatch(document.querySelector('header')?.textContent??'',/Oklahoma Prospects Academy/);
   assert.ok(document.querySelector('footer a[href="/contact"]'));
   assert.equal(document.querySelectorAll('a[href^="/pay"]').length,0);
   assert.match(document.body.textContent,/Lesson enrollment by inquiry/);
@@ -50,7 +57,9 @@ test('public navigation, sport links and purchase availability agree with the li
   await act(async()=>root.render(createElement(ui.AppShell,null,createElement(ui.Teams.component))));
   assert.deepEqual([...document.querySelectorAll('nav[aria-label="Team sports"] a')].map(a=>a.textContent),['Baseball','Softball']);
   for(const anchor of document.querySelectorAll('nav[aria-label="Team sports"] a')) assert.ok(document.querySelector(anchor.getAttribute('href')));
-  assert.ok(document.querySelector('a[href*="sport=Softball"][href*="age=12U"]'));
+  assert.equal(document.querySelector('a[href*="sport=Softball"][href*="age="]'),null);
+  assert.equal(document.querySelector('#softball a[href="/tryouts?sport=Softball#register"]')?.textContent,'Tryouts');
+  assert.doesNotMatch(document.querySelector('#softball').textContent,/Rusty|14U B|Teams forming|Sarah Blankenship/);
   assert.match(document.querySelector('#baseball').textContent,/No baseball tryout date is currently posted/);
   assert.match(document.querySelector('#softball').textContent,/No softball tryout date is currently posted/);
   state.events=[
@@ -64,5 +73,23 @@ test('public navigation, sport links and purchase availability agree with the li
   assert.doesNotMatch(document.querySelector('#softball').textContent,/No softball tryout date is currently posted/);
   const stored={id:'s1',kind:'lesson',name:'Assessment',discipline:'Pitching',price:155,minutes:75,active:true,includes:[],perks:[]};
   assert.equal(buildPublicCatalog([stored]).lessons[0].price,approvedProducts([stored])[0].price);
+  state.path='/';
+  await act(async()=>root.render(createElement(ui.AppShell,null,createElement(ui.Home.component))));
+  const tryoutLabels=[...document.querySelectorAll('a')].filter(a=>a.textContent.trim()==='Tryouts' && a.getAttribute('href')==='/tryouts');
+  assert.equal(tryoutLabels.length,1);
+  assert.equal([...document.querySelectorAll('a')].some(a=>/Softball teams & tryouts|Free Spring tryout|Prospects Live/.test(a.textContent)),false);
+  assert.equal(document.querySelector('a[href*="chatgpt.site"], a[aria-label*="Prospects Live"]'),null);
+  assert.match(document.body.textContent,/Tryouts is for baseball and softball/);
+  const listing=document.querySelector('a[href*="Oklahoma+Prospects+Academy"]');
+  assert.match(listing?.textContent??'',/Oklahoma Prospects Academy/);
+  assert.match(document.body.textContent,/Prospects Sports Facility/);
+  state.path='/games';
+  await act(async()=>root.render(createElement(ui.AppShell,null,createElement(ui.Games.component))));
+  assert.equal(document.querySelector('nav[aria-label="Primary"] a[href="/games"]')?.getAttribute('aria-current'),'page');
+  assert.match(document.querySelector('#main')?.textContent??'',/Not launched yet/);
+  assert.match(document.querySelector('#main')?.textContent??'',/Steve/);
+  assert.match(document.querySelector('#main')?.textContent??'',/Prospects Live/);
+  assert.equal(document.querySelector('#main iframe'),null);
+  assert.equal([...document.querySelectorAll('#main a')].every(a=>!String(a.getAttribute('href')).startsWith('http')),true);
  }finally{if(root)await act(async()=>root.unmount());dom.window.close();globalThis.window=old.window;globalThis.document=old.document;globalThis.IS_REACT_ACT_ENVIRONMENT=old.act;globalThis.fetch=old.fetch;delete globalThis.__auditNav;await rm(temp,{recursive:true,force:true});}
 });

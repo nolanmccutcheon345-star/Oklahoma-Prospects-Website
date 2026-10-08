@@ -1,4 +1,3 @@
-import { ProspectsLiveLink } from "@/components/prospects-live-link";
 import { PRICES, formatMoney, formatDollars } from "@/lib/pricing";
 import {useLiveCatalog} from "@/lib/use-catalog";
 import {pageHead} from "@/lib/seo";
@@ -46,14 +45,13 @@ function Home() {
               <Link to="/book">Book a cage</Link>
             </Button>
             <Button asChild variant="outline">
-              <Link to="/tryouts">Free Spring tryout</Link>
+              <Link to="/tryouts">Tryouts</Link>
             </Button>
           </div>
-          <div className="mt-5"><ProspectsLiveLink /></div>
-          <div className="mt-4 flex flex-wrap gap-3">
-            <Button asChild variant="outline"><Link to="/softball">Softball teams & tryouts</Link></Button>
-          </div>
-          <p className="mt-4 text-sm text-fg-soft"><a href={LINKS.maps} className="underline">{CLUB.addressLine1}, {CLUB.addressLine2}</a></p>
+          <p className="mt-3 max-w-md text-sm text-fg-soft">
+            Tryouts is for baseball and softball.
+          </p>
+          <p className="mt-4 text-sm text-fg-soft"><a href={LINKS.maps} className="underline">{CLUB.venueName} · {CLUB.addressLine1}, {CLUB.addressLine2}</a></p>
         </div>
         <div className="absolute inset-x-0 bottom-0 h-1 bg-gradient-to-r from-maroon from-70% to-powder" />
       </section>
@@ -188,11 +186,12 @@ function Home() {
             <MapPin className="size-5 text-maroon" aria-hidden />
             <span>
               <span className="block text-[0.7rem] font-semibold tracking-widest text-muted uppercase">
-                {CLUB.addressLine1}
+                {CLUB.venueName}
               </span>
               <span className="block text-sm font-semibold">
-                {CLUB.addressLine2}
+                {CLUB.addressLine1}
               </span>
+              <span className="block text-sm">{CLUB.addressLine2}</span>
               <span className="sr-only"> (opens in a new tab)</span>
             </span>
           </a>
