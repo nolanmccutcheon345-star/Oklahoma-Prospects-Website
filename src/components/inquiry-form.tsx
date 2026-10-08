@@ -1,7 +1,9 @@
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { sendInquiry } from "@/lib/portal-api";
 import { Button } from "@/components/ui/button";
 import { AGE_GROUPS, TRYOUT_REQUEST_SESSION } from "@/lib/club";
+import { getPublicTryoutTeams } from "@/lib/tryout-events-api";
+import type { PublicTryoutTeam } from "@/lib/tryout-preferences.server";
 import { cn } from "@/lib/utils";
 
 const fieldClass =
@@ -25,6 +27,8 @@ type TryoutValues = {
   session: string;
   season: string;
   autoEnroll: boolean;
+  preferredTeamId: string;
+  preferredCoachId: string;
 };
 
 export function ContactForm({ initialSubject = "" }: { initialSubject?: string }) {
@@ -134,9 +138,25 @@ export function TryoutForm({
     sport: initialSport,
     season: "",
     autoEnroll: false,
+    preferredTeamId: "",
+    preferredCoachId: "",
     session: intent === "register" ? TRYOUT_REQUEST_SESSION : "",
   });
-
+  const [ageChoice, setAgeChoice] = useState(
+    initialAge ? AGE_GROUPS.some(group => group === initialAge) ? initialAge : "Other" : ""
+  );
+  const [teams, setTeams] = useState<PublicTryoutTeam[]>([]);
+  const [teamError, setTeamError] = useState("");
+  useEffect(() => {
+    if (intent !== "register") return;
+    let live = true;
+    getPublicTryoutTeams()
+      .then(rows => { if (live) setTeams(rows); })
+      .catch(() => { if (live) { setTeams([]); setTeamError("Team preferences are currently unavailable. You can still submit without a preference."); } });
+    return () => { live = false; };
+  }, [intent]);
+  const eligibleTeams = teams.filter(team => team.sport === values.sport && team.age.toLowerCase() === values.age.trim().toLowerCase());
+  const selectedTeam = eligibleTeams.find(team => team.id === values.preferredTeamId);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [sent, setSent] = useState(false);
@@ -190,6 +210,9 @@ export function TryoutForm({
             setValues((v) => ({
               ...v,
               sport,
+              preferredTeamId: "",
+              preferredCoachId: "",
+              autoEnroll: false,
               session: intent === "register" ? TRYOUT_REQUEST_SESSION : "",
             }));
           }}
@@ -211,20 +234,28 @@ export function TryoutForm({
         </label>
         <label className="text-sm font-semibold">
           Age group <span className="text-maroon">*</span>
-          <input
+          <select
+            required
+            className={fieldClass}
+            value={ageChoice}
+            onChange={(e) => {
+              const choice = e.target.value;
+              setAgeChoice(choice);
+              setValues(v => ({ ...v, age: choice === "Other" ? "" : choice, preferredTeamId: "", preferredCoachId: "", autoEnroll: false }));
+            }}
+          >
+            <option value="">Choose age group</option>
+            {AGE_GROUPS.map(age => <option key={age} value={age}>{age}</option>)}
+            <option value="Other">Other age group / Adult</option>
+          </select>
+          {ageChoice === "Other" ? <input
             required
             className={fieldClass}
             value={values.age}
             maxLength={120}
-            list={`tryout-ages-${intent}`}
-            placeholder="For example, 9U or 18U"
-            onChange={(e) => setValues((v) => ({ ...v, age: e.target.value }))}
-          />
-          <datalist id={`tryout-ages-${intent}`}>
-            {AGE_GROUPS.map((age) => (
-              <option key={age} value={age} />
-            ))}
-          </datalist>
+            placeholder="Enter age group, for example 19U or Adult"
+            onChange={e => setValues(v => ({...v,age:e.target.value,preferredTeamId:"",preferredCoachId:"",autoEnroll:false}))}
+          /> : null}
         </label>
       </div>
       {intent === "register" ? (
@@ -240,18 +271,40 @@ export function TryoutForm({
               onChange={(e) => setValues((v) => ({ ...v, season: e.target.value }))}
             />
           </label>
-          <label className="rounded-md border border-powder bg-paper p-4 text-sm">
+          <fieldset className="grid gap-3 rounded-xl border border-line p-4">
+            <legend className="px-2 font-semibold">Team and coach preference (optional)</legend>
+            {teamError ? <p role="status" className="text-sm text-muted">{teamError}</p> : null}
+            <label className="text-sm font-semibold">Preferred team
+              <select
+                className={fieldClass}
+                value={values.preferredTeamId}
+                onChange={e => setValues(v => ({ ...v, preferredTeamId: e.target.value, preferredCoachId: "", autoEnroll: false }))}
+              >
+                <option value="">No preference — have the office match me</option>
+                {eligibleTeams.map(team => <option key={team.id} value={team.id}>{team.name}</option>)}
+              </select>
+            </label>
+            {selectedTeam ? <label className="text-sm font-semibold">Preferred coach
+              <select
+                className={fieldClass}
+                value={values.preferredCoachId}
+                onChange={e => setValues(v => ({ ...v, preferredCoachId: e.target.value }))}
+              >
+                <option value="">No particular coach preference</option>
+                {selectedTeam.coaches.map(coach => <option key={coach.id} value={coach.id}>{coach.name}</option>)}
+              </select>
+            </label> : <p className="text-sm text-muted">{values.age ? "No publicly assigned team has been verified for this sport and age, or no preference selected. Requests for all age groups remain open." : "Choose a sport and age group to see any publicly assigned team options."}</p>}
+            <p className="text-sm text-muted">Preferences are requests, not guaranteed team assignments or appointments.</p>
+          </fieldset>
+          {!values.preferredTeamId ? <label className="rounded-md border border-powder bg-paper p-4 text-sm">
             <input
               type="checkbox"
-              required
               checked={values.autoEnroll}
-              onChange={(e) => setValues((v) => ({ ...v, autoEnroll: e.target.checked }))}
+              onChange={e => setValues(v => ({ ...v, autoEnroll: e.target.checked }))}
               className="mr-2"
             />
-            When a group tryout matches my player's sport, age group and season, automatically
-            enroll my player if capacity allows. One matching group appointment will be selected.
-            Private appointments require agreement with a coach.
-          </label>
+            If a published group tryout matches my player's sport, age group and season, I agree to automatic enrollment when capacity allows. Leave unchecked for office follow-up.
+          </label> : <p className="text-sm text-muted">The office will review your preferred team or coach. Automatic group enrollment is disabled to avoid placing you with a different team.</p>}
           <p className="text-sm text-muted">
             All ages are welcome. If no matching place is available, your request stays open.
             Private appointments require agreement with a coach.
