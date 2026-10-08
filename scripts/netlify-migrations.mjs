@@ -12,6 +12,7 @@ export function wrapMigration(name, sql) {
 // These PR migrations arrived after 0035 had already been published. Keep the
 // application ledger keys intact, but append their Netlify versions after 35.
 const lateVersions = {
+  '0028_staff_directory.sql': '0041',
   '0030_fundraising_publication_consent.sql': '0036',
   '0031_fundraising_roster_links.sql': '0037',
   '0032_tryout_events.sql': '0038',
