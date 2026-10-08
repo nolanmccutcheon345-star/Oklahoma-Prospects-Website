@@ -4,8 +4,11 @@ import { assertRecordableTeamPayment, remainingTeamPaymentCents } from "./record
 
 const player = (fee: number | null, payments: number[] = [], credits: number[] = []) => ({
   feeLock: fee === null ? null : { amount: fee, lockedAt: "2026-10-08", policyVersion: "1", components: {} },
-  payments: payments.map((amount) => ({ amount })),
-  credits: credits.map((amount) => ({ amount })),
+  payments: payments.map((amount) => ({
+    amount, date: "2026-10-08", fee: 0, charged: amount,
+    method: "ach", label: "Recorded payment", receipt: "R-test",
+  })),
+  credits: credits.map((amount) => ({ label: "Applied credit", amount })),
 });
 
 test("manual team payments account for both prior payments and fee credits", () => {
