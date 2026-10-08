@@ -1,0 +1,29 @@
+name: Verify production deployment provenance
+
+# This independent, read-only signal is intentionally separate from code CI:
+# a green build or successful Netlify deploy preview does not prove main is live.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: prospects-production-provenance
+  cancel-in-progress: true
+
+jobs:
+  verify-live-source:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Wait for exact live source commit
+        run: node scripts/check-deployed-release.mjs "https://prospectsbaseball.club" "$GITHUB_SHA" 20 15000
+      - name: Read-only HTTP smoke after proven source match
+        run: node scripts/check-hosted.mjs "https://prospectsbaseball.club"
