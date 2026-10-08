@@ -1,4 +1,5 @@
 import type { PurchaseAvailability } from "./purchase-availability";
+import { publishedServices } from "./public-services";
 import { PRICES, formatMoney, currentCatalogPrice } from "./pricing";
 import { revokeStaffAccess } from './staff-access.server';
 import { createServerFn, createServerOnlyFn } from "@tanstack/react-start";
@@ -468,7 +469,9 @@ export async function loadServices(sql: Sql) {
 
 export const getServices = createServerFn({ method: "GET" }).handler(async () => {
   const sql = await getSql();
-  return loadServices(sql);
+  // Signed-out callers must never receive inactive or unpublished catalog items.
+  // Office editors use their authenticated mutation/editor paths, not this public API.
+  return publishedServices(await loadServices(sql));
 });
 
 export const getPurchaseAvailability = createServerFn({ method: "GET" }).handler(async (): Promise<PurchaseAvailability> => {
