@@ -1,7 +1,10 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, redirect } from "@tanstack/react-router";
 import FundraisingApp from "@/components/fundraising-app";
 import css from "@/fundraising.css?url";
 export const Route = createFileRoute("/fundraising/")({
+  beforeLoad: () => {
+    throw redirect({ to: "/teams", statusCode: 301 });
+  },
   head: () => ({
     meta: [
       { title: "Player Fundraising | Oklahoma Prospects" },
