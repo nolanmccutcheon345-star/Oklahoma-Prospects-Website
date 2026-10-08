@@ -143,8 +143,8 @@ test("matching enrollment respects season, capacity, retries and cancelled-event
     await sql`insert into staff_directory(id,name,title,program,email,published)
       values(${publicCoach},'Audit Published Coach','Head Coach','Softball','published-coach@example.invalid',true)`;
     await sql`insert into club_state(id,demo,payload) values('oklahoma-prospects',false,${JSON.stringify({teams:[
-      {id:"team-softball-12",name:"12U Softball",sport:"softball",age:"12U",closed:false,coachEmail:"published-coach@example.invalid",staff:[],roster:[{name:"Private child",id:"private-child"}]},
-      {id:"team-private",name:"Private Team",sport:"baseball",age:"12U",closed:false,coachEmail:"secret@example.invalid",staff:[],roster:[]},
+      {id:"team-softball-12",name:"12U Softball",sport:"softball",age:"12U",closed:false,seasonStart:"2030-01-01",seasonEnd:"2030-08-01",coachEmail:"published-coach@example.invalid",staff:[],roster:[{name:"Private child",id:"private-child"}]},
+      {id:"team-private",name:"Private Team",sport:"baseball",age:"12U",closed:false,seasonStart:"2030-01-01",seasonEnd:"2030-08-01",coachEmail:"secret@example.invalid",staff:[],roster:[]},
     ]})}::jsonb)`;
     const offered = await publicTryoutTeamsFor(sql);
     assert.deepEqual(offered.map(row=>row.id),["team-softball-12"]);
