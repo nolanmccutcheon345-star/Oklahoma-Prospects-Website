@@ -16,7 +16,7 @@ test('public navigation, sport links and purchase availability agree with the li
  const dom=new JSDOM('<div id="root"></div>',{url:'https://audit.example.invalid/training'});
  const old={window:globalThis.window,document:globalThis.document,act:globalThis.IS_REACT_ACT_ENVIRONMENT,fetch:globalThis.fetch};
  Object.assign(globalThis,{window:dom.window,document:dom.window.document,IS_REACT_ACT_ENVIRONMENT:true});
- const state={catalog:{...buildPublicCatalog([]),purchaseAvailability:{ready:true,scope:'cages'}},path:'/training',navigate:null};
+ const state={catalog:{...buildPublicCatalog([]),purchaseAvailability:{ready:true,scope:'cages'}},path:'/training',navigate:null,events:[]};
  globalThis.__auditNav=state;let root;
  globalThis.fetch=async url=>{assert.ok(String(url).startsWith("/api/fundraising/teams"));return Response.json({teams:[]});};
  try{
@@ -26,7 +26,7 @@ test('public navigation, sport links and purchase availability agree with the li
    b.onResolve({filter:/auth\/gates$/},()=>({path:'gates',namespace:'audit-nav'}));
    b.onResolve({filter:/use-catalog$/},()=>({path:'catalog',namespace:'audit-nav'}));
    b.onLoad({filter:/.*/,namespace:'audit-nav'},a=>({loader:'js',resolveDir:process.cwd(),contents:{
-    router:`import {createElement} from 'react';export const Link=({to,search,hash,children,...props})=>createElement('a',{...props,href:to+(search?'?'+new URLSearchParams(search):'')+(hash?'#'+hash:'')},children);export const Outlet=()=>null;export const createFileRoute=()=>options=>({...options,useSearch:()=>({})});export const useNavigate=()=>value=>{globalThis.__auditNav.navigate=value;return Promise.resolve();};export const useRouterState=({select})=>select({location:{pathname:globalThis.__auditNav.path}});`,
+    router:`import {createElement} from 'react';export const Link=({to,search,hash,children,...props})=>createElement('a',{...props,href:to+(search?'?'+new URLSearchParams(search):'')+(hash?'#'+hash:'')},children);export const Outlet=()=>null;export const createFileRoute=()=>options=>({...options,useSearch:()=>({}),useLoaderData:()=>globalThis.__auditNav.events});export const useNavigate=()=>value=>{globalThis.__auditNav.navigate=value;return Promise.resolve();};export const useRouterState=({select})=>select({location:{pathname:globalThis.__auditNav.path}});`,
     user:'export const useCurrentUser=()=>null;export const useCurrentUserState=()=>({user:null,isPending:false});',
     gates:'export const SignedIn=()=>null;export const SignedOut=({children})=>children;',
     catalog:'export const useLiveCatalog=()=>globalThis.__auditNav.catalog;',
@@ -51,6 +51,17 @@ test('public navigation, sport links and purchase availability agree with the li
   assert.deepEqual([...document.querySelectorAll('nav[aria-label="Team sports"] a')].map(a=>a.textContent),['Baseball','Softball']);
   for(const anchor of document.querySelectorAll('nav[aria-label="Team sports"] a')) assert.ok(document.querySelector(anchor.getAttribute('href')));
   assert.ok(document.querySelector('a[href*="sport=Softball"][href*="age=12U"]'));
+  assert.match(document.querySelector('#baseball').textContent,/No baseball tryout date is currently posted/);
+  assert.match(document.querySelector('#softball').textContent,/No softball tryout date is currently posted/);
+  state.events=[
+    {id:'test-baseball',sport:'Baseball',season:'Spring 2027',ageGroups:['15U'],date:'2026-12-12',startTime:'10:00',endTime:'12:00',location:'Prospects field',capacity:24,status:'published',revision:0},
+    {id:'test-softball',sport:'Softball',season:'Spring 2027',ageGroups:['12U'],date:'2026-12-13',startTime:'13:00',endTime:'15:00',location:'Prospects cages',capacity:18,status:'published',revision:0},
+  ];
+  await act(async()=>root.render(createElement(ui.AppShell,null,createElement(ui.Teams.component))));
+  assert.match(document.querySelector('#baseball').textContent,/December 12, 2026/);
+  assert.match(document.querySelector('#softball').textContent,/December 13, 2026/);
+  assert.doesNotMatch(document.querySelector('#baseball').textContent,/No baseball tryout date is currently posted/);
+  assert.doesNotMatch(document.querySelector('#softball').textContent,/No softball tryout date is currently posted/);
   const stored={id:'s1',kind:'lesson',name:'Assessment',discipline:'Pitching',price:155,minutes:75,active:true,includes:[],perks:[]};
   assert.equal(buildPublicCatalog([stored]).lessons[0].price,approvedProducts([stored])[0].price);
  }finally{if(root)await act(async()=>root.unmount());dom.window.close();globalThis.window=old.window;globalThis.document=old.document;globalThis.IS_REACT_ACT_ENVIRONMENT=old.act;globalThis.fetch=old.fetch;delete globalThis.__auditNav;await rm(temp,{recursive:true,force:true});}
