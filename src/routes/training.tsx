@@ -2,7 +2,7 @@ import { canPurchase } from "@/lib/purchase-availability";
 import { FIRST_MONTH_SETUP_CENTS, formatMoney, formatDollars } from "@/lib/pricing";
 import {pageHead} from "@/lib/seo";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
 import { Button } from "@/components/ui/button";
 import { PageHero } from "@/components/page-hero";
 import { type LessonService } from "@/lib/catalog";
@@ -16,7 +16,14 @@ import { PdErrorBoundary } from "@/components/pd/error-boundary";
 
 export const Route = createFileRoute("/training")({head:()=>pageHead("/training","Train & Player Development","Assessments, private coaching, packages, and monthly development at Oklahoma Prospects.",false), component: TrainingPage });
 
+const subscribeToHydration = () => () => {};
+const clientHydrated = () => true;
+const serverHydrated = () => false;
+
 function TrainingPage() {
+  // Session resolution can finish before this route hydrates. Keep the server
+  // and first client render identical before showing session-specific actions.
+  const hydrated = useSyncExternalStore(subscribeToHydration, clientHydrated, serverHydrated);
   return (
     <main id="main">
       <PdErrorBoundary section="Train · catalog">
@@ -35,18 +42,18 @@ function TrainingPage() {
             <Button asChild variant="outline">
               <a href="#memberships">Monthly Training Plans</a>
             </Button>
-            <SignedOut>
+            {hydrated && <SignedOut>
               <Button asChild variant="outline">
                 <Link to="/login" search={{ next: "/account" }}>
                   Member sign in
                 </Link>
               </Button>
-            </SignedOut>
-            <SignedIn>
+            </SignedOut>}
+            {hydrated && <SignedIn>
               <Button asChild variant="outline">
                 <Link to="/account" search={{ desk: "programs" }}>My assigned programs</Link>
               </Button>
-            </SignedIn>
+            </SignedIn>}
           </>
         }
       />
