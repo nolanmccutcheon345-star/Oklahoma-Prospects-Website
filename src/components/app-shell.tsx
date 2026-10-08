@@ -66,7 +66,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             />
             <span className="min-w-0 overflow-visible">
               <ClubWordmark name={CLUB.name} />
-              <span className="mt-1 block text-[0.56rem] leading-tight font-medium tracking-[0.04em] text-fg-soft uppercase min-[400px]:text-[0.65rem] min-[400px]:tracking-[0.14em]">
+              <span className="mt-1 block whitespace-nowrap text-[0.56rem] leading-tight font-medium tracking-[0.04em] text-fg-soft uppercase min-[400px]:text-[0.65rem] min-[400px]:tracking-[0.14em]">
                 Baseball & softball · Est. {CLUB.established}
               </span>
             </span>

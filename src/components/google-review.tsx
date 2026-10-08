@@ -29,7 +29,7 @@ export function GoogleReview({
           className={cn("mt-1 size-5 shrink-0", dark ? "text-powder" : "text-maroon")}
         />
         <div>
-          <h2 className="font-display text-2xl uppercase">{CLUB.googleListingName}</h2>
+          <h2 className="font-display text-2xl uppercase">Leave a Google review</h2>
           <p className={cn("mt-2 text-sm", dark ? "text-fg-soft" : "text-muted")}>
             Search Google for {CLUB.googleListingName}, {CLUB.addressLine1}, Broken
             Arrow. Leave a review on this club’s listing.
