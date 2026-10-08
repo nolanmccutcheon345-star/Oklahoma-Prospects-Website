@@ -20,3 +20,13 @@ test("Original Steve live project is not modified or embedded by the new Games h
  assert.doesNotMatch(page,/src=["']https:\/\/oklahoma-prospects-live/);
  assert.match(page,/Coach Steve's Prospects Live concept/);
 });
+
+test("Games errors have an honest unavailable page separate from a genuinely empty schedule",()=>{
+ const page=readFileSync("src/routes/games.tsx","utf8");
+ assert.match(page,/loader:\\s*async\\s*\\(\\)\\s*=>/);
+ assert.match(page,/games:\\[\\] as PublicGameEvent\\[\\],loaded:false/);
+ assert.match(page,/function GamesUnavailable\\(\\)/);
+ assert.match(page,/!hasLoaded && games.length===0/);
+ assert.match(page,/No unverified game information is being shown/);
+ assert.match(page,/function EmptyGames\\(\\)/);
+});
