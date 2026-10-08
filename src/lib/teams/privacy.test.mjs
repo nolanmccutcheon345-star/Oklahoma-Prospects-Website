@@ -340,3 +340,27 @@ it("v5: parent and player team snapshots never expose another athlete's pitch or
  assert.equal(coach.pitchLog.length,2);
  assert.equal(coach.attendance.practice1["p-other"],"absent");
 });
+
+it("v6: coach, parent and player responses do not leak owner financial policy inputs", () => {
+ const raw = club();
+ const admin = scopeClub(raw, "admin", {email: "owner@example.com",familyId: ""});
+ assert.deepEqual(admin.settings, raw.settings);
+ const sensitive = [
+  "contingencyPct", "membershipMonthly", "facilityMonthly", "fundingPlayers",
+  "cardFeePct", "orgFeeFloor", "orgFeeCeiling", "coachPayMin",
+  "coachPayMax", "cageHourly", "roundTo",
+ ];
+ for(const [role,identity] of [
+  ["coach", {email: "ty@prospectsbaseball.club",familyId:"fam-cade"}],
+  ["parent", {email: "ty@prospectsbaseball.club",familyId:"fam-cade",familyIds:["fam-cade"]}],
+  ["player", {email: "cade@example.com",familyId:"fam-cade",familyIds:["fam-cade"]}],
+ ]) {
+  const view = scopeClub(raw, role, identity);
+  for(const key of sensitive) assert.equal(view.settings[key], 0, role+" leaked "+key);
+  assert.equal(view.settings.policyVersion, raw.settings.policyVersion);
+  assert.equal(view.teams.length, 1);
+ }
+ // The read projection must never overwrite the financial policy in storage.
+ const scoped = scopeClub(raw, "parent", {email:"ty@prospectsbaseball.club",familyId:"fam-cade",familyIds:["fam-cade"]});
+ assert.deepEqual(mergeSave(raw, scoped, "parent", {email:"ty@prospectsbaseball.club",familyId:"fam-cade",familyIds:["fam-cade"]}).settings, raw.settings);
+});
