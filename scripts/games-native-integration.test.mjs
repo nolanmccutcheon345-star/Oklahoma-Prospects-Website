@@ -30,3 +30,10 @@ test("Games errors have an honest unavailable page separate from a genuinely emp
  assert.match(page,/No unverified game information is being shown/);
  assert.match(page,/function EmptyGames\\(\\)/);
 });
+
+test("Games default Watch tab does not force a redirect from the clean /games URL",()=>{
+ const page=readFileSync("src/routes/games.tsx","utf8");
+ assert.match(page,/const validView = .*GamesView\\|undefined/);
+ assert.match(page,/requestedView\\?\\?"watch"/);
+ assert.doesNotMatch(page,/VIEWS\\.find\\(v=>v\\.id===value\\)\\?\\.id \\?\\? "watch"/);
+});
