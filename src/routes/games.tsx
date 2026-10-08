@@ -19,7 +19,8 @@ const VIEWS: {id:GamesView;label:string}[] = [
  {id:"replays",label:"Replays"},
  {id:"teams",label:"Teams"},
 ];
-const validView = (value:unknown):GamesView => VIEWS.find(v=>v.id===value)?.id ?? "watch";
+// Do not inject ?view=watch into a clean /games URL; this caused a 307 redirect.
+const validView = (value:unknown):GamesView|undefined => VIEWS.find(v=>v.id===value)?.id;
 const description = "Prospects baseball and softball game schedules, live scores, results and approved live or replay video. All games appear here only after staff publication.";
 
 export const Route = createFileRoute("/games")({
@@ -92,7 +93,8 @@ function VideoPlayer({game}:{game:PublicGameEvent}){
 
 function GamesPage(){
  const initial=Route.useLoaderData();
- const {view,game:gameId}=Route.useSearch();
+ const {view:requestedView,game:gameId}=Route.useSearch();
+ const view:GamesView=requestedView??"watch";
  const [games,setGames]=useState<PublicGameEvent[]>(initial.games);
  const [hasLoaded,setHasLoaded]=useState(initial.loaded);
  const [loadError,setLoadError]=useState(!initial.loaded);
