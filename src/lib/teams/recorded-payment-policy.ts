@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import type { Player } from "./types";
 
 type RecordablePlayer = Pick<Player, "feeLock" | "payments" | "credits">;
@@ -32,4 +33,9 @@ export function assertRecordableTeamPayment(player: RecordablePlayer, amount: nu
   if (requested > available)
     throw new Error(`Payment exceeds the outstanding balance ($${(available / 100).toFixed(2)}).`);
   return available;
+}
+
+/** Stable receipt identity for a manual office ledger entry, not a provider charge. */
+export function newRecordedTeamPaymentReceipt(): string {
+  return `R-${randomUUID()}`;
 }
