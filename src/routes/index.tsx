@@ -13,11 +13,14 @@ import { MembershipPlans } from "@/components/membership-plans";
 import { Button } from "@/components/ui/button";
 import { CANCEL_POLICY, CLUB, LINKS, PROOF, RENTALS } from "@/lib/club";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
+import { getPublicTryoutEvents } from "@/lib/tryout-events-api";
 
-export const Route = createFileRoute("/")({head:()=>pageHead("/","Indoor cages, lessons & teams","Book indoor baseball and softball cages, coaching, and teams in Broken Arrow. Serving northeast Oklahoma since 2008.",false), component: Home });
+export const Route = createFileRoute("/")({head:()=>pageHead("/","Indoor cages, lessons & teams","Book indoor baseball and softball cages, coaching, and teams in Broken Arrow. Serving northeast Oklahoma since 2008.",false), loader: () => getPublicTryoutEvents(), component: Home });
 
 function Home() {
   const catalog=useLiveCatalog();
+  const tryoutEvents=Route.useLoaderData();
+  const hasGroupDates=tryoutEvents.length > 0;
   return (
     <main id="main">
       <section className="relative isolate overflow-hidden bg-ink text-fg-inverse">
@@ -94,9 +97,11 @@ function Home() {
           <MemberPathCard />
           <PathCard
             to="/tryouts"
-            kicker="Free · Nov 14–15"
+            kicker={hasGroupDates ? "Free · group dates posted" : "Free · individual requests"}
             title="Earn a roster spot"
-            body="Spring 2027 evaluations. Other ages: send a team inquiry."
+            body={hasGroupDates
+              ? "View scheduled group evaluations or request an individual tryout. All baseball and softball ages are welcome."
+              : "No group date is posted yet. Request a free individual baseball or softball tryout."}
           />
           <PathCard
             to="/more"
