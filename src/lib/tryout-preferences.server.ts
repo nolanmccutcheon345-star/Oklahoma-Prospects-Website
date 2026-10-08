@@ -27,7 +27,13 @@ export function listedTryoutTeams(teams: readonly Team[], staff: readonly Publis
     if (team.closed || !team.id || !team.name || !team.age) return [];
     if (team.sport !== "baseball" && team.sport !== "softball") return [];
     const sport = team.sport === "baseball" ? "Baseball" as const : "Softball" as const;
-    const assigned = new Set([normal(team.coachEmail || ""), ...(team.staff || []).map(person => normal(person.email || ""))].filter(Boolean));
+    const assigned = new Set([
+      normal(team.coachEmail || ""),
+      ...(team.staff || [])
+        // A bookkeeper/team administrator is not a selectable tryout coach.
+        .filter(person => /coach|trainer|instructor|pitching|hitting|catching|fielding/i.test(person.role || ""))
+        .map(person => normal(person.email || "")),
+    ].filter(Boolean));
     const seen = new Set<string>();
     const coaches = staff
       .filter(person =>
