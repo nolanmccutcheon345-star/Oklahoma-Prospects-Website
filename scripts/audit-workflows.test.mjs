@@ -219,7 +219,11 @@ test('isolated full account and lesson journey through real server commands',asy
    assert.equal('parent_email' in published,false);assert.equal('owner_id' in published,false);
    const rosterResponse=await api.fundraisingRoster.GET(new Request(base+'/api/fundraising/teams?teamId=audit-team'));
    assert.equal(rosterResponse.status,200);const roster=(await rosterResponse.json()).team;
-   assert.equal(roster.players.length,1);assert.equal(roster.players[0].name,'Audit Fundraiser');assert.equal(roster.players[0].roster_player_id,'audit-roster');
+   assert.equal(roster.players.length,1);assert.equal(roster.players[0].name,'Audit Fundraiser');
+   assert.deepEqual(Object.keys(roster.players[0]).sort(),['goal','id','name','raised']);
+   assert.equal(roster.players[0].id,made.id);
+   assert.equal('roster_player_id' in roster.players[0],false);
+   assert.equal('team_id' in roster.players[0],false);
    assert.equal('parents' in roster.players[0],false);
   });
   await t.test('public fundraising totals include completed payments less refunds and exclude pending/failed payments',async()=>{
