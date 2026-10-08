@@ -17,7 +17,7 @@ test('public navigation, sport links and purchase availability agree with the li
  const dom=new JSDOM('<div id="root"></div>',{url:'https://audit.example.invalid/training'});
  const old={window:globalThis.window,document:globalThis.document,act:globalThis.IS_REACT_ACT_ENVIRONMENT,fetch:globalThis.fetch};
  Object.assign(globalThis,{window:dom.window,document:dom.window.document,IS_REACT_ACT_ENVIRONMENT:true});
- const state={catalog:{...buildPublicCatalog([]),purchaseAvailability:{ready:true,scope:'cages'}},path:'/training',navigate:null,events:[]};
+ const state={catalog:{...buildPublicCatalog([]),purchaseAvailability:{ready:true,scope:'cages'}},path:'/training',navigate:null,events:[],gameRows:[]};
  globalThis.__auditNav=state;let root;
  globalThis.fetch=async url=>{assert.ok(String(url).startsWith("/api/fundraising/teams"));return Response.json({teams:[]});};
  try{
@@ -26,11 +26,13 @@ test('public navigation, sport links and purchase availability agree with the li
    b.onResolve({filter:/use-current-user$/},()=>({path:'user',namespace:'audit-nav'}));
    b.onResolve({filter:/auth\/gates$/},()=>({path:'gates',namespace:'audit-nav'}));
    b.onResolve({filter:/use-catalog$/},()=>({path:'catalog',namespace:'audit-nav'}));
+    b.onResolve({filter:/games-api$/},()=>({path:'games-api',namespace:'audit-nav'}));
    b.onLoad({filter:/.*/,namespace:'audit-nav'},a=>({loader:'js',resolveDir:process.cwd(),contents:{
-    router:`import {createElement} from 'react';export const Link=({to,search,hash,children,...props})=>createElement('a',{...props,href:to+(search?'?'+new URLSearchParams(search):'')+(hash?'#'+hash:'')},children);export const Outlet=()=>null;export const createFileRoute=()=>options=>({...options,useSearch:()=>({}),useLoaderData:()=>globalThis.__auditNav.events});export const useNavigate=()=>value=>{globalThis.__auditNav.navigate=value;return Promise.resolve();};export const useRouterState=({select})=>select({location:{pathname:globalThis.__auditNav.path}});`,
+    router:`import {createElement} from 'react';export const Link=({to,search,hash,children,...props})=>createElement('a',{...props,href:to+(search?'?'+new URLSearchParams(search):'')+(hash?'#'+hash:'')},children);export const Outlet=()=>null;export const createFileRoute=()=>options=>({...options,useSearch:()=>({view:'watch',game:undefined}),useLoaderData:()=>globalThis.__auditNav.path==='/games'?globalThis.__auditNav.gameRows:globalThis.__auditNav.events});export const useNavigate=()=>value=>{globalThis.__auditNav.navigate=value;return Promise.resolve();};export const useRouterState=({select})=>select({location:{pathname:globalThis.__auditNav.path}});`,
     user:'export const useCurrentUser=()=>null;export const useCurrentUserState=()=>({user:null,isPending:false});',
     gates:'export const SignedIn=()=>null;export const SignedOut=({children})=>children;',
     catalog:'export const useLiveCatalog=()=>globalThis.__auditNav.catalog;',
+     'games-api':'export const getPublicGames=async()=>[];export const getAdminGames=async()=>[];export const saveGame=async()=>{throw new Error("Owner only")};',
    }[a.path]}));
   }}]});
   const ui=await import(pathToFileURL(process.cwd()+'/'+outfile));root=createRoot(document.getElementById('root'));
@@ -41,7 +43,7 @@ test('public navigation, sport links and purchase availability agree with the li
   assert.equal(document.querySelector('nav[aria-label="Primary"] ul')?.className.includes('grid-cols-5'),true);
   assert.equal(primary[1].getAttribute('aria-current'),'page');
   assert.equal(primary[4].getAttribute('href'),'/games');
-  assert.equal(document.querySelector('footer a[href="/games"]')?.textContent,'Games');
+  assert.equal(document.querySelector('footer a[href^="/games"]')?.textContent,'Games');
   assert.equal(document.querySelector('footer a[href*="prospects-live"]'),null);
   assert.equal(document.querySelector('a[href*="chatgpt.site"]'),null);
   assert.match(document.querySelector('header')?.textContent??'',/Prospects Sports Academy/);
@@ -117,8 +119,9 @@ test('public navigation, sport links and purchase availability agree with the li
   assert.equal(document.querySelector('nav[aria-label="Primary"] a[href="/games"]')?.getAttribute('aria-current'),'page');
   const games=document.querySelector('#main');
   assert.equal(games?.querySelector('h1')?.textContent?.replace(/\s+/g,' ').trim(),'Games');
-  assert.match(games?.textContent??'',/Games is coming soon\. Live scores, schedules and replays will live here\./);
-  assert.doesNotMatch(games?.textContent??'',/Steve|Prospects Live|chatgpt|not embedded|Not launched/);
+  assert.match(games?.textContent??'',/Watch.*Schedule.*Scores.*Replays.*Teams/);
+  assert.match(games?.textContent??'',/Nothing published here yet/);
+  assert.match(games?.textContent??'',/Coach Steve's Prospects Live concept/);
   assert.equal(games?.querySelector('iframe'),null);
   assert.equal(games?.querySelector('a[href*="chatgpt.site"]'),null);
   assert.equal([...games.querySelectorAll('a')].every(a=>!String(a.getAttribute('href')).startsWith('http')),true);
