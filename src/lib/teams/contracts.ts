@@ -38,7 +38,7 @@ const club=z.object({
  uniforms:z.array(z.object({id,name:short,sport:z.enum(['baseball','softball']),price:money,items:strings,colourways:strings,sizeFields:strings}).strict()).max(100),
  leads:z.array(z.object({id,name:short,age:short,stage:z.enum(['lead','registered','evaluated','offer','accepted','waitlist']),grades:numbers,teamId:id}).strict()).max(5000),
  alumni:z.array(z.object({id,name:short,kind:z.enum(['college','draft','pro']),detail:text}).strict()).max(2000),
- notifications:z.array(z.object({id,ts:short,teamId:id,kind:short,title:short,body:text,audience:z.enum(['admin','coach','family','all'])}).strict()).max(5000),
+ notifications:z.array(z.object({id,ts:short,teamId:id,kind:short,title:short,body:text,audience:z.enum(['admin','coach','family','all']),recipientFamilyId:id.optional()}).strict()).max(5000),
  audit:z.array(z.object({at:short,action:short,detail:text}).strict()).max(5000),onboarding:z.object({started:z.boolean()}).strict(),_rev:count,_savedAt:short,_demo:z.boolean(),
 }).strict();
 export function parseClubSave(input:{club:ClubRecord;baseRev:number}) {
