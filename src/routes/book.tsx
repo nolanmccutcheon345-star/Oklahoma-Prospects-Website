@@ -41,7 +41,7 @@ function BookPage() {
         copy="Reserve cage time, book a lesson, or find a monthly training plan."
         actions={
           <nav aria-label="Booking options" className="grid w-full gap-3 sm:grid-cols-3">
-            <Button asChild className="h-auto min-h-12 whitespace-normal text-center"><a href="#cage-booking">Book a Cage</a></Button>
+            <Button asChild variant="maroon" className="h-auto min-h-12 whitespace-normal text-center"><a href="#cage-booking" aria-current="location">Book a Cage <span className="ml-2" aria-hidden="true">✓ Current</span></a></Button>
             <Button asChild className="h-auto min-h-12 whitespace-normal text-center"><Link to="/training" hash="lessons">Book a Lesson</Link></Button>
             <Button asChild className="h-auto min-h-12 whitespace-normal text-center"><Link to="/training" hash="memberships">Monthly Training Plans</Link></Button>
           </nav>
@@ -157,7 +157,7 @@ function BookingFunnel({ initial }: { initial?: string }) {
             <label
               key={value}
               className={cn(
-                "flex min-h-16 cursor-pointer items-center rounded-xl px-4 py-3 shadow-border",
+                "flex min-h-16 cursor-pointer items-center gap-3 rounded-xl px-4 py-3 shadow-border has-[:focus-visible]:outline-3 has-[:focus-visible]:outline-offset-4 has-[:focus-visible]:outline-ink",
                 on ? "bg-maroon text-fg-inverse" : "bg-paper-2",
               )}
             >
@@ -175,6 +175,7 @@ function BookingFunnel({ initial }: { initial?: string }) {
               <span>
                 <span className="block font-display text-xl uppercase">{label}</span>
                 <span className={cn("text-sm", on ? "text-fg-inverse/80" : "text-muted")}>{price}</span>
+                {on ? <span className="block text-sm font-semibold" aria-hidden="true">✓ Selected</span> : null}
               </span>
             </label>
           );
@@ -202,7 +203,7 @@ function BookingFunnel({ initial }: { initial?: string }) {
             <label
               key={item.id}
               className={cn(
-                "flex min-h-16 cursor-pointer items-center justify-between rounded-xl px-4 shadow-border",
+                "flex min-h-16 cursor-pointer items-center justify-between gap-3 rounded-xl px-4 shadow-border has-[:focus-visible]:outline-3 has-[:focus-visible]:outline-offset-4 has-[:focus-visible]:outline-ink",
                 on ? "bg-maroon text-fg-inverse" : "bg-paper-2 text-ink",
               )}
             >
@@ -219,6 +220,7 @@ function BookingFunnel({ initial }: { initial?: string }) {
                   {item.size}
                   {item.group === "field" ? " · fielding area" : ""}
                 </span>
+                {on ? <span className="block text-sm font-semibold" aria-hidden="true">✓ Selected</span> : null}
               </span>
               <span className="font-display text-3xl font-extrabold">${hourly}</span>
             </label>
