@@ -6,6 +6,7 @@ import { commerceIdentity as clubIdentity } from "./access.server";
 import { readWorkingFile } from "../pd/desk-impl.server";
 import { validateWindow, slotsFor } from "../scheduling";
 import { ASSESSMENT_PRODUCTS } from "../pricing";
+import { verifiedAssessmentOnFile } from "./assessment-gate.server";
 import { BOOKABLE_LANES } from "../club";
 import { coachAvailable } from "./availability";
 import { expireHolds, createPaidBooking } from "./store.server";
@@ -50,9 +51,7 @@ async function context(userId: string, input: Input) {
     quantity = minutes;
     resources = [`lane:${input.laneId}`];
   } else {
-    const [assessment] =
-      await sql`select id from athlete_assessments where athlete_id=${grant.athlete_id} limit 1`;
-    if (!assessment)
+    if (!(await verifiedAssessmentOnFile(sql, grant.athlete_id)))
       throw new Error("Complete your assessment with your coach before booking ordinary lessons.");
     if (grant.product_id === "m4")
       throw new Error(

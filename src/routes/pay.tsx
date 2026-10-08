@@ -430,8 +430,9 @@ function PayPage() {
           {locked ? (
             <div className="rounded-xl border border-maroon p-4" role="status">
               <p>
-                Ordinary lessons and packages unlock after your coach records your assessment as
-                completed. Booking or paying for an assessment does not complete it.
+                Ordinary lessons, packages, and memberships unlock after your coach records a
+                completed New Player Assessment for the selected athlete. Booking or paying for an
+                assessment does not complete it. Switching athletes checks that athlete again.
               </p>
               <Button className="mt-3" asChild>
                 <Link to="/training">Choose an assessment</Link>

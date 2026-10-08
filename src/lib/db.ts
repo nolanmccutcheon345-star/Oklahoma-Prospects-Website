@@ -198,11 +198,17 @@ async function createSql(): Promise<Sql> {
  * both backends — define tables there, never inline in server functions.
  */
 export async function getSql(): Promise<Sql> {
-  sqlPromise ??= createSql().catch((err) => {
-    sqlPromise = null; // don't memoize failures — let the next call retry
-    throw err;
-  });
-  const raw = await sqlPromise;
+  // Tests inject a disposable database on globalThis before calling server helpers.
+  // Production sets this only while creating the Neon pool; snapshot it first so that
+  // assignment cannot replace a caller that already chose the embedded database.
+  const injected = globalRef.__pgSqlPromise__;
+  if (!injected) {
+    sqlPromise ??= createSql().catch((err) => {
+      sqlPromise = null; // don't memoize failures — let the next call retry
+      throw err;
+    });
+  }
+  const raw = await (injected ?? sqlPromise!);
   const { currentAuditActor } = await import('./audit-context.server');
   const actor = currentAuditActor();
   if (!actor) return raw;
