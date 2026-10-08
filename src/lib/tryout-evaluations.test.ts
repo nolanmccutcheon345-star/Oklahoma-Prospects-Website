@@ -139,6 +139,8 @@ test("persistent evaluations enforce staff/team access, author attribution, retr
       baseRevision: 0,
       registrationId: "reg-baseball",
       teamId: "baseball",
+      ageGroup: "13U",
+      sport: "baseball",
       playerName: "Tampered name",
       evaluationDate: "2026-10-07",
       status: "draft",
@@ -243,6 +245,67 @@ test("persistent evaluations enforce staff/team access, author attribution, retr
     assert.equal((await evaluationWorkspaceFor(sql, "owner")).evaluations.length, 3);
     await sql`update "user" set "disabledAt"=now() where id='assistant'`;
     await assert.rejects(() => evaluationWorkspaceFor(sql, "assistant"), /Unauthorized/);
+    // A team record is optional for general tryouts. Access remains staff-only,
+    // and each coach sees only their own general evaluations.
+    await sql`delete from club_state where id='oklahoma-prospects'`;
+    const general: EvaluationInput = {
+      ...input,
+      id: randomUUID(),
+      registrationId: null,
+      teamId: "",
+      ageGroup: "7 u",
+      sport: "baseball",
+      playerName: "General Fixture",
+      status: "submitted",
+      recommendation: "callback",
+    };
+    await assert.rejects(
+      () => saveEvaluationFor(sql, "coach", { ...general, ageGroup: "" }),
+      /age group/,
+    );
+    const noTeam = await saveEvaluationFor(sql, "coach", general);
+    assert.equal(noTeam.ageGroup, "7U");
+    assert.equal(noTeam.teamId, "");
+    assert.equal((await saveEvaluationFor(sql, "coach", general)).revision, 1);
+    assert.deepEqual(
+      (await evaluationWorkspaceFor(sql, "coach")).evaluations.map((r) => r.id),
+      [noTeam.id],
+    );
+    assert.equal((await evaluationWorkspaceFor(sql, "other")).evaluations.length, 0);
+    assert.equal((await evaluationWorkspaceFor(sql, "owner")).evaluations.length, 4);
+    await assert.rejects(
+      () => saveEvaluationFor(sql, "other", { ...general, baseRevision: 1 }),
+      /original evaluator/,
+    );
+    await assert.rejects(() => saveEvaluationFor(sql, "parent", general), /access/);
+    await assert.rejects(
+      () =>
+        saveEvaluationFor(sql, "coach", {
+          ...general,
+          id: randomUUID(),
+          registrationId: "reg-softball",
+        }),
+      /assigned teams/,
+    );
+    const registered = await saveEvaluationFor(sql, "owner", {
+      ...general,
+      id: randomUUID(),
+      registrationId: "reg-softball",
+      ageGroup: "forged",
+      sport: "baseball",
+    });
+    assert.equal(registered.ageGroup, "13U");
+    assert.equal(registered.sport, "softball");
+    assert.equal(registered.playerName, "reg-softball");
+    const revised = await saveEvaluationFor(sql, "coach", {
+      ...general,
+      baseRevision: 1,
+      ageGroup: "8U",
+    });
+    assert.equal(revised.ageGroup, "8U");
+    assert.equal(revised.revision, 2);
+    await sql`update club_staff set active=false where id='coach'`;
+    await assert.rejects(() => evaluationWorkspaceFor(sql, "coach"), /active staff/);
   } finally {
     await db.close();
   }

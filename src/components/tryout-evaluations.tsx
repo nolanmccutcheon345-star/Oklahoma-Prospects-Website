@@ -35,6 +35,8 @@ function editInput(row: SavedEvaluation): EvaluationInput {
     baseRevision: row.revision,
     registrationId: row.registrationId,
     teamId: row.teamId,
+    ageGroup: row.ageGroup,
+    sport: row.sport,
     playerName: row.playerName,
     evaluationDate: row.evaluationDate,
     status: row.status,
@@ -54,6 +56,7 @@ export function TryoutEvaluations() {
   const [dirty, setDirty] = useState(false);
   const [search, setSearch] = useState(""),
     [teamFilter, setTeamFilter] = useState(""),
+    [ageFilter, setAgeFilter] = useState(""),
     [sportFilter, setSportFilter] = useState(""),
     [dateFilter, setDateFilter] = useState(""),
     [coachFilter, setCoachFilter] = useState(""),
@@ -119,6 +122,8 @@ export function TryoutEvaluations() {
       id: crypto.randomUUID(),
       baseRevision: 0,
       registrationId: null,
+      ageGroup: "",
+      sport: "baseball",
       teamId: workspace?.teams.some((t) => t.id === teamFilter)
         ? teamFilter
         : workspace?.teams[0]?.id || "",
@@ -135,6 +140,10 @@ export function TryoutEvaluations() {
   }
   async function save(status: "draft" | "submitted") {
     if (!form || saving || readonly) return;
+    if (!form.teamId && !form.ageGroup.trim() && !form.registrationId) {
+      setError("Enter an age group for this general tryout.");
+      return;
+    }
     const parsed = evaluationInput.safeParse({ ...form, status });
     if (!parsed.success) {
       setError(parsed.error.issues[0]?.message || "Check the evaluation fields.");
@@ -185,7 +194,8 @@ export function TryoutEvaluations() {
   const rows = workspace.evaluations.filter(
     (r) =>
       (!search || r.playerName.toLowerCase().includes(search.toLowerCase())) &&
-      (!teamFilter || r.teamId === teamFilter) &&
+      (!teamFilter || r.teamId === (teamFilter === "__general__" ? "" : teamFilter)) &&
+      (!ageFilter || r.ageGroup === ageFilter) &&
       (!sportFilter || r.sport === sportFilter) &&
       (!dateFilter || r.evaluationDate === dateFilter) &&
       (!coachFilter || r.evaluatorId === coachFilter) &&
@@ -201,12 +211,14 @@ export function TryoutEvaluations() {
   const resultTeams = [
     ...new Map(
       [
-        ...workspace.evaluations.map((r) => ({
-          id: r.teamId,
-          name: workspace.teams.find((t) => t.id === r.teamId)?.name || "Archived team",
-          age: r.ageGroup,
-          sport: r.sport,
-        })),
+        ...workspace.evaluations
+          .filter((r) => r.teamId)
+          .map((r) => ({
+            id: r.teamId,
+            name: workspace.teams.find((t) => t.id === r.teamId)?.name || "Archived team",
+            age: r.ageGroup,
+            sport: r.sport,
+          })),
         ...workspace.teams,
       ].map((t) => [t.id, t]),
     ).values(),
@@ -227,13 +239,11 @@ export function TryoutEvaluations() {
               <h1 className="text-3xl sm:text-4xl">Tryout evaluations</h1>
               <p className="mt-2 text-sm text-muted">
                 {workspace.owner
-                  ? "Review saved evaluations across your teams."
-                  : "Evaluate players for your assigned teams."}
+                  ? "Review saved evaluations across all ages and teams."
+                  : "Record a general tryout or evaluate players for your assigned teams."}
               </p>
             </div>
-            <Button onClick={create} disabled={!workspace.teams.length}>
-              New evaluation
-            </Button>
+            <Button onClick={create}>New evaluation</Button>
           </header>
           <div className="grid grid-cols-3 gap-2" aria-label="Evaluation totals">
             {[
@@ -256,8 +266,7 @@ export function TryoutEvaluations() {
           </div>
           {!workspace.teams.length ? (
             <p className="rounded-lg border border-line p-4">
-              No active teams are assigned. A club owner can add or assign a team in Front Office
-              before an evaluation is created.
+              Use General tryout to enter a player and age group. Team assignments are optional.
             </p>
           ) : null}
           <section
@@ -274,18 +283,35 @@ export function TryoutEvaluations() {
               />
             </Field>
             <div className="grid gap-3 sm:grid-cols-2">
-              <Field label="Team / age group">
+              <Field label="Team">
                 <select
                   className={control}
                   value={teamFilter}
                   onChange={(e) => setTeamFilter(e.target.value)}
                 >
-                  <option value="">All teams and ages</option>
+                  <option value="">All teams and general tryouts</option>
+                  <option value="__general__">General tryouts</option>
                   {resultTeams.map((t) => (
                     <option key={t.id} value={t.id}>
                       {t.name} · {t.age}
                     </option>
                   ))}
+                </select>
+              </Field>
+              <Field label="Age group">
+                <select
+                  className={control}
+                  value={ageFilter}
+                  onChange={(e) => setAgeFilter(e.target.value)}
+                >
+                  <option value="">All ages</option>
+                  {[...new Set(workspace.evaluations.map((r) => r.ageGroup))]
+                    .sort((a, b) => a.localeCompare(b, undefined, { numeric: true }))
+                    .map((age) => (
+                      <option key={age} value={age}>
+                        {age}
+                      </option>
+                    ))}
                 </select>
               </Field>
               <Field label="Sport">
@@ -338,6 +364,7 @@ export function TryoutEvaluations() {
                   onClick={() => {
                     setSearch("");
                     setTeamFilter("");
+                    setAgeFilter("");
                     setSportFilter("");
                     setDateFilter("");
                     setCoachFilter("");
@@ -450,7 +477,7 @@ export function TryoutEvaluations() {
             </p>
             {readonly ? (
               <p className="mt-2 text-sm">
-                Only the original evaluator with an active team assignment can edit this record.
+                Only the original evaluator with current coach or owner access can edit this record.
               </p>
             ) : null}
           </header>
@@ -477,6 +504,13 @@ export function TryoutEvaluations() {
                       change({
                         registrationId: c?.id || null,
                         playerName: c?.name || "",
+                        ageGroup: c?.age || form.ageGroup,
+                        sport:
+                          c?.sport === "softball"
+                            ? "softball"
+                            : c?.sport === "baseball"
+                              ? "baseball"
+                              : form.sport,
                         teamId: c
                           ? c.teamIds.includes(form.teamId)
                             ? form.teamId
@@ -510,16 +544,22 @@ export function TryoutEvaluations() {
                       onChange={(e) => change({ playerName: e.target.value })}
                     />
                   </Field>
-                  <Field label="Team / age group">
+                  <Field label="Team (optional)">
                     <select
-                      required
                       disabled={form.baseRevision > 0}
                       className={control}
                       value={form.teamId}
-                      onChange={(e) => change({ teamId: e.target.value })}
+                      onChange={(e) => {
+                        const team = workspace.teams.find((t) => t.id === e.target.value);
+                        change({
+                          teamId: e.target.value,
+                          ageGroup: team?.age || form.ageGroup,
+                          sport: team?.sport || form.sport,
+                        });
+                      }}
                     >
-                      <option value="">Choose a team</option>
-                      {viewing && !teamOptions.some((t) => t.id === form.teamId) ? (
+                      <option value="">General tryout / no team</option>
+                      {viewing && form.teamId && !teamOptions.some((t) => t.id === form.teamId) ? (
                         <option value={form.teamId}>
                           Archived team · {viewing.ageGroup} · {viewing.sport}
                         </option>
@@ -531,6 +571,34 @@ export function TryoutEvaluations() {
                       ))}
                     </select>
                   </Field>
+                  {!form.teamId ? (
+                    <>
+                      <Field label="Age group">
+                        <input
+                          required
+                          maxLength={40}
+                          className={control}
+                          value={form.ageGroup}
+                          readOnly={!!form.registrationId}
+                          onChange={(e) => change({ ageGroup: e.target.value })}
+                          placeholder="Example: 8U"
+                        />
+                      </Field>
+                      <Field label="Sport">
+                        <select
+                          className={control}
+                          value={form.sport}
+                          disabled={!!form.registrationId}
+                          onChange={(e) =>
+                            change({ sport: e.target.value as EvaluationInput["sport"] })
+                          }
+                        >
+                          <option value="baseball">Baseball</option>
+                          <option value="softball">Softball</option>
+                        </select>
+                      </Field>
+                    </>
+                  ) : null}
                   <Field label="Evaluation date">
                     <input
                       required
