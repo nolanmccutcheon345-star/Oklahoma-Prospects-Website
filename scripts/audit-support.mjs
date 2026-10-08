@@ -35,6 +35,7 @@ export async function auditHarness() {
     export * from './src/lib/registrations.server';
     export * as fundraisingPlayers from './src/lib/fundraising/players';
     export * as fundraisingDashboard from './src/lib/fundraising/dashboard';
+    export * as fundraisingRoster from './src/lib/fundraising/roster-api';
     export * as fundraising from './src/lib/fundraising/server';
     export * from './src/lib/pd/empty';
     export * from './src/lib/pd/desk-impl.server';

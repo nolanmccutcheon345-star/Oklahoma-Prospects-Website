@@ -126,17 +126,23 @@ export async function carryOneSession(
     order_id: string;
     minutes: number;
     kind: string;
+    payment_id: string | null;
   }>`
-    select id,user_id,athlete_id,order_id,minutes,kind from credit_grants where subscription_id = ${subscriptionId}
+    select id,user_id,athlete_id,order_id,minutes,kind,payment_id from credit_grants where subscription_id = ${subscriptionId}
       and kind in ('lesson','remote-review','film-review') and rollover = false and remaining > 0 and expires_at = ${start.toISOString()}
     order by case when kind=${kind} then 0 else 1 end,expires_at desc,id limit 1 for update`;
   if (!old) return;
   const rows =
-    await sql`insert into credit_grants (id,user_id,athlete_id,order_id,subscription_id,source_key,kind,minutes,quantity,remaining,starts_at,expires_at,rollover)
+    await sql<{id:string}>`insert into credit_grants (id,user_id,athlete_id,order_id,subscription_id,source_key,kind,minutes,quantity,remaining,starts_at,expires_at,rollover,payment_id)
     values (${randomUUID()},${old.user_id},${old.athlete_id},${old.order_id},${subscriptionId},${`roll:${subscriptionId}:${kind}:${start.toISOString()}`},
-      ${old.kind},${old.minutes},1,1,${start.toISOString()},${end.toISOString()},true) on conflict (source_key) do nothing returning id`;
-  if (rows.length)
+      ${old.kind},${old.minutes},1,1,${start.toISOString()},${end.toISOString()},true,${old.payment_id}) on conflict (source_key) do nothing returning id`;
+  if (rows.length) {
+    // Retain the original funding denominator; a one-credit rollover is not
+    // worth an entire month's payment. Do not infer provenance for old rows.
+    await sql`insert into commerce_policy(id,value,updated_by)
+      values(${"credit-funding:" + rows[0].id},${JSON.stringify({sourceGrantId:old.id})}::jsonb,${old.user_id || "system"}) on conflict(id) do nothing`;
     await sql`update credit_grants set remaining = remaining - 1 where id = ${old.id}`;
+  }
 }
 
 /** Durable compensating refunds; the worker calls Square with each saved refund key. */

@@ -20,8 +20,12 @@ export function withinBookingHorizon(date: string, days: number, now = new Date(
     (Date.parse(date + "T12:00:00Z") - Date.parse(chicagoDate(now) + "T12:00:00Z")) / 86400000;
   return Number.isInteger(diff) && diff >= 0 && diff <= days;
 }
-export async function checkCageBookingWindow(householdIds: string[], date: string) {
-  const sql = await getSql();
+export async function checkCageBookingWindow(
+  householdIds: string[],
+  date: string,
+  transaction?: Sql,
+) {
+  const sql = transaction || (await getSql());
   const [policy] = await sql<{
     value: { standardDays: number };
   }>`select value from commerce_policy where id='cage-booking-window'`;

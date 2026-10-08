@@ -209,6 +209,42 @@ Netlify deployment dashboard in this continuation browser is signed out. Publish
 
 PR #31 https://github.com/nolanmccutcheon345-star/Oklahoma-Prospects-Website/pull/31 implements GB-07 / R2: exact $149 totals for s1 and s9. Head `1b7e0297f0e638731bd6b43075ea2710c95f1c9d`; tree `17f87420692c683bd29ed77bdaecc04c7fd81596`; base ec06d23. Six files: pricing.ts; processing-price, commerce audit and Square regression expectations; pricing documentation; implementation note. 26 focused tests, typecheck, changed-file lint, deploy-preview build and built SSR/security passed locally. GitHub CI/hosted acceptance pending. No production changes. Historical migration test expecting saved s9=155 remains unchanged deliberately; current public/server catalog normalizes saved defaults through currentCatalogPrice. Youth/setup/remote implementation remains open. Retain #30's independent formatter when resolving the pricing.ts overlap.
 
+## Final membership lesson refund clarification — October 6
+
+For a qualifying 24-to-under-48-hour parent cancellation, refund 50% of that individual lesson's prepaid membership value to the original card that funded it. Divide the actual membership period's base payment by its included lesson count; never refund half the full membership, include the separate setup charge, use a current catalog price, or refund an initial payment for a lesson funded by a renewal. The used lesson credit is not also restored. The existing shared household monthly allowance still applies.
+
+## Cancellation continuation status — October 5 CT
+
+PR #33 now includes staff/private-session cancellation and admin facility-closure actions, household full individual-session refund/free reschedule choices, and parent free rescheduling at 48+ hours using the shared monthly allowance. Occupancy reassignment is atomic; refunds/reschedules are mutually exclusive and idempotent. Full membership session refunds are limited to that individual session's funded value, without refunding the whole membership or restoring the same credit. Late reschedule fee collection, the separate team-credit policy and hosted role/payment acceptance remain outstanding. No real payments, refunds or family messages were performed. Existing PRs #26/#27/#30 are preserved. See HOUSEHOLD-CANCELLATION-IMPLEMENTATION.md for claims and acceptance limits.
+
+
+### Funding and team-ledger continuation — October 6
+
+PR #33 records original payment/source grant provenance for newly issued rollover credits so the individual lesson refund uses the original membership lesson count. Standalone coach/facility full refunds include separately paid setup amounts, returned to each original payment/card with idempotent pending/completed tracking. Historical funding is not invented.
+
+N3 remains assigned but not complete: the current TeamsProvider cage board uses demo/client state without authoritative reservation IDs; production ClubRecord does not persist this booking ledger. Real team account/credit/booking integration is required before the coach monthly forfeiture rule can be enforced. Preserve this finding for A1/A2 rather than treating a visual demo counter as a fix. Late reschedule fees, historical/split funding and hosted financial/role acceptance remain open. See HOUSEHOLD-CANCELLATION-IMPLEMENTATION.md.
+
+
+### Parent refunds across original payments — October 6
+
+PR #33 now supports automatic parent cancellation refunds across separately funded standalone lesson/cage and setup payments, applying the full/half session policy and original-card allocation with one household allowance use. Membership cancellations remain based on the individual prepaid lesson value, excluding setup. Atomic validation prevents changes when original funds are missing/ambiguous/insufficient; partial provider completion is retryable without issuing another completed refund. The remaining fees/team-ledger/historical funding/hosted verification tasks stay assigned and open. See HOUSEHOLD-CANCELLATION-IMPLEMENTATION.md.
+
+
+### Late reschedule quote status — October 6
+
+PR #33 adds read-only server-verified 24–48-hour fee quotes in the Family reschedule UI. Fees use the individual prepaid session value and exclude setup; free club/facility changes remain exempt from the household allowance. The quote cannot authorize payment or mutate a booking. Paid reschedule fulfillment/fee collection remains open. Under-24-hour no-refund cancellation wording is preserved without inferring a new 100% reschedule fee. Prior head 957d116 passed GitHub full tests/type/lint; the existing dependency-audit gate failed and downstream CI build steps were skipped.
+
+
+### Paid reschedule continuation — October 6 (latest status)
+
+PR #33 now connects the Family reschedule screen to dedicated 24–48-hour fee checkout. The 50% fee is based on that individual session's original funded value, excluding setup; membership lesson counts and discounts are retained. Verified Square confirmation moves the original session and consumes one household allowance atomically. It does not create another booking or credit. Expired/changed/conflicting paid moves preserve the original session and queue an idempotent original-card fee refund. Unknown/pending payment attempts cannot start a duplicate fee for that booking. Free changes and coach/facility exemptions remain intact.
+
+This supersedes the earlier quote-only limitation, but is source/local implementation rather than hosted provider acceptance or production release. Exact preview isolation and authenticated card/refund/reconciliation acceptance remain pending, as do N3's authoritative team ledger and ambiguous historical funding. No real charges/refunds/messages or production migrations/settings were made. Existing Grok/Cursor PRs remain preserved. The under-24-hour no-refund rule does not imply approval of a new 100% reschedule fee. See HOUSEHOLD-CANCELLATION-IMPLEMENTATION.md and PR #33 for current claims, tests and remaining gates.
+
+
+### Reschedule payment recovery — October 6
+
+PR #33 now recovers the existing unfinished fee checkout after a page refresh. Unknown/pending attempts and expired/review payments offer status checking rather than a fresh card charge. A valid unsubmitted checkout reuses its existing order. Recovery is read-only, creator/household-scoped and denied to player logins; payment remains subject to the current provider environment/scope. This closes the reload gap without changing owner cancellation rules or creating another lesson. Hosted provider/browser acceptance is still pending; existing bot branches remain untouched. Prior ac0da3d passed GitHub tests/type/lint and failed the existing dependency-audit gate (run 37455922642); do not claim all checks green or production deployment.
 ## October 7 continuation index
 
 The snapshot and October 5 validation statements above are historical. See [CONTINUATION-RECEIPT-2026-10-07.md](CONTINUATION-RECEIPT-2026-10-07.md) for subsequent release and pending-work traceability. Latest owner decisions retain authority over older audit recommendations.

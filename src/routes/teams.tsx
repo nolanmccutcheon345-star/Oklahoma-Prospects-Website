@@ -1,5 +1,6 @@
-import { pageHead } from "@/lib/seo";
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { PublicTeamRoster } from "@/components/public-team-roster";
+import {pageHead} from "@/lib/seo";
+import { createFileRoute, Link, Outlet, useRouterState } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { ContinueIn } from "@/components/continue-in";
 import { PageHero } from "@/components/page-hero";
@@ -28,6 +29,10 @@ function deskFor(role: ClubRole | null) {
 }
 
 function TeamsPage() {
+  const pathname=useRouterState({select:s=>s.location.pathname});
+  return pathname !== "/teams" && pathname !== "/teams/" ? <Outlet/> : <TeamsOverview/>;
+}
+function TeamsOverview() {
   const { user, isPending } = useCurrentUserState();
   const [profileRole, setProfileRole] = useState<ClubRole | null>(null);
   const [ready, setReady] = useState(!user);
@@ -92,7 +97,8 @@ function TeamsPage() {
         </Button>
       </nav>
       <TeamsPublic />
-    </main>
+    <PublicTeamRoster/>
+      </main>
   );
 }
 
