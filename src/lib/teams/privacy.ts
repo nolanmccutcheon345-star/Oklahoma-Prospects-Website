@@ -43,10 +43,20 @@ export function scopeClub(
     _rev: club._rev, _savedAt: club._savedAt, _demo: club._demo,
     settings: {
       ...club.settings,
+      // Cost models, salary bands, margins, fees and pricing levers belong
+      // to owners. Non-admin views use signed player fees and published
+      // public catalog data instead of the organization-wide cost model.
+      contingencyPct: 0,
       membershipMonthly: 0,
       facilityMonthly: 0,
+      fundingPlayers: 0,
+      cardFeePct: 0,
       orgFeeFloor: 0,
       orgFeeCeiling: 0,
+      coachPayMin: 0,
+      coachPayMax: 0,
+      cageHourly: 0,
+      roundTo: 0,
     },
   };
 
