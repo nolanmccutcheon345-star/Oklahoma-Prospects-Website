@@ -81,6 +81,7 @@ function CoachPage() {
         <Button asChild className="mt-6">
           <Link to="/account">Open lessons</Link>
         </Button>
+        <Button asChild variant="outlineDark" className="mt-6 ml-3"><Link to="/evaluations">Tryout evaluations</Link></Button>
       </main>
     );
   }
@@ -92,11 +93,13 @@ function CoachPage() {
       demo={club._demo}
       nav={[
         { to: "/coach", label: "Coach" },
+        { to: "/evaluations", label: "Evaluations" },
         { to: "/family", label: "Family" },
         ...(state.role === "admin" ? [{ to: "/office", label: "Office" }] : []),
         { to: "/account", label: "Lessons" },
       ]}
     >
+      <section className="mb-5 rounded-xl border border-line bg-white p-4"><h2 className="text-2xl">Tryout evaluations</h2><p className="mt-2 text-sm text-muted">Score registered players or walk-ins and save results for Front Office.</p><Button asChild className="mt-3"><Link to="/evaluations">Open evaluations</Link></Button></section>
       <CoachApp
         club={club}
         onChange={setClub}
