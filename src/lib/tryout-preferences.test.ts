@@ -36,7 +36,14 @@ test("unpublished or closed teams do not produce public preferences", () => {
  assert.deepEqual(listedTryoutTeams([{...base,closed:true}],publisher),[]);
  assert.deepEqual(listedTryoutTeams([base],[]),[]);
  assert.deepEqual(listedTryoutTeams([{...base,coachEmail:"none@example.invalid",staff:[]}],publisher),[]);
- assert.deepEqual(listedTryoutTeams([{...base,sport:"baseball"}],publisher),[]);
+ const baseball = listedTryoutTeams([{...base,sport:"baseball"}],publisher);
+ // The assigned assistant has an explicitly published Baseball identity; sport
+ // switching may expose *that* coach, but never either Softball-only coach.
+ assert.deepEqual(baseball,[{
+  id:"team-12",name:"12U Navy",age:"12U",sport:"Baseball",
+  coaches:[{id:"wrong-sport",name:"Other sport"}],
+ }]);
+ assert.deepEqual(listedTryoutTeams([{...base,sport:"baseball"}],publisher.filter(p=>p.program!=="Baseball")),[]);
 });
 test("server rejects forged, wrong-age, mismatched or inactive team/coach preference", () => {
  const listed=teams();
