@@ -227,7 +227,7 @@ export function mergeScopedFile(
     const ids = new Set(previous.map(row => row.id));
     const additions = (incoming[key] ?? []).filter(row => !ids.has(row.id) && canCoachAthlete(scope, row.athleteId))
       .map(row => ({ ...row, createdAt: new Date().toISOString(), createdBy: scope.viewerEmail ?? "" }));
-    if (new Set(additions.map(row => row.id)).size !== additions.length) throw new Error("Prescription version identifiers must be unique.");
+    if (additions.some(row => typeof row.id !== "string" || !row.id.trim() || row.id.length > 150) || new Set(additions.map(row => row.id)).size !== additions.length) throw new Error("Prescription version identifiers must be nonempty, bounded, and unique.");
     if (key === "strengthAssignments") {
       for (const raw of additions) {
         const row = raw as DevelopmentData["strengthAssignments"][number];
