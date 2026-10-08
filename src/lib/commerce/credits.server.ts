@@ -2,7 +2,7 @@ import { requireCoachService } from "./coach-services.server";
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
 import { getSql } from "../db";
-import { clubIdentity } from "../identity.server";
+import { commerceIdentity as clubIdentity } from "./access.server";
 import { readWorkingFile } from "../pd/desk-impl.server";
 import { validateWindow, slotsFor } from "../scheduling";
 import { ASSESSMENT_PRODUCTS } from "../pricing";

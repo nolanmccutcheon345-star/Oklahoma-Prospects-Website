@@ -1,5 +1,16 @@
+import type { Product } from "./contracts";
 import type { Sql } from "../db";
-import type { Coach } from "../pd/types";
+import type { Availability, Coach } from "../pd/types";
+import { coachHasBookingWindow } from "./availability";
+import {newCoachId} from "../coach-id.server";
+
+/** Picker eligibility combines admin service assignments with usable recurring availability. */
+export async function coachesWithAvailability(sql: Sql, roster: Coach[], availability: Availability[], services: Pick<Product, "id" | "minutes" | "discipline">[]) {
+  return (await bookableCoaches(sql, roster)).flatMap(coach => {
+    const offered = services.filter(service => coach.serviceIds.includes(service.id) && coachHasBookingWindow(availability, coach.id, service.minutes));
+    return offered.length ? [{...coach, serviceIds: offered.map(service => service.id), specialties: [...new Set(offered.map(service => service.discipline))]}] : [];
+  });
+}
 
 /** Public booking choices come from admin assignments, never editable coach bios. */
 export async function bookableCoaches(sql: Sql, roster: Coach[]) {
@@ -24,7 +35,7 @@ export async function bookableCoaches(sql: Sql, roster: Coach[]) {
     const email = row.email.trim().toLowerCase();
     const coach = roster.find((c) => c.email.trim().toLowerCase() === email);
     // Same identifier as first-sign-in provisioning; existing schedule IDs stay intact.
-    const id = coach?.id || `c-${email.replace(/[^a-z0-9]/g, "").slice(0, 18) || "staff"}`;
+    const id = coach?.id || newCoachId(email);
     if (coach?.active === false || seen.has(id)) return [];
     seen.add(id);
     return [{ id, name: row.name, serviceIds: row.service_ids, specialties: row.specialties }];

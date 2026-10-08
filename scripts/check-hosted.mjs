@@ -40,6 +40,14 @@ for (const [path, expected] of pages) {
   const scripts = [...html.matchAll(/<script\b([^>]*)>/g)];
   assert.ok(scripts.length, `${path}: application scripts present`);
   for (const [, attributes] of scripts) {
+    // Netlify injects this external, same-origin preview helper after SSR.
+    // CSP script-src 'self' permits it without a nonce. Keep the nonce
+    // requirement for every application script and any other injection.
+    if (/^\s*async\s+src="\/\.netlify\/scripts\/cdp"\s*$/.test(attributes)) {
+      assert.match(policy, /script-src[^;]*'self'/,
+        `${path}: Netlify preview helper requires same-origin script permission`);
+      continue;
+    }
     assert.ok(attributes.includes(`nonce="${nonce}"`), `${path}: matching script nonce`);
   }
   console.log(`PASS ${expected} ${path}: HTML, security headers, fresh script nonce, private cache`);
