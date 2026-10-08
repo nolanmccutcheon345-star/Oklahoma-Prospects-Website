@@ -4,6 +4,7 @@ import { CLUB } from "@/lib/club";
 import { pageHead } from "@/lib/seo";
 import { getPublicGames, getAdminGames, saveGame } from "@/lib/games-api";
 import { videoEmbedUrl, type GameEventInput, type PublicGameEvent } from "@/lib/games-contracts";
+import { gamesCalendarEvent } from "@/lib/games-calendar";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
 import { cn } from "@/lib/utils";
 import { createFileRoute, Link } from "@tanstack/react-router";
@@ -54,6 +55,9 @@ function GameCard({game}:{game:PublicGameEvent}){
       <Link to="/games" search={{view:game.videoId?"watch":"schedule",game:game.id}}>Game details</Link>
     </Button>
     {game.videoId ? <Button asChild size="sm" variant="maroon"><Link to="/games" search={{view:"watch",game:game.id}}>{game.videoKind==="live"?"Watch stream":"Watch video"}</Link></Button> : null}
+    <a className="inline-flex min-h-11 items-center rounded-lg border border-line px-3 text-sm font-semibold underline"
+      href={"data:text/calendar;charset=utf-8,"+encodeURIComponent(gamesCalendarEvent(game))}
+      download={"prospects-game-"+game.id+".ics"}>Add to calendar</a>
   </div>
  </article>;
 }
