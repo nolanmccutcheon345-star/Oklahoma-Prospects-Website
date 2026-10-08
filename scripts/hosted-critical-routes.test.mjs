@@ -16,10 +16,13 @@ test("Games stays on the main site and is not a redirect to the separate legacy 
   const nav = readFileSync("src/components/app-shell.tsx", "utf8");
   assert.match(page, /createFileRoute\("\/games"\)/);
   assert.match(page, /PageHero/);
-  assert.doesNotMatch(page, /chatgpt\\.site|location\\.href|window\\.open|throw redirect/);
-  assert.match(page, /videoEmbedUrl\\(game.videoId\\)/);
-  assert.match(page, /onClick=\\{\\(\\)=>setStart\\(true\\)\\}/);
+  assert.equal(page.includes("chatgpt.site"),false);
+  assert.equal(page.includes("location.href"),false);
+  assert.equal(page.includes("window.open"),false);
+  assert.equal(page.includes("throw redirect"),false);
+  assert.ok(page.includes("videoEmbedUrl(game.videoId)"));
+  assert.ok(page.includes("onClick={()=>setStart(true)}"));
   const contracts = readFileSync("src/lib/games-contracts.ts", "utf8");
-  assert.match(contracts, /youtube-nocookie\\.com\\/embed/);
+  assert.ok(contracts.includes("youtube-nocookie.com/embed"));
   assert.match(nav, /to: "\/games"/);
 });
