@@ -233,6 +233,12 @@ export async function signOut(redirectTo = "/"): Promise<void> {
     },
     clearToken: () => setBearerToken(null),
     redirect: () => {
+      try {
+        for (const key of Object.keys(window.sessionStorage)) {
+          if (key.startsWith("op.pd.draft.")) window.sessionStorage.removeItem(key);
+        }
+        window.localStorage.removeItem("op.pd.education.v1");
+      } catch { /* storage may be unavailable */ }
       window.location.href = redirectTo;
     },
   });

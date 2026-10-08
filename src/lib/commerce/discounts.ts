@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { chicagoDate, validDate } from "../scheduling";
 import type { Quote } from "./contracts";
+import { assertBreakTheBatTerms } from "./break-the-bat";
 
 export const discountPurchaseTypes = ["cage", "assessment", "lesson", "package"] as const;
 export type DiscountPurchaseType = (typeof discountPurchaseTypes)[number];
@@ -84,6 +85,7 @@ export function discountStatus(discount: Discount, now = new Date()) {
   return "Active";
 }
 export function applyDiscount(quote: Quote, discount: Discount, now = new Date()): Quote {
+  assertBreakTheBatTerms(quote, discount.code, discount.kind, discount.value);
   if (discountStatus(discount, now) !== "Active")
     throw new Error("This discount code is inactive, expired, or not yet available.");
   if (quote.recurring || quote.setupCents > 0)

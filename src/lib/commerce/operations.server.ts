@@ -1,6 +1,7 @@
 import { getSql } from "../db";
-import { clubIdentity } from "../identity.server";
+import { commerceIdentity as clubIdentity } from "./access.server";
 import { readWorkingFile } from "../pd/desk-impl.server";
+import {assignedCoachIdFor} from "./coach-access.server";
 import { BOOKABLE_LANES } from "../club";
 
 export async function setParticipants(userId: string, id: string, athleteIds: string[]) {
@@ -45,7 +46,7 @@ export async function earnings(userId: string) {
   const me = await clubIdentity(userId);
   if (me.role !== "admin" && me.role !== "coach") throw new Error("Coach access required.");
   const file = await readWorkingFile();
-  const coach = file.coaches.find((c) => c.email.trim().toLowerCase() === me.email);
+  const coachId = assignedCoachIdFor(me,file);
   const sql = await getSql();
   const rows = await sql<{
     booking_id: string;
@@ -56,7 +57,7 @@ export async function earnings(userId: string) {
     status: string;
     transfer_id: string | null;
     updated_at: Date;
-  }>`select * from contractor_earnings where coach_id=${coach?.id || ""} or ${me.role === "admin"} order by updated_at desc limit 500`;
+  }>`select * from contractor_earnings where coach_id=${coachId} or ${me.role === "admin"} order by updated_at desc limit 500`;
   return { canSettle: me.role === "admin", rows };
 }
 
@@ -102,7 +103,7 @@ export async function officeOperations(userId: string) {
       missing_waivers: number;
     }>`select b.id,b.product_id,b.starts_at,b.ends_at,b.resources,b.status,b.checked_in_at,b.participant_count,o.email as customer_email,o.total_cents,
    string_agg(a.name,', ') as participant_names,
-   count(*) filter(where a.id is null or not exists(select 1 from club_waivers w where w.athlete_id=a.id and w.signed_at+interval '1 year'>now()))::integer as missing_waivers
+   count(*) filter(where a.id is null or not exists(select 1 from club_waivers w where w.athlete_id=a.id and w.signed_at<=now() and w.signed_at+interval '1 year'>now()))::integer as missing_waivers
    from booking_records b left join commerce_orders o on o.id=b.order_id left join booking_participants p on p.booking_id=b.id left join club_athletes a on a.id=p.athlete_id
    where b.starts_at>now()-interval '1 day' and b.starts_at<now()+interval '14 days' and b.status='confirmed' group by b.id,o.id order by b.starts_at limit 200`,
     sql<{
@@ -111,6 +112,11 @@ export async function officeOperations(userId: string) {
       lane_ids: string[] | null;
     }>`select s.id as service_id,s.name,r.lane_ids from club_services s left join service_resources r on r.service_id=s.id where s.kind='lesson' and s.active and s.id not in ('s5','s6') order by s.sort_order`,
     sql<{
+      claimed_athletes: number;
+      guest_athletes: number;
+      development_athletes: number;
+      strength_versions: number;
+      saved_bullpens: number;
       legacy_reservations: number;
       legacy_assessments: number;
       confirmed_bookings: number;
@@ -118,6 +124,11 @@ export async function officeOperations(userId: string) {
       paid_cents: number;
       open_review: number;
     }>`select
+   (select count(*)::integer from club_athletes where user_id is not null) as claimed_athletes,
+   (select count(*)::integer from club_athletes where user_id is null) as guest_athletes,
+   coalesce((select jsonb_array_length(payload::jsonb->'athletes') from pd_working_file where id='club'),0) as development_athletes,
+   coalesce((select jsonb_array_length(payload::jsonb->'strengthAssignments') from pd_working_file where id='club'),0) as strength_versions,
+   coalesce((select jsonb_array_length(payload::jsonb->'bullpens') from pd_working_file where id='club'),0) as saved_bullpens,
    (select count(*)::integer from reservations) as legacy_reservations,
    (select count(*)::integer from profiles where assessment_complete=true) as legacy_assessments,
    (select count(*)::integer from booking_records where status in ('confirmed','completed')) as confirmed_bookings,
@@ -145,17 +156,21 @@ export async function saveServiceResources(userId: string, serviceId: string, la
   if (!laneIds.length || laneIds.some((id) => !BOOKABLE_LANES.some((l) => l.id === id)))
     throw new Error("Choose the physical space this lesson needs.");
   const sql = await getSql();
-  await sql`insert into service_resources(service_id,lane_ids) values(${serviceId},${JSON.stringify([...new Set(laneIds)])}::jsonb) on conflict(service_id) do update set lane_ids=excluded.lane_ids`;
-  return { ok: true };
+  return sql.transaction(async (tx) => {
+    const [service] = await tx`select id from club_services where id=${serviceId} and kind='lesson' and active for update`;
+    if (!service) throw new Error("Choose an active lesson to assign its facility space.");
+    await tx`insert into service_resources(service_id,lane_ids) values(${serviceId},${JSON.stringify([...new Set(laneIds)])}::jsonb) on conflict(service_id) do update set lane_ids=excluded.lane_ids`;
+    return { ok: true };
+  });
 }
 
 export async function lessonResources(serviceId: string, sql: Awaited<ReturnType<typeof getSql>>) {
   const [row] = await sql<{
-    lane_ids: string[];
+    lane_ids: unknown;
   }>`select lane_ids from service_resources where service_id=${serviceId}`;
-  if (!row?.lane_ids.length)
+  if (!Array.isArray(row?.lane_ids) || !row.lane_ids.length || row.lane_ids.some((id) => typeof id !== "string" || !BOOKABLE_LANES.some((lane) => lane.id === id)))
     throw new Error(
       "This lesson is unavailable until a facility space is assigned. Choose another available service.",
     );
-  return row.lane_ids.map((id) => "lane:" + id);
+  return [...new Set(row.lane_ids as string[])].map((id) => "lane:" + id);
 }

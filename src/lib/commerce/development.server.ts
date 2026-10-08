@@ -11,7 +11,7 @@ export async function withCommerceRecords(sql: Sql, data: DevelopmentData): Prom
     sql<{athlete_id:string;remaining:number}>`select athlete_id,sum(remaining)::integer as remaining from credit_grants where kind='lesson' and expires_at>now() and starts_at<=now() group by athlete_id`,
   ]);
   const families = data.families.map(f=>({...f,athleteIds:[...f.athleteIds]}));
-  const all = [...data.athletes];
+  const all = data.athletes.map(a=>({...a,coachIds:[...a.coachIds]}));
   for (const row of athletes) {
     // Guest purchases remain private until a verified account claims them.
     if (!row.user_id) continue;

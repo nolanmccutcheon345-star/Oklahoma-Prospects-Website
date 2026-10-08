@@ -3,13 +3,16 @@ export type Player = {
   id: string;
   name: string;
   team: string;
-  number: string;
+  number?: string;
   goal: number;
   story: string;
-  approved: number;
-  active: number;
+  approved?: number;
+  active?: number;
   raised: number;
   sponsors: number;
+  team_id?: string;
+  roster_player_id?: string;
+  publication_allowed?: boolean;
   shares?: number;
   parent_email?: string;
   created?: string;
@@ -46,3 +49,9 @@ export const examplePlayer: Player = {
   raised: 0,
   sponsors: 0,
 };
+
+export function playerDestination(p: Pick<Player, "id" | "team_id" | "roster_player_id">) {
+  return p.team_id && p.roster_player_id
+    ? `/teams/${encodeURIComponent(p.team_id)}/players/${encodeURIComponent(p.roster_player_id)}`
+    : `/fundraising/p/${encodeURIComponent(p.id)}`;
+}

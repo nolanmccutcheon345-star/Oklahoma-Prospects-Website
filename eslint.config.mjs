@@ -10,6 +10,8 @@ export default tseslint.config(
   {
     ignores: [
       "dist/**",
+      "scripts/.audit-runtime-*/**",
+      "scripts/.audit-ui-*/**",
       // Generated bundle emitted by the checkout render test; source is linted below.
       "artifacts/discount-checkout-render.mjs",
       ".output/**",

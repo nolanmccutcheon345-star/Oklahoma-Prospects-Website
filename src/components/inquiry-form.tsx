@@ -1,8 +1,7 @@
 import { useState, type FormEvent } from "react";
-import {sendInquiry} from "@/lib/portal-api";
+import { sendInquiry } from "@/lib/portal-api";
 import { Button } from "@/components/ui/button";
-import { AGE_GROUPS, TRYOUT_AGES, SOFTBALL_AGES, SOFTBALL_TRYOUT_SESSION } from "@/lib/club";
-import { BASEBALL_TRYOUT_SESSIONS } from "@/lib/tryout-registration";
+import { AGE_GROUPS, TRYOUT_REQUEST_SESSION } from "@/lib/club";
 import { cn } from "@/lib/utils";
 
 const fieldClass =
@@ -24,24 +23,47 @@ type TryoutValues = {
   notes: string;
   sport: string;
   session: string;
+  season: string;
+  autoEnroll: boolean;
 };
 
-export function ContactForm() {
+export function ContactForm({ initialSubject = "" }: { initialSubject?: string }) {
   const [values, setValues] = useState<ContactValues>({
     name: "",
     email: "",
     phone: "",
-    message: "",
+    message: initialSubject ? `I’m interested in ${initialSubject}. ` : "",
   });
 
-  const [busy,setBusy]=useState(false);const [error,setError]=useState("");const [sent,setSent]=useState(false);const [requestId]=useState(()=>crypto.randomUUID());
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const [sent, setSent] = useState(false);
+  const [requestId] = useState(() => crypto.randomUUID());
   async function onSubmit(event: FormEvent) {
-    event.preventDefault();if(busy||sent)return;setBusy(true);setError("");
-    try{await sendInquiry({data:{kind:"contact",requestId,...values}});setSent(true);}catch(e){setError(e instanceof Error?e.message:"Submission did not save. Please retry.");}finally{setBusy(false);}
+    event.preventDefault();
+    if (busy || sent) return;
+    setBusy(true);
+    setError("");
+    try {
+      await sendInquiry({ data: { kind: "contact", requestId, ...values } });
+      setSent(true);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Submission did not save. Please retry.");
+    } finally {
+      setBusy(false);
+    }
   }
 
   return (
-    <form onSubmit={onSubmit} className="grid gap-4">{error?<p role="alert" className="text-maroon">{error}</p>:null}{sent?<p role="status">Saved to the club’s front-office queue. Reference: {requestId}</p>:null}
+    <form onSubmit={onSubmit} className="grid gap-4">
+      {error ? (
+        <p role="alert" className="text-maroon">
+          {error}
+        </p>
+      ) : null}
+      {sent ? (
+        <p role="status">Saved to the club’s front-office queue. Reference: {requestId}</p>
+      ) : null}
       <label className="text-sm font-semibold">
         Name <span className="text-maroon">*</span>
         <input
@@ -86,7 +108,7 @@ export function ContactForm() {
           onChange={(e) => setValues((v) => ({ ...v, message: e.target.value }))}
         />
       </label>
-      <Button type="submit" disabled={busy||sent} variant="primary" className="w-full sm:w-auto">
+      <Button type="submit" disabled={busy || sent} variant="primary" className="w-full sm:w-auto">
         Send message
       </Button>
     </form>
@@ -102,39 +124,76 @@ export function TryoutForm({
   initialSport?: "Baseball" | "Softball";
   intent?: "register" | "inquiry";
 }) {
-  const initialAges: readonly string[] = initialSport === "Softball" ? SOFTBALL_AGES : intent === "register" ? TRYOUT_AGES : AGE_GROUPS;
   const [values, setValues] = useState<TryoutValues>({
     player: "",
-    age: initialAges.includes(initialAge)
-      ? initialAge
-      : "",
+    age: initialAge,
     parent: "",
     phone: "",
     email: "",
     notes: "",
     sport: initialSport,
-    session: initialSport === "Softball" && intent === "register" ? SOFTBALL_TRYOUT_SESSION : "",
+    season: "",
+    autoEnroll: false,
+    session: intent === "register" ? TRYOUT_REQUEST_SESSION : "",
   });
 
-  const softball = values.sport === "Softball";
-  const ages: readonly string[] = softball ? SOFTBALL_AGES : intent === "register" ? TRYOUT_AGES : AGE_GROUPS;
-
-  const [busy,setBusy]=useState(false);const [error,setError]=useState("");const [sent,setSent]=useState(false);const [requestId]=useState(()=>crypto.randomUUID());
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const [sent, setSent] = useState(false);
+  const [requestId] = useState(() => crypto.randomUUID());
   async function onSubmit(event: FormEvent) {
-    event.preventDefault();if(busy||sent)return;setBusy(true);setError("");
-    try{await sendInquiry({data:{kind:intent==="register"?"tryout":"team-inquiry",requestId,...values,sport:values.sport as "Baseball"|"Softball"}});setSent(true);}catch(e){setError(e instanceof Error?e.message:"Submission did not save. Please retry.");}finally{setBusy(false);}
+    event.preventDefault();
+    if (busy || sent) return;
+    setBusy(true);
+    setError("");
+    try {
+      await sendInquiry({
+        data: {
+          kind: intent === "register" ? "tryout" : "team-inquiry",
+          requestId,
+          ...values,
+          sport: values.sport as "Baseball" | "Softball",
+        },
+      });
+      setSent(true);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Submission did not save. Please retry.");
+    } finally {
+      setBusy(false);
+    }
   }
 
   return (
-    <form onSubmit={onSubmit} className="grid gap-4">{error?<p role="alert" className="text-maroon">{error}</p>:null}{sent?<p role="status">Saved to the club’s front-office queue. {softball && intent === "register" ? "Softball tryout dates and times are to be announced. Prospects will contact you with details. " : ""}Reference: {requestId}</p>:null}
+    <form onSubmit={onSubmit} className="grid gap-4">
+      {error ? (
+        <p role="alert" className="text-maroon">
+          {error}
+        </p>
+      ) : null}
+      {sent ? (
+        <p role="status">
+          Saved to the club’s front-office queue.{" "}
+          {intent === "register"
+            ? "Your request was saved for matching group enrollment. Group enrollment depends on eligibility and capacity; private appointments require agreement. "
+            : ""}
+          Reference: {requestId}
+        </p>
+      ) : null}
       <label className="text-sm font-semibold">
         Sport <span className="text-maroon">*</span>
-        <select required className={fieldClass} value={values.sport}
+        <select
+          required
+          className={fieldClass}
+          value={values.sport}
           onChange={(e) => {
             const sport = e.target.value;
-            const nextAges: readonly string[] = sport === "Softball" ? SOFTBALL_AGES : intent === "register" ? TRYOUT_AGES : AGE_GROUPS;
-            setValues((v) => ({ ...v, sport, age: nextAges.includes(v.age) ? v.age : "", session: sport === "Softball" && intent === "register" ? SOFTBALL_TRYOUT_SESSION : "" }));
-          }}>
+            setValues((v) => ({
+              ...v,
+              sport,
+              session: intent === "register" ? TRYOUT_REQUEST_SESSION : "",
+            }));
+          }}
+        >
           <option value="Baseball">Baseball</option>
           <option value="Softball">Softball</option>
         </select>
@@ -152,53 +211,53 @@ export function TryoutForm({
         </label>
         <label className="text-sm font-semibold">
           Age group <span className="text-maroon">*</span>
-          <select
+          <input
             required
             className={fieldClass}
             value={values.age}
-            onChange={(e) => setValues((v) => ({ ...v, age: e.target.value, session: softball && intent === "register" ? SOFTBALL_TRYOUT_SESSION : "" }))}
-          >
-            <option value="">Select age group</option>
-            {ages.map((age) => (
-              <option key={age} value={age}>
-                {age}
-              </option>
+            maxLength={120}
+            list={`tryout-ages-${intent}`}
+            placeholder="For example, 9U or 18U"
+            onChange={(e) => setValues((v) => ({ ...v, age: e.target.value }))}
+          />
+          <datalist id={`tryout-ages-${intent}`}>
+            {AGE_GROUPS.map((age) => (
+              <option key={age} value={age} />
             ))}
-          </select>
+          </datalist>
         </label>
       </div>
-      <div>
-        {intent === "register" && softball ? (
-          <p className="rounded-md border border-powder bg-paper p-4 text-sm">
-            <strong>Softball tryout dates and times to be announced.</strong> Register now for {SOFTBALL_AGES.join(", ")}. Prospects will contact you with tryout details. This does not reserve a November baseball session.
-          </p>
-        ) : intent === "register" ? (
+      {intent === "register" ? (
+        <>
           <label className="text-sm font-semibold">
-            Session <span className="text-maroon">*</span>
-            <select
+            Season <span className="text-maroon">*</span>
+            <input
               required
               className={fieldClass}
-              value={values.session}
-              onChange={(e) => {
-                const session = e.target.value;
-                const match = BASEBALL_TRYOUT_SESSIONS.find((row) => row.value === session);
-                setValues((v) => ({
-                  ...v,
-                  session,
-                  age: match?.age || v.age,
-                }));
-              }}
-            >
-              <option value="">Pick a session</option>
-              {BASEBALL_TRYOUT_SESSIONS.filter((row) => !values.age || row.age === values.age).map((row) => (
-                <option key={row.value} value={row.value}>
-                  {row.label}
-                </option>
-              ))}
-            </select>
+              maxLength={120}
+              value={values.season}
+              placeholder="For example, Spring 2027"
+              onChange={(e) => setValues((v) => ({ ...v, season: e.target.value }))}
+            />
           </label>
-        ) : null}
-      </div>
+          <label className="rounded-md border border-powder bg-paper p-4 text-sm">
+            <input
+              type="checkbox"
+              required
+              checked={values.autoEnroll}
+              onChange={(e) => setValues((v) => ({ ...v, autoEnroll: e.target.checked }))}
+              className="mr-2"
+            />
+            When a group tryout matches my player's sport, age group and season, automatically
+            enroll my player if capacity allows. One matching group appointment will be selected.
+            Private appointments require agreement with a coach.
+          </label>
+          <p className="text-sm text-muted">
+            All ages are welcome. If no matching place is available, your request stays open.
+            Private appointments require agreement with a coach.
+          </p>
+        </>
+      ) : null}
       <div className="grid gap-4 sm:grid-cols-2">
         <label className="text-sm font-semibold">
           Parent / Guardian <span className="text-maroon">*</span>
@@ -246,8 +305,8 @@ export function TryoutForm({
           onChange={(e) => setValues((v) => ({ ...v, notes: e.target.value }))}
         />
       </label>
-      <Button type="submit" disabled={busy||sent} variant="primary" className="w-full sm:w-auto">
-        Submit {intent === "register" ? "tryout registration" : "team inquiry"}
+      <Button type="submit" disabled={busy || sent} variant="primary" className="w-full sm:w-auto">
+        Submit {intent === "register" ? "tryout request" : "team inquiry"}
       </Button>
     </form>
   );

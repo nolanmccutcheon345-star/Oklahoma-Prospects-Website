@@ -1,4 +1,4 @@
-import { dollars } from "@/lib/pricing";
+import { dollars, formatDollars } from "@/lib/pricing";
 import {pageHead} from "@/lib/seo";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState, type FormEvent } from "react";
@@ -36,12 +36,19 @@ function BookPage() {
     <main id="main">
       <PageHero
         eyebrow="Oklahoma Prospects"
-        title="Pick the lanes."
-        accent="Pay. Then it’s booked."
-        copy="One cage or several at the same time — 30 minutes to 3 hours. Household rate is for 1–2 family athletes. Team rate is for groups of three or more, or three or more spaces. Choose an available time and pay online to book."
+        title="What are we booking?"
+        compact
+        copy="Reserve cage time, book a lesson, or find a monthly training plan."
+        actions={
+          <nav aria-label="Booking options" className="grid w-full gap-3 sm:grid-cols-3">
+            <Button asChild variant="maroon" className="h-auto min-h-12 whitespace-normal text-center"><a href="#cage-booking" aria-current="location">Book a Cage <span className="ml-2" aria-hidden="true">✓ Current</span></a></Button>
+            <Button asChild className="h-auto min-h-12 whitespace-normal text-center"><Link to="/training" hash="lessons">Book a Lesson</Link></Button>
+            <Button asChild className="h-auto min-h-12 whitespace-normal text-center"><Link to="/training" hash="memberships">Monthly Training Plans</Link></Button>
+          </nav>
+        }
         image="/brand/facility.jpg"
       />
-      <BookingFunnel initial={space} />
+      <div id="cage-booking" className="scroll-mt-40"><BookingFunnel initial={space} /></div>
       <section className="bg-ink py-10 text-fg-inverse">
         <div className="mx-auto max-w-3xl px-5">
           <h2 className="text-3xl">Cage passes</h2>
@@ -134,15 +141,15 @@ function BookingFunnel({ initial }: { initial?: string }) {
     <section className="mx-auto max-w-3xl px-5 py-8">
       <h2 className="text-3xl">1. Who is this hour for?</h2>
       <p className="mt-2 text-sm text-muted">
-        Household (${householdHour}/cage): 1–2 athletes from one family. Team (${teamHour}/cage):
+        Household ({formatDollars(householdHour)}/cage): 1–2 athletes from one family. Team ({formatDollars(teamHour)}/cage):
         three or more athletes, or three or more spaces. Fielding area is always the field rate.
       </p>
       <fieldset className="mt-4 grid gap-2 sm:grid-cols-2">
         <legend className="sr-only">Who is training</legend>
         {(
           [
-            ["household", "Household · 1–2 athletes", `$${householdHour} / cage / hr`],
-            ["team", "Team or group · 3+", `$${teamHour} / cage / hr`],
+            ["household", "Household · 1–2 athletes", `${formatDollars(householdHour)} / cage / hr`],
+            ["team", "Team or group · 3+", `${formatDollars(teamHour)} / cage / hr`],
           ] as const
         ).map(([value, label, price]) => {
           const on = party === value;
@@ -150,7 +157,7 @@ function BookingFunnel({ initial }: { initial?: string }) {
             <label
               key={value}
               className={cn(
-                "flex min-h-16 cursor-pointer items-center rounded-xl px-4 py-3 shadow-border",
+                "flex min-h-16 cursor-pointer items-center gap-3 rounded-xl px-4 py-3 shadow-border has-[:focus-visible]:outline-3 has-[:focus-visible]:outline-offset-4 has-[:focus-visible]:outline-ink",
                 on ? "bg-maroon text-fg-inverse" : "bg-paper-2",
               )}
             >
@@ -168,6 +175,7 @@ function BookingFunnel({ initial }: { initial?: string }) {
               <span>
                 <span className="block font-display text-xl uppercase">{label}</span>
                 <span className={cn("text-sm", on ? "text-fg-inverse/80" : "text-muted")}>{price}</span>
+                {on ? <span className="block text-sm font-semibold" aria-hidden="true">✓ Selected</span> : null}
               </span>
             </label>
           );
@@ -195,7 +203,7 @@ function BookingFunnel({ initial }: { initial?: string }) {
             <label
               key={item.id}
               className={cn(
-                "flex min-h-16 cursor-pointer items-center justify-between rounded-xl px-4 shadow-border",
+                "flex min-h-16 cursor-pointer items-center justify-between gap-3 rounded-xl px-4 shadow-border has-[:focus-visible]:outline-3 has-[:focus-visible]:outline-offset-4 has-[:focus-visible]:outline-ink",
                 on ? "bg-maroon text-fg-inverse" : "bg-paper-2 text-ink",
               )}
             >
@@ -212,8 +220,9 @@ function BookingFunnel({ initial }: { initial?: string }) {
                   {item.size}
                   {item.group === "field" ? " · fielding area" : ""}
                 </span>
+                {on ? <span className="block text-sm font-semibold" aria-hidden="true">✓ Selected</span> : null}
               </span>
-              <span className="font-display text-3xl font-extrabold">${hourly}</span>
+              <span className="font-display text-3xl font-extrabold">{formatDollars(hourly)}</span>
             </label>
           );
         })}
@@ -294,13 +303,13 @@ function BookingFunnel({ initial }: { initial?: string }) {
             {quote.lines.map((line) => (
               <li key={line.label} className="flex justify-between gap-3">
                 <span>{line.label}</span>
-                <span className="tabular-nums text-ink">${line.amount}</span>
+                <span className="tabular-nums text-ink">{formatDollars(line.amount)}</span>
               </li>
             ))}
           </ul>
         ) : null}
         <p className="font-display text-4xl" data-cage-total={total}>
-          ${total}
+          {formatDollars(total)}
         </p>
         {use === "household" ? (
           <label className="flex min-h-11 items-start gap-3 text-sm">
@@ -334,7 +343,7 @@ function BookingFunnel({ initial }: { initial?: string }) {
             ? "Select a cage to continue"
             : slots.length === 0
               ? "Pick an open date"
-              : `Review ${lanes.length > 1 ? `${lanes.length} cages` : "this cage"} · $${total}`}
+              : `Review ${lanes.length > 1 ? `${lanes.length} cages` : "this cage"} · ${formatDollars(total)}`}
         </Button>
         <p className="text-center text-xs text-muted">
           Next screen confirms the price and payment availability. Payment must succeed before your booking is confirmed. Choosing a time here does not save a booking. {CANCEL_POLICY.short}.

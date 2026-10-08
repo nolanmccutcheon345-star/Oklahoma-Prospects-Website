@@ -385,10 +385,30 @@ export type StrengthSet = {
   athleteId: string;
   date: string;
   exerciseId: string;
+  assignmentId?: string;
   setNumber: number;
   weight: number;
   reps: number;
   rpe: number;
+};
+
+export type StrengthAssignment = {
+  id: string;
+  athleteId: string;
+  status: "draft" | "published";
+  createdAt: string;
+  createdBy: string;
+  generatorVersion: string;
+  inputs: { birthDate: string; sport: string; position: string; goals: string[]; assessmentComplete: boolean };
+  program: import("./programs").StrengthProgram;
+};
+
+export type ThrowingDay = {
+  id: string;
+  athleteId: string;
+  assignmentId: string;
+  date: string;
+  dayType: string;
 };
 
 export type ThrowingAssignment = {
@@ -396,6 +416,8 @@ export type ThrowingAssignment = {
   athleteId: string;
   templateId: string;
   dayType: string;
+  createdAt?: string;
+  createdBy?: string;
 };
 
 export type BullpenPitch = {
@@ -572,6 +594,9 @@ export type DevelopmentData = {
   pitchDesign: PitchDesign[];
   skillPlans: SkillPlan[];
   warmups: Warmup[];
+  strengthAssignments: StrengthAssignment[];
+  throwingDays: ThrowingDay[];
+  educationProgress: Record<string, string[]>;
   strengthSets: StrengthSet[];
   throwingAssignments: ThrowingAssignment[];
   bullpens: Bullpen[];

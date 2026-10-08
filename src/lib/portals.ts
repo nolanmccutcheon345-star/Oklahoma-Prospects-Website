@@ -44,7 +44,7 @@ export const PORTALS: Record<
   tryouts: {
     title: "Spring 2027 tryouts",
     kicker: "Free evaluation · Oklahoma Prospects",
-    body: "Register for November 14–15 sessions. Age-specific times are on the Teams screen. No payment to evaluate.",
+    body: "Request an individual baseball or softball tryout for any age group. No payment to request an evaluation.",
     cta: "Register for free",
   },
   memberships: {

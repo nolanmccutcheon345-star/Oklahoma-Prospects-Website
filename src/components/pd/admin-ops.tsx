@@ -161,7 +161,7 @@ export function AdminServicesDesk() {
     <section>
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h3 className="text-2xl">Services and prices</h3>
+          <h3 className="text-2xl">Services and prices</h3><p className="mt-2 text-sm">Published services use the approved price schedule shown here. New service IDs remain drafts until added to that schedule; changing a draft price does not change a published charge.</p>
           <p className="mt-1 text-sm text-muted">Lessons, packages, memberships, cages. Changes show on Train, Book, and Pay.</p>
         </div>
         <Button type="button" onClick={() => setEditing(emptyService("lesson"))}>
