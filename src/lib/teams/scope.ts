@@ -279,6 +279,41 @@ export function scopeClub(
   next.payouts = [];
   next.purchaseOrders = [];
   next.audit = [];
+  next.archive = [];
+  next.disruptions = [];
+  next.onboarding = {};
+
+  // Keep each booking tied to a team or athlete this identity actually holds.
+  // Archived financial results and free-form operational disruptions are owner-only.
+  const teamsInScope = raw.teams.filter((team) => {
+    if (identity.role === "coach") {
+      return (
+        team.id === identity.teamId ||
+        team.coachEmail === identity.email ||
+        team.staff.some((s) => Boolean(s.email) && s.email?.toLowerCase() === identity.email.toLowerCase())
+      );
+    }
+    return Boolean(identity.familyId) && team.roster.some(
+      (p) => !p.withdrawn && p.familyId === identity.familyId &&
+        (identity.role === "parent" ||
+          (Boolean(identity.playerId) && p.id === identity.playerId && team.id === identity.teamId)),
+    );
+  });
+  const permittedTeams = new Set(teamsInScope.map((team) => team.id));
+  const permittedPlayers = new Set(teamsInScope.flatMap((team) =>
+    team.roster.filter((p) =>
+      identity.role === "coach" ||
+      (p.familyId === identity.familyId &&
+        (identity.role === "parent" || p.id === identity.playerId)),
+    ).map((p) => p.id),
+  ));
+  next.bookings = next.bookings.filter((booking) =>
+    booking.scope === "team"
+      ? permittedTeams.has(booking.ownerId)
+      : booking.scope === "player" && permittedPlayers.has(booking.ownerId),
+  );
+  next.cancelled = next.cancelled.filter((event) => permittedTeams.has(event.teamId));
+
   // Do not ship owner-only or another audience's notices in the viewer's data
   // snapshot. Family-targeted notices have no familyId; they must not be
   // broadcast to every household on the team.
