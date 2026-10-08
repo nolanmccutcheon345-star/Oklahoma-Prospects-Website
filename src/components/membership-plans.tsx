@@ -12,7 +12,7 @@ export function MembershipPlans({
   const { cagePlans, purchaseAvailability } = useLiveCatalog();
   return (
     <div>
-      {!canPurchase(purchaseAvailability, "cage-plan", "prospect") ? <p role="status" className="mb-4">Cage-pass enrollment is by inquiry while online memberships are being prepared.</p> : null}
+      {!canPurchase(purchaseAvailability, "cage-plan", "prospect") ? <p role="status" className="mb-4 text-fg-soft">Online cage-pass checkout is temporarily unavailable. Plan details and prices are shown for comparison; booking a one-time cage rental is still available on Book when checkout permits it.</p> : null}
       <div className="grid gap-3 md:grid-cols-3">
         {cagePlans.map((plan) => (
           <article
@@ -42,9 +42,13 @@ export function MembershipPlans({
                 <li key={perk}>+ {perk}</li>
               ))}
             </ul>
-            <Button asChild className="mt-4 w-full" variant={plan.featured ? "primary" : "outline"}>
-              {canPurchase(purchaseAvailability, "cage-plan", plan.id) ? <Link to="/pay" search={{ kind: "cage-plan", id: plan.id }}>Start {plan.name} · ${plan.price}</Link> : <Link to="/contact" search={{ subject: plan.name }}>Ask about {plan.name}</Link>}
-            </Button>
+            {canPurchase(purchaseAvailability, "cage-plan", plan.id)
+              ? <Button asChild className="mt-4 w-full" variant={plan.featured ? "primary" : "outline"}>
+                  <Link to="/pay" search={{ kind: "cage-plan", id: plan.id }}>Start {plan.name} · ${plan.price}</Link>
+                </Button>
+              : <Button disabled className="mt-4 w-full" variant={plan.featured ? "primary" : "outline"}>
+                  Enrollment temporarily unavailable
+                </Button>}
           </article>
         ))}
       </div>
