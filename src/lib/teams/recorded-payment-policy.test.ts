@@ -29,6 +29,8 @@ test("an absent signed fee and sub-cent or invalid inputs fail closed", () => {
   assert.throws(() => assertRecordableTeamPayment(player(null), 1), /signed, positive/);
   assert.throws(() => assertRecordableTeamPayment(player(0), 1), /signed, positive/);
   assert.throws(() => assertRecordableTeamPayment(player(100), 0.001), /dollars and cents/);
+  assert.throws(() => assertRecordableTeamPayment(player(100), 0.0000000001), /at least one cent/);
+  assert.equal(assertRecordableTeamPayment(player(0.01), 0.01), 1);
   assert.throws(() => assertRecordableTeamPayment(player(100), Infinity), /greater than zero/);
   assert.throws(() => remainingTeamPaymentCents(player(100, [-1])), /Invalid past payment/);
   assert.throws(() => remainingTeamPaymentCents(player(100, [], [-1])), /Invalid credit/);
