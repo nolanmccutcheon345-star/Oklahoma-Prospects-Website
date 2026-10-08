@@ -10,7 +10,7 @@ Reversible implementation on focused branches and draft PRs is authorized. Nolan
 
 This handoff is documentation, not an implemented release. No existing implementation branch was modified while preparing it. The Grok shared filesystem and scheduler are separate from this checkout; their latest contents and routine execution have not been independently verified here.
 
-## Current repository snapshot — independently retrieved
+## Historical repository snapshot — independently retrieved October 5
 
 | Work | Exact repository state | Continuation rule |
 | --- | --- | --- |
@@ -124,6 +124,8 @@ One combined cancellation OR reschedule allowance **per household**, shared acro
 
 Coach-initiated private-lesson cancellation: family chooses full refund or free reschedule; do not consume household allowance. Facility closures also do not consume it. Track the initiator and household, process allowance updates atomically and avoid counting duplicate requests twice. Do not resurrect the old five-day/once-per-month source rule.
 
+**Later owner clarification — membership lesson refunds:** A qualifying 24-to-under-48-hour cancellation returns 50% of the individual lesson's allocated membership value to the original card, not 50% of the full membership payment. Determine the individual lesson value from that purchased membership's price and included lessons; preserve the purchase snapshot, currency, and cents rounding. Do not refund more than the applicable lesson value or remaining refundable original payment, restore a refunded lesson credit for reuse, or invent equal allocations across mixed services without an approved breakdown. Provider retries must not duplicate refunds. PR #33 remains pending reconciliation and Square sandbox acceptance; this clarification is a requirement, not a claim that card refunds are live.
+
 Post-allowance rescheduling details beyond the stated cancellation/no-refund treatment must not be invented. The general timing rules were discussed for bookings; record product-specific treatment of membership credits and renewals rather than treating a whole membership as a scheduled private lesson by assumption.
 
 ## N3 — coach/team booking credits
@@ -206,3 +208,7 @@ Netlify deployment dashboard in this continuation browser is signed out. Publish
 ### Assessment price continuation
 
 PR #31 https://github.com/nolanmccutcheon345-star/Oklahoma-Prospects-Website/pull/31 implements GB-07 / R2: exact $149 totals for s1 and s9. Head `1b7e0297f0e638731bd6b43075ea2710c95f1c9d`; tree `17f87420692c683bd29ed77bdaecc04c7fd81596`; base ec06d23. Six files: pricing.ts; processing-price, commerce audit and Square regression expectations; pricing documentation; implementation note. 26 focused tests, typecheck, changed-file lint, deploy-preview build and built SSR/security passed locally. GitHub CI/hosted acceptance pending. No production changes. Historical migration test expecting saved s9=155 remains unchanged deliberately; current public/server catalog normalizes saved defaults through currentCatalogPrice. Youth/setup/remote implementation remains open. Retain #30's independent formatter when resolving the pricing.ts overlap.
+
+## October 7 continuation index
+
+The snapshot and October 5 validation statements above are historical. See [CONTINUATION-RECEIPT-2026-10-07.md](CONTINUATION-RECEIPT-2026-10-07.md) for subsequent release and pending-work traceability. Latest owner decisions retain authority over older audit recommendations.
