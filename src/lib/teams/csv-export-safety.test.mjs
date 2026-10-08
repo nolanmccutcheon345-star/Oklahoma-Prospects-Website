@@ -26,3 +26,15 @@ test("CSV exports neutralize spreadsheet formulas in untrusted cells", () => {
   // Keep signed, real numeric amounts machine-readable rather than escaping them.
   assert.ok(payouts.includes(",staff,-125,2026-10-08"));
 });
+
+test("CSV exports guard BOM and leading whitespace formula prefixes", () => {
+  const club = seedState();
+  const team = club.teams.find((t) => t.roster.length);
+  const athlete = team.roster[0];
+  athlete.name = "\uFEFF=SUM(1,2)";
+  const players = clubExports(club).find((file) => file.id === "players").body;
+  assert.ok(players.includes("'\uFEFF=SUM(1,2)"));
+  athlete.name = "  +SUM(1,2)";
+  const spaced = clubExports(club).find((file) => file.id === "players").body;
+  assert.ok(spaced.includes("'  +SUM(1,2)"));
+});
