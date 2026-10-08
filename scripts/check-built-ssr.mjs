@@ -12,6 +12,8 @@ for (const [path, status] of [
   ["/", 200],
   ["/__audit_missing_page__", 404],
   ["/login?next=%2Faccount", 200],
+  ["/games", 200],
+  ["/games?view=watch", 200],
   ["/", 200],
 ]) {
   const response = await fetch(new Request(`https://preview.example.invalid${path}`));
@@ -30,6 +32,10 @@ for (const [path, status] of [
       "Every rendered script must match the CSP nonce",
     );
   assert.ok(html.includes('property="csp-nonce"'), "Client hydration needs the server nonce");
+  if (path === "/games") {
+    assert.match(html, /Games are temporarily unavailable\./,
+      "Missing production database must show a truthful Games unavailable state, not HTTP 500");
+  }
   if (path.startsWith("/login")) {
     assert.match(html, /type="email"/, "Netlify must retain email sign-in");
     assert.match(html, /type="password"/, "Netlify must retain password sign-in");
