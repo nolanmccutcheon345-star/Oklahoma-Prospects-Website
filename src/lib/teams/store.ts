@@ -124,7 +124,7 @@ export const recordTeamPayment = createServerFn({ method: "POST" })
       charged: data.amount + fee,
       method: data.method,
       label: data.label,
-      receipt: `R-${Date.now().toString().slice(-6)}`,
+      receipt: `R-${randomUUID()}`,
     });
     if (!player.depositPaid && data.label.toLowerCase().includes("deposit")) {
       player.depositPaid = true;
