@@ -150,7 +150,7 @@ function Home() {
           <h2 className="mt-2 text-3xl">Train every month. Pay less per hour.</h2>
           <p className="mt-3 max-w-xl text-fg-soft">
             Two hours a month already costs less than dropping in. Four hours a
-            month is All-Star — {formatMoney(Math.round(PRICES["all-star"] / 4))} an hour, with first pick of times.
+            month is All-Star — {formatMoney(Math.round(PRICES["all-star"] / 4))} an hour. Every household can book up to 14 days ahead.
             Lesson plans live on Train.
           </p>
           <div className="mt-6">

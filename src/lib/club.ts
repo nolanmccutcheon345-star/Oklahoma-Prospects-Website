@@ -141,7 +141,6 @@ export const MEMBERSHIPS = [
     featured: true,
     perks: [
       "Four 1-hour cage rentals included",
-      "14-day priority booking",
       "Household athletes only — not for team practices",
     ],
   },
@@ -336,7 +335,7 @@ export const FAQ = [
   },
   {
     q: "What does a cage hour cost?",
-    a: `One household cage hour is ${formatMoney(PRICES.individual)}. A monthly cage pass brings the hour down — All-Star is ${formatMoney(Math.round(PRICES["all-star"] / 4))} per included hour, with first pick of times.`,
+    a: `One household cage hour is ${formatMoney(PRICES.individual)}. A monthly cage pass brings the hour down — All-Star is ${formatMoney(Math.round(PRICES["all-star"] / 4))} per included hour. All households may book up to 14 days ahead.`,
   },
   {
     q: "Are you open during the day?",

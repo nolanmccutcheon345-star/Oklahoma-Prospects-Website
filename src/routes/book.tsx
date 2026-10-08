@@ -8,6 +8,7 @@ import { CancelNote } from "@/components/square-pay";
 import { BOOKABLE_LANES, CANCEL_POLICY, CLUB, type BookableLaneId } from "@/lib/club";
 import {getCageAvailability} from "@/lib/commerce/api";
 import { reservationSlots, chicagoDateISO } from "@/lib/hours";
+import { cageBookingLastDate } from "@/lib/scheduling";
 import { quoteCages } from "@/lib/pay";
 import { useLiveCatalog } from "@/lib/use-catalog";
 import { cn } from "@/lib/utils";
@@ -79,6 +80,7 @@ function BookingFunnel({ initial }: { initial?: string }) {
   const navigate = useNavigate();
   const catalog = useLiveCatalog();
   const today = chicagoDateISO();
+  const maxDate = cageBookingLastDate();
   const [party, setParty] = useState<"household" | "team">(initial === "team" ? "team" : "household");
   const [lanes, setLanes] = useState<BookableLaneId[]>(() => defaultLanes(initial));
   const [date, setDate] = useState(today);
@@ -116,6 +118,10 @@ function BookingFunnel({ initial }: { initial?: string }) {
     const chosenDate = String(data.get("date") ?? "");
     if (!chosenDate || !time) {
       setError("Pick a date and a start time that is still open.");
+      return;
+    }
+    if (chosenDate < today || chosenDate > maxDate) {
+      setError("Choose today or a date within the next 14 calendar days.");
       return;
     }
     const open = reservationSlots(chosenDate, duration).some((slot) => slot.value === time);
@@ -237,11 +243,13 @@ function BookingFunnel({ initial }: { initial?: string }) {
             name="date"
             type="date"
             min={today}
+            max={maxDate}
             value={date}
             onChange={(event) => setDate(event.target.value)}
             className="mt-1.5 block min-h-11 w-full rounded-md border border-line bg-paper-2 px-3"
           />
         </label>
+        <p className="text-xs text-muted">Bookings are available today through 14 days ahead, Central Time.</p>
         <fieldset>
           <legend className="text-sm font-semibold">Duration</legend>
           <div className="mt-2 grid grid-cols-3 gap-2">
