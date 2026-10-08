@@ -10,7 +10,7 @@ Reversible implementation on focused branches and draft PRs is authorized. Nolan
 
 This handoff is documentation, not an implemented release. No existing implementation branch was modified while preparing it. The Grok shared filesystem and scheduler are separate from this checkout; their latest contents and routine execution have not been independently verified here.
 
-## Current repository snapshot — independently retrieved
+## Historical repository snapshot — independently retrieved October 5
 
 | Work | Exact repository state | Continuation rule |
 | --- | --- | --- |
@@ -123,6 +123,8 @@ One combined cancellation OR reschedule allowance **per household**, shared acro
 | Allowance already used | Cancellation remains possible, but no refund |
 
 Coach-initiated private-lesson cancellation: family chooses full refund or free reschedule; do not consume household allowance. Facility closures also do not consume it. Track the initiator and household, process allowance updates atomically and avoid counting duplicate requests twice. Do not resurrect the old five-day/once-per-month source rule.
+
+**Later owner clarification — membership lesson refunds:** A qualifying 24-to-under-48-hour cancellation returns 50% of the individual lesson's allocated membership value to the original card, not 50% of the full membership payment. Determine the individual lesson value from that purchased membership's price and included lessons; preserve the purchase snapshot, currency, and cents rounding. Do not refund more than the applicable lesson value or remaining refundable original payment, restore a refunded lesson credit for reuse, or invent equal allocations across mixed services without an approved breakdown. Provider retries must not duplicate refunds. PR #33 remains pending reconciliation and Square sandbox acceptance; this clarification is a requirement, not a claim that card refunds are live.
 
 Post-allowance rescheduling details beyond the stated cancellation/no-refund treatment must not be invented. The general timing rules were discussed for bookings; record product-specific treatment of membership credits and renewals rather than treating a whole membership as a scheduled private lesson by assumption.
 
@@ -243,3 +245,6 @@ This supersedes the earlier quote-only limitation, but is source/local implement
 ### Reschedule payment recovery — October 6
 
 PR #33 now recovers the existing unfinished fee checkout after a page refresh. Unknown/pending attempts and expired/review payments offer status checking rather than a fresh card charge. A valid unsubmitted checkout reuses its existing order. Recovery is read-only, creator/household-scoped and denied to player logins; payment remains subject to the current provider environment/scope. This closes the reload gap without changing owner cancellation rules or creating another lesson. Hosted provider/browser acceptance is still pending; existing bot branches remain untouched. Prior ac0da3d passed GitHub tests/type/lint and failed the existing dependency-audit gate (run 37455922642); do not claim all checks green or production deployment.
+## October 7 continuation index
+
+The snapshot and October 5 validation statements above are historical. See [CONTINUATION-RECEIPT-2026-10-07.md](CONTINUATION-RECEIPT-2026-10-07.md) for subsequent release and pending-work traceability. Latest owner decisions retain authority over older audit recommendations.

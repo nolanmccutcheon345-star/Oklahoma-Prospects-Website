@@ -44,8 +44,12 @@ const club=z.object({
 export function parseClubSave(input:{club:ClubRecord;baseRev:number}) {
  if(JSON.stringify(input).length>5000000)throw new Error('Club record is too large.');
  const parsed=z.object({club,baseRev:count}).strict().parse(input);
+ const teamIds=parsed.club.teams.map(t=>t.id);
+ if(teamIds.some(id=>!id.trim())||new Set(teamIds).size!==teamIds.length)throw new Error('Team identifiers must be nonempty and unique.');
+ for(const t of parsed.club.teams){const staffIds=t.staff.map(s=>s.id);if(staffIds.some(id=>!id.trim())||new Set(staffIds).size!==staffIds.length)throw new Error('Staff identifiers must be nonempty and unique within a team.');}
+ for(const t of parsed.club.teams)for(const key of ['practices','messages','announcements','pitchLog'] as const){const activityIds=t[key].map(row=>row.id);if(activityIds.some(id=>!id.trim())||new Set(activityIds).size!==activityIds.length)throw new Error('Activity identifiers must be nonempty and unique within each team activity list.');}
  const ids=parsed.club.teams.flatMap(t=>t.roster.map(p=>p.id));
- if(new Set(ids).size!==ids.length)throw new Error('Player identifiers must be unique.');
+ if(ids.some(id=>!id.trim())||new Set(ids).size!==ids.length)throw new Error('Player identifiers must be nonempty and unique.');
  for(const t of parsed.club.teams)if(t.roster.some(p=>p.teamId!==t.id))throw new Error('Player team does not match its roster.');
  return parsed as {club:ClubRecord;baseRev:number};
 }

@@ -117,7 +117,7 @@ test('isolated full account and lesson journey through real server commands',asy
    const input={requestId:randomUUID(),grantId:grant,serviceId:'s2',coachId,date:future,time:'18:00',household:false,athleteCount:1};
    h.redemption=input;
    await assert.rejects(api.creditSlots(parent,input),/facility space/);
-   await sql`insert into service_resources(service_id,lane_ids) values('s2','["cage-1"]'::jsonb)`;
+   await sql`insert into service_resources(service_id,lane_ids) values('s2','["1"]'::jsonb)`;
    assert.ok((await api.creditSlots(parent,input)).some(s=>s.value==='18:00'));
    await assert.rejects(api.creditSlots(other,input),/unavailable/);
    await assert.rejects(api.creditSlots(parent,{...input,serviceId:'s7'}),/not assigned/);
@@ -173,10 +173,16 @@ test('isolated full account and lesson journey through real server commands',asy
    assert.equal((await api.readWorkingFile()).lessons.some(l=>l.id==='forged'),false);
   });
   await t.test('softball registration submission persists once and rejects cross-origin requests',async()=>{
-   const input={kind:'tryout',requestId:randomUUID(),player:'Audit Softball Player',age:'12U',parent:'Audit Parent',phone:'555-0100',email:'parent@audit.example.invalid',notes:'ISOLATED AUDIT ONLY',sport:'Softball',session:'Softball tryouts · Date and time to be announced'};
+   const input={kind:'tryout',requestId:randomUUID(),player:'Audit Softball Player',age:'12U',parent:'Audit Parent',phone:'555-0100',email:'parent@audit.example.invalid',notes:'ISOLATED AUDIT ONLY',sport:'Softball',session:'Individual tryout request'};
    await api.submitInquiry(input);await api.submitInquiry(input);
    assert.equal((await sql`select id from club_requests where id=${input.requestId}`).length,1);
-   await assert.rejects(api.submitInquiry({...input,requestId:randomUUID(),age:'18U'}));
+   for(const sport of ['Baseball','Softball']){
+    const extended={...input,requestId:randomUUID(),age:'18U',sport};
+    await api.submitInquiry(extended);
+    const [saved]=await sql`select payload from club_requests where id=${extended.requestId}`;
+    assert.equal(saved.payload.age,'18U');assert.equal(saved.payload.sport,sport);
+   }
+   await assert.rejects(api.submitInquiry({...input,requestId:randomUUID(),age:' '}),/age group/);
    const prior=state.request;
    state.request=new Request(base,{method:'POST',headers:{origin:'https://unrelated.example.invalid','sec-fetch-site':'cross-site'}});
    await assert.rejects(api.submitInquiry({...input,requestId:randomUUID()}),/cross-site/);state.request=prior;

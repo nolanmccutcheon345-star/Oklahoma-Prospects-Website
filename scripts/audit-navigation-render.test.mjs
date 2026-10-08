@@ -37,7 +37,7 @@ test('public navigation, sport links and purchase availability agree with the li
   assert.deepEqual(primary.map(a=>a.textContent),['Home','Train','Teams','Book']);
   assert.equal(primary[1].getAttribute('aria-current'),'page');
   assert.ok(document.querySelector('footer a[href*="prospects-live"]'));
-  assert.ok(document.querySelector('footer a[href="/fundraising"]'));
+  assert.ok(document.querySelector('footer a[href="/contact"]'));
   assert.equal(document.querySelectorAll('a[href^="/pay"]').length,0);
   assert.match(document.body.textContent,/Lesson enrollment by inquiry/);
   assert.match(document.querySelector('#youth-lessons').textContent,/ages 10 and under/);

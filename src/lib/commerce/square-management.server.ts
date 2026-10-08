@@ -1,5 +1,5 @@
 import { getSql } from "../db";
-import { clubIdentity } from "../identity.server";
+import { commerceIdentity as clubIdentity } from "./access.server";
 import { squareClient, squareConfig, squareKey } from "./square.server";
 import { assertPaymentRequest } from "./square-payments.server";
 import { rateLimit } from "./checkout.server";

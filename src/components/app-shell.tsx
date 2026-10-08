@@ -33,7 +33,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       <header className="sticky top-0 z-40 border-b border-fg-inverse/10 bg-ink text-fg-inverse">
         <div className="h-1 bg-maroon" />
         <div className="mx-auto flex h-16 max-w-3xl items-center justify-between gap-3 px-4">
-          <Link to="/" aria-label="Oklahoma Prospects home" className="flex min-w-0 items-center gap-3 no-underline">
+          <Link to="/" aria-label={`${CLUB.name} home`} className="flex min-w-0 items-center gap-3 no-underline">
             <img
               src="/brand/mark.png"
               alt=""
@@ -43,7 +43,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             />
             <span className="min-w-0">
               <span className="block truncate font-display text-lg leading-none font-extrabold tracking-wide italic">
-                OKLAHOMA PROSPECTS
+                {CLUB.name}
               </span>
               <span className="mt-1 block text-[0.65rem] font-medium tracking-[0.18em] text-fg-soft uppercase">
                 Baseball & softball · Est. {CLUB.established}
@@ -75,6 +75,7 @@ export function AppShell({ children }: { children: ReactNode }) {
 
       <nav
         aria-label="Primary"
+        data-site-nav
         className="fixed inset-x-0 bottom-0 z-40 border-t border-fg-inverse/10 bg-ink/96 text-fg-inverse backdrop-blur-md"
         style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
       >

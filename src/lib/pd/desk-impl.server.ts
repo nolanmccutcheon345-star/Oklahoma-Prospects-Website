@@ -1,3 +1,4 @@
+import { publicPdViewer } from "./viewer";
 import { getSql, type Sql } from "@/lib/db";
 import { clubIdentity } from "@/lib/identity.server";
 import {
@@ -15,6 +16,7 @@ import type { DevelopmentData, Family, Message } from "./types";
 
 import { withCommerceRecords } from "../commerce/development.server";
 import { currentCatalogPrice } from "../pricing";
+import {newCoachId} from "../coach-id.server";
 
 const FILE_ID = "club";
 
@@ -66,7 +68,7 @@ async function provisionViewer(viewer: PdViewer, full: DevelopmentData): Promise
         coaches: [
           ...full.coaches,
           {
-            id: `c-${email.replace(/[^a-z0-9]/g, "").slice(0, 18) || "admin"}`,
+            id: newCoachId(email),
             name: viewer.name || "Admin",
             email,
             specialties: [] as string[],
@@ -87,7 +89,7 @@ async function provisionViewer(viewer: PdViewer, full: DevelopmentData): Promise
       coaches: [
         ...full.coaches,
         {
-          id: `c-${email.replace(/[^a-z0-9]/g, "").slice(0, 18) || "staff"}`,
+          id: newCoachId(email),
           name: viewer.name || "Coach",
           email,
           specialties: [] as string[],
@@ -98,7 +100,8 @@ async function provisionViewer(viewer: PdViewer, full: DevelopmentData): Promise
     await writeWorkingFile(next);
     return next;
   }
-  if (familyForViewer(viewer, full)) return full;
+  // Opening a player desk must not provision a household or create a new link.
+  if (viewer.role === "player" || familyForViewer(viewer, full)) return full;
   const family: Family = {
     id: `fam-${(viewer as PdViewer & {userId:string}).userId}`,
     name: "Your household", parentName: viewer.name, email: viewer.email,
@@ -113,7 +116,7 @@ export async function loadDeskForUser(userId: string) {
   const viewer = await viewerFromUserId(userId);
   const full = await provisionViewer(viewer, await readWorkingFile());
   const { data } = scopedDesk(viewer, full);
-  return { viewer, data };
+  return { viewer: publicPdViewer(viewer), data };
 }
 
 export async function loadAthleteForUser(userId: string, athleteId: string) {
@@ -123,7 +126,7 @@ export async function loadAthleteForUser(userId: string, athleteId: string) {
   assertAthleteAccess(scope, athleteId);
   const athlete = data.athletes.find((row) => row.id === athleteId);
   if (!athlete) throw new Error("Forbidden");
-  return { viewer, athleteId, ok: true as const };
+  return { viewer: publicPdViewer(viewer), athleteId, ok: true as const };
 }
 
 export async function writeMessageForUser(

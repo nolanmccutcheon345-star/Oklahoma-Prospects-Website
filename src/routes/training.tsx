@@ -1,5 +1,5 @@
 import { canPurchase } from "@/lib/purchase-availability";
-import { FIRST_MONTH_SETUP_CENTS, formatMoney } from "@/lib/pricing";
+import { FIRST_MONTH_SETUP_CENTS, formatMoney, formatDollars } from "@/lib/pricing";
 import {pageHead} from "@/lib/seo";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
@@ -164,13 +164,13 @@ function CatalogAndBook() {
                   {plan.detail}
                 </p>
                 <p className="mt-3 pd-num font-display text-3xl">
-                  ${plan.price}
+                  {formatDollars(plan.price)}
                   <span className="ml-1 font-sans text-base font-medium opacity-80">/mo</span>
                 </p>
                 {plan.id === "m5" ? <p className="mt-2 text-sm">A completed assessment is required before remote enrollment.</p> : null}
                 {firstMonth !== plan.price ? (
                   <p className={`mt-1 text-sm ${featured ? "text-fg-soft" : "text-muted"}`}>
-                    First month ${firstMonth} without an assessment on file, then ${plan.price}.
+                    First month {formatDollars(firstMonth)} without an assessment on file, then {formatDollars(plan.price)}.
                   </p>
                 ) : null}
                 <ul className={`mt-2 list-disc pl-5 text-sm ${featured ? "text-fg-soft" : "text-muted"}`}>
@@ -204,10 +204,10 @@ function CatalogAndBook() {
             <p className="mt-1 text-sm text-muted">
               {pack.credits} credits · {pack.minutes} min · expires in {pack.expiresDays} days
             </p>
-            <p className="mt-3 pd-num font-display text-3xl">${pack.price}</p>
+            <p className="mt-3 pd-num font-display text-3xl">{formatDollars(pack.price)}</p>
             {!canPurchase(catalog.purchaseAvailability, "package", pack.id) ? <Button asChild className="mt-4"><Link to="/contact" search={{ subject: pack.name }}>Ask about this package</Link></Button> : !hasAssessment ? <Button disabled className="mt-4">Locked until assessment completion</Button> : <Button asChild className="mt-4">
               <Link to="/pay" search={{ kind: "package", id: pack.id }}>
-                Buy {pack.credits} sessions · ${pack.price}
+                Buy {pack.credits} sessions · {formatDollars(pack.price)}
               </Link>
             </Button>}
             <a className="ml-4 inline-flex min-h-11 items-center underline" href={`/contact?subject=${encodeURIComponent(pack.name)}`}>Ask about this package</a>
@@ -271,7 +271,7 @@ function ServiceCard({
     >
       <span className="flex items-baseline justify-between gap-3">
         <span className="font-display text-xl uppercase">{item.name}</span>
-        <span className="pd-num font-display text-2xl">${due}</span>
+        <span className="pd-num font-display text-2xl">{formatDollars(due)}</span>
       </span>
       <span className="mt-1 block text-sm opacity-80">
         {item.minutes} min · {item.purpose}
@@ -285,4 +285,3 @@ function ServiceCard({
     </button>
   );
 }
-
