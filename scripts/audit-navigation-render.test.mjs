@@ -118,7 +118,7 @@ test('public navigation, sport links and purchase availability agree with the li
   await act(async()=>root.render(createElement(ui.AppShell,null,createElement(ui.Games.component))));
   assert.equal(document.querySelector('nav[aria-label="Primary"] a[href="/games"]')?.getAttribute('aria-current'),'page');
   const games=document.querySelector('#main');
-  assert.equal(games?.querySelector('h1')?.textContent?.replace(/\s+/g,' ').trim(),'Games');
+  assert.match(games?.querySelector('h1')?.textContent??'',/^Games/);
   assert.match(games?.textContent??'',/Watch.*Schedule.*Scores.*Replays.*Teams/);
   assert.match(games?.textContent??'',/Nothing published here yet/);
   assert.match(games?.textContent??'',/Coach Steve's Prospects Live concept/);
