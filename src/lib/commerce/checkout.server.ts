@@ -8,7 +8,8 @@ import { assertSameSiteRequest } from "../auth/isolation.server";
 import { commerceIdentity as clubIdentity } from "./access.server";
 import { readWorkingFile, loadDeskForUser } from "../pd/desk-impl.server";
 import { calculateQuote, type CheckoutInput, type Product, type Quote } from "./contracts";
-import { slotsFor, validateWindow, validDate } from "../scheduling";
+import { CAGE_BOOKING_DAYS, slotsFor, validateWindow, validDate } from "../scheduling";
+import { withinBookingHorizon } from "./booking-policy.server";
 import { coachAvailable } from "./availability";
 import { paymentMode, squarePublicConfig, squareConfig, planVariation } from "./square.server";
 import { approvedProducts, CATALOG_VERSION } from "./catalog";
@@ -98,10 +99,6 @@ export async function quoteForRequest(
     });
     athleteId = gate.athleteId;
     completed = gate.assessed;
-  }
-  if (input.productId === "all-star") {
-    const { requirePriorityPolicy } = await import("./booking-policy.server");
-    await requirePriorityPolicy(sql);
   }
   if (input.kind === "cage" && input.date) {
     const { checkCageBookingWindow } = await import("./booking-policy.server");
@@ -305,6 +302,8 @@ export async function cageAvailability(input: {
   laneIds: string[];
 }) {
   assertSameSiteRequest();
+  // Match the checkout guard so families cannot select unavailable future dates.
+  if (!withinBookingHorizon(input.date, CAGE_BOOKING_DAYS)) return [];
   const sql = await getSql();
   const resources = [...new Set(input.laneIds)].map((id) => `lane:${id}`);
   const occupied = await sql<{
