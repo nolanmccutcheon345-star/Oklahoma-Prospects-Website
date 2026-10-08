@@ -75,6 +75,27 @@ export function OfficeApp({
 
       <RosterTools club={club} onChange={onChange} />
 
+      <Section title="Team coach assignments" defaultOpen>
+        <p className="mb-3 text-sm text-muted">Assign the coach's sign-in email to the team, then save the club. The coach must also accept their coach invitation.</p>
+        {club.teams.map((team) => (
+          <fieldset key={team.id} className="mb-4 grid gap-3 rounded-lg border border-line p-4">
+            <legend className="font-semibold">{team.name}</legend>
+            {([
+              ["headCoach", "Head coach", "text"],
+              ["coachEmail", "Coach sign-in email", "email"],
+              ["level", "Team level", "text"],
+              ["notes", "Team notes", "text"],
+            ] as const).map(([key, label, type]) => (
+              <label key={key} className="grid gap-1 text-sm">
+                {label}
+                <input type={type} value={team[key]} className="min-h-11 rounded-md border border-line px-3"
+                  onChange={(event) => onChange({ ...club, teams: club.teams.map((row) => row.id === team.id ? { ...row, [key]: event.target.value } : row) })} />
+              </label>
+            ))}
+          </fieldset>
+        ))}
+      </Section>
+
       <Section title="Attention queue" defaultOpen>
         <ul className="grid gap-1 text-sm">
           <li>Unsigned agreements {attention.unsigned.length}</li>

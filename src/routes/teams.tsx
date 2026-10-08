@@ -8,10 +8,19 @@ import { TryoutSchedule } from "@/components/tryout-schedule";
 import { Button } from "@/components/ui/button";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
 import { getProfile, type ClubRole } from "@/lib/club-data";
-import { AGE_GROUPS, SOFTBALL_AGES, TRYOUT_AGES } from "@/lib/club";
+import { AGE_GROUPS, SOFTBALL_AGES } from "@/lib/club";
 import { cn } from "@/lib/utils";
 
-export const Route = createFileRoute("/teams")({head:()=>pageHead("/teams","Teams & Spring 2027 Tryouts","Oklahoma Prospects baseball and softball teams in Broken Arrow. Softball 10U, 12U, 14U and 16U tryout registration is open; dates to be announced.",false), component: TeamsPage });
+export const Route = createFileRoute("/teams")({
+  head: () =>
+    pageHead(
+      "/teams",
+      "Teams & Spring 2027 Tryouts",
+      "Oklahoma Prospects baseball and softball teams in Broken Arrow. Softball 10U, 12U, 14U and 16U tryout registration is open; dates to be announced.",
+      false,
+    ),
+  component: TeamsPage,
+});
 
 function deskFor(role: ClubRole | null) {
   if (role === "admin") return { to: "/office" as const, label: "Front office" };
@@ -80,8 +89,12 @@ function TeamsOverview() {
         </section>
       ) : null}
       <nav aria-label="Team sports" className="mx-auto grid max-w-3xl grid-cols-2 gap-3 px-5 py-4">
-        <Button asChild variant="outlineDark"><a href="#baseball">Baseball</a></Button>
-        <Button asChild variant="outlineDark"><a href="#softball">Softball</a></Button>
+        <Button asChild variant="outlineDark">
+          <a href="#baseball">Baseball</a>
+        </Button>
+        <Button asChild variant="outlineDark">
+          <a href="#softball">Softball</a>
+        </Button>
       </nav>
       <TeamsPublic />
     <PublicTeamRoster/>
@@ -116,13 +129,28 @@ function TeamsPublic() {
 
       <section id="softball" className="scroll-mt-24 bg-navy py-10 text-fg-inverse">
         <div className="mx-auto max-w-3xl px-5">
-          <p className="text-xs font-semibold tracking-[0.16em] text-powder uppercase">Oklahoma Prospects softball</p>
+          <p className="text-xs font-semibold tracking-[0.16em] text-powder uppercase">
+            Oklahoma Prospects softball
+          </p>
           <h2 className="mt-2 text-4xl">Teams forming: {SOFTBALL_AGES.join(" · ")}</h2>
-          <p className="mt-3 text-fg-soft">Sarah Blankenship, Softball Program Coordinator, is adding four softball age groups. Sign up for tryouts below. Dates and times are to be announced; Prospects will contact registered families with details.</p>
+          <p className="mt-3 text-fg-soft">
+            Sarah Blankenship, Softball Program Coordinator, is adding four softball age groups.
+            Sign up for tryouts below. Dates and times are to be announced; Prospects will contact
+            registered families with details.
+          </p>
+          <p className="mt-4 font-semibold">14U B Softball · Head Coach Rusty</p>
+          <p className="mt-2 text-fg-soft">
+            Rusty also offers softball hitting and defense instruction.{" "}
+            <Link to="/softball" className="underline">
+              Meet Coach Rusty and ask about lessons.
+            </Link>
+          </p>
           <div className="mt-6 grid gap-3 sm:grid-cols-2">
             {SOFTBALL_AGES.map((group) => (
               <Button asChild key={group}>
-                <Link to="/tryouts" search={{ sport: "Softball", age: group }} hash="register">{group} softball tryout signup</Link>
+                <Link to="/tryouts" search={{ sport: "Softball", age: group }} hash="register">
+                  {group} softball tryout signup
+                </Link>
               </Button>
             ))}
           </div>
@@ -134,7 +162,14 @@ function TeamsPublic() {
         <p className="mt-2 mb-6 text-muted">
           Free. No payment to register. Check in 15 minutes early.
         </p>
-        <TryoutSchedule /><p className="mt-4">Other baseball ages: <Link to="/tryouts" hash="team-inquiry" className="underline">send a team inquiry</Link>.</p>
+        <TryoutSchedule />
+        <p className="mt-4">
+          Other baseball ages:{" "}
+          <Link to="/tryouts" hash="team-inquiry" className="underline">
+            send a team inquiry
+          </Link>
+          .
+        </p>
         <Button asChild className="mt-6 w-full">
           <Link to="/tryouts" search={{ sport: "Baseball" }} hash="register">
             Register for baseball
@@ -146,8 +181,8 @@ function TeamsPublic() {
         <div className="mx-auto max-w-3xl px-5">
           <h2 className="text-3xl">Baseball: start with your age group</h2>
           <p className="mt-2 text-muted">
-            Team openings and rosters are confirmed directly with Prospects.
-            Fees are shared after you evaluate — not published as a public price list.
+            Team openings and rosters are confirmed directly with Prospects. Fees are shared after
+            you evaluate — not published as a public price list.
           </p>
           <div className="mt-6 flex flex-wrap gap-2" role="group" aria-label="Age groups">
             {AGE_GROUPS.map((group) => (
@@ -158,9 +193,7 @@ function TeamsPublic() {
                 onClick={() => setAge(group)}
                 className={cn(
                   "min-h-12 min-w-16 rounded-md px-4 text-sm font-bold transition-colors duration-150",
-                  age === group
-                    ? "bg-maroon text-fg-inverse"
-                    : "bg-paper text-ink shadow-border",
+                  age === group ? "bg-maroon text-fg-inverse" : "bg-paper text-ink shadow-border",
                 )}
               >
                 {group}
@@ -181,8 +214,12 @@ function TeamsPublic() {
             </p>
             <div className="mt-5 flex flex-wrap gap-3">
               <Button asChild>
-                <Link to="/tryouts" search={{ sport: "Baseball", age: age ?? undefined }} hash={!age || (TRYOUT_AGES as readonly string[]).includes(age) ? "register" : "team-inquiry"}>
-                  {age && !(TRYOUT_AGES as readonly string[]).includes(age) ? `Ask about ${age}` : age ? `Register ${age}` : "Register for tryouts"}
+                <Link
+                  to="/tryouts"
+                  search={{ sport: "Baseball", age: age ?? undefined }}
+                  hash="register"
+                >
+                  {age ? `Request ${age} tryout` : "Request a tryout"}
                 </Link>
               </Button>
               <ContinueIn dest="coaches" variant="outlineDark">

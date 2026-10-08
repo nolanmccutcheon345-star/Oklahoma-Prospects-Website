@@ -15,6 +15,7 @@ import { Route as BookRouteImport } from './routes/book'
 import { Route as CoachRouteImport } from './routes/coach'
 import { Route as CoachesRouteImport } from './routes/coaches'
 import { Route as ContactRouteImport } from './routes/contact'
+import { Route as EvaluationsRouteImport } from './routes/evaluations'
 import { Route as FacilityRouteImport } from './routes/facility'
 import { Route as FamilyRouteImport } from './routes/family'
 import { Route as InvitationsRouteImport } from './routes/invitations'
@@ -89,6 +90,11 @@ const CoachesRoute = CoachesRouteImport.update({
 const ContactRoute = ContactRouteImport.update({
   id: '/contact',
   path: '/contact',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const EvaluationsRoute = EvaluationsRouteImport.update({
+  id: '/evaluations',
+  path: '/evaluations',
   getParentRoute: () => rootRouteImport,
 } as any)
 const FacilityRoute = FacilityRouteImport.update({
@@ -325,6 +331,7 @@ export interface FileRoutesByFullPath {
   '/coach': typeof CoachRoute
   '/coaches': typeof CoachesRoute
   '/contact': typeof ContactRoute
+  '/evaluations': typeof EvaluationsRoute
   '/facility': typeof FacilityRoute
   '/family': typeof FamilyRoute
   '/invitations': typeof InvitationsRoute
@@ -378,6 +385,7 @@ export interface FileRoutesByTo {
   '/coach': typeof CoachRoute
   '/coaches': typeof CoachesRoute
   '/contact': typeof ContactRoute
+  '/evaluations': typeof EvaluationsRoute
   '/facility': typeof FacilityRoute
   '/family': typeof FamilyRoute
   '/invitations': typeof InvitationsRoute
@@ -432,6 +440,7 @@ export interface FileRoutesById {
   '/coach': typeof CoachRoute
   '/coaches': typeof CoachesRoute
   '/contact': typeof ContactRoute
+  '/evaluations': typeof EvaluationsRoute
   '/facility': typeof FacilityRoute
   '/family': typeof FamilyRoute
   '/invitations': typeof InvitationsRoute
@@ -487,6 +496,7 @@ export interface FileRouteTypes {
     | '/coach'
     | '/coaches'
     | '/contact'
+    | '/evaluations'
     | '/facility'
     | '/family'
     | '/invitations'
@@ -540,6 +550,7 @@ export interface FileRouteTypes {
     | '/coach'
     | '/coaches'
     | '/contact'
+    | '/evaluations'
     | '/facility'
     | '/family'
     | '/invitations'
@@ -593,6 +604,7 @@ export interface FileRouteTypes {
     | '/coach'
     | '/coaches'
     | '/contact'
+    | '/evaluations'
     | '/facility'
     | '/family'
     | '/invitations'
@@ -647,6 +659,7 @@ export interface RootRouteChildren {
   CoachRoute: typeof CoachRoute
   CoachesRoute: typeof CoachesRoute
   ContactRoute: typeof ContactRoute
+  EvaluationsRoute: typeof EvaluationsRoute
   FacilityRoute: typeof FacilityRoute
   FamilyRoute: typeof FamilyRoute
   InvitationsRoute: typeof InvitationsRoute
@@ -733,6 +746,13 @@ declare module '@tanstack/react-router' {
       path: '/contact'
       fullPath: '/contact'
       preLoaderRoute: typeof ContactRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/evaluations': {
+      id: '/evaluations'
+      path: '/evaluations'
+      fullPath: '/evaluations'
+      preLoaderRoute: typeof EvaluationsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/facility': {
@@ -1095,6 +1115,7 @@ const rootRouteChildren: RootRouteChildren = {
   CoachRoute: CoachRoute,
   CoachesRoute: CoachesRoute,
   ContactRoute: ContactRoute,
+  EvaluationsRoute: EvaluationsRoute,
   FacilityRoute: FacilityRoute,
   FamilyRoute: FamilyRoute,
   InvitationsRoute: InvitationsRoute,

@@ -1,4 +1,4 @@
-import { eligibility, dollars } from "./pricing";
+import { eligibility, dollars, formatDollars } from "./pricing";
 import { BOOKABLE_LANES, HOUSEHOLD_CAGE_PLAN_IDS, type BookableLaneId } from "@/lib/club";
 import { ASSESSMENT_IDS, findLesson } from "@/lib/catalog";
 import { PD_POLICY } from "@/lib/pd";
@@ -136,7 +136,7 @@ export function quoteCages(
     const lane = BOOKABLE_LANES.find((row) => row.id === id)!;
     const hourly = lane.group === "field" ? hourlyFor(catalog, "field") : hourlyFor(catalog, rate);
     const amount = Math.round(hourly * 100 * hours) / 100;
-    return moneyLine(`${minutes} min · ${lane.name} · $${hourly}/hr`, amount);
+    return moneyLine(`${minutes} min · ${lane.name} · ${formatDollars(hourly)}/hr`, amount);
   });
   const price = lines.reduce((sum, line) => sum + line.amount, 0);
   const names = lanes.map((id) => BOOKABLE_LANES.find((row) => row.id === id)?.name ?? id);

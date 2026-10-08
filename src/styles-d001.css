@@ -1,0 +1,17 @@
+/* D-001: keep keyboard focus and in-page targets clear of the sticky header
+   and the fixed bottom nav (WCAG 2.2 2.4.11 Focus Not Obscured, 1.4.10 Reflow).
+   --header-height = maroon stripe (h-1) + header row (h-16); +1px below covers border-b. */
+:root { --header-height: calc(0.25rem + 4rem); }
+html {
+  scroll-padding-top: calc(var(--header-height) + 1px);
+  scroll-padding-bottom: var(--bottom-nav-space);
+}
+
+/* Short or zoomed viewports (e.g. 200% zoom, landscape phones): stop pinning the
+   bottom nav over content. It drops into normal flow after the footer, so Home /
+   Train / Teams / Book stay reachable (no loss of navigation at zoom), and the
+   reserved bottom space collapses to 0. */
+@media (max-height: 500px) {
+  :root { --bottom-nav-space: 0px; }
+  nav[data-site-nav] { position: static; }
+}

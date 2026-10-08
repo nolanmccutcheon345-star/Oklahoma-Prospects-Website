@@ -3,6 +3,8 @@ import { authMiddleware } from "@/lib/auth/middleware";
 import { getSql } from "@/lib/db";
 import { clubIdentity } from "@/lib/identity.server";
 import { z } from "zod";
+import { readAccountProfile, readLegacySchedule, saveAccountProfile } from "./account-records.server";
+import { createLegacyProgram, addLegacyDrill, legacyProgramInput, legacyDrillInput, completeLegacyDrill, createLegacyLog, legacyDrillCompletionInput, legacyLogInput } from "./legacy-training.server";
 
 export type ClubRole = "player" | "parent" | "coach" | "admin";
 
@@ -24,8 +26,7 @@ export const getProfile = createServerFn({ method: "GET" })
   .handler(async ({ context }) => {
     const me = await clubIdentity(context.userId);
     const sql = await getSql();
-    const [row] = await sql<Profile>`select * from profiles where user_id = ${context.userId}`;
-    return row ? { ...row, email: me.email, role: me.role } : null;
+    return readAccountProfile(sql, me);
   });
 
 export const saveProfile = createServerFn({ method: "POST" })
@@ -36,12 +37,7 @@ export const saveProfile = createServerFn({ method: "POST" })
   .handler(async ({ context, data }) => {
     const me = await clubIdentity(context.userId);
     const sql = await getSql();
-    // Self-service never changes role, household ownership, email or financial fields.
-    const role = me.role === "parent" && data.role === "player" ? "player" : me.role;
-    await sql`insert into profiles (user_id, name, email, role, player_name, family_id)
-      values (${me.userId}, ${data.name}, ${me.email}, ${role}, ${data.playerName}, ${me.familyId})
-      on conflict (user_id) do update set name = excluded.name, player_name = excluded.player_name`;
-    return { ok: true, role };
+    return saveAccountProfile(sql, me, data);
   });
 
 /** Retired browser mutation: completion belongs to the assigned coach. */
@@ -58,40 +54,7 @@ export const listReservations = createServerFn({ method: "GET" })
   .handler(async ({ context }) => {
     const sql = await getSql();
     const me = await clubIdentity(context.userId);
-    // Legacy reservations have no coach assignment. Only front office can see all.
-    if (me.role === "admin") {
-      return sql<{
-        id: number;
-        user_id: string;
-        kind: string;
-        title: string;
-        date: string;
-        start_time: string;
-        duration_min: number;
-        price: number;
-        status: string;
-      }>`
-        select id, user_id, kind, title, date, start_time, duration_min, price, status
-        from reservations
-        order by date desc, start_time desc
-      `;
-    }
-    return sql<{
-      id: number;
-      user_id: string;
-      kind: string;
-      title: string;
-      date: string;
-      start_time: string;
-      duration_min: number;
-      price: number;
-      status: string;
-    }>`
-      select id, user_id, kind, title, date, start_time, duration_min, price, status
-      from reservations
-      where user_id = ${context.userId}
-      order by date desc, start_time desc
-    `;
+    return readLegacySchedule(sql, me);
   });
 
 export const listPrograms = createServerFn({ method: "GET" })
@@ -113,15 +76,10 @@ export const listPrograms = createServerFn({ method: "GET" })
 
 export const createProgram = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
-  .validator((input: { athlete: string; focus: string }) => input)
+  .validator(legacyProgramInput)
   .handler(async ({ context, data }) => {
     const sql = await getSql();
-    const rows = await sql<{ id: number }>`
-      insert into programs (user_id, athlete, focus)
-      values (${context.userId}, ${data.athlete}, ${data.focus})
-      returning id
-    `;
-    return { id: rows[0].id };
+    return createLegacyProgram(sql, await clubIdentity(context.userId), data);
   });
 
 export const listDrills = createServerFn({ method: "GET" })
@@ -144,42 +102,26 @@ export const listDrills = createServerFn({ method: "GET" })
 
 export const addDrill = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
-  .validator(
-    (input: { programId: number; name: string; detail: string }) => input,
-  )
+  .validator(legacyDrillInput)
   .handler(async ({ context, data }) => {
     const sql = await getSql();
-    await sql`
-      insert into drills (program_id, user_id, name, detail)
-      values (${data.programId}, ${context.userId}, ${data.name}, ${data.detail})
-    `;
-    return { ok: true };
+    return addLegacyDrill(sql, await clubIdentity(context.userId), data);
   });
 
 export const toggleDrill = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
-  .validator((input: { id: number; done: boolean }) => input)
+  .validator(legacyDrillCompletionInput)
   .handler(async ({ context, data }) => {
     const sql = await getSql();
-    await sql`
-      update drills set done = ${data.done}
-      where id = ${data.id} and user_id = ${context.userId}
-    `;
-    return { ok: true };
+    return completeLegacyDrill(sql, await clubIdentity(context.userId), data);
   });
 
 export const addLog = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
-  .validator(
-    (input: { athlete: string; note: string; metric: string }) => input,
-  )
+  .validator(legacyLogInput)
   .handler(async ({ context, data }) => {
     const sql = await getSql();
-    await sql`
-      insert into athlete_logs (user_id, athlete, note, metric)
-      values (${context.userId}, ${data.athlete}, ${data.note}, ${data.metric})
-    `;
-    return { ok: true };
+    return createLegacyLog(sql, await clubIdentity(context.userId), data);
   });
 
 export const listLogs = createServerFn({ method: "GET" })
