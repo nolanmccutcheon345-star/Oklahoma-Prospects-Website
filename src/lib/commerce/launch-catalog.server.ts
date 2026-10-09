@@ -12,7 +12,7 @@ export async function prepareLaunchCatalog(sql:Sql,client:SquareClient,c:SquareS
   let verified=false;
   for await (const listed of subscriptions) {
     if(listed.notificationUrl!==c.webhookUrl||!listed.id)continue;
-    let {subscription}=await client.webhooks.subscriptions.get({subscriptionId:listed.id});
+    const {subscription}=await client.webhooks.subscriptions.get({subscriptionId:listed.id});
     if(!subscription?.enabled||subscription.signatureKey!==c.signatureKey||subscription.notificationUrl!==c.webhookUrl)
       throw new Error('Membership webhook settings do not match this site. No payment has been taken.');
     if(!subscription?.enabled||subscription.signatureKey!==c.signatureKey||subscription.notificationUrl!==c.webhookUrl||membershipEvents.some(type=>!subscription!.eventTypes?.includes(type)))
