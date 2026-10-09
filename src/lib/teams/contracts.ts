@@ -3,7 +3,8 @@ import type {ClubRecord} from './types';
 const id=z.string().max(150),text=z.string().max(5000),short=z.string().max(200);
 const money=z.number().finite().min(0).max(10000000),count=z.number().int().min(0).max(100000);
 const strings=z.array(short).max(200),numbers=z.record(short,z.number().finite());
-const staff=z.object({id,name:short,role:short,monthly:money,childId:id,applyAmount:money,w9:z.boolean(),backgroundCheck:z.boolean(),safeSport:z.boolean(),expires:short,email:short}).strict();
+const photo=z.union([z.literal(''),z.string().max(250000).regex(/^data:image\/(?:jpeg|png|webp);base64,[A-Za-z0-9+/]+={0,2}$/)]);
+const staff=z.object({id,name:short,role:short,monthly:money,childId:id,applyAmount:money,w9:z.boolean(),backgroundCheck:z.boolean(),safeSport:z.boolean(),expires:short,email:short,bio:z.string().max(2000).optional(),photo:photo.optional()}).strict();
 const player=z.object({
  id,teamId:id,familyId:id,name:short,number:short,positions:strings,bats:short,throws:short,gradYear:short,school:short,height:short,weight:short,email:short,
  parents:z.array(z.object({name:short,rel:short,phone:short,email:short}).strict()).max(10),roleType:z.enum(['full','po']),coachChild:z.boolean(),joinedOn:short,withdrawn:z.boolean(),
@@ -21,7 +22,7 @@ const player=z.object({
  rsvp:z.record(id,z.enum(['going','maybe','cant',''])),
 }).strict();
 const team=z.object({
- id,name:short,sport:z.enum(['baseball','softball']),age:short,level:short,seasonLabel:short,seasonStart:short,seasonEnd:short,months:count,headCoach:short,coachEmail:short,staff:z.array(staff).max(100),
+ id,name:short,sport:z.enum(['baseball','softball']),age:short,level:short,seasonLabel:short,seasons:z.array(short).max(12).optional(),seasonStart:short,seasonEnd:short,months:count,headCoach:short,coachEmail:short,headCoachBio:z.string().max(2000).optional(),headCoachPhoto:photo.optional(),staff:z.array(staff).max(100),
  uniformPackageId:id,uniformDeadline:short,orgFee:money,coachMonthly:money,eventBudget:money,tournamentIds:strings,
  otherCosts:z.object({insurance:money,balls:money,fields:money,admin:money,travel:money}).strict(),teamCageHoursPerWeek:money,playerCageHoursPerWeek:money,
  record:z.object({w:count,l:count,t:count}).strict(),roster:z.array(player).max(500),

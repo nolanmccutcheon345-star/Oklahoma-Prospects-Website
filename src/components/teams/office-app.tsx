@@ -1,9 +1,11 @@
+import { SeasonPicker } from "./season-picker";
+import { teamSeasons } from "@/lib/teams/seasons";
 import { useEffect, useMemo, useState } from "react";
 import { TeamCoachProfileEditor } from "./team-coach-profile-editor";
 import { getAssignableTeamCoaches } from "@/lib/team-coach-directory-api";
 import { Button } from "@/components/ui/button";
 import type { ClubRecord, StaffMember } from "@/lib/teams/types";
-import { officeAddPlayer, officeAddTeam, officeRemoveTeam } from "@/lib/teams/store";
+import { officeAddPlayer, officeAddTeam, officeRemoveTeam, officeSaveTeamSeasons } from "@/lib/teams/store";
 import { AGE_GROUPS } from "@/lib/club";
 import { balance, docsComplete, fundingCount, priceComponents } from "@/lib/teams/pricing";
 import { Section } from "./ui";
@@ -272,6 +274,7 @@ function CoachManagement({ club, onChange, onSave }: {
   const [directory, setDirectory] = useState<Awaited<ReturnType<typeof getAssignableTeamCoaches>>>([]);
   const [directoryError, setDirectoryError] = useState("");
   const [saving, setSaving] = useState(false);
+  const [assignmentRoles, setAssignmentRoles] = useState<Record<string,string>>({});
   useEffect(() => {
     let active = true;
     getAssignableTeamCoaches().then(rows => { if (active) setDirectory(rows); }).catch(err => { if (active) setDirectoryError(err instanceof Error ? err.message : "Could not load existing coaches."); });
@@ -304,7 +307,7 @@ function CoachManagement({ club, onChange, onSave }: {
           const selected = club.teams.find(t => t.id === teamId);
           if (!selected) { setMessage("Select a team first."); return; }
           const normalized = email.trim().toLowerCase();
-          if (club.teams.some(t => t.staff.some(c => c.email.toLowerCase() === normalized && t.id === teamId))) {
+          if (selected.coachEmail.trim().toLowerCase() === normalized || selected.staff.some(c => c.email.toLowerCase() === normalized)) {
             setMessage("This coach is already on the selected team."); return;
           }
           const coach: StaffMember = {
@@ -312,7 +315,7 @@ function CoachManagement({ club, onChange, onSave }: {
             monthly: 0, childId: "", applyAmount: 0, w9: false,
             backgroundCheck: false, safeSport: false, expires: "",
           };
-          updateTeam(teamId, t => ({ ...t, staff: [...t.staff, coach] }));
+          void updateTeam(teamId, t => role === "Head coach" ? {...t, headCoach: coach.name, coachEmail: coach.email} : ({ ...t, staff: [...t.staff, coach] }));
           setName(""); setEmail("");
         }}>
           <input required maxLength={150} value={name} onChange={e => setName(e.target.value)} placeholder="Coach full name" aria-label="Coach full name" className="min-h-11 rounded-md border border-line px-3" />
@@ -337,33 +340,38 @@ function CoachManagement({ club, onChange, onSave }: {
             <label className="grid gap-1 text-sm">Head coach
               <select disabled={saving} value={team.coachEmail} onChange={e => {
                 const coach = coaches.find(c => c.email === e.target.value);
-                updateTeam(team.id, t => ({ ...t, headCoach: coach?.name ?? "", coachEmail: coach?.email ?? "" }));
+                updateTeam(team.id, t => ({ ...t, headCoach: coach?.name ?? "", coachEmail: coach?.email ?? "", headCoachBio: t.staff.find(s=>s.email===coach?.email)?.bio ?? "", headCoachPhoto: t.staff.find(s=>s.email===coach?.email)?.photo ?? "", staff: t.staff.filter(s=>s.email.trim().toLowerCase()!==t.coachEmail.trim().toLowerCase() || s.email.trim().toLowerCase()===coach?.email?.trim().toLowerCase()) }));
               }} className="min-h-11 rounded-md border border-line px-3">
                 <option value="">Unassigned</option>
                 {coaches.map(c => <option key={c.email} value={c.email}>{c.name} ({c.email})</option>)}
               </select>
             </label>
             <div className="flex flex-wrap gap-2">
-              {team.staff.map(person => <button key={person.id} type="button" disabled={saving} className="rounded border px-3 py-2 text-xs" onClick={() => {
+              {team.staff.filter(person => person.email.trim().toLowerCase() !== team.coachEmail.trim().toLowerCase()).map(person => <button key={person.id} type="button" disabled={saving} className="rounded border px-3 py-2 text-xs" onClick={() => {
                 if (!window.confirm(`Remove ${person.name} from ${team.name}? Their lesson profile will be kept.`)) return;
                 void updateTeam(team.id, t => ({...t, staff:t.staff.filter(s => s.id!==person.id)}));
               }}>Remove {person.name} from team</button>)}
             </div>
             {team.coachEmail && <TeamCoachProfileEditor key={team.id+"-head-"+team.coachEmail} email={team.coachEmail} name={team.headCoach} bio={(team as typeof team & {headCoachBio?:string}).headCoachBio} photo={(team as typeof team & {headCoachPhoto?:string}).headCoachPhoto} onSaved={()=>window.location.reload()}/>}
-            {team.staff.map(person=><TeamCoachProfileEditor key={person.id} email={person.email} name={person.name} bio={(person as typeof person & {bio?:string}).bio} photo={(person as typeof person & {photo?:string}).photo} onSaved={()=>window.location.reload()}/>)}
-            <p className="text-xs text-muted">Assigned staff: {team.staff.map(c => c.name + " (" + c.role + ")").join(", ") || "None"}</p>
-            <label className="grid gap-1 text-sm">Add existing coach to this team
+            {team.staff.filter(person => person.email.trim().toLowerCase() !== team.coachEmail.trim().toLowerCase()).map(person=><TeamCoachProfileEditor key={person.id} email={person.email} name={person.name} bio={(person as typeof person & {bio?:string}).bio} photo={(person as typeof person & {photo?:string}).photo} onSaved={()=>window.location.reload()}/>)}
+            <p className="text-xs text-muted">Assigned staff: {team.staff.filter(c => c.email.trim().toLowerCase() !== team.coachEmail.trim().toLowerCase()).map(c => c.name + " (" + c.role + ")").join(", ") || "None"}</p>
+            <label className="grid gap-1 text-sm">Additional coach role
+              <select value={assignmentRoles[team.id] ?? "Assistant coach"} onChange={e=>setAssignmentRoles({...assignmentRoles,[team.id]:e.target.value})} className="min-h-11 rounded-md border border-line px-3">
+                <option>Assistant coach</option><option>Pitching coach</option><option>Hitting coach</option>
+              </select>
+            </label>
+            <label className="grid gap-1 text-sm">Add assistant or additional coach
               <select disabled={saving} value="" onChange={e => {
                 const coach = coaches.find(c => c.email === e.target.value);
-                if (!coach || team.staff.some(s => s.email.toLowerCase() === coach.email.toLowerCase())) return;
+                if (!coach || coach.email.trim().toLowerCase() === team.coachEmail.trim().toLowerCase() || team.staff.some(s => s.email.toLowerCase() === coach.email.toLowerCase())) return;
                 updateTeam(team.id, t => ({ ...t, staff: [...t.staff, {
                   id: crypto.randomUUID(), name: coach.name, email: coach.email,
-                  role: "Assistant coach", monthly: 0, childId: "", applyAmount: 0,
+                  role: assignmentRoles[team.id] ?? "Assistant coach", monthly: 0, childId: "", applyAmount: 0,
                   w9: false, backgroundCheck: false, safeSport: false, expires: "",
                 }] }));
               }} className="min-h-11 rounded-md border border-line px-3">
                 <option value="">Choose existing coach</option>
-                {coaches.map(c => <option key={c.email} value={c.email}>{c.name} ({c.email})</option>)}
+                {coaches.filter(c=>c.email.trim().toLowerCase()!==team.coachEmail.trim().toLowerCase() && !team.staff.some(s=>s.email.trim().toLowerCase()===c.email.trim().toLowerCase())).map(c => <option key={c.email} value={c.email}>{c.name} ({c.email})</option>)}
               </select>
             </label>
           </div>
@@ -388,7 +396,9 @@ function RosterTools({
   const [teamName, setTeamName] = useState("");
   const [age, setAge] = useState("13U");
   const [sport, setSport] = useState<"baseball" | "softball">("baseball");
-  const [season, setSeason] = useState("Spring 2027");
+  const [seasons, setSeasons] = useState(["Spring 2027"]);
+  const [seasonDrafts, setSeasonDrafts] = useState<Record<string,string[]>>({});
+  const [notice, setNotice] = useState("");
   const [teamId, setTeamId] = useState(club.teams[0]?.id ?? "");
   const [playerName, setPlayerName] = useState("");
   const [parentName, setParentName] = useState("");
@@ -408,7 +418,7 @@ function RosterTools({
           setBusy(true);
           setError("");
           try {
-            const row = await officeAddTeam({ data: { name: teamName, age, sport, season } });
+            const row = await officeAddTeam({ data: { name: teamName, age, sport, season: seasons.join(" & ") } });
             onChange(row.club);
             setTeamName("");
             setTeamId(row.club.teams.at(-1)?.id ?? teamId);
@@ -448,17 +458,28 @@ function RosterTools({
             <option value="softball">Softball</option>
           </select>
         </div>
-        <label className="grid gap-1 text-sm">Season
-          <input required maxLength={100} value={season} onChange={e => setSeason(e.target.value)} list="team-season-options" className="min-h-11 rounded-md border border-line px-3" placeholder="Spring & Summer 2027" />
-          <datalist id="team-season-options">{["Fall 2026","Spring 2027","Summer 2027","Spring & Summer 2027","Fall 2027","Spring 2028","Summer 2028"].map(x => <option key={x} value={x} />)}</datalist>
-        </label>
-        <Button type="submit" disabled={busy}>
+        <SeasonPicker label="Seasons for new team" value={seasons} onChange={setSeasons} disabled={busy} />
+        <Button type="submit" disabled={busy || !seasons.length}>
           Add team
         </Button>
       </form>
       <div className="grid gap-2 rounded-xl border p-3">
         <h3 className="font-semibold">Manage existing teams</h3>
-        {club.teams.map(team => <div key={team.id} className="flex flex-wrap items-center justify-between gap-2 border-b py-2 text-sm"><span>{team.name} · {team.sport}</span><label className="flex items-center gap-2">Season <input aria-label={`Season for ${team.name}`} maxLength={100} value={team.seasonLabel} className="min-h-11 rounded border px-2" onChange={e=>onChange({...club,teams:club.teams.map(t=>t.id===team.id?{...t,seasonLabel:e.target.value}:t)})}/></label><Button type="button" disabled={busy} onClick={()=>{void onSave();}}>Save season</Button><Button type="button" variant="outlineDark" disabled={busy} onClick={async () => {
+        {notice && <p role="status">{notice}</p>}
+        {club.teams.map(team => <div key={team.id} className="grid gap-2 border-b py-3 text-sm">
+          <span className="font-semibold">{team.name} · {team.sport}</span>
+          <SeasonPicker label={`Seasons for ${team.name}`} value={seasonDrafts[team.id] ?? teamSeasons(team)} disabled={busy}
+            onChange={value => setSeasonDrafts(prev => ({...prev, [team.id]: value}))} />
+          <Button type="button" disabled={busy || !(seasonDrafts[team.id] ?? teamSeasons(team)).length} onClick={async () => {
+            setBusy(true); setError(""); setNotice("");
+            try {
+              const row = await officeSaveTeamSeasons({data: {teamId: team.id, baseRev: club._rev, seasons: seasonDrafts[team.id] ?? teamSeasons(team)}});
+              onChange(row.club);
+              setSeasonDrafts(prev => { const next={...prev}; delete next[team.id]; return next; });
+              setNotice(`Saved ${team.name}: ${row.club.teams.find(t=>t.id===team.id)?.seasonLabel}.`);
+            } catch(err) { setError(err instanceof Error ? err.message : "Could not save seasons."); }
+            finally { setBusy(false); }
+          }}>Save seasons</Button><Button type="button" variant="outlineDark" disabled={busy} onClick={async () => {
           if (!window.confirm(`Delete ${team.name}? This cannot be undone. Teams with roster or activity records cannot be deleted.`)) return;
           setBusy(true);setError("");
           try { const row=await officeRemoveTeam({data:{teamId:team.id,baseRev:club._rev}});onChange(row.club);if(teamId===team.id)setTeamId(row.club.teams[0]?.id??""); }

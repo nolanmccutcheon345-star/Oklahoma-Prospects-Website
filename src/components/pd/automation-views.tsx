@@ -1,3 +1,4 @@
+import { formatClockTime } from "@/lib/time-display";
 import { useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { useDevelopment, type AthleteSlice } from "@/lib/pd/context";
@@ -343,7 +344,7 @@ export function DigestCard({ familyId }: { familyId: string }) {
         </p>
         <p className="mt-2 text-sm">
           <strong>Next.</strong>{" "}
-          {digest.next ? `${digest.next.date} · ${digest.next.time}` : "Nothing booked. Offer two times."}
+          {digest.next ? `${digest.next.date} · ${formatClockTime(digest.next.time)}` : "Nothing booked. Offer two times."}
         </p>
       </div>
     </section>

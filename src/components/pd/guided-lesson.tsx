@@ -1,3 +1,4 @@
+import { formatClockTime } from "@/lib/time-display";
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { useDevelopment, type AthleteSlice } from "@/lib/pd/context";
@@ -103,7 +104,7 @@ export function LessonLaunch({ onStart }: { onStart: (start: LessonStart) => voi
                     {athlete ? `${athlete.firstName} ${athlete.lastName}` : row.athleteId}
                   </strong>
                   <span className="mt-1 block text-sm text-muted">
-                    {row.date} · {row.time} · {row.serviceId}
+                    {row.date} · {formatClockTime(row.time)} · {row.serviceId}
                   </span>
                   <Button
                     type="button"

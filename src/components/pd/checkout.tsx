@@ -1,3 +1,4 @@
+import { formatClockTime } from "@/lib/time-display";
 import { useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { useDevelopment } from "@/lib/pd/context";
@@ -36,12 +37,7 @@ export type CheckoutItem = {
   lessons?: number;
 };
 
-function labelTime(time: string) {
-  const [h, m] = time.split(":").map(Number);
-  const hour = h % 12 || 12;
-  const ap = h < 12 ? "AM" : "PM";
-  return `${hour}:${String(m).padStart(2, "0")} ${ap}`;
-}
+const labelTime = formatClockTime;
 
 export function CheckoutSchedule({
   item,

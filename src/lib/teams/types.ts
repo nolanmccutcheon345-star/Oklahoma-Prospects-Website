@@ -26,6 +26,8 @@ export type UniformPackage = {
 };
 
 export type StaffMember = {
+  bio?: string;
+  photo?: string;
   id: string;
   name: string;
   role: string;
@@ -168,11 +170,14 @@ export type Team = {
   age: string;
   level: string;
   seasonLabel: string;
+  seasons?: string[];
   seasonStart: string;
   seasonEnd: string;
   months: number;
   headCoach: string;
   coachEmail: string;
+  headCoachBio?: string;
+  headCoachPhoto?: string;
   staff: StaffMember[];
   uniformPackageId: string;
   uniformDeadline: string;

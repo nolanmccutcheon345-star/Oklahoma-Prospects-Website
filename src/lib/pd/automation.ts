@@ -1,3 +1,4 @@
+import { formatClockTime } from "../time-display";
 import { POINT_VALUES } from "./core-algorithms.js";
 import type { AthleteSlice } from "./context";
 import {
@@ -451,7 +452,7 @@ export function buildAlerts(data: DevelopmentData, scope: AlertScope): PdAlert[]
       kind: "commercial",
       rank: 210,
       title: `${athlete?.firstName ?? "Athlete"}: unconfirmed session`,
-      detail: `${row.date} · ${row.time}. Proposed, not approved.`,
+      detail: `${row.date} · ${formatClockTime(row.time)}. Proposed, not approved.`,
       action: "Ping the family with the exact slot. Don't wait for them to notice.",
       athleteId: row.athleteId,
       desk: "today",
@@ -468,7 +469,7 @@ export function buildAlerts(data: DevelopmentData, scope: AlertScope): PdAlert[]
       kind: "commercial",
       rank: 220,
       title: `${athlete?.firstName ?? "Athlete"} is on the waitlist`,
-      detail: `${row.preferredDay ?? "Any day"} · ${row.preferredTime ?? "any time"}.`,
+      detail: `${row.preferredDay ?? "Any day"} · ${formatClockTime(row.preferredTime) || "any time"}.`,
       action: "Offer a real opening that matches the preference.",
       athleteId: row.athleteId,
       desk: "today",

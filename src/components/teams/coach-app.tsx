@@ -1,3 +1,4 @@
+import { formatClockTime } from "@/lib/time-display";
 import { useState } from "react";
 import { coachAddRosterPlayer, coachRemoveRosterPlayer } from "@/lib/teams/store";
 import { Link } from "@tanstack/react-router";
@@ -285,7 +286,7 @@ export function CoachApp({
         <ul className="mt-2 grid gap-2">
           {team.practices.map((pr) => (
             <li key={pr.id} className="rounded-lg bg-paper p-3">
-              {pr.date} {pr.time} · {pr.where} · {pr.cageHours}h · {pr.status}
+              {pr.date} {formatClockTime(pr.time)} · {pr.where} · {pr.cageHours}h · {pr.status}
               <div className="mt-2 flex flex-wrap gap-1">
                 {(["delayed", "moved", "cancelled", "on"] as const).map((st) => (
                   <Chip

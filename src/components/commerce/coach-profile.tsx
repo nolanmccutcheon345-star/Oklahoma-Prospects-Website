@@ -1,3 +1,5 @@
+import { formatClockTime } from "@/lib/time-display";
+import { TimeInput } from "@/components/time-input";
 import {useEffect,useState} from 'react';import {Link} from '@tanstack/react-router';
 import {getMyCoach,saveMyCoach,saveMyAvailability} from '@/lib/coaching-api';
 import {coachAvailabilityFields, submittedCoachAvailability} from '@/lib/coach-availability-form';
@@ -10,9 +12,9 @@ export function CoachProfile(){const [data,setData]=useState<Awaited<ReturnType<
  <label>Display name<input name="name" required maxLength={120} defaultValue={data.profile?.name||data.coach.name}/></label><label>Specialties (comma separated)<input name="specialties" defaultValue={(data.profile?.specialties||data.coach.specialties).join(', ')}/></label>
  {prompts.map(([key,label,hint])=><label key={key}>{label}<span className="block text-sm text-muted">{hint}</span><textarea name={key} maxLength={key==='ages'?500:key==='welcome'?1000:2000} rows={3} defaultValue={data.profile?.[key]||''}/></label>)}
  <label className="flex gap-2"><input type="checkbox" name="published" defaultChecked={data.profile?.published}/>Publish this profile for parents and players</label><Button disabled={busy} type="submit">Save coach profile</Button></form>
- <h3 className="text-2xl">Weekly availability</h3><p>Current windows: {data.availability.map(w=>`${w.weekday} ${w.window}`).join('; ')||'None set'}. Saving replaces your weekly windows.</p>
+ <h3 className="text-2xl">Weekly availability</h3><p>Current windows: {data.availability.map(w=>`${w.weekday} ${formatClockTime(w.window)}`).join('; ')||'None set'}. Saving replaces your weekly windows.</p>
  <form key={JSON.stringify(data.availability)} className="grid gap-3" onSubmit={async e=>{e.preventDefault();if(busy)return;const f=new FormData(e.currentTarget);if(availabilityError)return;setBusy(true);setError('');try{await saveMyAvailability({data:{windows:submittedCoachAvailability(f,fields)}});setData(await getMyCoach());setNotice('Availability saved. Checkout uses these windows.');}catch(e){setError(e instanceof Error?e.message:'Availability did not save.');}finally{setBusy(false);}}}>
  {availabilityError?<p role="alert">{availabilityError}</p>:null}
- {fields.map(field=><fieldset key={field.id} className="grid gap-2 rounded-lg border p-3 sm:grid-cols-3"><legend>{field.label}</legend><label><input name={field.id} type="checkbox" defaultChecked={field.available}/>Available</label><label>Start<input name={`${field.id}-start`} type="time" defaultValue={field.start}/></label><label>End<input name={`${field.id}-end`} type="time" defaultValue={field.end}/></label></fieldset>)}<Button type="submit" disabled={busy||Boolean(availabilityError)}>Save weekly availability</Button></form>
+ {fields.map(field=><fieldset key={field.id} className="grid gap-2 rounded-lg border p-3 sm:grid-cols-3"><legend>{field.label}</legend><label><input name={field.id} type="checkbox" defaultChecked={field.available}/>Available</label><label>Start<TimeInput name={`${field.id}-start`}  defaultValue={field.start}/></label><label>End<TimeInput name={`${field.id}-end`}  defaultValue={field.end}/></label></fieldset>)}<Button type="submit" disabled={busy||Boolean(availabilityError)}>Save weekly availability</Button></form>
  </>:null}</section>;
 }
