@@ -41,7 +41,7 @@ export const getPublicTeamCoaches = createServerFn({ method: "GET" }).handler(as
     for (const person of members) {
       const email = person.email.trim().toLowerCase(), name = person.name.trim();
       if (!email.includes("@") || !name || name.length > 150) continue;
-      const existing = coaches.get(email) ?? { name, bio:person.bio, photo:person.photo, teams: [] };
+      const existing: {name:string;bio?:string;photo?:string;teams:{id:string;name:string;sport:"baseball"|"softball";age:string}[]} = coaches.get(email) ?? { name, bio:person.bio, photo:person.photo, teams: [] };
       if (!existing.teams.some(team => team.id === summary.id)) existing.teams.push(summary);
       coaches.set(email, existing);
     }
