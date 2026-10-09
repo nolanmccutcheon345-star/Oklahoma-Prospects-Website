@@ -73,27 +73,45 @@ function Home() {
         <p className="text-xs font-semibold tracking-[0.16em] text-maroon uppercase">
           Start here
         </p>
-        <h2 className="mt-2 text-3xl">What do you need today?</h2>
+        <h2 className="mt-2 text-3xl">Choose your next step.</h2>
         <div className="mt-5 grid gap-3">
           <PathCard
             to="/book"
             kicker={`From ${formatMoney(PRICES.individual)} / hour`}
             title="Book a cage"
-            body="One cage or several at the same time. Payment is required to confirm your booking."
+            body="Reserve indoor cage time for individual training or team practice."
           />
           <PathCard
             to="/training"
             kicker={`From ${formatDollars(catalog.memberships.find(m=>m.id==="m1")?.price ?? 239)} / mo`}
-            title="Start monthly development"
-            body="Four coached sessions a month, a plan, and tracking. Baseball and softball, 8U through college."
+            title="Explore lesson memberships"
+            body="Build consistency with monthly coaching, a development plan, and progress tracking."
           />
           <MemberPathCard />
           <PathCard
             to="/more"
             kicker="First visit"
-            title="Check in & waiver"
-            body="Waiver, directions, and paid receipts — ready before you walk in."
+            title="Get ready for your first visit"
+            body="Complete your waiver, find directions, and get ready to train."
           />
+        </div>
+      </section>
+
+      <section aria-label="Coaching and teams" className="mx-auto grid max-w-3xl items-center gap-6 px-5 pt-2 pb-10 md:grid-cols-2">
+        <BrandImage
+          src="/brand/training.jpg"
+          alt="Coach working with athletes at Prospects Sports Academy"
+          className="aspect-[4/3] w-full rounded-2xl object-cover"
+        />
+        <div>
+          <p className="text-xs font-semibold tracking-[0.16em] text-maroon uppercase">Coaching and teams</p>
+          <h2 className="mt-2 text-3xl">Coaching. Development. Teamwork.</h2>
+          <p className="mt-3 text-muted">Work with experienced coaches, build your skills through lessons, and explore baseball and softball teams at Prospects Sports Academy.</p>
+          <div className="mt-5 flex flex-wrap gap-2">
+            <Button asChild variant="maroon"><Link to="/training">Explore Lessons</Link></Button>
+            <Button asChild variant="outlineDark"><Link to="/coaches">Meet Our Coaches</Link></Button>
+            <Button asChild variant="outlineDark"><Link to="/teams">Explore Teams</Link></Button>
+          </div>
         </div>
       </section>
 
@@ -103,8 +121,9 @@ function Home() {
             <div>
               <h2 className="text-3xl">Cage rates</h2>
               <p className="mt-1 text-muted">
-                Pay at checkout to book your time. {CANCEL_POLICY.short}.
+                Choose your space, reserve your time, and pay online. Rates below are per hour.
               </p>
+              <p className="mt-2 text-sm text-muted">Payment confirms your booking. {CANCEL_POLICY.short}.</p>
             </div>
             <Button asChild variant="outlineDark" size="sm" className="min-h-11 w-full shrink-0 whitespace-nowrap sm:w-auto">
               <Link to="/book">Book a cage</Link>
@@ -147,9 +166,7 @@ function Home() {
           </p>
           <h2 className="mt-2 text-3xl">Train every month. Pay less per hour.</h2>
           <p className="mt-3 max-w-xl text-fg-soft">
-            Two hours a month already costs less than dropping in. Four hours a
-            month is All-Star — {formatMoney(Math.round(PRICES["all-star"] / 4))} an hour. Every household can book up to 14 days ahead.
-            Lesson plans live on Train.
+            Make practice part of your routine. Choose a monthly cage pass for household training, or explore lesson memberships for coached development.
           </p>
           <div className="mt-6">
             <MembershipPlans cta="Compare memberships" />
@@ -164,11 +181,11 @@ function Home() {
 
       <section className="bg-paper-2 py-10">
         <div className="mx-auto max-w-3xl px-5">
-          <h2 className="text-3xl">Need a person?</h2>
+          <h2 className="text-3xl">We’re here to help.</h2>
           <p className="mt-2 mb-5 text-muted">
             Contact Prospects Sports Academy for help with bookings, lessons, memberships, and teams.
           </p>
-          <Link to="/contact" className="inline-flex min-h-11 items-center underline">Contact Organization</Link>
+          <Link to="/contact" className="inline-flex min-h-11 items-center uppercase underline">Contact Prospects Sports Academy</Link>
           <a
             href={LINKS.maps}
             target="_blank"
@@ -203,8 +220,8 @@ function MemberPathCard() {
       <PathCard
         to="/login"
         kicker="Parents · players · coaches"
-        title="Member sign in"
-        body="One account for cages, lessons, and teams."
+        title="Go to my account"
+        body="Manage your bookings, memberships, athlete profiles, and team information."
       />
     );
   }
@@ -212,8 +229,8 @@ function MemberPathCard() {
     <PathCard
       to="/account"
       kicker="Already signed in"
-      title="Open my account"
-      body="Plans, drills, receipts, and your team desk."
+      title="Go to my account"
+      body="Manage your bookings, memberships, athlete profiles, and team information."
     />
   );
 }
