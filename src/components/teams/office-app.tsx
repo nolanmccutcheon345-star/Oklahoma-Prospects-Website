@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
-import type { ClubRecord } from "@/lib/teams/types";
+import type { ClubRecord, StaffMember } from "@/lib/teams/types";
 import { officeAddPlayer, officeAddTeam } from "@/lib/teams/store";
 import { AGE_GROUPS } from "@/lib/club";
 import { balance, docsComplete, fundingCount, priceComponents } from "@/lib/teams/pricing";
@@ -16,6 +16,7 @@ export function OfficeApp({
   onChange: (club: ClubRecord) => void;
   onSave: () => void;
 }) {
+  const [activeTab, setActiveTab] = useState<"teams" | "overview">("overview");
   const players = club.teams.flatMap((t) => t.roster.map((p) => ({ team: t, player: p })));
   const attention = {
     unsigned: players.filter((x) => !x.player.agreement.signedAt),
@@ -63,43 +64,26 @@ export function OfficeApp({
 
   return (
     <div className="grid gap-3">
+      <nav aria-label="Front office admin tabs" className="flex flex-wrap gap-2 rounded-xl bg-paper-2 p-3">
+        <Button type="button" variant={activeTab === "teams" ? "primary" : "outlineDark"} onClick={() => setActiveTab("teams")}>Teams & coaches</Button>
+        <Button type="button" variant={activeTab === "overview" ? "primary" : "outlineDark"} onClick={() => setActiveTab("overview")}>Office overview</Button>
+      </nav>
+      {activeTab === "teams" ? (
+        <section id="team-coach-assignments" aria-labelledby="team-coach-assignments-title" className="rounded-2xl border-2 border-maroon bg-paper p-5 scroll-mt-32">
+          <h2 id="team-coach-assignments-title" className="text-2xl font-bold text-ink">Teams & coaches administration</h2>
+          <p className="my-3 text-sm text-muted">Create baseball or softball teams, build coach profiles, and assign head or assistant coaches to teams.</p>
+          <RosterTools club={club} onChange={onChange} />
+          <CoachManagement club={club} onChange={onChange} onSave={onSave} />
+        </section>
+      ) : (
+      <>
       <div className="grid grid-cols-2 gap-2">
         <Stat label="Teams" value={String(club.teams.length)} />
         <Stat label="Rostered" value={String(players.length)} />
         <Stat label="Contracted" value={money(revenue)} />
         <Stat label="Collected" value={money(collected)} />
       </div>
-      <Button type="button" onClick={onSave}>
-        Save club
-      </Button>
-
-      <section id="team-coach-assignments" aria-labelledby="team-coach-assignments-title" className="rounded-2xl border-2 border-maroon bg-paper p-5 scroll-mt-32">
-        <h2 id="team-coach-assignments-title" className="text-2xl font-bold text-ink">Teams & coach assignments</h2>
-        <p className="mt-2 mb-4 text-sm text-muted">Create teams, then assign each team’s head coach and coach sign-in email here.</p>
-        <RosterTools club={club} onChange={onChange} />
-        <Section title="Team coach assignments" defaultOpen>
-        <p className="mb-3 text-sm text-muted">Assign the coach's sign-in email to the team, then save the club. The coach must also accept their coach invitation.</p>
-        {club.teams.map((team) => (
-          <fieldset key={team.id} className="mb-4 grid gap-3 rounded-lg border border-line p-4">
-            <legend className="font-semibold">{team.name}</legend>
-            {([
-              ["headCoach", "Head coach", "text"],
-              ["coachEmail", "Coach sign-in email", "email"],
-              ["level", "Team level", "text"],
-              ["notes", "Team notes", "text"],
-            ] as const).map(([key, label, type]) => (
-              <label key={key} className="grid gap-1 text-sm">
-                {label}
-                <input type={type} value={team[key]} className="min-h-11 rounded-md border border-line px-3"
-                  onChange={(event) => onChange({ ...club, teams: club.teams.map((row) => row.id === team.id ? { ...row, [key]: event.target.value } : row) })} />
-              </label>
-            ))}
-          </fieldset>
-        ))}
-        </Section>
-        <Button type="button" className="mt-4" onClick={onSave}>Save coach assignments</Button>
-      </section>
-
+      <Button type="button" onClick={onSave}>Save club</Button>
       <Section title="Attention queue" defaultOpen>
         <ul className="grid gap-1 text-sm">
           <li>Unsigned agreements {attention.unsigned.length}</li>
@@ -267,6 +251,98 @@ export function OfficeApp({
           Download JSON backup
         </Button>
       </Section>
+      </>
+      )}
+    </div>
+  );
+}
+
+function CoachManagement({ club, onChange, onSave }: {
+  club: ClubRecord;
+  onChange: (club: ClubRecord) => void;
+  onSave: () => void;
+}) {
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [role, setRole] = useState("Assistant coach");
+  const [teamId, setTeamId] = useState("");
+  const [message, setMessage] = useState("");
+  const coaches = Array.from(new Map(club.teams.flatMap(t => [
+    ...(t.coachEmail ? [[t.coachEmail.trim().toLowerCase(), { name: t.headCoach, email: t.coachEmail }] as const] : []),
+    ...t.staff.filter(s => s.email).map(s => [s.email.trim().toLowerCase(), { name: s.name, email: s.email }] as const),
+  ])).values());
+  function updateTeam(id: string, update: (team: ClubRecord["teams"][number]) => ClubRecord["teams"][number]) {
+    onChange({ ...club, teams: club.teams.map(t => t.id === id ? update(t) : t) });
+    setMessage("Changes pending. Select Save assignments to publish.");
+  }
+  return (
+    <div className="mt-5 grid gap-5">
+      <section className="rounded-xl border border-line bg-white p-4">
+        <h3 className="text-xl font-semibold">Create coach profile</h3>
+        <p className="mb-3 text-sm text-muted">Profiles are stored with the selected team. Use the same email to assign a coach to additional teams.</p>
+        <form className="grid gap-3" onSubmit={e => {
+          e.preventDefault();
+          const selected = club.teams.find(t => t.id === teamId);
+          if (!selected) { setMessage("Select a team first."); return; }
+          const normalized = email.trim().toLowerCase();
+          if (club.teams.some(t => t.staff.some(c => c.email.toLowerCase() === normalized && t.id === teamId))) {
+            setMessage("This coach is already on the selected team."); return;
+          }
+          const coach: StaffMember = {
+            id: crypto.randomUUID(), name: name.trim(), email: normalized, role,
+            monthly: 0, childId: "", applyAmount: 0, w9: false,
+            backgroundCheck: false, safeSport: false, expires: "",
+          };
+          updateTeam(teamId, t => ({ ...t, staff: [...t.staff, coach] }));
+          setName(""); setEmail("");
+        }}>
+          <input required maxLength={150} value={name} onChange={e => setName(e.target.value)} placeholder="Coach full name" aria-label="Coach full name" className="min-h-11 rounded-md border border-line px-3" />
+          <input required type="email" maxLength={200} value={email} onChange={e => setEmail(e.target.value)} placeholder="Coach sign-in email" aria-label="Coach sign-in email" className="min-h-11 rounded-md border border-line px-3" />
+          <select value={role} onChange={e => setRole(e.target.value)} aria-label="Coach role" className="min-h-11 rounded-md border border-line px-3">
+            <option>Head coach</option><option>Assistant coach</option><option>Pitching coach</option><option>Hitting coach</option>
+          </select>
+          <select required value={teamId} onChange={e => setTeamId(e.target.value)} aria-label="Assign profile to team" className="min-h-11 rounded-md border border-line px-3">
+            <option value="">Select baseball or softball team</option>
+            {club.teams.map(t => <option key={t.id} value={t.id}>{t.name} · {t.sport}</option>)}
+          </select>
+          <Button type="submit" disabled={!club.teams.length}>Create coach profile & assign</Button>
+        </form>
+      </section>
+      <section className="rounded-xl border border-line bg-white p-4">
+        <h3 className="text-xl font-semibold">Assign coaches to teams</h3>
+        {club.teams.length === 0 ? <p className="text-sm">Create a baseball or softball team above to begin.</p> : club.teams.map(team => (
+          <div key={team.id} className="my-3 grid gap-2 rounded-lg border border-line p-3">
+            <h4 className="font-semibold">{team.name} · {team.sport} · {team.age}</h4>
+            <label className="grid gap-1 text-sm">Head coach
+              <select value={team.coachEmail} onChange={e => {
+                const coach = coaches.find(c => c.email === e.target.value);
+                updateTeam(team.id, t => ({ ...t, headCoach: coach?.name ?? "", coachEmail: coach?.email ?? "" }));
+              }} className="min-h-11 rounded-md border border-line px-3">
+                <option value="">Unassigned</option>
+                {coaches.map(c => <option key={c.email} value={c.email}>{c.name} ({c.email})</option>)}
+              </select>
+            </label>
+            <p className="text-xs text-muted">Assigned staff: {team.staff.map(c => c.name + " (" + c.role + ")").join(", ") || "None"}</p>
+            <label className="grid gap-1 text-sm">Add existing coach to this team
+              <select value="" onChange={e => {
+                const coach = coaches.find(c => c.email === e.target.value);
+                if (!coach || team.staff.some(s => s.email.toLowerCase() === coach.email.toLowerCase())) return;
+                updateTeam(team.id, t => ({ ...t, staff: [...t.staff, {
+                  id: crypto.randomUUID(), name: coach.name, email: coach.email,
+                  role: "Assistant coach", monthly: 0, childId: "", applyAmount: 0,
+                  w9: false, backgroundCheck: false, safeSport: false, expires: "",
+                }] }));
+              }} className="min-h-11 rounded-md border border-line px-3">
+                <option value="">Choose existing coach</option>
+                {coaches.map(c => <option key={c.email} value={c.email}>{c.name} ({c.email})</option>)}
+              </select>
+            </label>
+          </div>
+        ))}
+      </section>
+      {message && <p role="status" className="text-sm">{message}</p>}
+      <Button type="button" onClick={onSave}>Save assignments</Button>
+      <p className="text-xs text-muted">Coach profiles and assignments do not automatically send invitations. Coaches must have authorized sign-in access.</p>
     </div>
   );
 }

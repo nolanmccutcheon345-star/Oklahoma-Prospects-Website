@@ -109,31 +109,34 @@ function OfficePage() {
       <main id="main">
         <PageHero
           eyebrow="Front office"
-          title="Teams & coach assignments"
-          accent="Set up team management."
-          copy="Initialize the club team desk to create teams and assign coaches. No teams or coaches will be added automatically."
+          title="Admin front office"
+          accent="Manage your academy."
+          copy="Manage baseball and softball teams, coaching staff, payments, requests, and facility operations."
           image="/brand/team.jpg"
           compact
         />
         <div className="mx-auto max-w-3xl px-5 py-8">
+          <section id="office-teams" className="mb-8 rounded-2xl border-2 border-maroon bg-white p-5">
+            <h2 className="text-2xl font-bold">Teams & coaches</h2>
+            <p className="my-3 text-sm">Open your team's admin workspace to create baseball and softball teams, create coach profiles, and assign coaches. This is a one-time setup; no sample teams will be added.</p>
+            <Button
+              type="button"
+              onClick={async () => {
+                try {
+                  const row = await onboardTeamsClub({ data: { mode: "empty" } });
+                  setClub(row.club);
+                  setState({ ok: true, missing: false, role: "admin", me: state.me, club: row.club });
+                } catch (err) {
+                  setError(err instanceof Error ? err.message : "Could not initialize teams.");
+                }
+              }}
+            >Open teams & coaches admin</Button>
+          </section>
           <SquareOffice />
           <DiscountOffice />
           <OfficeOperations />
-      <StaffBookingChanges />
+          <StaffBookingChanges />
           <OfficeRequests />
-          <div className="grid gap-2">
-            <Button
-              type="button"
-              variant="outlineDark"
-              onClick={async () => {
-                const row = await onboardTeamsClub({ data: { mode: "empty" } });
-                setClub(row.club);
-                setState({ ok: true, missing: false, role: "admin", me: state.me, club: row.club });
-              }}
-            >
-              Set up teams & coach assignments
-            </Button>
-          </div>
         </div>
       </main>
     );
