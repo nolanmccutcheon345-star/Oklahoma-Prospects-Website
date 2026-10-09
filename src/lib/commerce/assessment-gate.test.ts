@@ -29,7 +29,7 @@ test("unassessed athletes can quote only assessment lessons", () => {
     ["lesson", "s5"],
     ["lesson", "s6"],
     ["package", "p1"],
-    ["membership", "m1"],
+    ["membership", "m4"],
     ["membership", "m5"],
   ] as const) {
     const rule = eligibility(kind, id, false);
@@ -38,6 +38,10 @@ test("unassessed athletes can quote only assessment lessons", () => {
   }
   assert.equal(eligibility("cage", "individual", false).locked, false);
   assert.equal(eligibility("cage-plan", "prospect", false).locked, false);
+  for (const id of ["m1","m2","m3"]) {
+    assert.equal(eligibility("membership", id, false).locked, false);
+    assert.equal(eligibility("membership", id, false).setupCents, 5000);
+  }
   assert.equal(eligibility("membership", "m1", true).locked, false);
   assert.equal(eligibility("membership", "m1", true).setupCents, 0);
   assert.equal(eligibility("lesson", "s3", true).locked, false);
@@ -174,16 +178,11 @@ test("server checkout denies bypass, siblings, forged ids, and failed assessment
       billingHouseholdIds: me.billingHouseholdIds,
       role: "parent",
     });
-    await assert.rejects(
-      assertAthleteMayPurchase(broken, {
-        athleteId: "kid-a",
-        kind: "membership",
-        productId: "m1",
-        billingHouseholdIds: me.billingHouseholdIds,
-        role: "parent",
-      }),
-      new RegExp(ASSESSMENT_LOCK_MESSAGE.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")),
-    );
+    const unassessedMember = await assertAthleteMayPurchase(broken, {
+      athleteId: "kid-a", kind: "membership", productId: "m1",
+      billingHouseholdIds: me.billingHouseholdIds, role: "parent",
+    });
+    assert.equal(unassessedMember.assessed, false);
 
     await assert.rejects(
       assertAthleteMayPurchase(sql, {
@@ -238,10 +237,7 @@ test("server checkout denies bypass, siblings, forged ids, and failed assessment
       product_id: "m1",
       snapshot: { kind: "membership", productId: "m1", assessment: true },
     };
-    await assert.rejects(
-      assertStoredOrderAllowed(sql, stored, me),
-      /Complete your assessment/,
-    );
+    await assertStoredOrderAllowed(sql, stored, me);
     await assertStoredOrderAllowed(
       sql,
       { ...stored, athlete_id: "kid-a" },
@@ -305,7 +301,10 @@ test("server checkout denies bypass, siblings, forged ids, and failed assessment
       await assert.rejects(quoteForRequest(request({ productId: "p1", kind: "package" }), true, "parent"), /Add your athlete/);
       await assert.rejects(quoteForRequest(request({ athleteId: "kid-b", productId: "s3", kind: "lesson", coachId: "gate-coach" }), true, "parent"), /Complete your assessment/);
       await assert.rejects(quoteForRequest(request({ athleteId: "kid-b", productId: "p1", kind: "package" }), true, "parent"), /Complete your assessment/);
-      await assert.rejects(quoteForRequest(request({ athleteId: "kid-b", productId: "m1", kind: "membership" }), true, "parent"), /Complete your assessment/);
+      const firstMember = await quoteForRequest(request({ athleteId: "kid-b", productId: "m1", kind: "membership", coachId: "gate-coach" }), true, "parent");
+      assert.equal(firstMember.quote.setupCents, 5000);
+      assert.equal(firstMember.quote.duration, 75);
+      assert.equal(firstMember.quote.totalCents, firstMember.quote.regularCents + 5000);
       await assert.rejects(quoteForRequest(request({ athleteId: "kid-b", productId: "m5", kind: "membership" }), true, "parent"), /Complete your assessment/);
       const openAssessment = await quoteForRequest(request({ athleteId: "kid-b", productId: "s1", kind: "lesson", coachId: "gate-coach" }), true, "parent");
       assert.equal(openAssessment.quote.assessment, true);
