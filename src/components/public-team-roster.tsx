@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { playerDestination, type Player } from "@/lib/fundraising/shared";
 type TeamSummary = { id: string; name: string; sport: string; season: string; players?: Player[] };
-export function PublicTeamRoster({ teamId }: { teamId?: string }) {
+export function PublicTeamRoster({ teamId, sport }: { teamId?: string; sport?: "Baseball" | "Softball" }) {
   const [teams, setTeams] = useState<TeamSummary[]>([]),
     [error, setError] = useState(""),
     [ready, setReady] = useState(false);
@@ -11,7 +11,7 @@ export function PublicTeamRoster({ teamId }: { teamId?: string }) {
       .then(async (r) => {
         const d = await r.json();
         if (!r.ok) throw new Error(d.error || "Team unavailable.");
-        if (!cancelled) setTeams(teamId ? [d.team] : d.teams);
+        if (!cancelled) setTeams((teamId ? [d.team] : d.teams).filter((team: TeamSummary) => !sport || team.sport.toLowerCase() === sport.toLowerCase()));
       })
       .catch((e) => {
         if (!cancelled) setError(e.message);
@@ -22,7 +22,7 @@ export function PublicTeamRoster({ teamId }: { teamId?: string }) {
     return () => {
       cancelled = true;
     };
-  }, [teamId]);
+  }, [teamId, sport]);
   return (
     <section className="mx-auto max-w-3xl px-5 py-8" aria-label="Public team roster">
       <h2>{teamId ? "Public roster" : "Team pages"}</h2>

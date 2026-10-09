@@ -54,7 +54,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   const tabs = [
     { to: "/", label: "Home", icon: Home, match: (path: string) => path === "/" || ["/more", "/fundraising", "/contact", "/facility", "/privacy", "/terms"].some(p => path.startsWith(p)) },
     { to: "/training", label: "Train", icon: Dumbbell, match: (path: string) => path.startsWith("/training") || path.startsWith("/account") },
-    { to: "/teams", label: "Teams", icon: Users, match: (path: string) => ["/teams", "/softball", "/tryouts", "/coaches", "/recruiting", "/coach", "/family", "/office"].some(p => path.startsWith(p)) },
+    { to: "/teams", label: "Teams", icon: Users, match: (path: string) => ["/teams", "/baseball", "/softball", "/tryouts", "/coaches", "/recruiting", "/coach", "/family", "/office"].some(p => path.startsWith(p)) },
     { to: "/book", label: "Book", icon: CalendarClock, match: (path: string) => ["/book", "/go", "/memberships", "/pay", "/paid"].some(p => path.startsWith(p)) },
     { to: "/games", label: "Games", icon: Trophy, match: (path: string) => path.startsWith("/games") },
     { to: "/merchandise", label: "Merchandise", icon: ShoppingBag, match: (path: string) => path.startsWith("/merchandise") },
@@ -159,16 +159,15 @@ export function AppShell({ children }: { children: ReactNode }) {
             <li className="absolute bottom-[calc(100%+0.5rem)] left-1/2 z-50 w-[min(92vw,19rem)] -translate-x-1/2 rounded-2xl border border-powder/30 bg-ink p-2 shadow-xl" id="teams-submenu">
               <div role="menu" aria-label="Teams submenu" className="grid grid-cols-2 gap-2">
                 {[
-                  {label:"Baseball",hash:"baseball",to:"/teams" as const},
-                  {label:"Softball",hash:"softball",to:"/teams" as const},
-                  {label:"Coaches",hash:undefined,to:"/coaches" as const},
-                  {label:"Tryouts",hash:undefined,to:"/tryouts" as const},
+                  {label:"Baseball",to:"/baseball" as const},
+                  {label:"Softball",to:"/softball" as const},
+                  {label:"Coaches",to:"/coaches" as const},
+                  {label:"Tryouts",to:"/tryouts" as const},
                 ].map((item) => (
                   <Link
                     key={item.label}
                     to={item.to}
-                    hash={item.hash}
-                    role="menuitem"
+                                        role="menuitem"
                     className="flex min-h-12 items-center justify-center rounded-lg bg-paper-2 px-3 text-sm font-semibold text-ink no-underline focus-visible:outline-2 focus-visible:outline-powder"
                     onClick={() => setTeamsMenuOpen(false)}
                   >

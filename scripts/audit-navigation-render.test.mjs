@@ -90,7 +90,7 @@ test('public navigation, sport links and purchase availability agree with the li
   assert.equal(primary[2].getAttribute('aria-expanded'),'true');
   assert.deepEqual([...document.querySelectorAll('[aria-label="Teams submenu"] a')].map(a=>a.textContent),['Baseball','Softball','Coaches','Tryouts']);
   const choices=[...document.querySelectorAll('[aria-label="Teams submenu"] a')];
-  assert.deepEqual(choices.map(a=>a.getAttribute('href')),['/teams#baseball','/teams#softball','/coaches','/tryouts']);
+  assert.deepEqual(choices.map(a=>a.getAttribute('href')),['/baseball','/softball','/coaches','/tryouts']);
   await act(async()=>choices[2].click());
   assert.equal(primary[2].getAttribute('aria-expanded'),'false');
   assert.equal(document.querySelector('a[href*="sport=Softball"][href*="age="]'),null);
