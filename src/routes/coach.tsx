@@ -3,6 +3,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { RedirectToSignIn } from "@/lib/auth/gates";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
+import { TeamCoachProfileEditor } from "@/components/teams/team-coach-profile-editor";
 import { CoachApp } from "@/components/teams/coach-app";
 import { FailScreen } from "@/components/teams/ui";
 import { TeamsShell } from "@/components/teams/shell";
@@ -100,6 +101,10 @@ function CoachPage() {
       ]}
     >
       <section className="mb-5 rounded-xl border border-line bg-white p-4"><h2 className="text-2xl">Tryout evaluations</h2><p className="mt-2 text-sm text-muted">Score registered players or walk-ins and save results for Front Office.</p><Button asChild className="mt-3"><Link to="/evaluations">Open evaluations</Link></Button></section>
+      {state.role==="coach" && state.me && club.teams.filter(t=>t.coachEmail?.toLowerCase()===state.me.email.toLowerCase()||t.staff.some(p=>p.email.toLowerCase()===state.me.email.toLowerCase())).slice(0,1).map(t=>{
+        const member=t.staff.find(p=>p.email.toLowerCase()===state.me.email.toLowerCase());
+        return <section key={t.id} className="mb-5"><h2 className="mb-2 text-xl font-semibold">Your public coaching profile</h2><TeamCoachProfileEditor email={state.me.email} name={member?.name??t.headCoach} bio={(member as typeof member & {bio?:string}|undefined)?.bio??(t as typeof t & {headCoachBio?:string}).headCoachBio} photo={(member as typeof member & {photo?:string}|undefined)?.photo??(t as typeof t & {headCoachPhoto?:string}).headCoachPhoto} onSaved={()=>window.location.reload()}/></section>;
+      })}
       <CoachApp
         club={club}
         onChange={setClub}
