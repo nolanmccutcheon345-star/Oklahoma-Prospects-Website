@@ -33,7 +33,6 @@ import { Route as PrivacyRouteImport } from './routes/privacy'
 import { Route as RecruitingRouteImport } from './routes/recruiting'
 import { Route as RegistrationsRouteImport } from './routes/registrations'
 import { Route as BaseballRouteImport } from './routes/baseball'
-import { Route as BaseballRouteImport } from './routes/baseball'
 import { Route as SoftballRouteImport } from './routes/softball'
 import { Route as TeamsRouteImport } from './routes/teams'
 import { Route as TermsRouteImport } from './routes/terms'
@@ -188,7 +187,6 @@ const BaseballRoute = BaseballRouteImport.update({
   path: '/baseball',
   getParentRoute: () => rootRouteImport,
 } as any)
-const BaseballRoute = BaseballRouteImport.update({
 const SoftballRoute = SoftballRouteImport.update({
   id: '/softball',
   path: '/softball',
