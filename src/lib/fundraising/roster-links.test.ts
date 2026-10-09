@@ -110,13 +110,19 @@ test("actual roster links isolate households, consent and team/player pairs", as
       sql`INSERT INTO fundraising_players(id,owner_id,parent_email,name,team,goal,story,created,team_id,roster_player_id) VALUES('dupe','parent','p','p','13U',10000,'s','d','baseball-team','a')`,
     );
     await recordConsent(sql, "fund", "parent", "withdraw");
-    assert.deepEqual(await publicRoster(sql), { teams: [] });
+    // Withdrawing consent removes only that child's public fundraiser, not
+    // the public team directory; unrelated teams remain visible.
+    assert.deepEqual((await publicRoster(sql)).teams?.map(t => t.id), ["baseball-team", "softball-team"]);
+    assert.deepEqual((await publicRoster(sql, "baseball-team")).team?.players, []);
+    assert.equal(await linkedPlayer(sql, "fund"), null);
     await recordConsent(sql, "fund", "parent", "accept");
     await sql`UPDATE club_state SET demo=true`;
     assert.equal(await linkedPlayer(sql, "fund"), null);
     await sql`UPDATE club_state SET demo=false,payload=${JSON.stringify({ teams: club.teams.map((t) => ({ ...t, roster: [] })) })}::jsonb`;
     assert.equal(await linkedPlayer(sql, "fund"), null);
-    assert.deepEqual(await publicRoster(sql), { teams: [] });
+    // A real team with an empty roster remains visible in the public team directory.
+    assert.deepEqual((await publicRoster(sql)).teams?.map(t => t.id), ["baseball-team", "softball-team"]);
+    assert.deepEqual((await publicRoster(sql,"baseball-team")).team?.players, []);
   } finally {
     await db.close();
   }

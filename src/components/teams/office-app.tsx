@@ -3,7 +3,8 @@ import { TeamCoachProfileEditor } from "./team-coach-profile-editor";
 import { getAssignableTeamCoaches } from "@/lib/team-coach-directory-api";
 import { Button } from "@/components/ui/button";
 import type { ClubRecord, StaffMember } from "@/lib/teams/types";
-import { officeAddPlayer, officeAddTeam, officeRemoveTeam } from "@/lib/teams/store";
+import { officeAddPlayer, officeAddTeam, officeRemoveTeam, officeSetTeamSeasons } from "@/lib/teams/store";
+import { canonicalTeamSeasons, selectedTeamSeasons, teamSeasonOptions } from "@/lib/teams/seasons";
 import { AGE_GROUPS } from "@/lib/club";
 import { balance, docsComplete, fundingCount, priceComponents } from "@/lib/teams/pricing";
 import { Section } from "./ui";
@@ -376,6 +377,58 @@ function CoachManagement({ club, onChange, onSave }: {
   );
 }
 
+function TeamSeasonChoices({ values, onChange }: { values: string[]; onChange: (next: string[]) => void }) {
+  return <fieldset className="grid gap-2 rounded-lg border border-line p-3">
+    <legend className="px-1 text-sm font-semibold">Seasons (select one or more)</legend>
+    <details>
+      <summary className="min-h-11 cursor-pointer py-2 text-sm font-semibold text-maroon">
+        {values.length ? canonicalTeamSeasons(values) : "Choose seasons"}
+      </summary>
+      <div className="grid max-h-56 grid-cols-2 gap-2 overflow-y-auto py-3 sm:grid-cols-3">
+        {teamSeasonOptions().map(option => <label key={option} className="flex min-h-11 items-center gap-2 text-sm">
+          <input type="checkbox" checked={values.includes(option)}
+            onChange={e => onChange(e.target.checked
+              ? [...values, option]
+              : values.filter(row => row !== option))} />
+          {option}
+        </label>)}
+      </div>
+    </details>
+  </fieldset>;
+}
+
+function TeamSeasonEditor({ team, revision, onChange }: {
+  team: ClubRecord["teams"][number];
+  revision: number;
+  onChange: (club: ClubRecord) => void;
+}) {
+  const [selected, setSelected] = useState<string[]>(() => selectedTeamSeasons(team.seasonLabel));
+  const [busy, setBusy] = useState(false);
+  const [status, setStatus] = useState("");
+  useEffect(() => { setSelected(selectedTeamSeasons(team.seasonLabel)); }, [team.seasonLabel]);
+  async function save() {
+    if (busy) return;
+    setBusy(true); setStatus("");
+    try {
+      const result = await officeSetTeamSeasons({ data: { teamId: team.id, baseRev: revision, seasons: selected } });
+      onChange(result.club);
+      setStatus(`Saved ${team.name}: ${result.club.teams.find(item => item.id === team.id)?.seasonLabel}`);
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : "Season change could not save. Reload and try again.");
+    } finally { setBusy(false); }
+  }
+  return <div className="min-w-0 flex-1" data-office-team-seasons={team.id}>
+    <p className="text-sm font-semibold">{team.name} · {team.sport} · {team.age}</p>
+    <p className="text-xs text-muted">Current: {team.seasonLabel || "No season recorded"}</p>
+    <TeamSeasonChoices values={selected} onChange={setSelected} />
+    <Button type="button" disabled={busy || !selected.length} onClick={() => { void save(); }}>
+      {busy ? "Saving seasons…" : "Save seasons"}
+    </Button>
+    {status && <p role="status" className="mt-2 text-sm">{status}</p>}
+    <p className="mt-1 text-xs text-muted">Season labels do not change scheduled events or team billing dates.</p>
+  </div>;
+}
+
 function RosterTools({
   club,
   onChange,
@@ -388,7 +441,7 @@ function RosterTools({
   const [teamName, setTeamName] = useState("");
   const [age, setAge] = useState("13U");
   const [sport, setSport] = useState<"baseball" | "softball">("baseball");
-  const [season, setSeason] = useState("Spring 2027");
+  const [seasonSelections, setSeasonSelections] = useState<string[]>(["Spring 2027"]);
   const [teamId, setTeamId] = useState(club.teams[0]?.id ?? "");
   const [playerName, setPlayerName] = useState("");
   const [parentName, setParentName] = useState("");
@@ -408,7 +461,7 @@ function RosterTools({
           setBusy(true);
           setError("");
           try {
-            const row = await officeAddTeam({ data: { name: teamName, age, sport, season } });
+            const row = await officeAddTeam({ data: { name: teamName, age, sport, season: canonicalTeamSeasons(seasonSelections) } });
             onChange(row.club);
             setTeamName("");
             setTeamId(row.club.teams.at(-1)?.id ?? teamId);
@@ -448,17 +501,16 @@ function RosterTools({
             <option value="softball">Softball</option>
           </select>
         </div>
-        <label className="grid gap-1 text-sm">Season
-          <input required maxLength={100} value={season} onChange={e => setSeason(e.target.value)} list="team-season-options" className="min-h-11 rounded-md border border-line px-3" placeholder="Spring & Summer 2027" />
-          <datalist id="team-season-options">{["Fall 2026","Spring 2027","Summer 2027","Spring & Summer 2027","Fall 2027","Spring 2028","Summer 2028"].map(x => <option key={x} value={x} />)}</datalist>
-        </label>
-        <Button type="submit" disabled={busy}>
+        <TeamSeasonChoices values={seasonSelections} onChange={setSeasonSelections} />
+        <Button type="submit" disabled={busy || !seasonSelections.length}>
           Add team
         </Button>
       </form>
       <div className="grid gap-2 rounded-xl border p-3">
         <h3 className="font-semibold">Manage existing teams</h3>
-        {club.teams.map(team => <div key={team.id} className="flex flex-wrap items-center justify-between gap-2 border-b py-2 text-sm"><span>{team.name} · {team.sport}</span><label className="flex items-center gap-2">Season <input aria-label={`Season for ${team.name}`} maxLength={100} value={team.seasonLabel} className="min-h-11 rounded border px-2" onChange={e=>onChange({...club,teams:club.teams.map(t=>t.id===team.id?{...t,seasonLabel:e.target.value}:t)})}/></label><Button type="button" disabled={busy} onClick={()=>{void onSave();}}>Save season</Button><Button type="button" variant="outlineDark" disabled={busy} onClick={async () => {
+        {club.teams.map(team => <div key={team.id} className="grid gap-3 border-b py-3 text-sm">
+          <TeamSeasonEditor team={team} revision={club._rev} onChange={onChange} />
+          <Button type="button" variant="outlineDark" disabled={busy} onClick={async () => {
           if (!window.confirm(`Delete ${team.name}? This cannot be undone. Teams with roster or activity records cannot be deleted.`)) return;
           setBusy(true);setError("");
           try { const row=await officeRemoveTeam({data:{teamId:team.id,baseRev:club._rev}});onChange(row.club);if(teamId===team.id)setTeamId(row.club.teams[0]?.id??""); }
