@@ -33,6 +33,10 @@ function PayPage() {
   );
   const [athleteId, setAthleteId] = useState("");
   const [coachId, setCoachId] = useState("");
+  const [autoAssignCoach, setAutoAssignCoach] = useState(false);
+  const [assigningCoach, setAssigningCoach] = useState(false);
+  const [autoCoachError, setAutoCoachError] = useState("");
+  const autoCoachAttempt = useRef(0);
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const playerName = "",
@@ -230,6 +234,51 @@ function PayPage() {
     kind,
     search.cages,
   ]);
+  /** Choose only a coach whose service and slots pass live server-side checks. */
+  async function chooseAvailableCoach(forDate: string) {
+    const generation = ++autoCoachAttempt.current;
+    setAutoCoachError("");
+    setCoachId("");
+    setTime("");
+    setSlots([]);
+    if (!context || !quote || !user || kind === "cage") {
+      setAutoCoachError("Sign in, select an athlete, and choose a coaching service first.");
+      return;
+    }
+    if (!name.trim() || !email.includes("@")) {
+      setAutoCoachError("Enter your name and email before assigning a coach.");
+      return;
+    }
+    const serviceId = checkoutLessonService(quote);
+    const qualified = context.coaches
+      .filter((coach) => coach.serviceIds.includes(serviceId))
+      .sort((a, b) => a.id.localeCompare(b.id));
+    if (!qualified.length) {
+      setAutoCoachError("No coach is assigned to this lesson type yet.");
+      return;
+    }
+    setAssigningCoach(true);
+    try {
+      for (const coach of qualified) {
+        try {
+          const result = await getCheckoutQuote({
+            data: { ...input, date: forDate, time: undefined, coachId: coach.id, requestId: crypto.randomUUID() },
+          });
+          if (generation !== autoCoachAttempt.current) return;
+          if (result.slots.length > 0) {
+            setCoachId(coach.id);
+            return;
+          }
+        } catch {
+          // An unqualified/unavailable coach cannot be selected; try the next.
+        }
+      }
+      if (generation === autoCoachAttempt.current)
+        setAutoCoachError("No qualified coach has available times that day. Choose a different date.");
+    } finally {
+      if (generation === autoCoachAttempt.current) setAssigningCoach(false);
+    }
+  }
   async function submit(event: React.FormEvent) {
     event.preventDefault();
     if (paymentLock.current) return;
@@ -481,6 +530,10 @@ function PayPage() {
                     required
                     value={coachId}
                     onChange={(e) => {
+                      ++autoCoachAttempt.current;
+                      setAutoAssignCoach(false);
+                      setAssigningCoach(false);
+                      setAutoCoachError("");
                       setCoachId(e.target.value);
                       setTime("");
                     }}
@@ -496,6 +549,32 @@ function PayPage() {
                   </select>
                 </label>
               ) : null}
+              {kind !== "cage" ? (
+                <label className="flex min-h-11 items-center gap-3 rounded-lg border border-line bg-paper-2 p-3">
+                  <input
+                    type="checkbox"
+                    className="size-5 shrink-0"
+                    checked={autoAssignCoach}
+                    disabled={assigningCoach}
+                    onChange={(event) => {
+                      const enabled = event.target.checked;
+                      ++autoCoachAttempt.current;
+                      setAutoAssignCoach(enabled);
+                      setAutoCoachError("");
+                      if (enabled) void chooseAvailableCoach(date);
+                    }}
+                  />
+                  <span className="text-sm font-semibold">Assign coach for me</span>
+                </label>
+              ) : null}
+              {assigningCoach ? <p role="status" className="text-sm">Checking qualified coaches' availability…</p> : null}
+              {autoCoachError ? <p role="alert" className="text-sm text-maroon">{autoCoachError}</p> : null}
+              {autoAssignCoach && coachId && context ? (
+                <p className="text-sm" role="status">
+                  Assigned for this booking: <strong>{context.coaches.find((coach) => coach.id === coachId)?.name ?? "Qualified coach"}</strong>.
+                  Choose an open time below. The booking is confirmed only after payment.
+                </p>
+              ) : null}
               <label className="grid gap-1">
                 Date · America/Chicago
                 <input
@@ -505,8 +584,10 @@ function PayPage() {
                   required
                   value={date}
                   onChange={(e) => {
-                    setDate(e.target.value);
+                    const chosenDate = e.target.value;
+                    setDate(chosenDate);
                     setTime("");
+                    if (autoAssignCoach) void chooseAvailableCoach(chosenDate);
                   }}
                 />
               </label>
@@ -536,7 +617,7 @@ function PayPage() {
                     ? "Sign in to check available times."
                     : kind === "cage"
                       ? "Choose a date to check available cage times."
-                      : "Choose a coach and date to see available times."}{" "}
+                      : "Choose a coach or check Assign coach for me, then choose a date."}{" "}
                   {slotsFor(date, quote.duration).length === 0
                     ? "No times remain on this date."
                     : "If no times appear, choose another date."}
@@ -666,6 +747,7 @@ function PayPage() {
                 !user ||
                 (needsAthlete && !athleteId) ||
                 busy ||
+                assigningCoach ||
                 applyingDiscount ||
                 Boolean(normalizedCode && !applied) ||
                 locked ||
