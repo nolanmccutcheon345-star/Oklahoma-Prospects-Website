@@ -1,362 +1,86 @@
-import { dollars, formatDollars } from "@/lib/pricing";
-import {pageHead} from "@/lib/seo";
+import { pageHead } from "@/lib/seo";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useEffect, useState, type FormEvent } from "react";
 import { Button } from "@/components/ui/button";
 import { PageHero } from "@/components/page-hero";
-import { CancelNote } from "@/components/square-pay";
-import { BOOKABLE_LANES, CANCEL_POLICY, CLUB, type BookableLaneId } from "@/lib/club";
-import {getCageAvailability} from "@/lib/commerce/api";
-import { reservationSlots, chicagoDateISO } from "@/lib/hours";
-import { cageBookingLastDate } from "@/lib/scheduling";
-import { quoteCages } from "@/lib/pay";
+import { BookingFunnel } from "@/components/booking-funnel";
+import { CLUB, type BookableLaneId } from "@/lib/club";
+import { getCageAvailability } from "@/lib/commerce/api";
 import { useLiveCatalog } from "@/lib/use-catalog";
-import { cn } from "@/lib/utils";
 
 type BookSearch = { space?: string };
 
-export const Route = createFileRoute("/book")({head:()=>pageHead("/book","Book a Cage","Pay and book one or more indoor cages in Broken Arrow. View availability for 30 minutes to 3 hours.",false),
+export const Route = createFileRoute("/book")({
+  head: () =>
+    pageHead(
+      "/book",
+      "Book a Cage",
+      "Pay and book one or more indoor cages in Broken Arrow. View availability for 30 minutes to 3 hours.",
+      false,
+    ),
   validateSearch: (search: Record<string, unknown>): BookSearch => ({
     space: typeof search.space === "string" ? search.space : undefined,
   }),
   component: BookPage,
 });
 
-const DURATIONS = [
-  [30, "30 min"],
-  [60, "1 hour"],
-  [90, "1.5 hr"],
-  [120, "2 hours"],
-  [150, "2.5 hr"],
-  [180, "3 hours"],
-] as const;
+const loadAvailability = (input: { date: string; duration: number; laneIds: BookableLaneId[] }) =>
+  getCageAvailability({ data: input });
 
 function BookPage() {
   const { space } = Route.useSearch();
+  const navigate = useNavigate();
+  const catalog = useLiveCatalog();
   return (
-    <main id="main">
+    <main id="main" className="booking-page">
       <PageHero
         eyebrow={CLUB.name}
-        title="What are we booking?"
+        title="Book your next rep."
         compact
-        copy="Reserve cage time, book a lesson, or find a monthly training plan."
+        copy="Choose your space, pick a time, and get to work. Looking for coaching? Explore lessons and training plans below."
+        image="/brand/facility.jpg"
         actions={
-          <nav aria-label="Booking options" className="grid w-full gap-3 sm:grid-cols-3">
-            <Button asChild variant="maroon" className="h-auto min-h-12 whitespace-normal text-center"><a href="#cage-booking" aria-current="location">Book a Cage <span className="ml-2" aria-hidden="true">✓ Current</span></a></Button>
-            <Button asChild className="h-auto min-h-12 whitespace-normal text-center"><Link to="/training" hash="lessons">Book a Lesson</Link></Button>
-            <Button asChild className="h-auto min-h-12 whitespace-normal text-center"><Link to="/training" hash="memberships">Monthly Training Plans</Link></Button>
+          <nav aria-label="Booking options" className="booking-options">
+            <a href="#cage-booking" aria-current="location">
+              Cage Rentals <span aria-hidden="true">✓</span>
+            </a>
+            <Link to="/training" hash="lessons">
+              Lessons
+            </Link>
+            <Link to="/training" hash="memberships">
+              Training Plans
+            </Link>
           </nav>
         }
-        image="/brand/facility.jpg"
       />
-      <div id="cage-booking" className="scroll-mt-40"><BookingFunnel initial={space} /></div>
+      <div id="cage-booking" className="scroll-mt-24">
+        <BookingFunnel
+          initial={space}
+          catalog={catalog}
+          loadAvailability={loadAvailability}
+          onReview={(search) => {
+            void navigate({ to: "/pay", search });
+          }}
+        />
+      </div>
       <section className="bg-ink py-10 text-fg-inverse">
         <div className="mx-auto max-w-3xl px-5">
-          <h2 className="text-3xl">Cage passes</h2>
+          <h2 className="text-3xl">Train regularly? Explore cage passes.</h2>
           <p className="mt-2 text-fg-soft">
-            Household athletes only — not coaching and not team practices. Lesson
-            plans live on Train. Team monthly plans are invoiced by the office.
+            Practice more with a monthly cage pass. For individual and family use; coaching and team
+            practices are not included.
           </p>
           <div className="mt-6 flex flex-wrap gap-3">
             <Button asChild>
               <Link to="/memberships">See cage passes</Link>
             </Button>
             <Button asChild variant="outline">
-              <Link to="/training">Monthly coaching</Link>
+              <Link to="/training" hash="memberships">
+                Training plans
+              </Link>
             </Button>
           </div>
         </div>
       </section>
     </main>
-  );
-}
-
-function defaultLanes(space?: string): BookableLaneId[] {
-  if (space === "field") return ["3-4"];
-  return [];
-}
-
-function BookingFunnel({ initial }: { initial?: string }) {
-  const navigate = useNavigate();
-  const catalog = useLiveCatalog();
-  const today = chicagoDateISO();
-  const maxDate = cageBookingLastDate();
-  const [party, setParty] = useState<"household" | "team">(initial === "team" ? "team" : "household");
-  const [lanes, setLanes] = useState<BookableLaneId[]>(() => defaultLanes(initial));
-  const [date, setDate] = useState(today);
-  const [duration, setDuration] = useState(60);
-  const [attest, setAttest] = useState(false);
-  const [error, setError] = useState("");
-  const forcedTeam = lanes.length >= 3;
-  const use = party === "team" || forcedTeam ? "team" : "household";
-  const rate = use === "team" ? "team" : "individual";
-  const [slots,setSlots]=useState<{value:string;label:string}[]>([]);
-  const [loadingSlots,setLoadingSlots]=useState(false);
-  useEffect(()=>{let cancelled=false;setSlots([]);setError("");if(!lanes.length)return;setLoadingSlots(true);void getCageAvailability({data:{date,duration,laneIds:lanes}}).then(rows=>{if(!cancelled)setSlots(rows);}).catch(e=>{if(!cancelled)setError(e instanceof Error?e.message:"Availability could not load.");}).finally(()=>{if(!cancelled)setLoadingSlots(false);});return()=>{cancelled=true;};},[date,duration,lanes]);
-  const quote = quoteCages(catalog, { rate, laneIds: lanes, minutes: duration, use });
-  const total = quote?.price ?? 0;
-  const householdHour = catalog.cages.find((row) => row.id === "individual")?.price ?? dollars("individual");
-  const teamHour = catalog.cages.find((row) => row.id === "team")?.price ?? dollars("team");
-
-  function toggleLane(id: BookableLaneId) {
-    setLanes((prev) => (prev.includes(id) ? prev.filter((row) => row !== id) : [...prev, id]));
-  }
-
-  function onSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setError("");
-    if (lanes.length === 0) {
-      setError("Select at least one cage.");
-      return;
-    }
-    if (use === "household" && !attest) {
-      setError("Confirm this is for one or two household athletes — not a team practice.");
-      return;
-    }
-    const data = new FormData(event.currentTarget);
-    const time = String(data.get("time") ?? "");
-    const chosenDate = String(data.get("date") ?? "");
-    if (!chosenDate || !time) {
-      setError("Pick a date and a start time that is still open.");
-      return;
-    }
-    if (chosenDate < today || chosenDate > maxDate) {
-      setError("Choose today or a date within the next 14 calendar days.");
-      return;
-    }
-    const open = reservationSlots(chosenDate, duration).some((slot) => slot.value === time);
-    if (!open) {
-      setError("That window isn’t open. Pick another time.");
-      return;
-    }
-    void navigate({
-      to: "/pay",
-      search: {
-        kind: "cage",
-        id: rate,
-        date: chosenDate,
-        time,
-        minutes: duration,
-        cages: lanes.join(","),
-        use,
-      },
-    });
-  }
-
-  return (
-    <section className="mx-auto max-w-3xl px-5 py-8">
-      <h2 className="text-3xl">1. Who is this hour for?</h2>
-      <p className="mt-2 text-sm text-muted">
-        Household ({formatDollars(householdHour)}/cage): 1–2 athletes from one family. Team ({formatDollars(teamHour)}/cage):
-        three or more athletes, or three or more spaces. Fielding area is always the field rate.
-      </p>
-      <fieldset className="mt-4 grid gap-2 sm:grid-cols-2">
-        <legend className="sr-only">Who is training</legend>
-        {(
-          [
-            ["household", "Household · 1–2 athletes", `${formatDollars(householdHour)} / cage / hr`],
-            ["team", "Team or group · 3+", `${formatDollars(teamHour)} / cage / hr`],
-          ] as const
-        ).map(([value, label, price]) => {
-          const on = party === value;
-          return (
-            <label
-              key={value}
-              className={cn(
-                "flex min-h-16 cursor-pointer items-center gap-3 rounded-xl px-4 py-3 shadow-border has-[:focus-visible]:outline-3 has-[:focus-visible]:outline-offset-4 has-[:focus-visible]:outline-ink",
-                on ? "bg-maroon text-fg-inverse" : "bg-paper-2",
-              )}
-            >
-              <input
-                type="radio"
-                name="party"
-                value={value}
-                checked={on}
-                onChange={() => {
-                  setParty(value);
-                  setAttest(false);
-                }}
-                className="sr-only"
-              />
-              <span>
-                <span className="block font-display text-xl uppercase">{label}</span>
-                <span className={cn("text-sm", on ? "text-fg-inverse/80" : "text-muted")}>{price}</span>
-                {on ? <span className="block text-sm font-semibold" aria-hidden="true">✓ Selected</span> : null}
-              </span>
-            </label>
-          );
-        })}
-      </fieldset>
-      {forcedTeam ? (
-        <p className="mt-3 text-sm text-maroon" data-forced-team="true" aria-live="polite">
-          Three or more spaces is a team booking. Team rate applies.
-        </p>
-      ) : null}
-
-      <h2 className="mt-8 text-3xl">2. Choose the cages</h2>
-      <p className="mt-2 text-sm text-muted">
-        Tap every lane you need. Same start time. Coaches often book two hitting lanes, or a mound plus the fielding area.
-      </p>
-      <fieldset className="mt-4 grid gap-2" data-cage-picker="true">
-        <legend className="sr-only">Cages</legend>
-        {BOOKABLE_LANES.map((item) => {
-          const on = lanes.includes(item.id);
-          const hourly =
-            item.group === "field"
-              ? catalog.cages.find((row) => row.id === "field")?.price ?? dollars("field")
-              : catalog.cages.find((row) => row.id === rate)?.price ?? (rate === "team" ? 60 : 50);
-          return (
-            <label
-              key={item.id}
-              className={cn(
-                "flex min-h-16 cursor-pointer items-center justify-between gap-3 rounded-xl px-4 shadow-border has-[:focus-visible]:outline-3 has-[:focus-visible]:outline-offset-4 has-[:focus-visible]:outline-ink",
-                on ? "bg-maroon text-fg-inverse" : "bg-paper-2 text-ink",
-              )}
-            >
-              <input
-                type="checkbox"
-                className="sr-only"
-                checked={on}
-                onChange={() => toggleLane(item.id)}
-                data-cage-id={item.id}
-              />
-              <span>
-                <span className="block font-display text-xl uppercase">{item.name}</span>
-                <span className={cn("text-sm", on ? "text-fg-inverse/80" : "text-muted")}>
-                  {item.size}
-                  {item.group === "field" ? " · fielding area" : ""}
-                </span>
-                {on ? <span className="block text-sm font-semibold" aria-hidden="true">✓ Selected</span> : null}
-              </span>
-              <span className="font-display text-3xl font-extrabold">{formatDollars(hourly)}</span>
-            </label>
-          );
-        })}
-      </fieldset>
-
-      <form onSubmit={onSubmit} className="mt-8 grid gap-4">
-        <h2 className="text-3xl">3. Date and time</h2>
-        <label className="text-sm font-semibold">
-          Date
-          <input
-            required
-            name="date"
-            type="date"
-            min={today}
-            max={maxDate}
-            value={date}
-            onChange={(event) => setDate(event.target.value)}
-            className="mt-1.5 block min-h-11 w-full rounded-md border border-line bg-paper-2 px-3"
-          />
-        </label>
-        <p className="text-xs text-muted">Bookings are available today through 14 days ahead, Central Time.</p>
-        <fieldset>
-          <legend className="text-sm font-semibold">Duration</legend>
-          <div className="mt-2 grid grid-cols-3 gap-2">
-            {DURATIONS.map(([value, label]) => (
-              <label
-                key={value}
-                className="flex min-h-11 items-center justify-center rounded-md bg-paper-2 text-sm font-semibold shadow-border has-[:checked]:bg-maroon has-[:checked]:text-fg-inverse has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-powder"
-              >
-                <input
-                  type="radio"
-                  name="duration"
-                  value={value}
-                  checked={duration === value}
-                  onChange={() => setDuration(value)}
-                  className="sr-only"
-                />
-                {label}
-              </label>
-            ))}
-          </div>
-        </fieldset>
-        <fieldset>
-          <legend className="text-sm font-semibold">Start time</legend>
-          {slots.length === 0 ? (
-            <p className="mt-2 text-sm text-muted">
-              {lanes.length === 0 ? "Choose a lane to see available times." : loadingSlots ? "Loading available times…" : date === today
-                ? "No remaining windows today. Pick another date."
-                : "No windows on this date. Pick another day."}
-            </p>
-          ) : (
-            <div className="mt-2 grid grid-cols-3 gap-2 sm:grid-cols-4">
-              {slots.map((slot) => {
-                const taken = false;
-                return (
-                  <label
-                    key={slot.value}
-                    className={cn(
-                      "flex min-h-11 items-center justify-center rounded-md text-sm font-semibold shadow-border has-[:checked]:bg-maroon has-[:checked]:text-fg-inverse has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-powder",
-                      taken ? "cursor-not-allowed bg-paper text-muted" : "bg-paper-2",
-                    )}
-                  >
-                    <input
-                      required
-                      type="radio"
-                      name="time"
-                      value={slot.value}
-                      disabled={taken}
-                      className="sr-only"
-                    />
-                    {taken ? `${slot.label} · taken` : slot.label}
-                  </label>
-                );
-              })}
-            </div>
-          )}
-        </fieldset>
-        {quote && quote.lines.length > 0 ? (
-          <ul className="grid gap-1 text-sm text-muted" data-cage-count={lanes.length} id="cage-total">
-            {quote.lines.map((line) => (
-              <li key={line.label} className="flex justify-between gap-3">
-                <span>{line.label}</span>
-                <span className="tabular-nums text-ink">{formatDollars(line.amount)}</span>
-              </li>
-            ))}
-          </ul>
-        ) : null}
-        <p className="font-display text-4xl" data-cage-total={total}>
-          {formatDollars(total)}
-        </p>
-        {use === "household" ? (
-          <label className="flex min-h-11 items-start gap-3 text-sm">
-            <input
-              type="checkbox"
-              className="mt-1 size-6"
-              checked={attest}
-              onChange={(event) => setAttest(event.target.checked)}
-              data-household-attest="true"
-            />
-            <span>
-              This booking is for one or two household athletes, not a team of three or more.
-            </span>
-          </label>
-        ) : (
-          <p className="text-sm text-muted">Team rate applies to this booking.</p>
-        )}
-        <CancelNote />
-        {error ? (
-          <p className="text-sm text-maroon" role="alert">
-            {error}
-          </p>
-        ) : null}
-        <Button
-          type="submit"
-          className="w-full"
-          disabled={loadingSlots || lanes.length === 0 || slots.length === 0}
-          aria-describedby="cage-total"
-        >
-          {lanes.length === 0
-            ? "Select a cage to continue"
-            : slots.length === 0
-              ? "Pick an open date"
-              : `Review ${lanes.length > 1 ? `${lanes.length} cages` : "this cage"} · ${formatDollars(total)}`}
-        </Button>
-        <p className="text-center text-xs text-muted">
-          Next screen confirms the price and payment availability. Payment must succeed before your booking is confirmed. Choosing a time here does not save a booking. {CANCEL_POLICY.short}.
-        </p>
-      </form>
-    </section>
   );
 }
