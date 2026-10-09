@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { TeamCoachProfileEditor } from "./team-coach-profile-editor";
+import { addAssistantCoach, assignedAssistantCoaches, assignHeadCoach, isAssignedCoach } from "@/lib/teams/coach-assignments";
 import { getAssignableTeamCoaches } from "@/lib/team-coach-directory-api";
 import { Button } from "@/components/ui/button";
 import type { ClubRecord, StaffMember } from "@/lib/teams/types";
@@ -268,6 +269,7 @@ function CoachManagement({ club, onChange, onSave }: {
   const [email, setEmail] = useState("");
   const [role, setRole] = useState("Assistant coach");
   const [teamId, setTeamId] = useState("");
+  const [selectedNewCoach, setSelectedNewCoach] = useState<Record<string, string>>({});
   const [message, setMessage] = useState("");
   const [directory, setDirectory] = useState<Awaited<ReturnType<typeof getAssignableTeamCoaches>>>([]);
   const [directoryError, setDirectoryError] = useState("");
@@ -281,17 +283,22 @@ function CoachManagement({ club, onChange, onSave }: {
     ...(t.coachEmail ? [[t.coachEmail.trim().toLowerCase(), { name: t.headCoach, email: t.coachEmail }] as const] : []),
     ...t.staff.filter(s => s.email).map(s => [s.email.trim().toLowerCase(), { name: s.name, email: s.email }] as const),
   ])]).values());
-  async function updateTeam(id: string, update: (team: ClubRecord["teams"][number]) => ClubRecord["teams"][number]) {
-    if (saving) return;
-    const next = { ...club, teams: club.teams.map(t => t.id === id ? update(t) : t) };
-    onChange(next);
-    setSaving(true);
-    setMessage("Saving coach assignment…");
+  async function updateTeam(id: string, update: (team: ClubRecord["teams"][number]) => ClubRecord["teams"][number]): Promise<boolean> {
+    if (saving) return false;
+    let next: ClubRecord;
+    try {
+      next = { ...club, teams: club.teams.map(t => t.id === id ? update(t) : t) };
+    } catch (error) { setMessage(error instanceof Error ? error.message : "Invalid assignment."); return false; }
+    setSaving(true); setMessage("Saving coach assignment…");
     try {
       const saved = await onSave(next);
-      setMessage(saved ? "Coach assignment saved. Public pages will show it after refresh." : "Could not save coach assignment. Please try again.");
+      if (!saved) onChange(club);
+      setMessage(saved ? "Coach assignment saved. Select another coach to add more." : "Could not save. Reload and try again.");
+      return saved;
     } catch (error) {
+      onChange(club);
       setMessage(error instanceof Error ? error.message : "Could not save coach assignment.");
+      return false;
     } finally { setSaving(false); }
   }
   return (
@@ -299,21 +306,27 @@ function CoachManagement({ club, onChange, onSave }: {
       <section className="rounded-xl border border-line bg-white p-4">
         <h3 className="text-xl font-semibold">Create coach profile</h3>
         <p className="mb-3 text-sm text-muted">Team coach profiles are stored with the selected team and displayed on the public Coaches page. Existing lesson coaches retain their lesson profiles and can also be assigned to teams.</p>
-        <form className="grid gap-3" onSubmit={e => {
+        <form className="grid gap-3" onSubmit={async e => {
           e.preventDefault();
           const selected = club.teams.find(t => t.id === teamId);
           if (!selected) { setMessage("Select a team first."); return; }
           const normalized = email.trim().toLowerCase();
-          if (club.teams.some(t => t.staff.some(c => c.email.toLowerCase() === normalized && t.id === teamId))) {
-            setMessage("This coach is already on the selected team."); return;
+          if (isAssignedCoach(selected, normalized)) { setMessage("Coach is already assigned to this team."); return; }
+          if (coaches.some(c => c.email.trim().toLowerCase() === normalized)) {
+            setMessage("This coach already has a profile. Use Assign existing coach below."); return;
+          }
+          if (role === "Head coach" && selected.coachEmail) {
+            setMessage("This team already has a head coach. Change the Head coach menu below."); return;
           }
           const coach: StaffMember = {
             id: crypto.randomUUID(), name: name.trim(), email: normalized, role,
             monthly: 0, childId: "", applyAmount: 0, w9: false,
             backgroundCheck: false, safeSport: false, expires: "",
           };
-          updateTeam(teamId, t => ({ ...t, staff: [...t.staff, coach] }));
-          setName(""); setEmail("");
+          const saved = await updateTeam(teamId, t => role === "Head coach"
+            ? assignHeadCoach(t, {name: coach.name, email: coach.email})
+            : addAssistantCoach(t, coach));
+          if (saved) { setName(""); setEmail(""); }
         }}>
           <input required maxLength={150} value={name} onChange={e => setName(e.target.value)} placeholder="Coach full name" aria-label="Coach full name" className="min-h-11 rounded-md border border-line px-3" />
           <input required type="email" maxLength={200} value={email} onChange={e => setEmail(e.target.value)} placeholder="Coach sign-in email" aria-label="Coach sign-in email" className="min-h-11 rounded-md border border-line px-3" />
@@ -335,42 +348,49 @@ function CoachManagement({ club, onChange, onSave }: {
           <div key={team.id} className="my-3 grid gap-2 rounded-lg border border-line p-3">
             <h4 className="font-semibold">{team.name} · {team.sport} · {team.age}</h4>
             <label className="grid gap-1 text-sm">Head coach
-              <select disabled={saving} value={team.coachEmail} onChange={e => {
-                const coach = coaches.find(c => c.email === e.target.value);
-                updateTeam(team.id, t => ({ ...t, headCoach: coach?.name ?? "", coachEmail: coach?.email ?? "" }));
+              <select disabled={saving} value={team.coachEmail?.trim().toLowerCase() || ""} onChange={e => {
+                const coach = coaches.find(c => c.email.trim().toLowerCase() === e.target.value);
+                void updateTeam(team.id, t => assignHeadCoach(t, coach));
               }} className="min-h-11 rounded-md border border-line px-3">
                 <option value="">Unassigned</option>
-                {coaches.map(c => <option key={c.email} value={c.email}>{c.name} ({c.email})</option>)}
+                {coaches.map(c => <option key={c.email} value={c.email.trim().toLowerCase()}>{c.name} ({c.email})</option>)}
               </select>
             </label>
             <div className="flex flex-wrap gap-2">
-              {team.staff.map(person => <button key={person.id} type="button" disabled={saving} className="rounded border px-3 py-2 text-xs" onClick={() => {
+              {assignedAssistantCoaches(team).map(person => <button key={person.id} type="button" disabled={saving} className="rounded border px-3 py-2 text-xs" onClick={() => {
                 if (!window.confirm(`Remove ${person.name} from ${team.name}? Their lesson profile will be kept.`)) return;
                 void updateTeam(team.id, t => ({...t, staff:t.staff.filter(s => s.id!==person.id)}));
               }}>Remove {person.name} from team</button>)}
             </div>
             {team.coachEmail && <TeamCoachProfileEditor key={team.id+"-head-"+team.coachEmail} email={team.coachEmail} name={team.headCoach} bio={(team as typeof team & {headCoachBio?:string}).headCoachBio} photo={(team as typeof team & {headCoachPhoto?:string}).headCoachPhoto} onSaved={()=>window.location.reload()}/>}
-            {team.staff.map(person=><TeamCoachProfileEditor key={person.id} email={person.email} name={person.name} bio={(person as typeof person & {bio?:string}).bio} photo={(person as typeof person & {photo?:string}).photo} onSaved={()=>window.location.reload()}/>)}
-            <p className="text-xs text-muted">Assigned staff: {team.staff.map(c => c.name + " (" + c.role + ")").join(", ") || "None"}</p>
-            <label className="grid gap-1 text-sm">Add existing coach to this team
-              <select disabled={saving} value="" onChange={e => {
-                const coach = coaches.find(c => c.email === e.target.value);
-                if (!coach || team.staff.some(s => s.email.toLowerCase() === coach.email.toLowerCase())) return;
-                updateTeam(team.id, t => ({ ...t, staff: [...t.staff, {
+            {assignedAssistantCoaches(team).map(person=><TeamCoachProfileEditor key={person.id} email={person.email} name={person.name} bio={(person as typeof person & {bio?:string}).bio} photo={(person as typeof person & {photo?:string}).photo} onSaved={()=>window.location.reload()}/>)}
+            <p className="text-xs text-muted">Additional coaches: {assignedAssistantCoaches(team).map(c => c.name + " (" + c.role + ")").join(", ") || "None"}</p>
+            <div className="grid gap-2 sm:grid-cols-[1fr_auto] sm:items-end">
+              <label className="grid gap-1 text-sm">Add another coach to this team
+                <select disabled={saving} value={selectedNewCoach[team.id] ?? ""} onChange={e => {
+                  setSelectedNewCoach(old => ({ ...old, [team.id]: e.target.value }));
+                }} className="min-h-11 rounded-md border border-line px-3">
+                  <option value="">Select a coach to add</option>
+                  {coaches.filter(c => !isAssignedCoach(team, c.email)).map(c =>
+                    <option key={c.email} value={c.email}>{c.name} ({c.email})</option>)}
+                </select>
+              </label>
+              <Button type="button" disabled={saving || !selectedNewCoach[team.id]} onClick={async () => {
+                const coach = coaches.find(c => c.email === selectedNewCoach[team.id]);
+                if (!coach) return;
+                const saved = await updateTeam(team.id, t => addAssistantCoach(t, {
                   id: crypto.randomUUID(), name: coach.name, email: coach.email,
                   role: "Assistant coach", monthly: 0, childId: "", applyAmount: 0,
                   w9: false, backgroundCheck: false, safeSport: false, expires: "",
-                }] }));
-              }} className="min-h-11 rounded-md border border-line px-3">
-                <option value="">Choose existing coach</option>
-                {coaches.map(c => <option key={c.email} value={c.email}>{c.name} ({c.email})</option>)}
-              </select>
-            </label>
+                }));
+                if (saved) setSelectedNewCoach(old => ({ ...old, [team.id]: "" }));
+              }}>Add coach</Button>
+            </div>
           </div>
         ))}
       </section>
       {message && <p role="status" className="text-sm">{message}</p>}
-      <Button type="button" disabled={saving} onClick={() => { void onSave(); }}>{saving ? "Saving…" : "Save assignments"}</Button>
+      <p className="text-xs text-muted">Each assignment saves immediately; the selector stays empty for the next coach.</p>
       <p className="text-xs text-muted">Coach profiles and assignments do not automatically send invitations. Coaches must have authorized sign-in access.</p>
     </div>
   );
