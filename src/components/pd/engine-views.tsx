@@ -1,3 +1,4 @@
+import { formatClockTime } from "@/lib/time-display";
 import { clubDayIso } from "@/lib/pd/engines";
 import { Link } from "@tanstack/react-router";
 import type { ReactNode } from "react";
@@ -181,7 +182,7 @@ export function WorkloadEngineView({ slice }: { slice: AthleteSlice }) {
         if (!warn) return null;
         return (
           <p key={row.id} className="mt-2 text-sm font-semibold text-maroon" data-rest-warning="true">
-            {row.date} {row.time} sits inside required rest. Clear {warn.clearOn}.
+            {row.date} {formatClockTime(row.time)} sits inside required rest. Clear {warn.clearOn}.
           </p>
         );
       })}

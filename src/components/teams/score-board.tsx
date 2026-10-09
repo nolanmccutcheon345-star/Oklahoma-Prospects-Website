@@ -1,3 +1,4 @@
+import { formatClockTime } from "@/lib/time-display";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { DeskCard, FieldInput, NumRows } from "@/components/teams/desk-kit";
@@ -19,7 +20,7 @@ export function ScoreBoard({ team }: { team: OsTeam }) {
     <div data-teams-score="true" className="grid gap-4">
       {live ? (
         <DeskCard
-          eyebrow={`${live.event} · ${live.time}`}
+          eyebrow={`${live.event} · ${formatClockTime(live.time)}`}
           title={`${live.ourRuns} – ${live.oppRuns}`}
           copy={`${live.opponent} · ${live.field} · ${live.inning}`}
         >

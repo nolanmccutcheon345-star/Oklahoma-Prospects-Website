@@ -1,3 +1,4 @@
+import { formatClockTime } from "@/lib/time-display";
 import { PRICES, formatMoney } from "@/lib/pricing";
 import {DevelopmentBoard} from "@/components/commerce/development-board";
 import {CoachProfile} from "@/components/commerce/coach-profile";
@@ -787,7 +788,7 @@ function SessionRow({ row, hideMoney }: { row: Reservation; hideMoney: boolean }
     <li className="pd-row rounded-xl bg-paper-2 shadow-border">
       <strong>{row.title}</strong>
       <span className="block text-sm text-muted">
-        {row.date} · {row.start_time} · {row.duration_min} min
+        {row.date} · {formatClockTime(row.start_time)} · {row.duration_min} min
         {hideMoney ? "" : ` · $${row.price}`}
         {row.status ? ` · ${row.status}` : ""}
       </span>

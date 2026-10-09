@@ -1,3 +1,4 @@
+import { formatClockTime } from "@/lib/time-display";
 import type { TryoutEvent } from "@/lib/tryout-events-contracts";
 export function TryoutSchedule({
   events = [],
@@ -24,7 +25,7 @@ export function TryoutSchedule({
             }).format(new Date(`${event.date}T00:00:00Z`))}
           </p>
           <p>
-            {event.startTime}–{event.endTime} Central · {event.location}
+            {formatClockTime(event.startTime)}–{formatClockTime(event.endTime)} Central · {event.location}
           </p>
           <p className="mt-2 text-sm">
             Capacity: {event.capacity}. Submit your player information below. A request does not

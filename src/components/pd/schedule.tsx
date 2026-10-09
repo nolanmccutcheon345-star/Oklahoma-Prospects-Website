@@ -1,3 +1,4 @@
+import { formatClockTime } from "@/lib/time-display";
 import {ContractorEarnings} from "@/components/commerce/operations";
 import { Button } from "@/components/ui/button";
 import { useDevelopment } from "@/lib/pd/context";
@@ -7,11 +8,7 @@ import type { Booking, Family } from "@/lib/pd/types";
 import type { LessonStart } from "@/components/pd/guided-lesson";
 import { cn } from "@/lib/utils";
 
-function labelTime(time: string) {
-  const [h, m] = time.split(":").map(Number);
-  const hour = h % 12 || 12;
-  return `${hour}:${String(m).padStart(2, "0")} ${h < 12 ? "AM" : "PM"}`;
-}
+const labelTime = formatClockTime;
 
 export function SessionPolicyRow({booking,family:_family}:{booking:Booking;family:Family}) {
  return <li className="pd-row rounded-xl bg-paper-2 shadow-border"><strong>{booking.date} · {labelTime(booking.time)}</strong><p>{booking.status}</p><a className="inline-flex min-h-11 items-center underline" href="/family">Manage confirmed booking and view refund options</a></li>;
@@ -65,7 +62,7 @@ export function CoachWaitlist() {
                 <li key={row.id} className="pd-row rounded-xl bg-paper" data-waitlist-id={row.id}>
                   <strong>{athlete ? `${athlete.firstName} ${athlete.lastName}` : row.athleteId}</strong>
                   <span className="mt-1 block text-sm text-muted">
-                    Prefers {row.preferredDay || "any day"} {row.preferredTime || ""}
+                    Prefers {row.preferredDay || "any day"} {formatClockTime(row.preferredTime)}
                   </span>
                   <p className="mt-2">The family must complete online payment to book an available session.</p>
                 </li>

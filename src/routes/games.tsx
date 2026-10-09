@@ -1,3 +1,5 @@
+import { formatClockTime } from "@/lib/time-display";
+import { TimeInput } from "@/components/time-input";
 import { PageHero } from "@/components/page-hero";
 import { Button } from "@/components/ui/button";
 import { CLUB } from "@/lib/club";
@@ -59,7 +61,7 @@ function GameCard({game}:{game:PublicGameEvent}){
     {game.ourRuns} <span className="text-muted">–</span> {game.oppRuns}
     {game.inning?<span className="ml-3 align-middle text-sm font-medium text-muted">{game.inning}</span>:null}
   </p>:null}
-  <p className="mt-3 text-sm text-muted"><CalendarDays className="mr-1 inline size-4" aria-hidden="true"/> {game.date} · {game.startTime} CT{game.venue?` · ${game.venue}`:""}</p>
+  <p className="mt-3 text-sm text-muted"><CalendarDays className="mr-1 inline size-4" aria-hidden="true"/> {game.date} · {formatClockTime(game.startTime)} CT{game.venue?` · ${game.venue}`:""}</p>
   <div className="mt-4 flex flex-wrap gap-2">
     <Button asChild size="sm" variant="outlineDark">
       <Link to="/games" search={{view:game.videoId?"watch":"schedule",game:game.id}}>Game details</Link>
@@ -208,7 +210,7 @@ function GamesStudio(){
     <label className="grid gap-1 text-sm font-semibold">Our team<input required minLength={2} maxLength={100} className={formClass} value={editing.teamName} onChange={e=>update("teamName",e.target.value)} placeholder="Prospects 14U"/></label>
     <label className="grid gap-1 text-sm font-semibold">Opponent<input required minLength={2} maxLength={100} className={formClass} value={editing.opponent} onChange={e=>update("opponent",e.target.value)} placeholder="Opponent"/></label>
     <label className="grid gap-1 text-sm font-semibold">Date<input type="date" required className={formClass} value={editing.date} onChange={e=>update("date",e.target.value)}/></label>
-    <label className="grid gap-1 text-sm font-semibold">Start time (Central)<input type="time" required className={formClass} value={editing.startTime} onChange={e=>update("startTime",e.target.value)}/></label>
+    <label className="grid gap-1 text-sm font-semibold">Start time (Central)<TimeInput  required className={formClass} value={editing.startTime} onChange={e=>update("startTime",e.target.value)}/></label>
     <label className="grid gap-1 text-sm font-semibold sm:col-span-2">Venue<input className={formClass} value={editing.venue} maxLength={240} onChange={e=>update("venue",e.target.value)}/></label>
     <label className="grid gap-1 text-sm font-semibold">Game status<select className={formClass} value={editing.status} onChange={e=>update("status",e.target.value as GameEventInput["status"])}>{["draft","scheduled","live","final","cancelled"].map(x=><option key={x} value={x}>{x}</option>)}</select></label>
     <label className="grid gap-1 text-sm font-semibold">Inning / score note<input className={formClass} maxLength={60} value={editing.inning} onChange={e=>update("inning",e.target.value)} placeholder="Top 5"/></label>

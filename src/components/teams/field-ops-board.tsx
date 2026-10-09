@@ -1,3 +1,4 @@
+import { formatClockTime } from "@/lib/time-display";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { DeskCard, FieldInput, NumRows, downloadText } from "@/components/teams/desk-kit";
@@ -83,7 +84,7 @@ function Calls({ team }: { team: OsTeam }) {
               >
                 {practices.map((p) => (
                   <option key={p.id} value={p.id}>
-                    {p.date} · {p.time} · {p.place || p.where}
+                    {p.date} · {formatClockTime(p.time)} · {p.place || p.where}
                   </option>
                 ))}
               </select>
@@ -157,7 +158,7 @@ function Practice({ team }: { team: OsTeam }) {
       ) : (
         <NumRows
           rows={list.map((p) => ({
-            label: `${p.date} · ${p.time}`,
+            label: `${p.date} · ${formatClockTime(p.time)}`,
             value: p.place || p.where || "TBD",
           }))}
         />
@@ -333,7 +334,7 @@ function Announcements({ team }: { team: OsTeam }) {
           <DeskCard key={a.id || i} eyebrow={a.pin ? "Pinned" : "Announcement"} title={a.title || "Note"}>
             <NumRows
               rows={[
-                ...(a.arrive ? [{ label: "Arrive", value: a.arrive }] : []),
+                ...(a.arrive ? [{ label: "Arrive", value: formatClockTime(a.arrive) }] : []),
                 ...(a.uniform ? [{ label: "Uniform", value: a.uniform }] : []),
                 ...(a.hotel ? [{ label: "Hotel", value: a.hotel }] : []),
               ]}

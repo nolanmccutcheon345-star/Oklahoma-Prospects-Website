@@ -12,6 +12,7 @@ import { mergeSave, scopeClub, coachHoldsTeam, fetchTeamRecord, fetchPlayerRecor
 import { emptyClub, sampleClub } from "./seed";
 import type { ClubRecord, Player, Team } from "./types";
 import type { ClubRole } from "@/lib/club-data";
+import { seasonSaveInput, persistTeamSeasons } from "./season-save.server";
 
 type Identity = { email: string; familyId: string; familyIds:string[]; role: ClubRole; name: string };
 
@@ -243,6 +244,7 @@ export const officeAddTeam = createServerFn({ method: "POST" })
       age: data.age.trim() || "Open",
       level: "Open",
       seasonLabel: data.season,
+      seasons: data.season.split(/\s*&\s*/),
       seasonStart: "",
       seasonEnd: "",
       months: 6,
@@ -294,6 +296,15 @@ export const officeRemoveTeam = createServerFn({ method: "POST" })
     stored.audit.unshift({at:stored._savedAt,action:"team-delete",detail:`Removed ${team.name}`});
     await writeRaw(stored,data.baseRev);
     return {ok:true as const,club:scopeClub(stored,"admin",me)};
+  });
+
+export const officeSaveTeamSeasons = createServerFn({method: "POST"})
+  .middleware([authMiddleware]).validator(seasonSaveInput)
+  .handler(async ({context, data}) => {
+    const me = await identity(context.userId);
+    if (me.role !== "admin") throw new Error("Front office only.");
+    const club = await persistTeamSeasons(await getSql(), data);
+    return {ok: true as const, club: scopeClub(club, "admin", me)};
   });
 
 export const coachAddRosterPlayer = createServerFn({method:"POST"})

@@ -1,3 +1,4 @@
+import { formatClockTime } from "@/lib/time-display";
 import { FamilyDocuments, FamilyFees, FamilyHome, FamilyPlayer } from "@/components/teams/family-board";
 import { OfficeBudget, OfficeCash, OfficeClose, OfficeCollections, OfficeOverview } from "@/components/teams/office-board";
 import { AgreementsBoard, AnalyticsBoard, ArchiveBoard, TryoutBoard } from "@/components/teams/program-board";
@@ -183,7 +184,7 @@ function CoachDesk({ desk, onDesk }: { desk: string; onDesk: (id: string) => voi
   return (
     <DeskCard
       eyebrow="Today"
-      title={next ? `${next.note || "Practice"} · ${next.time}` : "No session posted."}
+      title={next ? `${next.note || "Practice"} · ${formatClockTime(next.time)}` : "No session posted."}
       copy={next ? `${next.place || "Prospects cages"}. Arrive early.` : "Check the group thread."}
     >
       <NumRows
@@ -386,7 +387,7 @@ function PlayerDesk({ desk, onDesk }: { desk: string; onDesk: (id: string) => vo
   return (
     <DeskCard
       eyebrow="Today"
-      title={next ? `${next.place || "Cages"} at ${next.time}.` : "No session posted."}
+      title={next ? `${next.place || "Cages"} at ${formatClockTime(next.time)}.` : "No session posted."}
       copy="Be in the building early. That's the whole message."
     >
       <NumRows
