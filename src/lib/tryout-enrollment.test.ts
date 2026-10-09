@@ -58,7 +58,7 @@ test("matching enrollment respects season, capacity, retries and cancelled-event
       revision: 0,
       sport: "Baseball" as const,
       season: "Spring 2030",
-      ageGroups: ["9U"],
+      ageGroups: ["9u"],
       date: "2030-04-05",
       startTime: "14:00",
       endTime: "15:00",
@@ -67,6 +67,22 @@ test("matching enrollment respects season, capacity, retries and cancelled-event
       status: "published" as const,
     };
     await saveTryoutEventFor(sql, "owner", event);
+    const request = {...applicant, requestId:randomUUID(), player:"Event Request Player",autoEnroll:false,requestType:"scheduled",requestedEventId:event.id,requestConsent:true};
+    await recordInquiryFor(sql,request);
+    const [savedRequest] = await sql<{payload:{requestedEvent:{id:string;location:string}};status:string}>`select payload,status from club_requests where id=${request.requestId}`;
+    assert.equal(savedRequest.payload.requestedEvent.id,event.id);
+    assert.equal(savedRequest.payload.requestedEvent.location,event.location);
+    assert.equal(savedRequest.status,"open");
+    assert.equal((await sql`select id from tryout_enrollments where request_id=${request.requestId}`).length,0);
+    for (const invalid of [{requestConsent:false},{autoEnroll:true},{requestedEventId:randomUUID()},{sport:"Softball"},{age:"14U"},{season:"Fall 2030"}]) {
+      const bad={...request,...invalid,requestId:randomUUID()};
+      await assert.rejects(() => recordInquiryFor(sql,bad));
+      assert.equal((await sql`select id from club_requests where id=${bad.requestId}`).length,0);
+    }
+    const individual={...request,requestId:randomUUID(),requestType:"individual",requestedEventId:""};
+    await recordInquiryFor(sql,individual);
+    assert.equal((await sql`select id from tryout_enrollments where request_id=${individual.requestId}`).length,0);
+
     assert.equal((await adminTryoutEnrollmentsFor(sql, "owner")).length, 1);
     await recordInquiryFor(sql, applicant);
     await recordInquiryFor(sql, {

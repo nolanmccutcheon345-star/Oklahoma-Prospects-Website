@@ -8,18 +8,19 @@ import { CLUB } from "@/lib/club";
 
 import { getPublicTryoutEvents } from "@/lib/tryout-events-api";
 
-type TryoutSearch = { age?: string; sport?: "Baseball" | "Softball" };
+type TryoutSearch = { event?: string; age?: string; sport?: "Baseball" | "Softball" };
 
 export const Route = createFileRoute("/tryouts")({
   head: () =>
     pageHead(
       "/tryouts",
-      "Free Tryout Registration",
+      "Request a Tryout",
       "Request a free individual tryout for baseball or softball at any age group. Private appointments are arranged with a coach.",
       false,
     ),
   loader: () => getPublicTryoutEvents(),
   validateSearch: (search: Record<string, unknown>): TryoutSearch => ({
+    event: typeof search.event === "string" ? search.event : undefined,
     age: typeof search.age === "string" ? search.age : undefined,
     sport: search.sport === "Softball" || search.sport === "Baseball" ? search.sport : undefined,
   }),
@@ -27,7 +28,7 @@ export const Route = createFileRoute("/tryouts")({
 });
 
 function TryoutsPage() {
-  const { age, sport } = Route.useSearch();
+  const { age, sport, event } = Route.useSearch();
   const events = Route.useLoaderData();
   return (
     <main id="main">
@@ -35,7 +36,7 @@ function TryoutsPage() {
         eyebrow="Team opportunities"
         title="Tryouts."
         accent="Find your team."
-        copy="One registration for baseball and softball at every age group. Choose any published team or coach preference when one is available."
+        copy="Explore upcoming baseball and softball tryouts or request an individual evaluation. Our staff will help you find the right next step."
         actions={
           <>
             <Button asChild>
@@ -53,29 +54,37 @@ function TryoutsPage() {
           <p className="text-xs font-semibold tracking-[0.16em] text-maroon uppercase">
             Baseball & softball
           </p>
-          <h2 className="mt-2 text-3xl">Upcoming group tryouts</h2>
+          <h2 className="mt-2 text-3xl">Upcoming tryouts</h2>
           <p className="mt-3 mb-6 text-muted">
-            Published group evaluation times for either sport appear here. You can submit one
-            free request below for any age group even when a matching group date is not posted.
-            Individual appointments are arranged with a coach; submitting does not reserve a time or roster place.
+            Published group evaluation times for either sport appear here. You can submit one free
+            request below for any age group even when a matching group date is not posted.
+            Individual appointments are arranged with a coach; submitting does not reserve a time or
+            roster place.
           </p>
           <TryoutSchedule events={events} />
           <p className="mt-5 text-sm text-muted">
             Looking for independent training instead?{" "}
-            <Link to="/book" className="font-semibold underline">Book a cage</Link>.
+            <Link to="/book" className="font-semibold underline">
+              Book a cage
+            </Link>
+            .
           </p>
         </div>
       </section>
 
-      <section id="register" className="bg-paper-2 py-10">
+      <section id="register" className="scroll-mt-24 bg-paper-2 py-10">
         <div className="mx-auto max-w-3xl px-5">
-          <p className="text-xs font-semibold tracking-[0.16em] text-maroon uppercase">Register</p>
-          <h2 className="mt-2 text-3xl">Request a tryout.</h2>
+          <p className="text-xs font-semibold tracking-[0.16em] text-maroon uppercase">
+            Tryout request
+          </p>
+          <h2 className="mt-2 text-3xl">Tell us about your player.</h2>
           <p className="mt-2 mb-6 text-muted">
-            Free. Choose baseball or softball, select an age group, and optionally choose a publicly assigned team or coach. All age groups are welcome.
+            Choose your sport and age group, then share your player’s information. Select a
+            scheduled tryout or request an individual evaluation.
           </p>
           <TryoutForm
-            key={`${sport ?? "Baseball"}:${age ?? ""}`}
+            key={`${sport ?? "Baseball"}:${age ?? ""}:${event ?? ""}`}
+            initialEventId={event}
             intent="register"
             initialAge={age}
             initialSport={sport}
@@ -90,12 +99,17 @@ function TryoutsPage() {
             <p className="text-xs font-semibold tracking-[0.16em] text-maroon uppercase">
               Tryout questions
             </p>
-            <h2 className="mt-2 text-3xl">Tell us about your player.</h2>
+            <h2 className="mt-2 text-3xl">Have a tryout question?</h2>
             <p className="mt-2 mb-6 text-muted">
               For general team or season questions. Individual tryout requests for all ages use the
               form above.
             </p>
-            <ContactForm />
+            <details className="rounded-xl border p-4">
+              <summary className="min-h-11 cursor-pointer font-semibold">Ask a Question</summary>
+              <div className="mt-4">
+                <ContactForm />
+              </div>
+            </details>
             <p className="mt-4 text-xs text-muted">
               Your information is used to respond to this inquiry via email.
             </p>
@@ -113,17 +127,6 @@ function TryoutsPage() {
               <br />
               {CLUB.addressLine2}
             </p>
-            <div className="my-5 h-px bg-fg-inverse/20" />
-            <h3 className="text-xl">Team payments</h3>
-            <p className="mt-2 text-sm text-fg-soft">
-              Only pay after the office confirms the team, fee, and amount. Put the player’s name
-              and age group on the payment. Debit or credit only.
-            </p>
-            <div className="mt-4">
-              <Button asChild variant="outline" size="sm">
-                <Link to="/contact">Ask the office for a team invoice</Link>
-              </Button>
-            </div>
           </aside>
         </div>
       </section>

@@ -1,3 +1,4 @@
+import { teamSeasons } from "./seasons";
 import type { ClubRecord, Team } from "./types";
 
 const norm = (value: string | undefined) => value?.trim().toLowerCase() || "";
@@ -46,6 +47,7 @@ export function aggregateTeamStats(team: Team) {
 export function publicTeamView(team: Team) {
   return {
     id: team.id, name: team.name, sport: team.sport, age: team.age, season: team.seasonLabel,
+    seasons: teamSeasons(team),
     record: {w: team.record.w, l: team.record.l, t: team.record.t},
     stats: aggregateTeamStats(team), coaches: teamCoaches(team),
     players: team.roster.filter(p => !p.withdrawn).map(p => ({id: p.id, name: p.name, number: p.number})),

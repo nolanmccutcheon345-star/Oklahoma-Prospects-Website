@@ -91,7 +91,6 @@ function TeamsOverview() {
         </section>
       ) : null}
       <TeamsPublic />
-    <PublicTeamRoster/>
       </main>
   );
 }
@@ -114,7 +113,7 @@ function TeamsPublic() {
           <>
             <Button asChild>
               <Link to="/tryouts" hash="register">
-                Register for tryouts
+                Request a tryout
               </Link>
             </Button>
             <Button asChild variant="outline">
@@ -124,6 +123,8 @@ function TeamsPublic() {
         }
       />
 
+      <section id="explore-teams" className="mx-auto max-w-5xl px-5 py-10"><h2 className="text-3xl">Explore our teams</h2><PublicTeamRoster /></section>
+      <section className="mx-auto max-w-5xl px-5 pb-10"><h2 className="text-2xl">Team payments</h2><p className="mt-2 text-muted">Only pay after the office confirms the team, fee, and amount. Include the player’s name and age group. Debit or credit only.</p><div className="mt-4 flex flex-wrap gap-4"><Button asChild><Link to="/family">Open your family team account</Link></Button><Button asChild variant="outline"><Link to="/contact">Ask the office for a team invoice</Link></Button></div></section>
       <section id="softball" className="scroll-mt-24 bg-navy py-10 text-fg-inverse">
         <div className="mx-auto max-w-3xl px-5">
           <p className="text-xs font-semibold tracking-[0.16em] text-powder uppercase">
@@ -131,7 +132,7 @@ function TeamsPublic() {
           </p>
           <h2 className="mt-2 text-4xl">Softball tryouts</h2>
           <p className="mt-3 text-fg-soft">
-            Baseball and softball use the same tryout registration.{" "}
+            Baseball and softball use the same tryout request form.{" "}
             {hasSoftballDates
               ? "Published softball group dates are listed below. A request does not reserve a roster spot."
               : "No softball group date is posted yet. Individual requests stay on the tryouts page."}
@@ -153,7 +154,7 @@ function TeamsPublic() {
         <h2 className="text-3xl">Baseball tryouts & evaluations</h2>
         <p className="mt-2 mb-6 text-muted">
           {hasBaseballDates
-            ? "Free. No payment to register. Check in 15 minutes before your confirmed group event."
+            ? "Free. No payment to request a tryout. Check in 15 minutes before your confirmed group event."
             : "Free individual evaluation requests. A coach will confirm any private appointment."}
         </p>
         <TryoutSchedule events={events} sport="Baseball" />
@@ -166,7 +167,7 @@ function TeamsPublic() {
         </p>
         <Button asChild className="mt-6 w-full">
           <Link to="/tryouts" search={{ sport: "Baseball" }} hash="register">
-            Register for baseball
+            Request a baseball tryout
           </Link>
         </Button>
       </section>
