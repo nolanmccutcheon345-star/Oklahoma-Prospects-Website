@@ -932,11 +932,17 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof RegistrationsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/baseball': {
+      id: '/baseball'
+      path: '/baseball'
+      fullPath: '/baseball'
+      preLoaderRoute: typeof BaseballRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/softball': {
       id: '/softball'
       path: '/softball'
       fullPath: '/softball'
-      preLoaderRoute: typeof BaseballRouteImport
       preLoaderRoute: typeof SoftballRouteImport
       parentRoute: typeof rootRouteImport
     }
