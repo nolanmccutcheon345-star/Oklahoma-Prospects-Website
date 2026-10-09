@@ -63,7 +63,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           <Link to="/" aria-label={`${CLUB.name} home`} className="flex min-w-0 flex-1 items-center gap-2 overflow-visible no-underline sm:gap-3">
             <img
               src="/brand/mark.png"
-              alt=""
+              alt="Prospects Sports Academy"
               width={40}
               height={40}
               className="size-8 shrink-0 object-contain min-[400px]:size-10"

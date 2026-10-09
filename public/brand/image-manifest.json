@@ -24,8 +24,8 @@
       "src": "/brand/crest.png",
       "width": 512,
       "height": 512,
-      "bytes": 239579,
-      "sha256": "e207db6bc446e916801762ee2915d403bcb42625e263ae5f3be2a6bb8dfcfbb6"
+      "bytes": 128831,
+      "sha256": "e1bf822d5de552097070f6ce1649d6e75198d8904aee68d5ca54b818f05ef06c"
     },
     {
       "src": "/brand/facility.jpg",
@@ -38,8 +38,8 @@
       "src": "/brand/mark.png",
       "width": 256,
       "height": 256,
-      "bytes": 49114,
-      "sha256": "3c3439165d746b2ddc11766d687bae850a02663332080950d49c3a58b9a17f64"
+      "bytes": 14723,
+      "sha256": "eea82e293be85a5d41ee5a73cc41baae2ec6f763dfe7c6f444cc9313cd364e34"
     },
     {
       "src": "/brand/team.jpg",
@@ -59,36 +59,36 @@
       "src": "/brand/wordmark.png",
       "width": 900,
       "height": 600,
-      "bytes": 150002,
-      "sha256": "9faee2ae76862aebe3f8d3d238c1b0726a08f58b0ad7db7c9c22a234967727d7"
+      "bytes": 145777,
+      "sha256": "b29cb19b3a44ec92d9f8342188102ddde125ca3a8d775cd8f715ad219f873c95"
     },
     {
       "src": "/icon-192.png",
       "width": 192,
       "height": 192,
-      "bytes": 2991,
-      "sha256": "2dbb5fb39e56ad20d92bac107375ef896c05211b6bff33aa9ba4ddb563791642"
+      "bytes": 12621,
+      "sha256": "1274438815343c5581add32faa9dd0c32d97d3d604741accf412cc6d51db0e59"
     },
     {
       "src": "/icon-512.png",
       "width": 512,
       "height": 512,
-      "bytes": 8335,
-      "sha256": "5aa52f18ef1f1a4555ca41af65388a2c6ab44891a44e3e861cebf6180aad4186"
+      "bytes": 37645,
+      "sha256": "2f3a283be4ee715cf4965483e9c9fde6635e38451751a57d7a07ff73db78385b"
     },
     {
       "src": "/og.jpg",
       "width": 1200,
       "height": 630,
-      "bytes": 38340,
-      "sha256": "07262c7d6539213145e4f535cdbbd06ffc1ff280a48b79998093e1aee87053fd"
+      "bytes": 51811,
+      "sha256": "83893ca7257f475010c3f767a7e18a26ad7fb30a654417fc4f6dadf989d57388"
     },
     {
       "src": "/favicon.svg",
       "width": 32,
       "height": 32,
-      "bytes": 502,
-      "sha256": "6f78c35329e8ef724ae570cd9a1e93da0a530c83f5c4118b7e750be53149b1df"
+      "bytes": 1019,
+      "sha256": "017613a9f6c05a8558b618687fb67d9a144fca40d98785484a431823dc904675"
     }
   ],
   "responsive": {
