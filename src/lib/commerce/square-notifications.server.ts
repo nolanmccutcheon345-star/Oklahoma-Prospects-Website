@@ -119,7 +119,7 @@ export async function deliverPaymentNotifications(
             from,
             to: recipients,
             subject: ownerTest
-              ? "Oklahoma Prospects — Sandbox booking receipt test"
+              ? "Prospects Sports Academy — Sandbox booking receipt test"
               : ownerBooking
                 ? `New paid booking — ${n.title} — ${amount}`
                 : ownerReview
@@ -129,8 +129,8 @@ export async function deliverPaymentNotifications(
                     : failed
                       ? "Update your membership payment card"
                       : confirmedBooking
-                        ? "Thank you for booking with Oklahoma Prospects!"
-                        : "Oklahoma Prospects payment receipt",
+                        ? "Thank you for booking with Prospects Sports Academy!"
+                        : "Prospects Sports Academy payment receipt",
             text: ownerTest
               ? `This is a Sandbox receipt check from your saved test payment for ${n.title}. No real money was charged. This is not an active booking confirmation; the test booking may already have been cancelled or refunded. View the saved test billing record at ${c.origin}/family. Square Sandbox receipt: ${n.receipt_url}`
               : ownerBooking || ownerReview
@@ -140,7 +140,7 @@ export async function deliverPaymentNotifications(
                   : failed
                     ? `Your membership renewal could not be collected. Update your card in your account: ${c.origin}/family. New credits are issued only after a successful payment.`
                     : confirmedBooking
-                      ? `Hello${n.customer_name ? " " + n.customer_name : ""}!\n\nThank you for booking with Oklahoma Prospects! We appreciate you choosing our facility and look forward to seeing you at your reserved time:\n\n${details}\n\nYour payment for ${n.title} is confirmed.\n\nLocation: 3804 S. Elm Pl., Suite A, Broken Arrow, OK 74011.\n\nView your booking and billing history at ${c.origin}/family. Receipt: ${n.receipt_url || c.origin + "/paid?order_id=" + n.order_id}\n\nSee you soon!\nCoach Steve & the Oklahoma Prospects Team`
+                      ? `Hello${n.customer_name ? " " + n.customer_name : ""}!\n\nThank you for booking with Prospects Sports Academy! We appreciate you choosing our facility and look forward to seeing you at your reserved time:\n\n${details}\n\nYour payment for ${n.title} is confirmed.\n\nLocation: 3804 S. Elm Pl., Suite A, Broken Arrow, OK 74011.\n\nView your booking and billing history at ${c.origin}/family. Receipt: ${n.receipt_url || c.origin + "/paid?order_id=" + n.order_id}\n\nSee you soon!\nThe Prospects Sports Academy Team`
                       : `Your payment for ${n.title} is confirmed.\n${details ? details + "\n" : ""}View your booking and billing history at ${c.origin}/family. Receipt: ${n.receipt_url || c.origin + "/paid?order_id=" + n.order_id}`,
           }),
           signal: AbortSignal.timeout(10000),

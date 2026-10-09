@@ -136,7 +136,7 @@ test('isolated full account and lesson journey through real server commands',asy
    assert.equal((await api.creditSlots(parent,h.redemption)).some(s=>s.value==='18:00'),false);
   });
   await t.test('parent can sign minor waiver, unrelated family cannot, repeated signature is idempotent',async()=>{
-   const waiver={athleteId:athlete,adultName:'Audit Parent',adultPhone:'555-0100',participantType:'minor',emergencyName:'Audit Emergency',emergencyPhone:'555-0101',signerName:'Audit Parent',relationship:'parent',medicalNotes:'',consent:true};
+   const waiver={athleteId:athlete,adultName:'Audit Parent',adultPhone:'555-0100',participantType:'minor',emergencyName:'Audit Emergency',emergencyPhone:'555-0101',signerName:'Audit Parent',relationship:'parent',medicalNotes:'',consent:true,rosterConsent:true};
    await assert.rejects(api.signWaiver(other,waiver),/your household/);
    await api.signWaiver(parent,waiver);await api.signWaiver(parent,waiver);
    assert.equal((await api.myWaivers(parent)).length,1);

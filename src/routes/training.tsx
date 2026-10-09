@@ -122,8 +122,8 @@ function CatalogAndBook() {
           <p className="mt-2 text-base text-fg-soft">Private lessons and session packages stay locked until a coach records the completed New Player Assessment. In-person development memberships are available now: the first included session is the assessment, with a one-time $50 first-month fee.</p>
           <div className="mt-4 flex flex-wrap gap-3">
             {lessons.filter(item => ASSESSMENT_PRODUCTS.has(item.id)).map(item =>
-              canPurchase(catalog.purchaseAvailability, "lesson", item.id) && user && selectedAthlete
-                ? <Button asChild key={item.id} className="h-auto min-h-12 whitespace-normal text-center"><Link to="/pay" search={{kind:"lesson",id:item.id}}>Choose coach · {item.name}</Link></Button>
+              canPurchase(catalog.purchaseAvailability, "lesson", item.id)
+                ? <Button asChild key={item.id} className="h-auto min-h-12 whitespace-normal text-center"><Link to="/pay" search={{kind:"lesson",id:item.id}}>Book {item.name}</Link></Button>
                 : <Button key={item.id} disabled className="h-auto min-h-12 whitespace-normal text-center">{item.name} · {user && selectedAthlete ? "checkout unavailable" : "select an athlete to book"}</Button>
             )}
           </div>
@@ -210,7 +210,7 @@ function CatalogAndBook() {
                     <li key={line}>{line}</li>
                   ))}
                 </ul>
-                {user && selectedAthlete && (hasAssessment || ["m1","m2","m3"].includes(plan.id)) && canPurchase(catalog.purchaseAvailability, "membership", plan.id) ? <Button asChild className="mt-4" variant={featured ? "outline" : "primary"}><Link to="/pay" search={{kind:"membership",id:plan.id}}>Choose coach · {plan.name}</Link></Button> : <Button disabled className="mt-4" variant={featured ? "outline" : "primary"}>{canPurchase(catalog.purchaseAvailability, "membership", plan.id) ? "Select an athlete" : "Enrollment temporarily unavailable"}</Button>}
+                {(hasAssessment || ["m1","m2","m3"].includes(plan.id)) && canPurchase(catalog.purchaseAvailability, "membership", plan.id) ? <Button asChild className="mt-4" variant={featured ? "outline" : "primary"}><Link to="/pay" search={{kind:"membership",id:plan.id}}>Join {plan.name}</Link></Button> : <Button disabled className="mt-4" variant={featured ? "outline" : "primary"}>{plan.id === "m4" ? "Schedule not yet published" : canPurchase(catalog.purchaseAvailability, "membership", plan.id) ? "Complete assessment first" : catalog.purchaseAvailability ? "Checkout unavailable" : "Loading checkout…"}</Button>}
               </article>
             );
           })}
@@ -287,7 +287,7 @@ function ServiceCard({
       <span className="mt-1 block text-sm opacity-80">
         {item.minutes} min · {item.purpose}
       </span>
-      {unavailable ? <span className="mt-2 block text-sm font-semibold">{locked ? "Complete assessment first" : "Booking temporarily unavailable or athlete not selected"}</span> : null}
+      {unavailable ? <span className="mt-2 block text-sm font-semibold">{locked ? "Complete assessment first" : "Sign in and select an athlete to book"}</span> : null}
       {locked ? (
         <span className="mt-1 block text-xs font-semibold tracking-widest uppercase">
           Locked until assessment completion

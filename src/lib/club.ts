@@ -3,8 +3,7 @@ import { processingInclusiveCents } from "./processing-prices.js";
 export const CLUB = {
   name: "Prospects Sports Academy",
   venueName: "Prospects Sports Facility",
-  // Existing Google Business listing query. This site rename does not change that listing.
-  googleListingName: "Oklahoma Prospects Academy",
+  googleListingName: "Prospects Sports Academy",
   shortName: "Prospects",
   tagline: "Indoor baseball & softball in Broken Arrow.",
   established: 2008,
@@ -291,11 +290,11 @@ export const PEOPLE = [
     href: "tel:+19189228114",
   },
   {
-    name: "Coach Steve",
+    name: "Contact Organization",
     role: "Lessons, development, member access",
     phoneDisplay: "(918) 760-2719",
     tel: "+19187602719",
-    action: "Text Coach Steve",
+    action: "Contact Organization",
     href: "sms:+19187602719",
   },
 ] as const;

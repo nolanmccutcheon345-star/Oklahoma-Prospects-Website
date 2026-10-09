@@ -180,6 +180,12 @@ export default defineConfig(({ command, isPreview }) => ({
   },
   define: {
     "process.env.SQUARE_DEPLOY_CONTEXT": JSON.stringify(process.env.CONTEXT || "development"),
+    // Non-secret owner release directive must reach Functions too; netlify.toml
+    // variables otherwise exist only during the build. Runtime credentials and
+    // SQUARE_LIVE_ENABLED remain outside the bundle and can still disable payment.
+    "process.env.SQUARE_OWNER_FULL_CATALOG_LAUNCH": JSON.stringify(
+      process.env.CONTEXT === 'production' && process.env.SQUARE_OWNER_FULL_CATALOG_LAUNCH === 'true' ? 'true' : 'false',
+    ),
     // Grok's preview OAuth client does not accept Netlify callback addresses.
     // Opt in only after a broker client is registered for this deployment.
     "import.meta.env.VITE_GROK_SOCIAL_AUTH_ENABLED": JSON.stringify(

@@ -259,7 +259,7 @@ export async function provisionSubscription(orderId: string, client = squareClie
     cardId: card.id,
     startDate: nextBillingDate(new Date(o.paid_at!)),
     timezone: "America/Chicago",
-    source: { name: "Oklahoma Prospects" },
+    source: { name: "Prospects Sports Academy" },
   });
   if (!s?.id || s.customerId !== o.square_customer_id || s.locationId !== c.locationId)
     throw new Error("Subscription verification is pending.");
@@ -432,7 +432,7 @@ export async function paySquareOrder(
       buyerEmailAddress: order.email,
       note: order.square_payment_id
         ? "First-month fee (no assessment on file)"
-        : "Oklahoma Prospects " + order.snapshot.title,
+        : "Prospects Sports Academy " + order.snapshot.title,
     }));
   } catch (error) {
     const status = (error as { statusCode?: number }).statusCode;

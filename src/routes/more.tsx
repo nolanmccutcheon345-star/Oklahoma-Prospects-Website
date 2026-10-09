@@ -105,7 +105,7 @@ function VisitPage() {
       <section className="mt-8">
         <h2 className="text-2xl">Need a person?</h2>
         <p className="mt-2 text-sm text-muted">
-          After you book. The desk for cages and the door. Coach Steve after a paid lesson.
+          Contact Prospects Sports Academy for help with bookings, lessons, memberships, and teams.
         </p>
         <div className="mt-4">
           <Link to="/contact" className="inline-flex min-h-11 items-center underline">Contact</Link>

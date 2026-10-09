@@ -57,7 +57,7 @@ export function AppShell({ children }: { children: ReactNode }) {
     { to: "/teams", label: "Teams", icon: Users, match: (path: string) => ["/teams", "/baseball", "/softball", "/tryouts", "/coaches", "/recruiting", "/coach", "/family", "/office"].some(p => path.startsWith(p)) },
     { to: "/book", label: "Book", icon: CalendarClock, match: (path: string) => ["/book", "/go", "/memberships", "/pay", "/paid"].some(p => path.startsWith(p)) },
     { to: "/games", label: "Games", icon: Trophy, match: (path: string) => path.startsWith("/games") },
-    { to: "/merchandise", label: "Merchandise", icon: ShoppingBag, match: (path: string) => path.startsWith("/merchandise") },
+    { to: "/merchandise", label: "Shop", icon: ShoppingBag, match: (path: string) => path.startsWith("/merchandise") },
   ] as const;
 
   return (

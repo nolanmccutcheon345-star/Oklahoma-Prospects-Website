@@ -475,9 +475,14 @@ export const getServices = createServerFn({ method: "GET" }).handler(async () =>
 });
 
 export const getPurchaseAvailability = createServerFn({ method: "GET" }).handler(async (): Promise<PurchaseAvailability> => {
-  const { squarePublicConfig } = await import("./commerce/square.server");
+  const { squarePublicConfig, ensureOwnerLaunchCatalog } = await import("./commerce/square.server");
   const config = squarePublicConfig();
-  return { ready: true, scope: config?.checkoutScope ?? "disabled" };
+  let unavailableProductIds: string[] = [];
+  if(config?.environment==='production' && config.checkoutScope==='all') {
+    try { unavailableProductIds=(await ensureOwnerLaunchCatalog())?.filter(p=>!p.ready).map(p=>p.id)||[]; }
+    catch { unavailableProductIds=['prospect','all-star','elite-family','m1','m2','m3','m4','m5']; }
+  }
+  return { ready: true, scope: config?.checkoutScope ?? "disabled", unavailableProductIds };
 });
 
 export const loadPublicCatalog = createServerOnlyFn(async () => {

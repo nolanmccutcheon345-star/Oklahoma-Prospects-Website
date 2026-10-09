@@ -69,8 +69,7 @@ function ContactPage() {
         <div className="mx-auto max-w-3xl px-5">
           <h2 className="text-3xl">Who to text</h2>
           <p className="mt-2 mb-5 text-muted">
-            Desk for cages and arriving today. Steve for lessons and member
-            access.
+            Contact Organization for lessons, memberships, teams, and general questions. Contact the facility desk for cage bookings and arriving today.
           </p>
           <PeopleCards />
         </div>

@@ -31,7 +31,7 @@ function emailBody(kind: string, payload: unknown, from: string) {
   return {
     from,
     to: [p.email.trim()],
-    subject: `Oklahoma Prospects Academy — ${subject}`,
+    subject: `Prospects Sports Academy — ${subject}`,
     text: `${subject}.\n\nPlayer: ${p.player}\nSport: ${p.sport}\nSeason: ${p.season}\nDate: ${p.date}\nTime: ${formatClockTime(p.startTime)}–${formatClockTime(p.endTime)} Central (America/Chicago)\nLocation: ${p.location}\n\n${kind === "cancelled" ? "Do not attend this cancelled event. Your request remains on file for matching group opportunities." : "This is a group tryout appointment. Private tryouts are arranged separately with a coach."}`,
   };
 }

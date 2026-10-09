@@ -26,6 +26,9 @@ function productionSandboxAccepted(
   scope: SquareCheckoutScope,
   env: Record<string, string | undefined>,
 ) {
+  // The owner may explicitly launch the full catalog without falsely claiming
+  // a completed sandbox acceptance. Context and credential checks still apply.
+  if (scope === 'all' && env.SQUARE_OWNER_FULL_CATALOG_LAUNCH === 'true') return true;
   if (scope === "cages") return env.SQUARE_CAGE_SANDBOX_VERIFIED === "true";
   if (scope === "cages-lessons") return env.SQUARE_CAGES_LESSONS_SANDBOX_VERIFIED === "true";
   return env.SQUARE_SANDBOX_VERIFIED === "true";
@@ -58,7 +61,8 @@ export function resolveSquareConfig(
   env: Record<string, string | undefined>,
 ): SquareSettings | null {
   const environment = env.SQUARE_ENVIRONMENT;
-  const checkoutScope = env.SQUARE_CHECKOUT_SCOPE || "all";
+  const checkoutScope = env.CONTEXT === 'production' && env.SQUARE_OWNER_FULL_CATALOG_LAUNCH === 'true'
+    ? 'all' : env.SQUARE_CHECKOUT_SCOPE || "all";
   if (!isSquareCheckoutScope(checkoutScope)) return null;
   const accepted = productionSandboxAccepted(checkoutScope, env);
   if (environment !== "sandbox" && environment !== "production") return null;

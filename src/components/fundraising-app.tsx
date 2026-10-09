@@ -537,7 +537,7 @@ function Sponsor({
         <div className="payment-note">
           <ShieldCheck size={21} />
           <p>
-            Payments go to Oklahoma Prospects through Square. Your sponsorship is credited to{" "}
+            Payments go to Prospects Sports Academy through Square. Your sponsorship is credited to{" "}
             {p.name} after payment is confirmed.
           </p>
         </div>
@@ -1242,7 +1242,7 @@ export default function FundraisingApp({
                   <div>
                     <strong>Support goes to Prospects.</strong>
                     <p>
-                      Parents share the link. Oklahoma Prospects receives the payment and tracks
+                      Parents share the link. Prospects Sports Academy receives the payment and tracks
                       each player’s progress.
                     </p>
                   </div>

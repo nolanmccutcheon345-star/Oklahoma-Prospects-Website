@@ -73,7 +73,7 @@ export async function POST(req: Request) {
         reference_id: id,
         line_items: [
           {
-            name: `Sponsor ${player.name} • Oklahoma Prospects ${player.team}`,
+            name: `Sponsor ${player.name} • Prospects Sports Academy ${player.team}`,
             quantity: "1",
             base_price_money: { amount: cents, currency: "USD" },
           },

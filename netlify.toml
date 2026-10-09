@@ -46,10 +46,18 @@
   force = true
 
 # Preview authentication and commerce require separately scoped test credentials.
+[context.production.environment]
+  # Owner directive 2026-10-09: open lessons, rentals and monthly memberships.
+  # Existing production credentials and webhook signature are still required.
+  SQUARE_OWNER_FULL_CATALOG_LAUNCH = "true"
+  SQUARE_LIVE_ENABLED = "true"
+  SQUARE_ENVIRONMENT = "production"
 [context.deploy-preview.environment]
+  SQUARE_OWNER_FULL_CATALOG_LAUNCH = "false"
   SQUARE_LIVE_ENABLED = "false"
   SQUARE_ENVIRONMENT = "sandbox"
 [context.branch-deploy.environment]
+  SQUARE_OWNER_FULL_CATALOG_LAUNCH = "false"
   SQUARE_LIVE_ENABLED = "false"
   SQUARE_ENVIRONMENT = "sandbox"
 
