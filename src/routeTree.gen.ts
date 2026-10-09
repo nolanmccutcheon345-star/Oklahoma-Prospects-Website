@@ -32,6 +32,7 @@ import { Route as PayRouteImport } from './routes/pay'
 import { Route as PrivacyRouteImport } from './routes/privacy'
 import { Route as RecruitingRouteImport } from './routes/recruiting'
 import { Route as RegistrationsRouteImport } from './routes/registrations'
+import { Route as BaseballRouteImport } from './routes/baseball'
 import { Route as SoftballRouteImport } from './routes/softball'
 import { Route as TeamsRouteImport } from './routes/teams'
 import { Route as TermsRouteImport } from './routes/terms'
@@ -181,8 +182,17 @@ const RegistrationsRoute = RegistrationsRouteImport.update({
   path: '/registrations',
   getParentRoute: () => rootRouteImport,
 } as any)
+const BaseballRoute = BaseballRouteImport.update({
+  id: '/baseball',
+  path: '/baseball',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const SoftballRoute = SoftballRouteImport.update({
+  id: '/baseball',
+  id: '/baseball',
   id: '/softball',
+  path: '/baseball',
+  path: '/baseball',
   path: '/softball',
   getParentRoute: () => rootRouteImport,
 } as any)
@@ -372,6 +382,8 @@ export interface FileRoutesByFullPath {
   '/privacy': typeof PrivacyRoute
   '/recruiting': typeof RecruitingRoute
   '/registrations': typeof RegistrationsRoute
+  '/baseball': typeof BaseballRoute
+  '/baseball': typeof BaseballRoute
   '/softball': typeof SoftballRoute
   '/teams': typeof TeamsRouteWithChildren
   '/terms': typeof TermsRoute
@@ -430,6 +442,8 @@ export interface FileRoutesByTo {
   '/privacy': typeof PrivacyRoute
   '/recruiting': typeof RecruitingRoute
   '/registrations': typeof RegistrationsRoute
+  '/baseball': typeof BaseballRoute
+  '/baseball': typeof BaseballRoute
   '/softball': typeof SoftballRoute
   '/teams': typeof TeamsRouteWithChildren
   '/terms': typeof TermsRoute
@@ -489,6 +503,8 @@ export interface FileRoutesById {
   '/privacy': typeof PrivacyRoute
   '/recruiting': typeof RecruitingRoute
   '/registrations': typeof RegistrationsRoute
+  '/baseball': typeof BaseballRoute
+  '/baseball': typeof BaseballRoute
   '/softball': typeof SoftballRoute
   '/teams': typeof TeamsRouteWithChildren
   '/terms': typeof TermsRoute
@@ -549,6 +565,7 @@ export interface FileRouteTypes {
     | '/privacy'
     | '/recruiting'
     | '/registrations'
+    | '/baseball'
     | '/softball'
     | '/teams'
     | '/terms'
@@ -607,6 +624,7 @@ export interface FileRouteTypes {
     | '/privacy'
     | '/recruiting'
     | '/registrations'
+    | '/baseball'
     | '/softball'
     | '/teams'
     | '/terms'
@@ -665,6 +683,7 @@ export interface FileRouteTypes {
     | '/privacy'
     | '/recruiting'
     | '/registrations'
+    | '/baseball'
     | '/softball'
     | '/teams'
     | '/terms'
@@ -724,6 +743,7 @@ export interface RootRouteChildren {
   PrivacyRoute: typeof PrivacyRoute
   RecruitingRoute: typeof RecruitingRoute
   RegistrationsRoute: typeof RegistrationsRoute
+  BaseballRoute: typeof BaseballRoute
   SoftballRoute: typeof SoftballRoute
   TeamsRoute: typeof TeamsRouteWithChildren
   TermsRoute: typeof TermsRoute
@@ -919,10 +939,18 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof RegistrationsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/baseball': {
     '/softball': {
+      id: '/baseball'
+      id: '/baseball'
       id: '/softball'
+      path: '/baseball'
+      path: '/baseball'
       path: '/softball'
+      fullPath: '/baseball'
       fullPath: '/softball'
+      preLoaderRoute: typeof BaseballRouteImport
+      preLoaderRoute: typeof BaseballRouteImport
       preLoaderRoute: typeof SoftballRouteImport
       parentRoute: typeof rootRouteImport
     }
@@ -1212,6 +1240,7 @@ const rootRouteChildren: RootRouteChildren = {
   PrivacyRoute: PrivacyRoute,
   RecruitingRoute: RecruitingRoute,
   RegistrationsRoute: RegistrationsRoute,
+  BaseballRoute: BaseballRoute,
   SoftballRoute: SoftballRoute,
   TeamsRoute: TeamsRouteWithChildren,
   TermsRoute: TermsRoute,
