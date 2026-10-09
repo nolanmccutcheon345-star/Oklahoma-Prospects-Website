@@ -30,9 +30,10 @@ export function publicTeamLinksFor(
   for (const raw of club.teams) {
     if (!raw || typeof raw !== "object") continue;
     const team = raw as Record<string, unknown>;
-    if (team.closed === true || typeof team.coachEmail !== "string") continue;
-    if (team.coachEmail.trim().toLowerCase() !== email) continue;
-    if (typeof team.headCoach !== "string" || !team.headCoach.trim()) continue;
+    if (team.closed === true) continue;
+    const isHeadCoach = typeof team.coachEmail === "string" && team.coachEmail.trim().toLowerCase() === email && typeof team.headCoach === "string" && Boolean(team.headCoach.trim());
+    const isAssignedStaff = Array.isArray(team.staff) && team.staff.some((person: unknown) => person !== null && typeof person === "object" && "email" in person && typeof person.email === "string" && person.email.trim().toLowerCase() === email);
+    if (!isHeadCoach && !isAssignedStaff) continue;
     const { id, name, sport, age } = team;
     if (
       typeof id !== "string" || !id || id.length > 150 ||
