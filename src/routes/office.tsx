@@ -164,7 +164,7 @@ function OfficePage() {
             ["Promotions", "#office-discounts"],
             ["Operations & reporting", "#office-operations"],
             ["Booking changes", "#office-booking-changes"],
-            ["Teams & coach assignments", "#office-teams"],
+            ["Teams & coach assignments", "#team-coach-assignments"],
           ].map(([label, hash]) => (
             <a key={hash} href={hash}
               className="flex min-h-11 items-center rounded-xl border border-line bg-paper px-3 py-2 text-sm font-semibold text-ink underline underline-offset-2 focus-visible:outline-2 focus-visible:outline-maroon">
@@ -179,7 +179,7 @@ function OfficePage() {
       <section id="office-discounts" className="scroll-mt-32"><DiscountOffice /></section>
       <section id="office-operations" className="scroll-mt-32"><OfficeOperations /></section>
       <section id="office-booking-changes" className="scroll-mt-32"><StaffBookingChanges /></section>
-      <section id="office-teams" className="scroll-mt-32">
+      <section id="office-teams" className="scroll-mt-32" aria-label="Team administration">
       <OfficeApp
         club={club}
         onChange={setClub}
