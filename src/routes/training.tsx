@@ -210,7 +210,7 @@ function CatalogAndBook() {
                     <li key={line}>{line}</li>
                   ))}
                 </ul>
-                {user && selectedAthlete && canPurchase(catalog.purchaseAvailability, "membership", plan.id) ? <Button asChild className="mt-4" variant={featured ? "outline" : "primary"}><Link to="/pay" search={{kind:"membership",id:plan.id}}>Choose coach · {plan.name}</Link></Button> : <Button disabled className="mt-4" variant={featured ? "outline" : "primary"}>{canPurchase(catalog.purchaseAvailability, "membership", plan.id) ? "Select an athlete" : "Enrollment temporarily unavailable"}</Button>}
+                {user && selectedAthlete && (hasAssessment || ["m1","m2","m3"].includes(plan.id)) && canPurchase(catalog.purchaseAvailability, "membership", plan.id) ? <Button asChild className="mt-4" variant={featured ? "outline" : "primary"}><Link to="/pay" search={{kind:"membership",id:plan.id}}>Choose coach · {plan.name}</Link></Button> : <Button disabled className="mt-4" variant={featured ? "outline" : "primary"}>{canPurchase(catalog.purchaseAvailability, "membership", plan.id) ? "Select an athlete" : "Enrollment temporarily unavailable"}</Button>}
               </article>
             );
           })}
