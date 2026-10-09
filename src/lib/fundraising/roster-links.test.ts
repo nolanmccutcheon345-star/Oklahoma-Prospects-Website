@@ -120,7 +120,9 @@ test("actual roster links isolate households, consent and team/player pairs", as
     assert.equal(await linkedPlayer(sql, "fund"), null);
     await sql`UPDATE club_state SET demo=false,payload=${JSON.stringify({ teams: club.teams.map((t) => ({ ...t, roster: [] })) })}::jsonb`;
     assert.equal(await linkedPlayer(sql, "fund"), null);
-    assert.deepEqual(await publicRoster(sql), { teams: [] });
+    // A real team with an empty roster remains visible in the public team directory.
+    assert.deepEqual((await publicRoster(sql)).teams?.map(t => t.id), ["baseball-team", "softball-team"]);
+    assert.deepEqual((await publicRoster(sql,"baseball-team")).team?.players, []);
   } finally {
     await db.close();
   }
