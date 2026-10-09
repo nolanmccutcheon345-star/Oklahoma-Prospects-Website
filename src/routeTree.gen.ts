@@ -26,6 +26,7 @@ import { Route as MembershipsRouteImport } from './routes/memberships'
 import { Route as MerchandiseRouteImport } from './routes/merchandise'
 import { Route as MoreRouteImport } from './routes/more'
 import { Route as OfficeRouteImport } from './routes/office'
+import { Route as OfficePreviewRouteImport } from './routes/office-preview'
 import { Route as PaidRouteImport } from './routes/paid'
 import { Route as ParentsRouteImport } from './routes/parents'
 import { Route as PayRouteImport } from './routes/pay'
@@ -150,6 +151,11 @@ const MoreRoute = MoreRouteImport.update({
 const OfficeRoute = OfficeRouteImport.update({
   id: '/office',
   path: '/office',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const OfficePreviewRoute = OfficePreviewRouteImport.update({
+  id: '/office-preview',
+  path: '/office-preview',
   getParentRoute: () => rootRouteImport,
 } as any)
 const PaidRoute = PaidRouteImport.update({
@@ -372,6 +378,7 @@ export interface FileRoutesByFullPath {
   '/merchandise': typeof MerchandiseRoute
   '/more': typeof MoreRoute
   '/office': typeof OfficeRoute
+  '/office-preview': typeof OfficePreviewRoute
   '/paid': typeof PaidRoute
   '/parents': typeof ParentsRoute
   '/pay': typeof PayRoute
@@ -431,6 +438,7 @@ export interface FileRoutesByTo {
   '/merchandise': typeof MerchandiseRoute
   '/more': typeof MoreRoute
   '/office': typeof OfficeRoute
+  '/office-preview': typeof OfficePreviewRoute
   '/paid': typeof PaidRoute
   '/parents': typeof ParentsRoute
   '/pay': typeof PayRoute
@@ -491,6 +499,7 @@ export interface FileRoutesById {
   '/merchandise': typeof MerchandiseRoute
   '/more': typeof MoreRoute
   '/office': typeof OfficeRoute
+  '/office-preview': typeof OfficePreviewRoute
   '/paid': typeof PaidRoute
   '/parents': typeof ParentsRoute
   '/pay': typeof PayRoute
@@ -552,6 +561,7 @@ export interface FileRouteTypes {
     | '/merchandise'
     | '/more'
     | '/office'
+    | '/office-preview'
     | '/paid'
     | '/parents'
     | '/pay'
@@ -611,6 +621,7 @@ export interface FileRouteTypes {
     | '/merchandise'
     | '/more'
     | '/office'
+    | '/office-preview'
     | '/paid'
     | '/parents'
     | '/pay'
@@ -670,6 +681,7 @@ export interface FileRouteTypes {
     | '/merchandise'
     | '/more'
     | '/office'
+    | '/office-preview'
     | '/paid'
     | '/parents'
     | '/pay'
@@ -730,6 +742,7 @@ export interface RootRouteChildren {
   MerchandiseRoute: typeof MerchandiseRoute
   MoreRoute: typeof MoreRoute
   OfficeRoute: typeof OfficeRoute
+  OfficePreviewRoute: typeof OfficePreviewRoute
   PaidRoute: typeof PaidRoute
   ParentsRoute: typeof ParentsRoute
   PayRoute: typeof PayRoute
@@ -888,6 +901,13 @@ declare module '@tanstack/react-router' {
       path: '/office'
       fullPath: '/office'
       preLoaderRoute: typeof OfficeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/office-preview': {
+      id: '/office-preview'
+      path: '/office-preview'
+      fullPath: '/office-preview'
+      preLoaderRoute: typeof OfficePreviewRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/paid': {
@@ -1226,6 +1246,7 @@ const rootRouteChildren: RootRouteChildren = {
   MerchandiseRoute: MerchandiseRoute,
   MoreRoute: MoreRoute,
   OfficeRoute: OfficeRoute,
+  OfficePreviewRoute: OfficePreviewRoute,
   PaidRoute: PaidRoute,
   ParentsRoute: ParentsRoute,
   PayRoute: PayRoute,
