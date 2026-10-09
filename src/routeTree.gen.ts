@@ -23,6 +23,7 @@ import { Route as InvitationsRouteImport } from './routes/invitations'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as MembersRouteImport } from './routes/members'
 import { Route as MembershipsRouteImport } from './routes/memberships'
+import { Route as MerchandiseRouteImport } from './routes/merchandise'
 import { Route as MoreRouteImport } from './routes/more'
 import { Route as OfficeRouteImport } from './routes/office'
 import { Route as PaidRouteImport } from './routes/paid'
@@ -133,6 +134,11 @@ const MembersRoute = MembersRouteImport.update({
 const MembershipsRoute = MembershipsRouteImport.update({
   id: '/memberships',
   path: '/memberships',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const MerchandiseRoute = MerchandiseRouteImport.update({
+  id: '/merchandise',
+  path: '/merchandise',
   getParentRoute: () => rootRouteImport,
 } as any)
 const MoreRoute = MoreRouteImport.update({
@@ -357,6 +363,7 @@ export interface FileRoutesByFullPath {
   '/login': typeof LoginRoute
   '/members': typeof MembersRoute
   '/memberships': typeof MembershipsRoute
+  '/merchandise': typeof MerchandiseRoute
   '/more': typeof MoreRoute
   '/office': typeof OfficeRoute
   '/paid': typeof PaidRoute
@@ -414,6 +421,7 @@ export interface FileRoutesByTo {
   '/login': typeof LoginRoute
   '/members': typeof MembersRoute
   '/memberships': typeof MembershipsRoute
+  '/merchandise': typeof MerchandiseRoute
   '/more': typeof MoreRoute
   '/office': typeof OfficeRoute
   '/paid': typeof PaidRoute
@@ -472,6 +480,7 @@ export interface FileRoutesById {
   '/login': typeof LoginRoute
   '/members': typeof MembersRoute
   '/memberships': typeof MembershipsRoute
+  '/merchandise': typeof MerchandiseRoute
   '/more': typeof MoreRoute
   '/office': typeof OfficeRoute
   '/paid': typeof PaidRoute
@@ -531,6 +540,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/members'
     | '/memberships'
+    | '/merchandise'
     | '/more'
     | '/office'
     | '/paid'
@@ -588,6 +598,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/members'
     | '/memberships'
+    | '/merchandise'
     | '/more'
     | '/office'
     | '/paid'
@@ -645,6 +656,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/members'
     | '/memberships'
+    | '/merchandise'
     | '/more'
     | '/office'
     | '/paid'
@@ -703,6 +715,7 @@ export interface RootRouteChildren {
   LoginRoute: typeof LoginRoute
   MembersRoute: typeof MembersRoute
   MembershipsRoute: typeof MembershipsRoute
+  MerchandiseRoute: typeof MerchandiseRoute
   MoreRoute: typeof MoreRoute
   OfficeRoute: typeof OfficeRoute
   PaidRoute: typeof PaidRoute
@@ -841,6 +854,13 @@ declare module '@tanstack/react-router' {
       path: '/memberships'
       fullPath: '/memberships'
       preLoaderRoute: typeof MembershipsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/merchandise': {
+      id: '/merchandise'
+      path: '/merchandise'
+      fullPath: '/merchandise'
+      preLoaderRoute: typeof MerchandiseRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/more': {
@@ -1183,6 +1203,7 @@ const rootRouteChildren: RootRouteChildren = {
   LoginRoute: LoginRoute,
   MembersRoute: MembersRoute,
   MembershipsRoute: MembershipsRoute,
+  MerchandiseRoute: MerchandiseRoute,
   MoreRoute: MoreRoute,
   OfficeRoute: OfficeRoute,
   PaidRoute: PaidRoute,

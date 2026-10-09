@@ -90,14 +90,6 @@ function TeamsOverview() {
           </div>
         </section>
       ) : null}
-      <nav aria-label="Team sports" className="mx-auto grid max-w-3xl grid-cols-2 gap-3 px-5 py-4">
-        <Button asChild variant="outlineDark">
-          <a href="#baseball">Baseball</a>
-        </Button>
-        <Button asChild variant="outlineDark">
-          <a href="#softball">Softball</a>
-        </Button>
-      </nav>
       <TeamsPublic />
     <PublicTeamRoster/>
       </main>
