@@ -65,8 +65,8 @@ export function OfficeApp({
   return (
     <div className="grid gap-3">
       <nav aria-label="Front office admin tabs" className="flex flex-wrap gap-2 rounded-xl bg-paper-2 p-3">
-        <Button type="button" variant={activeTab === "teams" ? "default" : "outlineDark"} onClick={() => setActiveTab("teams")}>Teams & coaches</Button>
-        <Button type="button" variant={activeTab === "overview" ? "default" : "outlineDark"} onClick={() => setActiveTab("overview")}>Office overview</Button>
+        <Button type="button" variant={activeTab === "teams" ? "primary" : "outlineDark"} onClick={() => setActiveTab("teams")}>Teams & coaches</Button>
+        <Button type="button" variant={activeTab === "overview" ? "primary" : "outlineDark"} onClick={() => setActiveTab("overview")}>Office overview</Button>
       </nav>
       {activeTab === "teams" ? (
         <section id="team-coach-assignments" aria-labelledby="team-coach-assignments-title" className="rounded-2xl border-2 border-maroon bg-paper p-5 scroll-mt-32">
