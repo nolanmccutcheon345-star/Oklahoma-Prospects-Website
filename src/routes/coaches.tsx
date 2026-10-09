@@ -3,6 +3,7 @@ import { getPublicStaff } from "@/lib/staff-directory-api";
 import { pageHead } from "@/lib/seo";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { getPublicCoaches } from "@/lib/coaching-api";
+import { getPublicTeamCoaches } from "@/lib/team-coach-directory-api";
 import { PageHero } from "@/components/page-hero";
 export const Route = createFileRoute("/coaches")({
   head: () =>
@@ -13,8 +14,8 @@ export const Route = createFileRoute("/coaches")({
       false,
     ),
   loader: async () => {
-    const [coaches, staff] = await Promise.all([getPublicCoaches(), getPublicStaff()]);
-    return { coaches, staff };
+    const [coaches, staff, teamCoaches] = await Promise.all([getPublicCoaches(), getPublicStaff(), getPublicTeamCoaches()]);
+    return { coaches, staff, teamCoaches };
   },
   component: Coaches,
   errorComponent: () => (
@@ -28,7 +29,8 @@ export const Route = createFileRoute("/coaches")({
   ),
 });
 function Coaches() {
-  const { coaches: rows, staff } = Route.useLoaderData();
+  const { coaches: rows, staff, teamCoaches } = Route.useLoaderData();
+  const additionalTeamCoaches = teamCoaches.filter(person => !rows.some(row => row.profile.name.trim().toLowerCase() === person.name.trim().toLowerCase()) && !staff.some(row => row.name.trim().toLowerCase() === person.name.trim().toLowerCase()));
   return (
     <main id="main">
       <PageHero
@@ -63,6 +65,13 @@ function Coaches() {
           </article>
         ))}
       </section>
+      {additionalTeamCoaches.length > 0 ? <section aria-label="Team coaches" className="mx-auto grid max-w-3xl gap-5 px-5 pt-8">
+        <h2 className="text-2xl font-semibold">Team coaches</h2>
+        {additionalTeamCoaches.map(person => <article key={person.name} className="rounded-xl border p-5">
+          <h3 className="text-2xl font-semibold">{person.name}</h3>
+          <p className="mt-2 text-sm">Coaching {person.teams.map(team => `${team.name} (${team.sport}, ${team.age})`).join(" · ")}</p>
+        </article>)}
+      </section> : null}
       <section aria-label="Coaching instructors" className="mx-auto grid max-w-3xl gap-5 px-5 py-8">
         {rows.length ? (
           rows.map(({ id, profile: p, teams }) => (
@@ -104,7 +113,7 @@ function Coaches() {
               </Link>
             </article>
           ))
-        ) : (
+        ) : additionalTeamCoaches.length > 0 ? null : (
           <p>
             Coach profiles are being prepared.{" "}
             <Link to="/contact" className="underline">
