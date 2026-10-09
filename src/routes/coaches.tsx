@@ -78,11 +78,11 @@ function Coaches() {
             <h2 className="mt-1 text-3xl">{person.name}</h2>
             <p className="mt-2 font-semibold">{person.title}</p>
             <TeamsCoached teams={assigned} />
-            {(person.bio || person.email || person.phone) ? <CoachBio>
-              {person.bio ? <p className="whitespace-pre-line">{person.bio}</p> : null}
-              <a className="inline-flex min-h-11 items-center break-all underline" href={`mailto:${person.email}`}>{person.email}</a>
+            <CoachBio>
+              {person.bio ? <p className="whitespace-pre-line">{person.bio}</p> : <p>Biography coming soon.</p>}
+              {person.email ? <a className="inline-flex min-h-11 items-center break-all underline" href={`mailto:${person.email}`}>{person.email}</a> : null}
               {person.phone ? <a className="inline-flex min-h-11 items-center underline" href={`tel:${person.phone.replace(/[^+\d]/g, "")}`}>{person.phone}</a> : null}
-            </CoachBio> : null}
+            </CoachBio>
           </article>;
         })}
       </section>
@@ -92,7 +92,7 @@ function Coaches() {
           {person.photo && <img src={person.photo} alt={person.name} className="mb-3 h-32 w-32 rounded-lg object-cover" />}
           <h3 className="text-2xl font-semibold">{person.name}</h3>
           <TeamsCoached teams={person.teams} />
-          {person.bio ? <CoachBio><p className="whitespace-pre-line">{person.bio}</p></CoachBio> : null}
+          <CoachBio><p className="whitespace-pre-line">{person.bio || "Biography coming soon."}</p></CoachBio>
         </article>)}
       </section> : null}
       <section aria-label="Coaching instructors" className="mx-auto grid max-w-3xl gap-5 px-5 py-8">
@@ -112,12 +112,12 @@ function Coaches() {
               <h2 className="text-3xl">{p.name}</h2>
               <p className="mt-2 font-semibold">{p.specialties.join(" · ")}</p>
               <TeamsCoached teams={assigned} />
-              {background.length ? <CoachBio>
-                {background.map(([label, value]) => <section key={label}>
+              <CoachBio>
+                {background.length ? background.map(([label, value]) => <section key={label}>
                   <h3 className="font-semibold">{label}</h3>
                   <p className="mt-1 whitespace-pre-line">{value}</p>
-                </section>)}
-              </CoachBio> : null}
+                </section>) : <p>Biography coming soon.</p>}
+              </CoachBio>
               <Link to="/training" className="mt-4 inline-flex min-h-11 items-center underline">
                 Find lessons and assessments
               </Link>
