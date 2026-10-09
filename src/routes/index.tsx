@@ -35,10 +35,11 @@ function Home() {
             Broken Arrow · Indoor baseball & softball
           </p>
           <h1 className="mt-3 max-w-xl font-display text-5xl leading-[0.9] font-extrabold italic sm:text-6xl">
-            YOUR HOUR. YOUR LANE.
+            <span className="block">BUILD YOUR GAME.</span>
+            <span className="block">TRAIN WITH PURPOSE.</span>
           </h1>
           <p className="mt-5 max-w-md text-[1.05rem] leading-relaxed text-fg-soft">
-            Book indoor cages in Broken Arrow. Baseball and softball. The hour is yours — not a walk-in warehouse.
+            Baseball and softball development in Broken Arrow. Book indoor cage time, train with experienced coaches, and find your team at Prospects Sports Academy.
           </p>
           <div className="mt-7 flex flex-wrap gap-3">
             <Button asChild>
