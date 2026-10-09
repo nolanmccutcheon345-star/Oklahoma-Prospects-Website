@@ -73,7 +73,7 @@ export function OfficeApp({
         <section id="team-coach-assignments" aria-labelledby="team-coach-assignments-title" className="rounded-2xl border-2 border-maroon bg-paper p-5 scroll-mt-32">
           <h2 id="team-coach-assignments-title" className="text-2xl font-bold text-ink">Teams & coaches administration</h2>
           <p className="my-3 text-sm text-muted">Create baseball or softball teams, build coach profiles, and assign head or assistant coaches to teams.</p>
-          <RosterTools club={club} onChange={onChange} />
+          <RosterTools club={club} onChange={onChange} onSave={onSave} />
           <CoachManagement club={club} onChange={onChange} onSave={onSave} />
         </section>
       ) : (
@@ -376,9 +376,11 @@ function CoachManagement({ club, onChange, onSave }: {
 function RosterTools({
   club,
   onChange,
+  onSave,
 }: {
   club: ClubRecord;
   onChange: (club: ClubRecord) => void;
+  onSave: (next?: ClubRecord) => Promise<boolean>;
 }) {
   const [teamName, setTeamName] = useState("");
   const [age, setAge] = useState("13U");
@@ -453,7 +455,7 @@ function RosterTools({
       </form>
       <div className="grid gap-2 rounded-xl border p-3">
         <h3 className="font-semibold">Manage existing teams</h3>
-        {club.teams.map(team => <div key={team.id} className="flex flex-wrap items-center justify-between gap-2 border-b py-2 text-sm"><span>{team.name} · {team.sport} · {team.seasonLabel}</span><Button type="button" variant="outlineDark" disabled={busy} onClick={async () => {
+        {club.teams.map(team => <div key={team.id} className="flex flex-wrap items-center justify-between gap-2 border-b py-2 text-sm"><span>{team.name} · {team.sport}</span><label className="flex items-center gap-2">Season <input aria-label={`Season for ${team.name}`} maxLength={100} value={team.seasonLabel} className="min-h-11 rounded border px-2" onChange={e=>onChange({...club,teams:club.teams.map(t=>t.id===team.id?{...t,seasonLabel:e.target.value}:t)})}/></label><Button type="button" disabled={busy} onClick={()=>{void onSave();}}>Save season</Button><Button type="button" variant="outlineDark" disabled={busy} onClick={async () => {
           if (!window.confirm(`Delete ${team.name}? This cannot be undone. Teams with roster or activity records cannot be deleted.`)) return;
           setBusy(true);setError("");
           try { const row=await officeRemoveTeam({data:{teamId:team.id,baseRev:club._rev}});onChange(row.club);if(teamId===team.id)setTeamId(row.club.teams[0]?.id??""); }
