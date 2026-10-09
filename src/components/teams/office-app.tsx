@@ -1,4 +1,5 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { getAssignableTeamCoaches } from "@/lib/team-coach-directory-api";
 import { Button } from "@/components/ui/button";
 import type { ClubRecord, StaffMember } from "@/lib/teams/types";
 import { officeAddPlayer, officeAddTeam } from "@/lib/teams/store";
@@ -267,10 +268,17 @@ function CoachManagement({ club, onChange, onSave }: {
   const [role, setRole] = useState("Assistant coach");
   const [teamId, setTeamId] = useState("");
   const [message, setMessage] = useState("");
-  const coaches = Array.from(new Map(club.teams.flatMap(t => [
+  const [directory, setDirectory] = useState<Awaited<ReturnType<typeof getAssignableTeamCoaches>>>([]);
+  const [directoryError, setDirectoryError] = useState("");
+  useEffect(() => {
+    let active = true;
+    getAssignableTeamCoaches().then(rows => { if (active) setDirectory(rows); }).catch(err => { if (active) setDirectoryError(err instanceof Error ? err.message : "Could not load existing coaches."); });
+    return () => { active = false; };
+  }, []);
+  const coaches = Array.from(new Map([...directory.map(c => [c.email, { name: c.name, email: c.email }] as const), ...club.teams.flatMap(t => [
     ...(t.coachEmail ? [[t.coachEmail.trim().toLowerCase(), { name: t.headCoach, email: t.coachEmail }] as const] : []),
     ...t.staff.filter(s => s.email).map(s => [s.email.trim().toLowerCase(), { name: s.name, email: s.email }] as const),
-  ])).values());
+  ])]).values());
   function updateTeam(id: string, update: (team: ClubRecord["teams"][number]) => ClubRecord["teams"][number]) {
     onChange({ ...club, teams: club.teams.map(t => t.id === id ? update(t) : t) });
     setMessage("Changes pending. Select Save assignments to publish.");
@@ -279,7 +287,7 @@ function CoachManagement({ club, onChange, onSave }: {
     <div className="mt-5 grid gap-5">
       <section className="rounded-xl border border-line bg-white p-4">
         <h3 className="text-xl font-semibold">Create coach profile</h3>
-        <p className="mb-3 text-sm text-muted">Profiles are stored with the selected team. Use the same email to assign a coach to additional teams.</p>
+        <p className="mb-3 text-sm text-muted">Team coach profiles are stored with the selected team and displayed on the public Coaches page. Existing lesson coaches retain their lesson profiles and can also be assigned to teams.</p>
         <form className="grid gap-3" onSubmit={e => {
           e.preventDefault();
           const selected = club.teams.find(t => t.id === teamId);
@@ -310,6 +318,8 @@ function CoachManagement({ club, onChange, onSave }: {
       </section>
       <section className="rounded-xl border border-line bg-white p-4">
         <h3 className="text-xl font-semibold">Assign coaches to teams</h3>
+        <p className="text-sm text-muted">Choose from existing lesson coaches, staff directory profiles, and team coaches. Team assignments do not change lesson availability.</p>
+        {directoryError ? <p role="alert" className="text-sm text-maroon">Existing coach directory could not load: {directoryError}</p> : null}
         {club.teams.length === 0 ? <p className="text-sm">Create a baseball or softball team above to begin.</p> : club.teams.map(team => (
           <div key={team.id} className="my-3 grid gap-2 rounded-lg border border-line p-3">
             <h4 className="font-semibold">{team.name} · {team.sport} · {team.age}</h4>
