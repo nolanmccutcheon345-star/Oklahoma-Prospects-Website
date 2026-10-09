@@ -109,9 +109,9 @@ function OfficePage() {
       <main id="main">
         <PageHero
           eyebrow="Front office"
-          title="Open the club."
-          accent="Your club records."
-          copy="Start an empty team desk. Only add confirmed club records."
+          title="Teams & coach assignments"
+          accent="Set up team management."
+          copy="Initialize the club team desk to create teams and assign coaches. No teams or coaches will be added automatically."
           image="/brand/team.jpg"
           compact
         />
@@ -131,7 +131,7 @@ function OfficePage() {
                 setState({ ok: true, missing: false, role: "admin", me: state.me, club: row.club });
               }}
             >
-              Start empty
+              Set up teams & coach assignments
             </Button>
           </div>
         </div>
