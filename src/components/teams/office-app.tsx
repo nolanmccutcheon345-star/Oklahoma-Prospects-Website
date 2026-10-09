@@ -348,6 +348,8 @@ function CoachManagement({ club, onChange, onSave }: {
                 void updateTeam(team.id, t => ({...t, staff:t.staff.filter(s => s.id!==person.id)}));
               }}>Remove {person.name} from team</button>)}
             </div>
+            {team.coachEmail && <TeamCoachProfileEditor key={team.id+"-head-"+team.coachEmail} email={team.coachEmail} name={team.headCoach} bio={(team as typeof team & {headCoachBio?:string}).headCoachBio} photo={(team as typeof team & {headCoachPhoto?:string}).headCoachPhoto} onSaved={()=>window.location.reload()}/>}
+            {team.staff.map(person=><TeamCoachProfileEditor key={person.id} email={person.email} name={person.name} bio={(person as typeof person & {bio?:string}).bio} photo={(person as typeof person & {photo?:string}).photo} onSaved={()=>window.location.reload()}/>)}
             <p className="text-xs text-muted">Assigned staff: {team.staff.map(c => c.name + " (" + c.role + ")").join(", ") || "None"}</p>
             <label className="grid gap-1 text-sm">Add existing coach to this team
               <select disabled={saving} value="" onChange={e => {
