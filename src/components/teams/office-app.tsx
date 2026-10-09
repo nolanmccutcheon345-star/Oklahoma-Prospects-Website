@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { TeamCoachProfileEditor } from "./team-coach-profile-editor";
 import { getAssignableTeamCoaches } from "@/lib/team-coach-directory-api";
 import { Button } from "@/components/ui/button";
 import type { ClubRecord, StaffMember } from "@/lib/teams/types";
