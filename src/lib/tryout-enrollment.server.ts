@@ -91,7 +91,7 @@ export async function recordInquiryFor(
         if (input.requestType === "scheduled") {
           const { publicTryoutEventsFor } = await import("./tryout-events.server");
           const event = (await publicTryoutEventsFor(tx)).find(e => e.id === input.requestedEventId);
-          if (!event || event.sport !== input.sport || event.season !== input.season || !event.ageGroups.includes(String(input.age))) throw new Error("This tryout changed or is no longer available. Refresh and choose a published event.");
+          if (!event || event.sport !== input.sport || event.season !== input.season || !event.ageGroups.some(age => normalize(age) === normalize(String(input.age)))) throw new Error("This tryout changed or is no longer available. Refresh and choose a published event.");
           input = {...input, requestedEvent: {id:event.id, sport:event.sport, season:event.season, date:event.date, startTime:event.startTime, endTime:event.endTime, location:event.location}};
         } else if (input.requestedEventId) throw new Error("Individual evaluations cannot select a scheduled event.");
       }

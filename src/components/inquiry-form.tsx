@@ -134,7 +134,14 @@ export function TryoutForm({
   intent?: "register" | "inquiry";
   publishedEvents?: TryoutEvent[];
 }) {
-  const initialEvent = publishedEvents.find((e) => e.id === initialEventId);
+  const events = publishedEvents.map((event) => ({
+    ...event,
+    ageGroups: event.ageGroups.map(
+      (group) =>
+        TRYOUT_AGE_GROUPS.find((age) => age.toLowerCase() === group.trim().toLowerCase()) || group,
+    ),
+  }));
+  const initialEvent = events.find((e) => e.id === initialEventId);
   const [mode, setMode] = useState<"scheduled" | "individual">(
     initialEvent ? "scheduled" : "individual",
   );
@@ -149,8 +156,8 @@ export function TryoutForm({
     autoEnroll: false,
     sport: initialEvent?.sport || initialSport,
     age: initialEvent
-      ? initialEvent.ageGroups.includes(initialAge)
-        ? initialAge
+      ? initialEvent.ageGroups.some((age) => age.toLowerCase() === initialAge.toLowerCase())
+        ? initialEvent.ageGroups.find((age) => age.toLowerCase() === initialAge.toLowerCase())!
         : initialEvent.ageGroups.length === 1
           ? initialEvent.ageGroups[0]
           : ""
@@ -183,14 +190,14 @@ export function TryoutForm({
       live = false;
     };
   }, [intent]);
-  const selectedEvent = publishedEvents.find((e) => e.id === eventId);
+  const selectedEvent = events.find((e) => e.id === eventId);
   const scheduled = intent === "register" && mode === "scheduled";
   const eligibleTeams = teams.filter(
     (t) => t.sport === values.sport && t.age.toLowerCase() === values.age.toLowerCase(),
   );
   const selectedTeam = eligibleTeams.find((t) => t.id === values.preferredTeamId);
   function selectEvent(id: string) {
-    const event = publishedEvents.find((e) => e.id === id);
+    const event = events.find((e) => e.id === id);
     setEventId(id);
     setValues((v) => ({
       ...v,
@@ -351,7 +358,7 @@ export function TryoutForm({
             </div>
           ) : (
             <p className="text-sm text-muted">
-              {publishedEvents.some((e) => e.sport === values.sport)
+              {events.some((e) => e.sport === values.sport)
                 ? "Choose an event to see its season, time and location."
                 : "No group tryouts are currently scheduled for this sport. Choose Individual Evaluation to request an appointment."}
             </p>

@@ -58,7 +58,7 @@ test("matching enrollment respects season, capacity, retries and cancelled-event
       revision: 0,
       sport: "Baseball" as const,
       season: "Spring 2030",
-      ageGroups: ["9U"],
+      ageGroups: ["9u"],
       date: "2030-04-05",
       startTime: "14:00",
       endTime: "15:00",
