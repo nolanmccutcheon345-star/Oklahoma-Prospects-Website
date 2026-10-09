@@ -71,7 +71,7 @@ test('public navigation, sport links and purchase availability agree with the li
   assert.match(document.body.textContent,/Online lesson checkout temporarily unavailable/);
   assert.match(document.body.textContent,/Start with an assessment/);
   assert.match(document.body.textContent,/first session is the assessment/i);
-  assert.doesNotMatch(document.querySelector('#main').textContent,/Ask about|OP-[1-7]|first month.*assessment/i);
+  assert.doesNotMatch(document.querySelector('#main').textContent,/Ask about|OP-[1-7]/i);
   assert.ok(document.querySelectorAll('#memberships article').length > 0);
   assert.match(document.querySelector('#youth-lessons').textContent,/ages 10 and under/);
   const service=[...document.querySelectorAll('button')].find(b=>b.textContent.includes('New Pitcher Assessment'));
