@@ -12,6 +12,7 @@ export type TryoutApplicant = {
   autoEnroll?: boolean;
   preferredTeamId?: string;
   preferredCoachId?: string;
+  requestType?: "scheduled" | "individual";
 };
 export function applicantKey(input: TryoutApplicant) {
   return createHash("sha256")
@@ -54,7 +55,7 @@ export async function matchTryoutApplicants(tx: Sql) {
       const p = request.payload;
       // Published group events do not identify a preferred team or coach.
       // Staff must review the request instead of silently enrolling elsewhere.
-      if (p.preferredTeamId || p.preferredCoachId) continue;
+      if (p.preferredTeamId || p.preferredCoachId || p.requestType) continue;
       if (
         !p.season?.trim() ||
         !p.player?.trim() ||
@@ -85,6 +86,15 @@ export async function recordInquiryFor(
 ) {
   return sql.transaction(async (tx) => {
     if (input.kind === "tryout") {
+      if (input.requestType) {
+        if (input.requestConsent !== true || input.autoEnroll === true) throw new Error("Confirm request consent. Staff must confirm your appointment.");
+        if (input.requestType === "scheduled") {
+          const { publicTryoutEventsFor } = await import("./tryout-events.server");
+          const event = (await publicTryoutEventsFor(tx)).find(e => e.id === input.requestedEventId);
+          if (!event || event.sport !== input.sport || event.season !== input.season || !event.ageGroups.includes(String(input.age))) throw new Error("This tryout changed or is no longer available. Refresh and choose a published event.");
+          input = {...input, requestedEvent: {id:event.id, sport:event.sport, season:event.season, date:event.date, startTime:event.startTime, endTime:event.endTime, location:event.location}};
+        } else if (input.requestedEventId) throw new Error("Individual evaluations cannot select a scheduled event.");
+      }
       const preferredTeamId = typeof input.preferredTeamId === "string" ? input.preferredTeamId : "";
       const preferredCoachId = typeof input.preferredCoachId === "string" ? input.preferredCoachId : "";
       if (preferredTeamId || preferredCoachId) {

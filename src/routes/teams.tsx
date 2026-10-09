@@ -91,7 +91,6 @@ function TeamsOverview() {
         </section>
       ) : null}
       <TeamsPublic />
-    <PublicTeamRoster/>
       </main>
   );
 }
@@ -114,7 +113,7 @@ function TeamsPublic() {
           <>
             <Button asChild>
               <Link to="/tryouts" hash="register">
-                Register for tryouts
+                Request a tryout
               </Link>
             </Button>
             <Button asChild variant="outline">
@@ -124,6 +123,8 @@ function TeamsPublic() {
         }
       />
 
+      <section id="explore-teams" className="mx-auto max-w-5xl px-5 py-10"><h2 className="text-3xl">Explore our teams</h2><PublicTeamRoster /></section>
+      <section className="mx-auto max-w-5xl px-5 pb-10"><h2 className="text-2xl">Team payments</h2><p className="mt-2 text-muted">Only pay after the office confirms the team, fee, and amount. Include the player’s name and age group. Debit or credit only.</p><div className="mt-4 flex flex-wrap gap-4"><Button asChild><Link to="/family">Open your family team account</Link></Button><Button asChild variant="outline"><Link to="/contact">Ask the office for a team invoice</Link></Button></div></section>
       <section id="softball" className="scroll-mt-24 bg-navy py-10 text-fg-inverse">
         <div className="mx-auto max-w-3xl px-5">
           <p className="text-xs font-semibold tracking-[0.16em] text-powder uppercase">

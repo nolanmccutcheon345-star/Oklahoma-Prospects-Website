@@ -1,3 +1,5 @@
+import { Link } from "@tanstack/react-router";
+import { Button } from "./ui/button";
 import { formatClockTime } from "@/lib/time-display";
 import type { TryoutEvent } from "@/lib/tryout-events-contracts";
 export function TryoutSchedule({
@@ -25,20 +27,33 @@ export function TryoutSchedule({
             }).format(new Date(`${event.date}T00:00:00Z`))}
           </p>
           <p>
-            {formatClockTime(event.startTime)}–{formatClockTime(event.endTime)} Central · {event.location}
+            {formatClockTime(event.startTime)}–{formatClockTime(event.endTime)} Central ·{" "}
+            {event.location}
           </p>
           <p className="mt-2 text-sm">
             Capacity: {event.capacity}. Submit your player information below. A request does not
             reserve a place in this event.
           </p>
+          <Button asChild className="mt-4">
+            <Link
+              to="/tryouts"
+              search={{
+                event: event.id,
+                sport: event.sport,
+                age: event.ageGroups.length === 1 ? event.ageGroups[0] : undefined,
+              }}
+              hash="register"
+            >
+              Request This Tryout
+            </Link>
+          </Button>
         </article>
       ))}
     </div>
   ) : (
     <p className="rounded-xl bg-paper-2 px-5 py-4 text-sm shadow-border">
-      No {sport?.toLowerCase() || "group"} tryout date is currently posted. Individual tryout
-      requests are open for every age group. A private appointment is arranged with a coach and
-      confirmed with your family.
+      No group tryouts are currently scheduled. Request an individual evaluation, and our staff will
+      coordinate an appointment with your family.
     </p>
   );
 }

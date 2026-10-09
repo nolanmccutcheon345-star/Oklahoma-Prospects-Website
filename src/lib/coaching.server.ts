@@ -1,3 +1,6 @@
+import {coachesWithAvailability} from "./commerce/coach-services.server";
+import {approvedProducts} from "./commerce/catalog";
+import type {Product} from "./commerce/contracts";
 import type {z} from 'zod';
 import {getSql} from './db';
 import {publicCoachProfilesFor} from './coach-public-profiles.server';
@@ -15,11 +18,13 @@ export async function publicCoaches(){
  const sql=await getSql();
  const coaches=file.coaches.filter(c=>c.active!==false);
  const profiles=await publicCoachProfilesFor(sql,coaches.map(c=>c.id));
+ const products=await sql<Product>`select id,kind,name,price,minutes,credits,remote,expires_days,hours,discipline,active from club_services where active=true`;
+ const bookable=await coachesWithAvailability(sql,coaches,file.availability,approvedProducts(products));
  const {publicTeamLinksFor}=await import("./coach-team-links.server");
  const [record]=await sql<{payload:unknown;demo:boolean}>`select payload,demo from club_state where id='oklahoma-prospects'`;
  let club:unknown=record?.payload;
  if(typeof club==="string"){try{club=JSON.parse(club);}catch{club=null;}}
- return profiles.map(p=>({...p,teams:publicTeamLinksFor(p.id,coaches,club,record?.demo!==false)}));
+ return profiles.map(p=>({...p,bookable:bookable.some(c=>c.id===p.id),teams:publicTeamLinksFor(p.id,coaches,club,record?.demo!==false)}));
 }
 export async function myCoach(userId:string){const {row}=await coach(userId);const sql=await getSql();const [profile]=await sql<{profile:z.infer<typeof profileInput>}>`select profile from coach_profiles where user_id=${userId}`;const file=await readWorkingFile();return {coach:row,profile:profile?.profile,availability:file.availability.filter(a=>a.coachId===row.id)};}
 export async function saveCoach(userId:string,input:z.infer<typeof profileInput>){input=profileInput.parse(input);const {row}=await coach(userId);const sql=await getSql();const file=await readWorkingFile();await sql.transaction(async tx=>{await tx`insert into coach_profiles(id,user_id,profile,published) values(${row.id},${userId},${JSON.stringify(input)}::jsonb,${input.published}) on conflict(user_id) do update set profile=excluded.profile,published=excluded.published,updated_at=now()`;await writeWorkingFile({...file,coaches:file.coaches.map(c=>c.id===row.id?{...c,name:input.name,specialties:input.specialties}:c)},tx);});return {ok:true};}
