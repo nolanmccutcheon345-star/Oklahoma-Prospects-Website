@@ -131,12 +131,12 @@ export function formatReceiptText(receipt: ClubReceipt) {
     "",
     "Door: Suite A. Text the desk if the gate is locked.",
     "Waiver: prospectsbaseball.club/waiver",
-    "Questions after this is booked — desk for cages, Coach Steve after a paid lesson.",
+    "Questions about your booking? Contact Prospects Sports Academy.",
   ].join("\n");
 }
 
 export function receiptMailto(receipt: ClubReceipt) {
-  const subject = `Oklahoma Prospects receipt ${receipt.id}`;
+  const subject = `Prospects Sports Academy receipt ${receipt.id}`;
   return `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(formatReceiptText(receipt))}`;
 }
 
@@ -155,7 +155,7 @@ export function gateSms(receipt: ClubReceipt) {
 export function deskSms(receipt: ClubReceipt) {
   return smsHref(
     CLUB.phoneTel,
-    `Oklahoma Prospects booking ${receipt.id}: ${receipt.title}, $${receipt.price}.`,
+    `Prospects Sports Academy booking ${receipt.id}: ${receipt.title}, $${receipt.price}.`,
   );
 }
 

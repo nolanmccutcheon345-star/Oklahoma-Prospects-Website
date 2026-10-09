@@ -9,6 +9,7 @@ const player=z.object({
  id,teamId:id,familyId:id,name:short,number:short,positions:strings,bats:short,throws:short,gradYear:short,school:short,height:short,weight:short,email:short,
  parents:z.array(z.object({name:short,rel:short,phone:short,email:short}).strict()).max(10),roleType:z.enum(['full','po']),coachChild:z.boolean(),joinedOn:short,withdrawn:z.boolean(),
  agreement:z.object({version:short,signedBy:short,signedAt:short}).strict(),
+ rosterConsent:z.object({version:short,text:text,signedBy:short,signerEmail:short,signedAt:short}).strict().optional(),
  feeLock:z.object({amount:money,lockedAt:short,policyVersion:short,components:numbers}).strict().nullable().optional(),
  planLock:z.object({dep:money,deadline:short,planType:short,rows:z.array(z.object({date:short,amount:money}).strict()).max(100)}).strict().nullable().optional(),
  credits:z.array(z.object({label:short,amount:money}).strict()).max(1000).optional(),

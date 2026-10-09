@@ -68,6 +68,7 @@ export type Player = {
   joinedOn: string;
   withdrawn: boolean;
   agreement: { version: string; signedBy: string; signedAt: string };
+  rosterConsent?: {version: string; text: string; signedBy: string; signerEmail: string; signedAt: string};
   feeLock: {
     amount: number;
     lockedAt: string;

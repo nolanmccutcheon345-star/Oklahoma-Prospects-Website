@@ -350,7 +350,7 @@ export function icsForTeam(team: OsTeam, events: OsEvent[]): string {
   const lines = [
     "BEGIN:VCALENDAR",
     "VERSION:2.0",
-    "PRODID:-//Oklahoma Prospects//Team OS//EN",
+    "PRODID:-//Prospects Sports Academy//Team OS//EN",
     "CALSCALE:GREGORIAN",
   ];
   for (const event of events) {

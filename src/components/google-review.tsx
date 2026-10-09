@@ -32,7 +32,7 @@ export function GoogleReview({
           <h2 className="font-display text-2xl uppercase">Leave a Google review</h2>
           <p className={cn("mt-2 text-sm", dark ? "text-fg-soft" : "text-muted")}>
             Search Google for {CLUB.googleListingName}, {CLUB.addressLine1}, Broken
-            Arrow. Leave a review on this club’s listing.
+            Arrow. Share your experience with Prospects Sports Academy.
           </p>
         </div>
       </div>

@@ -48,9 +48,6 @@ function Home() {
               <Link to="/tryouts">Tryouts</Link>
             </Button>
           </div>
-          <p className="mt-3 max-w-md text-sm text-fg-soft">
-            Tryouts is for baseball and softball.
-          </p>
           <p className="mt-4 text-sm text-fg-soft"><a href={LINKS.maps} className="underline">{CLUB.venueName} · {CLUB.addressLine1}, {CLUB.addressLine2}</a></p>
         </div>
         <div className="absolute inset-x-0 bottom-0 h-1 bg-gradient-to-r from-maroon from-70% to-powder" />
@@ -168,9 +165,9 @@ function Home() {
         <div className="mx-auto max-w-3xl px-5">
           <h2 className="text-3xl">Need a person?</h2>
           <p className="mt-2 mb-5 text-muted">
-            Desk for cages and the door. Coach Steve after a paid lesson.
+            Contact Prospects Sports Academy for help with bookings, lessons, memberships, and teams.
           </p>
-          <Link to="/contact" className="inline-flex min-h-11 items-center underline">Contact</Link>
+          <Link to="/contact" className="inline-flex min-h-11 items-center underline">Contact Organization</Link>
           <a
             href={LINKS.maps}
             target="_blank"

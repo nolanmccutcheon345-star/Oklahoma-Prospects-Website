@@ -47,7 +47,7 @@ export function MembershipPlans({
                   <Link to="/pay" search={{ kind: "cage-plan", id: plan.id }}>Start {plan.name} · ${plan.price}</Link>
                 </Button>
               : <Button disabled className="mt-4 w-full" variant={plan.featured ? "primary" : "outline"}>
-                  Enrollment temporarily unavailable
+                  {purchaseAvailability ? "Checkout unavailable" : "Loading checkout…"}
                 </Button>}
           </article>
         ))}

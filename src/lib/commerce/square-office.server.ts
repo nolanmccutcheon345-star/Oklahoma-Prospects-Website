@@ -281,7 +281,7 @@ export async function verifySquareLocation(userId: string) {
 }
 
 /** Read-only configuration check; signing keys never leave the server. */
-export async function verifySquareWebhooks(userId: string, prepareMemberships = false) {
+export async function verifySquareWebhooks(userId: string, prepareMemberships = false, requireMemberships = false) {
   await requirePaymentOwner(userId);
   const c = squareConfig();
   if (prepareMemberships) {
@@ -299,7 +299,7 @@ export async function verifySquareWebhooks(userId: string, prepareMemberships = 
     if (subscription.signatureKey !== c.signatureKey)
       throw new Error("The Square webhook signing key does not match this site's saved key.");
     const required = ["payment.updated", "refund.updated"];
-    if (c.checkoutScope === "all" || prepareMemberships)
+    if (c.checkoutScope === "all" || prepareMemberships || requireMemberships)
       required.push(
         "subscription.updated",
         "invoice.payment_made",

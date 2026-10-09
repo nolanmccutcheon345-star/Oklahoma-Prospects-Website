@@ -6,7 +6,8 @@ const cards = readFileSync("src/components/membership-plans.tsx","utf8");
 test("public cage-pass cards cannot misroute closed checkout into inquiry-first sales", () => {
  assert.doesNotMatch(cards,/Ask about|enrollment is by inquiry|to="\/contact"/i);
  assert.match(cards,/canPurchase\(purchaseAvailability, "cage-plan", plan.id\)/);
- assert.match(cards,/Enrollment temporarily unavailable/);
+ assert.match(cards,/Checkout unavailable/);
+ assert.match(cards,/Loading checkout/);
  assert.match(cards,/<Button disabled/);
  assert.match(cards,/to="\/pay"/);
 });

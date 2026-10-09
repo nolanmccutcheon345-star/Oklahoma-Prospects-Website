@@ -121,13 +121,13 @@ export async function batchSiteAlerts(sql: Sql, origin: string) {
               `cage:${e.id}:${r.email}`,
               r.email,
               "cage",
-              "Cage booked — Oklahoma Prospects",
-              `A paid cage booking is confirmed.\nCustomer: ${b.email}\n${bookingNoticeDetails([b])}\nFor changes, contact Coach Steve or Nolan.`,
+              "Cage booked — Prospects Sports Academy",
+              `A paid cage booking is confirmed.\nCustomer: ${b.email}\n${bookingNoticeDetails([b])}\nFor changes, contact Prospects Sports Academy.`,
             );
         }
       }
     }
-    const subject = `Oklahoma Prospects — ${events.length} site activity update${events.length === 1 ? "" : "s"}`;
+    const subject = `Prospects Sports Academy — ${events.length} site activity update${events.length === 1 ? "" : "s"}`;
     const body = `Saved site activity:\n\n${lines.join("\n\n")}\n\nReview details: ${origin}/office`;
     for (const r of recipients)
       await addDelivery(tx, `activity:${batch}:${r.email}`, r.email, "owners", subject, body);
@@ -258,7 +258,7 @@ export async function testSiteAlerts(userId: string) {
       `test:${id}:${r.email}`,
       r.email,
       r.audience,
-      "TEST — Oklahoma Prospects site alerts",
+      "TEST — Prospects Sports Academy site alerts",
       r.audience === "owners"
         ? "Your owner site-activity alerts are enabled. New saved business activity is checked every minute. This is a delivery test; no booking or payment was created."
         : "Your cage-booking alerts are enabled. New paid cage bookings will include the date, time and lanes. This is a delivery test; no booking or payment was created.",

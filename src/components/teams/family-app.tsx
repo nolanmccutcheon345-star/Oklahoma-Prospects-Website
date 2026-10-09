@@ -5,6 +5,7 @@ import type { ClubRecord, Player } from "@/lib/teams/types";
 import { balance, docsComplete } from "@/lib/teams/pricing";
 import { Section } from "./ui";
 import { money } from "./ui";
+import { TeamRosterConsentForm } from './roster-consent-form';
 
 const copy = {
   en: {
@@ -40,6 +41,7 @@ export function FamilyApp({
   isPlayer,
   lang,
   onChange,
+  onReload,
 }: {
   club: ClubRecord;
   familyId: string;
@@ -179,6 +181,7 @@ export function FamilyApp({
       <Section title={t.docs}>
         <p>Document status is confirmed by the front office. Signed annual waivers are maintained in your account.</p>
         <Link to="/waiver" className="inline-flex min-h-11 items-center underline">View and sign annual waivers</Link>
+        {!isPlayer?<TeamRosterConsentForm key={player.id} teamId={team.id} player={player} baseRev={club._rev} onSaved={onReload}/>:null}
         {(["birthCert", "insurance", "physical"] as const).map(k=><p key={k}>{k}: {player.docs[k]?"On file":"Not yet verified"}</p>)}
       </Section>
 
