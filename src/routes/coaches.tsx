@@ -68,7 +68,9 @@ function Coaches() {
       {additionalTeamCoaches.length > 0 ? <section aria-label="Team coaches" className="mx-auto grid max-w-3xl gap-5 px-5 pt-8">
         <h2 className="text-2xl font-semibold">Team coaches</h2>
         {additionalTeamCoaches.map(person => <article key={person.name} className="rounded-xl border p-5">
+          {person.photo && <img src={person.photo} alt={person.name} className="mb-3 h-32 w-32 rounded-lg object-cover" />}
           <h3 className="text-2xl font-semibold">{person.name}</h3>
+          {person.bio && <p className="mt-2 whitespace-pre-line">{person.bio}</p>}
           <p className="mt-2 text-sm">Coaching {person.teams.map(team => `${team.name} (${team.sport}, ${team.age})`).join(" · ")}</p>
         </article>)}
       </section> : null}
