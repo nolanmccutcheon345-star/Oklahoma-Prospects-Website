@@ -24,7 +24,7 @@ export const getPublicTeamCoaches = createServerFn({ method: "GET" }).handler(as
   const { getSql } = await import("@/lib/db");
   const sql = await getSql();
   const [row] = await sql<{ payload: unknown; demo: boolean }>`select payload,demo from club_state where id='oklahoma-prospects'`;
-  if (!row || row.demo) return [] as { name: string; teams: { id: string; name: string; sport: "baseball" | "softball"; age: string }[] }[];
+  if (!row || row.demo) return [] as { name: string; bio?: string; photo?: string; teams: { id: string; name: string; sport: "baseball" | "softball"; age: string }[] }[];
   const raw = typeof row.payload === "string" ? JSON.parse(row.payload) : row.payload;
   const teams = (raw && typeof raw === "object" && Array.isArray((raw as { teams?: unknown }).teams)) ? (raw as { teams: unknown[] }).teams : [];
   const coaches = new Map<string, { name: string; bio?: string; photo?: string; teams: { id: string; name: string; sport: "baseball" | "softball"; age: string }[] }>();
