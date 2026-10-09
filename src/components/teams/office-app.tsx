@@ -251,6 +251,8 @@ export function OfficeApp({
           Download JSON backup
         </Button>
       </Section>
+      </>
+      )}
     </div>
   );
 }
@@ -498,8 +500,6 @@ function Stat({ label, value }: { label: string; value: string }) {
     <div className="rounded-xl bg-ink p-4 text-fg-inverse">
       <p className="text-xs tracking-widest text-powder uppercase">{label}</p>
       <p className="font-display text-3xl">{value}</p>
-      </>
-      )}
     </div>
   );
 }
