@@ -16,7 +16,7 @@ export function OfficeApp({
   onChange: (club: ClubRecord) => void;
   onSave: () => void;
 }) {
-  const [activeTab, setActiveTab] = useState<"teams" | "overview">("teams");
+  const [activeTab, setActiveTab] = useState<"teams" | "overview">("overview");
   const players = club.teams.flatMap((t) => t.roster.map((p) => ({ team: t, player: p })));
   const attention = {
     unsigned: players.filter((x) => !x.player.agreement.signedAt),
