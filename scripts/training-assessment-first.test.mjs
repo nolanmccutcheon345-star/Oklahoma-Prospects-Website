@@ -10,7 +10,7 @@ test("Train has no inquiry-first CTAs, obsolete first-month fee or exposed OP-1â
 });
 test("Train gates lessons, plans and packages on selected athlete, not sibling state", () => {
   assert.match(page, /const hasAssessment = selectedAthlete\?\.assessmentComplete === true/);
-  assert.match(page, /hasAssessment \|\| ASSESSMENT_PRODUCTS\.has\(item\.id\)/);
+  assert.match(page, /locked=\{!hasAssessment && !ASSESSMENT_PRODUCTS\.has\(item\.id\)\}/);
   assert.match(page, /<section id="memberships"/);
   assert.match(page, /data-first-month-assessment/);
   assert.match(page, /\$50 first-month fee/);
