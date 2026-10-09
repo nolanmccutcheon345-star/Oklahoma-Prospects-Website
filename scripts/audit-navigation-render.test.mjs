@@ -17,7 +17,7 @@ test('public navigation, sport links and purchase availability agree with the li
  const dom=new JSDOM('<div id="root"></div>',{url:'https://audit.example.invalid/training'});
  const old={window:globalThis.window,document:globalThis.document,act:globalThis.IS_REACT_ACT_ENVIRONMENT,fetch:globalThis.fetch};
  Object.assign(globalThis,{window:dom.window,document:dom.window.document,IS_REACT_ACT_ENVIRONMENT:true});
- const state={catalog:{...buildPublicCatalog([]),purchaseAvailability:{ready:true,scope:'cages'}},path:'/training',navigate:null,events:[],gameRows:[]};
+ const state={catalog:{...buildPublicCatalog([]),purchaseAvailability:{ready:true,scope:'cages'}},path:'/training',navigate:null,events:[],gameRows:[],user:null,checkoutAthletes:[]};
  globalThis.__auditNav=state;let root;
  globalThis.fetch=async url=>{assert.ok(String(url).startsWith("/api/fundraising/teams"));return Response.json({teams:[]});};
  try{
@@ -26,11 +26,13 @@ test('public navigation, sport links and purchase availability agree with the li
    b.onResolve({filter:/use-current-user$/},()=>({path:'user',namespace:'audit-nav'}));
    b.onResolve({filter:/auth\/gates$/},()=>({path:'gates',namespace:'audit-nav'}));
    b.onResolve({filter:/use-catalog$/},()=>({path:'catalog',namespace:'audit-nav'}));
+   b.onResolve({filter:/commerce\/api$/},()=>({path:'checkout',namespace:'audit-nav'}));
     b.onResolve({filter:/games-api$/},()=>({path:'games-api',namespace:'audit-nav'}));
    b.onLoad({filter:/.*/,namespace:'audit-nav'},a=>({loader:'js',resolveDir:process.cwd(),contents:{
     router:`import {createElement} from 'react';export const Link=({to,search,hash,children,...props})=>createElement('a',{...props,href:to+(search?'?'+new URLSearchParams(search):'')+(hash?'#'+hash:'')},children);export const Outlet=()=>null;export const createFileRoute=()=>options=>({...options,useSearch:()=>({view:'watch',game:undefined}),useLoaderData:()=>globalThis.__auditNav.path==='/games'?{games:globalThis.__auditNav.gameRows,loaded:true}:globalThis.__auditNav.events});export const useNavigate=()=>value=>{globalThis.__auditNav.navigate=value;return Promise.resolve();};export const useRouterState=({select})=>select({location:{pathname:globalThis.__auditNav.path}});`,
-    user:'export const useCurrentUser=()=>null;export const useCurrentUserState=()=>({user:null,isPending:false});',
-    gates:'export const SignedIn=()=>null;export const SignedOut=({children})=>children;',
+    user:'export const useCurrentUser=()=>globalThis.__auditNav.user;export const useCurrentUserState=()=>({user:globalThis.__auditNav.user,isPending:false});',
+    gates:'export const SignedIn=({children})=>globalThis.__auditNav.user?children:null;export const SignedOut=({children})=>globalThis.__auditNav.user?null:children;',
+    checkout:'export const getCheckoutContext=async()=>({athletes:globalThis.__auditNav.checkoutAthletes});',
     catalog:'export const useLiveCatalog=()=>globalThis.__auditNav.catalog;',
      'games-api':'export const getPublicGames=async()=>[];export const getAdminGames=async()=>[];export const saveGame=async()=>{throw new Error("Owner only")};',
    }[a.path]}));
@@ -72,17 +74,17 @@ test('public navigation, sport links and purchase availability agree with the li
   assert.equal(document.querySelectorAll('a[href^="/pay"]').length,0);
   assert.match(document.body.textContent,/Online lesson checkout temporarily unavailable/);
   assert.match(document.body.textContent,/Start with an assessment/);
-  assert.match(document.body.textContent,/first session is the assessment/i);
+  assert.match(document.body.textContent,/first included session is the assessment/i);
   assert.doesNotMatch(document.querySelector('#main').textContent,/Ask about|OP-[1-7]/i);
   assert.ok(document.querySelectorAll('#memberships article').length > 0);
   assert.match(document.querySelector('#youth-lessons').textContent,/ages 10 and under/);
-  const service=[...document.querySelectorAll('button')].find(b=>b.textContent.includes('New Pitcher Assessment'));
+  const service=[...document.querySelectorAll('#assessments button')].find(b=>b.textContent.includes('New Pitcher Assessment'));
   assert.ok(service);
   assert.equal(service.disabled,true,"Unverified checkout and no athlete must not be clickable");
   await act(async()=>service.click());assert.equal(state.navigate,null);
   const remote=[...document.querySelectorAll('article')].find(a=>a.textContent.includes('Remote HS Pitching'));
   assert.ok(remote,"Development plans remain visible while remote checkout is gated");
-  assert.match(document.querySelector('#memberships').textContent,/one-time \$50 fee/i);
+  assert.match(document.querySelector('#memberships').textContent,/one-time \$50 (?:assessment |first-month )?fee/i);
   state.path='/teams';
   await act(async()=>root.render(createElement(ui.AppShell,null,createElement(ui.Teams.component))));
   assert.equal(document.querySelector('nav[aria-label="Team sports"]'), null, 'No duplicate sports navbar above Teams');
@@ -127,6 +129,35 @@ test('public navigation, sport links and purchase availability agree with the li
   assert.ok(document.querySelector('a[href="/pay?kind=membership&id=m1"]'),'Signed-out families have a real enrollment link');
   assert.ok(document.querySelector('a[href="/pay?kind=lesson&id=s1"]'),'Signed-out families can start assessment checkout');
   assert.doesNotMatch(document.querySelector('#main').textContent,/Enrollment temporarily unavailable/);
+  const tabs=[...document.querySelectorAll('[role="tab"]')];
+  assert.deepEqual(tabs.map(t=>t.textContent),['Pitching','Hitting','Catching','Fielding']);
+  assert.equal(document.querySelectorAll('[role="tabpanel"]:not([hidden])').length,1);
+  await act(async()=>tabs[1].click());
+  assert.equal(tabs[1].getAttribute('aria-selected'),'true');
+  assert.equal(document.querySelector('#lesson-pitching').hidden,true);
+  assert.equal(document.querySelector('#lesson-hitting').hidden,false);
+  await act(async()=>tabs[1].dispatchEvent(new dom.window.KeyboardEvent('keydown',{key:'ArrowRight',bubbles:true})));
+  assert.equal(document.querySelector('#tab-catching').getAttribute('aria-selected'),'true');
+  assert.equal(document.activeElement.id,'tab-catching');
+  assert.ok(document.querySelector('#lesson-catching a[href="#assessments"]'),'Unassessed visitors get an assessment action');
+  assert.equal(document.querySelector('#lesson-catching a[href^="/pay"]'),null,'Private lessons never bypass assessment');
+  assert.equal(document.querySelectorAll('#memberships > section[aria-label="In-Person Training"] article').length,3);
+  assert.equal(document.querySelectorAll('#memberships > section[aria-label="Small-Group Training"] article').length,1);
+  assert.equal(document.querySelectorAll('#memberships > section[aria-label="Remote Coaching"] article').length,1);
+  assert.ok([...document.querySelectorAll('#memberships summary')].some(n=>n.textContent==='Plan Details'));
+  state.user={id:'audit-parent'};state.checkoutAthletes=[{id:'assessed',name:'Assessed athlete',assessmentComplete:true},{id:'sibling',name:'Sibling',assessmentComplete:false}];
+  await act(async()=>root.render(createElement(ui.AppShell,null,createElement(ui.Training.component))));
+  const athlete=document.querySelector('#lesson-booking select');assert.ok(athlete);
+  await act(async()=>{athlete.value='assessed';athlete.dispatchEvent(new dom.window.Event('change',{bubbles:true}));});
+  assert.ok(document.querySelector('#lesson-catching a[href="/pay?kind=lesson&id=s10"]'),'Assessed athlete can view lesson times');
+  assert.equal(document.querySelector('[data-first-month-assessment="m1"]'),null);
+  assert.ok(document.querySelector('a[href="/pay?kind=membership&id=m5"]'),'Assessed athlete can enroll in remote coaching');
+  await act(async()=>{athlete.value='sibling';athlete.dispatchEvent(new dom.window.Event('change',{bubbles:true}));});
+  assert.equal(document.querySelector('#lesson-catching a[href^="/pay"]'),null,'Sibling must not inherit completed assessment');
+  assert.match(document.querySelector('[data-first-month-assessment="m1"]').textContent,/\$297\.00/);
+  assert.equal(document.querySelector('a[href="/pay?kind=membership&id=m5"]'),null);
+  assert.equal(document.querySelector('a[href="/pay?kind=membership&id=m4"]'),null,'Unpublished group enrollment stays closed');
+  state.user=null;
   state.path='/games';
   await act(async()=>root.render(createElement(ui.AppShell,null,createElement(ui.Games.component))));
   assert.equal(document.querySelector('nav[aria-label="Primary"] a[href="/games"]')?.getAttribute('aria-current'),'page');
