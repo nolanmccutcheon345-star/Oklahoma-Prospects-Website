@@ -15,6 +15,19 @@ export async function resolveIdentity(sql:Sql,userId:string) {
  });
  const [profile]=await sql.query<{role:string;family_id:string;player_name:string;name:string}>('select role,family_id,player_name,name from profiles where user_id=$1',[userId]);
  let role:ClubRole=profile?.role==='coach'||profile?.role==='player'?profile.role:'parent';
+ if(role==="parent" && profile?.role!=="admin") {
+  const [clubRow]=await sql<{payload:unknown;demo:boolean}>`select payload,demo from club_state where id='oklahoma-prospects'`;
+  if(clubRow && !clubRow.demo) {
+   const raw=typeof clubRow.payload==="string"?JSON.parse(clubRow.payload):clubRow.payload;
+   const teams=raw && typeof raw==="object" && Array.isArray((raw as {teams?:unknown}).teams)?(raw as {teams:unknown[]}).teams:[];
+   const assigned=teams.some(candidate=>{
+    if(!candidate || typeof candidate!=="object")return false;
+    const t=candidate as {closed?:boolean;coachEmail?:string;staff?:{email?:string}[]};
+    return t.closed!==true && (t.coachEmail?.trim().toLowerCase()===email || (Array.isArray(t.staff)&&t.staff.some(c=>c.email?.trim().toLowerCase()===email)));
+   });
+   if(assigned)role="coach";
+  }
+ }
  if(profile?.role==='admin'){
   const grants=await sql.query('select email from owner_grants where user_id=$1 and email=$2 and revoked_at is null',[userId,email]);
   if(grants.length)role='admin';
