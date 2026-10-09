@@ -115,9 +115,13 @@ test("actual roster links isolate households, consent and team/player pairs", as
     assert.deepEqual((await publicRoster(sql)).teams?.map(t => t.id), ["baseball-team", "softball-team"]);
     assert.deepEqual((await publicRoster(sql, "baseball-team")).team?.players, []);
     assert.equal(await linkedPlayer(sql, "fund"), null);
+    await assert.rejects(publicRoster(sql, "baseball-team", "a"), /unavailable/,
+      "Withdrawing guardian consent must also revoke the direct public player page");
     await recordConsent(sql, "fund", "parent", "accept");
     await sql`UPDATE club_state SET demo=true`;
     assert.equal(await linkedPlayer(sql, "fund"), null);
+    assert.deepEqual(await publicRoster(sql), { teams: [] },
+      "Demo team fixtures must not appear in the public directory");
     await sql`UPDATE club_state SET demo=false,payload=${JSON.stringify({ teams: club.teams.map((t) => ({ ...t, roster: [] })) })}::jsonb`;
     assert.equal(await linkedPlayer(sql, "fund"), null);
     // A real team with an empty roster remains visible in the public team directory.
