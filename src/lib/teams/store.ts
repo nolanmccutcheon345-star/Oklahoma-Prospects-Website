@@ -1,4 +1,5 @@
 import {z} from "zod";
+import { canonicalTeamSeasons } from "./seasons";
 import {parseClubSave} from "./contracts";
 import { assertTeamInquiryPlacement } from "./inquiry-placement";
 import { assertRecordableTeamPayment, newRecordedTeamPaymentReceipt } from "./recorded-payment-policy";
@@ -273,6 +274,32 @@ export const officeAddTeam = createServerFn({ method: "POST" })
     stored._savedAt = new Date().toISOString();
     stored.audit.unshift({ at: stored._savedAt, action: "team", detail: `Added ${team.name}` });
     await writeRaw(stored, stored._rev - 1);
+    return { ok: true as const, club: scopeClub(stored, "admin", me) };
+  });
+
+/** Owner-only single-team season save. Never replace unrelated office edits from a stale form. */
+export const officeSetTeamSeasons = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
+  .validator(z.object({
+    teamId: z.string().min(1).max(150),
+    baseRev: z.number().int().nonnegative(),
+    seasons: z.array(z.string().trim().min(1).max(40)).min(1).max(10),
+  }).strict())
+  .handler(async ({ context, data }) => {
+    const me = await identity(context.userId);
+    if (me.role !== "admin") throw new Error("Front office only.");
+    const label = canonicalTeamSeasons(data.seasons);
+    const stored = await loadRaw();
+    if (!stored || stored._rev !== data.baseRev)
+      throw new Error("The team changed. Reload the Front Office before saving seasons.");
+    const team = stored.teams.find(row => row.id === data.teamId);
+    if (!team) throw new Error("Team was not found.");
+    if (team.seasonLabel === label) return { ok: true as const, club: scopeClub(stored, "admin", me) };
+    team.seasonLabel = label;
+    stored._rev += 1;
+    stored._savedAt = new Date().toISOString();
+    stored.audit.unshift({ at: stored._savedAt, action: "team-seasons", detail: `Updated ${team.name} seasons to ${label}` });
+    await writeRaw(stored, data.baseRev);
     return { ok: true as const, club: scopeClub(stored, "admin", me) };
   });
 
