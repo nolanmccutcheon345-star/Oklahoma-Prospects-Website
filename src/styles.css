@@ -456,3 +456,20 @@
   .club-wordmark-line { display: block; white-space: nowrap; }
   .club-wordmark-gap { display: none; }
 }
+
+/* Cage booking: compact entry choices and space for the review bar above site navigation. */
+.booking-options { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); width: 100%; gap: .25rem; padding: .25rem; border: 1px solid rgba(255,255,255,.25); border-radius: .65rem; }
+.booking-options a { display: flex; align-items: center; justify-content: center; gap: .3rem; min-height: 2.75rem; padding: .35rem; border-radius: .4rem; text-align: center; font-size: .8rem; font-weight: 700; line-height: 1.15; }
+.booking-options a[aria-current] { background: var(--color-maroon); color: white; }
+.booking-options a:hover { background: var(--color-maroon); }
+.booking-options a:focus-visible { outline: 2px solid var(--color-powder); outline-offset: 2px; }
+.booking-date { box-sizing: border-box; appearance: none; -webkit-appearance: none; }
+.booking-date::-webkit-date-and-time-value { text-align: left; min-height: 1.5em; }
+.booking-date::-webkit-datetime-edit { display: inline-flex; padding: 0; }
+.booking-review-bar { position: fixed; inset-inline: 0; bottom: var(--bottom-nav-space); z-index: 30; border-top: 1px solid var(--color-line); background: var(--color-paper); box-shadow: 0 -4px 20px rgba(0,0,0,.08); }
+html:has(.booking-review-bar) { scroll-padding-bottom: calc(var(--bottom-nav-space) + 7rem); }
+body:has(.booking-review-bar) .booking-page { padding-bottom: 7rem; }
+body:has(.booking-review-bar) footer { padding-bottom: 7rem; }
+.booking-page input, .booking-page summary { scroll-margin-block: 6rem calc(var(--bottom-nav-space) + 7rem); }
+@media (max-width: 360px) { .booking-space { gap: .5rem; padding-inline: .65rem; } .booking-space .font-display { font-size: 1.125rem; } }
+@media (max-height: 500px) { .booking-review-bar { position: static; box-shadow: none; } body:has(.booking-review-bar) .booking-page, body:has(.booking-review-bar) footer { padding-bottom: 0; } }

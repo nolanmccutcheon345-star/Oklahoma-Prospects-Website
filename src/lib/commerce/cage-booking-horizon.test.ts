@@ -42,7 +42,7 @@ test("invalid or forged booking dates cannot pass the window guard", () => {
 
 test("availability, checkout and public copy use the same horizon, not an All-Star priority window", () => {
   const checkout = readFileSync("src/lib/commerce/checkout.server.ts", "utf8");
-  const booking = readFileSync("src/routes/book.tsx", "utf8");
+  const booking = readFileSync("src/components/booking-funnel.tsx", "utf8");
   const club = readFileSync("src/lib/club.ts", "utf8");
   const home = readFileSync("src/routes/index.tsx", "utf8");
   assert.match(checkout, /withinBookingHorizon\(input\.date, CAGE_BOOKING_DAYS\)/);
