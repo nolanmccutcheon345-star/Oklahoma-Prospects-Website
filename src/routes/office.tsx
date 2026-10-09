@@ -153,12 +153,33 @@ function OfficePage() {
         { to: "/account", label: "Development" },
       ]}
     >
-      <section className="mb-5 rounded-xl border border-line bg-white p-4"><h2 className="text-2xl">Tryout results</h2><p className="mt-2 text-sm text-muted">Review coach scores, notes and next steps across all teams and age groups.</p><Button asChild className="mt-3"><Link to="/evaluations">Review evaluations</Link></Button></section>
-      <OfficeRequests />
-      <SquareOffice />
-      <DiscountOffice />
-      <OfficeOperations />
-      <StaffBookingChanges />
+      <nav aria-label="Front office sections" className="mb-6 rounded-2xl border border-line bg-paper-2 p-5">
+        <h2 className="text-2xl">Front office tools</h2>
+        <p className="mt-1 text-sm text-muted">Jump directly to the area you need. All controls remain owner-only.</p>
+        <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-3">
+          {[
+            ["Tryout results", "#office-evaluations"],
+            ["Requests", "#office-requests"],
+            ["Payments", "#office-payments"],
+            ["Promotions", "#office-discounts"],
+            ["Operations & reporting", "#office-operations"],
+            ["Booking changes", "#office-booking-changes"],
+            ["Teams & coach assignments", "#office-teams"],
+          ].map(([label, hash]) => (
+            <a key={hash} href={hash}
+              className="flex min-h-11 items-center rounded-xl border border-line bg-paper px-3 py-2 text-sm font-semibold text-ink underline underline-offset-2 focus-visible:outline-2 focus-visible:outline-maroon">
+              {label}
+            </a>
+          ))}
+        </div>
+      </nav>
+      <section id="office-evaluations" className="mb-5 scroll-mt-32 rounded-xl border border-line bg-white p-4"><h2 className="text-2xl">Tryout results</h2><p className="mt-2 text-sm text-muted">Review coach scores, notes and next steps across all teams and age groups.</p><Button asChild className="mt-3"><Link to="/evaluations">Review evaluations</Link></Button></section>
+      <section id="office-requests" className="scroll-mt-32"><OfficeRequests /></section>
+      <section id="office-payments" className="scroll-mt-32"><SquareOffice /></section>
+      <section id="office-discounts" className="scroll-mt-32"><DiscountOffice /></section>
+      <section id="office-operations" className="scroll-mt-32"><OfficeOperations /></section>
+      <section id="office-booking-changes" className="scroll-mt-32"><StaffBookingChanges /></section>
+      <section id="office-teams" className="scroll-mt-32">
       <OfficeApp
         club={club}
         onChange={setClub}
@@ -171,6 +192,7 @@ function OfficePage() {
           }
         }}
       />
+      </section>
     </TeamsShell>
   );
 }
