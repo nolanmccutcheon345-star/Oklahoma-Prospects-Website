@@ -84,7 +84,7 @@ export function OfficeApp({
         <Stat label="Contracted" value={money(revenue)} />
         <Stat label="Collected" value={money(collected)} />
       </div>
-      <Button type="button" onClick={onSave}>Save club</Button>
+      <Button type="button" onClick={() => { void onSave(); }}>Save club</Button>
       <Section title="Attention queue" defaultOpen>
         <ul className="grid gap-1 text-sm">
           <li>Unsigned agreements {attention.unsigned.length}</li>
