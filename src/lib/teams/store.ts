@@ -8,7 +8,7 @@ import { authMiddleware } from "@/lib/auth/middleware";
 import { getSql, type Sql } from "@/lib/db";
 import { getProfile } from "@/lib/club-data";
 import { clubIdentity } from "@/lib/identity.server";
-import { mergeSave, scopeClub, fetchTeamRecord, fetchPlayerRecordForTeam } from "./privacy";
+import { mergeSave, scopeClub, coachHoldsTeam, fetchTeamRecord, fetchPlayerRecordForTeam } from "./privacy";
 import { emptyClub, sampleClub } from "./seed";
 import type { ClubRecord, Player, Team } from "./types";
 import type { ClubRole } from "@/lib/club-data";
@@ -228,7 +228,7 @@ function blankPlayer(input: {
 
 export const officeAddTeam = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
-  .validator(z.object({name:z.string().trim().min(1).max(200),age:z.string().trim().max(30),sport:z.enum(["baseball","softball"])}).strict())
+  .validator(z.object({name:z.string().trim().min(1).max(200),age:z.string().trim().max(30),sport:z.enum(["baseball","softball"]),season:z.string().trim().min(3).max(100)}).strict())
   .handler(async ({ context, data }) => {
     const me = await identity(context.userId);
     if (me.role !== "admin") throw new Error("Front office only.");
@@ -242,9 +242,9 @@ export const officeAddTeam = createServerFn({ method: "POST" })
       sport: data.sport,
       age: data.age.trim() || "Open",
       level: "Open",
-      seasonLabel: "Spring 2027",
-      seasonStart: "2027-02-01",
-      seasonEnd: "2027-07-15",
+      seasonLabel: data.season,
+      seasonStart: "",
+      seasonEnd: "",
       months: 6,
       headCoach: "",
       coachEmail: "",
@@ -274,6 +274,67 @@ export const officeAddTeam = createServerFn({ method: "POST" })
     stored.audit.unshift({ at: stored._savedAt, action: "team", detail: `Added ${team.name}` });
     await writeRaw(stored, stored._rev - 1);
     return { ok: true as const, club: scopeClub(stored, "admin", me) };
+  });
+
+export const officeRemoveTeam = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
+  .validator(z.object({teamId:z.string().min(1).max(150),baseRev:z.number().int().nonnegative()}).strict())
+  .handler(async ({context,data}) => {
+    const me=await identity(context.userId);
+    if(me.role!=="admin") throw new Error("Front office only.");
+    const stored=await loadRaw();
+    if(!stored || stored._rev!==data.baseRev) throw new Error("Club changed. Reload before removing the team.");
+    const team=stored.teams.find(t=>t.id===data.teamId);
+    if(!team) throw new Error("Team not found.");
+    if(team.roster.length || team.tournamentIds.length || team.practices.length || team.messages.length)
+      throw new Error("This team has roster or activity records. Remove or transfer them before deleting the team.");
+    stored.teams=stored.teams.filter(t=>t.id!==data.teamId);
+    stored._rev++;
+    stored._savedAt=new Date().toISOString();
+    stored.audit.unshift({at:stored._savedAt,action:"team-delete",detail:`Removed ${team.name}`});
+    await writeRaw(stored,data.baseRev);
+    return {ok:true as const,club:scopeClub(stored,"admin",me)};
+  });
+
+export const coachAddRosterPlayer = createServerFn({method:"POST"})
+  .middleware([authMiddleware])
+  .validator(z.object({teamId:z.string().min(1).max(150),name:z.string().trim().min(1).max(200),parentName:z.string().trim().min(1).max(200),parentEmail:z.string().trim().email().max(254)}).strict())
+  .handler(async ({context,data}) => {
+    const me=await identity(context.userId);
+    if(me.role!=="coach" && me.role!=="admin") throw new Error("Coach access required.");
+    const stored=await loadRaw();
+    if(!stored) throw new Error("Club not found.");
+    const team=stored.teams.find(t=>t.id===data.teamId);
+    if(!team || (me.role!=="admin" && !coachHoldsTeam(stored,me.email,team.id))) throw new Error("Not assigned to this team.");
+    const email=data.parentEmail.trim().toLowerCase(),sql=await getSql();
+    await sql`insert into club_households(id,primary_email) values(${'fam-'+randomUUID()},${email}) on conflict(primary_email) do nothing`;
+    const [household]=await sql<{id:string}>`select id from club_households where primary_email=${email}`;
+    team.roster.push(blankPlayer({teamId:team.id,familyId:household.id,name:data.name,parentName:data.parentName,parentEmail:email}));
+    const rev=stored._rev;stored._rev++;stored._savedAt=new Date().toISOString();
+    stored.audit.unshift({at:stored._savedAt,action:"coach-roster-add",detail:`Added player to ${team.name}`});
+    await writeRaw(stored,rev);
+    return {ok:true as const,club:scopeClub(stored,me.role,me)};
+  });
+
+export const coachRemoveRosterPlayer = createServerFn({method:"POST"})
+  .middleware([authMiddleware])
+  .validator(z.object({teamId:z.string().min(1).max(150),playerId:z.string().min(1).max(150)}).strict())
+  .handler(async ({context,data}) => {
+    const me=await identity(context.userId);
+    if(me.role!=="coach" && me.role!=="admin") throw new Error("Coach access required.");
+    const stored=await loadRaw();
+    if(!stored) throw new Error("Club not found.");
+    const team=stored.teams.find(t=>t.id===data.teamId);
+    if(!team || (me.role!=="admin" && !coachHoldsTeam(stored,me.email,team.id))) throw new Error("Not assigned to this team.");
+    const player=team.roster.find(p=>p.id===data.playerId);
+    if(!player) throw new Error("Player not found.");
+    if(player.payments.length || player.feeLock || player.planLock || player.credits.length)
+      throw new Error("Player has billing records. Contact Front Office to handle a transfer or withdrawal.");
+    team.roster=team.roster.filter(p=>p.id!==data.playerId);
+    const rev=stored._rev;stored._rev++;stored._savedAt=new Date().toISOString();
+    stored.audit.unshift({at:stored._savedAt,action:"coach-roster-remove",detail:`Removed player from ${team.name}`});
+    await writeRaw(stored,rev);
+    return {ok:true as const,club:scopeClub(stored,me.role,me)};
   });
 
 export const officeAddPlayer = createServerFn({ method: "POST" })

@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { coachAddRosterPlayer, coachRemoveRosterPlayer } from "@/lib/teams/store";
 import { Link } from "@tanstack/react-router";
 import { Button } from "@/components/ui/button";
 import type { ClubRecord, Team } from "@/lib/teams/types";
@@ -20,6 +21,8 @@ export function CoachApp({
   const [teamId, setTeamId] = useState(club.teams[0]?.id ?? "");
   const [filter, setFilter] = useState<(typeof FILTERS)[number]>("all");
   const [q, setQ] = useState("");
+  const [rosterError,setRosterError]=useState("");
+  const [rosterBusy,setRosterBusy]=useState(false);
   const team = club.teams.find((t) => t.id === teamId) ?? club.teams[0];
   if (!team) {
     return <p>No teams assigned to this coach.</p>;
@@ -88,6 +91,21 @@ export function CoachApp({
       </Section>
 
       <Section title="Roster" count={roster.length} defaultOpen>
+        <p className="mb-3 text-sm">Manage players only on teams assigned to your signed-in coaching email. Billing records are protected.</p>
+        <form className="mb-4 grid gap-2 rounded-lg border p-3" onSubmit={async e => {
+          e.preventDefault(); const form=e.currentTarget;const fd=new FormData(form);
+          setRosterBusy(true);setRosterError("");
+          try {const row=await coachAddRosterPlayer({data:{teamId:team.id,name:String(fd.get("name")),parentName:String(fd.get("parentName")),parentEmail:String(fd.get("parentEmail"))}});onChange(row.club);form.reset();}
+          catch(err){setRosterError(err instanceof Error?err.message:"Could not add player.");}
+          finally{setRosterBusy(false);}
+        }}>
+          <h3 className="font-semibold">Add roster player</h3>
+          <input name="name" required maxLength={200} placeholder="Player name" aria-label="Player name" className="min-h-11 rounded-md border px-3"/>
+          <input name="parentName" required maxLength={200} placeholder="Guardian name" aria-label="Guardian name" className="min-h-11 rounded-md border px-3"/>
+          <input name="parentEmail" required type="email" maxLength={254} placeholder="Guardian email" aria-label="Guardian email" className="min-h-11 rounded-md border px-3"/>
+          <Button type="submit" disabled={rosterBusy}>Add player to my team</Button>
+        </form>
+        {rosterError && <p role="alert" className="text-sm text-maroon">{rosterError}</p>}
         <input
           value={q}
           onChange={(e) => setQ(e.target.value)}
@@ -111,7 +129,13 @@ export function CoachApp({
                     {p.positions.join("/")} · {cleared(p) ? "Cleared" : "Not cleared"}
                   </span>
                 </span>
-                <span className="text-sm">{money(p.feeLock?.amount ?? 0)}</span>
+                <button type="button" disabled={rosterBusy} className="min-h-11 rounded border px-2 text-sm" onClick={async () => {
+                  if(!window.confirm(`Remove ${p.name} from ${team.name}? Players with billing records require Front Office review.`))return;
+                  setRosterBusy(true);setRosterError("");
+                  try{const row=await coachRemoveRosterPlayer({data:{teamId:team.id,playerId:p.id}});onChange(row.club);}
+                  catch(err){setRosterError(err instanceof Error?err.message:"Could not remove player.");}
+                  finally{setRosterBusy(false);}
+                }}>Remove player</button>
               </div>
             </li>
           ))}

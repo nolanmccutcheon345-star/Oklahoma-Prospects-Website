@@ -1,7 +1,9 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { TeamCoachProfileEditor } from "./team-coach-profile-editor";
+import { getAssignableTeamCoaches } from "@/lib/team-coach-directory-api";
 import { Button } from "@/components/ui/button";
 import type { ClubRecord, StaffMember } from "@/lib/teams/types";
-import { officeAddPlayer, officeAddTeam } from "@/lib/teams/store";
+import { officeAddPlayer, officeAddTeam, officeRemoveTeam } from "@/lib/teams/store";
 import { AGE_GROUPS } from "@/lib/club";
 import { balance, docsComplete, fundingCount, priceComponents } from "@/lib/teams/pricing";
 import { Section } from "./ui";
@@ -14,7 +16,7 @@ export function OfficeApp({
 }: {
   club: ClubRecord;
   onChange: (club: ClubRecord) => void;
-  onSave: () => void;
+  onSave: (next?: ClubRecord) => Promise<boolean>;
 }) {
   const [activeTab, setActiveTab] = useState<"teams" | "overview">("overview");
   const players = club.teams.flatMap((t) => t.roster.map((p) => ({ team: t, player: p })));
@@ -72,7 +74,7 @@ export function OfficeApp({
         <section id="team-coach-assignments" aria-labelledby="team-coach-assignments-title" className="rounded-2xl border-2 border-maroon bg-paper p-5 scroll-mt-32">
           <h2 id="team-coach-assignments-title" className="text-2xl font-bold text-ink">Teams & coaches administration</h2>
           <p className="my-3 text-sm text-muted">Create baseball or softball teams, build coach profiles, and assign head or assistant coaches to teams.</p>
-          <RosterTools club={club} onChange={onChange} />
+          <RosterTools club={club} onChange={onChange} onSave={onSave} />
           <CoachManagement club={club} onChange={onChange} onSave={onSave} />
         </section>
       ) : (
@@ -83,7 +85,7 @@ export function OfficeApp({
         <Stat label="Contracted" value={money(revenue)} />
         <Stat label="Collected" value={money(collected)} />
       </div>
-      <Button type="button" onClick={onSave}>Save club</Button>
+      <Button type="button" onClick={() => { void onSave(); }}>Save club</Button>
       <Section title="Attention queue" defaultOpen>
         <ul className="grid gap-1 text-sm">
           <li>Unsigned agreements {attention.unsigned.length}</li>
@@ -260,26 +262,43 @@ export function OfficeApp({
 function CoachManagement({ club, onChange, onSave }: {
   club: ClubRecord;
   onChange: (club: ClubRecord) => void;
-  onSave: () => void;
+  onSave: (next?: ClubRecord) => Promise<boolean>;
 }) {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [role, setRole] = useState("Assistant coach");
   const [teamId, setTeamId] = useState("");
   const [message, setMessage] = useState("");
-  const coaches = Array.from(new Map(club.teams.flatMap(t => [
+  const [directory, setDirectory] = useState<Awaited<ReturnType<typeof getAssignableTeamCoaches>>>([]);
+  const [directoryError, setDirectoryError] = useState("");
+  const [saving, setSaving] = useState(false);
+  useEffect(() => {
+    let active = true;
+    getAssignableTeamCoaches().then(rows => { if (active) setDirectory(rows); }).catch(err => { if (active) setDirectoryError(err instanceof Error ? err.message : "Could not load existing coaches."); });
+    return () => { active = false; };
+  }, []);
+  const coaches = Array.from(new Map([...directory.map(c => [c.email, { name: c.name, email: c.email }] as const), ...club.teams.flatMap(t => [
     ...(t.coachEmail ? [[t.coachEmail.trim().toLowerCase(), { name: t.headCoach, email: t.coachEmail }] as const] : []),
     ...t.staff.filter(s => s.email).map(s => [s.email.trim().toLowerCase(), { name: s.name, email: s.email }] as const),
-  ])).values());
-  function updateTeam(id: string, update: (team: ClubRecord["teams"][number]) => ClubRecord["teams"][number]) {
-    onChange({ ...club, teams: club.teams.map(t => t.id === id ? update(t) : t) });
-    setMessage("Changes pending. Select Save assignments to publish.");
+  ])]).values());
+  async function updateTeam(id: string, update: (team: ClubRecord["teams"][number]) => ClubRecord["teams"][number]) {
+    if (saving) return;
+    const next = { ...club, teams: club.teams.map(t => t.id === id ? update(t) : t) };
+    onChange(next);
+    setSaving(true);
+    setMessage("Saving coach assignment…");
+    try {
+      const saved = await onSave(next);
+      setMessage(saved ? "Coach assignment saved. Public pages will show it after refresh." : "Could not save coach assignment. Please try again.");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Could not save coach assignment.");
+    } finally { setSaving(false); }
   }
   return (
     <div className="mt-5 grid gap-5">
       <section className="rounded-xl border border-line bg-white p-4">
         <h3 className="text-xl font-semibold">Create coach profile</h3>
-        <p className="mb-3 text-sm text-muted">Profiles are stored with the selected team. Use the same email to assign a coach to additional teams.</p>
+        <p className="mb-3 text-sm text-muted">Team coach profiles are stored with the selected team and displayed on the public Coaches page. Existing lesson coaches retain their lesson profiles and can also be assigned to teams.</p>
         <form className="grid gap-3" onSubmit={e => {
           e.preventDefault();
           const selected = club.teams.find(t => t.id === teamId);
@@ -305,16 +324,18 @@ function CoachManagement({ club, onChange, onSave }: {
             <option value="">Select baseball or softball team</option>
             {club.teams.map(t => <option key={t.id} value={t.id}>{t.name} · {t.sport}</option>)}
           </select>
-          <Button type="submit" disabled={!club.teams.length}>Create coach profile & assign</Button>
+          <Button type="submit" disabled={!club.teams.length || saving}>Create coach profile & assign</Button>
         </form>
       </section>
       <section className="rounded-xl border border-line bg-white p-4">
         <h3 className="text-xl font-semibold">Assign coaches to teams</h3>
+        <p className="text-sm text-muted">Choose from existing lesson coaches, staff directory profiles, and team coaches. Team assignments do not change lesson availability.</p>
+        {directoryError ? <p role="alert" className="text-sm text-maroon">Existing coach directory could not load: {directoryError}</p> : null}
         {club.teams.length === 0 ? <p className="text-sm">Create a baseball or softball team above to begin.</p> : club.teams.map(team => (
           <div key={team.id} className="my-3 grid gap-2 rounded-lg border border-line p-3">
             <h4 className="font-semibold">{team.name} · {team.sport} · {team.age}</h4>
             <label className="grid gap-1 text-sm">Head coach
-              <select value={team.coachEmail} onChange={e => {
+              <select disabled={saving} value={team.coachEmail} onChange={e => {
                 const coach = coaches.find(c => c.email === e.target.value);
                 updateTeam(team.id, t => ({ ...t, headCoach: coach?.name ?? "", coachEmail: coach?.email ?? "" }));
               }} className="min-h-11 rounded-md border border-line px-3">
@@ -322,9 +343,17 @@ function CoachManagement({ club, onChange, onSave }: {
                 {coaches.map(c => <option key={c.email} value={c.email}>{c.name} ({c.email})</option>)}
               </select>
             </label>
+            <div className="flex flex-wrap gap-2">
+              {team.staff.map(person => <button key={person.id} type="button" disabled={saving} className="rounded border px-3 py-2 text-xs" onClick={() => {
+                if (!window.confirm(`Remove ${person.name} from ${team.name}? Their lesson profile will be kept.`)) return;
+                void updateTeam(team.id, t => ({...t, staff:t.staff.filter(s => s.id!==person.id)}));
+              }}>Remove {person.name} from team</button>)}
+            </div>
+            {team.coachEmail && <TeamCoachProfileEditor key={team.id+"-head-"+team.coachEmail} email={team.coachEmail} name={team.headCoach} bio={(team as typeof team & {headCoachBio?:string}).headCoachBio} photo={(team as typeof team & {headCoachPhoto?:string}).headCoachPhoto} onSaved={()=>window.location.reload()}/>}
+            {team.staff.map(person=><TeamCoachProfileEditor key={person.id} email={person.email} name={person.name} bio={(person as typeof person & {bio?:string}).bio} photo={(person as typeof person & {photo?:string}).photo} onSaved={()=>window.location.reload()}/>)}
             <p className="text-xs text-muted">Assigned staff: {team.staff.map(c => c.name + " (" + c.role + ")").join(", ") || "None"}</p>
             <label className="grid gap-1 text-sm">Add existing coach to this team
-              <select value="" onChange={e => {
+              <select disabled={saving} value="" onChange={e => {
                 const coach = coaches.find(c => c.email === e.target.value);
                 if (!coach || team.staff.some(s => s.email.toLowerCase() === coach.email.toLowerCase())) return;
                 updateTeam(team.id, t => ({ ...t, staff: [...t.staff, {
@@ -341,7 +370,7 @@ function CoachManagement({ club, onChange, onSave }: {
         ))}
       </section>
       {message && <p role="status" className="text-sm">{message}</p>}
-      <Button type="button" onClick={onSave}>Save assignments</Button>
+      <Button type="button" disabled={saving} onClick={() => { void onSave(); }}>{saving ? "Saving…" : "Save assignments"}</Button>
       <p className="text-xs text-muted">Coach profiles and assignments do not automatically send invitations. Coaches must have authorized sign-in access.</p>
     </div>
   );
@@ -350,13 +379,16 @@ function CoachManagement({ club, onChange, onSave }: {
 function RosterTools({
   club,
   onChange,
+  onSave,
 }: {
   club: ClubRecord;
   onChange: (club: ClubRecord) => void;
+  onSave: (next?: ClubRecord) => Promise<boolean>;
 }) {
   const [teamName, setTeamName] = useState("");
   const [age, setAge] = useState("13U");
   const [sport, setSport] = useState<"baseball" | "softball">("baseball");
+  const [season, setSeason] = useState("Spring 2027");
   const [teamId, setTeamId] = useState(club.teams[0]?.id ?? "");
   const [playerName, setPlayerName] = useState("");
   const [parentName, setParentName] = useState("");
@@ -376,7 +408,7 @@ function RosterTools({
           setBusy(true);
           setError("");
           try {
-            const row = await officeAddTeam({ data: { name: teamName, age, sport } });
+            const row = await officeAddTeam({ data: { name: teamName, age, sport, season } });
             onChange(row.club);
             setTeamName("");
             setTeamId(row.club.teams.at(-1)?.id ?? teamId);
@@ -416,10 +448,24 @@ function RosterTools({
             <option value="softball">Softball</option>
           </select>
         </div>
+        <label className="grid gap-1 text-sm">Season
+          <input required maxLength={100} value={season} onChange={e => setSeason(e.target.value)} list="team-season-options" className="min-h-11 rounded-md border border-line px-3" placeholder="Spring & Summer 2027" />
+          <datalist id="team-season-options">{["Fall 2026","Spring 2027","Summer 2027","Spring & Summer 2027","Fall 2027","Spring 2028","Summer 2028"].map(x => <option key={x} value={x} />)}</datalist>
+        </label>
         <Button type="submit" disabled={busy}>
           Add team
         </Button>
       </form>
+      <div className="grid gap-2 rounded-xl border p-3">
+        <h3 className="font-semibold">Manage existing teams</h3>
+        {club.teams.map(team => <div key={team.id} className="flex flex-wrap items-center justify-between gap-2 border-b py-2 text-sm"><span>{team.name} · {team.sport}</span><label className="flex items-center gap-2">Season <input aria-label={`Season for ${team.name}`} maxLength={100} value={team.seasonLabel} className="min-h-11 rounded border px-2" onChange={e=>onChange({...club,teams:club.teams.map(t=>t.id===team.id?{...t,seasonLabel:e.target.value}:t)})}/></label><Button type="button" disabled={busy} onClick={()=>{void onSave();}}>Save season</Button><Button type="button" variant="outlineDark" disabled={busy} onClick={async () => {
+          if (!window.confirm(`Delete ${team.name}? This cannot be undone. Teams with roster or activity records cannot be deleted.`)) return;
+          setBusy(true);setError("");
+          try { const row=await officeRemoveTeam({data:{teamId:team.id,baseRev:club._rev}});onChange(row.club);if(teamId===team.id)setTeamId(row.club.teams[0]?.id??""); }
+          catch(err){setError(err instanceof Error?err.message:"Could not delete team.");}
+          finally{setBusy(false);}
+        }}>Remove team</Button></div>)}
+      </div>
       <form
         className="grid gap-2"
         onSubmit={async (event) => {

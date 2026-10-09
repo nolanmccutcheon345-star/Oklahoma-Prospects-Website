@@ -77,7 +77,7 @@ test("actual roster links isolate households, consent and team/player pairs", as
     );
     await sql`INSERT INTO fundraising_players(id,owner_id,parent_email,name,team,goal,story,approved,active,created,team_id,roster_player_id) VALUES('fund','parent','private@example.invalid','Public initial','13U',10000,'Public story',1,1,'2026-10-06','baseball-team','a')`;
     assert.equal(await linkedPlayer(sql, "fund"), null);
-    assert.deepEqual(await publicRoster(sql), { teams: [] });
+    assert.deepEqual((await publicRoster(sql)).teams?.map(t => t.id), ["baseball-team", "softball-team"]);
     await recordConsent(sql, "fund", "parent", "accept");
     const p = await linkedPlayer(sql, "fund");
     assert.ok(p);
@@ -87,7 +87,7 @@ test("actual roster links isolate households, consent and team/player pairs", as
     assert.equal("roster_player_id" in p, false);
     assert.deepEqual(
       (await publicRoster(sql)).teams?.map((t) => t.id),
-      ["baseball-team"],
+      ["baseball-team", "softball-team"],
     );
     const team = (await publicRoster(sql, "baseball-team")).team!;
     assert.equal(team.players.length, 1);

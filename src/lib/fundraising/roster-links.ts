@@ -91,7 +91,7 @@ export async function publicRoster(sql: Sql, teamId?: string, playerId?: string)
           : [];
       }),
     }))
-    .filter((t) => t.players.length);
+    .filter((t) => !teams.find(original => original.id === t.id)?.closed);
   if (!teamId) return { teams: records.map(({ players: _, ...t }) => t) };
   const team = records.find((t) => t.id === teamId);
   if (!team) throw new AppError("This public team roster is unavailable.", 404);
