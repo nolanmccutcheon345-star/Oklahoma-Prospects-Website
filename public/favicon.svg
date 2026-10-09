@@ -1,5 +1,9 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" role="img" aria-label="Oklahoma Prospects Baseball">
-  <rect width="32" height="32" fill="#071b31"/>
-  <path fill="#681C35" d="M16 3.8l10.2 3.7v9.4c0 6.05-5.4 10.35-10.2 12.55C11.2 27.25 5.8 22.95 5.8 16.9V7.5L16 3.8z"/>
-  <path fill="#9ed8f3" fill-rule="evenodd" d="M11.4 8.9h6.15c2.85 0 4.75 1.75 4.75 4.35 0 2.55-1.9 4.3-4.75 4.3h-3.5v5.55h-2.65V8.9zm2.65 2.25v4.15h3.3c1.25 0 2.05-.8 2.05-2.075 0-1.28-.8-2.075-2.05-2.075h-3.3z"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 1000" role="img" aria-label="Prospects Sports Academy">
+<title>Prospects Sports Academy</title>
+<rect width="1000" height="1000" rx="180" fill="#041A3D"/>
+<svg x="110" y="110" width="780" height="780" viewBox="0 0 931.05 926">
+<path fill="#B9D9EB" d="M286.03 10 L358.97 116.32 L152.14 783.49 L10 916 L458.19 916 L396.33 805.32 L488.81 507 L720.72 507 L829.88 418.25 L921.05 124.16 L839.74 10 Z"/>
+<path fill="#8A1027" d="M380.96 60 L813.96 60 L865.96 133 L786.6 389 L702.96 457 L451.96 457 L342.22 811 L372.96 866 L136.96 866 L195.96 811 L413.89 108 Z"/>
+<path fill="#B9D9EB" d="M608.96 132 L639.27 225.28 L737.36 225.28 L658.01 282.93 L688.31 376.22 L608.96 318.57 L529.61 376.22 L559.92 282.93 L480.57 225.28 L578.65 225.28 Z"/>
+</svg>
 </svg>
