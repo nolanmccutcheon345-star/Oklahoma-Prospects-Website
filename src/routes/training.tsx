@@ -33,7 +33,7 @@ function TrainingPage() {
         title="Lessons & training."
         compact
 
-        copy="Every athlete starts with a New Player Assessment. Once completed, choose your coaching service, an eligible coach, and an available time."
+        copy="Private lessons require a completed New Player Assessment. Or start a monthly in-person development plan now: your first session is the assessment, with a one-time $50 first-month fee."
         image="/brand/training.jpg"
         actions={
           <>
@@ -115,11 +115,11 @@ function CatalogAndBook() {
       {user && !loadingAthletes && athletes.length === 0 ? <p className="mb-5"><Link to="/family" className="font-semibold underline">Add an athlete</Link> to your household before booking.</p> : null}
       {athletes.length > 0 ? <label className="mb-6 grid gap-2">Athlete<select value={athleteId} onChange={e=>setAthleteId(e.target.value)} className="min-h-11 rounded-lg border p-3"><option value="">Select an athlete</option>{athletes.map(a=><option key={a.id} value={a.id}>{a.name}{a.assessmentComplete ? " · assessment completed" : " · assessment needed"}</option>)}</select></label> : null}
         <nav aria-label="Lesson disciplines" className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
-          {groups.filter(group => lessons.some(item => item.discipline === group && (hasAssessment || ASSESSMENT_PRODUCTS.has(item.id)))).map(group => <Button asChild key={group} variant="outlineDark"><a href={`#lesson-${group.toLowerCase()}`}>{group}</a></Button>)}
+          {groups.filter(group => lessons.some(item => item.discipline === group)).map(group => <Button asChild key={group} variant="outlineDark"><a href={`#lesson-${group.toLowerCase()}`}>{group}</a></Button>)}
         </nav>
         {!hasAssessment ? <aside className="mb-6 rounded-2xl bg-ink p-5 text-fg-inverse">
           <h2 className="text-2xl">Start with an assessment</h2>
-          <p className="mt-2 text-base text-fg-soft">Until a coach records a completed New Player Assessment for this athlete, only assessment lessons are eligible. All other lessons, packages and development memberships remain locked.</p>
+          <p className="mt-2 text-base text-fg-soft">Private lessons and session packages stay locked until a coach records the completed New Player Assessment. In-person development memberships are available now: the first included session is the assessment, with a one-time $50 first-month fee.</p>
           <div className="mt-4 flex flex-wrap gap-3">
             {lessons.filter(item => ASSESSMENT_PRODUCTS.has(item.id)).map(item =>
               canPurchase(catalog.purchaseAvailability, "lesson", item.id) && user && selectedAthlete
@@ -131,11 +131,11 @@ function CatalogAndBook() {
         </aside> : <p className="mb-6 text-base">Assessment completed. Choose a lesson below to book your next session.</p>}
       <h2 className="text-3xl">Choose your lesson</h2>
       <p className="mt-2 mb-8 text-sm text-muted">
-        {hasAssessment ? "Choose your service, then pick a qualified coach and available time during checkout." : "Only assessment lessons are available until the selected athlete has completed an assessment."}
+        {hasAssessment ? "Choose your service, then pick a qualified coach and available time during checkout." : "Private lessons remain visible but disabled until the selected athlete completes an assessment. Assessment lessons and monthly in-person development remain available."}
       </p>
 
       {groups.map((group) => {
-        const items = lessons.filter((item) => item.discipline === group && (hasAssessment || ASSESSMENT_PRODUCTS.has(item.id)));
+        const items = lessons.filter((item) => item.discipline === group);
         if (items.length === 0) return null;
         return (
           <section key={group} id={`lesson-${group.toLowerCase()}`} className="mb-10 scroll-mt-40">
@@ -149,7 +149,7 @@ function CatalogAndBook() {
                   locked={!hasAssessment && !ASSESSMENT_PRODUCTS.has(item.id)}
                   unavailable={!user || !selectedAthlete || !canPurchase(catalog.purchaseAvailability, "lesson", item.id)}
                   onSelect={() => {
-                    if (!user || !selectedAthlete || !canPurchase(catalog.purchaseAvailability, "lesson", item.id)) return;
+                    if (!user || !selectedAthlete || (!hasAssessment && !ASSESSMENT_PRODUCTS.has(item.id)) || !canPurchase(catalog.purchaseAvailability, "lesson", item.id)) return;
                     setLessonId(item.id);
                     void navigate({ to: "/pay", search: { kind: item.id === "s6" ? "membership" : "lesson", id: item.id === "s6" ? "m4" : item.id } });
                   }}
@@ -166,13 +166,13 @@ function CatalogAndBook() {
       </section>
       </section>
 
-      {hasAssessment ? <section id="memberships" className="mt-12 scroll-mt-40">
+      {<section id="memberships" className="mt-12 scroll-mt-40">
         <p className="text-xs font-semibold tracking-[0.16em] text-maroon uppercase">
           How serious families train
         </p>
         <h2 className="mt-2 text-3xl">Monthly development</h2>
         <p className="mt-2 text-sm text-muted">
-          In-person plans include four coached sessions per billing month; remote coaching includes video reviews. All plans require the selected athlete's completed assessment before enrollment.
+          In-person plans include four coached sessions each month. If the selected athlete has no completed assessment, the first included session is their assessment and the first month includes a one-time $50 fee. Later months renew at the normal plan price. Remote plans require a completed assessment.
         </p>
         <div className="mt-4 grid gap-3">
           {catalog.memberships.map((plan) => {
@@ -199,12 +199,18 @@ function CatalogAndBook() {
                   {formatDollars(plan.price)}
                   <span className="ml-1 font-sans text-base font-medium opacity-80">/mo</span>
                 </p>
+                {!hasAssessment && ["m1","m2","m3"].includes(plan.id) ? (
+                  <p className="mt-2 text-sm font-semibold" data-first-month-assessment={plan.id}>
+                    First month: {formatDollars(plan.price + 50)} including a one-time $50 assessment fee.
+                    Your first included session is the assessment; subsequent months are {formatDollars(plan.price)}.
+                  </p>
+                ) : null}
                 <ul className={`mt-2 list-disc pl-5 text-sm ${featured ? "text-fg-soft" : "text-muted"}`}>
                   {plan.includes.filter(line => !/^Four (30|60)-minute sessions$/.test(line)).slice(0, 4).map((line) => (
                     <li key={line}>{line}</li>
                   ))}
                 </ul>
-                {user && selectedAthlete && canPurchase(catalog.purchaseAvailability, "membership", plan.id) ? <Button asChild className="mt-4" variant={featured ? "outline" : "primary"}><Link to="/pay" search={{kind:"membership",id:plan.id}}>Choose coach · {plan.name}</Link></Button> : <Button disabled className="mt-4" variant={featured ? "outline" : "primary"}>{canPurchase(catalog.purchaseAvailability, "membership", plan.id) ? "Select an athlete" : "Enrollment temporarily unavailable"}</Button>}
+                {user && selectedAthlete && (hasAssessment || ["m1","m2","m3"].includes(plan.id)) && canPurchase(catalog.purchaseAvailability, "membership", plan.id) ? <Button asChild className="mt-4" variant={featured ? "outline" : "primary"}><Link to="/pay" search={{kind:"membership",id:plan.id}}>Choose coach · {plan.name}</Link></Button> : <Button disabled className="mt-4" variant={featured ? "outline" : "primary"}>{canPurchase(catalog.purchaseAvailability, "membership", plan.id) ? "Select an athlete" : "Enrollment temporarily unavailable"}</Button>}
               </article>
             );
           })}
@@ -214,7 +220,7 @@ function CatalogAndBook() {
             <li key={rule}>{rule}</li>
           ))}
         </ul>
-      </section> : <section id="memberships" className="mt-12 scroll-mt-40 rounded-xl border border-line p-5"><h2 className="text-2xl">Development memberships locked</h2><p className="mt-2 text-muted">Complete the selected athlete's New Player Assessment to unlock monthly plans and packages.</p></section>}
+      </section>}
 
       {hasAssessment ? <>
       <h2 className="mt-12 text-3xl">Session packages</h2>

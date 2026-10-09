@@ -97,10 +97,11 @@ test("hour lesson with assessment uses its posted price", () => {
   assert.equal(item.price, 104);
 });
 
-test("development membership is locked until that athlete is assessed", () => {
-  const locked = quoteCheckout({ kind: "membership", id: "m1" }, catalog, false);
-  assert.ok(locked);
-  assert.match(locked.error || "", /assessment/i);
+test("development membership adds $50 only to the first month for an unassessed athlete", () => {
+  const first = quoteCheckout({ kind: "membership", id: "m1" }, catalog, false);
+  assert.ok(first);
+  assert.equal(first.error, undefined);
+  assert.equal(first.price, 297);
   const open = quoteCheckout({ kind: "membership", id: "m1" }, catalog, true);
   assert.ok(open);
   assert.equal(open.error, undefined);

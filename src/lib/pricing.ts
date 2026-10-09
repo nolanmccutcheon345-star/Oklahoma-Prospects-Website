@@ -36,7 +36,7 @@ export function formatDollars(dollars: number) {
 }
 /** Shown when a quote, checkout, or payment is refused for an athlete without a verified assessment. */
 export const ASSESSMENT_LOCK_MESSAGE =
-  "Complete your assessment with your coach to unlock ordinary lessons, packages, and memberships.";
+  "Complete your assessment with your coach to unlock private lessons and packages. In-person development memberships include an assessment-first option.";
 
 export function eligibility(kind: string, id: string, assessmentCompleted: boolean) {
   const assessment = ASSESSMENT_PRODUCTS.has(id);
@@ -46,13 +46,15 @@ export function eligibility(kind: string, id: string, assessmentCompleted: boole
   // V2: before a verified New Player Assessment, only assessment lessons are eligible.
   // A membership id that collides with an assessment product is not an assessment lesson.
   const eligibleAssessment = assessment && kind === "lesson";
-  const locked = !assessmentCompleted && athleteSpecific && !eligibleAssessment;
+  // In-person plans can enroll before assessment; their first included session
+  // becomes the assessment, with a one-time $50 fee in the first month.
+  const assessmentIncludedPlan = kind === "membership" && ["m1", "m2", "m3"].includes(id);
+  const locked = !assessmentCompleted && athleteSpecific && !eligibleAssessment && !assessmentIncludedPlan;
   return {
     locked,
     assessment,
-    // Stored orders may still carry this fee. New unassessed memberships are locked
-    // before a quote is issued, so checkout does not add it.
-    setupCents: !locked && recurring && id !== "m5" && !assessmentCompleted ? FIRST_MONTH_SETUP_CENTS : 0,
+    // This is charged only with the initial order, not with subscription renewals.
+    setupCents: !assessmentCompleted && assessmentIncludedPlan ? FIRST_MONTH_SETUP_CENTS : 0,
   };
 }
 export function refundCents(paidCents: number, startsAt: Date, now = new Date()) {

@@ -97,25 +97,17 @@ test("all ordinary lessons and packages are locked until assessment completion; 
       calculateQuote(request({ productId: id }), product(id, "lesson"), false).totalCents,
       PRICES[id],
     );
-  for (const id of ["m1", "m2", "m3", "m4", "m5"] as const) {
-    assert.throws(
-      () =>
-        calculateQuote(
-          request({ productId: id, kind: "membership" }),
-          product(id, "membership"),
-          false,
-        ),
-      /Complete your assessment/,
-    );
-    assert.equal(
-      calculateQuote(
-        request({ productId: id, kind: "membership" }),
-        product(id, "membership"),
-        true,
-      ).setupCents,
-      0,
-    );
+  for (const id of ["m1", "m2", "m3"] as const) {
+    const first = calculateQuote(request({ productId: id, kind: "membership" }), product(id, "membership"), false);
+    assert.equal(first.setupCents, 5000, id);
+    assert.equal(first.totalCents, PRICES[id] + 5000, id);
+    assert.equal(first.regularCents, PRICES[id], id);
+    assert.equal(first.duration, 75);
+    assert.equal(first.assessment, true);
+    assert.equal(calculateQuote(request({ productId: id, kind: "membership" }), product(id, "membership"), true).setupCents, 0);
   }
+  for (const id of ["m4", "m5"] as const)
+    assert.throws(() => calculateQuote(request({ productId: id, kind: "membership" }), product(id, "membership"), false), /Complete your assessment/);
 });
 test("remote enrollment requires assessment and never advertises an unassessed first payment", () => {
   assert.throws(() => calculateQuote(request({ productId: "m5", kind: "membership" }), product("m5", "membership"), false), /Complete your assessment/);

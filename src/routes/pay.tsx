@@ -430,9 +430,10 @@ function PayPage() {
           {locked ? (
             <div className="rounded-xl border border-maroon p-4" role="status">
               <p>
-                Ordinary lessons, packages, and memberships unlock after your coach records a
-                completed New Player Assessment for the selected athlete. Booking or paying for an
-                assessment does not complete it. Switching athletes checks that athlete again.
+                Private lessons and packages unlock after a completed New Player Assessment is recorded
+                 for this athlete. An eligible in-person development membership can start first:
+                 the first included lesson is the assessment and a one-time $50 first-month fee
+                 applies. Simply paying for a booking never records assessment completion.
               </p>
               <Button className="mt-3" asChild>
                 <Link to="/training">Choose an assessment</Link>
