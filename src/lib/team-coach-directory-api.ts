@@ -31,7 +31,7 @@ export const getPublicTeamCoaches = createServerFn({ method: "GET" }).handler(as
     if (!candidate || typeof candidate !== "object") continue;
     const t = candidate as Record<string, unknown>;
     if (t.closed === true || typeof t.id !== "string" || typeof t.name !== "string" || (t.sport !== "baseball" && t.sport !== "softball") || typeof t.age !== "string") continue;
-    const summary = { id: t.id, name: t.name, sport: t.sport, age: t.age };
+    const summary = { id: t.id, name: t.name, sport: t.sport as "baseball" | "softball", age: t.age };
     const members: { name: string; email: string }[] = [];
     if (typeof t.headCoach === "string" && typeof t.coachEmail === "string") members.push({ name: t.headCoach, email: t.coachEmail });
     if (Array.isArray(t.staff)) for (const person of t.staff) {
