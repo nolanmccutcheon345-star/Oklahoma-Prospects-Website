@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { getAssignableTeamCoaches } from "@/lib/team-coach-directory-api";
 import { Button } from "@/components/ui/button";
 import type { ClubRecord, StaffMember } from "@/lib/teams/types";
-import { officeAddPlayer, officeAddTeam } from "@/lib/teams/store";
+import { officeAddPlayer, officeAddTeam, officeRemoveTeam } from "@/lib/teams/store";
 import { AGE_GROUPS } from "@/lib/club";
 import { balance, docsComplete, fundingCount, priceComponents } from "@/lib/teams/pricing";
 import { Section } from "./ui";
@@ -342,6 +342,12 @@ function CoachManagement({ club, onChange, onSave }: {
                 {coaches.map(c => <option key={c.email} value={c.email}>{c.name} ({c.email})</option>)}
               </select>
             </label>
+            <div className="flex flex-wrap gap-2">
+              {team.staff.map(person => <button key={person.id} type="button" disabled={saving} className="rounded border px-3 py-2 text-xs" onClick={() => {
+                if (!window.confirm(`Remove ${person.name} from ${team.name}? Their lesson profile will be kept.`)) return;
+                void updateTeam(team.id, t => ({...t, staff:t.staff.filter(s => s.id!==person.id)}));
+              }}>Remove {person.name} from team</button>)}
+            </div>
             <p className="text-xs text-muted">Assigned staff: {team.staff.map(c => c.name + " (" + c.role + ")").join(", ") || "None"}</p>
             <label className="grid gap-1 text-sm">Add existing coach to this team
               <select disabled={saving} value="" onChange={e => {
@@ -377,6 +383,7 @@ function RosterTools({
   const [teamName, setTeamName] = useState("");
   const [age, setAge] = useState("13U");
   const [sport, setSport] = useState<"baseball" | "softball">("baseball");
+  const [season, setSeason] = useState("Spring 2027");
   const [teamId, setTeamId] = useState(club.teams[0]?.id ?? "");
   const [playerName, setPlayerName] = useState("");
   const [parentName, setParentName] = useState("");
@@ -396,7 +403,7 @@ function RosterTools({
           setBusy(true);
           setError("");
           try {
-            const row = await officeAddTeam({ data: { name: teamName, age, sport } });
+            const row = await officeAddTeam({ data: { name: teamName, age, sport, season } });
             onChange(row.club);
             setTeamName("");
             setTeamId(row.club.teams.at(-1)?.id ?? teamId);
@@ -436,10 +443,24 @@ function RosterTools({
             <option value="softball">Softball</option>
           </select>
         </div>
+        <label className="grid gap-1 text-sm">Season
+          <input required maxLength={100} value={season} onChange={e => setSeason(e.target.value)} list="team-season-options" className="min-h-11 rounded-md border border-line px-3" placeholder="Spring & Summer 2027" />
+          <datalist id="team-season-options">{["Fall 2026","Spring 2027","Summer 2027","Spring & Summer 2027","Fall 2027","Spring 2028","Summer 2028"].map(x => <option key={x} value={x} />)}</datalist>
+        </label>
         <Button type="submit" disabled={busy}>
           Add team
         </Button>
       </form>
+      <div className="grid gap-2 rounded-xl border p-3">
+        <h3 className="font-semibold">Manage existing teams</h3>
+        {club.teams.map(team => <div key={team.id} className="flex flex-wrap items-center justify-between gap-2 border-b py-2 text-sm"><span>{team.name} · {team.sport} · {team.seasonLabel}</span><Button type="button" variant="outlineDark" disabled={busy} onClick={async () => {
+          if (!window.confirm(`Delete ${team.name}? This cannot be undone. Teams with roster or activity records cannot be deleted.`)) return;
+          setBusy(true);setError("");
+          try { const row=await officeRemoveTeam({data:{teamId:team.id,baseRev:club._rev}});onChange(row.club);if(teamId===team.id)setTeamId(row.club.teams[0]?.id??""); }
+          catch(err){setError(err instanceof Error?err.message:"Could not delete team.");}
+          finally{setBusy(false);}
+        }}>Remove team</Button></div>)}
+      </div>
       <form
         className="grid gap-2"
         onSubmit={async (event) => {
