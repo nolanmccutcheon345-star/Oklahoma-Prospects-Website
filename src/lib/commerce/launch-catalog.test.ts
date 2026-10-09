@@ -17,17 +17,20 @@ test('owner launch opens full catalog only with isolated valid production creden
   assert.equal(resolveSquareConfig({...env,SQUARE_OWNER_FULL_CATALOG_LAUNCH:'false'}),null);
   assert.equal(resolveSquareConfig({...env,SQUARE_LIVE_ENABLED:'false'}),null);
 });
-test('launch verifies webhook identity, preserves existing events and validates each monthly price',async()=>{
+test('launch reads webhook identity and events without changing billing infrastructure, then validates each monthly price',async()=>{
   const c={environment:'production',checkoutScope:'all',applicationId:'app',locationId:'location',merchantId:'merchant',token:'offline',signatureKey:'signature',webhookUrl:'https://site.example/api/square/webhook',origin:'https://site.example'} as SquareSettings;
-  let events=['payment.updated','existing.event'],updates=0,reads=0,signature='signature';
+  let events=['payment.updated','refund.updated','subscription.updated','invoice.payment_made','invoice.scheduled_charge_failed','dispute.created','card.automatically_updated','existing.event'],updates=0,reads=0,signature='signature';
   const sql=(async()=>[]) as unknown as Sql;
   const client={webhooks:{subscriptions:{list:async function*(){yield {id:'hook',notificationUrl:c.webhookUrl};},get:async()=>({subscription:{enabled:true,signatureKey:signature,notificationUrl:c.webhookUrl,eventTypes:events}}),update:async({subscription}:{subscription:{eventTypes:string[]}})=>{updates++;events=subscription.eventTypes;}}},
     locations:{get:async()=>({location:{merchantId:'merchant',status:'ACTIVE',currency:'USD',timezone:'America/Chicago',capabilities:['CREDIT_CARD_PROCESSING']}})},
     catalog:{object:{get:async({objectId}:{objectId:string})=>{reads++;return {object:{type:'SUBSCRIPTION_PLAN_VARIATION',subscriptionPlanVariationData:{phases:[{cadence:'MONTHLY',pricing:{type:'STATIC',priceMoney:{currency:'USD',amount:BigInt(PRICES[objectId as keyof typeof PRICES])}}}]}}};}}}} as unknown as SquareClient;
   const result=await prepareLaunchCatalog(sql,client,c,id=>id);
-  assert.equal(result.filter(r=>r.ready).length,8);assert.equal(updates,1);assert.equal(reads,8);
+  assert.equal(result.filter(r=>r.ready).length,8);assert.equal(updates,0);assert.equal(reads,8);
   assert.ok(events.includes('existing.event'));assert.ok(events.includes('subscription.updated'));assert.ok(events.includes('invoice.payment_made'));
-  await prepareLaunchCatalog(sql,client,c,id=>id);assert.equal(updates,1);
+  await prepareLaunchCatalog(sql,client,c,id=>id);assert.equal(updates,0);
   signature='wrong';await assert.rejects(prepareLaunchCatalog(sql,client,c,id=>id),/do not match/);
-  assert.equal(updates,1);assert.equal(reads,16);
+  assert.equal(updates,0);assert.equal(reads,16);
+  signature='signature';events=['payment.updated','refund.updated'];
+  await assert.rejects(prepareLaunchCatalog(sql,client,c,id=>id),/missing required events/);
+  assert.equal(updates,0);assert.equal(reads,16);
 });

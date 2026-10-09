@@ -15,12 +15,8 @@ export async function prepareLaunchCatalog(sql:Sql,client:SquareClient,c:SquareS
     let {subscription}=await client.webhooks.subscriptions.get({subscriptionId:listed.id});
     if(!subscription?.enabled||subscription.signatureKey!==c.signatureKey||subscription.notificationUrl!==c.webhookUrl)
       throw new Error('Membership webhook settings do not match this site. No payment has been taken.');
-    if(membershipEvents.some(type=>!subscription!.eventTypes?.includes(type))) {
-      await client.webhooks.subscriptions.update({subscriptionId:listed.id,subscription:{eventTypes:[...new Set([...(subscription.eventTypes||[]),...membershipEvents])]}});
-      ({subscription}=await client.webhooks.subscriptions.get({subscriptionId:listed.id}));
-    }
     if(!subscription?.enabled||subscription.signatureKey!==c.signatureKey||subscription.notificationUrl!==c.webhookUrl||membershipEvents.some(type=>!subscription!.eventTypes?.includes(type)))
-      throw new Error('Membership webhook setup could not be verified. No payment has been taken.');
+      throw new Error('The membership webhook is missing required events. No payment has been taken.');
     verified=true;break;
   }
   if(!verified)throw new Error('No webhook matches this site. No payment has been taken.');
