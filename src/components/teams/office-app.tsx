@@ -73,9 +73,11 @@ export function OfficeApp({
         Save club
       </Button>
 
-      <RosterTools club={club} onChange={onChange} />
-
-      <Section title="Team coach assignments" defaultOpen>
+      <section id="team-coach-assignments" aria-labelledby="team-coach-assignments-title" className="rounded-2xl border-2 border-maroon bg-paper p-5 scroll-mt-32">
+        <h2 id="team-coach-assignments-title" className="text-2xl font-bold text-ink">Teams & coach assignments</h2>
+        <p className="mt-2 mb-4 text-sm text-muted">Create teams, then assign each team’s head coach and coach sign-in email here.</p>
+        <RosterTools club={club} onChange={onChange} />
+        <Section title="Team coach assignments" defaultOpen>
         <p className="mb-3 text-sm text-muted">Assign the coach's sign-in email to the team, then save the club. The coach must also accept their coach invitation.</p>
         {club.teams.map((team) => (
           <fieldset key={team.id} className="mb-4 grid gap-3 rounded-lg border border-line p-4">
@@ -94,7 +96,9 @@ export function OfficeApp({
             ))}
           </fieldset>
         ))}
-      </Section>
+        </Section>
+        <Button type="button" className="mt-4" onClick={onSave}>Save coach assignments</Button>
+      </section>
 
       <Section title="Attention queue" defaultOpen>
         <ul className="grid gap-1 text-sm">

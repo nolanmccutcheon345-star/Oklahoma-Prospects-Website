@@ -179,7 +179,7 @@ function OfficePage() {
       <section id="office-discounts" className="scroll-mt-32"><DiscountOffice /></section>
       <section id="office-operations" className="scroll-mt-32"><OfficeOperations /></section>
       <section id="office-booking-changes" className="scroll-mt-32"><StaffBookingChanges /></section>
-      <section id="office-teams" className="scroll-mt-32">
+      <section id="office-teams" className="scroll-mt-32" aria-label="Team administration">
       <OfficeApp
         club={club}
         onChange={setClub}
