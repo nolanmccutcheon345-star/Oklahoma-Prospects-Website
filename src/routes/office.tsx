@@ -186,12 +186,15 @@ function OfficePage() {
       <OfficeApp
         club={club}
         onChange={setClub}
-        onSave={async () => {
+        onSave={async (nextClub) => {
           try {
-            const saved = await saveTeamsClub({ data: { club, baseRev: club._rev } });
+            const incoming = nextClub ?? club;
+            const saved = await saveTeamsClub({ data: { club: incoming, baseRev: incoming._rev } });
             setClub(saved.club);
+            return true;
           } catch (err) {
-            setError(err instanceof Error ? err.message : "Save failed");
+            window.alert(err instanceof Error ? err.message : "Save failed");
+            return false;
           }
         }}
       />
