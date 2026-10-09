@@ -38,8 +38,8 @@
       "src": "/brand/mark.png",
       "width": 256,
       "height": 256,
-      "bytes": 14723,
-      "sha256": "eea82e293be85a5d41ee5a73cc41baae2ec6f763dfe7c6f444cc9313cd364e34"
+      "bytes": 18375,
+      "sha256": "67c79fa5d6b4445f3c1c31db8c8a1f5717b5e56329b32c0545bec552dc1444db"
     },
     {
       "src": "/brand/team.jpg",
@@ -66,15 +66,15 @@
       "src": "/icon-192.png",
       "width": 192,
       "height": 192,
-      "bytes": 12621,
-      "sha256": "1274438815343c5581add32faa9dd0c32d97d3d604741accf412cc6d51db0e59"
+      "bytes": 9019,
+      "sha256": "cb35ecfcb8752a98be871f968b88c1101f3c992cf36979214ef58db73cb3e0ba"
     },
     {
       "src": "/icon-512.png",
       "width": 512,
       "height": 512,
-      "bytes": 37645,
-      "sha256": "2f3a283be4ee715cf4965483e9c9fde6635e38451751a57d7a07ff73db78385b"
+      "bytes": 26357,
+      "sha256": "1f2cafda46cbcf2c7e866019c36ed9c59fcac4a59c741ec148dd78b157653755"
     },
     {
       "src": "/og.jpg",
@@ -87,8 +87,8 @@
       "src": "/favicon.svg",
       "width": 32,
       "height": 32,
-      "bytes": 1019,
-      "sha256": "017613a9f6c05a8558b618687fb67d9a144fca40d98785484a431823dc904675"
+      "bytes": 803,
+      "sha256": "214f49abe8e3f04690baecf46fbb5a18436fa829d2b4680bcb29a08a062b2d98"
     }
   ],
   "responsive": {
