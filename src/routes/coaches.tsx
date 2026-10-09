@@ -65,10 +65,26 @@ function Coaches() {
       </section>
       <section aria-label="Coaching instructors" className="mx-auto grid max-w-3xl gap-5 px-5 py-8">
         {rows.length ? (
-          rows.map(({ id, profile: p }) => (
+          rows.map(({ id, profile: p, teams }) => (
             <article key={id} className="rounded-xl border p-5">
               <h2 className="text-3xl">{p.name}</h2>
               <p className="mt-2 font-semibold">{p.specialties.join(" · ")}</p>
+              {teams.length > 0 ? (
+                <div className="mt-4 rounded-lg bg-paper-2 p-4">
+                  <h3 className="text-lg font-bold">Teams coached</h3>
+                  <ul className="mt-2 grid gap-2">
+                    {teams.map((team) => (
+                      <li key={team.id} className="text-sm">
+                        <Link to="/teams" className="font-semibold underline">
+                          {team.name}
+                        </Link>
+                        {" · "}{team.sport === "baseball" ? "Baseball" : "Softball"}
+                        {team.age ? " · " + team.age : ""}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
               {[
                 ["Career & background", p.career],
                 ["Approach", p.approach],
