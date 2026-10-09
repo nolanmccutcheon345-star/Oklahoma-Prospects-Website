@@ -361,7 +361,7 @@ export const FAQ = [
 export const PROOF = [
   { label: "Est.", value: "2008" },
   { label: "Facility", value: "7 lanes" },
-  { label: "Booking", value: "Pay to book" },
+  { label: "Booking", value: "Online booking" },
   { label: "Tryouts", value: "Free evals" },
 ] as const;
 
