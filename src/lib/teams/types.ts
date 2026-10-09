@@ -37,6 +37,8 @@ export type StaffMember = {
   safeSport: boolean;
   expires: string;
   email: string;
+  bio?: string;
+  photo?: string;
 };
 
 export type PlayerDoc = {
@@ -173,6 +175,8 @@ export type Team = {
   months: number;
   headCoach: string;
   coachEmail: string;
+  headCoachBio?: string;
+  headCoachPhoto?: string;
   staff: StaffMember[];
   uniformPackageId: string;
   uniformDeadline: string;
