@@ -127,3 +127,15 @@ export function currentSeason(date = new Date()) {
   }).format(date);
   return `${month >= 9 && month <= 11 ? "Fall" : month >= 6 && month <= 8 ? "Summer" : month >= 3 && month <= 5 ? "Spring" : "Winter"} ${year}`;
 }
+
+export const lessonMetricKey = z.object({ bookingId: z.string().min(1).max(150) }).strict();
+export const lessonMetricInput = lessonMetricKey
+  .extend({
+    id: z.union([z.literal(""), z.string().uuid()]),
+    revision: z.number().int().min(0),
+    metric: metricInput.shape.metric,
+    value: z.number().positive(),
+    evidence: url,
+    method: text(500).refine((s) => s.length > 0, "Describe how you measured this value."),
+  })
+  .strict();

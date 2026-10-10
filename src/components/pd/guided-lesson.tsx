@@ -1,3 +1,4 @@
+import {LessonRecruitingMetrics} from "../lesson-recruiting-metrics";
 import {athleteAge} from '@/lib/pd/engines';
 import { formatClockTime } from "@/lib/time-display";
 import { useEffect, useState } from "react";
@@ -362,6 +363,7 @@ export function GuidedLesson({
       </header>
 
       <div className="flex-1 overflow-y-auto px-4 py-4">
+        {start.bookingId && <LessonRecruitingMetrics bookingId={start.bookingId} />}
         {draft.stage === 0 ? (
           <SetupStage
             slice={athleteSlice}

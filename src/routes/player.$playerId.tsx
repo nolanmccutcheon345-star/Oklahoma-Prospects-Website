@@ -144,8 +144,8 @@ function Page() {
       <section id="measurements">
         <h2 className="text-2xl">Measurements</h2>
         <p className="mb-4">
-          Player-submitted values remain unverified until an admin or assigned head coach approves
-          them.
+          Player-submitted values remain unverified until an admin, assigned head coach, or lesson
+          instructor approves them.
         </p>
         <div className="grid gap-3 sm:grid-cols-2">
           {p.metrics.map((m) => (
