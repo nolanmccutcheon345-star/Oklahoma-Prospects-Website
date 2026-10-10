@@ -1,3 +1,4 @@
+import { masterSchema } from "./budget-matrix";
 import { createServerFn } from "@tanstack/react-start";
 import { authMiddleware } from "../auth/middleware";
 import { feeAction, businessSchema } from "./fee-contracts";
@@ -42,4 +43,20 @@ export const getTeamFundingStatus = createServerFn({ method: "POST" })
     const { getSql } = await import("../db");
     const { teamFundingStatus } = await import("./fee.server");
     return teamFundingStatus(await getSql(), context.userId, data.teamId);
+  });
+
+export const getBudgetMaster = createServerFn({ method: "GET" })
+  .middleware([authMiddleware])
+  .handler(async ({ context }) => {
+    const { getSql } = await import("../db");
+    const { getBudgetMaster } = await import("./budget-matrix.server");
+    return getBudgetMaster(await getSql(), context.userId);
+  });
+export const saveBudgetMaster = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
+  .validator(z.object({ revision: z.number().int().nonnegative(), value: masterSchema }).strict())
+  .handler(async ({ context, data }) => {
+    const { getSql } = await import("../db");
+    const { saveBudgetMaster } = await import("./budget-matrix.server");
+    return saveBudgetMaster(await getSql(), context.userId, data.revision, data.value);
   });

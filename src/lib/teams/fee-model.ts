@@ -38,6 +38,21 @@ export const budgetSchema = z
           .strict(),
       )
       .max(60),
+    roundTo: cents.optional(),
+    headPremiumBps: z.number().int().min(0).max(2500).optional(),
+    assistantPremiumBps: z.number().int().min(0).max(2500).optional(),
+    scheduleCostsAutomatic: z.boolean().optional(),
+    readiness: z
+      .object({
+        schedule: z.boolean(),
+        gas: z.boolean(),
+        hotels: z.boolean(),
+        other: z.boolean(),
+        processing: z.boolean(),
+        noUniform: z.boolean(),
+      })
+      .strict()
+      .optional(),
     tournament: cents,
     hotelNightly: cents.default(0),
     hotelNights: z.number().int().min(0).max(10000).default(0),
@@ -209,7 +224,24 @@ function gross(net: number, b: FeeBudget) {
 }
 export function calculateFees(input: FeeBudget) {
   const b = budgetSchema.parse(input);
-  const fixed = sum(b.costs.map((c) => c.cents)) + b.tournament + b.hotelNightly * b.hotelNights;
+  const fixed =
+    sum(
+      b.costs.map(
+        (c) =>
+          c.cents +
+          Math.ceil(
+            (c.cents *
+              (c.id === "matrix-head"
+                ? b.headPremiumBps || 0
+                : c.id === "matrix-assistant"
+                  ? b.assistantPremiumBps || 0
+                  : 0)) /
+              10000,
+          ),
+      ),
+    ) +
+    b.tournament +
+    b.hotelNightly * b.hotelNights;
   const each = b.uniformCost + b.fullIncremental,
     direct = fixed + b.baseline * each,
     contingency = Math.ceil((direct * b.contingencyBps) / 10000),
@@ -220,8 +252,20 @@ export function calculateFees(input: FeeBudget) {
   const poDirect = b.poSharedAllocation + b.uniformCost + b.poIncremental,
     poContingency = Math.ceil((poDirect * b.contingencyBps) / 10000);
   const poNet = poDirect + poContingency + member + b.poOrg;
-  const full = gross(fullNet, b),
-    po = gross(poNet, b);
+  const rounded = (n: number) => (b.roundTo ? Math.ceil(n / b.roundTo) * b.roundTo : n);
+  const full = rounded(gross(fullNet, b)),
+    po = rounded(gross(poNet, b));
+  // Rounding creates margin, not a processing expense. Allow for card fees on the
+  // final rounded amount, with at most one cent of rounding per installment.
+  const processing = (total: number, net: number) =>
+    b.roundTo
+      ? Math.min(
+          total - net,
+          Math.ceil((total * b.processingBps) / 10000) +
+            (b.paymentSchedule?.rows.length || 3) * b.processingFixed +
+            (b.processingBps ? (b.paymentSchedule?.rows.length || 3) - 1 : 0),
+        )
+      : total - net;
   return {
     fixed,
     direct,
@@ -234,8 +278,10 @@ export function calculateFees(input: FeeBudget) {
     fullNet,
     poNet,
     poContingency,
-    fullProcessing: full - fullNet,
-    poProcessing: po - poNet,
+    fullProcessing: processing(full, fullNet),
+    fullRounding: full - fullNet - processing(full, fullNet),
+    poProcessing: processing(po, poNet),
+    poRounding: po - poNet - processing(po, poNet),
   };
 }
 export function project(

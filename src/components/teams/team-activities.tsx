@@ -200,6 +200,24 @@ export function TeamActivities({
                 />
               </label>
               {draft.kind !== "practice" && (
+                <label>
+                  Entry / league fee for this event ($)
+                  <input
+                    className={field}
+                    type="number"
+                    min={0}
+                    step="0.01"
+                    value={(draft.entryFee || 0) / 100}
+                    onChange={(e) =>
+                      setDraft({ ...draft, entryFee: Math.round(Number(e.target.value) * 100) })
+                    }
+                  />
+                  <span className="text-sm">
+                    Enter a tournament fee once; use $0 on its individual games.
+                  </span>
+                </label>
+              )}
+              {draft.kind !== "practice" && (
                 <fieldset className="grid gap-3 rounded-xl border p-3">
                   <legend>Travel & overnight stays</legend>
                   <label>
