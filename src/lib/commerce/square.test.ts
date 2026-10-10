@@ -262,7 +262,7 @@ test("Square verifies exact raw bytes and registered URL", async () => {
     false,
   );
 });
-test("approved cents override editable dollar rows; month end is calendar based", () => {
+test("stored catalog amounts remain authoritative; month end is calendar based", () => {
   const row = {
     id: "s9",
     kind: "lesson",
@@ -276,8 +276,8 @@ test("approved cents override editable dollar rows; month end is calendar based"
     discipline: "Hitting",
     active: true,
   };
-  assert.equal(approvedProducts([row])[0].price, 149);
-  assert.equal(approvedProducts([{ ...row, id: "forged" }]).length, 0);
+  assert.equal(approvedProducts([row])[0].price, 1);
+  assert.equal(approvedProducts([{ ...row, id: "custom-service" }]).length, 1);
   assert.equal(
     addCalendarMonth(new Date("2028-01-31T12:00:00Z")).toISOString(),
     "2028-02-29T12:00:00.000Z",
@@ -575,6 +575,14 @@ test("Square payment fulfillment commits once and never turns unpaid holds into 
         assert.equal((await sql`select * from credit_grants where order_id='late'`).length, 0);
       },
     );
+    await t.test("admin fee may equal the monthly price without misclassifying the base payment",async()=>{
+      await order("equal-fee",{kind:"membership",productId:"m1",recurring:true,regularCents:5000,setupCents:5000,totalCents:10000,needsSlot:false});
+      await sql.transaction(tx=>fulfillSquarePayment(tx,{...payment("equal-fee",5000),note:"Prospects Sports Academy Membership"},config));
+      assert.equal((await sql`select status from commerce_orders where id='equal-fee'`)[0].status,"pending_fee");
+      await sql.transaction(tx=>fulfillSquarePayment(tx,{...payment("equal-fee",5000),id:"fee-equal-fee",note:"Prospects setup fee · Membership"},config));
+      assert.equal((await sql`select status from commerce_orders where id='equal-fee'`)[0].status,"paid");
+      assert.deepEqual((await sql<{purpose:string}>`select purpose from square_payments where order_id='equal-fee' order by purpose`).map(r=>r.purpose),["base","setup-fee"]);
+    });
     await t.test(
       "legacy membership terms are preserved; new assessment appointments use one included session",
       async () => {

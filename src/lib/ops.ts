@@ -1,16 +1,13 @@
 import type { PurchaseAvailability } from "./purchase-availability";
 import { publishedServices } from "./public-services";
-import { PRICES, formatMoney, currentCatalogPrice } from "./pricing";
+import { formatMoney, eligibility } from "./pricing";
 import { revokeStaffAccess } from './staff-access.server';
 import { createServerFn, createServerOnlyFn } from "@tanstack/react-start";
 import { authMiddleware } from "@/lib/auth/middleware";
 import {
   DEVELOPMENT_PLANS,
-  LESSON_CATALOG,
-  LESSON_PACKAGES,
   type LessonService,
 } from "@/lib/catalog";
-import { MEMBERSHIPS, RENTALS } from "@/lib/club";
 import type { ClubRole } from "@/lib/club-data";
 import { getSql, type Sql } from "@/lib/db";
 import { isOwnerEmail } from "@/lib/owners";
@@ -22,9 +19,11 @@ export type ServiceKind =
   | "package"
   | "membership"
   | "cage"
-  | "cage_plan";
+  | "cage_plan" | "fee" | "team_plan";
 
 export const SERVICE_KINDS: { id: ServiceKind; label: string }[] = [
+  { id: "fee", label: "Fee" },
+  { id: "team_plan", label: "Team monthly plan (office invoiced)" },
   { id: "lesson", label: "Lesson" },
   { id: "package", label: "Package" },
   { id: "membership", label: "Lesson membership" },
@@ -147,6 +146,8 @@ export type AccountInput = {
 
 export type PublicCatalog = {
   purchaseAvailability?: PurchaseAvailability;
+  setupFee: number;
+  teamPlans: ClubService[];
   lessons: LessonService[];
   packages: {
     id: string;
@@ -227,7 +228,7 @@ function asKind(value: string): ServiceKind {
     value === "package" ||
     value === "membership" ||
     value === "cage" ||
-    value === "cage_plan"
+    value === "cage_plan" || value === "fee" || value === "team_plan"
   ) {
     return value;
   }
@@ -357,87 +358,28 @@ function toLesson(row: ClubService): LessonService {
     entry: row.entry,
     group: row.group_session,
     coachSplit: defaultCoachSplit(row),
-    requiresAssessment: row.requires_assessment,
+    requiresAssessment: eligibility("lesson", row.id, false).locked,
   };
 }
 
 export function buildPublicCatalog(rows: ClubService[]): PublicCatalog {
-  const active = rows.filter((row) => row.active && row.id in PRICES).map(currentCatalogPrice);
+  const active = rows.filter(row => row.active);
   const lessons = active.filter((row) => row.kind === "lesson");
   const packages = active.filter((row) => row.kind === "package");
   const memberships = active.filter((row) => row.kind === "membership");
   const cages = active.filter((row) => row.kind === "cage");
   const cagePlans = active.filter((row) => row.kind === "cage_plan");
+  const individual = cages.find(r => r.id === "individual")?.price;
   return {
-    lessons: (lessons.length || rows.length) ? lessons.map(toLesson) : LESSON_CATALOG.map((item) => ({ ...item })),
-    packages: (packages.length || rows.length)
-      ? packages.map((row) => ({
-          id: row.id,
-          name: row.name,
-          credits: row.credits,
-          minutes: row.minutes,
-          price: row.price,
-          expiresDays: row.expires_days,
-        }))
-      : LESSON_PACKAGES.map((item) => ({ ...item })),
-    memberships: (memberships.length || rows.length)
-      ? memberships.map((row) => ({
-          id: row.id,
-          name: row.name,
-          price: row.price,
-          lessons: row.credits,
-          minutes: row.minutes,
-          remote: row.remote,
-          detail: row.id === "m4" ? DEVELOPMENT_PLANS.find(p => p.id === "m4")!.detail : row.detail || row.purpose,
-          includes: row.id === "m4" ? DEVELOPMENT_PLANS.find(p => p.id === "m4")!.includes : row.includes.filter(line => !/quarterly.*(lab|assessment)/i.test(line)),
-          tier: DEVELOPMENT_PLANS.find((plan) => plan.id === row.id)?.tier,
-        }))
-      : DEVELOPMENT_PLANS.map((item) => ({
-          id: item.id,
-          name: item.name,
-          price: item.price,
-          lessons: item.lessons,
-          minutes: item.minutes,
-          remote: item.remote,
-          detail: item.detail,
-          includes: [...item.includes],
-          tier: item.tier,
-        })),
-    cages: (cages.length || rows.length)
-      ? cages.map((row) => ({
-          id: row.id,
-          name: row.name,
-          price: row.price,
-          unit: row.unit || "/ hour",
-          summary: row.purpose || row.detail,
-          lanes: row.lanes,
-        }))
-      : RENTALS.map((item) => ({ ...item })),
-    cagePlans: (cagePlans.length || rows.length)
-      ? cagePlans.map((row) => ({
-          id: row.id,
-          name: row.name,
-          price: row.price,
-          period: row.period || "/ month",
-          hours: row.hours || row.credits,
-          hourly: (row.hours || row.credits) > 0 ? `${formatMoney(Math.round(row.price * 100 / (row.hours || row.credits)))} / included hour` : row.hourly,
-          bestFor: row.bestFor,
-          savings: ["prospect", "all-star"].includes(row.id) ? `${formatMoney(Math.max(0, (row.hours || row.credits) * PRICES.individual - Math.round(row.price * 100)))} vs ${row.hours || row.credits} drop-in hours` : row.savings,
-          featured: row.featured,
-          perks: row.perks.length ? row.perks : row.includes,
-        }))
-      : MEMBERSHIPS.map((item) => ({
-          id: item.name.toLowerCase().replace(/\s+/g, "-"),
-          name: item.name,
-          price: item.price,
-          period: item.period,
-          hours: item.hours,
-          hourly: item.hourly,
-          bestFor: item.bestFor,
-          savings: item.savings,
-          featured: item.featured,
-          perks: [...item.perks],
-        })),
+    setupFee: active.find(r => r.id === "assessment-setup")?.price ?? 0,
+    teamPlans: active.filter(r => r.kind === "team_plan"),
+    lessons: lessons.map(toLesson),
+    packages: packages.map(r => ({id:r.id,name:r.name,credits:r.credits,minutes:r.minutes,price:r.price,expiresDays:r.expires_days})),
+    memberships: memberships.map(r => ({id:r.id,name:r.name,price:r.price,lessons:r.credits,minutes:r.minutes,remote:r.remote,detail:r.detail||r.purpose,includes:r.includes,tier:DEVELOPMENT_PLANS.find(p=>p.id===r.id)?.tier})),
+    cages: cages.map(r => ({id:r.id,name:r.name,price:r.price,unit:r.unit||"/ hour",summary:r.purpose||r.detail,lanes:r.lanes})),
+    cagePlans: cagePlans.map(r => ({id:r.id,name:r.name,price:r.price,period:r.period||"/ month",hours:r.hours||r.credits,
+      hourly:(r.hours||r.credits)>0 ? `${formatMoney(Math.round(r.price*100/(r.hours||r.credits)))} / included hour` : "",
+      bestFor:r.bestFor,savings:individual === undefined ? "" : `${formatMoney(Math.max(0,Math.round(((r.hours||r.credits)*individual-r.price)*100)))} vs ${r.hours||r.credits} drop-in hours`,featured:r.featured,perks:r.perks.length?r.perks:r.includes})),
   };
 }
 
@@ -468,7 +410,7 @@ export async function loadServices(sql: Sql) {
     from club_services
     order by sort_order, name
   `;
-  return rows.map(mapService).map(currentCatalogPrice);
+  return rows.map(mapService);
 }
 
 export const getServices = createServerFn({ method: "GET" }).handler(async () => {
@@ -476,6 +418,11 @@ export const getServices = createServerFn({ method: "GET" }).handler(async () =>
   // Signed-out callers must never receive inactive or unpublished catalog items.
   // Office editors use their authenticated mutation/editor paths, not this public API.
   return publishedServices(await loadServices(sql));
+});
+
+export const getAdminServices = createServerFn({ method: "GET" }).middleware([authMiddleware]).handler(async ({context}) => {
+  await requireAdmin(context.userId);
+  return loadServices(await getSql());
 });
 
 export const getPurchaseAvailability = createServerFn({ method: "GET" }).handler(async (): Promise<PurchaseAvailability> => {
@@ -506,9 +453,9 @@ export const saveService = createServerFn({ method: "POST" })
     const prefix =
       kind === "cage_plan" ? "plan" : kind === "cage" ? "cage" : kind === "membership" ? "m" : kind === "package" ? "p" : "s";
     const id = data.id?.trim() || newId(prefix, name);
-    if (id in PRICES && Math.round(data.price * 100) !== PRICES[id as keyof typeof PRICES]) {
-      throw new Error("This service uses the published catalog price. Update the versioned price schedule before publishing a different amount.");
-    }
+    if (kind !== "fee" && data.price <= 0) throw new Error("Enter a customer price greater than zero.");
+    const [existing] = await sql<{kind:string}>`select kind from club_services where id=${id}`;
+    if (existing && existing.kind !== kind) throw new Error("An existing service’s category cannot be changed. Create a new service instead.");
     const maxSort = await sql<{ n: number }>`
       select coalesce(max(sort_order), 0)::int as n from club_services
     `;
@@ -528,7 +475,7 @@ export const saveService = createServerFn({ method: "POST" })
         ${data.purpose.trim()},
         ${Boolean(data.entry)},
         ${Boolean(data.group_session)},
-        ${Boolean(data.requires_assessment)},
+        ${kind === "lesson" || kind === "package" ? eligibility(kind,id,false).locked : false},
         ${asInt(data.credits)},
         ${asInt(data.remote)},
         ${asInt(data.expires_days)},

@@ -1,7 +1,6 @@
-import { ASSESSMENT_LOCK_MESSAGE, eligibility, dollars, formatDollars } from "./pricing";
+import { ASSESSMENT_LOCK_MESSAGE, eligibility, formatDollars } from "./pricing";
 import { BOOKABLE_LANES, HOUSEHOLD_CAGE_PLAN_IDS, type BookableLaneId } from "@/lib/club";
 import { ASSESSMENT_IDS, findLesson } from "@/lib/catalog";
-import { PD_POLICY } from "@/lib/pd";
 import type { PublicCatalog } from "@/lib/ops";
 
 export type PaySearch = {
@@ -92,7 +91,7 @@ function hourlyFor(
   catalog: PublicCatalog,
   id: "individual" | "team" | "field",
 ) {
-  return catalog.cages.find((item) => item.id === id)?.price ?? dollars(id);
+  return catalog.cages.find((item) => item.id === id)?.price ?? NaN;
 }
 
 export function isTeamUse(use: string | undefined, laneIds: string[]): boolean {
@@ -134,6 +133,7 @@ export function quoteCages(
     };
   }
 
+  if (lanes.some(id => !Number.isFinite(hourlyFor(catalog, BOOKABLE_LANES.find(l=>l.id===id)!.group === "field" ? "field" : rate)))) return null;
   const lines: PayLine[] = lanes.map((id) => {
     const lane = BOOKABLE_LANES.find((row) => row.id === id)!;
     const hourly = lane.group === "field" ? hourlyFor(catalog, "field") : hourlyFor(catalog, rate);
@@ -163,14 +163,13 @@ export function quoteCages(
 }
 
 function needsAssessmentFee(kind: string, id: string): boolean {
-  return eligibility(kind, id, false).setupCents > 0;
+  return kind === "membership" && ["m1","m2","m3"].includes(id);
 }
 
-export function applyAssessmentFee(item: PayItem, hasAssessment: boolean): PayItem {
+export function applyAssessmentFee(item: PayItem, hasAssessment: boolean, fee = 0): PayItem {
   if (eligibility(item.kind, item.id, hasAssessment).locked) return { ...item, error: ASSESSMENT_LOCK_MESSAGE };
   if (hasAssessment) return item;
   if (!needsAssessmentFee(item.kind, item.id)) return item;
-  const fee = PD_POLICY.assessmentSurcharge;
   const label =
     item.kind === "membership"
       ? `No assessment on file · first month +$${fee}`
@@ -216,7 +215,7 @@ export function quoteCheckout(
   if (!item) return null;
   const withUse = applyUseRules(item, search);
   if (withUse.error) return withUse;
-  return applyAssessmentFee(withUse, hasAssessment);
+  return applyAssessmentFee(withUse, hasAssessment, catalog.setupFee);
 }
 
 export function resolvePayItem(

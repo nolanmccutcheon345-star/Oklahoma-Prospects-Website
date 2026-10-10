@@ -1,3 +1,5 @@
+import {YOUTH_PRODUCTS} from "../pricing";
+import {assertYouthAge} from "./assessment-gate.server";
 import { randomUUID } from "node:crypto";
 import type { Sql } from "../db";
 import type { Quote } from "./contracts";
@@ -50,6 +52,10 @@ export const currentMoveAvailability: MoveAvailability = async (b, date, time, m
   const { readWorkingFile } = await import("../pd/desk-impl.server");
   const { requireCoachService } = await import("./coach-services.server");
   const { coachAvailable } = await import("./availability");
+  if (YOUTH_PRODUCTS.has(b.product_id)) {
+    const [player] = await tx<{birth_date:string|null}>`select a.birth_date::text as birth_date from club_athletes a join booking_records b on b.athlete_id=a.id where b.id=${b.id}`;
+    assertYouthAge(player?.birth_date,date);
+  }
   const file = await readWorkingFile(tx);
   await requireCoachService(tx, file.coaches, b.coach_id, b.product_id);
   return coachAvailable(file.availability, b.coach_id, date, time, minutes);

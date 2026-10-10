@@ -1,4 +1,4 @@
-import { PRICES, formatMoney, formatDollars } from "@/lib/pricing";
+import { formatDollars } from "@/lib/pricing";
 import {useLiveCatalog} from "@/lib/use-catalog";
 import {pageHead} from "@/lib/seo";
 import { createFileRoute, Link } from "@tanstack/react-router";
@@ -10,7 +10,7 @@ import { HoursChip } from "@/components/hours-chip";
 import { MembershipPlans } from "@/components/membership-plans";
 
 import { Button } from "@/components/ui/button";
-import { CANCEL_POLICY, CLUB, LINKS, PROOF, RENTALS } from "@/lib/club";
+import { CANCEL_POLICY, CLUB, LINKS, PROOF } from "@/lib/club";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
 
 export const Route = createFileRoute("/")({head:()=>pageHead("/","Indoor cages, lessons & teams","Book indoor baseball and softball cages, coaching, and teams in Broken Arrow. Serving northeast Oklahoma since 2008.",false), component: Home });
@@ -77,7 +77,7 @@ function Home() {
         <div className="mt-5 grid gap-3">
           <PathCard
             to="/book"
-            kicker={`From ${formatMoney(PRICES.individual)} / hour`}
+            kicker={catalog.cages.find(r=>r.id==="individual") ? `From ${formatDollars(catalog.cages.find(r=>r.id==="individual")!.price)} / hour` : "Cage rentals"}
             title="Book a cage"
             body="Reserve indoor cage time for individual training or team practice."
           />
@@ -130,7 +130,7 @@ function Home() {
             </Button>
           </div>
           <div className="mt-6 grid gap-3">
-            {RENTALS.map((rental) => (
+            {catalog.cages.map((rental) => (
               <Link
                 key={rental.id}
                 to="/book"

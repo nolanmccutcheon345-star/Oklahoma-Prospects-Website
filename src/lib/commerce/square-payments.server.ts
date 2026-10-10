@@ -101,7 +101,8 @@ export async function fulfillSquarePayment(
     throw new Error("Payment environment mismatch.");
   const fee =
     order.snapshot.setupCents > 0 &&
-    payment.amountMoney?.amount === BigInt(order.snapshot.setupCents);
+    (payment.id === order.square_fee_payment_id || payment.note?.startsWith("Prospects setup fee · ") ||
+      (order.snapshot.setupCents !== order.snapshot.regularCents && payment.amountMoney?.amount === BigInt(order.snapshot.setupCents)));
   const expected = fee
     ? order.snapshot.setupCents
     : order.snapshot.setupCents > 0
@@ -179,7 +180,7 @@ export async function fulfillSquarePayment(
       athleteId: order.athlete_id,
       coachId: window.coachId,
       productId:
-        order.snapshot.setupCents > 0
+        (order.snapshot.assessment && order.snapshot.recurring) || order.snapshot.setupCents > 0
           ? order.snapshot.discipline === "Hitting"
             ? "s9"
             : "s1"
@@ -242,7 +243,7 @@ export async function provisionSubscription(orderId: string, client = squareClie
     throw new Error("Subscription environment mismatch.");
   if (nextBillingDate(new Date(o.paid_at!)) <= chicagoDate())
     throw new Error("Delayed recurring setup requires owner review before any new charge.");
-  const planId = await planVariation(o.snapshot.productId);
+  const planId = o.snapshot.squarePlanVariationId || await planVariation(o.snapshot.productId);
   await validateSquarePlan(planId, o.snapshot.regularCents, client);
   // CreateCard accepts the completed payment id; a consumed nonce is never reused.
   const { card } = await client.cards.create({
@@ -314,7 +315,7 @@ export async function paySquareOrder(
       : order.total_cents;
   if (order.snapshot.recurring)
     await validateSquarePlan(
-      await planVariation(order.snapshot.productId),
+      order.snapshot.squarePlanVariationId || await planVariation(order.snapshot.productId),
       order.snapshot.regularCents,
       client,
     );
@@ -431,7 +432,7 @@ export async function paySquareOrder(
       referenceId: order.id,
       buyerEmailAddress: order.email,
       note: order.square_payment_id
-        ? "First-month fee (no assessment on file)"
+        ? "Prospects setup fee · " + order.snapshot.title
         : "Prospects Sports Academy " + order.snapshot.title,
     }));
   } catch (error) {

@@ -6,7 +6,7 @@ import { commerceIdentity as clubIdentity } from "./access.server";
 import { readWorkingFile } from "../pd/desk-impl.server";
 import { validateWindow, slotsFor } from "../scheduling";
 import { ASSESSMENT_PRODUCTS } from "../pricing";
-import { verifiedAssessmentOnFile } from "./assessment-gate.server";
+import { assertAthleteMayPurchase } from "./assessment-gate.server";
 import { BOOKABLE_LANES } from "../club";
 import { coachAvailable } from "./availability";
 import { expireHolds, createPaidBooking } from "./store.server";
@@ -51,8 +51,7 @@ async function context(userId: string, input: Input) {
     quantity = minutes;
     resources = [`lane:${input.laneId}`];
   } else {
-    if (!(await verifiedAssessmentOnFile(sql, grant.athlete_id)))
-      throw new Error("Complete your assessment with your coach before booking ordinary lessons.");
+    await assertAthleteMayPurchase(sql,{athleteId:grant.athlete_id,kind:"lesson",productId:input.serviceId || "",billingHouseholdIds:me.billingHouseholdIds,role:me.role,date:input.date});
     if (grant.product_id === "m4")
       throw new Error(
         "Small-group credits require a published group session. Contact your coach for the weekly group schedule.",

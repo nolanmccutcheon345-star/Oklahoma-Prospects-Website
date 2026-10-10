@@ -1,4 +1,3 @@
-import { PRICES, formatMoney as priceMoney } from "@/lib/pricing";
 import { checkoutLessonService } from "@/lib/commerce/coach-services";
 import { pageHead } from "@/lib/seo";
 import { createFileRoute, Link } from "@tanstack/react-router";
@@ -145,7 +144,7 @@ function PayPage() {
         input,
         product,
         assessed,
-        context.products.filter((p) => p.kind === "cage"),
+        context.products,
         false,
       );
     } catch {
@@ -409,7 +408,7 @@ function PayPage() {
             {quote?.teamRate ? (
               <p className="mt-2 text-powder">
                 Team rate applies to three or more athletes, three or more spaces, or non-household
-                use. Fielding is {priceMoney(PRICES.field)}/hour.
+                use. Fielding has its own hourly rate, included in your total.
               </p>
             ) : null}
             {recurring && quote ? (
@@ -504,7 +503,7 @@ function PayPage() {
               <p>
                 Private lessons and packages unlock after a completed New Player Assessment is recorded
                  for this athlete. An eligible in-person development membership can start first:
-                 the first included lesson is the assessment and a one-time $50 first-month fee
+                 the first included lesson is the assessment and the current first-month fee shown in your total
                  applies. Simply paying for a booking never records assessment completion.
               </p>
               <Button className="mt-3" asChild>

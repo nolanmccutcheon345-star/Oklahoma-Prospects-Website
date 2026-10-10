@@ -1,3 +1,4 @@
+import {catalogFixture} from "../src/lib/testing/catalog-fixture.ts";
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {build} from 'esbuild';
@@ -17,7 +18,7 @@ test('public navigation, sport links and purchase availability agree with the li
  const dom=new JSDOM('<div id="root"></div>',{url:'https://audit.example.invalid/training'});
  const old={window:globalThis.window,document:globalThis.document,act:globalThis.IS_REACT_ACT_ENVIRONMENT,fetch:globalThis.fetch};
  Object.assign(globalThis,{window:dom.window,document:dom.window.document,IS_REACT_ACT_ENVIRONMENT:true});
- const state={catalog:{...buildPublicCatalog([]),purchaseAvailability:{ready:true,scope:'cages'}},path:'/training',navigate:null,events:[],gameRows:[],user:null,checkoutAthletes:[]};
+ const state={catalog:{...await catalogFixture(),purchaseAvailability:{ready:true,scope:'cages'}},path:'/training',navigate:null,events:[],gameRows:[],user:null,checkoutAthletes:[]};
  globalThis.__auditNav=state;let root;
  globalThis.fetch=async url=>{assert.ok(String(url).startsWith("/api/fundraising/teams"));return Response.json({teams:[]});};
  try{

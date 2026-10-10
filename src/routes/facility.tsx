@@ -1,3 +1,5 @@
+import {useLiveCatalog} from "@/lib/use-catalog";
+import {formatDollars} from "@/lib/pricing";
 import {pageHead} from "@/lib/seo";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { ArrowUpRight } from "lucide-react";
@@ -5,11 +7,12 @@ import { FacilityLanes } from "@/components/facility-lanes";
 import { HoursChip } from "@/components/hours-chip";
 import { PageHero } from "@/components/page-hero";
 import { Button } from "@/components/ui/button";
-import { CLUB, FAQ, LINKS, RENTALS } from "@/lib/club";
+import { CLUB, FAQ, LINKS } from "@/lib/club";
 
 export const Route = createFileRoute("/facility")({head:()=>pageHead("/facility","Visit the Facility","Seven indoor lanes for baseball and softball at 3804 S. Elm Pl., Suite A, Broken Arrow.",false), component: FacilityPage });
 
 function FacilityPage() {
+  const catalog = useLiveCatalog();
   return (
     <main id="main">
       <PageHero
@@ -46,13 +49,13 @@ function FacilityPage() {
           <h2 className="text-3xl">A space for every workout</h2>
           <p className="mt-2 text-muted">Current cage and field-area rental rates.</p>
           <div className="mt-6 grid gap-4 md:grid-cols-3">
-            {RENTALS.map((rental) => (
+            {catalog.cages.map((rental) => (
               <article key={rental.id} className="rounded-2xl p-5 shadow-border">
                 <p className="text-xs font-semibold tracking-[0.16em] text-maroon uppercase">
                   {rental.name}
                 </p>
                 <p className="mt-2 font-display text-5xl font-extrabold">
-                  ${rental.price}
+                  {formatDollars(rental.price)}
                   <span className="ml-1 font-sans text-sm font-medium text-muted">
                     {rental.unit}
                   </span>

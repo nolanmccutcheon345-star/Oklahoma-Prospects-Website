@@ -1,5 +1,5 @@
 import { formatClockTime } from "@/lib/time-display";
-import { PRICES, formatMoney } from "@/lib/pricing";
+
 import {DevelopmentBoard} from "@/components/commerce/development-board";
 import {CoachProfile} from "@/components/commerce/coach-profile";
 import { CoachSessions } from "@/components/commerce/coach-sessions";
@@ -648,7 +648,7 @@ function AssessDesk({ athlete, onSaved }: { athlete: string; onSaved: () => void
   return (
     <section>
       <h3 className="text-2xl">New pitcher assessment</h3>
-      <p className="mt-1 text-sm text-muted">75 minutes. Health screen, then eight phases. {formatMoney(PRICES.s1)}. Not an ordinary lesson.</p>
+      <p className="mt-1 text-sm text-muted">75 minutes. Health screen, then eight phases. See Train for the current assessment price. Not an ordinary lesson.</p>
       <ol className="mt-4 grid gap-2">
         {ASSESSMENT_PHASES.map((phase, index) => (
           <li key={phase} className="flex gap-3 rounded-xl bg-paper-2 px-4 py-3 shadow-border">

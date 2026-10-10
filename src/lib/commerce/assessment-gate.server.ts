@@ -1,5 +1,6 @@
 import type { Sql } from "../db";
-import { ASSESSMENT_LOCK_MESSAGE, ASSESSMENT_PRODUCTS, eligibility } from "../pricing";
+import { chicagoDate } from "../scheduling";
+import { ASSESSMENT_LOCK_MESSAGE, ASSESSMENT_PRODUCTS, YOUTH_PRODUCTS, eligibility } from "../pricing";
 
 export { ASSESSMENT_LOCK_MESSAGE };
 
@@ -86,6 +87,7 @@ export async function assertAthleteMayPurchase(
     productId: string;
     billingHouseholdIds: readonly string[];
     role: string;
+    date?: string;
   },
 ) {
   const needsAthlete = athleteSpecificPurchase(input.kind, input.productId);
@@ -98,6 +100,10 @@ export async function assertAthleteMayPurchase(
     input.billingHouseholdIds,
     input.role,
   );
+  if (input.kind === "lesson" && YOUTH_PRODUCTS.has(input.productId)) {
+    const [player] = await sql<{birth_date:string|null}>`select birth_date::text as birth_date from club_athletes where id=${athlete.id}`;
+    assertYouthAge(player?.birth_date, input.date);
+  }
   const assessed = await verifiedAssessmentOnFile(sql, athlete.id);
   if (eligibility(input.kind, input.productId, assessed).locked) throw new Error(ASSESSMENT_LOCK_MESSAGE);
   return { athleteId: athlete.id, assessed };
@@ -110,7 +116,7 @@ export async function assertStoredOrderAllowed(
     athlete_id: string | null;
     kind?: string | null;
     product_id?: string | null;
-    snapshot: { kind: string; productId: string; rescheduleFee?: unknown };
+    snapshot: { kind: string; productId: string; rescheduleFee?: unknown; bookingWindow?: {start:string} | null };
   },
   identity: Identity,
 ) {
@@ -125,13 +131,28 @@ export async function assertStoredOrderAllowed(
   const needsAthlete = unique.some((spec) => athleteSpecificPurchase(spec.kind, spec.productId));
   if (!needsAthlete && !order.athlete_id) return;
   const primary = unique[0] ?? { kind: order.snapshot.kind, productId: order.snapshot.productId };
+  const [booking] = order.athlete_id && unique.some(s => YOUTH_PRODUCTS.has(s.productId))
+    ? await sql<{date:string}>`select to_char(starts_at at time zone 'America/Chicago','YYYY-MM-DD') as date from booking_records where order_id=${(order as {id?:string}).id || ''} limit 1`
+    : [];
   const gate = await assertAthleteMayPurchase(sql, {
     athleteId: order.athlete_id,
     kind: primary.kind,
     productId: primary.productId,
     billingHouseholdIds: identity.billingHouseholdIds,
     role: identity.role,
+    date: order.snapshot.bookingWindow ? chicagoDate(new Date(order.snapshot.bookingWindow.start)) : booking?.date,
   });
   if (unique.some((spec) => eligibility(spec.kind, spec.productId, gate.assessed).locked))
     throw new Error(ASSESSMENT_LOCK_MESSAGE);
+}
+
+/** Youth means age 11 or younger on the session date. Unknown ages cannot bypass eligibility. */
+export function assertYouthAge(birthDate: string | null | undefined, sessionDate?: string) {
+  const birth = String(birthDate || "").slice(0,10);
+  const date = sessionDate || new Intl.DateTimeFormat("en-CA", {timeZone:"America/Chicago"}).format(new Date());
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(birth) || !Number.isFinite(Date.parse(birth)) || new Date(birth).toISOString().slice(0,10) !== birth || birth > date)
+    throw new Error("Add a valid player date of birth in your family account before booking a youth lesson.");
+  let age = Number(date.slice(0,4))-Number(birth.slice(0,4));
+  if(date.slice(5)<birth.slice(5)) age--;
+  if(age > 11) throw new Error("Youth lessons are for players 11U and under (age 11 or younger on the lesson date).");
 }

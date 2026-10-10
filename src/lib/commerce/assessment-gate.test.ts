@@ -40,7 +40,7 @@ test("unassessed athletes can quote only assessment lessons", () => {
   assert.equal(eligibility("cage-plan", "prospect", false).locked, false);
   for (const id of ["m1","m2","m3"]) {
     assert.equal(eligibility("membership", id, false).locked, false);
-    assert.equal(eligibility("membership", id, false).setupCents, 5000);
+    assert.equal(eligibility("membership", id, false, 5000).setupCents, 5000);
   }
   assert.equal(eligibility("membership", "m1", true).locked, false);
   assert.equal(eligibility("membership", "m1", true).setupCents, 0);

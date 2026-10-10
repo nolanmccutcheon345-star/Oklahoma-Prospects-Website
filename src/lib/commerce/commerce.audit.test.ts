@@ -98,7 +98,7 @@ test("all ordinary lessons and packages are locked until assessment completion; 
       PRICES[id],
     );
   for (const id of ["m1", "m2", "m3"] as const) {
-    const first = calculateQuote(request({ productId: id, kind: "membership" }), product(id, "membership"), false);
+    const first = calculateQuote(request({ productId: id, kind: "membership" }), product(id, "membership"), false, [{...product("m1","fee"),id:"assessment-setup",price:50}]);
     assert.equal(first.setupCents, 5000, id);
     assert.equal(first.totalCents, PRICES[id] + 5000, id);
     assert.equal(first.regularCents, PRICES[id], id);

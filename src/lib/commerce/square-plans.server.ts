@@ -1,7 +1,6 @@
 import { createHash } from "node:crypto";
 import type { SquareClient, Square } from "square";
 import type { Sql } from "../db";
-import { PRICES } from "../pricing";
 import type { SquareSettings } from "./square-config";
 
 export const MONTHLY_PLANS = [
@@ -16,14 +15,15 @@ export const MONTHLY_PLANS = [
 ] as const;
 type PlanSettings = Pick<SquareSettings, "environment" | "merchantId" | "locationId">;
 export function planMappingKey(c: PlanSettings, productId: string) {
-  if (!MONTHLY_PLANS.some((p) => p.id === productId)) throw new Error("Unknown monthly plan.");
+  if (!productId || productId.length > 120) throw new Error("Unknown monthly plan.");
   return `square-plan:${c.environment}:${c.merchantId}:${c.locationId}:${productId}`;
 }
 export async function savedPlan(sql: Sql, c: PlanSettings, productId: string) {
   const [row] = await sql<{
     value: { variationId?: string; cents?: number };
   }>`select value from commerce_policy where id=${planMappingKey(c, productId)}`;
-  if (!row || row.value.cents !== PRICES[productId as keyof typeof PRICES]) return undefined;
+  const [product] = await sql<{price:number}>`select price from club_services where id=${productId} and active=true and kind in ('membership','cage_plan')`;
+  if (!product || !row || row.value.cents !== Math.round(Number(product.price)*100)) return undefined;
   return row.value.variationId;
 }
 export function assertMonthlyPlan(object: Square.CatalogObject | undefined, cents: number) {
@@ -69,10 +69,17 @@ export async function prepareMonthlyPlans(
       "Square location must match this business and be enabled for cards in USD, America/Chicago.",
     );
   const results: { id: string; name: string; cents: number; ready: boolean; error?: string }[] = [];
-  for (const plan of MONTHLY_PLANS) {
-    const cents = PRICES[plan.id];
+  const plans = await sql<{id:string;name:string;price:number}>`select id,name,price from club_services where active=true and kind in ('membership','cage_plan') order by sort_order,id`;
+  for (const plan of plans) {
+    const cents = Math.round(Number(plan.price)*100);
     try {
-      let variationId = configured(plan.id) || (await savedPlan(sql, c, plan.id));
+      if (!Number.isSafeInteger(cents) || cents <= 0) throw new Error("Invalid monthly price.");
+      let variationId = await savedPlan(sql, c, plan.id);
+      if (!variationId && configured(plan.id)) {
+        const candidate = configured(plan.id)!;
+        const {object} = await client.catalog.object.get({objectId:candidate});
+        try { assertMonthlyPlan(object,cents); variationId=candidate; } catch { /* A changed price needs a new variation; existing subscribers keep theirs. */ }
+      }
       if (!variationId) {
         const key = createHash("sha256")
           .update(`${planMappingKey(c, plan.id)}:${cents}:v1`)

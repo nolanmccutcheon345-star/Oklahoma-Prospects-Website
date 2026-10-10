@@ -1,7 +1,7 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { Button } from "./ui/button";
 import { BOOKABLE_LANES, CANCEL_POLICY, type BookableLaneId } from "@/lib/club";
-import { dollars, formatDollars } from "@/lib/pricing";
+import { formatDollars } from "@/lib/pricing";
 import { quoteCages, type PaySearch } from "@/lib/pay";
 import type { PublicCatalog } from "@/lib/ops";
 import { reservationSlots, chicagoDateISO } from "@/lib/hours";
@@ -97,9 +97,9 @@ export function BookingFunnel({
     lanes.length && dateValid && time && !loadingSlots && quote && !quote.error,
   );
   const householdHour =
-    catalog.cages.find((row) => row.id === "individual")?.price ?? dollars("individual");
-  const teamHour = catalog.cages.find((row) => row.id === "team")?.price ?? dollars("team");
-  const fieldHour = catalog.cages.find((row) => row.id === "field")?.price ?? dollars("field");
+    catalog.cages.find((row) => row.id === "individual")?.price;
+  const teamHour = catalog.cages.find((row) => row.id === "team")?.price;
+  const fieldHour = catalog.cages.find((row) => row.id === "field")?.price;
   const dateLabel = dateValid
     ? new Intl.DateTimeFormat("en-US", {
         month: "short",
@@ -141,6 +141,7 @@ export function BookingFunnel({
       use,
     });
   }
+  if (householdHour === undefined || teamHour === undefined || fieldHour === undefined) return <p role="status" className="p-5">Loading current rental rates. If rates do not appear, refresh or contact Front Office.</p>;
   return (
     <section className="mx-auto max-w-3xl px-5 py-8" data-booking-ready={complete}>
       <form id="cage-booking-form" onSubmit={onSubmit} className="grid min-w-0 gap-8">
