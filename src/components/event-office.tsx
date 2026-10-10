@@ -81,7 +81,7 @@ export function EventOffice() {
                 registrations · capacity {e.capacity} per day
               </p>
               <Button
-                variant="outline"
+                variant="outlineDark"
                 onClick={() => {
                   setEdit(structuredClone(e));
                   setError("");
@@ -113,7 +113,7 @@ export function EventOffice() {
       {edit && (
         <form
           key={edit.id}
-          className="grid gap-4 rounded-xl border bg-white p-4"
+          className="grid min-w-0 gap-4 rounded-xl border bg-white p-4"
           onSubmit={async (e) => {
             e.preventDefault();
             setBusy(true);
@@ -254,7 +254,7 @@ export function EventOffice() {
             $125 for the full camp or $50 per day. Include processing costs in your prices. Existing
             paid registrations keep their purchased dates and price.
           </p>
-          <fieldset className="grid gap-3">
+          <fieldset className="grid min-w-0 gap-3">
             <legend className="font-semibold">Camp days & times · Central Time</legend>
             <p>
               Add a separate date for each camp day—for example Monday, Wednesday and Friday. Each
@@ -263,7 +263,7 @@ export function EventOffice() {
             {edit.sessions.length > 1 && (
               <Button
                 type="button"
-                variant="outline"
+                variant="outlineDark"
                 onClick={() =>
                   update({
                     sessions: edit.sessions.map((s) => ({
@@ -280,10 +280,10 @@ export function EventOffice() {
             {edit.sessions.map((s, i) => (
               <div className="grid min-w-0 gap-3 rounded-lg border p-3 sm:grid-cols-3" key={i}>
                 {(["date", "start", "end"] as const).map((k) => (
-                  <label key={k}>
+                  <label key={k} className="block min-w-0">
                     {k === "date" ? `Day ${i + 1} date` : k === "start" ? "Start time" : "End time"}
                     <input
-                      className={control}
+                      className={control + " block appearance-none"}
                       type={k === "date" ? "date" : "time"}
                       step={k === "date" ? undefined : 300}
                       required
@@ -301,7 +301,7 @@ export function EventOffice() {
                 {edit.sessions.length > 1 && (
                   <Button
                     type="button"
-                    variant="outline"
+                    variant="outlineDark"
                     onClick={() => update({ sessions: edit.sessions.filter((_, j) => j !== i) })}
                   >
                     Remove day
@@ -311,7 +311,8 @@ export function EventOffice() {
             ))}
             <Button
               type="button"
-              variant="outline"
+              variant="maroon"
+              className="w-full"
               disabled={edit.sessions.length >= 30}
               onClick={() =>
                 update({
@@ -391,7 +392,7 @@ export function EventOffice() {
             <Button type="submit" disabled={busy}>
               {busy ? "Saving…" : "Save event"}
             </Button>
-            <Button type="button" variant="outline" onClick={() => setEdit(undefined)}>
+            <Button type="button" variant="outlineDark" onClick={() => setEdit(undefined)}>
               Close editor
             </Button>
           </div>
