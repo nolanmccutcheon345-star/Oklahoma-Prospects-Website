@@ -10,6 +10,12 @@ export async function withCommerceRecords(sql: Sql, data: DevelopmentData): Prom
     sql<{id:string;athlete_id:string;coach_id:string;product_id:string;starts_at:Date;status:string;total_cents:number}>`select b.id,b.athlete_id,b.coach_id,b.product_id,b.starts_at,b.status,coalesce(o.total_cents,0) as total_cents from booking_records b left join commerce_orders o on o.id=b.order_id where b.athlete_id is not null`,
     sql<{athlete_id:string;remaining:number}>`select athlete_id,sum(remaining)::integer as remaining from credit_grants where kind='lesson' and expires_at>now() and starts_at<=now() group by athlete_id`,
   ]);
+  const catalog = await sql<{id:string;kind:string;name:string;price:number;minutes:number;credits:number;detail:string}>`select id,kind,name,price,minutes,credits,detail from club_services where active=true`;
+  data = {...data,
+    services:catalog.filter(r=>r.kind==="lesson").map(r=>({...r,price:Number(r.price)})),
+    packages:catalog.filter(r=>r.kind==="package").map(r=>({...r,price:Number(r.price)})),
+    memberships:catalog.filter(r=>r.kind==="membership").map(r=>({...r,price:Number(r.price)})),
+  };
   const assessmentIds = await loadVerifiedAssessmentIds(sql);
   const families = data.families.map(f=>({...f,athleteIds:[...f.athleteIds]}));
   const all = data.athletes.map(a=>({...a,coachIds:[...a.coachIds]}));

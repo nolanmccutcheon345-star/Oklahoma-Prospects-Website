@@ -12,9 +12,9 @@ export function useLiveCatalog(): PublicCatalog {
   const [availability, setAvailability] = useState<PublicCatalog["purchaseAvailability"]>();
   useEffect(() => {
     void getPurchaseAvailability().then(setAvailability).catch(() => setAvailability({ ready: true, scope: "disabled" }));
-    getServices()
-      .then(setRows)
-      .catch(() => setRows([]));
+    const refresh = () => { void getServices().then(setRows).catch(() => setRows([])); };
+    refresh(); window.addEventListener("focus", refresh);
+    return () => window.removeEventListener("focus", refresh);
   }, []);
   return useMemo(() => ({ ...buildPublicCatalog(rows), purchaseAvailability: availability }), [rows, availability]);
 }

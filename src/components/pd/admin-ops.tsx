@@ -10,6 +10,7 @@ import {
   deleteAccount,
   deleteStaff,
   getServices,
+  getAdminServices,
   listAccounts,
   listStaff,
   saveAccount,
@@ -145,7 +146,7 @@ export function AdminServicesDesk() {
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   async function refresh() {
-    setRows(await getServices());
+    setRows(await getAdminServices());
     setLoaded(true);
   }
   useEffect(() => {
@@ -178,9 +179,7 @@ export function AdminServicesDesk() {
         <div>
           <h3 className="text-2xl">Services & Pricing</h3>
           <p className="mt-2 text-sm">
-            Published services use the approved price schedule shown here. New service IDs remain
-            drafts until added to that schedule; changing a draft price does not change a published
-            charge.
+            Save names and final customer prices here. Active services appear across the site and checkout. Changes apply to new purchases; existing paid bookings and subscriptions retain their agreed prices.
           </p>
           <p className="mt-1 text-sm text-muted">
             Lessons, packages, memberships, cages. Changes show on Train, Book, and Pay.

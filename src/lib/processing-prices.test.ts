@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { PRICES, NET_PRICES, FIRST_MONTH_SETUP_CENTS, ASSESSMENT_CUSTOMER_CENTS } from "./pricing";
+import { PRICES, NET_PRICES, ASSESSMENT_CUSTOMER_CENTS } from "./pricing";
 import { processingInclusiveCents } from "./processing-prices.js";
 import { buildPublicCatalog } from "./ops";
 import { quoteCages } from "./pay";
@@ -14,7 +14,6 @@ test("posted products retain processing budgets except owner-approved assessment
     assert.equal(price, 14900, id);
   } else assert.ok(netAfterBudget(price/units)>=base/units,id);
  }
- assert.equal(FIRST_MONTH_SETUP_CENTS,5000); // exact customer premium takes precedence over gross-up
  assert.equal(processingInclusiveCents(0),0);
 });
 test("rental displays and totals retain cents for minimum and combined purchases",()=>{

@@ -334,7 +334,7 @@ export const FAQ = [
   },
   {
     q: "What does a cage hour cost?",
-    a: `One household cage hour is ${formatMoney(PRICES.individual)}. A monthly cage pass brings the hour down — All-Star is ${formatMoney(Math.round(PRICES["all-star"] / 4))} per included hour. All households may book up to 14 days ahead.`,
+    a: "See Book for current hourly rates and Memberships for current cage passes. All households may book up to 14 days ahead.",
   },
   {
     q: "Are you open during the day?",
@@ -350,7 +350,7 @@ export const FAQ = [
   },
   {
     q: "I’m new. Where do I start?",
-    a: `Want reps today? Book a cage. Want coaching? Start with an assessment — pitching 75 min / ${formatMoney(PRICES.s1)}, hitting 60 min / ${formatMoney(PRICES.s9)}. Private hours are ${formatMoney(PRICES.s3)} after that. Ordinary lessons and packages unlock after your coach completes your assessment. Monthly coaching is four sessions a month from ${formatMoney(PRICES.m1)}.`,
+    a: "Book a cage for independent practice. For coaching, start with an assessment or choose a youth lesson for players 11U and under; youth lessons do not require an assessment. See Train for current lesson and monthly-plan prices.",
   },
   {
     q: "What if I need to cancel?",

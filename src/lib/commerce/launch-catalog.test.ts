@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import type {SquareClient} from 'square';
 import type {Sql} from '../db';
 import {PRICES} from '../pricing';
+import {MONTHLY_PLANS} from "./square-plans.server";
 import {prepareLaunchCatalog} from './launch-catalog.server';
 import {resolveSquareConfig,type SquareSettings} from './square-config';
 
@@ -20,17 +21,17 @@ test('owner launch opens full catalog only with isolated valid production creden
 test('launch reads webhook identity and events without changing billing infrastructure, then validates each monthly price',async()=>{
   const c={environment:'production',checkoutScope:'all',applicationId:'app',locationId:'location',merchantId:'merchant',token:'offline',signatureKey:'signature',webhookUrl:'https://site.example/api/square/webhook',origin:'https://site.example'} as SquareSettings;
   let events=['payment.updated','refund.updated','subscription.updated','invoice.payment_made','invoice.scheduled_charge_failed','dispute.created','card.automatically_updated','existing.event'],updates=0,reads=0,signature='signature';
-  const sql=(async()=>[]) as unknown as Sql;
+  const sql=(async(parts:TemplateStringsArray)=>parts.join("").includes("select id,name,price")?MONTHLY_PLANS.map(p=>({...p,price:PRICES[p.id]/100})):[]) as unknown as Sql;
   const client={webhooks:{subscriptions:{list:async function*(){yield {id:'hook',notificationUrl:c.webhookUrl};},get:async()=>({subscription:{enabled:true,signatureKey:signature,notificationUrl:c.webhookUrl,eventTypes:events}}),update:async({subscription}:{subscription:{eventTypes:string[]}})=>{updates++;events=subscription.eventTypes;}}},
     locations:{get:async()=>({location:{merchantId:'merchant',status:'ACTIVE',currency:'USD',timezone:'America/Chicago',capabilities:['CREDIT_CARD_PROCESSING']}})},
     catalog:{object:{get:async({objectId}:{objectId:string})=>{reads++;return {object:{type:'SUBSCRIPTION_PLAN_VARIATION',subscriptionPlanVariationData:{phases:[{cadence:'MONTHLY',pricing:{type:'STATIC',priceMoney:{currency:'USD',amount:BigInt(PRICES[objectId as keyof typeof PRICES])}}}]}}};}}}} as unknown as SquareClient;
   const result=await prepareLaunchCatalog(sql,client,c,id=>id);
-  assert.equal(result.filter(r=>r.ready).length,8);assert.equal(updates,0);assert.equal(reads,8);
+  assert.equal(result.filter(r=>r.ready).length,8);assert.equal(updates,0);assert.equal(reads,16);
   assert.ok(events.includes('existing.event'));assert.ok(events.includes('subscription.updated'));assert.ok(events.includes('invoice.payment_made'));
   await prepareLaunchCatalog(sql,client,c,id=>id);assert.equal(updates,0);
   signature='wrong';await assert.rejects(prepareLaunchCatalog(sql,client,c,id=>id),/do not match/);
-  assert.equal(updates,0);assert.equal(reads,16);
+  assert.equal(updates,0);assert.equal(reads,32);
   signature='signature';events=['payment.updated','refund.updated'];
   await assert.rejects(prepareLaunchCatalog(sql,client,c,id=>id),/missing required events/);
-  assert.equal(updates,0);assert.equal(reads,16);
+  assert.equal(updates,0);assert.equal(reads,32);
 });

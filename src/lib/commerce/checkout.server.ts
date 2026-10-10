@@ -42,7 +42,7 @@ export async function checkoutContext(verifiedUserId?: string) {
   const sql = await getSql();
   const file = session ? (await loadDeskForUser(session.id)).data : await readWorkingFile();
   const products =
-    await sql<Product>`select id,kind,name,price,minutes,credits,remote,expires_days,hours,discipline,active from club_services where active = true`;
+    await sql<Product>`select id,kind,name,price,minutes,credits,remote,expires_days,hours,discipline,active from club_services where active = true or id = 'assessment-setup'`;
   // A failed status lookup is an empty set: every athlete is not assessed.
   const done = session ? await householdAssessmentIds(sql, me!.billingHouseholdIds) : new Set<string>();
   // Parent-scoped desk data omits staff schedules; use the full file only on the server.
@@ -78,7 +78,7 @@ export async function quoteForRequest(
   const me = await clubIdentity(session.id);
   const sql = await getSql();
   const products = approvedProducts(
-    await sql<Product>`select id,kind,name,price,minutes,credits,remote,expires_days,hours,discipline,active from club_services where active = true`,
+    await sql<Product>`select id,kind,name,price,minutes,credits,remote,expires_days,hours,discipline,active from club_services where active = true or id = 'assessment-setup'`,
   );
   const product = products.find((p) => p.id === input.productId);
   if (!product) throw new Error("This product is unavailable.");
@@ -97,6 +97,7 @@ export async function quoteForRequest(
       productId: input.productId,
       billingHouseholdIds: me.billingHouseholdIds,
       role: me.role,
+      date: input.date,
     });
     athleteId = gate.athleteId;
     completed = gate.assessed;
@@ -109,7 +110,7 @@ export async function quoteForRequest(
     input,
     product,
     completed,
-    products.filter((p) => p.kind === "cage"),
+    products,
     requireConsent,
   );
   const quote = await quoteWithDiscount(sql, baseQuote, input.discountCode);
@@ -174,7 +175,8 @@ export async function beginCheckout(input: CheckoutInput, verifiedUserId?: strin
   assertSquareCheckoutScope(config, quote);
   if (quote.recurring) {
     const { validateSquarePlan } = await import("./square-payments.server");
-    await validateSquarePlan(await planVariation(quote.productId), quote.regularCents);
+    quote.squarePlanVariationId = await planVariation(quote.productId);
+    await validateSquarePlan(quote.squarePlanVariationId, quote.regularCents);
   }
   const sql = await getSql();
   const fingerprint = JSON.stringify({

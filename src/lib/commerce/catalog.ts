@@ -1,19 +1,9 @@
-import { PRICES } from "../pricing";
 import type { Product } from "./contracts";
 export const CATALOG_VERSION = "2026-09-29-exact-assessment-premium";
-/** Availability is operational; approved amounts cannot be overwritten by a browser or dollar-valued desk row. */
+/** Only server-loaded, active catalog amounts are authoritative. */
 export function approvedProducts(rows: Product[]): Product[] {
-  return rows
-    .filter((p) => p.id in PRICES)
-    .map((p) => ({
-      ...p,
-      price: PRICES[p.id as keyof typeof PRICES] / 100,
-      ...(p.id === "m3" ? { remote: 1 } : {}),
-    }));
-}
-export function approvedCents(id: string) {
-  if (!(id in PRICES)) throw new Error("Product is not in the approved catalog.");
-  return PRICES[id as keyof typeof PRICES];
+  return rows.filter(p => (p.active || p.id === "assessment-setup") && Number.isFinite(Number(p.price)) && Number(p.price) >= 0)
+    .map(p => ({ ...p, price: Number(p.price) }));
 }
 export function addCalendarMonth(value: Date) {
   const next = new Date(value);

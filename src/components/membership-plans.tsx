@@ -1,3 +1,4 @@
+import {formatDollars} from "@/lib/pricing";
 import { canPurchase } from "@/lib/purchase-availability";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -29,7 +30,7 @@ export function MembershipPlans({
             ) : null}
             <h3 className="mt-1 text-2xl text-powder">{plan.name}</h3>
             <p className="mt-1 font-display text-4xl font-extrabold">
-              ${plan.price}
+              {formatDollars(plan.price)}
               <span className="ml-1 font-sans text-sm font-medium text-fg-soft">
                 {plan.period}
               </span>
@@ -44,7 +45,7 @@ export function MembershipPlans({
             </ul>
             {canPurchase(purchaseAvailability, "cage-plan", plan.id)
               ? <Button asChild className="mt-4 w-full" variant={plan.featured ? "primary" : "outline"}>
-                  <Link to="/pay" search={{ kind: "cage-plan", id: plan.id }}>Start {plan.name} · ${plan.price}</Link>
+                  <Link to="/pay" search={{ kind: "cage-plan", id: plan.id }}>Start {plan.name} · {formatDollars(plan.price)}</Link>
                 </Button>
               : <Button disabled className="mt-4 w-full" variant={plan.featured ? "primary" : "outline"}>
                   {purchaseAvailability ? "Checkout unavailable" : "Loading checkout…"}

@@ -48,6 +48,7 @@ export type Quote = {
   setupCents: number;
   recurring: boolean;
   initialBookingUsesCredit?: boolean;
+  squarePlanVariationId?: string;
   assessment: boolean;
   duration: number;
   sessionMinutes: number;
@@ -79,7 +80,10 @@ export function calculateQuote(
     !(product.id === "s6" && input.kind === "lesson")
   )
     throw new Error("Product type does not match.");
-  const rule = eligibility(input.kind, product.id, completed);
+  const assessmentFirst = !completed && input.kind === "membership" && ["m1","m2","m3"].includes(product.id);
+  const fee = cages.find(p => p.id === "assessment-setup");
+  if (assessmentFirst && !fee) throw new Error("The first-month assessment fee is unavailable. Contact Front Office.");
+  const rule = eligibility(input.kind, product.id, completed, fee?.active ? Math.round(fee.price * 100) : 0);
   if (rule.locked) throw new Error(ASSESSMENT_LOCK_MESSAGE);
   const recurring =
     input.kind === "membership" || input.kind === "cage-plan" || product.id === "s6";
@@ -94,7 +98,7 @@ export function calculateQuote(
     setupCents: rule.setupCents,
     recurring,
     initialBookingUsesCredit: input.kind === "membership" && product.credits > 0,
-    assessment: rule.assessment || rule.setupCents > 0,
+    assessment: rule.assessment || assessmentFirst,
     duration: product.minutes,
     sessionMinutes: product.minutes,
     credits: product.credits,
@@ -110,9 +114,9 @@ export function calculateQuote(
       (input.kind === "lesson" && product.id !== "s5") ||
       input.kind === "membership",
   };
-  if (rule.setupCents) {
+  if (assessmentFirst) {
     quote.duration = product.discipline === "Hitting" ? 60 : 75;
-    quote.lines.push({ label: "First-month fee (no assessment on file)", cents: rule.setupCents });
+    quote.lines.push({ label: fee!.name, cents: rule.setupCents });
   }
   if (input.kind === "membership" && product.id === "m5" && completed) quote.needsSlot = false;
   if (input.kind === "cage-plan" && (!input.household || input.athleteCount > 2))

@@ -2,7 +2,7 @@ import {getPublicPeople} from "@/lib/person-api";
 import type {PublicPerson} from "@/lib/person-contracts";
 import { CLUB } from "@/lib/club";
 import { canPurchase } from "@/lib/purchase-availability";
-import { ASSESSMENT_PRODUCTS, formatDollars } from "@/lib/pricing";
+import { ASSESSMENT_PRODUCTS, YOUTH_PRODUCTS, formatDollars } from "@/lib/pricing";
 import {pageHead} from "@/lib/seo";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useState, useSyncExternalStore } from "react";
@@ -124,7 +124,7 @@ function CatalogAndBook({view,instructor}:{view:"lessons"|"plans";instructor?:st
         <article className="rounded-2xl bg-paper-2 p-5 shadow-border">
           <h2 className="text-2xl">Ready for consistent training?</h2>
           <p className="mt-2 text-muted">Compare monthly plans for coaching, development priorities, and progress tracking.</p>
-          <p className="mt-3 text-sm text-muted">Eligible in-person plans include your assessment as the first session. Without a completed assessment, a one-time $50 fee is added to the first month.</p>
+          <p className="mt-3 text-sm text-muted">Eligible in-person plans include your assessment as the first session. Without a completed assessment, a one-time {formatDollars(catalog.setupFee)} fee is added to the first month.</p>
           <Button asChild variant="maroon" className="mt-4"><a href="/training?view=plans#memberships">Compare Monthly Plans</a></Button>
         </article>
       </section>
@@ -138,7 +138,7 @@ function CatalogAndBook({view,instructor}:{view:"lessons"|"plans";instructor?:st
 
       <section id="assessments" aria-label="Player assessments" className="mt-8 scroll-mt-40 rounded-2xl bg-ink p-5 text-fg-inverse">
         <h2 className="text-2xl">Your first step: a player assessment</h2>
-        <p className="mt-2 text-fg-soft">Your coach evaluates your current skills and recommends your next steps. Complete an assessment before booking private lessons, or join an eligible monthly plan with the assessment included as your first session.</p>
+        <p className="mt-2 text-fg-soft">Your coach evaluates your current skills and recommends your next steps. Youth lessons for 11U and under are available without an assessment. For other private lessons, complete an assessment, or join an eligible monthly plan with the assessment included as your first session.</p>
         <div className="mt-4 flex flex-wrap gap-3">
           {lessons.filter(item => ASSESSMENT_PRODUCTS.has(item.id)).map(item =>
             canPurchase(catalog.purchaseAvailability, "lesson", item.id)
@@ -151,7 +151,7 @@ function CatalogAndBook({view,instructor}:{view:"lessons"|"plans";instructor?:st
 
       <section id="lessons" className="mt-10 scroll-mt-40" aria-label="Lesson booking">
         <h2 className="text-3xl">Choose your lesson</h2>
-        <p className="mt-2 mb-5 text-sm text-muted">Explore a discipline, then choose your next session. Private lessons require a completed player assessment.</p>
+        <p className="mt-2 mb-5 text-sm text-muted">Explore a discipline, then choose your next session. Youth lessons for 11U and under do not require an assessment. Other private lessons require a completed player assessment.</p>
         <div role="tablist" aria-label="Lesson disciplines" className="mb-5 grid grid-cols-2 gap-2 sm:grid-cols-4">
           {availableGroups.map(group => <button key={group} type="button" role="tab" id={`tab-${group.toLowerCase()}`} aria-selected={activeGroup === group} aria-controls={`lesson-${group.toLowerCase()}`} tabIndex={activeGroup === group ? 0 : -1}
             className={`min-h-12 rounded-lg border px-3 py-2 font-semibold ${activeGroup === group ? "border-maroon bg-maroon text-fg-inverse" : "border-line bg-paper-2"}`}
@@ -167,7 +167,7 @@ function CatalogAndBook({view,instructor}:{view:"lessons"|"plans";instructor?:st
           <h3 className="text-2xl">{group}</h3>
           <div className="mt-4 grid gap-3 sm:grid-cols-2">
             {lessons.filter(item => item.discipline === group && !item.group).map(item => <ServiceCard key={item.id} item={item} instructor={instructor}
-              locked={!hasAssessment && !ASSESSMENT_PRODUCTS.has(item.id)}
+              locked={!hasAssessment && !ASSESSMENT_PRODUCTS.has(item.id) && !YOUTH_PRODUCTS.has(item.id)}
               ready={canPurchase(catalog.purchaseAvailability, "lesson", item.id)}
               athleteSelected={Boolean(user && selectedAthlete)} />)}
           </div>
@@ -182,8 +182,8 @@ function CatalogAndBook({view,instructor}:{view:"lessons"|"plans";instructor?:st
           {hasAssessment ? <p className="mt-3">Assessment completed. Choose View Available Times on a lesson to pick a coach and session time.</p> : null}
         </div>
         <section id="youth-lessons" className="mt-6 rounded-xl bg-paper-2 p-5">
-          <h3 className="text-xl">Youth lessons · ages 10 and under</h3>
-          <p className="mt-2 text-sm text-muted">Young athletes start with a New Player Assessment. After completion, select an age-appropriate service to see which coaches and session times are available.</p>
+          <h3 className="text-xl">Youth lessons · 11U and under</h3>
+          <p className="mt-2 text-sm text-muted">For players age 11 or younger on the lesson date. No new player assessment is required. Choose a youth service above to see assigned instructors and available times.</p>
         </section>
       </section>
 
@@ -198,7 +198,7 @@ function CatalogAndBook({view,instructor}:{view:"lessons"|"plans";instructor?:st
             <h3 className="text-2xl">{group.name}</h3>
             <p className="mt-2 text-sm text-muted">{group.copy}</p>
             <div className={`mt-4 grid gap-4 ${group.id === "in-person" ? "lg:grid-cols-3" : "sm:grid-cols-2"}`}>
-              {plans.map(plan => <TrainingPlanCard key={plan.id} plan={plan} hasAssessment={hasAssessment} availability={catalog.purchaseAvailability} />)}
+              {plans.map(plan => <TrainingPlanCard key={plan.id} plan={plan} hasAssessment={hasAssessment} availability={catalog.purchaseAvailability} setupFee={catalog.setupFee} />)}
             </div>
           </section> : null;
         })}
@@ -246,12 +246,12 @@ type Availability = ReturnType<typeof useLiveCatalog>["purchaseAvailability"];
 const groupPlan = (plan: TrainingPlan) => plan.id === "m4" || plan.tier === "group";
 const remotePlan = (plan: TrainingPlan) => plan.id === "m5" || plan.tier === "remote" || (plan.lessons === 0 && plan.remote > 0);
 const planGroups = [
-  {id:"in-person",name:"In-Person Training",copy:"Four coached sessions each month. Eligible plans include an assessment-first option with a one-time $50 first-month fee when no completed assessment is on file.",matches:(p:TrainingPlan)=>!groupPlan(p)&&!remotePlan(p)},
+  {id:"in-person",name:"In-Person Training",copy:"Four coached sessions each month. Eligible plans include an assessment-first option with the current first-month assessment fee when no completed assessment is on file.",matches:(p:TrainingPlan)=>!groupPlan(p)&&!remotePlan(p)},
   {id:"group",name:"Small-Group Training",copy:"Train with comparable pitchers in scheduled groups. Enrollment requires a published group schedule.",matches:groupPlan},
   {id:"remote",name:"Remote Coaching",copy:"Programming and video feedback for training remotely. A completed assessment is required before enrollment.",matches:(p:TrainingPlan)=>!groupPlan(p)&&remotePlan(p)},
 ];
 
-function TrainingPlanCard({plan,hasAssessment,availability}:{plan:TrainingPlan;hasAssessment:boolean;availability:Availability}) {
+function TrainingPlanCard({plan,hasAssessment,availability,setupFee}:{plan:TrainingPlan;hasAssessment:boolean;availability:Availability;setupFee:number}) {
   const featured = plan.id === "m2" || plan.tier === "performance";
   const assessmentFirst = ["m1","m2","m3"].includes(plan.id);
   const ready = canPurchase(availability,"membership",plan.id);
@@ -263,7 +263,7 @@ function TrainingPlanCard({plan,hasAssessment,availability}:{plan:TrainingPlan;h
     <p className={`mt-2 text-sm ${featured ? "text-fg-soft" : "text-muted"}`}>{audience}</p>
     <p className="mt-3 pd-num font-display text-3xl">{formatDollars(plan.price)}<span className="ml-1 font-sans text-base font-medium opacity-80">/mo</span></p>
     <p className="mt-2 text-sm font-semibold">{plan.lessons > 0 ? `${plan.lessons} ${groupPlan(plan) ? "group " : "coached "}sessions/month · ${plan.minutes} minutes each` : `${plan.remote} video reviews/month · remote programming`}</p>
-    {!hasAssessment && assessmentFirst && <p className="mt-3 text-sm" data-first-month-assessment={plan.id}>Without a completed assessment, first month: <strong>{formatDollars(plan.price + 50)}</strong>, including a one-time $50 assessment fee. Your first included session is the assessment; later months are {formatDollars(plan.price)}.</p>}
+    {!hasAssessment && assessmentFirst && <p className="mt-3 text-sm" data-first-month-assessment={plan.id}>Without a completed assessment, first month: <strong>{formatDollars(plan.price + setupFee)}</strong>, including a one-time {formatDollars(setupFee)} assessment fee. Your first included session is the assessment; later months are {formatDollars(plan.price)}.</p>}
     <ul className={`mt-3 grid gap-2 pl-4 text-sm list-disc ${featured ? "text-fg-soft" : "text-muted"}`}>{benefits.slice(0,3).map(line=><li key={line}>{line}</li>)}</ul>
     <details className="mt-3 text-sm">
       <summary className="flex min-h-11 cursor-pointer items-center font-semibold underline">Plan Details</summary>
@@ -283,6 +283,7 @@ function ServiceCard({item,locked,ready,athleteSelected,instructor}:{item:Lesson
   return <article className="flex min-w-0 flex-col rounded-xl bg-paper-2 p-4 shadow-border">
     <div className="flex items-start justify-between gap-3"><h4 className="font-display text-xl uppercase">{item.name}</h4><span className="shrink-0 pd-num font-display text-2xl">{formatDollars(item.price)}</span></div>
     <p className="mt-2 text-sm text-muted">{item.minutes} min · {item.purpose}</p>
+    {YOUTH_PRODUCTS.has(item.id) && <p className="mt-3 text-sm font-semibold">11U & under · No assessment required</p>}
     {locked && <p className="mt-3 text-sm font-semibold">Assessment required before booking.</p>}
     <div className="mt-auto pt-4">
       {locked ? <Button asChild variant="outlineDark" className="w-full"><a href="#assessments">Book an Assessment</a></Button>

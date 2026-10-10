@@ -57,10 +57,16 @@ export function configuredPlanVariation(productId: string) {
   return id;
 }
 let launchSetup: Promise<Awaited<ReturnType<typeof import('./launch-catalog.server').prepareLaunchCatalog>>> | undefined;
+let launchCatalogKey = "";
 export async function ensureOwnerLaunchCatalog() {
   const c = squareConfig();
   if(c.environment!=='production'||process.env.SQUARE_OWNER_FULL_CATALOG_LAUNCH!=='true') return undefined;
-  if(!launchSetup) {
+  const {getSql}=await import('../db');
+  const sql=await getSql();
+  const plans=await sql`select id,name,price,active from club_services where kind in ('membership','cage_plan') order by id`;
+  const key=JSON.stringify(plans);
+  if(!launchSetup || key!==launchCatalogKey) {
+    launchCatalogKey=key;
     launchSetup=(async()=>{
       const {getSql}=await import('../db');
       const {prepareLaunchCatalog}=await import('./launch-catalog.server');
@@ -74,8 +80,7 @@ export async function planVariation(productId: string) {
   const { getSql } = await import("../db");
   const { savedPlan } = await import("./square-plans.server");
   const id =
-    configuredPlanVariation(productId) ||
-    (await savedPlan(await getSql(), squareConfig(), productId));
+    (await savedPlan(await getSql(), squareConfig(), productId)) || configuredPlanVariation(productId);
   if (!id)
     throw new Error("This monthly plan is not ready for enrollment. No payment has been taken.");
   return id;

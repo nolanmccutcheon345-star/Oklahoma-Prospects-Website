@@ -9,7 +9,7 @@ const count = z.number().int().min(0).max(10000);
 const lines = z.array(z.string().trim().max(500)).max(50);
 
 export const serviceInput = z.object({
-  id: optionalId, kind: z.enum(["lesson", "package", "membership", "cage", "cage_plan"]),
+  id: optionalId, kind: z.enum(["lesson", "package", "membership", "cage", "cage_plan", "fee", "team_plan"]),
   name: z.string().trim().min(1).max(120), discipline: text,
   price: z.number().finite().min(0).max(100000).multipleOf(0.01), minutes: count,
   purpose: text, entry: z.boolean(), group_session: z.boolean(), requires_assessment: z.boolean(),
