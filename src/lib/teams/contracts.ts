@@ -23,7 +23,7 @@ const player=z.object({
  rsvp:z.record(id,z.enum(['going','maybe','cant',''])),
 }).strict();
 const team=z.object({
- id,name:short,sport:z.enum(['baseball','softball']),age:short,level:short,seasonLabel:short,seasons:z.array(short).max(12).optional(),seasonStart:short,seasonEnd:short,months:count,headCoach:short,coachEmail:short,headCoachBio:z.string().max(2000).optional(),headCoachPhoto:photo.optional(),staff:z.array(staff).max(100),
+ id,name:short,sport:z.enum(['baseball','softball']),age:short,level:short,seasonLabel:short,seasons:z.array(short).max(12).optional(),seasonStart:short,seasonEnd:short,months:z.number().finite().min(0).max(36),headCoach:short,coachEmail:short,headCoachBio:z.string().max(2000).optional(),headCoachPhoto:photo.optional(),staff:z.array(staff).max(100),
  uniformPackageId:id,uniformDeadline:short,orgFee:money,coachMonthly:money,eventBudget:money,tournamentIds:strings,
  otherCosts:z.object({insurance:money,balls:money,fields:money,admin:money,travel:money}).strict(),teamCageHoursPerWeek:money,playerCageHoursPerWeek:money,
  record:z.object({w:count,l:count,t:count}).strict(),roster:z.array(player).max(500),

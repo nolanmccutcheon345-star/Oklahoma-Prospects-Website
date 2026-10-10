@@ -54,7 +54,7 @@ export function OfficeApp({
           <h2 id="team-coach-assignments-title" className="text-2xl font-bold text-ink">Teams & coaches administration</h2>
           <p className="my-3 text-sm text-muted">Create baseball or softball teams, build coach profiles, and assign head or assistant coaches to teams.</p>
           <RosterTools club={club} onChange={onChange} onSave={onSave} />
-          <CoachManagement club={club} onChange={onChange} onSave={onSave} />
+          <CoachManagement club={club} onSave={onSave} />
         </section>
       ) : (
       <>
@@ -178,9 +178,8 @@ export function OfficeApp({
   );
 }
 
-function CoachManagement({ club, onChange, onSave }: {
+function CoachManagement({ club, onSave }: {
   club: ClubRecord;
-  onChange: (club: ClubRecord) => void;
   onSave: (next?: ClubRecord) => Promise<boolean>;
 }) {
   const [name, setName] = useState("");
@@ -204,7 +203,7 @@ function CoachManagement({ club, onChange, onSave }: {
   async function updateTeam(id: string, update: (team: ClubRecord["teams"][number]) => ClubRecord["teams"][number]) {
     if (saving) return;
     const next = { ...club, teams: club.teams.map(t => t.id === id ? update(t) : t) };
-    onChange(next);
+    // Only the confirmed server response updates the selected coach and profile editor.
     setSaving(true);
     setMessage("Saving coach assignment…");
     try {
