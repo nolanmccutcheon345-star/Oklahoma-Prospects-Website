@@ -112,6 +112,8 @@ test("team fee UI saves admin drafts and offers only permitted coach controls", 
     await act(async () => root.render(createElement(TeamFeeWorkspace)));
     assert.match(host.textContent, /2 players have overdue team payments/);
     assert.match(host.textContent, /Nightly hotel stipend/);
+    assert.match(host.textContent, /Fee Composition/);
+    assert.match(host.textContent, /Projected business contribution per player/);
     const masterSelect = [...host.querySelectorAll("select")].find((s) =>
       s.parentElement.textContent.includes("Matrix row"),
     );

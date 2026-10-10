@@ -463,7 +463,7 @@ function RosterTools({
               placeholder="Parent email — used to open their family desk"
               className="min-h-11 rounded-md border border-line px-3"
             />
-            <RosterRoleSelect/>
+            <RosterRoleSelect teamId={teamId}/>
             <Button type="submit" disabled={busy || !teamId}>
               Add player and link family
             </Button>

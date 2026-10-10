@@ -1,3 +1,4 @@
+import { serviceMonths } from "./season-months";
 import { project, scheduleRows, type FeeBudget } from "./fee-model";
 export const offersPO = (b: FeeBudget, sport: string) => b.poEnabled ?? sport === "baseball";
 export function pendingGas(b: FeeBudget): FeeBudget {
@@ -52,6 +53,11 @@ export function feeHealth(
   if (b.secondDue && (b.secondDue > finalDue || (today && b.secondDue < today)))
     pending.push("Review the second payment date override.");
   if (!b.start || !b.end || b.end < b.start) pending.push("Set valid season dates.");
+  const duration = serviceMonths(b.start, b.end);
+  if (duration !== null && Math.abs(duration - b.months) > 0.15)
+    pending.push(
+      `Service dates cover approximately ${duration} months, but the budget bills ${b.months}. Correct the dates or billable months before publishing.`,
+    );
   const named = ["winter", "spring", "summer", "fall"].filter((s) =>
     seasonLabel.toLowerCase().includes(s),
   );

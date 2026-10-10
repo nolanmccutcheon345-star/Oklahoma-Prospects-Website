@@ -91,7 +91,10 @@ function credit(p: Player) {
   return Math.round(sum((p.credits || []).map((x) => x.amount)) * 100);
 }
 function playerView(t: Team, p: Player, plan: FeePlan) {
-  const offer = plan.published;
+  const offer =
+    p.roleType === "po" && !p.feeLock && !offersPO(plan.budget, t.sport)
+      ? undefined
+      : plan.published;
   const total = p.feeLock
     ? Math.round(p.feeLock.amount * 100)
     : offer
@@ -219,7 +222,8 @@ export async function feeWorkspace(sql: Sql, userId: string) {
           ...playerView(t, x, p),
           canAccept:
             guardian(x, me) &&
-            (x.roleType !== "po" || offersPO(p.publishedBudget || p.budget, t.sport)),
+            (x.roleType !== "po" ||
+              (offersPO(p.budget, t.sport) && offersPO(p.publishedBudget || p.budget, t.sport))),
         }));
       const events = club.catalog
         .filter((e) => t.tournamentIds.includes(e.id))
@@ -613,7 +617,10 @@ export async function mutateFeePlan(sql: Sql, userId: string, raw: z.infer<typeo
         throw Error(
           "An agreed fee already exists. Front Office must review amendments separately.",
         );
-      if (player.roleType === "po" && !offersPO(p.publishedBudget || p.budget, t.sport))
+      if (
+        player.roleType === "po" &&
+        !(offersPO(p.budget, t.sport) && offersPO(p.publishedBudget || p.budget, t.sport))
+      )
         throw Error("This team does not offer pitcher-only roster spots.");
       if (today() > p.published.finalDue)
         throw Error(

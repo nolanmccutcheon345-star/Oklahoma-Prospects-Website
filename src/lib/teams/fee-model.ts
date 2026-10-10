@@ -517,3 +517,28 @@ export function businessProjection(
     steve: distributable - nolan,
   };
 }
+
+export function feeComposition(b: FeeBudget, role: "full" | "po") {
+  const f = calculateFees(b),
+    po = role === "po";
+  const teamCosts = po ? f.poAllocation - f.poContingency : f.teamComponent + f.uniformComponent;
+  const contingency = po ? f.poContingency : f.contingencyComponent;
+  const membership = po ? f.poMember : f.member;
+  const organization = po ? b.poOrg : b.fullOrg;
+  const processing = po ? f.poProcessing : f.fullProcessing;
+  const adjustment = po ? f.poRounding : f.fullRounding;
+  const total = po ? f.po : f.full;
+  // Standard baseline allocation, not marginal contribution from extra roster spots.
+  const contribution =
+    total - f.allocation - processing - Math.round(b.serviceCostMonthly * b.months);
+  return {
+    teamCosts,
+    contingency,
+    membership,
+    organization,
+    processing,
+    adjustment,
+    total,
+    contribution,
+  };
+}

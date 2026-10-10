@@ -200,7 +200,23 @@ for (const role of ["full", "po"] as const)
         name: "Parent Person",
       };
       await assert.rejects(() => mutateFeePlan(sql, "stranger", accept), /guardian/);
+      if (role === "po") {
+        await sql`update team_fee_plans set payload=jsonb_set(payload,'{budget,poEnabled}','false') where team_id=${team.id}`;
+        const off = (await feeWorkspace(sql, "parent")).teams[0];
+        assert.equal(off.poEnabled, false);
+        assert.equal(off.players[0].canAccept, false);
+        assert.equal(off.players[0].total, 0);
+        await assert.rejects(() => mutateFeePlan(sql, "parent", accept), /does not offer pitcher-only/);
+        await sql`update team_fee_plans set payload=jsonb_set(payload,'{budget,poEnabled}','true') where team_id=${team.id}`;
+      }
       await mutateFeePlan(sql, "parent", accept);
+      if (role === "po") {
+        await sql`update team_fee_plans set payload=jsonb_set(payload,'{budget,poEnabled}','false') where team_id=${team.id}`;
+        const off = (await feeWorkspace(sql, "parent")).teams[0];
+        assert.ok(off.players[0].signed);
+        assert.ok(off.players[0].total > 0);
+        await sql`update team_fee_plans set payload=jsonb_set(payload,'{budget,poEnabled}','true') where team_id=${team.id}`;
+      }
       let [stored] = await sql<{
         payload: typeof club;
       }>`select payload from club_state where id='oklahoma-prospects'`;
