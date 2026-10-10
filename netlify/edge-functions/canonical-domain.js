@@ -13,5 +13,7 @@ export default function canonicalDomain(request) {
 export const config = {
   path: "/*",
   excludedPath: ["/api/*", "/.netlify/*"],
-  header: { host: "^(www\\.)?(prospectsbaseball|prospectssports)\\.club$" },
+  // Netlify's edge routing does not reliably expose Host as a matchable header.
+  // The handler checks the URL hostname; POSTs and callback paths bypass it.
+  method: ["GET", "HEAD"],
 };
