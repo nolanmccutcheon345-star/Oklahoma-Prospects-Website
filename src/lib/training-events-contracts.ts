@@ -15,7 +15,9 @@ export const trainingEventSchema = z
     type: z.enum(["camp", "clinic"]),
     sport: z.enum(["Baseball", "Softball", "Both"]),
     description: z.string().trim().min(10).max(5000),
-    priceCents: z.number().int().min(1).max(1000000),
+    priceCents: z.number().int().min(0).max(1000000),
+    pricingMode: z.enum(["package", "days", "both"]).optional(),
+    dayPriceCents: z.number().int().min(0).max(1000000).optional(),
     location: z.string().trim().min(3).max(300),
     sessions: z
       .array(z.object({ date, start: time, end: time }).strict())
@@ -28,6 +30,11 @@ export const trainingEventSchema = z
   })
   .strict()
   .superRefine((e, c) => {
+    const mode = e.pricingMode || "package";
+    if (mode !== "days" && e.priceCents < 1)
+      c.addIssue({ code: "custom", message: "Set the full-camp price." });
+    if (mode !== "package" && !e.dayPriceCents)
+      c.addIssue({ code: "custom", message: "Set the price per day." });
     const sorted = [...e.sessions].sort((a, b) =>
       (a.date + a.start).localeCompare(b.date + b.start),
     );
@@ -48,6 +55,49 @@ export const eventCheckoutSchema = z
     revision: z.number().int().positive(),
     requestId: z.string().uuid(),
     consent: z.literal(true),
+    option: z.enum(["package", "days"]).optional(),
+    dates: z.array(date).max(30).optional(),
   })
   .strict();
 export type EventCheckout = z.infer<typeof eventCheckoutSchema>;
+
+export function campPurchase(
+  event: TrainingEvent,
+  choice: { option?: "package" | "days"; dates?: string[] } = {},
+) {
+  const mode = event.pricingMode || "package",
+    option = choice.option || "package";
+  if ((mode === "package" && option !== "package") || (mode === "days" && option !== "days"))
+    throw Error("Choose an available camp pricing option.");
+  const allDates = [...new Set(event.sessions.map((s) => s.date))].sort();
+  const dates = option === "package" ? allDates : [...(choice.dates || [])].sort();
+  if (
+    !dates.length ||
+    new Set(dates).size !== dates.length ||
+    dates.some((d) => !allDates.includes(d))
+  )
+    throw Error("Select valid camp days, once each.");
+  if (
+    option === "package" &&
+    choice.dates?.length &&
+    JSON.stringify([...choice.dates].sort()) !== JSON.stringify(allDates)
+  )
+    throw Error("Full-camp registration includes every day.");
+  const sessions = event.sessions.filter((s) => dates.includes(s.date));
+  const totalCents =
+    option === "package" ? event.priceCents : (event.dayPriceCents || 0) * dates.length;
+  if (!Number.isSafeInteger(totalCents) || totalCents <= 0)
+    throw Error("Camp pricing is unavailable.");
+  return { option, dates, sessions, totalCents };
+}
+export function campPriceLabel(
+  e: Pick<TrainingEvent, "pricingMode" | "priceCents" | "dayPriceCents">,
+) {
+  const money = (c: number) =>
+    new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(c / 100);
+  return e.pricingMode === "days"
+    ? money(e.dayPriceCents || 0) + " per day"
+    : e.pricingMode === "both"
+      ? money(e.priceCents) + " full camp or " + money(e.dayPriceCents || 0) + " per day"
+      : money(e.priceCents) + " full camp";
+}

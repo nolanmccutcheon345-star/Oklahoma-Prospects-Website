@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { getEventOffice, saveEvent } from "@/lib/training-events-api";
-import type { TrainingEvent } from "@/lib/training-events-contracts";
+import { campPriceLabel, type TrainingEvent } from "@/lib/training-events-contracts";
 import { Button } from "./ui/button";
 import { formatMoney } from "@/lib/pricing";
 const control = "office-control min-w-0 w-full";
@@ -48,6 +48,8 @@ export function EventOffice() {
             sport: "Baseball",
             description: "",
             priceCents: 0,
+            pricingMode: "package",
+            dayPriceCents: 0,
             location: "",
             sessions: [{ date: "", start: "09:00", end: "12:00" }],
             coachIds: [],
@@ -68,7 +70,7 @@ export function EventOffice() {
             <article key={e.id} className="rounded-xl border bg-white p-4">
               <h3 className="text-xl">{e.name}</h3>
               <p>
-                {e.type} · {e.sport} · {e.status} · {formatMoney(e.priceCents)} per player
+                {e.type} · {e.sport} · {e.status} · {campPriceLabel(e)} per player
               </p>
               <p>
                 {e.sessions.map((s) => s.date).join(", ")} ·{" "}
@@ -76,7 +78,7 @@ export function EventOffice() {
                   data.registrations.filter((r) => r.event_id === e.id && r.status === "confirmed")
                     .length
                 }
-                /{e.capacity} registered
+                registrations · capacity {e.capacity} per day
               </p>
               <Button
                 variant="outline"
@@ -97,6 +99,9 @@ export function EventOffice() {
                       <strong>{r.player}</strong>
                       <p>
                         {r.email} · {r.status} · {formatMoney(r.total_cents)}
+                        <span className="block">
+                          Days: {r.sessions?.map((s) => s.date).join(", ")}
+                        </span>
                       </p>
                     </div>
                   ))}
@@ -183,22 +188,55 @@ export function EventOffice() {
               onChange={(e) => update({ location: e.target.value })}
             />
           </label>
+          <label>
+            Registration pricing
+            <select
+              className={control}
+              value={edit.pricingMode || "package"}
+              onChange={(e) =>
+                update({ pricingMode: e.target.value as TrainingEvent["pricingMode"] })
+              }
+            >
+              <option value="package">Full camp only</option>
+              <option value="days">Choose individual days only</option>
+              <option value="both">Full camp or individual days</option>
+            </select>
+          </label>
           <div className="grid gap-3 sm:grid-cols-2">
+            {(edit.pricingMode || "package") !== "days" && (
+              <label>
+                Full-camp price per player ($)
+                <input
+                  className={control}
+                  type="number"
+                  min="0.01"
+                  max="10000"
+                  step="0.01"
+                  required
+                  value={edit.priceCents / 100}
+                  onChange={(e) => update({ priceCents: Math.round(Number(e.target.value) * 100) })}
+                />
+              </label>
+            )}
+            {edit.pricingMode && edit.pricingMode !== "package" && (
+              <label>
+                Price per selected day per player ($)
+                <input
+                  className={control}
+                  type="number"
+                  min="0.01"
+                  max="10000"
+                  step="0.01"
+                  required
+                  value={(edit.dayPriceCents || 0) / 100}
+                  onChange={(e) =>
+                    update({ dayPriceCents: Math.round(Number(e.target.value) * 100) })
+                  }
+                />
+              </label>
+            )}
             <label>
-              Total price per player ($)
-              <input
-                className={control}
-                type="number"
-                min="0.01"
-                max="10000"
-                step="0.01"
-                required
-                value={edit.priceCents / 100}
-                onChange={(e) => update({ priceCents: Math.round(Number(e.target.value) * 100) })}
-              />
-            </label>
-            <label>
-              Player capacity
+              Player capacity per day
               <input
                 className={control}
                 type="number"
@@ -211,17 +249,39 @@ export function EventOffice() {
             </label>
           </div>
           <p className="text-sm">
-            This is the complete checkout price for all sessions. Include any processing costs in
-            this amount. Price changes apply to new checkouts; paid registrations retain their
-            price.
+            Full-camp pricing covers every listed day. Per-day pricing charges once for each
+            selected calendar date and includes all sessions that day. You can offer both, such as
+            $125 for the full camp or $50 per day. Include processing costs in your prices. Existing
+            paid registrations keep their purchased dates and price.
           </p>
           <fieldset className="grid gap-3">
-            <legend className="font-semibold">Sessions · Central Time</legend>
+            <legend className="font-semibold">Camp days & times · Central Time</legend>
+            <p>
+              Add a separate date for each camp day—for example Monday, Wednesday and Friday. Each
+              day can have its own times.
+            </p>
+            {edit.sessions.length > 1 && (
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() =>
+                  update({
+                    sessions: edit.sessions.map((s) => ({
+                      ...s,
+                      start: edit.sessions[0].start,
+                      end: edit.sessions[0].end,
+                    })),
+                  })
+                }
+              >
+                Copy first day’s times to all days
+              </Button>
+            )}
             {edit.sessions.map((s, i) => (
               <div className="grid min-w-0 gap-3 rounded-lg border p-3 sm:grid-cols-3" key={i}>
                 {(["date", "start", "end"] as const).map((k) => (
                   <label key={k}>
-                    {k === "date" ? "Date" : k === "start" ? "Start time" : "End time"}
+                    {k === "date" ? `Day ${i + 1} date` : k === "start" ? "Start time" : "End time"}
                     <input
                       className={control}
                       type={k === "date" ? "date" : "time"}
@@ -244,7 +304,7 @@ export function EventOffice() {
                     variant="outline"
                     onClick={() => update({ sessions: edit.sessions.filter((_, j) => j !== i) })}
                   >
-                    Remove session
+                    Remove day
                   </Button>
                 )}
               </div>
@@ -254,10 +314,19 @@ export function EventOffice() {
               variant="outline"
               disabled={edit.sessions.length >= 30}
               onClick={() =>
-                update({ sessions: [...edit.sessions, { date: "", start: "09:00", end: "12:00" }] })
+                update({
+                  sessions: [
+                    ...edit.sessions,
+                    {
+                      date: "",
+                      start: edit.sessions.at(-1)?.start || "09:00",
+                      end: edit.sessions.at(-1)?.end || "12:00",
+                    },
+                  ],
+                })
               }
             >
-              Add session date
+              Add another camp day
             </Button>
           </fieldset>
           <fieldset>
