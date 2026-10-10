@@ -35,6 +35,8 @@ import { Route as OfficePreviewRouteImport } from './routes/office-preview'
 import { Route as PaidRouteImport } from './routes/paid'
 import { Route as ParentsRouteImport } from './routes/parents'
 import { Route as PayRouteImport } from './routes/pay'
+import { Route as PlayerProfilesRouteImport } from './routes/player-profiles'
+import { Route as PlayersRouteImport } from './routes/players'
 import { Route as PrivacyRouteImport } from './routes/privacy'
 import { Route as RecruitingRouteImport } from './routes/recruiting'
 import { Route as RegistrationsRouteImport } from './routes/registrations'
@@ -56,6 +58,7 @@ import { Route as FundraisingMyRouteImport } from './routes/fundraising.my'
 import { Route as FundraisingOfficeRouteImport } from './routes/fundraising.office'
 import { Route as FundraisingThankYouRouteImport } from './routes/fundraising.thank-you'
 import { Route as GoDestRouteImport } from './routes/go.$dest'
+import { Route as PlayerPlayerIdRouteImport } from './routes/player.$playerId'
 import { Route as TeamsTeamIdRouteImport } from './routes/teams.$teamId'
 import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
 import { Route as ApiFundraisingCheckoutRouteImport } from './routes/api/fundraising/checkout'
@@ -202,6 +205,16 @@ const PayRoute = PayRouteImport.update({
   path: '/pay',
   getParentRoute: () => rootRouteImport,
 } as any)
+const PlayerProfilesRoute = PlayerProfilesRouteImport.update({
+  id: '/player-profiles',
+  path: '/player-profiles',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PlayersRoute = PlayersRouteImport.update({
+  id: '/players',
+  path: '/players',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const PrivacyRoute = PrivacyRouteImport.update({
   id: '/privacy',
   path: '/privacy',
@@ -305,6 +318,11 @@ const FundraisingThankYouRoute = FundraisingThankYouRouteImport.update({
 const GoDestRoute = GoDestRouteImport.update({
   id: '/go/$dest',
   path: '/go/$dest',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PlayerPlayerIdRoute = PlayerPlayerIdRouteImport.update({
+  id: '/player/$playerId',
+  path: '/player/$playerId',
   getParentRoute: () => rootRouteImport,
 } as any)
 const TeamsTeamIdRoute = TeamsTeamIdRouteImport.update({
@@ -411,6 +429,8 @@ export interface FileRoutesByFullPath {
   '/paid': typeof PaidRoute
   '/parents': typeof ParentsRoute
   '/pay': typeof PayRoute
+  '/player-profiles': typeof PlayerProfilesRoute
+  '/players': typeof PlayersRoute
   '/privacy': typeof PrivacyRoute
   '/recruiting': typeof RecruitingRoute
   '/registrations': typeof RegistrationsRoute
@@ -431,6 +451,7 @@ export interface FileRoutesByFullPath {
   '/fundraising/office': typeof FundraisingOfficeRoute
   '/fundraising/thank-you': typeof FundraisingThankYouRoute
   '/go/$dest': typeof GoDestRoute
+  '/player/$playerId': typeof PlayerPlayerIdRoute
   '/teams/$teamId': typeof TeamsTeamIdRouteWithChildren
   '/fundraising/': typeof FundraisingIndexRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
@@ -475,6 +496,8 @@ export interface FileRoutesByTo {
   '/paid': typeof PaidRoute
   '/parents': typeof ParentsRoute
   '/pay': typeof PayRoute
+  '/player-profiles': typeof PlayerProfilesRoute
+  '/players': typeof PlayersRoute
   '/privacy': typeof PrivacyRoute
   '/recruiting': typeof RecruitingRoute
   '/registrations': typeof RegistrationsRoute
@@ -495,6 +518,7 @@ export interface FileRoutesByTo {
   '/fundraising/office': typeof FundraisingOfficeRoute
   '/fundraising/thank-you': typeof FundraisingThankYouRoute
   '/go/$dest': typeof GoDestRoute
+  '/player/$playerId': typeof PlayerPlayerIdRoute
   '/teams/$teamId': typeof TeamsTeamIdRouteWithChildren
   '/fundraising': typeof FundraisingIndexRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
@@ -540,6 +564,8 @@ export interface FileRoutesById {
   '/paid': typeof PaidRoute
   '/parents': typeof ParentsRoute
   '/pay': typeof PayRoute
+  '/player-profiles': typeof PlayerProfilesRoute
+  '/players': typeof PlayersRoute
   '/privacy': typeof PrivacyRoute
   '/recruiting': typeof RecruitingRoute
   '/registrations': typeof RegistrationsRoute
@@ -560,6 +586,7 @@ export interface FileRoutesById {
   '/fundraising/office': typeof FundraisingOfficeRoute
   '/fundraising/thank-you': typeof FundraisingThankYouRoute
   '/go/$dest': typeof GoDestRoute
+  '/player/$playerId': typeof PlayerPlayerIdRoute
   '/teams/$teamId': typeof TeamsTeamIdRouteWithChildren
   '/fundraising/': typeof FundraisingIndexRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
@@ -606,6 +633,8 @@ export interface FileRouteTypes {
     | '/paid'
     | '/parents'
     | '/pay'
+    | '/player-profiles'
+    | '/players'
     | '/privacy'
     | '/recruiting'
     | '/registrations'
@@ -626,6 +655,7 @@ export interface FileRouteTypes {
     | '/fundraising/office'
     | '/fundraising/thank-you'
     | '/go/$dest'
+    | '/player/$playerId'
     | '/teams/$teamId'
     | '/fundraising/'
     | '/api/auth/$'
@@ -670,6 +700,8 @@ export interface FileRouteTypes {
     | '/paid'
     | '/parents'
     | '/pay'
+    | '/player-profiles'
+    | '/players'
     | '/privacy'
     | '/recruiting'
     | '/registrations'
@@ -690,6 +722,7 @@ export interface FileRouteTypes {
     | '/fundraising/office'
     | '/fundraising/thank-you'
     | '/go/$dest'
+    | '/player/$playerId'
     | '/teams/$teamId'
     | '/fundraising'
     | '/api/auth/$'
@@ -734,6 +767,8 @@ export interface FileRouteTypes {
     | '/paid'
     | '/parents'
     | '/pay'
+    | '/player-profiles'
+    | '/players'
     | '/privacy'
     | '/recruiting'
     | '/registrations'
@@ -754,6 +789,7 @@ export interface FileRouteTypes {
     | '/fundraising/office'
     | '/fundraising/thank-you'
     | '/go/$dest'
+    | '/player/$playerId'
     | '/teams/$teamId'
     | '/fundraising/'
     | '/api/auth/$'
@@ -799,6 +835,8 @@ export interface RootRouteChildren {
   PaidRoute: typeof PaidRoute
   ParentsRoute: typeof ParentsRoute
   PayRoute: typeof PayRoute
+  PlayerProfilesRoute: typeof PlayerProfilesRoute
+  PlayersRoute: typeof PlayersRoute
   PrivacyRoute: typeof PrivacyRoute
   RecruitingRoute: typeof RecruitingRoute
   RegistrationsRoute: typeof RegistrationsRoute
@@ -819,6 +857,7 @@ export interface RootRouteChildren {
   FundraisingOfficeRoute: typeof FundraisingOfficeRoute
   FundraisingThankYouRoute: typeof FundraisingThankYouRoute
   GoDestRoute: typeof GoDestRoute
+  PlayerPlayerIdRoute: typeof PlayerPlayerIdRoute
   FundraisingIndexRoute: typeof FundraisingIndexRoute
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
   ApiFundraisingCheckoutRoute: typeof ApiFundraisingCheckoutRoute
@@ -1018,6 +1057,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PayRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/player-profiles': {
+      id: '/player-profiles'
+      path: '/player-profiles'
+      fullPath: '/player-profiles'
+      preLoaderRoute: typeof PlayerProfilesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/players': {
+      id: '/players'
+      path: '/players'
+      fullPath: '/players'
+      preLoaderRoute: typeof PlayersRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/privacy': {
       id: '/privacy'
       path: '/privacy'
@@ -1163,6 +1216,13 @@ declare module '@tanstack/react-router' {
       path: '/go/$dest'
       fullPath: '/go/$dest'
       preLoaderRoute: typeof GoDestRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/player/$playerId': {
+      id: '/player/$playerId'
+      path: '/player/$playerId'
+      fullPath: '/player/$playerId'
+      preLoaderRoute: typeof PlayerPlayerIdRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/teams/$teamId': {
@@ -1335,6 +1395,8 @@ const rootRouteChildren: RootRouteChildren = {
   PaidRoute: PaidRoute,
   ParentsRoute: ParentsRoute,
   PayRoute: PayRoute,
+  PlayerProfilesRoute: PlayerProfilesRoute,
+  PlayersRoute: PlayersRoute,
   PrivacyRoute: PrivacyRoute,
   RecruitingRoute: RecruitingRoute,
   RegistrationsRoute: RegistrationsRoute,
@@ -1355,6 +1417,7 @@ const rootRouteChildren: RootRouteChildren = {
   FundraisingOfficeRoute: FundraisingOfficeRoute,
   FundraisingThankYouRoute: FundraisingThankYouRoute,
   GoDestRoute: GoDestRoute,
+  PlayerPlayerIdRoute: PlayerPlayerIdRoute,
   FundraisingIndexRoute: FundraisingIndexRoute,
   ApiAuthSplatRoute: ApiAuthSplatRoute,
   ApiFundraisingCheckoutRoute: ApiFundraisingCheckoutRoute,

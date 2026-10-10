@@ -57,7 +57,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   const tabs = [
     { to: "/", label: "Home", icon: Home, match: (path: string) => path === "/" || ["/more", "/fundraising", "/contact", "/facility", "/privacy", "/terms"].some(p => path.startsWith(p)) },
     { to: "/training", label: "Train", icon: Dumbbell, match: (path: string) => ["/events", "/training", "/instructor", "/my-profile", "/account"].some(p => path.startsWith(p)) },
-    { to: "/teams", label: "Teams", icon: Users, match: (path: string) => ["/teams", "/baseball", "/softball", "/tryouts", "/coaches", "/recruiting", "/coach", "/family", "/office"].some(p => path.startsWith(p)) },
+    { to: "/teams", label: "Teams", icon: Users, match: (path: string) => ["/players", "/player/", "/player-profiles", "/teams", "/baseball", "/softball", "/tryouts", "/coaches", "/recruiting", "/coach", "/family", "/office"].some(p => path.startsWith(p)) },
     { to: "/book", label: "Book", icon: CalendarClock, match: (path: string) => ["/book", "/go", "/memberships", "/pay", "/paid"].some(p => path.startsWith(p)) },
     { to: "/games", label: "Games", icon: Trophy, match: (path: string) => path.startsWith("/games") },
     { to: "/merchandise", label: "Shop", icon: ShoppingBag, match: (path: string) => path.startsWith("/merchandise") },
@@ -171,6 +171,7 @@ export function AppShell({ children }: { children: ReactNode }) {
                   {label:"Baseball",to:"/baseball" as const},
                   {label:"Softball",to:"/softball" as const},
                   {label:"Coaches",to:"/coaches" as const},
+                  {label:"Players",to:"/players" as const},
                   {label:"Tryouts",to:"/tryouts" as const},
                 ]).map((item) => (
                   <Link

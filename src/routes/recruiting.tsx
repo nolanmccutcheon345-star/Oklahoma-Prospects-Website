@@ -30,6 +30,7 @@ function RecruitingPage() {
       />
 
       <section className="mx-auto max-w-3xl px-5 py-10">
+        <a className="mb-5 inline-flex min-h-11 items-center rounded bg-maroon px-4 text-white" href="/players">Explore player recruiting profiles</a>
         <h2 className="text-3xl">Bring this to the conversation</h2>
         <ol className="mt-6 divide-y divide-line">
           {[

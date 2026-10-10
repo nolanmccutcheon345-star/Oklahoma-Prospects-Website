@@ -120,6 +120,7 @@ function CoachPage() {
           {saveError}
         </p>
       ) : null}
-    </TeamsShell>
+    <a href="/player-profiles" className="my-3 inline-flex min-h-11 items-center rounded bg-maroon px-4 text-white">Recruiting profiles & metric verification</a>
+</TeamsShell>
   );
 }
