@@ -1,3 +1,4 @@
+import { UniformGallery, UniformPhotoEditor } from "./uniform-photos";
 import { useEffect, useState, type ReactNode } from "react";
 import { getFeeWorkspace, changeFeePlan, saveFeeBusiness } from "@/lib/teams/fee-api";
 import {
@@ -108,7 +109,9 @@ export function TeamFeeWorkspace({ teamId }: { teamId?: string }) {
     <section className="my-5 grid min-w-0 gap-4">
       <header>
         <p className="text-xs tracking-widest text-maroon uppercase">Team planning</p>
-        <h2 className="text-3xl">{data?.admin ? "Team Fees & Profitability" : "Team Fees & Payment Status"}</h2>
+        <h2 className="text-3xl">
+          {data?.admin ? "Team Fees & Profitability" : "Team Fees & Payment Status"}
+        </h2>
         <p className="text-sm text-muted">
           Approved season fees, payment schedules, and roster readiness.
         </p>
@@ -172,6 +175,7 @@ function TeamPlan({
     [tournament, setTournament] = useState(team.choices?.tournament || 0),
     [uniformId, setUniform] = useState(team.choices?.uniformId || ""),
     [busy, setBusy] = useState(false),
+    [photoUploads, setPhotoUploads] = useState(0),
     [error, setError] = useState(""),
     [full, setFull] = useState(10),
     [po, setPo] = useState(0),
@@ -182,6 +186,7 @@ function TeamPlan({
     setError("");
     try {
       await changeFeePlan({ data: action });
+      window.dispatchEvent(new CustomEvent("team-uniform-updated", { detail: team.id }));
       if (action.action === "accept") {
         window.location.reload();
         return;
@@ -264,6 +269,11 @@ function TeamPlan({
               </select>
             </label>
           )}
+          {team.choices.uniforms
+            .filter((u) => u.id === uniformId)
+            .map((u) => (
+              <UniformGallery key={u.id} name={u.name} photos={u.photos} />
+            ))}
           <Numbers
             rows={[
               ["Current draft full-player fee", team.choices.full],
@@ -446,6 +456,24 @@ function TeamPlan({
                       },
                     });
                   }}
+                />
+                <UniformPhotoEditor
+                  name={u.name}
+                  photos={u.photos}
+                  disabled={busy || photoUploads > 0 || plan.status === "closed"}
+                  onProcessing={(working) => setPhotoUploads((n) => n + (working ? 1 : -1))}
+                  onChange={(photos) =>
+                    setPlan((current) =>
+                      current
+                        ? {
+                            ...current,
+                            uniforms: current.uniforms.map((x) =>
+                              x.id === u.id ? { ...x, photos } : x,
+                            ),
+                          }
+                        : current,
+                    )
+                  }
                 />
                 <label>
                   <input
@@ -786,7 +814,7 @@ function TeamPlan({
           </Panel>
           <div className="flex flex-wrap gap-2">
             <Button
-              disabled={busy || plan.status === "closed"}
+              disabled={busy || photoUploads > 0 || plan.status === "closed"}
               onClick={() =>
                 void act({
                   ...base,
@@ -801,7 +829,7 @@ function TeamPlan({
             </Button>
             <Button
               variant="outlineDark"
-              disabled={busy || plan.status === "closed"}
+              disabled={busy || photoUploads > 0 || plan.status === "closed"}
               onClick={() => {
                 if (JSON.stringify(plan) !== JSON.stringify(team.private?.plan)) {
                   setError("Save your changes before publishing.");
@@ -819,7 +847,7 @@ function TeamPlan({
             </Button>
             <Button
               variant="outlineDark"
-              disabled={busy || plan.status === "closed"}
+              disabled={busy || photoUploads > 0 || plan.status === "closed"}
               onClick={() => {
                 if (JSON.stringify(plan) !== JSON.stringify(team.private?.plan)) {
                   setError("Save expenses before closing.");

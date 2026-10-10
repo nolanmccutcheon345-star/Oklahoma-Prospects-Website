@@ -4,7 +4,7 @@ import { readFile, readdir } from "node:fs/promises";
 import { PGlite } from "@electric-sql/pglite";
 import type { Sql } from "../db";
 import { sampleClub } from "./seed";
-import { feeWorkspace, mutateFeePlan, setFeeBusiness } from "./fee.server";
+import { feeWorkspace, mutateFeePlan, setFeeBusiness, teamUniform } from "./fee.server";
 import { defaultBudget, calculateFees } from "./fee-model";
 
 test("team financial permissions, approvals, immutable fees, uniform release and concurrent edits", async () => {
@@ -51,6 +51,7 @@ test("team financial permissions, approvals, immutable fees, uniform release and
     player.parents = [
       { name: "Parent", rel: "parent", phone: "", email: "parent@example.invalid" },
     ];
+    player.email = "player@example.invalid";
     player.feeLock = null;
     player.planLock = null;
     player.payments = [];
@@ -90,7 +91,32 @@ test("team financial permissions, approvals, immutable fees, uniform release and
       teamId: team.id,
       revision: 0,
       budget,
-      uniforms: [],
+      uniforms: [
+        {
+          id: "navy",
+          name: "Navy package",
+          items: "Jersey, hat",
+          price: 20000,
+          cost: 0,
+          active: true,
+          photos: [
+            {
+              id: "front",
+              caption: "Navy jersey front",
+              src: "data:image/png;base64,iVBORw0KGgo=",
+            },
+          ],
+        },
+        {
+          id: "maroon",
+          name: "Maroon package",
+          items: "Jersey",
+          price: 10000,
+          cost: 0,
+          active: true,
+          photos: [],
+        },
+      ],
       expenses: [],
     };
     for (const id of ["coach", "parent", "player", "stranger"])
@@ -114,10 +140,19 @@ test("team financial permissions, approvals, immutable fees, uniform release and
       teamId: team.id,
       revision: 1,
       tournament: 10000,
-      uniformId: "",
+      uniformId: "navy",
     });
+    for (const id of ["owner", "coach", "parent", "player"]) {
+      const selected = await teamUniform(sql, id, team.id);
+      assert.equal(selected?.name, "Navy package");
+      assert.equal(selected?.photos[0].caption, "Navy jersey front");
+      assert.deepEqual(Object.keys(selected!).sort(), ["items", "name", "photos"]);
+    }
+    await assert.rejects(() => teamUniform(sql, "stranger", team.id), /Assigned team/);
+    await assert.rejects(() => teamUniform(sql, "coach", "not-their-team"), /Assigned team/);
     let coach = await feeWorkspace(sql, "coach");
     assert.equal(coach.teams[0].status, "pending");
+    assert.equal(coach.teams[0].choices?.uniforms[0].photos[0].caption, "Navy jersey front");
     assert.equal(coach.teams[0].private, null);
     assert.equal(coach.business, null);
     assert.ok(!JSON.stringify(coach).includes("Private owner cost"));
@@ -193,10 +228,12 @@ test("team financial permissions, approvals, immutable fees, uniform release and
       action: "save",
       teamId: team.id,
       revision: 4,
-      budget: { ...plan.budget, fullOrg: 90000, coachTournament: false },
-      uniforms: [],
+      budget: { ...plan.budget, fullOrg: 90000, coachTournament: false, uniformId: "maroon" },
+      uniforms: save.uniforms.map((u) => ({ ...u, photos: [] })),
       expenses: [],
     });
+    assert.deepEqual((await teamUniform(sql, "player", team.id))?.photos, []);
+    assert.equal((await teamUniform(sql, "parent", team.id))?.name, "Maroon package");
     await assert.rejects(
       () =>
         mutateFeePlan(sql, "coach", {

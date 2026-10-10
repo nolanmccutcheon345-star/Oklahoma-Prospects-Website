@@ -1,3 +1,4 @@
+import { SelectedTeamUniform } from "./uniform-photos";
 import {TeamActivities} from "./team-activities";
 import { useState } from "react";
 import { TeamFeeWorkspace } from './fee-workspace';
@@ -193,7 +194,7 @@ export function FamilyApp({
       </Section>
 
       <Section title={t.uniform}>
-        <p className="text-sm">{club.uniforms.find((u) => u.id === team.uniformPackageId)?.name}</p>
+        <SelectedTeamUniform teamId={team.id} />
         <label>Uniform number<input
           value={player.order.number}
           onChange={(e) =>

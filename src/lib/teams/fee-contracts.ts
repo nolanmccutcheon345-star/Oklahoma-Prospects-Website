@@ -2,6 +2,17 @@ import { z } from "zod";
 import { budgetSchema, expenseSchema, type FeeBudget, type Expense } from "./fee-model";
 const cents = z.number().int().min(0).max(1_000_000_000),
   id = z.string().min(1).max(150);
+export const uniformPhotoSchema = z
+  .object({
+    id: z.string().min(1).max(150),
+    caption: z.string().max(120),
+    src: z
+      .string()
+      .max(180000)
+      .regex(/^data:image\/(?:jpeg|png|webp);base64,[A-Za-z0-9+/]+={0,2}$/),
+  })
+  .strict();
+export type UniformPhoto = z.infer<typeof uniformPhotoSchema>;
 export const uniformSchema = z
   .object({
     id,
@@ -10,6 +21,7 @@ export const uniformSchema = z
     price: cents,
     cost: cents,
     active: z.boolean(),
+    photos: z.array(uniformPhotoSchema).max(4).optional(),
   })
   .strict();
 export type FeeUniform = z.infer<typeof uniformSchema>;
@@ -66,7 +78,17 @@ export const feeAction = z.discriminatedUnion("action", [
       teamId: id,
       revision: z.number().int(),
       budget: budgetSchema,
-      uniforms: z.array(uniformSchema).max(100),
+      uniforms: z
+        .array(uniformSchema)
+        .max(100)
+        .refine(
+          (rows) =>
+            rows.reduce(
+              (total, u) => total + (u.photos || []).reduce((n, p) => n + p.src.length, 0),
+              0,
+            ) <= 3000000,
+          "Uniform photos exceed the save limit. Remove unused photos or use smaller images.",
+        ),
       expenses: z.array(expenseSchema).max(2000),
     })
     .strict(),

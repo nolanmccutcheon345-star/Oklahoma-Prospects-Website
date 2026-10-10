@@ -233,7 +233,13 @@ export async function feeWorkspace(sql: Sql, userId: string) {
                 canUniform: p.budget.coachUniform,
                 uniforms: p.uniforms
                   .filter((u) => u.active)
-                  .map((u) => ({ id: u.id, name: u.name, items: u.items, price: u.price })),
+                  .map((u) => ({
+                    id: u.id,
+                    name: u.name,
+                    items: u.items,
+                    price: u.price,
+                    photos: u.photos || [],
+                  })),
                 full: calculateFees(p.budget).full,
                 po: calculateFees(p.budget).po,
               }
@@ -576,4 +582,35 @@ export async function setFeeBusiness(
     await tx`insert into team_fee_business(id,revision,payload) values('business',${input.revision + 1},${JSON.stringify(value)}::jsonb) on conflict(id) do update set revision=excluded.revision,payload=excluded.payload`;
   });
   return { ok: true };
+}
+
+/** Uniform presentation only: never exposes fee budgets or other players. */
+export async function teamUniform(sql: Sql, userId: string, teamId: string) {
+  const me = await resolveIdentity(sql, userId);
+  const { payload: club } = await clubFor(sql);
+  const team = club.teams.find((t) => t.id === teamId);
+  if (
+    !team ||
+    !(
+      me.role === "admin" ||
+      coaching(team, me.email) ||
+      team.roster.some(
+        (p) =>
+          !p.withdrawn &&
+          (guardian(p, me) ||
+            me.playerIds.includes(p.id) ||
+            (me.email && norm(p.email) === me.email)),
+      )
+    )
+  )
+    throw Error("Assigned team access required.");
+  const [row] = await sql<{
+    payload: FeePlan;
+  }>`select payload from team_fee_plans where team_id=${teamId}`;
+  if (row) {
+    const u = row.payload.uniforms.find((u) => u.id === row.payload.budget.uniformId);
+    return u ? { name: u.name, items: u.items, photos: u.photos || [] } : null;
+  }
+  const u = club.uniforms.find((u) => u.id === team.uniformPackageId);
+  return u ? { name: u.name, items: u.items.join(", "), photos: [] } : null;
 }

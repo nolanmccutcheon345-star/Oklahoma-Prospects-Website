@@ -1,3 +1,4 @@
+import { SelectedTeamUniform } from "./uniform-photos";
 import {TeamActivities} from "./team-activities";
 import { formatClockTime } from "@/lib/time-display";
 import {PrivatePlayerBirthday} from '@/components/commerce/player-birthdays';
@@ -223,17 +224,9 @@ export function CoachApp({
       </Section>
 
       <Section title="Uniforms">
-        <p className="text-sm text-muted">Approved packages. No prices on this screen.</p>
-        <ul className="mt-2 grid gap-2">
-          {club.uniforms
-            .filter((u) => u.sport === team.sport)
-            .map((u) => (
-              <li key={u.id} className="rounded-lg bg-paper p-3">
-                <strong>{u.name}</strong>
-                <span className="block text-sm">{u.items.join(" · ")}</span>
-              </li>
-            ))}
-        </ul>
+        <SelectedTeamUniform teamId={team.id} />
+        <p className="text-sm text-muted">Select your team’s package in Coach budget selections above.</p>
+
       </Section>
 
       <Emergency team={team} />
