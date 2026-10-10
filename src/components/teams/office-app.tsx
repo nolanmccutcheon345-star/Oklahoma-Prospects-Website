@@ -1,13 +1,13 @@
 import { SeasonPicker } from "./season-picker";
 import { teamSeasons } from "@/lib/teams/seasons";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { TeamCoachProfileEditor } from "./team-coach-profile-editor";
 import { getAssignableTeamCoaches } from "@/lib/team-coach-directory-api";
 import { Button } from "@/components/ui/button";
 import type { ClubRecord, StaffMember } from "@/lib/teams/types";
 import { officeAddPlayer, officeAddTeam, officeRemoveTeam, officeSaveTeamSeasons } from "@/lib/teams/store";
 import { AGE_GROUPS } from "@/lib/club";
-import { balance, docsComplete, fundingCount, priceComponents } from "@/lib/teams/pricing";
+import { balance, docsComplete, fundingCount } from "@/lib/teams/pricing";
 import { Section } from "./ui";
 import { money } from "./ui";
 
@@ -41,33 +41,6 @@ export function OfficeApp({
     0,
   );
 
-  const months = useMemo(() => {
-    return Array.from({ length: 12 }, (_, i) => {
-      const d = new Date(new Date().getFullYear(), new Date().getMonth() + i, 1);
-      const label = d.toLocaleString("en-US", { month: "short" });
-      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-      const inflow = players.reduce((sum, x) => {
-        return (
-          sum +
-          (x.player.planLock?.rows.filter((r) => r.date.startsWith(key)).reduce((a, r) => a + r.amount, 0) ??
-            0)
-        );
-      }, 0);
-      const staff = club.teams.reduce((sum, t) => sum + t.coachMonthly, 0);
-      const facility = club.settings.facilityMonthly * Math.max(1, club.teams.length);
-      const outflow = staff + facility;
-      return { label, inflow, outflow };
-    });
-  }, [club, players]);
-
-  let run = 0;
-  let shortMonth = "";
-  const flow = months.map((m) => {
-    run += m.inflow - m.outflow;
-    if (run < 0 && !shortMonth) shortMonth = m.label;
-    return { ...m, run };
-  });
-
   return (
     <div className="grid gap-3">
       <nav aria-label="Front office admin tabs" className="flex flex-wrap gap-2 rounded-xl bg-paper-2 p-3">
@@ -94,7 +67,7 @@ export function OfficeApp({
         <ul className="grid gap-1 text-sm">
           <li>Unsigned agreements {attention.unsigned.length}</li>
           <li>Unpaid deposits {attention.deposits.length}</li>
-          <li>Past-due {attention.pastDue.length}</li>
+          <li>Balances remaining {attention.pastDue.length}</li>
           <li>Missing paperwork {attention.paper.length}</li>
           <li>Missing sizes {attention.sizes.length}</li>
           <li>Teams under ten {attention.thin.map((t) => t.name).join(", ") || "none"}</li>
@@ -110,24 +83,6 @@ export function OfficeApp({
                 {player.name} · {team.name}
               </span>
               <span>{money(balance(player, player.feeLock?.amount ?? 0))}</span>
-            </li>
-          ))}
-        </ul>
-      </Section>
-
-      <Section title="Cash flow" defaultOpen>
-        {shortMonth ? (
-          <p className="mb-2 font-semibold text-maroon">You go short in {shortMonth}.</p>
-        ) : (
-          <p className="mb-2 text-sm">Running balance stays non-negative in this model.</p>
-        )}
-        <ul className="grid gap-1 text-sm">
-          {flow.map((m) => (
-            <li key={m.label} className="flex justify-between gap-3">
-              <span>{m.label}</span>
-              <span>
-                in {money(m.inflow)} · out {money(m.outflow)} · run {money(m.run)}
-              </span>
             </li>
           ))}
         </ul>
@@ -153,48 +108,6 @@ export function OfficeApp({
             </p>
           )),
         )}
-      </Section>
-
-      <Section title="Pricing rules">
-        {(
-          [
-            ["contingencyPct", "Contingency"],
-            ["membershipMonthly", "Membership / month"],
-            ["facilityMonthly", "Facility / team / month"],
-            ["fundingPlayers", "Funding players"],
-            ["orgFeeFloor", "Org fee floor"],
-            ["orgFeeCeiling", "Org fee ceiling"],
-            ["cageHourly", "Cage hourly"],
-          ] as const
-        ).map(([key, label]) => (
-          <label key={key} className="mb-2 block text-sm">
-            {label}
-            <input
-              type="number"
-              step="any"
-              className="mt-1 min-h-11 w-full rounded-md border border-line px-3"
-              value={club.settings[key]}
-              onChange={(e) =>
-                onChange({
-                  ...club,
-                  settings: { ...club.settings, [key]: Number(e.target.value) },
-                })
-              }
-            />
-          </label>
-        ))}
-        {club.teams[0] ? (
-          <p className="text-sm">
-            Example published price{" "}
-            {money(
-              priceComponents(
-                club.teams[0],
-                club.settings,
-                club.uniforms.find((u) => u.id === club.teams[0].uniformPackageId)?.price ?? 0,
-              ).published,
-            )}
-          </p>
-        ) : null}
       </Section>
 
       <Section title="Tryouts">

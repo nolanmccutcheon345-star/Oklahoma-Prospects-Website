@@ -3,6 +3,7 @@ import { useNavigate, useSearch } from "@tanstack/react-router";
 import { FrontOfficeShell, type OfficeSection } from "./front-office-shell";
 import { OfficeRequests } from "./commerce/office-requests";
 import { OfficeApp } from "./teams/office-app";
+import { TeamFeeWorkspace } from "./teams/fee-workspace";
 import { SquareOffice } from "./commerce/square-office";
 import { DiscountOffice } from "./commerce/discount-office";
 import { OfficeOperations } from "./commerce/operations";
@@ -142,6 +143,7 @@ export function OfficeWorkspace({
       {section === "requests" && <OfficeRequests />}
       {section === "teams" && (
         <>
+          <TeamFeeWorkspace />
           <OfficeApp club={club} onChange={onChange} onSave={onSave} initialTab="teams" />
           <a
             className="my-4 inline-flex min-h-11 items-center underline"
@@ -255,6 +257,7 @@ export function OfficeWorkspace({
       )}
       {section === "reports" && (
         <div className="grid gap-6">
+          <TeamFeeWorkspace />
           <OfficeOperations view="reports" />
           <OfficeApp club={club} onChange={onChange} onSave={onSave} />
         </div>

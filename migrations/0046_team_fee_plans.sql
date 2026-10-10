@@ -1,0 +1,11 @@
+CREATE TABLE IF NOT EXISTS team_fee_plans (
+ team_id TEXT PRIMARY KEY,
+ revision INTEGER NOT NULL DEFAULT 0,
+ payload JSONB NOT NULL,
+ updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE TABLE IF NOT EXISTS team_fee_business (
+ id TEXT PRIMARY KEY,
+ revision INTEGER NOT NULL DEFAULT 0,
+ payload JSONB NOT NULL DEFAULT '{}'::jsonb
+);

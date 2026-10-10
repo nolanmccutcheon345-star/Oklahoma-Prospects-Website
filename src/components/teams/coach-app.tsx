@@ -8,6 +8,7 @@ import type { ClubRecord, Team } from "@/lib/teams/types";
 import { cleared, docsComplete, restDays } from "@/lib/teams/pricing";
 import { Chip, Section } from "./ui";
 import { money } from "./ui";
+import { TeamFeeWorkspace } from './fee-workspace';
 
 const FILTERS = ["all", "action", "unsigned", "sizes", "paperwork", "pitchers"] as const;
 
@@ -91,6 +92,8 @@ export function CoachApp({
           </li>
         </ul>
       </Section>
+
+      <TeamFeeWorkspace teamId={team.id}/>
 
       <Section title="Roster" count={roster.length} defaultOpen>
         <p className="mb-3 text-sm">Manage players only on teams assigned to your signed-in coaching email. Billing records are protected.</p>
