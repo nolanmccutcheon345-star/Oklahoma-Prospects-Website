@@ -22,6 +22,7 @@ export const activityInput = teamKey
     id: z.union([z.string().uuid(), z.literal("")]),
     revision: z.number().int().nonnegative(),
     kind: z.enum(["game", "tournament", "practice"]),
+    entryFee: z.number().int().min(0).max(100000000).optional(),
     travel: z.enum(["local", "travel"]).optional(),
     overnightNights: z.number().int().min(0).max(30).optional(),
     season: z.string().trim().max(100).optional(),
@@ -39,6 +40,8 @@ export const activityInput = teamKey
   })
   .strict()
   .superRefine((a, c) => {
+    if (a.kind === "practice" && a.entryFee)
+      c.addIssue({ code: "custom", message: "Entry fees belong to games and tournaments only." });
     if ((a.kind === "practice" || a.travel !== "travel") && (a.overnightNights || 0) > 0)
       c.addIssue({
         code: "custom",

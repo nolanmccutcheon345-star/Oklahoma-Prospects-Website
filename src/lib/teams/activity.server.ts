@@ -148,14 +148,25 @@ export async function saveTeamActivity(sql: Sql, userId: string, raw: TeamActivi
     if (feeRow && feeRow.payload.status !== "closed") {
       const plan = feeRow.payload;
       const budget = await withScheduledHotels(tx, t.id, plan.budget);
-      if (budget.hotelNights !== (plan.budget.hotelNights || 0)) {
+      if (
+        budget.hotelNights !== (plan.budget.hotelNights || 0) ||
+        budget.tournament !== plan.budget.tournament ||
+        (plan.defaults &&
+          (!old ||
+            (["date", "travel", "overnightNights", "entryFee"] as const).some(
+              (k) => old.payload[k] !== next[k],
+            ) ||
+            (old.payload.status === "cancelled") !== (next.status === "cancelled")))
+      ) {
         plan.budget = budget;
+        if (plan.budget.readiness)
+          plan.budget.readiness = { ...plan.budget.readiness, schedule: false, hotels: false };
         plan.revision = feeRow.revision + 1;
         plan.status = "pending";
         plan.history.push({
           at: new Date().toISOString(),
           actor: userId,
-          action: "Scheduled hotel stays updated; review revised player fees.",
+          action: "Schedule costs updated; review revised player fees.",
         });
         await tx`update team_fee_plans set payload=${JSON.stringify(plan)}::jsonb,revision=${plan.revision},updated_at=now() where team_id=${t.id}`;
       }

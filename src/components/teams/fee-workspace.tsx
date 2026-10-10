@@ -1,3 +1,6 @@
+import { BudgetMasterEditor } from "./budget-master-editor";
+import { getBudgetMaster } from "@/lib/teams/fee-api";
+import { rowKey, seasonNames, type MasterMatrix } from "@/lib/teams/budget-matrix";
 import { TeamFundingNotice } from "./team-funding-notice";
 import { UniformGallery, UniformPhotoEditor } from "./uniform-photos";
 import { useEffect, useState, type ReactNode } from "react";
@@ -122,6 +125,7 @@ export function TeamFeeWorkspace({ teamId }: { teamId?: string }) {
       </header>
       {error && <p role="alert">{error}</p>}
       {notice && <p role="status">{notice}</p>}
+      {data?.admin && <BudgetMasterEditor teams={data.teams} />}
       {!data ? (
         <Button onClick={() => void load()}>Load team fee plans</Button>
       ) : !team ? (
@@ -181,11 +185,24 @@ function TeamPlan({
     [uniformId, setUniform] = useState(team.choices?.uniformId || ""),
     [busy, setBusy] = useState(false),
     [photoUploads, setPhotoUploads] = useState(0),
+    [master, setMaster] = useState<MasterMatrix>(),
+    [matrixKey, setMatrixKey] = useState(team.private?.plan.defaults?.key || ""),
     [error, setError] = useState(""),
     [full, setFull] = useState(10),
     [po, setPo] = useState(0),
     [name, setName] = useState(""),
     [consent, setConsent] = useState(false);
+  useEffect(() => {
+    if (team.access !== "admin") return;
+    const load = () => {
+      void getBudgetMaster()
+        .then((d) => setMaster(d.value))
+        .catch(() => {});
+    };
+    load();
+    window.addEventListener("budget-master-updated", load);
+    return () => window.removeEventListener("budget-master-updated", load);
+  }, [team.id, team.access]);
   async function act(action: Parameters<typeof changeFeePlan>[0]["data"]) {
     setBusy(true);
     setError("");
@@ -302,6 +319,80 @@ function TeamPlan({
       )}
       {plan && (
         <>
+          <Panel title="Budget defaults & approval checklist" open>
+            <p>
+              {plan.defaults
+                ? `Created from ${plan.defaults.key} · master revision ${plan.defaults.revision}. Team edits override this snapshot.`
+                : "No master snapshot. Existing budgets are unchanged; choose a row to initialize an unpublished draft."}
+            </p>
+            {!plan.published && master && (
+              <>
+                <label>
+                  Apply master row
+                  <select
+                    className="office-control w-full"
+                    value={matrixKey}
+                    onChange={(e) => setMatrixKey(e.target.value)}
+                  >
+                    <option value="">Choose sport, age and season</option>
+                    {master.rows.map((r) => (
+                      <option key={rowKey(r)} value={rowKey(r)}>
+                        {r.sport} · {r.age}U · {seasonNames[r.season]}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <Button
+                  variant="outlineDark"
+                  disabled={busy || !matrixKey}
+                  onClick={() => {
+                    if (
+                      window.confirm(
+                        "Replace this draft's default cost assumptions with the selected master row? Save any other edits first. Uniform packages, expenses and accepted player agreements are preserved.",
+                      )
+                    )
+                      void act({
+                        ...base,
+                        action: "applyDefaults",
+                        key: matrixKey,
+                        confirmed: true,
+                      });
+                  }}
+                >
+                  Apply master defaults to draft
+                </Button>
+              </>
+            )}
+            {plan.defaults && plan.budget.readiness && (
+              <>
+                <p>
+                  Schedule-driven costs begin at $0 / pending. A reviewed zero is allowed;
+                  unreviewed costs block publication.
+                </p>
+                {(
+                  [
+                    ["schedule", "Tournament / league entries and event schedule reviewed"],
+                    ["gas", "Season gas stipend reviewed"],
+                    ["hotels", "Hotel nights and nightly stipend reviewed"],
+                    ["other", "Umpires, extra coaching and other direct costs reviewed"],
+                    ["processing", "Actual payment-processing rate and fixed fee reviewed"],
+                    ["noUniform", "No uniform purchase required (only if no package is selected)"],
+                  ] as const
+                ).map(([k, label]) => (
+                  <label key={k} className="flex min-h-11 items-center gap-2">
+                    <input
+                      type="checkbox"
+                      checked={plan.budget.readiness![k]}
+                      onChange={(e) =>
+                        update({ readiness: { ...plan.budget.readiness!, [k]: e.target.checked } })
+                      }
+                    />
+                    {label}
+                  </label>
+                ))}
+              </>
+            )}
+          </Panel>
           <Panel title="Season & private pricing assumptions" open>
             <p className="text-sm">
               These assumptions are admin-only. All costs below are season totals unless labeled per
@@ -341,7 +432,7 @@ function TeamPlan({
                   ["poIncremental", "Other direct cost per pitcher-only player (exclude uniform)"],
                   ["poSharedAllocation", "Pitcher-only shared-cost allocation"],
                   ["serviceCostMonthly", "Membership service cost per player per month"],
-                  ["overhead", "Allocated facility / business overhead"],
+                  ["overhead", "Manual season overhead estimate / override"],
                   ["reserve", "Required business reserve contribution"],
                   ["processingFixed", "Fixed processing cost per payment"],
                 ] as const
@@ -376,6 +467,59 @@ function TeamPlan({
             </p>
           </Panel>
           <Panel title="Direct team costs">
+            <Field
+              label="Head coach premium (%)"
+              type="number"
+              value={String((plan.budget.headPremiumBps || 0) / 100)}
+              onChange={(s) => update({ headPremiumBps: Math.round(Number(s) * 100) })}
+            />
+            <Field
+              label="Assistant coach premium (%)"
+              type="number"
+              value={String((plan.budget.assistantPremiumBps || 0) / 100)}
+              onChange={(s) => update({ assistantPremiumBps: Math.round(Number(s) * 100) })}
+            />
+            <p className="text-sm">
+              Matrix coaching totals apply to every paid coach, including owners. Admin premiums up
+              to 25% add to the matrix coaching cost lines.
+            </p>
+            <Dollars
+              label="Round player fee upward to"
+              value={plan.budget.roundTo || 0}
+              onChange={(roundTo) => update({ roundTo })}
+            />
+            <label className="flex min-h-11 items-center gap-2">
+              <input
+                type="checkbox"
+                checked={plan.budget.scheduleCostsAutomatic || false}
+                onChange={(e) => update({ scheduleCostsAutomatic: e.target.checked })}
+              />
+              Calculate entry budget from selected / scheduled events
+            </label>
+            {plan.budget.scheduleCostsAutomatic && (
+              <p className="text-sm">
+                Tournament entry total below is recalculated from saved events. Enter a tournament's
+                fee once, with $0 on its individual games. Admins can disable automatic entry totals
+                for a manual budget.
+              </p>
+            )}
+            <div className="flex flex-wrap gap-2">
+              {master?.gas.map((gas, i) => (
+                <Button
+                  key={i}
+                  variant="outlineDark"
+                  onClick={() =>
+                    update({
+                      costs: plan.budget.costs.map((c) =>
+                        c.id === "cost-3" ? { ...c, cents: gas } : c,
+                      ),
+                    })
+                  }
+                >
+                  {["Local gas", "Limited OKC", "Regional", "Heavy regional"][i]} · {money(gas)}
+                </Button>
+              ))}
+            </div>
             <Dollars
               label="Nightly hotel stipend"
               value={plan.budget.hotelNightly || 0}
@@ -395,11 +539,18 @@ function TeamPlan({
               nights. Do not enter the same stipend again under Hotels or Coach travel. Schedule
               changes update draft fees; publish after review. Accepted player fees remain locked.
             </p>
-            <Dollars
-              label="Tournament and league entries"
-              value={plan.budget.tournament}
-              onChange={(tournament) => update({ tournament })}
-            />
+            {plan.budget.scheduleCostsAutomatic ? (
+              <p>
+                Tournament and league entries: <strong>{money(plan.budget.tournament)}</strong>{" "}
+                (from saved schedule)
+              </p>
+            ) : (
+              <Dollars
+                label="Tournament and league entries"
+                value={plan.budget.tournament}
+                onChange={(tournament) => update({ tournament })}
+              />
+            )}
             {plan.budget.costs.map((c, i) => (
               <div key={c.id} className="grid gap-2 sm:grid-cols-2">
                 <Field

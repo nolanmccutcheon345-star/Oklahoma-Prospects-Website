@@ -26,6 +26,7 @@ export const uniformSchema = z
   .strict();
 export type FeeUniform = z.infer<typeof uniformSchema>;
 export type FeePlan = {
+  defaults?: { key: string; revision: number; appliedAt: string };
   budget: FeeBudget;
   uniforms: FeeUniform[];
   status: "draft" | "pending" | "published" | "closed";
@@ -63,6 +64,15 @@ export type FeePlan = {
   history: { at: string; actor: string; action: string }[];
 };
 export const feeAction = z.discriminatedUnion("action", [
+  z
+    .object({
+      action: z.literal("applyDefaults"),
+      teamId: id,
+      revision: z.number().int(),
+      key: z.string().max(100),
+      confirmed: z.literal(true),
+    })
+    .strict(),
   z
     .object({
       action: z.literal("playerRole"),

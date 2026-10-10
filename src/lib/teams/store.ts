@@ -292,7 +292,13 @@ export const officeAddTeam = createServerFn({ method: "POST" })
     stored._rev += 1;
     stored._savedAt = new Date().toISOString();
     stored.audit.unshift({ at: stored._savedAt, action: "team", detail: `Added ${team.name}` });
-    await writeRaw(stored, stored._rev - 1);
+    const sql = await getSql();
+    const { initializeTeamBudget } = await import("./budget-matrix.server");
+    await sql.transaction(async (tx) => {
+      const plan = await initializeTeamBudget(tx, team);
+      if (plan) team.months = plan.budget.months;
+      await writeRaw(stored, stored._rev - 1, tx);
+    });
     return { ok: true as const, club: scopeClub(stored, "admin", me) };
   });
 

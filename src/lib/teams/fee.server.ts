@@ -1,5 +1,7 @@
+import { loadBudgetMaster } from "./budget-matrix.server";
+import { budgetFromMatrix, rowKey } from "./budget-matrix";
 import type { TeamActivity } from "./activity-contracts";
-import { seasonHotelNights, withScheduledHotels } from "./travel-budget";
+import { seasonHotelNights, seasonEntryCosts, withScheduledHotels } from "./travel-budget";
 import type { Sql } from "../db";
 import { resolveIdentity } from "../identity.server";
 import type { ClubRecord, Team, Player } from "./types";
@@ -163,6 +165,14 @@ export async function feeWorkspace(sql: Sql, userId: string) {
     if (row.payload.status !== "closed")
       row.payload.budget = {
         ...row.payload.budget,
+        tournament: row.payload.budget.scheduleCostsAutomatic
+          ? seasonEntryCosts(
+              activities.filter((a) => a.team_id === row.team_id).map((a) => a.payload),
+              row.payload.budget,
+              club.catalog,
+              club.teams.find((t) => t.id === row.team_id)?.tournamentIds || [],
+            )
+          : row.payload.budget.tournament,
         hotelNightly: row.payload.budget.hotelNightly || 0,
         hotelNights: seasonHotelNights(
           activities.filter((a) => a.team_id === row.team_id).map((a) => a.payload),
@@ -247,7 +257,7 @@ export async function feeWorkspace(sql: Sql, userId: string) {
                 hotelNights: p.budget.hotelNights || 0,
                 tournament: p.budget.tournament,
                 uniformId: p.budget.uniformId,
-                canTournament: p.budget.coachTournament,
+                canTournament: p.budget.coachTournament && !p.budget.scheduleCostsAutomatic,
                 canUniform: p.budget.coachUniform,
                 uniforms: p.uniforms
                   .filter((u) => u.active)
@@ -326,6 +336,34 @@ export async function mutateFeePlan(sql: Sql, userId: string, raw: z.infer<typeo
     if (p.status === "closed") throw Error("This season is financially closed.");
     p.budget = await withScheduledHotels(tx, t.id, p.budget);
     let clubChanged = false;
+    if (input.action === "applyDefaults") {
+      if (p.published)
+        throw Error(
+          "Apply defaults only to an unpublished draft. Published fees require individual admin edits.",
+        );
+      const master = await loadBudgetMaster(tx),
+        row = master.value.rows.find((r) => rowKey(r) === input.key && r.sport === t.sport);
+      if (!row) throw Error("Choose a matching sport's matrix row.");
+      const defaults = budgetFromMatrix(t, master.value, row);
+      p.budget = {
+        ...p.budget,
+        ...defaults,
+        start: p.budget.start || t.seasonStart,
+        end: p.budget.end || t.seasonEnd,
+        uniformId: p.budget.uniformId,
+        uniformCost: p.budget.uniformCost,
+        paymentSchedule: p.budget.paymentSchedule,
+        policy: p.budget.policy,
+        reinstatement: p.budget.reinstatement,
+      };
+      p.budget = await withScheduledHotels(tx, t.id, p.budget);
+      p.defaults = {
+        key: rowKey(row),
+        revision: master.revision,
+        appliedAt: new Date().toISOString(),
+      };
+      p.status = "draft";
+    }
     if (input.action === "save") {
       p = checkBudget({
         ...p,
@@ -345,12 +383,31 @@ export async function mutateFeePlan(sql: Sql, userId: string, raw: z.infer<typeo
         throw Error("This selection is controlled by Front Office.");
       p = checkBudget({
         ...p,
-        budget: { ...p.budget, tournament: input.tournament, uniformId: input.uniformId },
+        budget: {
+          ...p.budget,
+          tournament: p.budget.scheduleCostsAutomatic ? p.budget.tournament : input.tournament,
+          uniformId: input.uniformId,
+        },
         status: "pending",
       });
     }
     if (input.action === "publish") {
       checkBudget(p);
+      if (p.defaults) {
+        const r = p.budget.readiness;
+        if (
+          !r ||
+          !r.schedule ||
+          !r.gas ||
+          !r.hotels ||
+          !r.other ||
+          !r.processing ||
+          (!p.budget.uniformId && !r.noUniform)
+        )
+          throw Error(
+            "Complete the schedule, uniform, gas, hotel, other-cost and processing review before publishing player fees.",
+          );
+      }
       const final = deadline(
           p.budget,
           club.catalog.filter((e) => t.tournamentIds.includes(e.id)),
