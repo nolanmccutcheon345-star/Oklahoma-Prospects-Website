@@ -69,7 +69,11 @@ test("team fee UI saves admin drafts and offers only permitted coach controls", 
   };
   const fixture = { data: { admin: true, teams: [team], business: null }, saved: [] };
   globalThis.__feeFixture = fixture;
-  globalThis.__matrixFixture = { value: seedMasterMatrix(), revision: 1 };
+  globalThis.__matrixFixture = {
+    value: seedMasterMatrix(),
+    revision: 1,
+    people: [{ userId: "parent", name: "Example Parent", role: "parent" }],
+  };
   const mocks = {
     "@/lib/auth/use-current-user": `export const useCurrentUserState=()=>({user:{id:"fixture"}});`,
     "@/lib/teams/fee-api": `export const getBudgetMaster=async()=>globalThis.__matrixFixture;export const saveBudgetMaster=async({data})=>{globalThis.__matrixSaved=data;return {saved:true};};export const getTeamUniform=async()=>null;export const getTeamFundingStatus=async()=>({overduePlayers:2,tracking:true});export const getFeeWorkspace=async()=>globalThis.__feeFixture.data;export const changeFeePlan=async({data})=>{globalThis.__feeFixture.saved.push(data);return {ok:true};};export const saveFeeBusiness=async()=>({ok:true});`,
@@ -119,12 +123,38 @@ test("team fee UI saves admin drafts and offers only permitted coach controls", 
       .find((l) => l.textContent.includes("Head coach — season ($)"))
       .querySelector("input");
     assert.equal(head.value, "3900");
+    const rules = [...host.querySelectorAll("select")].filter((s) =>
+      s.parentElement.textContent.includes("Facility overhead contribution"),
+    );
+    await act(async () => {
+      rules[0].value = "fixed";
+      rules[0].dispatchEvent(new dom.window.Event("change", { bubbles: true }));
+    });
+    assert.match(host.textContent, /Monthly team contribution/);
+    assert.match(host.textContent, /Monthly facility costs & staffing/);
+    assert.match(host.textContent, /Cleaning per month/);
+    const personSelect = [...host.querySelectorAll("select")].find((s) =>
+      s.parentElement.textContent.includes("Add person to staffing budget"),
+    );
+    await act(async () => {
+      personSelect.value = "parent";
+      personSelect.dispatchEvent(new dom.window.Event("change", { bubbles: true }));
+    });
+    await act(async () =>
+      [...host.querySelectorAll("button")]
+        .find((b) => b.textContent === "Add staffing person")
+        .click(),
+    );
+    assert.match(host.textContent, /Example Parent per month/);
+
     await act(async () =>
       [...host.querySelectorAll("button")]
         .find((b) => b.textContent === "Save master defaults")
         .click(),
     );
     assert.equal(globalThis.__matrixSaved.value.rows.length, 120);
+    assert.equal(globalThis.__matrixSaved.value.overheadRule.monthly, 50000);
+    assert.equal(globalThis.__matrixSaved.value.payroll[0].userId, "parent");
     assert.match(host.textContent, /Master saved/);
     assert.match(host.textContent, /Season & private pricing assumptions/);
     assert.match(host.textContent, /\$500\.00/);

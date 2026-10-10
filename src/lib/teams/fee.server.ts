@@ -1,3 +1,4 @@
+import { teamSeasonOverhead } from "./facility-overhead";
 import { loadBudgetMaster } from "./budget-matrix.server";
 import { budgetFromMatrix, rowKey } from "./budget-matrix";
 import type { TeamActivity } from "./activity-contracts";
@@ -179,6 +180,7 @@ export async function feeWorkspace(sql: Sql, userId: string) {
           row.payload.budget,
         ),
       };
+  const overheadMaster = (await loadBudgetMaster(sql)).value;
   const admin = me.role === "admin";
   const teams = club.teams
     .filter((t) => admin || coaching(t, me.email) || t.roster.some((p) => guardian(p, me)))
@@ -186,6 +188,7 @@ export async function feeWorkspace(sql: Sql, userId: string) {
       const row = rows.find((r) => r.team_id === t.id),
         p = row ? { ...row.payload, revision: row.revision } : initial(t),
         coach = coaching(t, me.email);
+      if (p.status !== "closed") p.budget = teamSeasonOverhead(p.budget, overheadMaster);
       const players = t.roster
         .filter((x) => admin || coach || guardian(x, me))
         .map((x) => ({ ...playerView(t, x, p), canAccept: guardian(x, me) }));
@@ -391,6 +394,7 @@ export async function mutateFeePlan(sql: Sql, userId: string, raw: z.infer<typeo
         status: "pending",
       });
     }
+    p.budget = teamSeasonOverhead(p.budget, (await loadBudgetMaster(tx)).value);
     if (input.action === "publish") {
       checkBudget(p);
       if (p.defaults) {

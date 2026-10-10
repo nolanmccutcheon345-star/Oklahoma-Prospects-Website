@@ -1,3 +1,10 @@
+import {
+  facilityMonthly,
+  monthlyTeamOverhead,
+  teamSeasonOverhead,
+  initialFacilityCosts,
+  payrollSchema,
+} from "./facility-overhead";
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFile, readdir } from "node:fs/promises";
@@ -262,7 +269,97 @@ test("master admin permissions, durable revisions, draft initialization, review 
         }),
       /unpublished/,
     );
+    const staffMaster = await getBudgetMaster(sql, "admin");
+    assert.ok(staffMaster.people.some((x) => x.userId === "parent"));
+    const staffing = {
+      ...staffMaster.value,
+      facilityCosts: initialFacilityCosts(800000),
+      payroll: [{ userId: "coach", name: "Forged name", monthly: 200000, active: true }],
+      overheadRule: { mode: "percent" as const, bps: 1000 },
+    };
+    await saveBudgetMaster(sql, "admin", staffMaster.revision, staffing);
+    const savedMaster = await getBudgetMaster(sql, "admin");
+    assert.equal(savedMaster.value.monthlyOverhead, 1000000);
+    assert.equal(savedMaster.value.payroll![0].name, "coach");
+    p = (await feeWorkspace(sql, "admin")).teams[0].private!.plan;
+    assert.equal(p.budget.overhead, 600000);
+    const publishedFee = p.published!.full;
+    await mutateFeePlan(sql, "admin", {
+      action: "save",
+      teamId: t.id,
+      revision: p.revision,
+      budget: { ...p.budget, overheadRule: { mode: "fixed", monthly: 50000 } },
+      uniforms: [],
+      expenses: [],
+    });
+    p = (await feeWorkspace(sql, "admin")).teams[0].private!.plan;
+    assert.equal(p.budget.overhead, 300000);
+    assert.equal(p.published!.full, publishedFee);
+    await saveBudgetMaster(sql, "admin", savedMaster.revision, {
+      ...savedMaster.value,
+      overheadRule: { mode: "percent", bps: 2000 },
+    });
+    assert.equal((await feeWorkspace(sql, "admin")).teams[0].private!.plan.budget.overhead, 300000);
+    const latest = await getBudgetMaster(sql, "admin");
+    await assert.rejects(
+      () =>
+        saveBudgetMaster(sql, "admin", latest.revision, {
+          ...latest.value,
+          payroll: [{ userId: "unknown", name: "Unknown", monthly: 10, active: true }],
+        }),
+      /existing account/,
+    );
   } finally {
     await db.close();
   }
+});
+
+test("facility costs, payroll and team overrides reconcile monthly and partial-season overhead", () => {
+  const master = {
+    ...seedMasterMatrix(),
+    facilityCosts: initialFacilityCosts(800000),
+    payroll: [
+      { userId: "coach", name: "Coach", monthly: 200000, active: true },
+      { userId: "parent", name: "Parent", monthly: 100000, active: false },
+    ],
+    overheadRule: { mode: "percent" as const, bps: 1000 },
+  };
+  assert.equal(facilityMonthly(master), 1000000);
+  assert.equal(monthlyTeamOverhead(master), 100000);
+  assert.equal(teamSeasonOverhead({ months: 2.5, overhead: 0 }, master).overhead, 250000);
+  assert.equal(
+    teamSeasonOverhead(
+      { months: 6, overhead: 0, overheadRule: { mode: "fixed" as const, monthly: 50000 } },
+      master,
+    ).overhead,
+    300000,
+  );
+  assert.equal(monthlyTeamOverhead(master, { mode: "percent", bps: 2000 }), 200000);
+  assert.equal(monthlyTeamOverhead(master, { mode: "fixed", monthly: 0 }), 0);
+  const report = allocateMonthlyBusiness(master, [
+    { id: "one", name: "One", players: 10, contribution: 2000000 },
+    {
+      id: "two",
+      name: "Two",
+      players: 10,
+      contribution: 2000000,
+      overheadRule: { mode: "fixed", monthly: 50000 },
+    },
+  ]);
+  assert.equal(report.rows[0].overhead, 100000);
+  assert.equal(report.rows[1].overhead, 50000);
+  assert.equal(report.unallocatedOverhead, 850000);
+  assert.equal(report.overhead, 1000000);
+  const over = allocateMonthlyBusiness(master, [
+    {
+      id: "one",
+      name: "One",
+      players: 10,
+      contribution: 2000000,
+      overheadRule: { mode: "fixed", monthly: 1500000 },
+    },
+  ]);
+  assert.equal(over.overallocatedOverhead, 500000);
+  assert.equal(over.unallocatedOverhead, 0);
+  assert.equal(payrollSchema.safeParse([master.payroll[0], master.payroll[0]]).success, false);
 });

@@ -1,3 +1,5 @@
+import { OverheadRuleEditor } from "./overhead-rule-editor";
+import { monthlyTeamOverhead, teamSeasonOverhead } from "@/lib/teams/facility-overhead";
 import { BudgetMasterEditor } from "./budget-master-editor";
 import { getBudgetMaster } from "@/lib/teams/fee-api";
 import { rowKey, seasonNames, type MasterMatrix } from "@/lib/teams/budget-matrix";
@@ -233,7 +235,14 @@ function TeamPlan({
   const base = { teamId: team.id, revision: team.revision };
   let preview: ReturnType<typeof project> | undefined;
   try {
-    if (plan) preview = project(plan.budget, full, po, plan.expenses, plan.status === "closed");
+    if (plan)
+      preview = project(
+        master && plan.status !== "closed" ? teamSeasonOverhead(plan.budget, master) : plan.budget,
+        full,
+        po,
+        plan.expenses,
+        plan.status === "closed",
+      );
   } catch {}
   const publication = team.publication;
   return (
@@ -393,6 +402,26 @@ function TeamPlan({
               </>
             )}
           </Panel>
+          <Panel title="Facility overhead contribution">
+            <OverheadRuleEditor
+              inherit
+              value={plan.budget.overheadRule}
+              onChange={(overheadRule) => update({ overheadRule })}
+            />
+            {master && monthlyTeamOverhead(master, plan.budget.overheadRule) !== null && (
+              <p>
+                {money(monthlyTeamOverhead(master, plan.budget.overheadRule)!)} per month ×{" "}
+                {plan.budget.months} months ={" "}
+                {money(teamSeasonOverhead(plan.budget, master).overhead)} for this season.
+              </p>
+            )}
+            <p className="text-sm">
+              Admin-only team override. Percentage uses the total of facility costs and active
+              staffing. Save the draft to keep this selection. This allocates existing team revenue
+              and does not add a new player charge. Automatic allocation is shown in the master
+              monthly report; the manual season estimate below applies only in automatic mode.
+            </p>
+          </Panel>
           <Panel title="Season & private pricing assumptions" open>
             <p className="text-sm">
               These assumptions are admin-only. All costs below are season totals unless labeled per
@@ -436,14 +465,28 @@ function TeamPlan({
                   ["reserve", "Required business reserve contribution"],
                   ["processingFixed", "Fixed processing cost per payment"],
                 ] as const
-              ).map(([key, label]) => (
-                <Dollars
-                  key={key}
-                  label={label}
-                  value={plan.budget[key]}
-                  onChange={(v) => update({ [key]: v })}
-                />
-              ))}
+              )
+                .filter(
+                  ([key]) =>
+                    key !== "overhead" ||
+                    !master ||
+                    monthlyTeamOverhead(master, plan.budget.overheadRule) === null,
+                )
+                .map(([key, label]) => (
+                  <Dollars
+                    key={key}
+                    label={label}
+                    value={plan.budget[key]}
+                    onChange={(v) => {
+                      if (
+                        key !== "overhead" ||
+                        !master ||
+                        monthlyTeamOverhead(master, plan.budget.overheadRule) === null
+                      )
+                        update({ [key]: v });
+                    }}
+                  />
+                ))}
               {(
                 [
                   ["contingencyBps", "Contingency (%)"],
@@ -875,7 +918,12 @@ function TeamPlan({
                   ["Potential unused contingency", preview.remaining],
                   ["Unexpected expense above reserve", preview.unexpected],
                   ["Projected profit before facility overhead", preview.beforeOverhead],
-                  ["Allocated facility overhead", plan.budget.overhead],
+                  [
+                    "Allocated facility overhead",
+                    master
+                      ? teamSeasonOverhead(plan.budget, master).overhead
+                      : plan.budget.overhead,
+                  ],
                   ["Projected net business profit", preview.net],
                   ["Required business reserve", plan.budget.reserve],
                   ["Projected distributable profit", preview.distributable],

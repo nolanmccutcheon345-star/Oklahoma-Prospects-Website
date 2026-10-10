@@ -1,3 +1,4 @@
+import { facilityMonthly, teamSeasonOverhead, initialFacilityCosts } from "./facility-overhead";
 import {
   masterSchema,
   matchMatrix,
@@ -19,7 +20,13 @@ export async function loadBudgetMaster(sql: Sql) {
 }
 export async function getBudgetMaster(sql: Sql, userId: string) {
   if ((await resolveIdentity(sql, userId)).role !== "admin") throw Error("Admin access required.");
-  return loadBudgetMaster(sql);
+  const master = await loadBudgetMaster(sql);
+  const people = await sql<{
+    userId: string;
+    name: string;
+    role: string;
+  }>`select user_id as "userId",name,role from profiles order by name,user_id`;
+  return { ...master, people };
 }
 export async function saveBudgetMaster(
   sql: Sql,
@@ -30,6 +37,18 @@ export async function saveBudgetMaster(
   if ((await resolveIdentity(sql, userId)).role !== "admin") throw Error("Admin access required.");
   const data = masterSchema.parse(value);
   await sql.transaction(async (tx) => {
+    if (data.payroll?.length) {
+      const people = await tx<{ user_id: string; name: string }>`select user_id,name from profiles`;
+      data.payroll = data.payroll.map((p) => {
+        const person = people.find((x) => x.user_id === p.userId);
+        if (!person) throw Error("Select an existing account for each payroll entry.");
+        return { ...p, name: person.name };
+      });
+    }
+    data.facilityCosts ||= initialFacilityCosts(data.monthlyOverhead);
+    data.monthlyOverhead = facilityMonthly(data);
+    if (!Number.isSafeInteger(data.monthlyOverhead) || data.monthlyOverhead > 1000000000)
+      throw Error("Monthly overhead exceeds the supported total.");
     const rows =
       await tx`update team_budget_master set payload=${JSON.stringify(data)}::jsonb,revision=revision+1,updated_at=now() where id='master' and revision=${revision} returning revision`;
     if (!rows.length) throw Error("The master changed. Reload before saving.");
@@ -42,7 +61,7 @@ export async function initializeTeamBudget(sql: Sql, team: Team) {
     row = matchMatrix(team, master.value);
   if (!row) return null;
   const plan: FeePlan = {
-    budget: budgetFromMatrix(team, master.value, row),
+    budget: teamSeasonOverhead(budgetFromMatrix(team, master.value, row), master.value),
     defaults: { key: rowKey(row), revision: master.revision, appliedAt: new Date().toISOString() },
     uniforms: [],
     status: "draft",

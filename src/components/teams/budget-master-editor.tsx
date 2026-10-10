@@ -1,3 +1,5 @@
+import { facilityMonthly, initialFacilityCosts } from "@/lib/teams/facility-overhead";
+import { OverheadRuleEditor } from "./overhead-rule-editor";
 import { useEffect, useState } from "react";
 import { getBudgetMaster, saveBudgetMaster } from "@/lib/teams/fee-api";
 import {
@@ -17,6 +19,7 @@ export function BudgetMasterEditor({ teams }: { teams: Teams }) {
     [error, setError] = useState(""),
     [notice, setNotice] = useState(""),
     [busy, setBusy] = useState(false),
+    [person, setPerson] = useState(""),
     [month, setMonth] = useState(
       new Intl.DateTimeFormat("en-CA", {
         timeZone: "America/Chicago",
@@ -36,7 +39,15 @@ export function BudgetMasterEditor({ teams }: { teams: Teams }) {
     return <p role={error ? "alert" : undefined}>{error || "Loading master budget defaults…"}</p>;
   const m = data.value,
     row = m.rows.find((r) => rowKey(r) === key)!;
-  const patch = (p: Partial<MasterMatrix>) => setData({ ...data, value: { ...m, ...p } });
+  const patch = (p: Partial<MasterMatrix>) =>
+    setData({
+      ...data,
+      value: {
+        ...m,
+        facilityCosts: m.facilityCosts || initialFacilityCosts(m.monthlyOverhead),
+        ...p,
+      },
+    });
   const cell = (p: Partial<MatrixRow>) =>
     patch({ rows: m.rows.map((r) => (rowKey(r) === key ? { ...r, ...p } : r)) });
   const field = (label: string, value: number, change: (n: number) => void, scale = 100) => (
@@ -76,6 +87,7 @@ export function BudgetMasterEditor({ teams }: { teams: Teams }) {
         id: t.id,
         name: t.name,
         players: paying.length,
+        overheadRule: b.overheadRule,
         contribution: Math.round(
           project(
             b,
@@ -92,8 +104,9 @@ export function BudgetMasterEditor({ teams }: { teams: Teams }) {
       <div className="mt-3 grid gap-4">
         <p>
           New 6U–17U teams receive the matching sport, age and season row. Changes here apply to
-          future teams; existing team overrides and accepted fees stay intact. No match means manual
-          admin setup.
+          future team cost snapshots; overhead contribution defaults apply to teams using the master
+          rule. Existing team overrides and accepted fees stay intact. No match means manual admin
+          setup.
         </p>
         {error && <p role="alert">{error}</p>}
         {notice && <p role="status">{notice}</p>}
@@ -168,9 +181,7 @@ export function BudgetMasterEditor({ teams }: { teams: Teams }) {
               (v) => patch({ gas: m.gas.map((x, j) => (i === j ? v : x)) }),
             ),
           )}
-          {field("Monthly facility overhead ($)", m.monthlyOverhead, (n) =>
-            patch({ monthlyOverhead: n }),
-          )}
+
           {field("Operating reserve target ($)", m.reserveTarget, (n) =>
             patch({ reserveTarget: n }),
           )}
@@ -184,6 +195,94 @@ export function BudgetMasterEditor({ teams }: { teams: Teams }) {
             patch({ afterTargetBps: n }),
           )}
         </div>
+        <h3>Monthly facility costs & staffing</h3>
+        <p className="text-sm">
+          Private to admins. Enter recurring monthly costs. Include each staffing expense once,
+          either in other staffing or as a named person. Payroll entries are budget estimates;
+          saving does not pay anyone or grant access.
+        </p>
+        <div className="grid gap-3 sm:grid-cols-2">
+          {(m.facilityCosts || initialFacilityCosts(m.monthlyOverhead)).map((c) =>
+            field(c.name + " per month ($)", c.monthly, (n) =>
+              patch({
+                facilityCosts: (m.facilityCosts || initialFacilityCosts(m.monthlyOverhead)).map(
+                  (x) => (x.id === c.id ? { ...x, monthly: n } : x),
+                ),
+              }),
+            ),
+          )}
+        </div>
+        <label className="grid gap-1">
+          Add person to staffing budget
+          <select
+            className="office-control w-full"
+            value={person}
+            onChange={(e) => setPerson(e.target.value)}
+          >
+            <option value="">Select an existing account</option>
+            {(data.people || [])
+              .filter((p) => !(m.payroll || []).some((x) => x.userId === p.userId))
+              .map((p) => (
+                <option key={p.userId} value={p.userId}>
+                  {p.name} · {p.role}
+                </option>
+              ))}
+          </select>
+        </label>
+        <Button
+          variant="outlineDark"
+          disabled={!person}
+          onClick={() => {
+            const p = data.people?.find((p) => p.userId === person);
+            if (p) {
+              patch({
+                payroll: [
+                  ...(m.payroll || []),
+                  { userId: p.userId, name: p.name, monthly: 0, active: true },
+                ],
+              });
+              setPerson("");
+            }
+          }}
+        >
+          Add staffing person
+        </Button>
+        {(m.payroll || []).map((p) => (
+          <div key={p.userId} className="grid gap-2 rounded-lg border p-3">
+            {field(p.name + " per month ($)", p.monthly, (n) =>
+              patch({
+                payroll: m.payroll!.map((x) => (x.userId === p.userId ? { ...x, monthly: n } : x)),
+              }),
+            )}
+            <label className="flex min-h-11 items-center gap-2">
+              <input
+                type="checkbox"
+                checked={p.active}
+                onChange={(e) =>
+                  patch({
+                    payroll: m.payroll!.map((x) =>
+                      x.userId === p.userId ? { ...x, active: e.target.checked } : x,
+                    ),
+                  })
+                }
+              />
+              Include in monthly staffing total
+            </label>
+          </div>
+        ))}
+        <p>
+          Total monthly facility overhead: <strong>{money(facilityMonthly(m))}</strong>
+        </p>
+        <OverheadRuleEditor
+          value={m.overheadRule}
+          onChange={(overheadRule) => patch({ overheadRule })}
+        />
+        <p className="text-sm">
+          Each team follows this contribution rule unless an admin sets a team override. Percentage
+          and fixed contributions run for the team's configured billable season months. Overhead is
+          allocated from team revenue and does not create an additional family charge. Existing
+          accepted player fees stay locked.
+        </p>
         <Button
           disabled={busy}
           onClick={async () => {
@@ -194,7 +293,10 @@ export function BudgetMasterEditor({ teams }: { teams: Teams }) {
               await saveBudgetMaster({ data: { revision: data.revision, value: m } });
               setData(await getBudgetMaster());
               window.dispatchEvent(new CustomEvent("budget-master-updated"));
-              setNotice("Master saved. New teams will use these defaults.");
+              window.dispatchEvent(new CustomEvent("team-budget-updated"));
+              setNotice(
+                "Master saved. New-team budgets and inherited overhead settings use these defaults.",
+              );
             } catch (e) {
               setError((e as Error).message);
             } finally {
@@ -217,9 +319,10 @@ export function BudgetMasterEditor({ teams }: { teams: Teams }) {
         <p className="text-sm">
           Projection using active players with accepted fees and recorded payments, within each
           team's season dates. Season contribution is spread across its configured months. Overhead
-          is allocated once by paying-player count. Reserve uses positive contribution, is limited
-          by net funds and the remaining target, and is separate from 15% team contingency. Enter
-          the actual reserve balance above; these estimates do not transfer money.
+          uses each team’s override or the master contribution rule. Automatic shares use
+          paying-player counts. Reserve uses positive contribution, is limited by net funds and the
+          remaining target, and is separate from 15% team contingency. Enter the actual reserve
+          balance above; these estimates do not transfer money.
         </p>
         {report.rows.map((r) => (
           <p key={r.id}>
@@ -229,7 +332,8 @@ export function BudgetMasterEditor({ teams }: { teams: Teams }) {
         ))}
         <p>
           Business overhead: {money(report.overhead)} · Unallocated:{" "}
-          {money(report.unallocatedOverhead)} · Reserve contribution: {money(report.reserve)} ·
+          {money(report.unallocatedOverhead)} · Allocated above facility costs:{" "}
+          {money(report.overallocatedOverhead)} · Reserve contribution: {money(report.reserve)} ·
           Projected distributable after overhead and reserve: {money(report.distributable)}
         </p>
       </div>

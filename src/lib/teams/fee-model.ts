@@ -1,3 +1,4 @@
+import { overheadRuleSchema } from "./facility-overhead";
 import { z } from "zod";
 
 // All monetary inputs and outputs are integer cents. Rates are basis points.
@@ -65,6 +66,7 @@ export const budgetSchema = z
     processingBps: z.number().int().min(0).max(2000),
     processingFixed: cents,
     overhead: cents,
+    overheadRule: overheadRuleSchema.optional(),
     reserve: cents,
     nolanBps: z.number().int().min(0).max(10000),
     paymentSchedule: z
