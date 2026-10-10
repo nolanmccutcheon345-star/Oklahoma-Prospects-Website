@@ -186,7 +186,7 @@ export async function syncSquareRefund(id: string, dependencies?: SquareSyncDepe
         throw new Error("Payment record pending; retry this refund event.");
     }
     await tx`update commerce_refunds set status=${refundStatus},square_refund_id=${id}
-      where square_refund_id=${id} and status<>'completed'`;
+      where square_refund_id=${id} and status<>'completed' and external_status is null`;
   });
 }
 export async function processSquareEvent(

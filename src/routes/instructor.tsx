@@ -1,3 +1,4 @@
+import {MyFinance} from "@/components/finance/my-finance";
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { getMyPerson } from "@/lib/person-api";
@@ -49,6 +50,7 @@ function Page() {
       ) : person.value.instructor || person.canManage ? (
         <>
           <CoachSessions />
+          <MyFinance/>
           <details className="mt-6 rounded-xl border p-4">
             <summary className="min-h-11 cursor-pointer font-semibold">My availability</summary>
             <CoachProfile availabilityOnly />

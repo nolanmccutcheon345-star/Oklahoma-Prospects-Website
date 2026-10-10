@@ -76,5 +76,7 @@ export async function applySquareRefundBalance(
     await sql`update payment_notifications set status='resolved' where order_id=${reference.order_id}
       and status='pending' and kind in ('receipt','owner-booking')`;
   }
+  const {syncTeamPayment}=await import("../teams/payment.server");
+  await syncTeamPayment(sql,reference.order_id);
   return true;
 }

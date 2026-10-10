@@ -1,8 +1,7 @@
+import {MyFinance} from "../finance/my-finance";
 import { useEffect, useState } from "react";
 import {
   getOfficeOperations,
-  getEarnings,
-  settleEarning,
   setServiceResources,
   saveBookingParticipants,
 } from "@/lib/commerce/operations-api";
@@ -60,67 +59,7 @@ export function Participants({
     </details>
   );
 }
-export function ContractorEarnings() {
-  const [data, setData] = useState<Awaited<ReturnType<typeof getEarnings>>>(),
-    [error, setError] = useState(""),
-    [busy, setBusy] = useState(false);
-  async function load() {
-    setData(await getEarnings());
-  }
-  useEffect(() => {
-    void load().catch((e) => setError(e.message));
-  }, []);
-  return (
-    <section className="my-6 grid gap-3">
-      <h3 className="text-2xl">1099 contractor earnings</h3>
-      <p>
-        Completed paid sessions and the configured coach share. Record an external payment only
-        after it has been paid.
-      </p>
-      {error ? <p role="alert">{error}</p> : null}
-      {data?.rows.length === 0 ? <p>No earnings recorded yet.</p> : null}
-      {data?.rows.map((r) => (
-        <article key={r.booking_id} className="rounded-xl border p-4">
-          <p>
-            {formatMoney(r.amount_cents)} · {r.status} · {r.split_pct}% of{" "}
-            {formatMoney(r.gross_cents)}
-          </p>
-          <p>Booking {r.booking_id}</p>
-          {r.transfer_id ? <p>Payment reference: {r.transfer_id}</p> : null}
-          {data.canSettle && r.status === "payable" ? (
-            <form
-              className="mt-3 grid gap-2"
-              onSubmit={async (e) => {
-                e.preventDefault();
-                const reference = String(new FormData(e.currentTarget).get("reference"));
-                setBusy(true);
-                setError("");
-                try {
-                  await settleEarning({ data: { id: r.booking_id, reference } });
-                  await load();
-                } catch (e) {
-                  setError(e instanceof Error ? e.message : "Payment record did not save.");
-                } finally {
-                  setBusy(false);
-                }
-              }}
-            >
-              <label>
-                Unique payment reference
-                <input name="reference" required minLength={4} maxLength={150} />
-              </label>
-              <label className="flex min-h-11 items-center gap-3">
-                <input type="checkbox" required />I confirm this payment was already sent to this
-                contractor.
-              </label>
-              <Button type="submit" disabled={busy}>Record paid settlement</Button>
-            </form>
-          ) : null}
-        </article>
-      ))}
-    </section>
-  );
-}
+export function ContractorEarnings() { return <MyFinance/>; }
 export function OfficeOperations({view="all"}:{view?:"all"|"bookings"|"reports"}) {
   const [data, setData] = useState<Awaited<ReturnType<typeof getOfficeOperations>>>(),
     [error, setError] = useState(""),

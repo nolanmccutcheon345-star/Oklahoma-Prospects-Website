@@ -1,3 +1,4 @@
+import {FinanceWorkspace} from "./finance/finance-workspace";
 import {EventOffice} from "./event-office";
 import { useEffect, useState } from "react";
 import { useNavigate, useSearch } from "@tanstack/react-router";
@@ -179,6 +180,7 @@ export function OfficeWorkspace({
           )}
         </div>
       )}
+      {section === "finance" && <FinanceWorkspace/>}
       {section === "payments" && (
         <div className="grid gap-5">
           {filter === "issues" ? (

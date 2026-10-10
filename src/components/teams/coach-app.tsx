@@ -1,3 +1,4 @@
+import {MyFinance} from "@/components/finance/my-finance";
 import { RosterRoleSelect } from "@/components/teams/roster-role-select";
 import type { RosterRole } from "@/lib/teams/po-roster";
 import { SelectedTeamUniform } from "./uniform-photos";
@@ -99,6 +100,7 @@ export function CoachApp({
         </ul>
       </Section>
 
+      <MyFinance/>
       <TeamFeeWorkspace teamId={team.id}/>
       <TeamActivities key={team.id} teamId={team.id} onSaved={onReload}/>
 

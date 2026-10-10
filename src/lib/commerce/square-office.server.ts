@@ -132,7 +132,7 @@ export async function manualSquareRefund(
     }
     const [pending] = await tx<{
       cents: string;
-    }>`select coalesce(sum(amount_cents),0) as cents from commerce_refunds where square_payment_id=${payment.id} and status in ('pending','unknown')`;
+    }>`select coalesce(sum(amount_cents),0) as cents from commerce_refunds where square_payment_id=${payment.id} and (status not in ('completed','failed','rejected') or external_status is not null)`;
     if (
       input.amountCents <= 0 ||
       input.amountCents > payment.amount_cents - payment.refunded_cents - Number(pending.cents)
@@ -245,7 +245,7 @@ async function reconcileSquareWork() {
     }
   const refunds = await sql<{
     id: string;
-  }>`select r.id from commerce_refunds r join square_payments p on p.id=r.square_payment_id where r.status in ('pending','unknown') and p.environment=${c.environment} order by r.created_at limit 10`;
+  }>`select r.id from commerce_refunds r join square_payments p on p.id=r.square_payment_id where r.status in ('pending','unknown') and r.external_status is null and p.environment=${c.environment} order by r.created_at limit 10`;
   for (const r of refunds)
     try {
       await executeSquareRefund(r.id);

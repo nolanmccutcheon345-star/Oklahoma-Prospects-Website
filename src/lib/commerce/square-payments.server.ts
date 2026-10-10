@@ -32,6 +32,7 @@ export type SquareOrder = {
   email: string;
   athlete_id: string | null;
   snapshot: Quote & {
+    teamFee?: import("../teams/payment-contracts").TeamFeeSnapshot;
     eventRegistration?: import("../training-events.server").EventSnapshot;
     rescheduleFee?: import("./reschedule-fee.server").FeeOrder["snapshot"]["rescheduleFee"];
     bookingWindow?: {
@@ -144,6 +145,10 @@ export async function fulfillSquarePayment(
     await queueExpiredCheckoutRefunds(sql, config.environment, order.id);
     await sql`insert into payment_notifications(id,order_id,kind) values(${"owner-review:" + order.id},${order.id},'owner-payment-review') on conflict do nothing`;
     return;
+  }
+  if (order.kind === 'team-fee') {
+    const {fulfillTeamPayment}=await import('../teams/payment.server');
+    await fulfillTeamPayment(sql,order,config.environment);return;
   }
   if (order.kind === 'event') {
     const {fulfillEventPayment}=await import('../training-events.server');
@@ -375,7 +380,10 @@ export async function paySquareOrder(
         await tx`select booking_id from booking_occupancy where resource_id=any(${b.resources}::text[]) and slot_at>=${target.start.toISOString()} and slot_at<${target.end.toISOString()} and booking_id<>${b.id} limit 1`;
       if (occupied.length) throw new Error("That time was just booked. No fee was submitted.");
     }
-    if(current.kind==='event') {
+    if(current.kind==='team-fee') {
+      const {validateTeamPayment}=await import('../teams/payment.server');
+      await validateTeamPayment(tx,current);
+    } else if(current.kind==='event') {
       const {validateEventPayment}=await import('../training-events.server');
       await validateEventPayment(tx,current,identity);
     } else await assertStoredOrderAllowed(tx, current, identity);

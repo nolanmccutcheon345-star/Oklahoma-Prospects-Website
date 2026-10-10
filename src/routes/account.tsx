@@ -1,3 +1,4 @@
+import {MyFinance} from "@/components/finance/my-finance";
 import {PlayerBirthdays} from '@/components/commerce/player-birthdays';
 import {chicagoDate} from '@/lib/scheduling';
 import { AccountSecurity } from "@/components/account-security";
@@ -188,6 +189,7 @@ function AccountHome() {
 
   if (profile.role === "admin" && !desk)
     return <Navigate to="/office" search={{ section: "dashboard" }} />;
+  if (desk === "compensation") return <main id="main" className="mx-auto max-w-3xl px-5 py-8"><a href="/account" className="min-h-11 underline">Back to Account</a><h1 className="text-3xl">My compensation</h1><MyFinance/></main>;
   if (desk === "security")
     return (
       <main id="main" className="mx-auto max-w-3xl px-5 py-8">
@@ -259,6 +261,7 @@ function AccountHome() {
         <Link to="/invitations" className="inline-flex min-h-11 items-center underline">
           Your invitations
         </Link>
+        <Link to="/account" search={{desk:"compensation"}} className="ml-4 inline-flex min-h-11 items-center underline">My compensation</Link>
         <PdErrorBoundary section="Train · account">
           <PlayerBirthdays><Suspense fallback={<p role="status">Loading your workspace…</p>}>
             <PdWorkspace profile={profile} />

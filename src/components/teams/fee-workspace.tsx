@@ -1,3 +1,4 @@
+import {TeamPayment} from "./team-payment";
 import { serviceMonths } from "@/lib/teams/season-months";
 import { feeHealth } from "@/lib/teams/fee-health";
 import { OverheadRuleEditor } from "./overhead-rule-editor";
@@ -1129,8 +1130,8 @@ function TeamPlan({
                   ["Projected net business profit", preview.net],
                   ["Required business reserve", plan.budget.reserve],
                   ["Projected distributable profit", preview.distributable],
-                  ["Nolan projected distribution", preview.nolan],
-                  ["Steve projected distribution", preview.steve],
+                  ["Nolan projected share (not payable)", preview.nolan],
+                  ["Steve projected share (not payable)", preview.steve],
                   ["Baseline funding shortfall", preview.baselineShortfall],
                 ]}
               />
@@ -1238,8 +1239,8 @@ function TeamPlan({
                     "Potential actual distributable profit after close",
                     team.private.actual.actualDistributable,
                   ],
-                  ["Nolan actual allocation", team.private.actual.nolan],
-                  ["Steve actual allocation", team.private.actual.steve],
+                  ["Nolan season contribution (not payable)", team.private.actual.nolan],
+                  ["Steve season contribution (not payable)", team.private.actual.steve],
                 ]}
               />
             )}
@@ -1419,6 +1420,7 @@ function TeamPlan({
                   </form>
                 </details>
               )}
+              {p.canPay && p.signed && p.balance>0 && <TeamPayment teamId={team.id} playerId={p.id} balance={p.balance} next={p.rows.find(r=>r.remaining>0)?.remaining||p.balance}/> }
               {p.acceptedPolicy && (
                 <details>
                   <summary>Accepted payment policy</summary>

@@ -220,6 +220,7 @@ export async function feeWorkspace(sql: Sql, userId: string) {
         .filter((x) => admin || coach || guardian(x, me))
         .map((x) => ({
           ...playerView(t, x, p),
+          canPay: guardian(x,me),
           canAccept:
             guardian(x, me) &&
             (x.roleType !== "po" ||
