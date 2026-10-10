@@ -15,7 +15,7 @@ import type { ClubRole } from "@/lib/club-data";
 import { seasonSaveInput, persistTeamSeasons } from "./season-save.server";
 import { recordTeamRosterConsent } from './roster-consent';
 
-type Identity = { email: string; familyId: string; familyIds:string[]; role: ClubRole; name: string };
+type Identity = { primaryRole:ClubRole; playerIds:string[]; guardianHouseholdIds:string[]; email: string; familyId: string; familyIds:string[]; role: ClubRole; name: string };
 
 async function identity(userId: string): Promise<Identity> {
   const me = await clubIdentity(userId);
@@ -25,7 +25,7 @@ async function identity(userId: string): Promise<Identity> {
     player.parents.some(parent => parent.email.trim().toLowerCase() === me.email)
     || (me.role === "player" && player.email.trim().toLowerCase() === me.email));
   if (matched?.familyId) familyId = matched.familyId;
-  return { ...me, familyId };
+  return { ...me, primaryRole:me.role, role:me.role==='admin'?'admin':me.canTeamCoach?'coach':me.role, familyId };
 }
 
 async function loadRaw(): Promise<ClubRecord | null> {
@@ -65,6 +65,10 @@ export const getTeamsClub = createServerFn({ method: "POST" })
       club: scopeClub(club, me.role, me),
     };
   });
+
+async function familyIdentity(userId:string):Promise<Identity>{const me=await identity(userId);const club=await loadRaw();const selfIds=club?.teams.flatMap(t=>t.roster.filter(p=>p.email&&p.email.trim().toLowerCase()===me.email).map(p=>p.id))||[];return {...me,playerIds:[...new Set([...me.playerIds,...selfIds])],familyIds:me.primaryRole==='player'?me.guardianHouseholdIds:me.familyIds,role:me.primaryRole==='admin'?'admin':me.primaryRole==='player'&&!me.guardianHouseholdIds.length?'player':'parent'};}
+export const getFamilyTeamsClub=createServerFn({method:'POST'}).middleware([authMiddleware]).handler(async({context})=>{const me=await familyIdentity(context.userId);const club=await loadRaw();if(!club)return {ok:false as const,missing:true as const,role:me.role,me};return {ok:true as const,missing:false as const,role:me.role,me,club:scopeClub(club,me.role,me)};});
+export const saveFamilyTeamsClub=createServerFn({method:'POST'}).middleware([authMiddleware]).validator(parseClubSave).handler(async({context,data})=>{const me=await familyIdentity(context.userId);const stored=await loadRaw();if(!stored||stored._rev!==data.baseRev)throw new Error('The club changed. Reload before saving.');const merged=mergeSave(stored,data.club,me.role,me);await writeRaw(merged,data.baseRev);return {ok:true,club:scopeClub(merged,me.role,me)};});
 
 export const onboardTeamsClub = createServerFn({ method: "POST" })
   .middleware([authMiddleware])

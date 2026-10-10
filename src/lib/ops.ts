@@ -123,6 +123,7 @@ export type StaffInput = {
 };
 
 export type ClubAccount = {
+  instructor?:boolean;
   status?: "active" | "inactive" | "invited";
   assignments?: string;
   expires_at?: string;
@@ -745,7 +746,7 @@ export const listAccounts = createServerFn({ method: "GET" })
       player_name: string;
       assessment_complete: boolean | string | null;
       disabled_at: Date | null;
-      assignments:string;
+      assignments:string; instructor:boolean;
     }>`
       select
         u.id as user_id,
@@ -754,6 +755,7 @@ export const listAccounts = createServerFn({ method: "GET" })
         coalesce(p.role, 'parent') as role,
         coalesce(p.player_name, '') as player_name,
         p.assessment_complete, u."disabledAt" as disabled_at,
+        coalesce((select instructor from person_profiles where user_id=u.id),exists(select 1 from club_staff cs join club_staff_services offers on offers.staff_id=cs.id where cs.active=true and (cs.user_id=u.id or (cs.user_id='' and lower(trim(cs.email))=lower(trim(u.email)))))) as instructor,
         coalesce((select string_agg(s.name,', ') from club_staff_services c join club_staff st on st.id=c.staff_id join club_services s on s.id=c.service_id where st.user_id=u.id),'') as assignments
       from "user" u
       left join profiles p on p.user_id = u.id
@@ -764,7 +766,7 @@ export const listAccounts = createServerFn({ method: "GET" })
       const email = row.email.toLowerCase();
       return {
         status: row.disabled_at ? "inactive" as const : "active" as const,
-        assignments:row.assignments,
+        assignments:row.assignments,instructor:row.instructor,
         user_id: row.user_id,
         name: row.name,
         email,

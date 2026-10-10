@@ -46,7 +46,7 @@ function BookPage() {
             <Link to="/training" hash="lessons">
               Lessons
             </Link>
-            <Link to="/training" hash="memberships">
+            <Link to="/training" search={{view:"plans"}} hash="memberships">
               Training Plans
             </Link>
           </nav>
@@ -74,7 +74,7 @@ function BookPage() {
               <Link to="/memberships">See cage passes</Link>
             </Button>
             <Button asChild variant="outline">
-              <Link to="/training" hash="memberships">
+              <Link to="/training" search={{view:"plans"}} hash="memberships">
                 Training plans
               </Link>
             </Button>

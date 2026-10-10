@@ -51,6 +51,7 @@ export function FrontOfficeShell({
                     <a className="min-h-11 py-3" href="/office">
                       Front Office
                     </a>
+                    <a className="min-h-11 py-3" href="/my-profile">My Shared Profile</a><a className="min-h-11 py-3" href="/instructor">Instructor</a>
                     <a className="min-h-11 py-3" href="/coach">
                       Coach
                     </a>

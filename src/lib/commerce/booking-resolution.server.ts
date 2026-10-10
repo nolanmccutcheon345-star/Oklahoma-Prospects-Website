@@ -9,7 +9,7 @@ import { lessonRefundValue } from "./lesson-refund-value.server";
 import { summarizeRefunds, standaloneRefundFunding } from "./refund-funding.server";
 import { validateWindow } from "../scheduling";
 
-export type Identity = { role: string; billingHouseholdIds: string[]; userId: string };
+export type Identity = { canInstruct?:boolean; role: string; billingHouseholdIds: string[]; userId: string };
 export type Booking = {
   id: string;
   order_id: string;
@@ -70,7 +70,7 @@ export async function saveClubBookingCancellation(
     const currentTime = now || new Date();
     if (
       me.role !== "admin" &&
-      (me.role !== "coach" || initiator !== "coach" || !coachId || b.coach_id !== coachId)
+      ((me.role !== "coach" && !me.canInstruct) || initiator !== "coach" || !coachId || b.coach_id !== coachId)
     )
       throw new Error("Only the assigned coach or an administrator can cancel this session.");
     const [existing] = await tx<Resolution>`select * from club_requests where id=${clubKey(id)}`;

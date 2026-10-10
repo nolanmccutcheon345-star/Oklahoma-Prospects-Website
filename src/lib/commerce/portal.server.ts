@@ -1,3 +1,4 @@
+import {clubIdentity as staffIdentity} from "../identity.server";
 import {z} from "zod";
 import { randomUUID } from "node:crypto";
 import { getSql, type Sql } from "../db";
@@ -180,8 +181,8 @@ export async function checkIn(userId: string, bookingId: string) {
 }
 
 export async function coachBookings(userId: string) {
-  const me = await clubIdentity(userId);
-  if (me.role !== "admin" && me.role !== "coach") throw new Error("Coach access required.");
+  const me = await staffIdentity(userId);
+  if (me.role !== "admin" && me.role !== "coach" && !me.canInstruct) throw new Error("Coach access required.");
   const file = await readWorkingFile();
   const coachId = assignedCoachIdFor(me,file);
   const sql = await getSql();
@@ -201,8 +202,8 @@ export async function coachBookings(userId: string) {
 export const sessionCompletionInput=z.object({id:z.string().trim().min(1).max(150),notes:z.string().trim().min(5).max(5000)}).strict();
 export async function completeSession(userId: string, bookingId: string, notes: string) {
   const input=sessionCompletionInput.parse({id:bookingId,notes});bookingId=input.id;notes=input.notes;
-  const me = await clubIdentity(userId);
-  if (me.role !== "coach" && me.role !== "admin") throw new Error("Coach access required.");
+  const me = await staffIdentity(userId);
+  if (me.role !== "coach" && me.role !== "admin" && !me.canInstruct) throw new Error("Coach access required.");
   const file = await readWorkingFile();
   const coachId = assignedCoachIdFor(me,file);
   const sql = await getSql();

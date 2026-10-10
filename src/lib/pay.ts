@@ -5,6 +5,7 @@ import { PD_POLICY } from "@/lib/pd";
 import type { PublicCatalog } from "@/lib/ops";
 
 export type PaySearch = {
+  instructor?: string;
   kind?: string;
   id?: string;
   date?: string;
@@ -53,6 +54,7 @@ export function parseLaneIds(raw?: string): BookableLaneId[] {
 
 export function parsePaySearch(search: Record<string, unknown>): PaySearch {
   return {
+    instructor: typeof search.instructor === "string" && search.instructor.length <= 150 ? search.instructor : undefined,
     kind: typeof search.kind === "string" ? search.kind : undefined,
     id: typeof search.id === "string" ? search.id : undefined,
     date: typeof search.date === "string" ? search.date : undefined,
@@ -79,7 +81,7 @@ export function checkoutParty(search: PaySearch) {
 export function checkoutReturnPath(search: PaySearch): string {
   const params = new URLSearchParams();
   // Keep booking choices through sign-in, never identity, payment, or assessment claims.
-  for (const key of ["kind", "id", "date", "time", "minutes", "cages", "use", "athleteCount"] as const) {
+  for (const key of ["kind", "id", "date", "time", "minutes", "cages", "use", "athleteCount", "instructor"] as const) {
     const value = search[key];
     if (value !== undefined && value !== "") params.set(key, String(value));
   }

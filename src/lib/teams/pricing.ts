@@ -59,8 +59,8 @@ export function publishedPrice(club: ClubRecord, team: Team, player: Player) {
 }
 
 export function balance(player: Player, signed: number) {
-  const paid = player.payments.reduce((sum, row) => sum + row.amount, 0);
-  const credit = player.credits.reduce((sum, row) => sum + row.amount, 0);
+  const paid = (player.payments||[]).reduce((sum, row) => sum + row.amount, 0);
+  const credit = (player.credits||[]).reduce((sum, row) => sum + row.amount, 0);
   return Math.max(0, signed - paid - credit);
 }
 

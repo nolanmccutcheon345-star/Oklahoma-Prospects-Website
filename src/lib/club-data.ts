@@ -9,6 +9,8 @@ import { createLegacyProgram, addLegacyDrill, legacyProgramInput, legacyDrillInp
 export type ClubRole = "player" | "parent" | "coach" | "admin";
 
 export type Profile = {
+  canInstruct?:boolean;
+  canTeamCoach?:boolean;
   user_id: string;
   name: string;
   email: string;
@@ -26,7 +28,7 @@ export const getProfile = createServerFn({ method: "GET" })
   .handler(async ({ context }) => {
     const me = await clubIdentity(context.userId);
     const sql = await getSql();
-    return readAccountProfile(sql, me);
+    const p=await readAccountProfile(sql, me);return p?{...p,canInstruct:me.canInstruct,canTeamCoach:me.canTeamCoach}:null;
   });
 
 export const saveProfile = createServerFn({ method: "POST" })

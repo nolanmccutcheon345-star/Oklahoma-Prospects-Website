@@ -384,7 +384,7 @@ function PlanDesk({ profile }: { profile: Profile }) {
           {data.policy.rescheduleDaysNotice} days’ notice, {data.policy.reschedulesPerMonth} per month.
         </p>
         <Button asChild className="mt-4">
-          <Link to="/training">See memberships</Link>
+          <Link to="/training" search={{view:"plans"}}>See memberships</Link>
         </Button>
       </section>
       <section>
@@ -793,7 +793,7 @@ function SubPills({
 export function PdWorkspace({profile}:{profile:Profile}) {
   const context=useDevelopment();const [role,setRole]=useState<ClubRole>(profile.role);
   const [targetId,setTargetId]=useState("");
-  if(profile.role!=="admin")return <ScopedWorkspace profile={profile}/>;
+  if(profile.role!=="admin")return <ScopedWorkspace profile={profile.canInstruct?{...profile,role:"coach"}:profile}/>;
   const preview=role!=="admin";
   const target=context.data.athletes.find(a=>a.id===targetId);
   const family=context.data.families.find(f=>f.id===target?.familyId);

@@ -21,10 +21,11 @@ export const Route = createFileRoute("/office")({
   head: () => pageHead("/office", "Front Office", `Manage ${CLUB.name} club operations.`, true),
   validateSearch: (
     search: Record<string, unknown>,
-  ): { section?: OfficeSection; filter?: string } => ({
+  ): { section?: OfficeSection; filter?: string; person?:string } => ({
     section: (OFFICE_SECTIONS.some(([id]) => id === search.section)
       ? search.section
       : "dashboard") as OfficeSection,
+    person: typeof search.person === "string" ? search.person : undefined,
     filter: typeof search.filter === "string" ? search.filter : undefined,
   }),
   component: Page,

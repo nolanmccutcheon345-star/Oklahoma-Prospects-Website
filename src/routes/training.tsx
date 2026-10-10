@@ -1,3 +1,6 @@
+import {TrainingNav} from "@/components/training-nav";
+import {getPublicPeople} from "@/lib/person-api";
+import type {PublicPerson} from "@/lib/person-contracts";
 import { CLUB } from "@/lib/club";
 import { canPurchase } from "@/lib/purchase-availability";
 import { ASSESSMENT_PRODUCTS, formatDollars } from "@/lib/pricing";
@@ -14,13 +17,14 @@ import { useCurrentUser } from "@/lib/auth/use-current-user";
 import { SignedIn, SignedOut } from "@/lib/auth/gates";
 import { PdErrorBoundary } from "@/components/pd/error-boundary";
 
-export const Route = createFileRoute("/training")({head:()=>pageHead("/training","Train & Player Development",`Assessments, private coaching, packages, and monthly development at ${CLUB.name}.`,false), component: TrainingPage });
+export const Route = createFileRoute("/training")({head:()=>pageHead("/training","Train & Player Development",`Assessments, private coaching, packages, and monthly development at ${CLUB.name}.`,false), validateSearch:(s:Record<string,unknown>):{view?:"lessons"|"plans";instructor?:string}=>({view:s.view==="plans"?"plans":"lessons",instructor:typeof s.instructor==="string"&&s.instructor.length<=150?s.instructor:undefined}),component: TrainingPage });
 
 const subscribeToHydration = () => () => {};
 const clientHydrated = () => true;
 const serverHydrated = () => false;
 
 function TrainingPage() {
+  const search=Route.useSearch();
   // Session resolution can finish before this route hydrates. Keep the server
   // and first client render identical before showing session-specific actions.
   const hydrated = useSyncExternalStore(subscribeToHydration, clientHydrated, serverHydrated);
@@ -37,10 +41,10 @@ function TrainingPage() {
         actions={
           <>
             <Button asChild>
-              <a href="#lessons">Explore Private Lessons</a>
+              <a href="/training#lessons">Explore Private Lessons</a>
             </Button>
             <Button asChild variant="outline">
-              <a href="#memberships">Compare Monthly Plans</a>
+              <a href="/training?view=plans#memberships">Compare Monthly Plans</a>
             </Button>
             {hydrated && <SignedOut>
               <Button asChild variant="outline">
@@ -57,13 +61,16 @@ function TrainingPage() {
           </>
         }
       />
-      <CatalogAndBook />
+      <TrainingNav current={search.view||"lessons"}/><CatalogAndBook view={search.view||"lessons"} instructor={search.instructor}/>
       </PdErrorBoundary>
     </main>
   );
 }
 
-function CatalogAndBook() {
+function CatalogAndBook({view,instructor}:{view:"lessons"|"plans";instructor?:string}) {
+  const [people,setPeople]=useState<PublicPerson[]>([]),[instructorsLoaded,setInstructorsLoaded]=useState(false);
+  useEffect(()=>{let active=true;setInstructorsLoaded(false);if(instructor)getPublicPeople().then(p=>{if(active)setPeople(p);}).catch(()=>{if(active)setPeople([]);}).finally(()=>{if(active)setInstructorsLoaded(true);});return()=>{active=false;};},[instructor]);
+  const selectedInstructor=people.find(p=>p.coachId===instructor&&p.instructor);
   const user = useCurrentUser();
   const catalog = useLiveCatalog();
   const [discipline, setDiscipline] = useState("Pitching");
@@ -71,7 +78,7 @@ function CatalogAndBook() {
   const [athleteId, setAthleteId] = useState("");
   const [loadingAthletes, setLoadingAthletes] = useState(false);
   const [athleteError, setAthleteError] = useState("");
-  const lessons = catalog.lessons;
+  const lessons = instructor ? (selectedInstructor ? catalog.lessons.filter(s=>selectedInstructor.serviceIds.includes(s.id)) : []) : catalog.lessons;
   const selectedAthlete = athletes.find(a => a.id === athleteId);
   // Derived from the selected, server-verified athlete only. A sibling cannot unlock another.
   const hasAssessment = selectedAthlete?.assessmentComplete === true;
@@ -107,6 +114,8 @@ function CatalogAndBook() {
   return (
     <div className="mx-auto max-w-3xl px-5 py-8">
       {catalog.purchaseAvailability && !canPurchase(catalog.purchaseAvailability, "lesson", "s1") ? <aside role="status" className="mb-6 rounded-xl border border-line p-4"><h2 className="text-xl">Online lesson checkout temporarily unavailable</h2><p>Lessons and development memberships cannot be purchased online until secure checkout is verified. You can review assessment options below. Cage availability remains on Book.</p></aside> : null}
+      {instructor&&<aside className="mb-5 rounded-xl border p-4"><p>Requested instructor: <strong>{selectedInstructor?.name||(instructorsLoaded?"This instructor is not currently listed for online lessons.":"Checking instructor availability…")}</strong></p><p className="text-sm">Choose an offered lesson below. Availability and assessment requirements are confirmed at checkout.</p><a href="/training" className="inline-flex min-h-11 items-center underline">Choose any instructor</a></aside>}
+      <div hidden={view==='plans'}>
       <section aria-label="Choose your training path" className="grid gap-4 sm:grid-cols-2">
         <article className="rounded-2xl bg-ink p-5 text-fg-inverse">
           <h2 className="text-2xl">New to Prospects?</h2>
@@ -117,7 +126,7 @@ function CatalogAndBook() {
           <h2 className="text-2xl">Ready for consistent training?</h2>
           <p className="mt-2 text-muted">Compare monthly plans for coaching, development priorities, and progress tracking.</p>
           <p className="mt-3 text-sm text-muted">Eligible in-person plans include your assessment as the first session. Without a completed assessment, a one-time $50 fee is added to the first month.</p>
-          <Button asChild variant="maroon" className="mt-4"><a href="#memberships">Compare Monthly Plans</a></Button>
+          <Button asChild variant="maroon" className="mt-4"><a href="/training?view=plans#memberships">Compare Monthly Plans</a></Button>
         </article>
       </section>
 
@@ -134,7 +143,7 @@ function CatalogAndBook() {
         <div className="mt-4 flex flex-wrap gap-3">
           {lessons.filter(item => ASSESSMENT_PRODUCTS.has(item.id)).map(item =>
             canPurchase(catalog.purchaseAvailability, "lesson", item.id)
-              ? <Button asChild key={item.id} className="h-auto min-h-12 whitespace-normal text-center"><Link to="/pay" search={{kind:"lesson",id:item.id}}>Book {item.name}</Link></Button>
+              ? <Button asChild key={item.id} className="h-auto min-h-12 whitespace-normal text-center"><Link to="/pay" search={{kind:"lesson",id:item.id,instructor}}>Book {item.name}</Link></Button>
               : <Button key={item.id} disabled className="h-auto min-h-12 whitespace-normal text-center">{item.name} · {catalog.purchaseAvailability ? "checkout unavailable" : "loading checkout…"}</Button>
           )}
         </div>
@@ -158,7 +167,7 @@ function CatalogAndBook() {
         {availableGroups.map(group => <section key={group} role="tabpanel" id={`lesson-${group.toLowerCase()}`} aria-labelledby={`tab-${group.toLowerCase()}`} hidden={activeGroup !== group} tabIndex={0} className="scroll-mt-40">
           <h3 className="text-2xl">{group}</h3>
           <div className="mt-4 grid gap-3 sm:grid-cols-2">
-            {lessons.filter(item => item.discipline === group && !item.group).map(item => <ServiceCard key={item.id} item={item}
+            {lessons.filter(item => item.discipline === group && !item.group).map(item => <ServiceCard key={item.id} item={item} instructor={instructor}
               locked={!hasAssessment && !ASSESSMENT_PRODUCTS.has(item.id)}
               ready={canPurchase(catalog.purchaseAvailability, "lesson", item.id)}
               athleteSelected={Boolean(user && selectedAthlete)} />)}
@@ -168,7 +177,7 @@ function CatalogAndBook() {
           <h3 className="text-xl">Ready to book? Choose your athlete.</h3>
           {user && loadingAthletes ? <p role="status" className="mt-3">Checking your athletes and completed assessments…</p> : null}
           {athleteError ? <p role="alert" className="mt-3 text-maroon">{athleteError}</p> : null}
-          {!user ? <p className="mt-3"><Link to="/login" search={{next:"/training"}} className="font-semibold underline">Sign in</Link> to choose your athlete. You can browse lessons and compare plans before signing in.</p> : null}
+          {!user ? <p className="mt-3"><Link to="/login" search={{next:instructor?`/training?instructor=${encodeURIComponent(instructor)}`:"/training"}} className="font-semibold underline">Sign in</Link> to choose your athlete. You can browse lessons and compare plans before signing in.</p> : null}
           {user && !loadingAthletes && athletes.length === 0 ? <p className="mt-3"><Link to="/family" className="font-semibold underline">Add an athlete</Link> to your household before booking.</p> : null}
           {athletes.length > 0 ? <label className="mt-3 grid gap-2">Athlete<select value={athleteId} onChange={e=>setAthleteId(e.target.value)} className="min-h-12 w-full min-w-0 rounded-lg border p-3"><option value="">Select an athlete</option>{athletes.map(a=><option key={a.id} value={a.id}>{a.name}{a.assessmentComplete ? " · assessment completed" : " · assessment needed"}</option>)}</select></label> : null}
           {hasAssessment ? <p className="mt-3">Assessment completed. Choose View Available Times on a lesson to pick a coach and session time.</p> : null}
@@ -179,7 +188,8 @@ function CatalogAndBook() {
         </section>
       </section>
 
-      <section id="memberships" className="mt-12 scroll-mt-40">
+      </div>
+      <section hidden={view!=="plans"} id="memberships" className="mt-12 scroll-mt-40">
         <p className="text-xs font-semibold tracking-[0.16em] text-maroon uppercase">Build consistency. Keep developing.</p>
         <h2 className="mt-2 text-3xl">Monthly training plans</h2>
         <p className="mt-2 text-sm text-muted">Compare coaching formats and choose the right fit. Monthly prices and any applicable first-month assessment fee are shown below.</p>
@@ -199,7 +209,7 @@ function CatalogAndBook() {
         </details>
       </section>
 
-      {hasAssessment ? <>
+      {hasAssessment && view=== "lessons" ? <>
       <h2 className="mt-12 text-3xl">Session packages</h2>
       <p className="mt-2 text-sm text-muted">
         A block of lessons after assessment completion. Monthly development includes a written plan, athlete profile, progress tracking, and one-session rollover.
@@ -263,13 +273,13 @@ function TrainingPlanCard({plan,hasAssessment,availability}:{plan:TrainingPlan;h
     </details>
     <div className="mt-auto pt-4">
       {(hasAssessment || assessmentFirst) && ready ? <Button asChild className="h-auto min-h-12 w-full whitespace-normal text-center" variant={featured ? "outline" : "primary"}><Link to="/pay" search={{kind:"membership",id:plan.id}}>Join {plan.name}</Link></Button>
-        : ready && !hasAssessment ? <><p className="mb-2 text-sm">Assessment required before enrollment.</p><Button asChild className="h-auto min-h-12 w-full whitespace-normal" variant={featured ? "outline" : "primary"}><a href="#assessments">Book an Assessment</a></Button></>
+        : ready && !hasAssessment ? <><p className="mb-2 text-sm">Assessment required before enrollment.</p><Button asChild className="h-auto min-h-12 w-full whitespace-normal" variant={featured ? "outline" : "primary"}><a href="/training#assessments">Book an Assessment</a></Button></>
         : <Button disabled className="h-auto min-h-12 w-full whitespace-normal" variant={featured ? "outline" : "primary"}>{groupPlan(plan) ? "Schedule not yet published" : availability ? "Checkout unavailable" : "Loading checkout…"}</Button>}
     </div>
   </article>;
 }
 
-function ServiceCard({item,locked,ready,athleteSelected}:{item:LessonService;locked:boolean;ready:boolean;athleteSelected:boolean}) {
+function ServiceCard({item,locked,ready,athleteSelected,instructor}:{item:LessonService;locked:boolean;ready:boolean;athleteSelected:boolean;instructor?:string}) {
   const assessment = ASSESSMENT_PRODUCTS.has(item.id);
   return <article className="flex min-w-0 flex-col rounded-xl bg-paper-2 p-4 shadow-border">
     <div className="flex items-start justify-between gap-3"><h4 className="font-display text-xl uppercase">{item.name}</h4><span className="shrink-0 pd-num font-display text-2xl">{formatDollars(item.price)}</span></div>
@@ -278,7 +288,7 @@ function ServiceCard({item,locked,ready,athleteSelected}:{item:LessonService;loc
     <div className="mt-auto pt-4">
       {locked ? <Button asChild variant="outlineDark" className="w-full"><a href="#assessments">Book an Assessment</a></Button>
         : !ready ? <Button disabled className="w-full">Checkout unavailable</Button>
-        : assessment || athleteSelected ? <Button asChild variant="maroon" className="h-auto min-h-12 w-full whitespace-normal"><Link to="/pay" search={{kind:"lesson",id:item.id}} aria-label={`View available times for ${item.name}`}>View Available Times</Link></Button>
+        : assessment || athleteSelected ? <Button asChild variant="maroon" className="h-auto min-h-12 w-full whitespace-normal"><Link to="/pay" search={{kind:"lesson",id:item.id,instructor}} aria-label={`View available times for ${item.name}`}>View Available Times</Link></Button>
         : <Button asChild variant="outlineDark" className="w-full"><a href="#lesson-booking">Select an athlete to book</a></Button>}
     </div>
   </article>;

@@ -16,12 +16,12 @@ import {
 
 async function evaluationAccess(sql: Sql, userId: string) {
   const me = await resolveIdentity(sql, userId);
-  if (me.role !== "admin" && me.role !== "coach")
+  if (me.role !== "admin" && me.role !== "coach" && !me.canTeamCoach)
     throw new Error("Coach or owner access is required.");
-  if (me.role === "coach") {
+  if (me.role !== "admin") {
     const staff =
       await sql`select id from club_staff where lower(trim(email))=${me.email} and active=true
-      and role in ('coach','admin') and (user_id='' or user_id=${userId})`;
+      and (role in ('coach','admin') or ${Boolean(me.canTeamCoach)}) and (user_id='' or user_id=${userId})`;
     if (!staff.length) throw new Error("An active staff assignment is required. Ask a club owner.");
   }
   const [state] = await sql<{
