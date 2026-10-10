@@ -17,7 +17,7 @@ import { useCurrentUser } from "@/lib/auth/use-current-user";
 import { SignedIn, SignedOut } from "@/lib/auth/gates";
 import { PdErrorBoundary } from "@/components/pd/error-boundary";
 
-export const Route = createFileRoute("/training")({head:()=>pageHead("/training","Train & Player Development",`Assessments, private coaching, packages, and monthly development at ${CLUB.name}.`,false), validateSearch:(s:Record<string,unknown>):{view?:"lessons"|"plans";instructor?:string}=>({view:s.view==="plans"?"plans":"lessons",instructor:typeof s.instructor==="string"&&s.instructor.length<=150?s.instructor:undefined}),component: TrainingPage });
+export const Route = createFileRoute("/training")({head:()=>pageHead("/training","Train & Player Development",`Assessments, private coaching, packages, and monthly development at ${CLUB.name}.`,false), validateSearch:(s:Record<string,unknown>):{view?:"lessons"|"plans";instructor?:string}=>({view:s.view==="plans"?"plans":s.view==="lessons"?"lessons":undefined,instructor:typeof s.instructor==="string"&&s.instructor.length<=150?s.instructor:undefined}),component: TrainingPage });
 
 const subscribeToHydration = () => () => {};
 const clientHydrated = () => true;
