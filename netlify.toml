@@ -1,4 +1,4 @@
-# Oklahoma Prospects — prospectsbaseball.club
+# Oklahoma Prospects — prospectssports.club
 # This file is the club app (TanStack Start), not the old static HTML site.
 
 [build]
@@ -41,7 +41,7 @@
 
 [[redirects]]
   from = "https://oklahoma-prospects.netlify.app/*"
-  to = "https://prospectsbaseball.club/:splat"
+  to = "https://prospectssports.club/:splat"
   status = 301
   force = true
 
@@ -77,14 +77,5 @@
   [headers.values]
     Cache-Control = "public, max-age=31536000, immutable"
 
-[[redirects]]
-  from = "http://prospectsbaseball.club/*"
-  to = "https://prospectsbaseball.club/:splat"
-  status = 301
-  force = true
-
-[[redirects]]
-  from = "https://www.prospectsbaseball.club/*"
-  to = "https://prospectsbaseball.club/:splat"
-  status = 301
-  force = true
+# Legacy domain visitor redirects live in netlify/edge-functions/canonical-domain.js.
+# API callbacks and POSTs must reach the server without redirects.

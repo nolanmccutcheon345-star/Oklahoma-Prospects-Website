@@ -4,7 +4,7 @@ import { releaseMatches, validateProductionOrigin, verifyHostedRelease } from ".
 
 const main = "c17acd0a35320856ff49d9b91b37b88d444dffdb";
 const previous = "1dd527cc1470002606d8d1ab4713874669dca16f";
-const origin = "https://prospectsbaseball.club";
+const origin = "https://prospectssports.club";
 const manifest = (commit = main, changes = {}) => ({
   commit, dirty: false, builtAt: "2026-10-08T16:00:00.000Z",
   migrations: [{ name: "0001.sql", sha256: "a".repeat(64) }], ...changes,
@@ -16,13 +16,13 @@ const response = (body, status = 200, contentType = "application/json") =>
 test("production URL cannot be redirected to previews, other hosts or injected credentials", () => {
   assert.equal(validateProductionOrigin(origin).origin, origin);
   for (const raw of [
-    "http://prospectsbaseball.club",
+    "http://prospectssports.club",
     "https://another.example.invalid",
     "https://deploy-preview-110--oklahoma-prospects.netlify.app",
-    "https://prospectsbaseball.club:444",
-    "https://user:secret@prospectsbaseball.club",
-    "https://prospectsbaseball.club/other",
-    "https://prospectsbaseball.club/?query=1",
+    "https://prospectssports.club:444",
+    "https://user:secret@prospectssports.club",
+    "https://prospectssports.club/other",
+    "https://prospectssports.club/?query=1",
   ]) assert.throws(() => validateProductionOrigin(raw), undefined, raw);
 });
 

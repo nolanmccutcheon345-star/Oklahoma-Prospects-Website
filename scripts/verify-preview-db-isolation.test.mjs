@@ -41,14 +41,14 @@ test("comparison sends GET only to fixed production and validated preview paths"
  const calls = [];
  const mockFetch = async (url,options) => {
    const dest = String(url); calls.push({url:dest,method:options.method,redirect:options.redirect});
-   const body=dest.startsWith("https://prospectsbaseball.club/")?health(a).body:health(b).body;
+   const body=dest.startsWith("https://prospectssports.club/")?health(a).body:health(b).body;
    return {status:200,headers:new Headers({"cache-control":"private, no-store"}),json:async()=>body};
  };
  assert.deepEqual(await comparePreviewDatabaseTargets(origin,mockFetch),{
-   production:"https://prospectsbaseball.club",preview:origin,
+   production:"https://prospectssports.club",preview:origin,
  });
  assert.deepEqual(calls.map(c=>c.url),[
-   "https://prospectsbaseball.club/api/health",
+   "https://prospectssports.club/api/health",
    origin+"/api/health",
  ]);
  assert.ok(calls.every(c=>c.method==="GET"&&c.redirect==="error"));

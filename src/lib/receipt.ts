@@ -130,7 +130,7 @@ export function formatReceiptText(receipt: ClubReceipt) {
     CLUB.email,
     "",
     "Door: Suite A. Text the desk if the gate is locked.",
-    "Waiver: prospectsbaseball.club/waiver",
+    "Waiver: prospectssports.club/waiver",
     "Questions about your booking? Contact Prospects Sports Academy.",
   ].join("\n");
 }

@@ -97,9 +97,16 @@ export function resolveSquareConfig(
   try {
     const base = new URL(origin),
       hook = new URL(webhookUrl);
+    // Square signs its registered notification URL. Keep the existing signed
+    // endpoint during this domain migration; never substitute the new origin
+    // when verifying webhook signatures. Both domains belong to this site.
+    const legacyProductionWebhook = environment === "production" &&
+      env.CONTEXT === "production" &&
+      base.origin === "https://prospectssports.club" &&
+      hook.origin === "https://prospectsbaseball.club";
     if (
       base.protocol !== "https:" ||
-      hook.origin !== base.origin ||
+      (hook.origin !== base.origin && !legacyProductionWebhook) ||
       hook.pathname !== "/api/square/webhook" ||
       hook.search ||
       hook.hash

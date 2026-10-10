@@ -10,7 +10,7 @@ import { pathToFileURL } from "node:url";
 export function validateProductionOrigin(raw) {
   const origin = new URL(raw);
   assert.equal(origin.protocol, "https:", "Production release verification requires HTTPS");
-  assert.equal(origin.hostname, "prospectsbaseball.club", "Verify the canonical production domain only");
+  assert.equal(origin.hostname, "prospectssports.club", "Verify the canonical production domain only");
   assert.equal(origin.port, "", "Do not use a nonstandard production port");
   assert.equal(origin.pathname, "/", "Provide only the origin");
   assert.ok(!origin.username && !origin.password && !origin.search && !origin.hash,

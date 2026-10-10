@@ -1,5 +1,5 @@
 import { CLUB } from "./club";
-const ORIGIN='https://prospectsbaseball.club';
+const ORIGIN='https://prospectssports.club';
 export function pageHead(path:string,title:string,description:string,privatePage=false){
  description=description.replaceAll("Oklahoma Prospects Academy",CLUB.name).replaceAll("Oklahoma Prospects",CLUB.name);
  const url=ORIGIN+(path==='/'?'/':path);

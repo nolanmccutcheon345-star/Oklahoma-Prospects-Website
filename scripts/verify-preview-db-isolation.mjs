@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { pathToFileURL } from "node:url";
 
-const PRODUCTION = "https://prospectsbaseball.club";
+const PRODUCTION = "https://prospectssports.club";
 
 /** Strictly require a Netlify deploy-preview of OUR project; never probe arbitrary URLs. */
 export function validatePreviewOrigin(value) {
