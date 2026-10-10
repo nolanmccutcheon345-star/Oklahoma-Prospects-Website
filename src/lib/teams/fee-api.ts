@@ -25,3 +25,12 @@ export const saveFeeBusiness = createServerFn({ method: "POST" })
     const { setFeeBusiness } = await import("./fee.server");
     return setFeeBusiness(await getSql(), context.userId, data);
   });
+
+export const getTeamUniform = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
+  .validator(z.object({ teamId: z.string().min(1).max(150) }).strict())
+  .handler(async ({ context, data }) => {
+    const { getSql } = await import("../db");
+    const { teamUniform } = await import("./fee.server");
+    return teamUniform(await getSql(), context.userId, data.teamId);
+  });
