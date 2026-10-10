@@ -34,7 +34,10 @@ test("camp registration UI, calendar, and admin event editor use authoritative d
   };
   const fixture = {
     events: [event],
-    family: { players: [{ id: "player", name: "Linked Player" }], registrations: [] },
+    family: {
+      players: [{ id: "player", name: "Linked Player", birthDate: "2018-06-03" }],
+      registrations: [],
+    },
     calls: [],
     saved: [],
   };
@@ -104,7 +107,12 @@ test("camp registration UI, calendar, and admin event editor use authoritative d
     root = createRoot(host);
     await act(async () => root.render(createElement(EventOffice)));
     await act(async () => button("Edit event").click());
-    assert.equal(host.querySelector("input[type=number]").value, "45.67");
+    assert.equal(
+      [...host.querySelectorAll("label")]
+        .find((l) => l.textContent.includes("Full-camp price"))
+        .querySelector("input").value,
+      "45.67",
+    );
     assert.match(host.textContent, /Assigned Coach/);
     await act(async () =>
       host
@@ -117,6 +125,9 @@ test("camp registration UI, calendar, and admin event editor use authoritative d
     const camp = {
       ...event,
       pricingMode: "both",
+      minAge: 8,
+      maxAge: 12,
+      type: "skills-class",
       priceCents: 12500,
       dayPriceCents: 5000,
       sessions: [
@@ -158,6 +169,9 @@ test("camp registration UI, calendar, and admin event editor use authoritative d
         .dispatchEvent(new dom.window.Event("submit", { bubbles: true, cancelable: true })),
     );
     assert.equal(fixture.saved.at(-1).pricingMode, "both");
+    assert.equal(fixture.saved.at(-1).minAge, 8);
+    assert.equal(fixture.saved.at(-1).maxAge, 12);
+    assert.equal(fixture.saved.at(-1).type, "skills-class");
     assert.equal(fixture.saved.at(-1).dayPriceCents, 5000);
     assert.equal(fixture.saved.at(-1).sessions.length, 3);
     await act(async () => root.unmount());
@@ -165,6 +179,7 @@ test("camp registration UI, calendar, and admin event editor use authoritative d
     await act(async () => root.render(createElement(EventsPage)));
     await act(async () => button("Register a player").click());
     assert.match(host.textContent, /\$125.00 total per player/);
+    assert.match(host.textContent, /Ages 8–12/);
     await act(async () => host.querySelectorAll("input[type=radio]")[1].click());
     assert.match(host.textContent, /Select camp days to see your total/);
     await act(async () => host.querySelectorAll("input[type=checkbox]")[0].click());
