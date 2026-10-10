@@ -83,6 +83,9 @@ export const budgetSchema = z
     triggerEventId: z.string().max(150),
     deadlineOverride: day,
     secondDue: day,
+    poEnabled: z.boolean().optional(),
+    noUniformReason: z.string().max(1000).optional(),
+    processingZeroReason: z.string().max(1000).optional(),
     uniformCutoff: day,
     graceDays: z.number().int().min(0).max(365),
     holdDays: z.number().int().min(1).max(365),
@@ -173,6 +176,15 @@ export function deadline(b: FeeBudget, events: { id: string; start: string }[]) 
     (chosen ? shiftDay(chosen.start.slice(0, 10), -(b.daysBeforeTournament ?? 28)) : "")
   );
 }
+export function midpointDay(start: string, end: string) {
+  if (!start || !end) return "";
+  if (start > end)
+    throw Error("The final payment deadline has passed. Ask Front Office to review the schedule.");
+  return shiftDay(
+    start,
+    Math.floor((Date.parse(end + "T12:00:00Z") - Date.parse(start + "T12:00:00Z")) / 86400000 / 2),
+  );
+}
 export function scheduleRows(
   b: FeeBudget,
   total: number,
@@ -183,7 +195,7 @@ export function scheduleRows(
   if (!b.paymentSchedule)
     return installments(total).map((amount, i) => ({
       amount,
-      due: [accepted, b.secondDue, final][i],
+      due: [accepted, b.secondDue || midpointDay(accepted, final), final][i],
       label: ["Deposit", "Second payment", "Final payment"][i],
     }));
   const { mode, rows } = b.paymentSchedule;

@@ -33,6 +33,7 @@ test("team fee UI saves admin drafts and offers only permitted coach controls", 
     name: "Example team",
     closed: false,
     access: "admin",
+    poEnabled: false,
     revision: 1,
     status: "draft",
     publication: null,
@@ -157,6 +158,14 @@ test("team fee UI saves admin drafts and offers only permitted coach controls", 
     assert.equal(globalThis.__matrixSaved.value.payroll[0].userId, "parent");
     assert.match(host.textContent, /Master saved/);
     assert.match(host.textContent, /Season & private pricing assumptions/);
+    assert.match(host.textContent, /FEE HEALTH · INCOMPLETE/);
+    assert.doesNotMatch(host.textContent, /Pitcher-only fee|Projected pitcher-only players/);
+    assert.equal(
+      [...host.querySelectorAll("button")].find((b) => b.textContent === "Approve & publish fees")
+        .disabled,
+      true,
+    );
+    assert.match(host.textContent, /acceptance midpoint/);
     assert.match(host.textContent, /\$500\.00/);
     const save = [...host.querySelectorAll("button")].find(
       (b) => b.textContent === "Save draft & expenses",

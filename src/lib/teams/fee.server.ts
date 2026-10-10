@@ -1,3 +1,4 @@
+import { feeHealth, offersPO, pendingGas } from "./fee-health";
 import { teamSeasonOverhead } from "./facility-overhead";
 import { loadBudgetMaster } from "./budget-matrix.server";
 import { budgetFromMatrix, rowKey } from "./budget-matrix";
@@ -105,6 +106,21 @@ function playerView(t: Team, p: Player, plan: FeePlan) {
         lateFee: terms.fee,
       }
     : plan.budget;
+  const agreedBudget = plan.publishedBudget || plan.budget;
+  const previewSchedule =
+    offer &&
+    !p.feeLock &&
+    !agreedBudget.paymentSchedule &&
+    !agreedBudget.secondDue &&
+    today() <= offer.finalDue
+      ? scheduleRows(
+          agreedBudget,
+          total,
+          p.roleType === "po" ? "po" : "full",
+          offer.finalDue,
+          today(),
+        )
+      : offer?.schedules?.[p.roleType === "po" ? "po" : "full"];
   const rows = p.planLock?.rows,
     accepted = p.agreement.signedAt?.slice(0, 10) || "",
     final = rows?.[rows.length - 1]?.date || p.planLock?.deadline || offer?.finalDue || "",
@@ -142,7 +158,7 @@ function playerView(t: Team, p: Player, plan: FeePlan) {
             label:
               i === 0 ? "Deposit" : i === rows.length - 1 ? "Final payment" : `Payment ${i + 1}`,
           }))
-        : offer?.schedules?.[p.roleType === "po" ? "po" : "full"],
+        : previewSchedule,
     ),
     ...(!p.feeLock && !offer
       ? { status: "Awaiting published fee", rows: [], uniformReady: false }
@@ -188,10 +204,16 @@ export async function feeWorkspace(sql: Sql, userId: string) {
       const row = rows.find((r) => r.team_id === t.id),
         p = row ? { ...row.payload, revision: row.revision } : initial(t),
         coach = coaching(t, me.email);
-      if (p.status !== "closed") p.budget = teamSeasonOverhead(p.budget, overheadMaster);
+      if (p.status !== "closed")
+        p.budget = teamSeasonOverhead(pendingGas(p.budget), overheadMaster);
       const players = t.roster
         .filter((x) => admin || coach || guardian(x, me))
-        .map((x) => ({ ...playerView(t, x, p), canAccept: guardian(x, me) }));
+        .map((x) => ({
+          ...playerView(t, x, p),
+          canAccept:
+            guardian(x, me) &&
+            (x.roleType !== "po" || offersPO(p.publishedBudget || p.budget, t.sport)),
+        }));
       const events = club.catalog
         .filter((e) => t.tournamentIds.includes(e.id))
         .map((e) => ({ id: e.id, name: e.name, start: e.start }));
@@ -245,6 +267,8 @@ export async function feeWorkspace(sql: Sql, userId: string) {
       );
       return {
         id: t.id,
+        poEnabled: offersPO(p.budget, t.sport),
+        seasonLabel: t.seasonLabel,
         name: t.name,
         closed: t.closed,
         access: admin ? ("admin" as const) : coach ? ("coach" as const) : ("family" as const),
@@ -272,12 +296,19 @@ export async function feeWorkspace(sql: Sql, userId: string) {
                     photos: u.photos || [],
                   })),
                 full: calculateFees(p.budget).full,
-                po: calculateFees(p.budget).po,
+                po: offersPO(p.budget, t.sport) ? calculateFees(p.budget).po : 0,
               }
             : null,
         private: admin
           ? {
               plan: p,
+              feeHealth: feeHealth(p.budget, {
+                key: p.defaults?.key,
+                seasonLabel: t.seasonLabel,
+                overheadReviewed: overheadMaster.overheadReviewed,
+                finalDue: deadline(p.budget, events),
+                today: today(),
+              }),
               forecast,
               actual: {
                 totalCollected,
@@ -365,12 +396,23 @@ export async function mutateFeePlan(sql: Sql, userId: string, raw: z.infer<typeo
         revision: master.revision,
         appliedAt: new Date().toISOString(),
       };
+      const year = p.budget.start.slice(0, 4) || t.seasonLabel.match(/20\d{2}/)?.[0];
+      if (year) {
+        t.seasons = (
+          row.season === "springSummer"
+            ? ["Spring", "Summer"]
+            : [row.season[0].toUpperCase() + row.season.slice(1)]
+        ).map((s) => s + " " + year);
+        t.seasonLabel = t.seasons.join(" & ");
+        t.months = p.budget.months;
+        clubChanged = true;
+      }
       p.status = "draft";
     }
     if (input.action === "save") {
       p = checkBudget({
         ...p,
-        budget: await withScheduledHotels(tx, t.id, input.budget),
+        budget: await withScheduledHotels(tx, t.id, pendingGas(input.budget)),
         uniforms: input.uniforms,
         expenses: input.expenses,
         status: "draft",
@@ -397,31 +439,33 @@ export async function mutateFeePlan(sql: Sql, userId: string, raw: z.infer<typeo
     p.budget = teamSeasonOverhead(p.budget, (await loadBudgetMaster(tx)).value);
     if (input.action === "publish") {
       checkBudget(p);
-      if (p.defaults) {
-        const r = p.budget.readiness;
-        if (
-          !r ||
-          !r.schedule ||
-          !r.gas ||
-          !r.hotels ||
-          !r.other ||
-          !r.processing ||
-          (!p.budget.uniformId && !r.noUniform)
-        )
-          throw Error(
-            "Complete the schedule, uniform, gas, hotel, other-cost and processing review before publishing player fees.",
-          );
-      }
+      const health = feeHealth(p.budget, {
+        key: p.defaults?.key,
+        seasonLabel: t.seasonLabel,
+        overheadReviewed: (await loadBudgetMaster(tx)).value.overheadReviewed,
+        finalDue: deadline(
+          p.budget,
+          club.catalog.filter((e) => t.tournamentIds.includes(e.id)),
+        ),
+        today: today(),
+      });
+      if (!health.ready)
+        throw Error(
+          "Fee health: " +
+            (health.pending.join(" ") || "Projected fees do not fully fund costs and targets."),
+        );
+      const poEnabled = offersPO(p.budget, t.sport);
+      if (!poEnabled && t.roster.some((x) => !x.withdrawn && x.roleType === "po" && !x.feeLock))
+        throw Error(
+          "Resolve unaccepted pitcher-only roster assignments before publishing full-player-only fees.",
+        );
+      p.budget.poEnabled = poEnabled;
       const final = deadline(
           p.budget,
           club.catalog.filter((e) => t.tournamentIds.includes(e.id)),
         ),
         b = p.budget;
-      if (
-        !final ||
-        (!b.paymentSchedule && (!b.secondDue || b.secondDue > final)) ||
-        final < today()
-      )
+      if (!final || (!b.paymentSchedule && b.secondDue && b.secondDue > final) || final < today())
         throw Error("Set a future final deadline and a second payment date no later than it.");
       if (!b.policy.trim() || !b.reinstatement.trim())
         throw Error(
@@ -429,8 +473,12 @@ export async function mutateFeePlan(sql: Sql, userId: string, raw: z.infer<typeo
         );
       const f = calculateFees(b);
       const schedules = {
-        full: scheduleRows(b, f.full, "full", final),
-        po: scheduleRows(b, f.po, "po", final),
+        full: scheduleRows(b, f.full, "full", final, today()).map((r, i) =>
+          i ? r : { ...r, due: "" },
+        ),
+        po: poEnabled
+          ? scheduleRows(b, f.po, "po", final, today()).map((r, i) => (i ? r : { ...r, due: "" }))
+          : [],
       };
       for (const rows of Object.values(schedules)) {
         let previous = today();
@@ -445,19 +493,30 @@ export async function mutateFeePlan(sql: Sql, userId: string, raw: z.infer<typeo
       p.published = {
         schedules,
         full: f.full,
-        po: f.po,
+        po: poEnabled ? f.po : 0,
         secondDue: b.secondDue,
         finalDue: final,
         policy:
           b.policy +
           "\n\nFull player schedule: " +
           schedules.full
-            .map((r) => `${r.label}: ${money(r.amount)} ${r.due ? "by " + r.due : "at acceptance"}`)
+            .map(
+              (r, i) =>
+                `${r.label}: ${money(r.amount)} ${i === 1 && !b.paymentSchedule && !b.secondDue ? "at the acceptance midpoint" : r.due ? "by " + r.due : "at acceptance"}`,
+            )
             .join("; ") +
-          "\nPitcher-only schedule: " +
-          schedules.po
-            .map((r) => `${r.label}: ${money(r.amount)} ${r.due ? "by " + r.due : "at acceptance"}`)
-            .join("; ") +
+          (poEnabled
+            ? "\nPitcher-only schedule: " +
+              schedules.po
+                .map(
+                  (r) =>
+                    `${r.label}: ${money(r.amount)} ${r.due ? "by " + r.due : "at acceptance"}`,
+                )
+                .join("; ")
+            : "") +
+          (!b.paymentSchedule && !b.secondDue
+            ? "\nSecond payment is due midway between acceptance and the final deadline; the exact date is confirmed when you accept."
+            : "") +
           ". Grace period: " +
           b.graceDays +
           " days. One-time late fee after grace: $" +
@@ -519,6 +578,8 @@ export async function mutateFeePlan(sql: Sql, userId: string, raw: z.infer<typeo
         throw Error(
           "This player has an agreed fee. A role change requires separate agreement review.",
         );
+      if (input.role === "po" && !offersPO(p.budget, t.sport))
+        throw Error("This team does not offer pitcher-only roster spots.");
       player.roleType = input.role;
       clubChanged = true;
     }
@@ -531,6 +592,12 @@ export async function mutateFeePlan(sql: Sql, userId: string, raw: z.infer<typeo
         throw Error(
           "An agreed fee already exists. Front Office must review amendments separately.",
         );
+      if (player.roleType === "po" && !offersPO(p.publishedBudget || p.budget, t.sport))
+        throw Error("This team does not offer pitcher-only roster spots.");
+      if (today() > p.published.finalDue)
+        throw Error(
+          "The final payment deadline has passed. Contact Front Office before accepting.",
+        );
       const amount = player.roleType === "po" ? p.published.po : p.published.full,
         schedule =
           p.published.schedules?.[player.roleType === "po" ? "po" : "full"] ||
@@ -542,6 +609,17 @@ export async function mutateFeePlan(sql: Sql, userId: string, raw: z.infer<typeo
           ),
         parts = schedule.map((r) => r.amount),
         date = today();
+      const agreedForDates = p.publishedBudget || p.budget;
+      const acceptedSchedule =
+        !agreedForDates.paymentSchedule && !agreedForDates.secondDue
+          ? scheduleRows(
+              agreedForDates,
+              amount,
+              player.roleType === "po" ? "po" : "full",
+              p.published.finalDue,
+              date,
+            )
+          : schedule;
       player.feeLock = {
         amount: amount / 100,
         lockedAt: new Date().toISOString(),
@@ -552,7 +630,7 @@ export async function mutateFeePlan(sql: Sql, userId: string, raw: z.infer<typeo
         dep: parts[0] / 100,
         deadline: p.published.finalDue,
         planType: "custom",
-        rows: schedule.map((r) => ({
+        rows: acceptedSchedule.map((r) => ({
           date: !r.due || r.due < date ? date : r.due,
           amount: r.amount / 100,
         })),
@@ -618,6 +696,10 @@ export async function mutateFeePlan(sql: Sql, userId: string, raw: z.infer<typeo
       };
     }
     if (input.action === "close") {
+      if (!(await loadBudgetMaster(tx)).value.overheadReviewed)
+        throw Error(
+          "Review actual facility costs and staffing before closing the season financially.",
+        );
       if (
         !p.published ||
         today() <= p.budget.end ||

@@ -31,3 +31,17 @@ Reserve uses the master contribution rate, actual reserve balance and target. It
 ## Verification
 
 Synthetic database coverage checks seeded migration values, admin-only master access, concurrent edits, preservation of existing plans, apply-default controls, schedule costs and review/publish gates. Formula tests cover reference floors, rounded processing, coach premiums, baseline protection and company allocation. Rendered UI tests check the 120-row editor, saving, availability without teams and hidden admin controls for coaches. No real customer payments are created during tests.
+
+## Fee health and publication safeguards
+
+Fee Health appears beside the calculated player fee. It reports funding shortfall, pending review items, membership/organization target coverage and readiness. The server independently enforces the checks; hiding a control cannot bypass them. Payment policies, deadlines, cost review, processing and actual facility-overhead review are required. Expense/payroll changes clear the master overhead review; save changed costs, then explicitly confirm and save the review. Profit projections remain provisional until reviewed.
+
+A Spring matrix row spanning into July or later is blocked. Applying a different master row to an unpublished draft also updates the team's season classification using the season start year. This is an explicit admin decision: the application does not infer the intended competitive season from an old export. Confirm Spring + Summer or shorten Spring-only dates.
+
+New matrix teams default to full-player-only pricing. Legacy softball plans also require an explicit admin PO opt-in. PO controls and new offers disappear when disabled; server role assignment and acceptance reject unsupported PO slots. Existing accepted agreements are preserved. Resolve any unaccepted PO roster assignments before publishing full-only fees.
+
+Gas remains zero/pending until schedule review. Uniform omission requires an explicit review plus a written reason (for example, returning players reusing uniforms). Zero processing rate and fixed fee require a reviewed, written explanation; no processor rate is guessed.
+
+For the default 40/30/30 schedule, blank Payment 2 means the midpoint between actual acceptance and the final deadline. An explicit date remains an admin override. Exact dates are locked with the accepted agreement. Acceptance after the final deadline is blocked pending office review. Custom schedules keep their explicit dates and amounts.
+
+The generated `budget-matrix-validation.md` validates all 120 supplied rows. It is a code-default report, not a statement that a live team's schedule, actual overhead, or processor contract has been confirmed.

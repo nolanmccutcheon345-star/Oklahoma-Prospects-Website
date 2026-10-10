@@ -63,8 +63,18 @@ test("team financial permissions, approvals, immutable fees, uniform release and
     other.familyId = "other-home";
     other.parents = [];
     await sql`insert into club_state(id,payload,rev,demo) values('oklahoma-prospects',${JSON.stringify(club)}::jsonb,0,false)`;
+    await sql`update team_budget_master set payload=jsonb_set(payload,'{overheadReviewed}','true'::jsonb) where id='master'`;
     const budget = {
       ...defaultBudget(),
+      readiness: {
+        schedule: true,
+        gas: true,
+        hotels: true,
+        other: true,
+        processing: true,
+        noUniform: false,
+      },
+      processingZeroReason: "No processing charge in this fixture",
       start: "2027-04-01",
       end: "2027-06-15",
       months: 2.5,
