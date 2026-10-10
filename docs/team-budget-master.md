@@ -20,7 +20,11 @@ Costs plus uniforms receive contingency, then membership and organization fees a
 
 ## Business projections
 
-The monthly business allocation report uses active players with accepted fees and recorded payments in teams overlapping the selected reporting month. Season contribution is spread over configured months. Facility overhead is allocated once by paying-player count, with exact-cent reconciliation. With no paying players it is reported as unallocated.
+The monthly business allocation report uses active players with accepted fees and recorded payments in teams overlapping the selected reporting month. Season contribution is spread over configured months. Facility overhead is itemized by month: lease, utilities, maintenance, software, cleaning, equipment, other staffing and other costs. Admins can select existing accounts for named monthly staffing estimates. Active entries contribute once; inactive entries remain editable but are excluded. Account names are resolved on the server and no payroll payments, invitations or permissions are issued.
+
+The master contribution rule can be automatic by paying-player share, a percentage of total monthly facility overhead, or a fixed monthly dollar amount. Team Fees → Facility overhead contribution lets admins override each team or restore master inheritance. Percentage and fixed contributions multiply by configured billable season months, including fractional months. Inherited rules follow current master changes; explicit team overrides persist. Financially closed plans retain their saved season overhead.
+
+The monthly report shows configured team allocations and any uncovered or excess allocation. Fixed and percentage rules are not silently normalized. Company overhead is deducted once when calculating company-wide net funds, regardless of the allocations. Automatic mode retains the prior player-share report and manual per-team season estimates. With no paying players, automatic overhead remains unallocated. Allocation is from existing team revenue; it does not add a family fee or alter accepted checkout amounts.
 
 Reserve uses the master contribution rate, actual reserve balance and target. It is capped by available net funds and the remaining target; the after-target rate applies once the target is reached. These are forecasts, not transfers or an automatically updated bank balance. Team contingency stays separate. Legacy manual season overhead/reserve fields and scenario calculators remain explicit estimates/overrides, not additional automatic charges.
 

@@ -1,3 +1,11 @@
+import {
+  overheadRuleSchema,
+  facilityCostsSchema,
+  payrollSchema,
+  facilityMonthly,
+  monthlyTeamOverhead,
+  type OverheadRule,
+} from "./facility-overhead";
 import { z } from "zod";
 import { defaultBudget, type FeeBudget } from "./fee-model";
 import type { Team } from "./types";
@@ -37,6 +45,9 @@ export const masterSchema = z
     roundTo: money,
     gas: z.array(money).length(4),
     monthlyOverhead: money,
+    overheadRule: overheadRuleSchema.optional(),
+    facilityCosts: facilityCostsSchema.optional(),
+    payroll: payrollSchema.optional(),
     reserveTarget: money,
     reserveBalance: money,
     reserveBps: z.number().int().min(0).max(10000),
@@ -230,23 +241,32 @@ export function budgetFromMatrix(team: Team, master: MasterMatrix, row: MatrixRo
 
 export function allocateMonthlyBusiness(
   master: MasterMatrix,
-  teams: { id: string; name: string; players: number; contribution: number }[],
+  teams: {
+    id: string;
+    name: string;
+    players: number;
+    contribution: number;
+    overheadRule?: OverheadRule;
+  }[],
 ) {
   const total = teams.reduce((n, t) => n + t.players, 0);
-  let remainder = master.monthlyOverhead;
+  const monthly = facilityMonthly(master);
+  let remainder = monthly;
   const rows = teams.map((t) => {
-    const overhead = total ? Math.floor((master.monthlyOverhead * t.players) / total) : 0;
+    const overhead =
+      monthlyTeamOverhead(master, t.overheadRule) ??
+      (total ? Math.floor((monthly * t.players) / total) : 0);
     remainder -= overhead;
     return { ...t, overhead };
   });
-  if (total)
+  if (total && teams.every((t) => monthlyTeamOverhead(master, t.overheadRule) === null))
     for (let i = 0; remainder > 0; i = (i + 1) % rows.length)
       if (rows[i].players) {
         rows[i].overhead++;
         remainder--;
       }
   const contribution = rows.reduce((n, r) => n + r.contribution, 0),
-    net = contribution - master.monthlyOverhead;
+    net = contribution - monthly;
   const gap = Math.max(0, master.reserveTarget - master.reserveBalance);
   const reserve = Math.min(
     Math.max(0, net),
@@ -273,8 +293,9 @@ export function allocateMonthlyBusiness(
   return {
     rows: allocated,
     contribution,
-    overhead: master.monthlyOverhead,
-    unallocatedOverhead: remainder,
+    overhead: monthly,
+    unallocatedOverhead: Math.max(0, remainder),
+    overallocatedOverhead: Math.max(0, -remainder),
     reserve,
     net,
     distributable: Math.max(0, net - reserve),
