@@ -3,6 +3,7 @@ import type { Sql } from "../db";
 import { resolveIdentity } from "../identity.server";
 import type { ClubRecord, Team } from "./types";
 import { coachHoldsTeam } from "./privacy";
+import { teamSeasons } from "./seasons";
 import { canReadTeamStats } from "./public-view";
 import {
   activityInput,
@@ -54,6 +55,7 @@ export async function teamActivityWorkspace(sql: Sql, userId: string, teamId: st
   return {
     manage,
     teamName: t.name,
+    seasons: teamSeasons(t),
     record: t.record,
     players: t.roster
       .filter((p) => !p.withdrawn)
@@ -78,6 +80,8 @@ export async function saveTeamActivity(sql: Sql, userId: string, raw: TeamActivi
       throw Error("Activity changed. Reload before saving.");
     if (old && old.payload.kind !== input.kind)
       throw Error("Keep the activity type; cancel it and create a different activity if needed.");
+    if (input.season && !teamSeasons(t).includes(input.season))
+      throw Error("Choose a season assigned to this team.");
     for (const stat of input.stats)
       if (!t.roster.some((p) => p.id === stat.playerId))
         throw Error("Stats must belong to this team's roster.");
@@ -184,6 +188,7 @@ export async function publicTeamGames(sql: Sql) {
         sport: t.sport === "baseball" ? ("Baseball" as const) : ("Softball" as const),
         ageGroup: t.age,
         teamName: t.name,
+        seasons: teamSeasons(t),
         opponent: g.title,
         date: g.date,
         startTime: g.startTime,

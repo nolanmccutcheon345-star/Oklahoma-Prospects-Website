@@ -1,3 +1,4 @@
+import { currentSeason } from "@/lib/recruiting-contracts";
 import { useEffect, useState } from "react";
 import { Button } from "../ui/button";
 import { getTeamActivities, changeTeamActivity, sendTeamChat } from "@/lib/teams/activity-api";
@@ -93,7 +94,18 @@ export function TeamActivities({
               Refresh
             </Button>
             {data.manage && (
-              <Button onClick={() => setDraft(blank(teamId))}>
+              <Button
+                onClick={() =>
+                  setDraft({
+                    ...blank(teamId),
+                    season: data.seasons.includes(currentSeason())
+                      ? currentSeason()
+                      : data.seasons.length === 1
+                        ? data.seasons[0]
+                        : "",
+                  })
+                }
+              >
                 Add game, tournament or practice
               </Button>
             )}
@@ -118,7 +130,15 @@ export function TeamActivities({
                   disabled={Boolean(draft.id)}
                   value={draft.kind}
                   onChange={(e) =>
-                    setDraft({ ...blank(teamId), kind: e.target.value as TeamActivity["kind"] })
+                    setDraft({
+                      ...blank(teamId),
+                      season: data.seasons.includes(currentSeason())
+                        ? currentSeason()
+                        : data.seasons.length === 1
+                          ? data.seasons[0]
+                          : "",
+                      kind: e.target.value as TeamActivity["kind"],
+                    })
                   }
                 >
                   <option value="game">Game</option>
@@ -199,6 +219,21 @@ export function TeamActivities({
               </label>
               {draft.kind === "game" && (
                 <>
+                  <label>
+                    Season
+                    <select
+                      className={field}
+                      value={draft.season || ""}
+                      onChange={(e) => setDraft({ ...draft, season: e.target.value })}
+                    >
+                      <option value="">
+                        {data.seasons.length === 1 ? data.seasons[0] : "Choose season"}
+                      </option>
+                      {data.seasons.map((s) => (
+                        <option key={s}>{s}</option>
+                      ))}
+                    </select>
+                  </label>
                   <p className="text-sm">
                     Game dates, locations and scores appear publicly on Games. Set Final to update
                     the team record and season stats; win/loss/tie is calculated from the score.

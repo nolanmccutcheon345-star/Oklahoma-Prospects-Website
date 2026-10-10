@@ -145,6 +145,7 @@ export function OfficeWorkspace({
       {section === "requests" && <OfficeRequests />}
       {section === "teams" && (
         <>
+          <a href="/player-profiles" className="my-3 inline-flex min-h-11 items-center rounded bg-maroon px-4 text-white">Recruiting profiles & metric approvals</a>
           <TeamFeeWorkspace />
           <OfficeApp club={club} onChange={onChange} onSave={onSave} initialTab="teams" />
           <a
@@ -156,7 +157,7 @@ export function OfficeWorkspace({
         </>
       )}
       {section === "evaluations" && (
-        <TryoutEvaluations key={filter || "all"} pendingOnly={filter === "pending"} />
+        <><a href="/player-profiles" className="my-3 inline-flex min-h-11 items-center underline">Review recruiting metric requests</a><TryoutEvaluations key={filter || "all"} pendingOnly={filter === "pending"} /></>
       )}
       {section === "bookings" && (
         <div className="grid gap-5">

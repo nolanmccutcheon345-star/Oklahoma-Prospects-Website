@@ -22,6 +22,7 @@ export const activityInput = teamKey
     id: z.union([z.string().uuid(), z.literal("")]),
     revision: z.number().int().nonnegative(),
     kind: z.enum(["game", "tournament", "practice"]),
+    season: z.string().trim().max(100).optional(),
     title: z.string().trim().min(2).max(140),
     date: day,
     startTime: clock,
