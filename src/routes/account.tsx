@@ -140,6 +140,7 @@ function AccountHome() {
                 });
                 const next = await getProfile();
                 setProfile(next);
+                window.location.reload();
               } catch (err) {
                 setLoadError(err instanceof Error ? err.message : "Could not save account.");
               }
