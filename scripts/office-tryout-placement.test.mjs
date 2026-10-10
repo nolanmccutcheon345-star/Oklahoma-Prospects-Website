@@ -15,6 +15,6 @@ test("owner's front office must display preferred team/coach and require a consc
 test("owner's POST revalidates sport age team season and override independently of browser", () => {
   const server = readFileSync("src/lib/teams/store.ts", "utf8");
   assert.match(server, /assertTeamInquiryPlacement\(request\.payload,team,data\.acknowledgePreferenceOverride\)/);
-  assert.match(server, /acknowledgePreferenceOverride:z\.boolean\(\)\.default\(false\)/);
+  assert.match(server, /\.validator\(inquiryRosterInput\)/);
   assert.match(server, /me\.role!==\x27admin\x27/);
 });

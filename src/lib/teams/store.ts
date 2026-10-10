@@ -1,3 +1,5 @@
+import { assertRosterAssignment } from "./po-roster.server";
+import { rosterAddInput, inquiryRosterInput, type RosterRole } from "./po-roster";
 import {z} from "zod";
 import {parseClubSave} from "./contracts";
 import { assertTeamInquiryPlacement } from "./inquiry-placement";
@@ -37,8 +39,22 @@ async function loadRaw(): Promise<ClubRecord | null> {
   return { ...parsed, _rev: row.rev, _demo: row.demo };
 }
 
-async function writeRaw(club: ClubRecord, expectedRev?: number, transaction?:Sql) {
-  const sql = transaction || await getSql();
+async function writeRaw(club: ClubRecord, expectedRev?: number, transaction?:Sql): Promise<void> {
+  if (!transaction) return (await getSql()).transaction(tx => writeRaw(club, expectedRev, tx));
+  const sql = transaction;
+  if (expectedRev !== undefined) {
+    const [previous] = await sql<{payload: ClubRecord}>`select payload from club_state where id='oklahoma-prospects' for update`;
+    for (const team of club.teams) {
+      const old = previous?.payload.teams.find(t=>t.id===team.id);
+      for (const player of team.roster) {
+        const before = old?.roster.find(p=>p.id===player.id);
+        if (before?.feeLock && before.roleType!==player.roleType)
+          throw Error("This player has an agreed fee. A role change requires separate agreement review.");
+        if (!player.withdrawn && player.roleType==='po' && (!before || before.withdrawn || before.roleType!=='po' || old?.age!==team.age))
+          await assertRosterAssignment(sql,team,'po',player.id);
+      }
+    }
+  }
   const rows = expectedRev === undefined
     ? await sql`insert into club_state (id, rev, demo, payload, updated_at)
         values ('oklahoma-prospects', ${club._rev}, ${club._demo}, ${JSON.stringify(club)}::jsonb, now())
@@ -196,6 +212,7 @@ function blankPlayer(input: {
   name: string;
   parentName: string;
   parentEmail: string;
+  rosterRole: RosterRole;
 }): Player {
   return {
     id: `p-${slug(input.name)}-${Date.now().toString(36).slice(-4)}`,
@@ -212,7 +229,7 @@ function blankPlayer(input: {
     weight: "",
     email: "",
     parents: [{ name: input.parentName, rel: "guardian", phone: "", email: input.parentEmail }],
-    roleType: "full",
+    roleType: input.rosterRole,
     coachChild: false,
     joinedOn: new Date().toISOString().slice(0, 10),
     withdrawn: false,
@@ -333,7 +350,7 @@ export const officeSaveTeamSeasons = createServerFn({method: "POST"})
 
 export const coachAddRosterPlayer = createServerFn({method:"POST"})
   .middleware([authMiddleware])
-  .validator(z.object({teamId:z.string().min(1).max(150),name:z.string().trim().min(1).max(200),parentName:z.string().trim().min(1).max(200),parentEmail:z.string().trim().email().max(254)}).strict())
+  .validator(rosterAddInput)
   .handler(async ({context,data}) => {
     const me=await identity(context.userId);
     if(me.role!=="coach" && me.role!=="admin") throw new Error("Coach access required.");
@@ -344,7 +361,7 @@ export const coachAddRosterPlayer = createServerFn({method:"POST"})
     const email=data.parentEmail.trim().toLowerCase(),sql=await getSql();
     await sql`insert into club_households(id,primary_email) values(${'fam-'+randomUUID()},${email}) on conflict(primary_email) do nothing`;
     const [household]=await sql<{id:string}>`select id from club_households where primary_email=${email}`;
-    team.roster.push(blankPlayer({teamId:team.id,familyId:household.id,name:data.name,parentName:data.parentName,parentEmail:email}));
+    team.roster.push(blankPlayer({teamId:team.id,familyId:household.id,name:data.name,parentName:data.parentName,parentEmail:email,rosterRole:data.rosterRole}));
     const rev=stored._rev;stored._rev++;stored._savedAt=new Date().toISOString();
     stored.audit.unshift({at:stored._savedAt,action:"coach-roster-add",detail:`Added player to ${team.name}`});
     await writeRaw(stored,rev);
@@ -374,7 +391,7 @@ export const coachRemoveRosterPlayer = createServerFn({method:"POST"})
 
 export const officeAddPlayer = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
-  .validator(z.object({teamId:z.string().min(1).max(150),name:z.string().trim().min(1).max(200),parentName:z.string().trim().max(200),parentEmail:z.string().trim().email().max(254)}).strict())
+  .validator(rosterAddInput)
   .handler(async ({ context, data }) => {
     const me = await identity(context.userId);
     if (me.role !== "admin") throw new Error("Front office only.");
@@ -393,6 +410,7 @@ export const officeAddPlayer = createServerFn({ method: "POST" })
     const player = blankPlayer({
       teamId: team.id,
       familyId,
+      rosterRole: data.rosterRole,
       name: playerName,
       parentName: data.parentName.trim() || "Parent",
       parentEmail,
@@ -421,7 +439,7 @@ export const officeAddPlayer = createServerFn({ method: "POST" })
 
 
 export const reviewTeamInquiry=createServerFn({method:'POST'}).middleware([authMiddleware])
- .validator(z.object({id:z.string().min(1).max(150),teamId:z.string().min(1).max(150),stage:z.enum(['registered','evaluated','offer','accepted','waitlist']),acknowledgePreferenceOverride:z.boolean().default(false)}).strict())
+ .validator(inquiryRosterInput)
  .handler(async({context,data})=>{
   const me=await identity(context.userId);if(me.role!=='admin')throw new Error('Front office only.');
   const sql=await getSql();
@@ -434,6 +452,7 @@ export const reviewTeamInquiry=createServerFn({method:'POST'}).middleware([authM
    if(!team)throw new Error('Choose a current team.');
    if(request.payload.rosterPlayerId)return {ok:true,message:'This registration is already on a roster.'};
    assertTeamInquiryPlacement(request.payload,team,data.acknowledgePreferenceOverride);
+   if(data.stage==='offer'||data.stage==='accepted') await assertRosterAssignment(tx,team,data.rosterRole!, '',data.id);
    const leadId='inquiry-'+data.id,prior=club.leads.find(l=>l.id===leadId);
    const lead={id:leadId,name:request.payload.player,age:request.payload.age,stage:data.stage,grades:prior?.grades||{},teamId:team.id};
    club.leads=[...club.leads.filter(l=>l.id!==leadId),lead];
@@ -442,13 +461,13 @@ export const reviewTeamInquiry=createServerFn({method:'POST'}).middleware([authM
     const email=z.string().email().parse(request.payload.email).toLowerCase();
     await tx`insert into club_households(id,primary_email) values(${'fam-'+randomUUID()},${email}) on conflict(primary_email) do nothing`;
     const [household]=await tx<{id:string}>`select id from club_households where primary_email=${email}`;
-    const player=blankPlayer({teamId:team.id,familyId:household.id,name:request.payload.player,parentName:request.payload.parent,parentEmail:email});
+    const player=blankPlayer({teamId:team.id,familyId:household.id,name:request.payload.player,parentName:request.payload.parent,parentEmail:email,rosterRole:data.rosterRole!});
     team.roster.push(player);rosterPlayerId=player.id;
     await tx`insert into club_invites(id,token_hash,email,team_id,family_id,invited_by,role,expires_at) values(${randomUUID()},${randomUUID()},${email},${team.id},${household.id},${context.userId},'parent',now()+interval '7 days')`;
    }
    const revision=club._rev;club._rev++;club._savedAt=new Date().toISOString();
+   await tx`update club_requests set status=case when ${data.stage}='accepted' then 'accepted' else status end,payload=payload||${JSON.stringify({stage:data.stage,teamId:team.id,...(data.rosterRole?{rosterRole:data.rosterRole}:{}),...(rosterPlayerId?{rosterPlayerId}:{})})}::jsonb where id=${data.id}`;
    await writeRaw(club,revision,tx);
-   await tx`update club_requests set status=case when ${data.stage}='accepted' then 'accepted' else status end,payload=payload||${JSON.stringify({stage:data.stage,teamId:team.id,...(rosterPlayerId?{rosterPlayerId}:{})})}::jsonb where id=${data.id}`;
    return {ok:true,message:rosterPlayerId?'Added to the roster. Ask the guardian to sign in at /invitations to accept access.':'Registration stage saved.'};
   });
  });

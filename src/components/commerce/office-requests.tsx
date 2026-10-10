@@ -1,3 +1,5 @@
+import { RosterRoleSelect } from "@/components/teams/roster-role-select";
+import type { RosterRole } from "@/lib/teams/po-roster";
 import { getRequestWork, saveRequestWork } from "@/lib/front-office-api";
 import { useEffect, useState, type FormEvent } from "react";
 import { getOfficeRequests } from "@/lib/portal-api";
@@ -62,14 +64,15 @@ function RequestStageForm({
     .find((coach) => coach.id === preferredCoachId)?.name;
   const differentTeam = Boolean(preferredTeamId && teamId && teamId !== preferredTeamId);
 
-  async function save(event: FormEvent) {
+  async function save(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (busy || !teamId || (differentTeam && !acknowledge)) return;
+    const rosterRole = new FormData(event.currentTarget).get("rosterRole") as RosterRole | "";
     setBusy(true);
     onError("");
     try {
       const result = await reviewTeamInquiry({
-        data: { id: request.id, teamId, stage, acknowledgePreferenceOverride: acknowledge },
+        data: { id: request.id, teamId, stage, acknowledgePreferenceOverride: acknowledge, ...(rosterRole ? {rosterRole} : {}) },
       });
       await onComplete(result.message);
     } catch (error) {
@@ -154,6 +157,7 @@ function RequestStageForm({
           <option value="accepted">Accepted — add to roster and create guardian invitation</option>
         </select>
       </label>
+      {(stage === "offer" || stage === "accepted") && <RosterRoleSelect key={teamId} defaultValue={request.payload.rosterRole === "po" ? "po" : request.payload.rosterRole === "full" ? "full" : ""}/>}
       <Button type="submit" disabled={busy || !teamId || (differentTeam && !acknowledge)}>
         {busy ? "Saving…" : "Save status"}
       </Button>

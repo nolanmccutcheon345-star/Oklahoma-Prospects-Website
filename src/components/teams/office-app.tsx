@@ -1,3 +1,5 @@
+import { RosterRoleSelect } from "@/components/teams/roster-role-select";
+import type { RosterRole } from "@/lib/teams/po-roster";
 import { SeasonPicker } from "./season-picker";
 import { teamSeasons } from "@/lib/teams/seasons";
 import { useEffect, useState } from "react";
@@ -410,7 +412,7 @@ function RosterTools({
           setError("");
           try {
             const row = await officeAddPlayer({
-              data: { teamId, name: playerName, parentName, parentEmail },
+              data: { teamId, name: playerName, parentName, parentEmail, rosterRole: new FormData(event.currentTarget).get("rosterRole") as RosterRole },
             });
             onChange(row.club);
             setPlayerName("");
@@ -462,6 +464,7 @@ function RosterTools({
               placeholder="Parent email — used to open their family desk"
               className="min-h-11 rounded-md border border-line px-3"
             />
+            <RosterRoleSelect/>
             <Button type="submit" disabled={busy || !teamId}>
               Add player and link family
             </Button>

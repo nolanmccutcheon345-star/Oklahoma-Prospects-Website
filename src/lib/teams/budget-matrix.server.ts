@@ -1,6 +1,7 @@
 import { facilityMonthly, teamSeasonOverhead, initialFacilityCosts } from "./facility-overhead";
 import {
   masterSchema,
+  normalizePOMaster,
   matchMatrix,
   budgetFromMatrix,
   rowKey,
@@ -16,7 +17,7 @@ export async function loadBudgetMaster(sql: Sql) {
     revision: number;
   }>`select payload,revision from team_budget_master where id='master'`;
   if (!row) throw Error("Budget master is unavailable.");
-  return { value: masterSchema.parse(row.payload), revision: row.revision };
+  return { value: normalizePOMaster(masterSchema.parse(row.payload)), revision: row.revision };
 }
 export async function getBudgetMaster(sql: Sql, userId: string) {
   if ((await resolveIdentity(sql, userId)).role !== "admin") throw Error("Admin access required.");

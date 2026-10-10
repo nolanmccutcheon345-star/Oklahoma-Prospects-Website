@@ -52,7 +52,7 @@ for (const [full, po] of [
     );
     assert.equal(r.net, r.contribution - b.overhead);
     assert.equal(r.nolan + r.steve, r.distributable);
-    assert.equal(r.membership, (full + po) * 50000);
+    assert.equal(r.membership, full * 50000 + po * 37500);
     assert.equal(r.organization, full * 40000 + po * 20000);
     assert.equal(r.extraContribution, r.extraRevenue - r.extraCosts - po * fees.poContingency);
     assert.equal(

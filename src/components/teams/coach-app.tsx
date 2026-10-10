@@ -1,3 +1,5 @@
+import { RosterRoleSelect } from "@/components/teams/roster-role-select";
+import type { RosterRole } from "@/lib/teams/po-roster";
 import { SelectedTeamUniform } from "./uniform-photos";
 import {TeamActivities} from "./team-activities";
 import { formatClockTime } from "@/lib/time-display";
@@ -105,7 +107,7 @@ export function CoachApp({
         <form className="mb-4 grid gap-2 rounded-lg border p-3" onSubmit={async e => {
           e.preventDefault(); const form=e.currentTarget;const fd=new FormData(form);
           setRosterBusy(true);setRosterError("");
-          try {const row=await coachAddRosterPlayer({data:{teamId:team.id,name:String(fd.get("name")),parentName:String(fd.get("parentName")),parentEmail:String(fd.get("parentEmail"))}});onChange(row.club);form.reset();}
+          try {const row=await coachAddRosterPlayer({data:{teamId:team.id,rosterRole:String(fd.get("rosterRole")) as RosterRole,name:String(fd.get("name")),parentName:String(fd.get("parentName")),parentEmail:String(fd.get("parentEmail"))}});onChange(row.club);form.reset();}
           catch(err){setRosterError(err instanceof Error?err.message:"Could not add player.");}
           finally{setRosterBusy(false);}
         }}>
@@ -113,6 +115,7 @@ export function CoachApp({
           <input name="name" required maxLength={200} placeholder="Player name" aria-label="Player name" className="min-h-11 rounded-md border px-3"/>
           <input name="parentName" required maxLength={200} placeholder="Guardian name" aria-label="Guardian name" className="min-h-11 rounded-md border px-3"/>
           <input name="parentEmail" required type="email" maxLength={254} placeholder="Guardian email" aria-label="Guardian email" className="min-h-11 rounded-md border px-3"/>
+          <RosterRoleSelect/>
           <Button type="submit" disabled={rosterBusy}>Add player to my team</Button>
         </form>
         {rosterError && <p role="alert" className="text-sm text-maroon">{rosterError}</p>}

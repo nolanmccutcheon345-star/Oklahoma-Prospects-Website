@@ -45,3 +45,19 @@ Gas remains zero/pending until schedule review. Uniform omission requires an exp
 For the default 40/30/30 schedule, blank Payment 2 means the midpoint between actual acceptance and the final deadline. An explicit date remains an admin override. Exact dates are locked with the accepted agreement. Acceptance after the final deadline is blocked pending office review. Custom schedules keep their explicit dates and amounts.
 
 The generated `budget-matrix-validation.md` validates all 120 supplied rows. It is a code-default report, not a statement that a live team's schedule, actual overhead, or processor contract has been confirmed.
+
+## Linked pitcher-only pricing
+
+New and working drafts use PO model 2. Full and PO players share the same cost component at the ten-full-player baseline. Costs include coaching premiums, schedule entries, travel, hotels, uniforms, per-player expenses and contingency. More players do not dilute that baseline. Membership defaults to $200/full player/month and $150/PO/month. PO organization defaults to 60% of the age/season full organization fee, rounded up to $25, across both sports' 120 rows.
+
+Master Defaults and individual admin team budgets expose separate PO membership and organization amounts, plus team, uniform, contingency and processing allocations (100% each). Percentages apply to the matching shared cost component; processing applies to the PO's own card charges. Below-100% allocations or a zero PO organization fee require an explicit admin explanation before publication and show a subsidy warning. Actual processor expenses remain in the profit calculation even when the fee allowance is discounted. The preview lists the full and PO common components, membership allocations, pre-processing discount and subsidy.
+
+Legacy master records acquire these defaults on read, then persist with the next admin save. Legacy working team drafts upgrade without overwriting positive explicit PO organization amounts. Published-budget snapshots and accepted fee/payment locks retain their original values and legacy calculation. Changing a working draft does not republish fees or reprice accepted players. PO is still opt-in on newly created teams.
+
+Additional Player Contribution deducts incremental direct costs, service costs, processing and the extra PO contingency reserve. It includes that player's membership and organization revenue; it is not pure profit. Membership recognition on new PO acceptances uses the PO membership rate, with existing locked allocations preserved.
+
+### Roster fee types and PO limits
+
+Staff must explicitly choose Full / Position Player or Pitcher Only when adding a roster player or making/accepting a placement offer. Parents cannot change this assignment to obtain a different fee. Published acceptance selects the amount using the assigned roster role; agreed fees cannot be changed by editing that role.
+
+PO defaults: 1 spot for 6U–14U, 4 for 15U–17U. Admins may override the count (including zero) in that team's PO settings; blank restores the age default. Coaches can see the limit but cannot edit it. Teams must also explicitly offer PO spots. Active PO placement offers reserve capacity until accepted onto the roster or moved out of Offer status. Validation runs on the server against roster players plus pending offers, and club writes serialize with fee-plan edits so concurrent additions cannot exceed capacity. Lowering a team's limit below its active players/offers is rejected until staff resolve the assignments. Existing players are never automatically removed or repriced.

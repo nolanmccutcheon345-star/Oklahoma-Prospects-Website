@@ -9,7 +9,7 @@ import {
   type MasterMatrix,
   type MatrixRow,
 } from "@/lib/teams/budget-matrix";
-import { money, project } from "@/lib/teams/fee-model";
+import { money, project, defaultPOOrganization } from "@/lib/teams/fee-model";
 import { Button } from "../ui/button";
 import type { getFeeWorkspace } from "@/lib/teams/fee-api";
 type Teams = Awaited<ReturnType<typeof getFeeWorkspace>>["teams"];
@@ -158,12 +158,46 @@ export function BudgetMasterEditor({ teams }: { teams: Teams }) {
             ),
           )}
         </div>
+        {field(
+          "PO organization fee for this age / season ($)",
+          row.poOrganization ?? defaultPOOrganization(row.organization),
+          (n) => cell({ poOrganization: n }),
+        )}
+        <p className="text-sm">
+          PO organization defaults to 60% of the full-player fee, rounded up to $25. This field is
+          an admin override.
+        </p>
+        <p className="text-sm">
+          All PO cost allocations default to 100%. Reducing them causes other players or
+          organization profit to subsidize the PO’s costs.
+        </p>
+        <label className="grid gap-1 text-sm">
+          Admin reason for PO subsidy / zero organization fee
+          <textarea
+            className="office-control w-full"
+            value={m.poOverrideReason || ""}
+            onChange={(e) => patch({ poOverrideReason: e.target.value })}
+          />
+        </label>
         <h3>Common defaults</h3>
         <div className="grid gap-3 sm:grid-cols-2">
           {field("Baseline full-paying players", m.baseline, (n) => patch({ baseline: n }), 1)}
-          {field("Membership per player per month ($)", m.membershipMonthly, (n) =>
+          {field("Membership / facility per full player per month ($)", m.membershipMonthly, (n) =>
             patch({ membershipMonthly: n }),
           )}
+          {field(
+            "Membership / facility per pitcher-only player per month ($)",
+            m.poMembershipMonthly ?? 15000,
+            (n) => patch({ poMembershipMonthly: n }),
+          )}
+          {(
+            [
+              ["poTeamBps", "PO team-cost allocation (%)"],
+              ["poUniformBps", "PO uniform cost allocation (%)"],
+              ["poContingencyBps", "PO contingency allocation (%)"],
+              ["poProcessingBps", "PO processing allocation (%)"],
+            ] as const
+          ).map(([k, label]) => field(label, m[k] ?? 10000, (n) => patch({ [k]: n })))}
           {field("Contingency (%)", m.contingencyBps, (n) => patch({ contingencyBps: n }))}
           {field("Hotel stipend per night — total, not per coach ($)", m.hotelNightly, (n) =>
             patch({ hotelNightly: n }),

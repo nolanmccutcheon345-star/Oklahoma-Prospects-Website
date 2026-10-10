@@ -22,8 +22,26 @@ export const expenseSchema = z
     date: day,
   })
   .strict();
+export const poAllocationFields = {
+  poMembershipMonthly: cents.optional(),
+  poTeamBps: z.number().int().min(0).max(10000).optional(),
+  poUniformBps: z.number().int().min(0).max(10000).optional(),
+  poContingencyBps: z.number().int().min(0).max(10000).optional(),
+  poProcessingBps: z.number().int().min(0).max(10000).optional(),
+  poOverrideReason: z.string().max(1000).optional(),
+};
+export const poDefaults = {
+  poMembershipMonthly: 15000,
+  poTeamBps: 10000,
+  poUniformBps: 10000,
+  poContingencyBps: 10000,
+  poProcessingBps: 10000,
+};
+export const defaultPOOrganization = (full: number) => Math.ceil((full * 0.6) / 2500) * 2500;
 export const budgetSchema = z
   .object({
+    ...poAllocationFields,
+    poModel: z.literal(2).optional(),
     start: day,
     end: day,
     months: z.number().positive().max(36),
@@ -84,6 +102,7 @@ export const budgetSchema = z
     deadlineOverride: day,
     secondDue: day,
     poEnabled: z.boolean().optional(),
+    poRosterLimit: z.number().int().min(0).max(100).optional(),
     noUniformReason: z.string().max(1000).optional(),
     processingZeroReason: z.string().max(1000).optional(),
     uniformCutoff: day,
@@ -100,6 +119,8 @@ export const budgetSchema = z
 export type FeeBudget = z.infer<typeof budgetSchema>;
 export type Expense = z.infer<typeof expenseSchema>;
 export const defaultBudget = (): FeeBudget => ({
+  ...poDefaults,
+  poModel: 2,
   start: "",
   end: "",
   months: 3,
@@ -263,12 +284,30 @@ export function calculateFees(input: FeeBudget) {
   const member = Math.round(b.membershipMonthly * b.months),
     allocation = Math.ceil(protectedBudget / b.baseline);
   const fullNet = allocation + member + b.fullOrg;
-  const poDirect = b.poSharedAllocation + b.uniformCost + b.poIncremental,
-    poContingency = Math.ceil((poDirect * b.contingencyBps) / 10000);
-  const poNet = poDirect + poContingency + member + b.poOrg;
+  // Only frozen legacy agreements retain the independent PO calculation.
+  const linked = b.poModel === 2;
+  const teamComponent = Math.ceil(fixed / b.baseline) + b.fullIncremental;
+  const uniformComponent = b.uniformCost;
+  // Assign rounding remainder to contingency so 100% shares equal allocation exactly.
+  const contingencyComponent = allocation - teamComponent - uniformComponent;
+  const share = (n: number, rate: number | undefined) => Math.ceil((n * (rate ?? 10000)) / 10000);
+  const poDirect = linked
+    ? share(teamComponent, b.poTeamBps) + share(uniformComponent, b.poUniformBps)
+    : b.poSharedAllocation + b.uniformCost + b.poIncremental;
+  const poContingency = linked
+    ? share(contingencyComponent, b.poContingencyBps)
+    : Math.ceil((poDirect * b.contingencyBps) / 10000);
+  const poMember = linked ? Math.round((b.poMembershipMonthly ?? 15000) * b.months) : member;
+  const poAllocation = poDirect + poContingency;
+  const poNet = poAllocation + poMember + b.poOrg;
   const rounded = (n: number) => (b.roundTo ? Math.ceil(n / b.roundTo) * b.roundTo : n);
   const full = rounded(gross(fullNet, b)),
-    po = rounded(gross(poNet, b));
+    po = rounded(
+      poNet +
+        Math.ceil(
+          ((gross(poNet, b) - poNet) * (linked ? (b.poProcessingBps ?? 10000) : 10000)) / 10000,
+        ),
+    );
   // Rounding creates margin, not a processing expense. Allow for card fees on the
   // final rounded amount, with at most one cent of rounding per installment.
   const processing = (total: number, net: number) =>
@@ -280,7 +319,25 @@ export function calculateFees(input: FeeBudget) {
             (b.processingBps ? (b.paymentSchedule?.rows.length || 3) - 1 : 0),
         )
       : total - net;
+  const poProcessing = linked
+    ? b.paymentSchedule
+      ? Math.ceil((po * b.processingBps) / 10000) +
+        b.paymentSchedule.rows.length * b.processingFixed +
+        (b.processingBps ? b.paymentSchedule.rows.length - 1 : 0)
+      : sum(
+          installments(po).map(
+            (amount) => Math.ceil((amount * b.processingBps) / 10000) + b.processingFixed,
+          ),
+        )
+    : processing(po, poNet);
   return {
+    poMember,
+    poAllocation,
+    teamComponent,
+    uniformComponent,
+    contingencyComponent,
+    poDiscount: fullNet - poNet,
+    poSubsidy: Math.max(0, allocation - poAllocation) + Math.max(0, poProcessing - (po - poNet)),
     fixed,
     direct,
     contingency,
@@ -294,8 +351,8 @@ export function calculateFees(input: FeeBudget) {
     poContingency,
     fullProcessing: processing(full, fullNet),
     fullRounding: full - fullNet - processing(full, fullNet),
-    poProcessing: processing(po, poNet),
-    poRounding: po - poNet - processing(po, poNet),
+    poProcessing,
+    poRounding: po - poNet - poProcessing,
   };
 }
 export function project(
@@ -312,16 +369,17 @@ export function project(
     extra = Math.max(0, fullCount - b.baseline);
   const service = Math.round(b.serviceCostMonthly * b.months),
     extraRevenue = extra * f.full + poCount * f.po;
+  const poIncremental = b.poModel === 2 ? b.fullIncremental : b.poIncremental;
   const extraCosts =
     extra * (b.uniformCost + b.fullIncremental + service + f.fullProcessing) +
-    poCount * (b.uniformCost + b.poIncremental + service + f.poProcessing);
+    poCount * (b.uniformCost + poIncremental + service + f.poProcessing);
   const reserve = f.contingency + poCount * f.poContingency;
   const direct =
     f.fixed +
     fullCount * (b.uniformCost + b.fullIncremental) +
-    poCount * (b.uniformCost + b.poIncremental);
+    poCount * (b.uniformCost + poIncremental);
   const totalRevenue = fullCount * f.full + poCount * f.po,
-    membership = (fullCount + poCount) * f.member,
+    membership = fullCount * f.member + poCount * f.poMember,
     organization = fullCount * b.fullOrg + poCount * b.poOrg;
   const processing = fullCount * f.fullProcessing + poCount * f.poProcessing,
     serviceCosts = (fullCount + poCount) * service;
@@ -353,7 +411,7 @@ export function project(
     extraCosts,
     extraContribution,
     residualExtra:
-      extraContribution - extra * (f.member + b.fullOrg) - poCount * (f.member + b.poOrg),
+      extraContribution - extra * (f.member + b.fullOrg) - poCount * (f.poMember + b.poOrg),
     contribution,
     used,
     remaining,
