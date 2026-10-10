@@ -4,7 +4,7 @@ export function TrainingNav({ current }: { current: "lessons" | "instructors" | 
       {(
         [
           { id: "lessons", label: "Lessons", href: "/training" },
-          { id: "events", label: "Events", href: "/events" },
+          { id: "events", label: "Camps", href: "/events" },
           { id: "instructors", label: "Instructors", href: "/instructors" },
           { id: "plans", label: "Training Plans", href: "/training?view=plans" },
         ] as const

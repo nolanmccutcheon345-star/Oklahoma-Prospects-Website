@@ -140,27 +140,25 @@ export function mergeSave(
       if (!owned) continue;
       next.teams[idx] = {
         ...next.teams[idx],
-        tournamentIds: team.tournamentIds,
-        practices: team.practices,
+        tournamentIds: [...next.teams[idx].tournamentIds.filter(id=>stored.catalog.some(e=>e.id===id&&e.org==='Team schedule')), ...team.tournamentIds.filter(id=>!stored.catalog.some(e=>e.id===id&&e.org==='Team schedule'))],
+        // UUID activities are owned by the shared schedule API, not bulk desk saves.
+        practices: [...next.teams[idx].practices.filter(p=>/^[a-f0-9-]{36}$/.test(p.id)), ...team.practices.filter(p=>!/^[a-f0-9-]{36}$/.test(p.id))],
         announcements: team.announcements,
-        messages: team.messages,
+
         attendance: team.attendance,
         pitchLog: team.pitchLog,
-        record: team.record,
+
         notes: team.notes,
-        staff: next.teams[idx].staff.map((s) => {
-          const incomingStaff = team.staff.find((x) => x.id === s.id);
-          if (incomingStaff && norm(s.email) === norm(identity.email)) {
-            return { ...s, applyAmount: incomingStaff.applyAmount };
-          }
-          return s;
-        }),
         roster: next.teams[idx].roster.map((p) => {
           const incomingP = team.roster.find((x) => x.id === p.id);
           if (!incomingP) return p;
           return {
             ...p,
             number: incomingP.number,
+            name: incomingP.name,
+            positions: incomingP.positions,
+            bats: incomingP.bats,
+            throws: incomingP.throws,
             order: incomingP.order,
             rsvp: incomingP.rsvp,
           };
@@ -219,7 +217,7 @@ export function coachHoldsTeam(club: ClubRecord, email: string, teamId: string) 
   if (!team || !norm(email)) return false;
   return (
     team.coachEmail.trim().toLowerCase() === email.trim().toLowerCase() ||
-    team.staff.some((s) => s.email.trim().toLowerCase() === email.trim().toLowerCase())
+    team.staff.some((s) => /coach/i.test(s.role) && s.email.trim().toLowerCase() === email.trim().toLowerCase())
   );
 }
 

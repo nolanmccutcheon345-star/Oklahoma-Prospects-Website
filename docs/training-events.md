@@ -1,6 +1,6 @@
 # Camps and clinics
 
-Train → Events lists published camps/clinics and a month calendar. Front Office → Camps & Clinics creates and edits name, sport, description, complete per-player price, location, one or more session dates/times (Central Time), coaches, capacity, publication status, and written registration/cancellation policy.
+Train → Camps lists published camps/clinics and a month calendar. Front Office → Camps & Clinics creates and edits name, sport, description, complete per-player price, location, one or more session dates/times (Central Time), coaches, capacity, publication status, and written registration/cancellation policy.
 
 One checkout registers one household-linked player for every listed session. There is no private-lesson assessment requirement. All event prices are read from admin records and validated again before Square payment. Event edits invalidate stale unpaid checkouts. Completed purchases retain their price and policy snapshot.
 

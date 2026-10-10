@@ -2,7 +2,7 @@ import { teamSeasons } from "./seasons";
 import type { ClubRecord, Team } from "./types";
 
 const norm = (value: string | undefined) => value?.trim().toLowerCase() || "";
-type Viewer = {role: string; email: string; familyId?: string; familyIds?: string[]; householdEmails?: string[]; playerIds?:string[]};
+type Viewer = {role: string; email: string; familyId?: string; familyIds?: string[]; householdEmails?: string[]; playerIds?:string[];guardianHouseholdIds?:string[]};
 
 /** Membership authorizes statistics only; never full financial/medical player records. */
 export function canReadTeamStats(team: Team, me: Viewer): boolean {
@@ -11,8 +11,8 @@ export function canReadTeamStats(team: Team, me: Viewer): boolean {
   const email = norm(me.email);
   if (!email) return false;
   if (norm(team.coachEmail) === email || team.staff.some(s => norm(s.email) === email)) return true;
-  const families = new Set([me.familyId, ...(me.familyIds || [])].filter(Boolean));
-  const emails = new Set([email, ...(me.householdEmails || []).map(norm)]);
+  const families = new Set((me.role === "player" ? me.guardianHouseholdIds || [] : me.familyIds ?? [me.familyId]).filter(Boolean));
+  const emails = new Set([email, ...(me.role === "player" ? [] : (me.householdEmails || []).map(norm))]);
   return team.roster.some(p => !p.withdrawn && (
     me.playerIds?.includes(p.id) || norm(p.email) === email || families.has(p.familyId) || p.parents.some(parent => emails.has(norm(parent.email)))
   ));

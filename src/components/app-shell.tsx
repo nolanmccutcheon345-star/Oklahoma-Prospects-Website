@@ -164,7 +164,7 @@ export function AppShell({ children }: { children: ReactNode }) {
               <div role="menu" aria-label={`${openMenu} submenu`} className="grid grid-cols-2 gap-2">
                 {(openMenu === "Train" ? [
                   {label:"Lessons",to:"/training" as const, search:{view:"lessons" as const}},
-                  {label:"Events",to:"/events" as const},
+                  {label:"Camps",to:"/events" as const},
                   {label:"Instructors",to:"/instructors" as const},
                   {label:"Training Plans",to:"/training" as const, search:{view:"plans" as const}},
                 ] : [

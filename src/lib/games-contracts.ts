@@ -33,7 +33,7 @@ export const gameEventInput = z.object({
    ctx.addIssue({code:"custom",message:"New games must have revision zero.",path:["revision"]});
 });
 export type GameEventInput=z.infer<typeof gameEventInput>;
-export type PublicGameEvent=Omit<GameEventInput,"mediaApproved"|"published"|"revision"> & {id:string;revision:number};
+export type PublicGameEvent=Omit<GameEventInput,"mediaApproved"|"published"|"revision"> & {id:string;revision:number;teamId?:string;teamStats?:Record<string,number>};
 export type AdminGameEvent=GameEventInput;
 export function videoEmbedUrl(videoId: string) {
  if(!/^[A-Za-z0-9_-]{11}$/.test(videoId)) throw new Error("Invalid YouTube video ID.");

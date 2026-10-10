@@ -24,7 +24,8 @@ export async function publicGamesFor(sql: Sql): Promise<PublicGameEvent[]> {
      order by case when status='live' then 0 else 1 end,
               game_date desc,start_time desc,id limit 250`
   );
-  return games.map(publicGameView);
+  const {publicTeamGames}=await import('./teams/activity.server');
+  return [...games.map(publicGameView),...await publicTeamGames(sql)].sort((a,b)=>Number(b.status==='live')-Number(a.status==='live')||b.date.localeCompare(a.date));
  } catch(error) {
   // An unapplied new migration must render an honest empty state, not fake fixtures.
   if((error as {code?:string}).code==="42P01")return [];

@@ -103,6 +103,7 @@ function CoachPage() {
       <section className="mb-5 rounded-xl border p-4"><h2 className="text-2xl">Your shared profile</h2><p className="my-2">Use the same photo and bio for team coaching and lessons.</p><a href="/my-profile" className="inline-flex min-h-11 items-center underline">Edit My Profile</a><a href="/instructor" className="ml-5 inline-flex min-h-11 items-center underline">Instructor Workspace</a></section>
       <CoachApp
         club={club}
+        onReload={async()=>{const row=await getTeamsClub();setState(row);if(row.ok)setClub(row.club);}}
         onChange={setClub}
         onSave={async () => {
           try {

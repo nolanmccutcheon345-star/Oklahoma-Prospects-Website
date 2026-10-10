@@ -29,7 +29,7 @@ test("team members can read teammate stats, unrelated and former members cannot;
   const detail=playerStatsView(team,teammate.id,parent);
   assert.deepEqual(detail.stats,teammate.stats);
   assert.deepEqual(Object.keys(detail).sort(),["id","name","number","stats","teamId","teamName"]);
-  assert(canReadTeamStats(team,{role:"player",email:own.email||"member@example.invalid",familyIds:[own.familyId]}));
+  assert(canReadTeamStats(team,{role:"player",email:own.email||"member@example.invalid",familyIds:[own.familyId],playerIds:[own.id]}));
   assert(canReadTeamStats(team,{role:"coach",email:team.coachEmail.toUpperCase()}));
   assert(!canReadTeamStats(team,{role:"coach",email:other.coachEmail}));
   assert.throws(()=>playerStatsView(team,teammate.id,{role:"parent",email:"outsider@example.invalid"}));

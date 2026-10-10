@@ -1,3 +1,4 @@
+import {TeamActivities} from "./team-activities";
 import { useState } from "react";
 import { TeamFeeWorkspace } from './fee-workspace';
 import { Link } from "@tanstack/react-router";
@@ -104,6 +105,7 @@ export function FamilyApp({
   return (
     <div className="grid gap-3">
       {!isPlayer&&<TeamFeeWorkspace teamId={team.id}/>}
+      <TeamActivities key={team.id} teamId={team.id} onSaved={onReload}/>
       {mine.length > 1 ? (
         <div className="flex flex-wrap gap-2">
           {mine.map((m) => (

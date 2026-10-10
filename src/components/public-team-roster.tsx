@@ -1,3 +1,4 @@
+import {TeamActivities} from "./teams/team-activities";
 import { Button } from "./ui/button";
 import { useEffect, useState } from "react";
 import { getPublicTeamsView, getTeamStatsAccess } from "@/lib/teams/public-api";
@@ -67,6 +68,7 @@ export function PublicTeamRoster({
   );
   return (
     <section className="mx-auto max-w-5xl py-8" aria-label="Public team roster">
+      {teamId && statsAccess && <TeamActivities key={teamId} teamId={teamId}/>}
       {!teamId && teams.length >= 4 && (
         <div className="mb-6 grid gap-4 sm:grid-cols-2">
           <label className="text-sm font-semibold">
