@@ -1,3 +1,4 @@
+import {athleteAge} from '@/lib/pd/engines';
 import { Link } from "@tanstack/react-router";
 import { useMemo, useState, type ReactNode } from "react";
 import { Button } from "@/components/ui/button";
@@ -27,7 +28,6 @@ import type { RecordGroupId, RecordViewId, ViewerRole } from "@/lib/pd/types";
 import { RECORD_GROUPS, groupForView, viewsForRole } from "@/lib/pd/views";
 import { cn } from "@/lib/utils";
 
-import { ageOnClubDay } from "@/lib/pd/engines";
 
 function displayName(slice: AthleteSlice) {
   return `${slice.athlete.firstName} ${slice.athlete.lastName}`;
@@ -118,7 +118,7 @@ function RecordView({
 }) {
   const { data } = useDevelopment();
   const name = displayName(slice);
-  const age = ageOnClubDay(slice.athlete.birthDate);
+  const age = athleteAge(slice.athlete);
   const coach = role === "admin" || role === "coach";
   const op =
     slice.athlete.opLevel === 0
@@ -717,7 +717,7 @@ export function AthleteRoster({
                   <span className="font-display text-xl uppercase">
                     {row.firstName} {row.lastName}
                   </span>
-                  <span className="pd-num text-sm font-semibold text-maroon">{ageOnClubDay(row.birthDate)}</span>
+                  <span className="pd-num text-sm font-semibold text-maroon">{athleteAge(row)}</span>
                 </span>
                 <span className="mt-1 block text-sm text-muted">
                   {row.sport} · {row.position}

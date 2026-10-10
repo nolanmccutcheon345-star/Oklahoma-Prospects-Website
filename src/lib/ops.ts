@@ -661,6 +661,8 @@ export const saveStaff = createServerFn({ method: "POST" })
     if (data.offerings) {
       const { replaceCoachServices } = await import("./commerce/coach-services.server");
       await replaceCoachServices(tx, id, data.offerings);
+      // This explicit admin assignment also enables the shared instructor assignment.
+      if (data.offerings.length && saved?.user_id) await tx`update person_profiles set instructor=true,revision=revision+1,updated_at=now() where user_id=${saved.user_id}`;
     }
       if (data.active === false && saved) await revokeStaffAccess(tx, saved);
     });

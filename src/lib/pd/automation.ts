@@ -1,9 +1,9 @@
+import {athleteAge} from '@/lib/pd/engines';
 import { formatClockTime } from "../time-display";
 import { POINT_VALUES } from "./core-algorithms.js";
 import type { AthleteSlice } from "./context";
 import {
   clubDayIso,
-  ageOnClubDay,
   churnForFamily,
   sessionRestWarning,
   workloadFor,
@@ -89,7 +89,7 @@ export function activityPoints(slice: {
   athlete: { birthDate: string };
   pointsLog: PointsLog[];
 }) {
-  const age = ageOnClubDay(slice.athlete.birthDate);
+  const age = athleteAge(slice.athlete);
   const band = pointsBandForAge(age);
   const target = POINTS_TARGETS[band];
   const week = slice.pointsLog.filter((row) => row.date >= weekStart() && countsTowardWeek(row));
@@ -190,7 +190,7 @@ export function leaderboardRows(
 ) {
   const group = LB_AGE_GROUPS.find((row) => row.id === groupId) ?? LB_AGE_GROUPS[0];
   const rows = data.athletes
-    .filter((row) => !row.archived && group.test(ageOnClubDay(row.birthDate)))
+    .filter((row) => !row.archived && group.test(athleteAge(row)))
     .map((row) => {
       const family = data.families.find((f) => f.id === row.familyId);
       const opted = Boolean(family?.leaderboardOptOut);
@@ -216,7 +216,7 @@ export function ownStanding(
 ) {
   const athlete = data.athletes.find((row) => row.id === athleteId);
   if (!athlete) return null;
-  const age = ageOnClubDay(athlete.birthDate);
+  const age = athleteAge(athlete);
   const group = LB_AGE_GROUPS.find((row) => row.test(age));
   if (!group) return null;
   const value = measure(data, athleteId, metric);
@@ -426,7 +426,7 @@ export function buildAlerts(data: DevelopmentData, scope: AlertScope): PdAlert[]
       });
     }
 
-    const age = ageOnClubDay(athlete.birthDate);
+    const age = athleteAge(athlete);
     if (age >= 16 && slice.certifications.length === 0) {
       out.push({
         id: `cert-${athlete.id}`,

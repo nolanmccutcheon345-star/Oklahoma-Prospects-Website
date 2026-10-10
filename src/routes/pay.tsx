@@ -1,3 +1,4 @@
+import {PlayerBirthdays} from '@/components/commerce/player-birthdays';
 import { checkoutLessonService } from "@/lib/commerce/coach-services";
 import { pageHead } from "@/lib/seo";
 import { createFileRoute, Link } from "@tanstack/react-router";
@@ -72,7 +73,7 @@ function PayPage() {
   }, [user?.id, user?.displayName, user?.primaryEmail]);
   useEffect(() => {
     let active = true;
-    getCheckoutContext()
+    const refresh = () => getCheckoutContext()
       .then((value) => {
         if (active) {
           setContext(value);
@@ -83,9 +84,10 @@ function PayPage() {
         if (active)
           setError(e instanceof Error ? e.message : "Checkout could not load. Please try again.");
       });
-    return () => {
-      active = false;
-    };
+    refresh();
+    window.addEventListener('focus',refresh);
+    window.addEventListener('player-profile-updated',refresh);
+    return () => { active=false; window.removeEventListener('focus',refresh);window.removeEventListener('player-profile-updated',refresh); };
   }, [user?.id]);
   const product = context?.products.find((p) => p.id === search.id);
   const assessed = context?.athletes.find((a) => a.id === athleteId)?.assessmentComplete === true;
@@ -392,6 +394,7 @@ function PayPage() {
           />
         </div>
       ) : null}
+      {user && needsAthlete && !prepared ? <PlayerBirthdays /> : null}
       {product && !prepared ? (
         <form onSubmit={submit} className="mt-6 grid gap-5">
           <article className="rounded-2xl bg-ink p-5 text-white">
@@ -572,6 +575,8 @@ function PayPage() {
                   </select>
                 </label>
               ) : null}
+              {kind !== "cage" && coachId && context && !context.coachAvailability.some(c=>c.id===coachId&&c.serviceIds.includes(checkoutLessonService(quote)))?<p role="status">This instructor is assigned to this lesson, but has no published hours long enough for it. Ask the instructor or Front Office to publish availability.</p>:null}
+              {kind !== "cage" && context && !context.coaches.some(c=>c.serviceIds.includes(checkoutLessonService(quote))) ? <p role="status">No instructor is assigned to this service yet. Contact Front Office to check the service assignment.</p> : null}
               {kind !== "cage" ? (
                 <label className="flex min-h-11 items-center gap-3 rounded-lg border border-line bg-paper-2 p-3">
                   <input

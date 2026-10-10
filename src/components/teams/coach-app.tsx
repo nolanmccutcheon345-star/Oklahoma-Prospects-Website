@@ -1,4 +1,5 @@
 import { formatClockTime } from "@/lib/time-display";
+import {PrivatePlayerBirthday} from '@/components/commerce/player-birthdays';
 import { useState } from "react";
 import { coachAddRosterPlayer, coachRemoveRosterPlayer } from "@/lib/teams/store";
 import { Link } from "@tanstack/react-router";
@@ -138,6 +139,7 @@ export function CoachApp({
                   finally{setRosterBusy(false);}
                 }}>Remove player</button>
               </div>
+              <PrivatePlayerBirthday athleteId={p.id}/>
             </li>
           ))}
         </ul>

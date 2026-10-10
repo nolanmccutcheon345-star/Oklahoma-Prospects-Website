@@ -1,3 +1,4 @@
+import {ageOnClubDay} from './engines';
 import type { DevelopmentData, ViewerRole } from "./types";
 
 export type PdViewer = {
@@ -11,6 +12,7 @@ export type PdViewer = {
 };
 
 export type PdScope = {
+  birthdayIds?: Set<string>;
   role: ViewerRole;
   coachId?: string;
   viewerEmail?: string;
@@ -231,7 +233,7 @@ export function filterDevelopmentData(data: DevelopmentData, scope: PdScope): De
     plan: row.plan ? { type: "none" as const, lessonCredits: 0 } : undefined,
   }));
 
-  return {
+  return redactBirthdays({
     ...data,
     athletes,
     coaches: staff ? data.coaches : data.coaches.map(({id,name,email,specialties,active}) => ({
@@ -303,7 +305,7 @@ export function filterDevelopmentData(data: DevelopmentData, scope: PdScope): De
     intake: ofAthlete(data.intake, scope),
     videos: ofAthlete(data.videos, scope),
     documents: ofAthlete(data.documents, scope),
-  };
+  }, scope.birthdayIds ?? new Set<string>());
 }
 
 export function authorizeMessage(
@@ -317,4 +319,20 @@ export function authorizeMessage(
   const channel: "coach" | "family" = input.channel === "coach" ? "coach" : "family";
   if (channel === "coach" && !canCoachAthlete(scope, input.athleteId)) throw new ForbiddenError();
   return { athleteId: input.athleteId, body: body.slice(0, 4000), channel };
+}
+
+/** Strip dates recursively, including historical program inputs and intake snapshots. */
+export function redactBirthdays<T>(value:T,allowed:Set<string>,athleteId=''):T {
+  if(Array.isArray(value)) return value.map(v=>redactBirthdays(v,allowed,athleteId)) as T;
+  if(!value || typeof value!=='object') return value;
+  const row=value as Record<string,unknown>;
+  const id=typeof row.athleteId==='string'?row.athleteId:typeof row.id==='string' && 'firstName' in row?row.id:athleteId;
+  const out:Record<string,unknown>={};
+  for(const [key,v] of Object.entries(row)) out[key]=(key==='birthDate'||key==='birth_date'||key==='playerBirthDate')&&!allowed.has(id)?'':redactBirthdays(v,allowed,id);
+  if(typeof row.birthDate==='string' && 'firstName' in row) {
+    out.ageYears=row.birthDate?ageOnClubDay(row.birthDate):row.ageYears??0;
+    out.birthdayRecorded=Boolean(row.birthDate)||row.birthdayRecorded===true;
+    out.canViewBirthday=allowed.has(id);
+  }
+  return out as T;
 }

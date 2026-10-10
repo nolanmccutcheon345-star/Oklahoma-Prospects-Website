@@ -1,3 +1,4 @@
+import {PlayerBirthdays} from './player-birthdays';
 import { useEffect, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { useCurrentUser } from "@/lib/auth/use-current-user";
@@ -102,6 +103,7 @@ export function FamilyBilling({ bookingsOnly = false }: { bookingsOnly?: boolean
     );
   return (
     <section className="my-6 grid gap-5" aria-label="Bookings and billing">
+      <PlayerBirthdays />
       <h2 className="text-3xl">{bookingsOnly ? "Your confirmed visits" : "Bookings & billing"}</h2>
       {error ? (
         <p role="alert" className="rounded-lg border border-maroon p-3 text-maroon">

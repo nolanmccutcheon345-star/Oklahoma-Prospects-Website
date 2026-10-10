@@ -1,3 +1,4 @@
+import {athleteAge} from '@/lib/pd/engines';
 import { useMemo, useState, type ReactNode } from "react";
 import type { AthleteSlice } from "@/lib/pd/context";
 import {
@@ -18,7 +19,6 @@ import {
   type GradedRow,
 } from "@/lib/pd/content";
 import { OP_LEVELS } from "@/lib/pd";
-import { ageOnClubDay } from "@/lib/pd/engines";
 import type { ViewerRole } from "@/lib/pd/types";
 import { cn } from "@/lib/utils";
 
@@ -335,7 +335,7 @@ function KnotRow({ row }: { row: GradedRow }) {
 }
 
 export function PeerBenchmarkView({ slice }: { slice: AthleteSlice }) {
-  const age = ageOnClubDay(slice.athlete.birthDate);
+  const age = athleteAge(slice.athlete);
   const rows = peerGrades(slice, age);
   if (rows.length === 0) {
     return (
@@ -436,7 +436,7 @@ export function AgeCurriculumView({
 }
 
 export function GameIqLibrary({ slice }: { slice: AthleteSlice }) {
-  const age = ageOnClubDay(slice.athlete.birthDate);
+  const age = athleteAge(slice.athlete);
   const pack = iqModulesFor(slice, age);
   return (
     <div className="pd-stack" data-game-iq-library="true">

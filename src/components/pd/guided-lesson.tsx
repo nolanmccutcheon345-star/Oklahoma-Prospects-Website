@@ -1,3 +1,4 @@
+import {athleteAge} from '@/lib/pd/engines';
 import { formatClockTime } from "@/lib/time-display";
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
@@ -9,7 +10,7 @@ import {
   type Drill,
 } from "@/lib/pd/content";
 import { FLAWS } from "@/lib/pd/content/flaws";
-import { ageOnClubDay, clubDayIso } from "@/lib/pd/engines";
+import { clubDayIso } from "@/lib/pd/engines";
 import {
   INTERVENTION_METHODS,
   INTERVENTION_OUTCOMES,
@@ -239,7 +240,7 @@ export function GuidedLesson({
   const live = draft;
   const current = athleteSlice;
 
-  const age = ageOnClubDay(current.athlete.birthDate);
+  const age = athleteAge(current.athlete);
   const name = `${current.athlete.firstName} ${current.athlete.lastName}`;
   const stage = LESSON_STAGES[live.stage] ?? LESSON_STAGES[0];
   const last = live.stage >= LESSON_STAGES.length - 1;

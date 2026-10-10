@@ -54,7 +54,7 @@ export async function resolveIdentity(sql: Sql, userId: string) {
   const [staffAssignment] = await sql<{
     assigned: boolean;
   }>`select exists(select 1 from club_staff s join club_staff_services o on o.staff_id=s.id where s.active=true and (s.user_id=${userId} or (s.user_id='' and lower(trim(s.email))=${email}))) as assigned`;
-  const canInstruct = person?.instructor ?? Boolean(staffAssignment?.assigned);
+  const canInstruct = person?.instructor === true || Boolean(staffAssignment?.assigned);
   const [teamRecord] = await sql<{
     payload: { teams?: { closed?: boolean; coachEmail?: string; staff?: { email?: string }[] }[] };
     demo: boolean;

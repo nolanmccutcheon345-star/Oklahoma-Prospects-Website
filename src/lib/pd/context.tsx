@@ -34,7 +34,7 @@ import { canReschedule } from "./core-algorithms.js";
 import { nextMatchingSlot, type ProposedSession } from "./commerce-engine";
 import { drillById } from "./content";
 import type { PublishLessonInput } from "./lesson";
-import { clubDayIso, ageOnClubDay } from "./engines";
+import { clubDayIso, athleteAge } from "./engines";
 import { creditDecision } from "./automation";
 import { bandForAge, parseTrackingFile, trackingApplyRows } from "./measure";
 
@@ -594,7 +594,7 @@ export function DevelopmentProvider({ children }: { children: ReactNode }) {
             coachId: input.coachId,
             method: input.intervention.method,
             outcome: input.intervention.outcome,
-            band: bandForAge(ageOnClubDay(prev.athletes.find((row) => row.id === input.athleteId)?.birthDate ?? "2010-01-01")),
+            band: bandForAge(athleteAge(prev.athletes.find((row) => row.id === input.athleteId) ?? {birthDate:""})),
             preScore: input.intervention.preScore,
             postScore: input.intervention.postScore,
           },

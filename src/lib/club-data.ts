@@ -35,7 +35,7 @@ export const saveProfile = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
   .validator(z.object({ name: z.string().trim().min(1).max(120),
     role: z.enum(["parent", "player", "coach", "admin"]),
-    playerName: z.string().trim().max(120), email: z.string().email().max(254) }))
+    birthDate:z.string().optional(), playerName: z.string().trim().max(120), email: z.string().email().max(254) }))
   .handler(async ({ context, data }) => {
     const me = await clubIdentity(context.userId);
     const sql = await getSql();

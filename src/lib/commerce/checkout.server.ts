@@ -1,4 +1,4 @@
-import { coachesWithAvailability, requireCoachService } from "./coach-services.server";
+import { bookableCoaches, coachesWithAvailability, requireCoachService } from "./coach-services.server";
 import { checkoutLessonService } from "./coach-services";
 import { createHash, randomUUID } from "node:crypto";
 import { getRequest } from "@tanstack/react-start/server";
@@ -48,7 +48,7 @@ export async function checkoutContext(verifiedUserId?: string) {
   // Parent-scoped desk data omits staff schedules; use the full file only on the server.
   const publicProducts = approvedProducts(products);
   const bookingFile = session ? await readWorkingFile() : file;
-  const coaches = await coachesWithAvailability(sql, bookingFile.coaches, bookingFile.availability, publicProducts);
+  const coaches = await bookableCoaches(sql, bookingFile.coaches);
   // Guest callers receive only coach names/specialties and the public catalog.
   return {
     mode: paymentMode(),
@@ -62,6 +62,7 @@ export async function checkoutContext(verifiedUserId?: string) {
         }))
       : [],
     coaches,
+    coachAvailability:await coachesWithAvailability(sql,bookingFile.coaches,bookingFile.availability,publicProducts),
   };
 }
 

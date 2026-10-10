@@ -6,7 +6,7 @@ import { loadVerifiedAssessmentIds } from './assessment-gate.server';
 /** Overlay payment/completion facts. The editable coaching file is never financial authority. */
 export async function withCommerceRecords(sql: Sql, data: DevelopmentData): Promise<DevelopmentData> {
   const [athletes, bookings, credits] = await Promise.all([
-    sql<{id:string;user_id:string|null;household_email:string;name:string;birth_date:string|null;coach_ids:string[];profile:Partial<Athlete>}>`select * from club_athletes`,
+    sql<{id:string;user_id:string|null;household_email:string;name:string;birth_date:string|null;coach_ids:string[];profile:Partial<Athlete>}>`select id,user_id,household_email,name,birth_date::text as birth_date,coach_ids,profile from club_athletes`,
     sql<{id:string;athlete_id:string;coach_id:string;product_id:string;starts_at:Date;status:string;total_cents:number}>`select b.id,b.athlete_id,b.coach_id,b.product_id,b.starts_at,b.status,coalesce(o.total_cents,0) as total_cents from booking_records b left join commerce_orders o on o.id=b.order_id where b.athlete_id is not null`,
     sql<{athlete_id:string;remaining:number}>`select athlete_id,sum(remaining)::integer as remaining from credit_grants where kind='lesson' and expires_at>now() and starts_at<=now() group by athlete_id`,
   ]);
@@ -26,7 +26,7 @@ export async function withCommerceRecords(sql: Sql, data: DevelopmentData): Prom
     if (!family) { family={id:`fam-${row.user_id}`,name:'Your household',parentName:'',email:row.household_email,phone:'',athleteIds:[]}; families.push(family); }
     if (!family.athleteIds.includes(row.id)) family.athleteIds.push(row.id);
     const existing = all.find(a=>a.id===row.id);
-    if (existing) { existing.familyId=family.id; existing.coachIds=row.coach_ids; continue; }
+    if (existing) { existing.familyId=family.id; existing.coachIds=row.coach_ids; existing.birthDate=row.birth_date?.slice(0,10)||''; continue; }
     const [firstName,...last] = row.name.trim().split(/\s+/);
     all.push({id:row.id,firstName,lastName:last.join(' '),birthDate:row.birth_date?.slice(0,10)||'',familyId:family.id,
       sport:row.profile?.sport||'',throws:row.profile?.throws||'',bats:row.profile?.bats||'',graduationYear:0,position:'',coachIds:row.coach_ids,opLevel:0,assessmentComplete:false,
