@@ -362,7 +362,7 @@ export function recruitingShareUrl(player: OsPlayer): string {
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, "-")
       .replace(/^-|-$/g, "");
-  return `https://prospectsbaseball.club/p/${slug}`;
+  return `https://prospectssports.club/p/${slug}`;
 }
 
 export function applyWaiveUniform(

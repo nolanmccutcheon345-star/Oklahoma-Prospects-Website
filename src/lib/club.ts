@@ -37,7 +37,7 @@ export const LINKS = {
   waiver: "/waiver",
   checkin: "/visits",
   maps: "https://www.google.com/maps/search/?api=1&query=3804+S.+Elm+Pl.+Suite+A+Broken+Arrow+OK+74011",
-  site: "https://prospectsbaseball.club/",
+  site: "https://prospectssports.club/",
   googleReview:
     "https://www.google.com/maps/search/?api=1&query=Oklahoma+Prospects+Academy+3804+S+Elm+Pl+Broken+Arrow+OK",
 } as const;

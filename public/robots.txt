@@ -9,4 +9,4 @@ Disallow: /pay
 Disallow: /paid
 Disallow: /login
 
-Sitemap: https://prospectsbaseball.club/sitemap.xml
+Sitemap: https://prospectssports.club/sitemap.xml

@@ -544,8 +544,8 @@ function Sponsor({
         <p className="fine-print">
           No donor details are shown publicly. For sponsorship or refund questions, contact the
           Prospects front office through{" "}
-          <a href="https://prospectsbaseball.club" target="_blank" rel="noreferrer">
-            prospectsbaseball.club
+          <a href="https://prospectssports.club" target="_blank" rel="noreferrer">
+            prospectssports.club
           </a>
           .
         </p>
@@ -1263,8 +1263,8 @@ export default function FundraisingApp({
       <footer>
         <Brand />
         <p>Grit. Heart. Pride.</p>
-        <a href="https://prospectsbaseball.club" target="_blank" rel="noreferrer">
-          prospectsbaseball.club
+        <a href="https://prospectssports.club" target="_blank" rel="noreferrer">
+          prospectssports.club
           <ArrowUpRight size={14} />
         </a>
       </footer>
