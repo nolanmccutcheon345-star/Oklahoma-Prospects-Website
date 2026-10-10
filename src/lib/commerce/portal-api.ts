@@ -105,6 +105,8 @@ export const savePaymentCard = createServerFn({ method: "POST" })
   .validator(
     id.extend({
       requestId: z.string().uuid(),
+      purpose: z.enum(["primary", "backup"]).optional(),
+      consent: z.literal(true).optional(),
       sourceId: z
         .string()
         .regex(/^cnon:/)
@@ -114,4 +116,18 @@ export const savePaymentCard = createServerFn({ method: "POST" })
   .handler(async ({ context, data }) => {
     const { updateSquareCard } = await import("./square-management.server");
     return updateSquareCard(context.userId, data);
+  });
+
+export const getSavedPaymentMethods = createServerFn({ method: "GET" })
+  .middleware([authMiddleware])
+  .handler(async ({ context }) => {
+    const m = await import("./saved-methods.server");
+    return m.savedMethods(context.userId);
+  });
+export const activateBackupCard = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
+  .validator(id.extend({ consent: z.literal(true) }).strict())
+  .handler(async ({ context, data }) => {
+    const m = await import("./saved-methods.server");
+    return m.activateBackup(context.userId, data.id);
   });

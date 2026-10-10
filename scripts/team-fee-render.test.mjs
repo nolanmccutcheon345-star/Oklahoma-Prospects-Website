@@ -76,6 +76,8 @@ test("team fee UI saves admin drafts and offers only permitted coach controls", 
     people: [{ userId: "parent", name: "Example Parent", role: "parent" }],
   };
   const mocks = {
+    "@/lib/teams/payment-api": `export const startTeamCheckout=async()=>{throw Error("Unexpected checkout")};`,
+    "@/lib/commerce/api": `export const submitSquarePayment=async()=>{throw Error("Unexpected payment")};`,
     "@/lib/auth/use-current-user": `export const useCurrentUserState=()=>({user:{id:"fixture"}});`,
     "@/lib/teams/fee-api": `export const getBudgetMaster=async()=>globalThis.__matrixFixture;export const saveBudgetMaster=async({data})=>{globalThis.__matrixSaved=data;return {saved:true};};export const getTeamUniform=async()=>null;export const getTeamFundingStatus=async()=>({overduePlayers:2,tracking:true});export const getFeeWorkspace=async()=>globalThis.__feeFixture.data;export const changeFeePlan=async({data})=>{globalThis.__feeFixture.saved.push(data);return {ok:true};};export const saveFeeBusiness=async()=>({ok:true});`,
     "@/lib/teams/store": `export const recordTeamPayment=async()=>({ok:true});`,

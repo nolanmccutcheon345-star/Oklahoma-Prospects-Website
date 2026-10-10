@@ -66,22 +66,7 @@ export async function earnings(userId: string) {
 export async function recordSettlement(userId: string, bookingId: string, reference: string) {
   const me = await clubIdentity(userId);
   if (me.role !== "admin") throw new Error("Owner access required.");
-  const sql = await getSql();
-  return sql.transaction(async (tx) => {
-    const [row] = await tx<{
-      status: string;
-      transfer_id: string | null;
-    }>`select status,transfer_id from contractor_earnings where booking_id=${bookingId} for update`;
-    const key = "external:" + reference;
-    if (row?.status === "paid" && row.transfer_id === key) return { ok: true };
-    if (row?.status !== "payable")
-      throw new Error("Only an unpaid, payable earning can be settled.");
-    const [order] =
-      await tx`select o.id from commerce_orders o join booking_records b on b.order_id=o.id where b.id=${bookingId} and o.status='paid' and b.status='completed' for update of o`;
-    if (!order) throw new Error("Review this booking and its payment before settlement.");
-    await tx`update contractor_earnings set status='paid',transfer_id=${key},updated_at=now() where booking_id=${bookingId}`;
-    return { ok: true };
-  });
+  throw new Error("Use Front Office → Finance → Payout Center to approve, record and reconcile this payment. Entering a reference alone does not mark it paid.");
 }
 
 export async function officeOperations(userId: string) {

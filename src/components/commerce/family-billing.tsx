@@ -1,4 +1,5 @@
-import {PlayerBirthdays} from './player-birthdays';
+import { SavedMethods } from "./saved-methods";
+import { PlayerBirthdays } from "./player-birthdays";
 import { useEffect, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { useCurrentUser } from "@/lib/auth/use-current-user";
@@ -36,6 +37,8 @@ export function FamilyBilling({ bookingsOnly = false }: { bookingsOnly?: boolean
   const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState(false);
   const [preview, setPreview] = useState<Awaited<ReturnType<typeof getRefundPreview>> | null>(null);
+  const [cardPurpose, setCardPurpose] = useState<"primary" | "backup">("primary"),
+    [backupConsent, setBackupConsent] = useState(false);
   const [cardSub, setCardSub] = useState<string | null>(null),
     [square, setSquare] = useState<PublicSquare | null>(null);
   const [historyPage, setHistoryPage] = useState(0);
@@ -130,7 +133,7 @@ export function FamilyBilling({ bookingsOnly = false }: { bookingsOnly?: boolean
           Connect my guest purchases
         </Button>
       ) : null}
-      {data ? <ClubCancellationChoices onSaved={load}/> : null}
+      {data ? <ClubCancellationChoices onSaved={load} /> : null}
       {data?.bookings.length === 0 ? (
         <p>
           No bookings yet.{" "}
@@ -157,7 +160,14 @@ export function FamilyBilling({ bookingsOnly = false }: { bookingsOnly?: boolean
               <strong>Coach recap:</strong> {b.completion_recap}
             </p>
           ) : null}
-          {data.orders.find(o=>o.id===b.order_id)?.snapshot.kind === 'event' ? <p className="mt-3">Camp / clinic registration. Contact Front Office for changes under the event policy. <a href="/events" className="underline">View event details</a></p> : b.status === "confirmed" ? (
+          {data.orders.find((o) => o.id === b.order_id)?.snapshot.kind === "event" ? (
+            <p className="mt-3">
+              Camp / clinic registration. Contact Front Office for changes under the event policy.{" "}
+              <a href="/events" className="underline">
+                View event details
+              </a>
+            </p>
+          ) : b.status === "confirmed" ? (
             <div className="mt-3 flex flex-wrap gap-3">
               <Button
                 disabled={busy || Boolean(b.checked_in_at)}
@@ -180,8 +190,14 @@ export function FamilyBilling({ bookingsOnly = false }: { bookingsOnly?: boolean
               </Button>
             </div>
           ) : null}
-          {b.status === "confirmed" && !b.checked_in_at && data.orders.find(o=>o.id===b.order_id)?.snapshot.kind !== "event" ? <RescheduleBooking id={b.id} onSaved={load}/> : null}
-          {b.status === "confirmed" && !b.checked_in_at && data.orders.find(o=>o.id===b.order_id)?.snapshot.kind !== "event" ? (
+          {b.status === "confirmed" &&
+          !b.checked_in_at &&
+          data.orders.find((o) => o.id === b.order_id)?.snapshot.kind !== "event" ? (
+            <RescheduleBooking id={b.id} onSaved={load} />
+          ) : null}
+          {b.status === "confirmed" &&
+          !b.checked_in_at &&
+          data.orders.find((o) => o.id === b.order_id)?.snapshot.kind !== "event" ? (
             <>
               <Participants
                 id={b.id}
@@ -217,9 +233,9 @@ export function FamilyBilling({ bookingsOnly = false }: { bookingsOnly?: boolean
           <p className="mt-2 text-sm">
             {preview.householdAllowanceAvailable
               ? "Your household has one cancellation or reschedule allowance this calendar month, shared across all athletes."
-              : "Your household has used this month's cancellation or reschedule allowance. You can still cancel, but no refund is due."}
-            {" "}The allowance resets on the first of the month in America/Chicago.
-            The amount is checked again when you confirm.
+              : "Your household has used this month's cancellation or reschedule allowance. You can still cancel, but no refund is due."}{" "}
+            The allowance resets on the first of the month in America/Chicago. The amount is checked
+            again when you confirm.
           </p>
           <div className="mt-3 flex gap-3">
             <Button
@@ -231,13 +247,16 @@ export function FamilyBilling({ bookingsOnly = false }: { bookingsOnly?: boolean
                     setPreview(null);
                     return result;
                   },
-                  (result) => result.status === "review_requested"
-                    ? "Refund review requested."
-                    : result.status === "completed"
-                      ? (result.refundCents ? "Cancellation saved. Your refund is confirmed." : "Cancellation saved. No cash refund is due.")
-                      : result.status === "failed" || result.status === "rejected"
-                        ? "Booking cancelled, but the refund was not completed. The office needs to review it."
-                        : "Booking cancelled. Your refund is pending confirmation from the payment provider.",
+                  (result) =>
+                    result.status === "review_requested"
+                      ? "Refund review requested."
+                      : result.status === "completed"
+                        ? result.refundCents
+                          ? "Cancellation saved. Your refund is confirmed."
+                          : "Cancellation saved. No cash refund is due."
+                        : result.status === "failed" || result.status === "rejected"
+                          ? "Booking cancelled, but the refund was not completed. The office needs to review it."
+                          : "Booking cancelled. Your refund is pending confirmation from the payment provider.",
                 );
               }}
             >
@@ -342,21 +361,56 @@ export function FamilyBilling({ bookingsOnly = false }: { bookingsOnly?: boolean
               </form>
             </article>
           ))}
+          <SavedMethods key={cardSub || "saved"} />
           {cardSub && square ? (
-            <SquareCard
-              config={square}
-              intent="STORE"
-              amountCents={0}
-              email={user.primaryEmail || ""}
-              name={user.displayName || ""}
-              onToken={async (sourceId, requestId) => {
-                await savePaymentCard({ data: { id: cardSub, sourceId, requestId } });
-                setCardSub(null);
-                setNotice("Payment card updated with Square.");
-                await load();
-                return {};
-              }}
-            />
+            <div className="grid gap-3">
+              <label>
+                Save as
+                <select
+                  className="min-h-11 rounded-lg border p-2"
+                  value={cardPurpose}
+                  onChange={(e) => setCardPurpose(e.target.value as "primary" | "backup")}
+                >
+                  <option value="primary">Primary payment method</option>
+                  <option value="backup">Backup payment method</option>
+                </select>
+              </label>
+              {cardPurpose === "backup" && (
+                <label className="flex gap-2">
+                  <input
+                    type="checkbox"
+                    checked={backupConsent}
+                    onChange={(e) => setBackupConsent(e.target.checked)}
+                  />
+                  I authorize Square to store this backup card. It will not be charged
+                  automatically.
+                </label>
+              )}
+              <SquareCard
+                config={square}
+                intent="STORE"
+                amountCents={0}
+                email={user.primaryEmail || ""}
+                name={user.displayName || ""}
+                onToken={async (sourceId, requestId) => {
+                  if (cardPurpose === "backup" && !backupConsent)
+                    throw new Error("Authorize saving the backup card first.");
+                  await savePaymentCard({
+                    data: {
+                      id: cardSub,
+                      sourceId,
+                      requestId,
+                      purpose: cardPurpose,
+                      ...(cardPurpose === "backup" ? { consent: true as const } : {}),
+                    },
+                  });
+                  setCardSub(null);
+                  setNotice("Payment card updated with Square.");
+                  await load();
+                  return {};
+                }}
+              />
+            </div>
           ) : null}
           <h3 className="text-2xl">Available credits</h3>
           {data.credits.length ? (

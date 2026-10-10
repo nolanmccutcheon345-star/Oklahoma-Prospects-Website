@@ -8,6 +8,7 @@ export const OFFICE_SECTIONS = [
   ["bookings", "Bookings"],
   ["events", "Camps & Clinics"],
   ["payments", "Payments"],
+  ["finance", "Finance"],
   ["services", "Services & Pricing"],
   ["staff", "Staff & Access"],
   ["reports", "Reports"],
