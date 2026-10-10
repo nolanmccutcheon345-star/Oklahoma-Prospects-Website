@@ -1,3 +1,4 @@
+import {catalogFixture} from "../lib/testing/catalog-fixture.ts";
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { JSDOM } from 'jsdom';
@@ -21,7 +22,7 @@ test('booking review uses current availability, correct rates and matching conse
     await React.act(async () => req.resolve(reservationSlots(req.input.date, req.input.duration)));
   };
   try {
-    await React.act(async () => root.render(React.createElement(BookingFunnel, { catalog: buildPublicCatalog([]), loadAvailability, onReview: value => { review = value; } })));
+    await React.act(async () => root.render(React.createElement(BookingFunnel, { catalog: await catalogFixture(), loadAvailability, onReview: value => { review = value; } })));
     assert.match(host.textContent, /Select your space and time to see your total/);
     assert.equal(host.querySelector('[data-cage-total]'), null);
     await click('[data-cage-id="1"]');

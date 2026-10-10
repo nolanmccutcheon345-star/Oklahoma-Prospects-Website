@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {PGlite} from '@electric-sql/pglite';
 import {readFile,readdir} from 'node:fs/promises';
 import type {Sql} from '../db';
-import {assertAthleteMayPurchase,assertYouthAge} from './assessment-gate.server';
+import {assertAthleteMayPurchase,assertYouthAge,assertStoredOrderAllowed} from './assessment-gate.server';
 import {approvedProducts} from './catalog';
 import {calculateQuote,checkoutInput,type Product} from './contracts';
 import {loadServices,buildPublicCatalog} from '../ops';
@@ -24,6 +24,7 @@ test('stored youth assignments, renamed services and edited prices feed public c
     await sql`insert into club_athletes(id,name,birth_date,household_email) values('young','Young','2017-01-01','family@example.invalid'),('older','Older','2010-01-01','family@example.invalid'),('unknown','Unknown',null,'family@example.invalid')`;
     const gate=(id:string,service='youth-pitching')=>assertAthleteMayPurchase(sql,{athleteId:id,productId:service,kind:'lesson',billingHouseholdIds:[],role:'admin',date:'2027-10-10'});
     assert.equal((await gate('young')).assessed,false);
+    await assert.rejects(assertStoredOrderAllowed(sql,{athlete_id:'young',kind:'lesson',product_id:'youth-pitching',snapshot:{kind:'lesson',productId:'youth-pitching',bookingWindow:{start:'2030-10-10T22:00:00Z'}}},{billingHouseholdIds:[],role:'admin'}),/11U/);
     await assert.rejects(gate('older'),/11U/);
     await assert.rejects(gate('unknown'),/date of birth/);
     await assert.rejects(gate('young','s2'),/Complete your assessment/);

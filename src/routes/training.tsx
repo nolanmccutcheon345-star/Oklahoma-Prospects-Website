@@ -124,7 +124,7 @@ function CatalogAndBook({view,instructor}:{view:"lessons"|"plans";instructor?:st
         <article className="rounded-2xl bg-paper-2 p-5 shadow-border">
           <h2 className="text-2xl">Ready for consistent training?</h2>
           <p className="mt-2 text-muted">Compare monthly plans for coaching, development priorities, and progress tracking.</p>
-          <p className="mt-3 text-sm text-muted">Eligible in-person plans include your assessment as the first session. Without a completed assessment, a one-time {formatDollars(catalog.setupFee)} fee is added to the first month.</p>
+          <p className="mt-3 text-sm text-muted">Eligible in-person plans include your assessment as the first session. Without a completed assessment, the one-time assessment fee shown with your plan is added to the first month.</p>
           <Button asChild variant="maroon" className="mt-4"><a href="/training?view=plans#memberships">Compare Monthly Plans</a></Button>
         </article>
       </section>
