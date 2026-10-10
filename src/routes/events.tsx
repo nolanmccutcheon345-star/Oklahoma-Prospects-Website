@@ -8,6 +8,7 @@ import { SquareCard } from "@/components/commerce/square-card";
 import { Button } from "@/components/ui/button";
 import { formatMoney } from "@/lib/pricing";
 import { formatClockTime } from "@/lib/time-display";
+import { campPurchase, campPriceLabel } from "@/lib/training-events-contracts";
 import { chicagoDate } from "@/lib/scheduling";
 export const Route = createFileRoute("/events")({
   head: () =>
@@ -174,9 +175,7 @@ export function EventsPage() {
                 <Sessions event={e} />
                 <p>{e.location}</p>
                 <p>Coaches: {e.coaches.map((c) => c.name).join(", ")}</p>
-                <p className="font-semibold">
-                  {formatMoney(e.priceCents)} per player · includes all listed sessions
-                </p>
+                <p className="font-semibold">{campPriceLabel(e)} per player</p>
                 <Button
                   disabled={
                     e.status !== "published" ||
@@ -283,16 +282,101 @@ function EventRegistration({
 }) {
   const [player, setPlayer] = useState(""),
     [consent, setConsent] = useState(false),
+    [option, setOption] = useState<"package" | "days">(
+      event.pricingMode === "days" || (event.pricingMode === "both" && event.packageOpen === false)
+        ? "days"
+        : "package",
+    ),
+    [dates, setDates] = useState<string[]>([]),
     [busy, setBusy] = useState(false),
     [error, setError] = useState(""),
     [prepared, setPrepared] = useState<Awaited<ReturnType<typeof startEventCheckout>>>();
   const request = useRef(crypto.randomUUID());
+  let purchase: ReturnType<typeof campPurchase> | undefined;
+  try {
+    purchase = campPurchase(event, { option, dates });
+  } catch {
+    /* A day selection is required before checkout. */
+  }
+  const changeChoice = () => {
+    setConsent(false);
+    setError("");
+    request.current = crypto.randomUUID();
+  };
   return (
     <div className="mt-4 grid gap-4">
       <Sessions event={event} />
       <p>
-        {event.location} · {formatMoney(event.priceCents)} total per player
+        {event.location} ·{" "}
+        {purchase
+          ? formatMoney(purchase.totalCents) + " total per player"
+          : "Select camp days to see your total"}
       </p>
+      {event.pricingMode === "both" && (
+        <fieldset disabled={!!prepared || busy} className="grid gap-2">
+          <legend className="font-semibold">How would you like to register?</legend>
+          <label className="flex min-h-11 items-center gap-3">
+            <input
+              type="radio"
+              name="camp-option"
+              checked={option === "package"}
+              disabled={event.packageOpen === false}
+              onChange={() => {
+                setOption("package");
+                setDates([]);
+                changeChoice();
+              }}
+            />
+            Full camp · {formatMoney(event.priceCents)}
+            {event.packageOpen === false ? " — unavailable" : ""}
+          </label>
+          <label className="flex min-h-11 items-center gap-3">
+            <input
+              type="radio"
+              name="camp-option"
+              checked={option === "days"}
+              onChange={() => {
+                setOption("days");
+                changeChoice();
+              }}
+            />
+            Choose days · {formatMoney(event.dayPriceCents || 0)} per day
+          </label>
+        </fieldset>
+      )}
+      {option === "days" && (
+        <fieldset disabled={!!prepared || busy} className="grid gap-2">
+          <legend className="font-semibold">
+            Select your camp days · {formatMoney(event.dayPriceCents || 0)} each
+          </legend>
+          {[...new Set(event.sessions.map((s) => s.date))].sort().map((date) => {
+            const availability = event.availability?.find((a) => a.date === date);
+            const unavailable =
+              availability && (availability.remainingSeats === 0 || !availability.open);
+            return (
+              <label key={date} className="flex min-h-11 items-center gap-3 rounded border p-3">
+                <input
+                  type="checkbox"
+                  checked={dates.includes(date)}
+                  disabled={!!unavailable}
+                  onChange={(e) => {
+                    setDates(e.target.checked ? [...dates, date] : dates.filter((d) => d !== date));
+                    changeChoice();
+                  }}
+                />
+                <span>
+                  {date} ·{" "}
+                  {event.sessions
+                    .filter((s) => s.date === date)
+                    .map((s) => formatClockTime(s.start) + "–" + formatClockTime(s.end) + " CT")
+                    .join(", ")}
+                  {unavailable ? " — unavailable" : ""}
+                </span>
+              </label>
+            );
+          })}
+        </fieldset>
+      )}
       <p className="whitespace-pre-wrap">{event.policy}</p>
       {!family ? (
         <p>Loading linked players…</p>
@@ -341,7 +425,7 @@ function EventRegistration({
             is pending.
           </p>
           <Button
-            disabled={!player || !consent || busy || !!prepared}
+            disabled={!player || !consent || !purchase || busy || !!prepared}
             onClick={async () => {
               setBusy(true);
               setError("");
@@ -354,6 +438,8 @@ function EventRegistration({
                       revision: event.revision,
                       requestId: request.current,
                       consent: true,
+                      option,
+                      dates: option === "days" ? dates : undefined,
                     },
                   }),
                 );

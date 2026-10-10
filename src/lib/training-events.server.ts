@@ -5,6 +5,7 @@ import { commerceIdentityFor } from "./commerce/access.server";
 import { chicagoInstant } from "./scheduling";
 import {
   trainingEventSchema,
+  campPurchase,
   eventCheckoutSchema,
   type TrainingEvent,
   type EventCheckout,
@@ -18,6 +19,8 @@ import {
 } from "./commerce/store.server";
 
 export type EventSnapshot = {
+  option?: "package" | "days";
+  dates?: string[];
   id: string;
   revision: number;
   sessions: TrainingEvent["sessions"];
@@ -71,24 +74,50 @@ export async function listTrainingEvents(sql: Sql) {
     revision: number;
   }>`select payload,revision from training_events where payload->>'status' in ('published','closed') order by updated_at desc`;
   const coaches = await eventCoaches(sql);
-  const counts = await sql<{
+  const registrations = await sql<{
     event_id: string;
-    count: number;
-  }>`select event_id,count(*)::int as count from training_event_registrations where status='confirmed' group by event_id`;
+    snapshot: Quote & { eventRegistration: EventSnapshot };
+  }>`select r.event_id,o.snapshot from training_event_registrations r join commerce_orders o on o.id=r.order_id where r.status='confirmed'`;
   return events
-    .map((r) => ({
-      ...r.payload,
-      revision: r.revision,
-      remainingSeats: Math.max(
-        0,
-        r.payload.capacity - (counts.find((c) => c.event_id === r.payload.id)?.count || 0),
-      ),
-      registrationOpen:
-        r.payload.status === "published" && windows(r.payload)[0].start > new Date(),
-      coaches: coaches
-        .filter((c) => r.payload.coachIds.includes(c.id))
-        .map(({ id, name }) => ({ id, name })),
-    }))
+    .map((r) => {
+      const availability = [...new Set(r.payload.sessions.map((s) => s.date))]
+        .sort()
+        .map((date) => ({
+          date,
+          remainingSeats: Math.max(
+            0,
+            r.payload.capacity -
+              registrations.filter(
+                (x) =>
+                  x.event_id === r.payload.id &&
+                  x.snapshot.eventRegistration.sessions.some((s) => s.date === date),
+              ).length,
+          ),
+          open:
+            windows({ sessions: r.payload.sessions.filter((s) => s.date === date) })[0].start >
+            new Date(),
+        }));
+      const packageOpen = availability.every((d) => d.open && d.remainingSeats > 0);
+      const mode = r.payload.pricingMode || "package";
+      return {
+        ...r.payload,
+        revision: r.revision,
+        availability,
+        packageOpen,
+        remainingSeats:
+          mode === "package"
+            ? Math.min(...availability.map((d) => d.remainingSeats))
+            : Math.max(0, ...availability.filter((d) => d.open).map((d) => d.remainingSeats)),
+        registrationOpen:
+          r.payload.status === "published" &&
+          (mode === "package"
+            ? packageOpen
+            : availability.some((d) => d.open && d.remainingSeats > 0)),
+        coaches: coaches
+          .filter((c) => r.payload.coachIds.includes(c.id))
+          .map(({ id, name }) => ({ id, name })),
+      };
+    })
     .filter((e) => windows(e).some((w) => w.end > new Date()))
     .sort((a, b) => +windows(a)[0].start - +windows(b)[0].start);
 }
@@ -107,7 +136,8 @@ export async function eventOffice(sql: Sql, userId: string) {
       status: string;
       total_cents: number;
       order_id: string;
-    }>`select r.id,r.event_id,a.name as player,o.email,r.status,o.total_cents,r.order_id from training_event_registrations r join club_athletes a on a.id=r.athlete_id join commerce_orders o on o.id=r.order_id order by r.created_at desc`,
+      sessions: TrainingEvent["sessions"];
+    }>`select r.id,r.event_id,a.name as player,o.email,r.status,o.total_cents,r.order_id,o.snapshot->'eventRegistration'->'sessions' as sessions from training_event_registrations r join club_athletes a on a.id=r.athlete_id join commerce_orders o on o.id=r.order_id order by r.created_at desc`,
     eventCoaches(sql),
   ]);
   return {
@@ -127,7 +157,12 @@ export async function saveTrainingEvent(
   const coaches = availableCoaches || (await eventCoaches(sql));
   if (e.coachIds.some((id) => !coaches.some((c) => c.id === id)))
     throw Error("Choose active coaches from the directory.");
-  if (e.status === "published" && windows(e)[0].start <= new Date())
+  if (
+    e.status === "published" &&
+    ((e.pricingMode || "package") === "package"
+      ? windows(e)[0].start <= new Date()
+      : windows(e).every((w) => w.start <= new Date()))
+  )
     throw Error("Published registration must start in the future.");
   return sql.transaction(async (tx) => {
     const [prior] = await tx<{
@@ -136,15 +171,19 @@ export async function saveTrainingEvent(
     }>`select payload,revision from training_events where id=${e.id} for update`;
     if ((prior?.revision || 0) !== e.revision)
       throw Error("Another admin changed this event. Reload before saving.");
-    const regs =
-      await tx`select id from training_event_registrations where event_id=${e.id} and status='confirmed'`;
+    const regs = await tx<{
+      sessions: TrainingEvent["sessions"];
+    }>`select o.snapshot->'eventRegistration'->'sessions' as sessions from training_event_registrations r join commerce_orders o on o.id=r.order_id where r.event_id=${e.id} and r.status='confirmed'`;
     if (regs.length) {
       if (e.status === "draft" || e.status === "cancelled")
         throw Error(
           "Close registration and resolve registered players and refunds through Payments before cancelling this event.",
         );
       if (
-        JSON.stringify(e.sessions) !== JSON.stringify(prior!.payload.sessions) ||
+        JSON.stringify(e.sessions.map(({ date, start, end }) => [date, start, end]).sort()) !==
+          JSON.stringify(
+            prior!.payload.sessions.map(({ date, start, end }) => [date, start, end]).sort(),
+          ) ||
         e.location !== prior!.payload.location ||
         e.policy !== prior!.payload.policy
       )
@@ -152,7 +191,12 @@ export async function saveTrainingEvent(
           "This event has registered players. Dates, location and accepted policy are locked; create a replacement event and arrange changes with families.",
         );
     }
-    if (e.capacity < regs.length)
+    if (
+      e.sessions.some(
+        (s) =>
+          e.capacity < regs.filter((r) => r.sessions.some((day) => day.date === s.date)).length,
+      )
+    )
       throw Error("Capacity cannot be lower than confirmed registrations.");
     const old = await tx<{
       id: string;
@@ -226,34 +270,49 @@ async function eventAvailable(
   athleteId: string,
   orderId = "",
   checkPending = true,
+  choice: { option?: "package" | "days"; dates?: string[] } = {},
 ) {
   const [row] = await sql<{
     payload: TrainingEvent;
     revision: number;
   }>`select payload,revision from training_events where id=${id} for update`;
-  if (!row || row.payload.status !== "published" || windows(row.payload)[0].start <= new Date())
+  if (!row || row.payload.status !== "published")
     throw Error("Registration is closed for this event.");
+  const purchase = campPurchase(row.payload, choice);
+  if (windows(purchase)[0].start <= new Date())
+    throw Error("Registration is closed for the selected camp days.");
   const active = await sql<{
     athlete_id: string;
-  }>`select athlete_id from training_event_registrations where event_id=${id} and status='confirmed'`;
-  if (active.some((r) => r.athlete_id === athleteId))
-    throw Error("This player is already registered.");
+    sessions: TrainingEvent["sessions"];
+  }>`select r.athlete_id,o.snapshot->'eventRegistration'->'sessions' as sessions from training_event_registrations r join commerce_orders o on o.id=r.order_id where r.event_id=${id} and r.status='confirmed'`;
   const pending = checkPending
     ? await sql<{
         athlete_id: string;
-      }>`select athlete_id from commerce_orders where kind='event' and product_id=${id} and id<>${orderId} and status='pending' and hold_until>now()`
+        sessions: TrainingEvent["sessions"];
+      }>`select athlete_id,snapshot->'eventRegistration'->'sessions' as sessions from commerce_orders where kind='event' and product_id=${id} and id<>${orderId} and status='pending' and hold_until>now()`
     : [];
-  if (pending.some((r) => r.athlete_id === athleteId))
+  const overlaps = (r: { sessions: TrainingEvent["sessions"] }) =>
+    r.sessions.some((s) => purchase.dates.includes(s.date));
+  if (active.some((r) => r.athlete_id === athleteId && overlaps(r)))
+    throw Error("This player is already registered for a selected day.");
+  if (pending.some((r) => r.athlete_id === athleteId && overlaps(r)))
     throw Error(
-      "Checkout already exists for this player. Complete it or wait ten minutes before trying again.",
+      "Checkout already exists for this player and a selected day. Complete it or wait ten minutes.",
     );
-  if (active.length + pending.length >= row.payload.capacity) throw Error("This event is full.");
-  for (const w of windows(row.payload)) {
+  if (
+    purchase.dates.some(
+      (d) =>
+        [...active, ...pending].filter((r) => r.sessions.some((s) => s.date === d)).length >=
+        row.payload.capacity,
+    )
+  )
+    throw Error("This event is full on a selected day.");
+  for (const w of windows(purchase)) {
     const occupied =
       await sql`select booking_id from booking_occupancy where resource_id=${"athlete:" + athleteId} and slot_at>=${w.start.toISOString()} and slot_at<${w.end.toISOString()} limit 1`;
-    if (occupied.length) throw Error("This player has another booking during the event.");
+    if (occupied.length) throw Error("This player has another booking during a selected camp day.");
   }
-  return { ...row.payload, revision: row.revision };
+  return { ...row.payload, revision: row.revision, purchase };
 }
 export async function prepareEventCheckout(
   sql: Sql,
@@ -271,7 +330,11 @@ export async function prepareEventCheckout(
       if (
         prior.user_id !== userId ||
         prior.product_id !== input.eventId ||
-        prior.athlete_id !== input.athleteId
+        prior.athlete_id !== input.athleteId ||
+        (prior.snapshot.eventRegistration?.option || "package") !== (input.option || "package") ||
+        ((input.option || "package") === "days" &&
+          JSON.stringify([...(input.dates || [])].sort()) !==
+            JSON.stringify(prior.snapshot.eventRegistration?.dates))
       )
         throw Error("Checkout request changed.");
       if (prior.status !== "pending" || +new Date(prior.hold_until) <= Date.now())
@@ -282,7 +345,7 @@ export async function prepareEventCheckout(
         holdUntil: new Date(prior.hold_until).toISOString(),
       };
     }
-    const e = await eventAvailable(tx, input.eventId, input.athleteId);
+    const e = await eventAvailable(tx, input.eventId, input.athleteId, "", true, input);
     if (e.revision !== input.revision)
       throw Error("Event details or price changed. Refresh and review before paying.");
     const id = randomUUID(),
@@ -291,8 +354,8 @@ export async function prepareEventCheckout(
       productId: e.id,
       kind: "event",
       title: e.name,
-      totalCents: e.priceCents,
-      regularCents: e.priceCents,
+      totalCents: e.purchase.totalCents,
+      regularCents: e.purchase.totalCents,
       setupCents: 0,
       recurring: false,
       assessment: false,
@@ -303,20 +366,31 @@ export async function prepareEventCheckout(
       expiresDays: 365,
       discipline: e.sport,
       resources: [],
-      lines: [{ label: e.name, cents: e.priceCents }],
+      lines: [
+        {
+          label:
+            e.name +
+            (e.purchase.option === "package"
+              ? " — full camp"
+              : " — " + e.purchase.dates.join(", ")),
+          cents: e.purchase.totalCents,
+        },
+      ],
       teamRate: false,
       needsSlot: false,
       consentAt: new Date().toISOString(),
       eventRegistration: {
         id: e.id,
         revision: e.revision,
-        sessions: e.sessions,
+        option: e.purchase.option,
+        dates: e.purchase.dates,
+        sessions: e.purchase.sessions,
         location: e.location,
         policy: e.policy,
       },
     };
-    await tx`insert into commerce_orders(id,request_key,user_id,email,athlete_id,product_id,kind,snapshot,total_cents,hold_until,payment_provider,payment_environment) values(${id},${input.requestId},${userId},${me.email},${input.athleteId},${e.id},'event',${JSON.stringify(quote)}::jsonb,${e.priceCents},${end.toISOString()},'square',${environment})`;
-    return { orderId: id, totalCents: e.priceCents, holdUntil: end.toISOString() };
+    await tx`insert into commerce_orders(id,request_key,user_id,email,athlete_id,product_id,kind,snapshot,total_cents,hold_until,payment_provider,payment_environment) values(${id},${input.requestId},${userId},${me.email},${input.athleteId},${e.id},'event',${JSON.stringify(quote)}::jsonb,${e.purchase.totalCents},${end.toISOString()},'square',${environment})`;
+    return { orderId: id, totalCents: e.purchase.totalCents, holdUntil: end.toISOString() };
   });
 }
 export async function validateEventPayment(
@@ -334,10 +408,12 @@ export async function validateEventPayment(
     order.snapshot.eventRegistration.id,
     order.athlete_id,
     order.id,
+    true,
+    order.snapshot.eventRegistration,
   );
   if (
     e.revision !== order.snapshot.eventRegistration.revision ||
-    e.priceCents !== order.total_cents
+    e.purchase.totalCents !== order.total_cents
   )
     throw Error(
       "Event details changed. No payment submitted. Refresh the event and start a new checkout after this session expires.",
@@ -347,8 +423,17 @@ export async function fulfillEventPayment(sql: Sql, order: SquareOrder, environm
   let ok = order.status === "pending" && +new Date(order.hold_until) > Date.now();
   if (ok) {
     try {
-      const e = await eventAvailable(sql, order.product_id!, order.athlete_id!, order.id, false);
-      ok = e.revision === order.snapshot.eventRegistration?.revision;
+      const e = await eventAvailable(
+        sql,
+        order.product_id!,
+        order.athlete_id!,
+        order.id,
+        false,
+        order.snapshot.eventRegistration,
+      );
+      ok =
+        e.revision === order.snapshot.eventRegistration?.revision &&
+        e.purchase.totalCents === order.total_cents;
     } catch {
       ok = false;
     }
