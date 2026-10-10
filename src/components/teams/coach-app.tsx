@@ -115,7 +115,7 @@ export function CoachApp({
           <input name="name" required maxLength={200} placeholder="Player name" aria-label="Player name" className="min-h-11 rounded-md border px-3"/>
           <input name="parentName" required maxLength={200} placeholder="Guardian name" aria-label="Guardian name" className="min-h-11 rounded-md border px-3"/>
           <input name="parentEmail" required type="email" maxLength={254} placeholder="Guardian email" aria-label="Guardian email" className="min-h-11 rounded-md border px-3"/>
-          <RosterRoleSelect/>
+          <RosterRoleSelect teamId={team.id}/>
           <Button type="submit" disabled={rosterBusy}>Add player to my team</Button>
         </form>
         {rosterError && <p role="alert" className="text-sm text-maroon">{rosterError}</p>}

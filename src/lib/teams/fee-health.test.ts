@@ -7,6 +7,7 @@ import { sampleClub } from "./seed";
 const ready = () => ({
   ...defaultBudget(),
   start: "2027-02-01",
+  months: 3.5,
   deadlineOverride: "2098-03-01",
   policy: "Approved payment/refund policy",
   reinstatement: "Contact office",

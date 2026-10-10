@@ -157,7 +157,7 @@ function RequestStageForm({
           <option value="accepted">Accepted — add to roster and create guardian invitation</option>
         </select>
       </label>
-      {(stage === "offer" || stage === "accepted") && <RosterRoleSelect key={teamId} defaultValue={request.payload.rosterRole === "po" ? "po" : request.payload.rosterRole === "full" ? "full" : ""}/>}
+      {(stage === "offer" || stage === "accepted") && <RosterRoleSelect teamId={teamId} key={teamId} defaultValue={request.payload.rosterRole === "po" ? "po" : request.payload.rosterRole === "full" ? "full" : ""}/>}
       <Button type="submit" disabled={busy || !teamId || (differentTeam && !acknowledge)}>
         {busy ? "Saving…" : "Save status"}
       </Button>

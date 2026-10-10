@@ -1,3 +1,4 @@
+import { serviceMonths } from "@/lib/teams/season-months";
 import { feeHealth } from "@/lib/teams/fee-health";
 import { OverheadRuleEditor } from "./overhead-rule-editor";
 import { monthlyTeamOverhead, teamSeasonOverhead } from "@/lib/teams/facility-overhead";
@@ -10,6 +11,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import { getFeeWorkspace, changeFeePlan, saveFeeBusiness } from "@/lib/teams/fee-api";
 import {
   calculateFees,
+  feeComposition,
   project,
   businessProjection,
   deadline,
@@ -282,7 +284,14 @@ function TeamPlan({
             Final payment due {publication.finalDue}. The accepted schedule is listed in the policy
             below. Early payment in full is allowed.
           </p>
-          <p className="whitespace-pre-wrap text-sm">{publication.policy}</p>
+          <p className="whitespace-pre-wrap text-sm">
+            {canPO
+              ? publication.policy
+              : publication.policy
+                  .split("\n")
+                  .filter((line) => !line.startsWith("Pitcher-only schedule:"))
+                  .join("\n")}
+          </p>
         </Panel>
       )}
       {team.access === "coach" && team.choices && (
@@ -500,6 +509,11 @@ function TeamPlan({
                 value={String(plan.budget.baseline)}
                 onChange={(s) => update({ baseline: Number(s) })}
               />
+              <p className="text-sm">
+                Service dates: {serviceMonths(plan.budget.start, plan.budget.end) ?? "—"} calendar
+                months · Billable months: {plan.budget.months}. Spring + Summer defaults to February
+                1–July 31 for six months.
+              </p>
               {(
                 [
                   ["membershipMonthly", "Membership / facility per full player per month"],
@@ -617,6 +631,46 @@ function TeamPlan({
               Membership service costs reduce contribution separately; do not include those costs
               again in facility overhead. Processing is included in the published fee, with a
               three-payment allowance.
+            </p>
+          </Panel>
+          <Panel title="Fee Composition" open>
+            <div className="grid gap-4 md:grid-cols-2">
+              {(canPO ? (["full", "po"] as const) : (["full"] as const)).map((role) => {
+                try {
+                  const c = feeComposition(plan.budget, role);
+                  return (
+                    <section key={role} className="rounded-lg border border-line p-3">
+                      <h3>{role === "full" ? "Full player" : "Pitcher only"}</h3>
+                      <Numbers
+                        rows={[
+                          ["Team costs (including uniforms)", c.teamCosts],
+                          ["Contingency", c.contingency],
+                          ["Membership", c.membership],
+                          [
+                            role === "po" ? "PO organization fee" : "Organization fee",
+                            c.organization,
+                          ],
+                          ["Processing", c.processing],
+                          [
+                            c.adjustment < 0 ? "Admin processing subsidy" : "Rounding adjustment",
+                            c.adjustment,
+                          ],
+                          [role === "po" ? "Final PO fee" : "Final fee", c.total],
+                          ["Projected business contribution per player", c.contribution],
+                        ]}
+                      />
+                    </section>
+                  );
+                } catch {
+                  return <p key={role}>Complete valid budget inputs to see the fee breakdown.</p>;
+                }
+              })}
+            </div>
+            <p className="text-xs">
+              Contribution is after the standard full-player team-cost allocation, contingency,
+              processing and membership service costs; before facility overhead, business reserves
+              and owner distributions. Extra roster spots are reported separately under Additional
+              Player Contribution.
             </p>
           </Panel>
           <Panel title="Direct team costs">

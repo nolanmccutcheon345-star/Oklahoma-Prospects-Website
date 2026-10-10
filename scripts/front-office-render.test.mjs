@@ -12,6 +12,7 @@ test('request cards filter unresolved work, hide internal fields, and save assig
  const requests=[{id:'r1',kind:'tryout',status:'evaluated',created_at:'2026-10-09T18:00:00Z',payload:{player:'Sample Player',parent:'Sample Parent',email:'sample@example.invalid',sport:'Softball',age:'14U',season:'Spring 2027',autoEnroll:'false',preferredTeamId:''}},{id:'r2',kind:'contact',status:'resolved',created_at:'2026-10-09T18:00:00Z',payload:{name:'Resolved Person',message:'A question'}}];
  const fixture={requests,work:{work:[],notes:[],staff:[{id:'coach',name:'Sample Coach'}]},saved:[]};globalThis.__officeFixture=fixture;
  const mocks={
+ "@/lib/teams/fee-api": `export const getFeeWorkspace=async()=>({teams:[]});`,
  '@/lib/portal-api':`export const getOfficeRequests=async()=>globalThis.__officeFixture.requests;`,
  '@/lib/tryout-events-api':`export const getPublicTryoutTeams=async()=>[];`,
  '@/lib/teams/store':`export const getTeamsClub=async()=>({ok:true,club:{teams:[]}});export const reviewTeamInquiry=async()=>({message:'saved'});`,
