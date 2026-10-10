@@ -45,7 +45,15 @@ export async function saveBudgetMaster(
         return { ...p, name: person.name };
       });
     }
+    const prior = await loadBudgetMaster(tx);
     data.facilityCosts ||= initialFacilityCosts(data.monthlyOverhead);
+    if (
+      JSON.stringify([
+        prior.value.facilityCosts || initialFacilityCosts(prior.value.monthlyOverhead),
+        prior.value.payroll || [],
+      ]) !== JSON.stringify([data.facilityCosts, data.payroll || []])
+    )
+      data.overheadReviewed = false;
     data.monthlyOverhead = facilityMonthly(data);
     if (!Number.isSafeInteger(data.monthlyOverhead) || data.monthlyOverhead > 1000000000)
       throw Error("Monthly overhead exceeds the supported total.");

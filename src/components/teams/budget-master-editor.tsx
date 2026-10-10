@@ -283,6 +283,19 @@ export function BudgetMasterEditor({ teams }: { teams: Teams }) {
           allocated from team revenue and does not create an additional family charge. Existing
           accepted player fees stay locked.
         </p>
+        <label className="flex min-h-11 items-center gap-2">
+          <input
+            type="checkbox"
+            checked={m.overheadReviewed || false}
+            onChange={(e) => patch({ overheadReviewed: e.target.checked })}
+          />
+          Actual recurring facility expenses and staffing have been reviewed, including intentional
+          zero amounts.
+        </label>
+        <p className="text-sm">
+          Saving changed expense or staffing amounts clears this confirmation. Save those changes
+          first, then confirm the completed review and save again.
+        </p>
         <Button
           disabled={busy}
           onClick={async () => {

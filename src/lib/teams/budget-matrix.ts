@@ -45,6 +45,7 @@ export const masterSchema = z
     roundTo: money,
     gas: z.array(money).length(4),
     monthlyOverhead: money,
+    overheadReviewed: z.boolean().optional(),
     overheadRule: overheadRuleSchema.optional(),
     facilityCosts: facilityCostsSchema.optional(),
     payroll: payrollSchema.optional(),
@@ -227,6 +228,7 @@ export function budgetFromMatrix(team: Team, master: MasterMatrix, row: MatrixRo
       name: c.name === "Baseballs" ? "Practice / game balls" : c.name,
       cents: amounts[c.name] || 0,
     })),
+    poEnabled: false,
     scheduleCostsAutomatic: true,
     readiness: {
       schedule: false,

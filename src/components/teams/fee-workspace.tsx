@@ -1,3 +1,4 @@
+import { feeHealth } from "@/lib/teams/fee-health";
 import { OverheadRuleEditor } from "./overhead-rule-editor";
 import { monthlyTeamOverhead, teamSeasonOverhead } from "@/lib/teams/facility-overhead";
 import { BudgetMasterEditor } from "./budget-master-editor";
@@ -232,6 +233,19 @@ function TeamPlan({
   }
   const update = (patch: Partial<FeeBudget>) =>
     setPlan((p) => (p ? { ...p, budget: { ...p.budget, ...patch } } : p));
+  const canPO = plan?.budget.poEnabled ?? team.poEnabled ?? true;
+  let health: ReturnType<typeof feeHealth> | null = null;
+  try {
+    if (plan)
+      health = feeHealth(plan.budget, {
+        key: plan.defaults?.key,
+        seasonLabel: team.seasonLabel,
+        overheadReviewed: master?.overheadReviewed,
+        finalDue: deadline(plan.budget, team.events),
+        full,
+        po: canPO ? po : 0,
+      });
+  } catch {}
   const base = { teamId: team.id, revision: team.revision };
   let preview: ReturnType<typeof project> | undefined;
   try {
@@ -239,7 +253,7 @@ function TeamPlan({
       preview = project(
         master && plan.status !== "closed" ? teamSeasonOverhead(plan.budget, master) : plan.budget,
         full,
-        po,
+        canPO ? po : 0,
         plan.expenses,
         plan.status === "closed",
       );
@@ -261,7 +275,7 @@ function TeamPlan({
           <Numbers
             rows={[
               ["Full player", publication.full],
-              ["Pitcher only", publication.po],
+              ...(canPO ? [["Pitcher only", publication.po] as [string, number]] : []),
             ]}
           />
           <p className="text-sm">
@@ -315,7 +329,9 @@ function TeamPlan({
           <Numbers
             rows={[
               ["Current draft full-player fee", team.choices.full],
-              ["Current draft pitcher-only fee", team.choices.po],
+              ...(canPO
+                ? [["Current draft pitcher-only fee", team.choices.po] as [string, number]]
+                : []),
             ]}
           />
           <Button
@@ -357,7 +373,7 @@ function TeamPlan({
                   onClick={() => {
                     if (
                       window.confirm(
-                        "Replace this draft's default cost assumptions with the selected master row? Save any other edits first. Uniform packages, expenses and accepted player agreements are preserved.",
+                        "Replace this draft's cost assumptions and team season classification with the selected master row? Save any other edits first. Uniform packages, expenses and accepted player agreements are preserved.",
                       )
                     )
                       void act({
@@ -372,7 +388,7 @@ function TeamPlan({
                 </Button>
               </>
             )}
-            {plan.defaults && plan.budget.readiness && (
+            {plan.budget.readiness && (
               <>
                 <p>
                   Schedule-driven costs begin at $0 / pending. A reviewed zero is allowed;
@@ -402,6 +418,34 @@ function TeamPlan({
               </>
             )}
           </Panel>
+          <label className="flex min-h-11 items-center gap-2">
+            <input
+              type="checkbox"
+              checked={canPO}
+              onChange={(e) => {
+                update({ poEnabled: e.target.checked });
+                if (!e.target.checked) setPo(0);
+              }}
+            />
+            This team offers pitcher-only roster spots
+          </label>
+          {!canPO && (
+            <p>Full-player pricing only. Existing accepted agreements remain unchanged.</p>
+          )}
+          {!plan.budget.uniformId && (
+            <Field
+              label="Reason no uniform purchase is required"
+              value={plan.budget.noUniformReason || ""}
+              onChange={(noUniformReason) => update({ noUniformReason })}
+            />
+          )}
+          {!plan.budget.processingBps && !plan.budget.processingFixed && (
+            <Field
+              label="Reason processing fees are zero (if applicable)"
+              value={plan.budget.processingZeroReason || ""}
+              onChange={(processingZeroReason) => update({ processingZeroReason })}
+            />
+          )}
           <Panel title="Facility overhead contribution">
             <OverheadRuleEditor
               inherit
@@ -466,6 +510,10 @@ function TeamPlan({
                   ["processingFixed", "Fixed processing cost per payment"],
                 ] as const
               )
+                .filter(
+                  ([key]) =>
+                    canPO || !["poOrg", "poIncremental", "poSharedAllocation"].includes(key),
+                )
                 .filter(
                   ([key]) =>
                     key !== "overhead" ||
@@ -551,6 +599,7 @@ function TeamPlan({
                 <Button
                   key={i}
                   variant="outlineDark"
+                  disabled={!plan.budget.readiness?.schedule}
                   onClick={() =>
                     update({
                       costs: plan.budget.costs.map((c) =>
@@ -783,6 +832,7 @@ function TeamPlan({
               update={update}
               full={preview?.full || 0}
               po={preview?.po || 0}
+              poEnabled={canPO}
               final={deadline(plan.budget, team.events)}
             />
             <Field
@@ -874,6 +924,30 @@ function TeamPlan({
           </Panel>
           {preview && (
             <Panel title="Fee calculator & profitability" open>
+              {health && (
+                <aside className="rounded-xl border p-3" aria-label="Fee health">
+                  <h3>FEE HEALTH · {health.status}</h3>
+                  <p>
+                    {health.funded
+                      ? "FUNDED — projected revenue covers direct costs and contingency."
+                      : "UNDERFUNDED — shortfall " + money(health.shortfall)}
+                  </p>
+                  <p>
+                    {health.targetMet
+                      ? "PROFIT TARGET MET — membership and organization targets covered."
+                      : "Membership and organization targets are not fully covered."}
+                  </p>
+                  {health.pending.map((x) => (
+                    <p key={x}>Pending: {x}</p>
+                  ))}
+                  {!master?.overheadReviewed && (
+                    <p>
+                      Distributable amounts are provisional until actual facility costs and staffing
+                      are confirmed.
+                    </p>
+                  )}
+                </aside>
+              )}
               <div className="grid gap-3 sm:grid-cols-2">
                 <Field
                   label="Projected full players"
@@ -881,17 +955,19 @@ function TeamPlan({
                   value={String(full)}
                   onChange={(s) => setFull(Number(s))}
                 />
-                <Field
-                  label="Projected pitcher-only players"
-                  type="number"
-                  value={String(po)}
-                  onChange={(s) => setPo(Number(s))}
-                />
+                {canPO && (
+                  <Field
+                    label="Projected pitcher-only players"
+                    type="number"
+                    value={String(po)}
+                    onChange={(s) => setPo(Number(s))}
+                  />
+                )}
               </div>
               <Numbers
                 rows={[
                   ["Full-player fee", preview.full],
-                  ["Pitcher-only fee", preview.po],
+                  ...(canPO ? [["Pitcher-only fee", preview.po] as [string, number]] : []),
 
                   [
                     "Baseline direct team costs",
@@ -1059,7 +1135,7 @@ function TeamPlan({
             </Button>
             <Button
               variant="outlineDark"
-              disabled={busy || photoUploads > 0 || plan.status === "closed"}
+              disabled={busy || photoUploads > 0 || plan.status === "closed" || !health?.ready}
               onClick={() => {
                 if (JSON.stringify(plan) !== JSON.stringify(team.private?.plan)) {
                   setError("Save your changes before publishing.");
@@ -1077,7 +1153,7 @@ function TeamPlan({
             </Button>
             <Button
               variant="outlineDark"
-              disabled={busy || photoUploads > 0 || plan.status === "closed"}
+              disabled={busy || photoUploads > 0 || plan.status === "closed" || !health?.ready}
               onClick={() => {
                 if (JSON.stringify(plan) !== JSON.stringify(team.private?.plan)) {
                   setError("Save expenses before closing.");
@@ -1277,7 +1353,7 @@ function TeamPlan({
                     }
                   >
                     <option value="full">Full player</option>
-                    <option value="po">Pitcher only</option>
+                    {canPO && <option value="po">Pitcher only</option>}
                   </select>
                 </label>
               )}
@@ -1442,12 +1518,14 @@ function PaymentScheduleEditor({
   full,
   po,
   final,
+  poEnabled = true,
 }: {
   budget: FeeBudget;
   update: (p: Partial<FeeBudget>) => void;
   full: number;
   po: number;
   final: string;
+  poEnabled?: boolean;
 }) {
   const schedule = budget.paymentSchedule;
   if (!schedule)
@@ -1455,11 +1533,15 @@ function PaymentScheduleEditor({
       <div className="grid gap-2">
         <p>Current default: 40% deposit, 30% second payment, 30% final payment.</p>
         <Field
-          label="Second payment due"
+          label="Second payment date override (leave blank for acceptance midpoint)"
           type="date"
           value={budget.secondDue}
           onChange={(secondDue) => update({ secondDue })}
         />
+        <p>
+          When blank, Payment 2 is calculated halfway between the guardian’s acceptance date and the
+          final deadline. The exact date is stored with their agreement.
+        </p>
         <Button
           type="button"
           onClick={() =>
@@ -1486,7 +1568,7 @@ function PaymentScheduleEditor({
     poRows: ReturnType<typeof scheduleRows> = [];
   try {
     fullRows = scheduleRows(budget, full, "full", final);
-    poRows = scheduleRows(budget, po, "po", final);
+    if (poEnabled) poRows = scheduleRows(budget, po, "po", final);
   } catch (e) {
     error = (e as Error).message;
   }
@@ -1551,22 +1633,24 @@ function PaymentScheduleEditor({
                 ? "Final payment"
                 : `Payment ${i + 1}`}
           </legend>
-          {(["full", "po"] as const).map((role) => (
-            <Field
-              key={role}
-              label={`${role === "full" ? "Full player" : "Pitcher only"} ${schedule.mode === "percent" ? "(%)" : "($)"}`}
-              type="number"
-              value={String(r[role] / 100)}
-              onChange={(v) =>
-                set({
-                  ...schedule,
-                  rows: schedule.rows.map((x, j) =>
-                    j === i ? { ...x, [role]: Math.round(Number(v) * 100) } : x,
-                  ),
-                })
-              }
-            />
-          ))}
+          {(["full", "po"] as const)
+            .filter((role) => role === "full" || poEnabled)
+            .map((role) => (
+              <Field
+                key={role}
+                label={`${role === "full" ? "Full player" : "Pitcher only"} ${schedule.mode === "percent" ? "(%)" : "($)"}`}
+                type="number"
+                value={String(r[role] / 100)}
+                onChange={(v) =>
+                  set({
+                    ...schedule,
+                    rows: schedule.rows.map((x, j) =>
+                      j === i ? { ...x, [role]: Math.round(Number(v) * 100) } : x,
+                    ),
+                  })
+                }
+              />
+            ))}
           {i > 0 && i < schedule.rows.length - 1 ? (
             <Field
               label={`Payment ${i + 1} due`}
@@ -1590,13 +1674,13 @@ function PaymentScheduleEditor({
       ))}
       {error ? (
         <p role="alert" className="text-maroon">
-          {error} Full fee {money(full)} · Pitcher-only fee {money(po)}. Save a draft at any time;
-          correct totals before publishing.
+          {error} Full fee {money(full)} {poEnabled ? `· Pitcher-only fee ${money(po)}.` : ""} Save
+          a draft at any time; correct totals before publishing.
         </p>
       ) : (
         <Numbers
           rows={fullRows.map((r, i) => [
-            `${r.label} — full / PO ${money(poRows[i].amount)}`,
+            poEnabled ? `${r.label} — full / PO ${money(poRows[i].amount)}` : r.label,
             r.amount,
           ])}
         />

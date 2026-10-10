@@ -19,7 +19,7 @@ import {
   allocateMonthlyBusiness,
 } from "./budget-matrix";
 import { getBudgetMaster, saveBudgetMaster, initializeTeamBudget } from "./budget-matrix.server";
-import { calculateFees, project } from "./fee-model";
+import { calculateFees, project, midpointDay } from "./fee-model";
 import { mutateFeePlan, feeWorkspace } from "./fee.server";
 import { saveTeamActivity } from "./activity.server";
 import { seasonEntryCosts } from "./travel-budget";
@@ -206,7 +206,7 @@ test("master admin permissions, durable revisions, draft initialization, review 
           revision: p.revision,
           confirmed: true,
         }),
-      /review/,
+      /review/i,
     );
     const event = {
       id: "",
@@ -237,6 +237,8 @@ test("master admin permissions, durable revisions, draft initialization, review 
       revision: p.revision,
       budget: {
         ...p.budget,
+        noUniformReason: "Returning team reusing existing uniforms",
+        processingZeroReason: "No processing charge in this fixture",
         readiness: {
           schedule: true,
           gas: true,
@@ -250,6 +252,44 @@ test("master admin permissions, durable revisions, draft initialization, review 
       expenses: [],
     });
     p = (await feeWorkspace(sql, "admin")).teams[0].private!.plan;
+    await sql`update team_budget_master set payload=jsonb_set(payload,'{overheadReviewed}','true'::jsonb) where id='master'`;
+    const [clubRow] = await sql<{
+      payload: ReturnType<typeof sampleClub>;
+    }>`select payload from club_state where id='oklahoma-prospects'`;
+    const child = structuredClone(sampleClub().teams[0].roster[0]);
+    Object.assign(child, {
+      feeLock: null,
+      planLock: null,
+      roleType: "full",
+      withdrawn: false,
+      payments: [],
+      credits: [],
+      parents: [{ name: "Parent", rel: "parent", phone: "", email: "parent@example.invalid" }],
+      agreement: { version: "", signedAt: "", signedBy: "" },
+    });
+    clubRow.payload.teams[0].roster = [child];
+    await sql`update club_state set payload=${JSON.stringify(clubRow.payload)}::jsonb where id='oklahoma-prospects'`;
+    await assert.rejects(
+      () =>
+        mutateFeePlan(sql, "admin", {
+          action: "playerRole",
+          teamId: t.id,
+          revision: p.revision,
+          playerId: child.id,
+          role: "po",
+        }),
+      /does not offer/,
+    );
+    await mutateFeePlan(sql, "admin", {
+      action: "save",
+      teamId: t.id,
+      revision: p.revision,
+      budget: { ...p.budget, secondDue: "" },
+      uniforms: [],
+      expenses: [],
+    });
+    p = (await feeWorkspace(sql, "admin")).teams[0].private!.plan;
+
     await mutateFeePlan(sql, "admin", {
       action: "publish",
       teamId: t.id,
@@ -258,6 +298,45 @@ test("master admin permissions, durable revisions, draft initialization, review 
     });
     p = (await feeWorkspace(sql, "admin")).teams[0].private!.plan;
     assert.equal(p.status, "published");
+    assert.equal(p.published!.po, 0);
+    assert.deepEqual(p.published!.schedules!.po, []);
+    // Even a legacy roster assignment cannot bypass the disabled PO offer at acceptance.
+    child.roleType = "po";
+    clubRow.payload.teams[0].roster = [child];
+    await sql`update club_state set payload=${JSON.stringify(clubRow.payload)}::jsonb where id='oklahoma-prospects'`;
+    await assert.rejects(
+      () =>
+        mutateFeePlan(sql, "parent", {
+          action: "accept",
+          teamId: t.id,
+          revision: p.revision,
+          playerId: child.id,
+          name: "Parent Person",
+          consent: true,
+        }),
+      /does not offer/,
+    );
+    child.roleType = "full";
+    clubRow.payload.teams[0].roster = [child];
+    await sql`update club_state set payload=${JSON.stringify(clubRow.payload)}::jsonb where id='oklahoma-prospects'`;
+    await mutateFeePlan(sql, "parent", {
+      action: "accept",
+      teamId: t.id,
+      revision: p.revision,
+      playerId: child.id,
+      name: "Parent Person",
+      consent: true,
+    });
+    const [acceptedClub] = await sql<{
+      payload: ReturnType<typeof sampleClub>;
+    }>`select payload from club_state where id='oklahoma-prospects'`;
+    const acceptedPlayer = acceptedClub.payload.teams[0].roster[0];
+    assert.equal(
+      acceptedPlayer.planLock!.rows[1].date,
+      midpointDay(acceptedPlayer.planLock!.rows[0].date, p.published!.finalDue),
+    );
+    p = (await feeWorkspace(sql, "admin")).teams[0].private!.plan;
+
     await assert.rejects(
       () =>
         mutateFeePlan(sql, "admin", {
