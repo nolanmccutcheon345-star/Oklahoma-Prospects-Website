@@ -1,3 +1,4 @@
+import {EventOffice} from "./event-office";
 import { useEffect, useState } from "react";
 import { useNavigate, useSearch } from "@tanstack/react-router";
 import { FrontOfficeShell, type OfficeSection } from "./front-office-shell";
@@ -140,6 +141,7 @@ export function OfficeWorkspace({
           </section>
         </div>
       )}
+      {section === "events" && <EventOffice />}
       {section === "requests" && <OfficeRequests />}
       {section === "teams" && (
         <>

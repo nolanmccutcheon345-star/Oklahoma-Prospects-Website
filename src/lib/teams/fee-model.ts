@@ -50,6 +50,17 @@ export const budgetSchema = z
     overhead: cents,
     reserve: cents,
     nolanBps: z.number().int().min(0).max(10000),
+    paymentSchedule: z
+      .object({
+        mode: z.enum(["percent", "amount"]),
+        rows: z
+          .array(z.object({ full: cents, po: cents, due: day }).strict())
+          .min(2)
+          .max(13),
+      })
+      .strict()
+      .optional(),
+    daysBeforeTournament: z.number().int().min(0).max(365).default(28),
     triggerEventId: z.string().max(150),
     deadlineOverride: day,
     secondDue: day,
@@ -105,6 +116,7 @@ export const defaultBudget = (): FeeBudget => ({
   overhead: 0,
   reserve: 0,
   nolanBps: 5000,
+  daysBeforeTournament: 28,
   triggerEventId: "",
   deadlineOverride: "",
   secondDue: "",
@@ -133,26 +145,62 @@ export const shiftDay = (date: string, days: number) => {
   return d.toISOString().slice(0, 10);
 };
 export function deadline(b: FeeBudget, events: { id: string; start: string }[]) {
+  const first = events.filter((e) => e.start).sort((a, b) => a.start.localeCompare(b.start))[0];
+  const chosen = b.paymentSchedule ? first : events.find((e) => e.id === b.triggerEventId) || first;
   return (
     b.deadlineOverride ||
-    (events.find((e) => e.id === b.triggerEventId)?.start
-      ? shiftDay(events.find((e) => e.id === b.triggerEventId)!.start, -28)
-      : "")
+    (chosen ? shiftDay(chosen.start.slice(0, 10), -(b.daysBeforeTournament ?? 28)) : "")
   );
 }
-// Gross up three installment transactions. Pay-in-full does not alter the agreed fee.
+export function scheduleRows(
+  b: FeeBudget,
+  total: number,
+  role: "full" | "po",
+  final: string,
+  accepted = "",
+) {
+  if (!b.paymentSchedule)
+    return installments(total).map((amount, i) => ({
+      amount,
+      due: [accepted, b.secondDue, final][i],
+      label: ["Deposit", "Second payment", "Final payment"][i],
+    }));
+  const { mode, rows } = b.paymentSchedule;
+  const values = rows.map((r) => r[role]);
+  if (mode === "percent" && sum(values) !== 10000)
+    throw Error("Payment percentages must add up to 100% for full and pitcher-only players.");
+  if (mode === "amount" && sum(values) !== total)
+    throw Error("Payment amounts must add up to the calculated fee for each player type.");
+  const amounts = mode === "percent" ? values.map((v) => Math.round((total * v) / 10000)) : values;
+  if (mode === "percent") amounts[amounts.length - 1] = total - sum(amounts.slice(0, -1));
+  if (amounts.some((n) => !Number.isSafeInteger(n) || n < 0))
+    throw Error("Invalid payment amounts.");
+  return amounts.map((amount, i) => ({
+    amount,
+    due: i === 0 ? accepted : i === rows.length - 1 ? final : rows[i].due,
+    label: i === 0 ? "Deposit" : i === rows.length - 1 ? "Final payment" : `Payment ${i + 1}`,
+  }));
+}
+// Processing allowance follows the configured payment count, including per-charge rounding.
 function gross(net: number, b: FeeBudget) {
-  let total = Math.ceil((net + 3 * b.processingFixed) / (1 - b.processingBps / 10000));
-  while (
-    total -
-      sum(
-        installments(total).map(
-          (n) => Math.ceil((n * b.processingBps) / 10000) + b.processingFixed,
-        ),
-      ) <
-    net
-  )
-    total++;
+  const count = b.paymentSchedule?.rows.length || 3;
+  let total = Math.ceil((net + count * b.processingFixed) / (1 - b.processingBps / 10000));
+  if (!b.paymentSchedule) {
+    while (
+      total -
+        sum(
+          installments(total).map(
+            (n) => Math.ceil((n * b.processingBps) / 10000) + b.processingFixed,
+          ),
+        ) <
+      net
+    )
+      total++;
+  } else if (b.processingBps) {
+    total = Math.ceil(
+      (net + count * b.processingFixed + count - 1) / (1 - b.processingBps / 10000),
+    );
+  }
   return total;
 }
 export function calculateFees(input: FeeBudget) {

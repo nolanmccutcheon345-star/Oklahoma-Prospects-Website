@@ -287,6 +287,7 @@ export async function orderStatus(orderId: string, verifiedUserId?: string) {
     select status,total_cents,product_id,receipt_url,subscription_setup_status,hold_until,snapshot,square_payment_id,square_fee_payment_id from commerce_orders where id=${orderId} and household_id=any(${me.billingHouseholdIds}::text[])`;
   if (!row) throw new Error("Order not found.");
   return {
+    eventRegistration: (row.snapshot as Quote & {eventRegistration?: import("../training-events.server").EventSnapshot}).eventRegistration || null,
     status: row.status,
     total_cents: row.total_cents,
     product_id: row.product_id,

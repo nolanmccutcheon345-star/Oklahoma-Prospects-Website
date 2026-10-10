@@ -7,6 +7,7 @@ import {
   deadline,
   money,
   installments,
+  scheduleRows,
   type FeeBudget,
 } from "@/lib/teams/fee-model";
 import type { FeePlan, FeeBusiness } from "@/lib/teams/fee-contracts";
@@ -227,8 +228,8 @@ function TeamPlan({
             ]}
           />
           <p className="text-sm">
-            Deposit 40% at acceptance · second payment 30% by {publication.secondDue} · final 30% by{" "}
-            {publication.finalDue}. Early payment in full is allowed.
+            Final payment due {publication.finalDue}. The accepted schedule is listed in the policy
+            below. Early payment in full is allowed.
           </p>
           <p className="whitespace-pre-wrap text-sm">{publication.policy}</p>
         </Panel>
@@ -524,8 +525,25 @@ function TeamPlan({
             </label>
           </Panel>
           <Panel title="Payment deadlines & written policy">
+            <PaymentScheduleEditor
+              budget={plan.budget}
+              update={update}
+              full={preview?.full || 0}
+              po={preview?.po || 0}
+              final={deadline(plan.budget, team.events)}
+            />
+            <Field
+              label="Days before first tournament that final payment is due"
+              type="number"
+              value={String(plan.budget.daysBeforeTournament ?? 28)}
+              onChange={(v) => update({ daysBeforeTournament: Number(v) })}
+            />
+            <p>
+              Uses the earliest tournament assigned to this team. Add the tournament to the team
+              schedule first, or enter an explicit final deadline override.
+            </p>
             <label>
-              Payment-trigger competition
+              Legacy payment-trigger competition (used only for older schedules)
               <select
                 className="office-control w-full"
                 value={plan.budget.triggerEventId}
@@ -546,7 +564,7 @@ function TeamPlan({
             {(
               [
                 ["deadlineOverride", "Final deadline override"],
-                ["secondDue", "Second payment due"],
+
                 ["uniformCutoff", "Uniform order cutoff"],
               ] as const
             ).map(([key, label]) => (
@@ -621,9 +639,7 @@ function TeamPlan({
                 rows={[
                   ["Full-player fee", preview.full],
                   ["Pitcher-only fee", preview.po],
-                  ["40% deposit — full player", installments(preview.full)[0]],
-                  ["30% second payment", installments(preview.full)[1]],
-                  ["Final payment with rounding adjustment", installments(preview.full)[2]],
+
                   [
                     "Baseline direct team costs",
                     preview.fixed +
@@ -1159,5 +1175,174 @@ function BusinessModel({
         Save business assumptions
       </Button>
     </Panel>
+  );
+}
+
+function PaymentScheduleEditor({
+  budget,
+  update,
+  full,
+  po,
+  final,
+}: {
+  budget: FeeBudget;
+  update: (p: Partial<FeeBudget>) => void;
+  full: number;
+  po: number;
+  final: string;
+}) {
+  const schedule = budget.paymentSchedule;
+  if (!schedule)
+    return (
+      <div className="grid gap-2">
+        <p>Current default: 40% deposit, 30% second payment, 30% final payment.</p>
+        <Field
+          label="Second payment due"
+          type="date"
+          value={budget.secondDue}
+          onChange={(secondDue) => update({ secondDue })}
+        />
+        <Button
+          type="button"
+          onClick={() =>
+            update({
+              paymentSchedule: {
+                mode: "percent",
+                rows: [
+                  { full: 4000, po: 4000, due: "" },
+                  { full: 3000, po: 3000, due: budget.secondDue },
+                  { full: 3000, po: 3000, due: "" },
+                ],
+              },
+              triggerEventId: "",
+            })
+          }
+        >
+          Customize this team’s payments
+        </Button>
+      </div>
+    );
+  const set = (value: typeof schedule) => update({ paymentSchedule: value });
+  let error = "";
+  let fullRows: ReturnType<typeof scheduleRows> = [],
+    poRows: ReturnType<typeof scheduleRows> = [];
+  try {
+    fullRows = scheduleRows(budget, full, "full", final);
+    poRows = scheduleRows(budget, po, "po", final);
+  } catch (e) {
+    error = (e as Error).message;
+  }
+  return (
+    <section className="grid gap-3">
+      <h3 className="text-xl">Per-player payment schedule</h3>
+      <p>
+        Deposit is due when the guardian accepts. Choose 1–12 subsequent payments. Each player type
+        must total its complete fee; the final percentage payment absorbs cent rounding. Existing
+        signed agreements are preserved.
+      </p>
+      <label>
+        Set payments as
+        <select
+          className="office-control w-full"
+          value={schedule.mode}
+          onChange={(e) =>
+            set({
+              ...schedule,
+              mode: e.target.value as "percent" | "amount",
+              rows: schedule.rows.map((r, i) => ({
+                ...r,
+                full:
+                  e.target.value === "amount"
+                    ? fullRows[i]?.amount || 0
+                    : Math.floor(10000 / schedule.rows.length) +
+                      (i === schedule.rows.length - 1 ? 10000 % schedule.rows.length : 0),
+                po:
+                  e.target.value === "amount"
+                    ? poRows[i]?.amount || 0
+                    : Math.floor(10000 / schedule.rows.length) +
+                      (i === schedule.rows.length - 1 ? 10000 % schedule.rows.length : 0),
+              })),
+            })
+          }
+        >
+          <option value="percent">Percentages</option>
+          <option value="amount">Dollar amounts</option>
+        </select>
+      </label>
+      <Field
+        label="Number of subsequent payments"
+        type="number"
+        value={String(schedule.rows.length - 1)}
+        onChange={(v) => {
+          const count = Math.max(1, Math.min(12, Number(v) || 1)) + 1;
+          set({
+            ...schedule,
+            rows: Array.from(
+              { length: count },
+              (_, i) => schedule.rows[i] || { full: 0, po: 0, due: "" },
+            ),
+          });
+        }}
+      />
+      {schedule.rows.map((r, i) => (
+        <fieldset key={i} className="grid gap-3 rounded-xl border p-3 sm:grid-cols-2">
+          <legend>
+            {i === 0
+              ? "Deposit"
+              : i === schedule.rows.length - 1
+                ? "Final payment"
+                : `Payment ${i + 1}`}
+          </legend>
+          {(["full", "po"] as const).map((role) => (
+            <Field
+              key={role}
+              label={`${role === "full" ? "Full player" : "Pitcher only"} ${schedule.mode === "percent" ? "(%)" : "($)"}`}
+              type="number"
+              value={String(r[role] / 100)}
+              onChange={(v) =>
+                set({
+                  ...schedule,
+                  rows: schedule.rows.map((x, j) =>
+                    j === i ? { ...x, [role]: Math.round(Number(v) * 100) } : x,
+                  ),
+                })
+              }
+            />
+          ))}
+          {i > 0 && i < schedule.rows.length - 1 ? (
+            <Field
+              label={`Payment ${i + 1} due`}
+              type="date"
+              value={r.due}
+              onChange={(due) =>
+                set({
+                  ...schedule,
+                  rows: schedule.rows.map((x, j) => (j === i ? { ...x, due } : x)),
+                })
+              }
+            />
+          ) : (
+            <p>
+              {i === 0
+                ? "Due at acceptance"
+                : `Due ${final || "after a tournament or deadline is selected"}`}
+            </p>
+          )}
+        </fieldset>
+      ))}
+      {error ? (
+        <p role="alert" className="text-maroon">
+          {error} Full fee {money(full)} · Pitcher-only fee {money(po)}. Save a draft at any time;
+          correct totals before publishing.
+        </p>
+      ) : (
+        <Numbers
+          rows={fullRows.map((r, i) => [
+            `${r.label} — full / PO ${money(poRows[i].amount)}`,
+            r.amount,
+          ])}
+        />
+      )}
+    </section>
   );
 }

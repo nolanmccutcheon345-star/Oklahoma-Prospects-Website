@@ -69,6 +69,15 @@ test("team financial permissions, approvals, immutable fees, uniform release and
       months: 2.5,
       fullOrg: 45678,
       poOrg: 20000,
+      paymentSchedule: {
+        mode: "percent" as const,
+        rows: [
+          { full: 4000, po: 2500, due: "" },
+          { full: 2000, po: 2500, due: "2027-01-01" },
+          { full: 2000, po: 2500, due: "2027-02-01" },
+          { full: 2000, po: 2500, due: "" },
+        ],
+      },
       secondDue: "2027-02-01",
       deadlineOverride: "2027-03-01",
       uniformCutoff: "2027-02-15",
@@ -150,6 +159,7 @@ test("team financial permissions, approvals, immutable fees, uniform release and
     }>`select payload from club_state where id='oklahoma-prospects'`;
     const signed = stored.payload.teams[0].roster[0];
     assert.ok(signed.feeLock);
+    assert.equal(signed.planLock!.rows.length, 4);
     assert.equal(
       signed.planLock!.rows.reduce((s, r) => s + Math.round(r.amount * 100), 0),
       Math.round(signed.feeLock!.amount * 100),

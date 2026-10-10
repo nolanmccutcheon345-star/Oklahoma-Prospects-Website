@@ -1,9 +1,10 @@
-export function TrainingNav({ current }: { current: "lessons" | "instructors" | "plans" }) {
+export function TrainingNav({ current }: { current: "lessons" | "instructors" | "plans" | "events" }) {
   return (
-    <nav aria-label="Training" className="mx-auto grid max-w-3xl grid-cols-3 gap-2 px-5 pt-5">
+    <nav aria-label="Training" className="mx-auto grid max-w-3xl grid-cols-2 sm:grid-cols-4 gap-2 px-5 pt-5">
       {(
         [
           { id: "lessons", label: "Lessons", href: "/training" },
+          { id: "events", label: "Events", href: "/events" },
           { id: "instructors", label: "Instructors", href: "/instructors" },
           { id: "plans", label: "Training Plans", href: "/training?view=plans" },
         ] as const

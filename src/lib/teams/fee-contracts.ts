@@ -22,6 +22,10 @@ export type FeePlan = {
   published?: {
     full: number;
     po: number;
+    schedules?: {
+      full: { amount: number; due: string; label: string }[];
+      po: { amount: number; due: string; label: string }[];
+    };
     secondDue: string;
     finalDue: string;
     policy: string;

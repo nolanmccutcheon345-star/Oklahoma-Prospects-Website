@@ -12,7 +12,7 @@ Uniform vendor cost, all baseline per-player costs, tournament costs, and all
 coaching / operating budgets are inside direct costs before contingency.
 Membership and organization allocations are outside direct cost and contingency.
 PO pricing has its own direct allocation, incremental cost and organization fee.
-Processing gross-up covers three rounded transactions; no method-specific fee
+Processing gross-up covers the configured number of rounded transactions; no method-specific fee
 is added by this module.
 
 Extra-player contribution includes the extra players' membership and organization
@@ -27,10 +27,8 @@ offer stays available while a replacement draft is reviewed. A guardian's
 acceptance freezes the fee, installment amounts, policy and membership service
 allocation. Subsequent publications do not alter that agreement. Existing signed
 agreements are preserved; amendments require separate Front Office review.
-New fee agreements use 40/30/30, with the final installment absorbing cent
-rounding. Second/final installments already overdue at late acceptance become
-due at acceptance. A designated scheduled competition supplies the final
-deadline minus 28 days, unless explicitly overridden by admin.
+New fee agreements default to 40/30/30. Admin can customize a deposit plus 1–12 subsequent payments, using percentages or exact dollar amounts for full and pitcher-only players. Totals must reconcile before publishing; percentage schedules put cent rounding into the final installment. Second/final installments already overdue at late acceptance become
+due at acceptance. Customized plans use the earliest scheduled team tournament minus the admin-configured number of days (default 28), unless an explicit final-date override is set. Older published schedules and accepted agreements retain their original terms.
 
 ## Collections and actuals
 

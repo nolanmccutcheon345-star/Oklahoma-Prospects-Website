@@ -192,3 +192,82 @@ test("1–5 business scenarios count fixed overhead once and never distribute a 
     assert.equal(r.nolan + r.steve, r.distributable);
   }
 });
+
+test("custom schedules: arbitrary counts, dollar amounts, PO amounts, cent rounding and first tournament deadline", async () => {
+  const { scheduleRows } = await import("./fee-model");
+  const b = {
+    ...fixture(),
+    daysBeforeTournament: 14,
+    paymentSchedule: {
+      mode: "percent" as const,
+      rows: [
+        { full: 2500, po: 1000, due: "" },
+        { full: 2500, po: 2000, due: "2027-01-10" },
+        { full: 2500, po: 3000, due: "2027-02-10" },
+        { full: 2500, po: 4000, due: "" },
+      ],
+    },
+  };
+  const rows = scheduleRows(b, 10001, "full", "2027-03-01", "2026-12-01");
+  assert.equal(rows.length, 4);
+  assert.equal(rows[0].amount, 2500);
+  assert.equal(rows[3].amount, 2501);
+  assert.equal(
+    rows.reduce((n, r) => n + r.amount, 0),
+    10001,
+  );
+  assert.equal(scheduleRows(b, 10000, "po", "2027-03-01")[0].amount, 1000);
+  assert.equal(
+    deadline(b, [
+      { id: "later", start: "2027-04-02" },
+      { id: "first", start: "2027-03-20" },
+    ]),
+    "2027-03-06",
+  );
+  const dollars = {
+    ...b,
+    paymentSchedule: {
+      mode: "amount" as const,
+      rows: [
+        { full: 1000, po: 500, due: "" },
+        { full: 9001, po: 7500, due: "" },
+      ],
+    },
+  };
+  assert.deepEqual(
+    scheduleRows(dollars, 10001, "full", "2027-03-01").map((r) => r.amount),
+    [1000, 9001],
+  );
+  assert.throws(() => scheduleRows(dollars, 10000, "full", "2027-03-01"), /add up/);
+  assert.throws(
+    () =>
+      scheduleRows(
+        {
+          ...b,
+          paymentSchedule: { ...b.paymentSchedule, rows: b.paymentSchedule.rows.slice(0, 2) },
+        },
+        10000,
+        "full",
+        "2027-03-01",
+      ),
+    /100%/,
+  );
+  const many = {
+    ...b,
+    processingFixed: 30,
+    processingBps: 300,
+    paymentSchedule: {
+      mode: "percent" as const,
+      rows: Array.from({ length: 13 }, (_, i) => ({
+        full: i === 12 ? 772 : 769,
+        po: i === 12 ? 772 : 769,
+        due: "",
+      })),
+    },
+  };
+  const fees = calculateFees(many),
+    payments = scheduleRows(many, fees.full, "full", "2027-03-01");
+  assert.ok(
+    fees.full - payments.reduce((n, r) => n + Math.ceil(r.amount * 0.03) + 30, 0) >= fees.fullNet,
+  );
+});

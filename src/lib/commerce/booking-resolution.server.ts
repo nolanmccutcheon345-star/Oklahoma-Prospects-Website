@@ -39,6 +39,7 @@ export async function lockedBooking(tx: Sql, id: string) {
   const [booking] = await tx<Booking>`select * from booking_records where id=${id} for update`;
   if (!order || !booking || booking.order_id !== order.id)
     throw new Error("Booking ownership changed.");
+  if(order.kind === "event") throw Error("Camp and clinic changes require Front Office review of the event policy. Contact the office.");
   return { order, booking };
 }
 export function familyAccess(b: Booking, me: Identity) {
