@@ -9,6 +9,8 @@ import {
   project,
   deadline,
   installments,
+  scheduleRows,
+  money,
   paymentStatus,
   membershipRecognition,
   sum,
@@ -100,7 +102,7 @@ function playerView(t: Team, p: Player, plan: FeePlan) {
     : plan.budget;
   const rows = p.planLock?.rows,
     accepted = p.agreement.signedAt?.slice(0, 10) || "",
-    final = rows?.[2]?.date || p.planLock?.deadline || offer?.finalDue || "",
+    final = rows?.[rows.length - 1]?.date || p.planLock?.deadline || offer?.finalDue || "",
     second = rows?.[1]?.date || offer?.secondDue || "";
   const status =
     plan.players[p.id]?.status || (p.withdrawn ? "Removed" : accepted ? "Confirmed" : "Invited");
@@ -132,9 +134,10 @@ function playerView(t: Team, p: Player, plan: FeePlan) {
         ? rows.map((r, i) => ({
             amount: Math.round(r.amount * 100),
             due: r.date,
-            label: i === 0 ? "Deposit" : i === rows.length - 1 ? "Final payment" : "Second payment",
+            label:
+              i === 0 ? "Deposit" : i === rows.length - 1 ? "Final payment" : `Payment ${i + 1}`,
           }))
-        : undefined,
+        : offer?.schedules?.[p.roleType === "po" ? "po" : "full"],
     ),
     ...(!p.feeLock && !offer
       ? { status: "Awaiting published fee", rows: [], uniformReady: false }
@@ -328,24 +331,47 @@ export async function mutateFeePlan(sql: Sql, userId: string, raw: z.infer<typeo
           club.catalog.filter((e) => t.tournamentIds.includes(e.id)),
         ),
         b = p.budget;
-      if (!final || !b.secondDue || b.secondDue > final || final < today())
+      if (
+        !final ||
+        (!b.paymentSchedule && (!b.secondDue || b.secondDue > final)) ||
+        final < today()
+      )
         throw Error("Set a future final deadline and a second payment date no later than it.");
       if (!b.policy.trim() || !b.reinstatement.trim())
         throw Error(
           "Enter the approved payment/refund policy and reinstatement rules before publishing.",
         );
       const f = calculateFees(b);
+      const schedules = {
+        full: scheduleRows(b, f.full, "full", final),
+        po: scheduleRows(b, f.po, "po", final),
+      };
+      for (const rows of Object.values(schedules)) {
+        let previous = today();
+        for (const row of rows.slice(1)) {
+          if (!row.due || row.due < previous || row.due > final)
+            throw Error(
+              "Payment dates must be in order, no earlier than today and no later than the final deadline.",
+            );
+          previous = row.due;
+        }
+      }
       p.published = {
+        schedules,
         full: f.full,
         po: f.po,
         secondDue: b.secondDue,
         finalDue: final,
         policy:
           b.policy +
-          "\n\nPayment schedule: 40% at acceptance, 30% on " +
-          b.secondDue +
-          ", 30% on " +
-          final +
+          "\n\nFull player schedule: " +
+          schedules.full
+            .map((r) => `${r.label}: ${money(r.amount)} ${r.due ? "by " + r.due : "at acceptance"}`)
+            .join("; ") +
+          "\nPitcher-only schedule: " +
+          schedules.po
+            .map((r) => `${r.label}: ${money(r.amount)} ${r.due ? "by " + r.due : "at acceptance"}`)
+            .join("; ") +
           ". Grace period: " +
           b.graceDays +
           " days. One-time late fee after grace: $" +
@@ -420,7 +446,15 @@ export async function mutateFeePlan(sql: Sql, userId: string, raw: z.infer<typeo
           "An agreed fee already exists. Front Office must review amendments separately.",
         );
       const amount = player.roleType === "po" ? p.published.po : p.published.full,
-        parts = installments(amount),
+        schedule =
+          p.published.schedules?.[player.roleType === "po" ? "po" : "full"] ||
+          scheduleRows(
+            p.publishedBudget || p.budget,
+            amount,
+            player.roleType === "po" ? "po" : "full",
+            p.published.finalDue,
+          ),
+        parts = schedule.map((r) => r.amount),
         date = today();
       player.feeLock = {
         amount: amount / 100,
@@ -431,18 +465,11 @@ export async function mutateFeePlan(sql: Sql, userId: string, raw: z.infer<typeo
       player.planLock = {
         dep: parts[0] / 100,
         deadline: p.published.finalDue,
-        planType: "40/30/30",
-        rows: [
-          { date, amount: parts[0] / 100 },
-          {
-            date: p.published.secondDue < date ? date : p.published.secondDue,
-            amount: parts[1] / 100,
-          },
-          {
-            date: p.published.finalDue < date ? date : p.published.finalDue,
-            amount: parts[2] / 100,
-          },
-        ],
+        planType: "custom",
+        rows: schedule.map((r) => ({
+          date: !r.due || r.due < date ? date : r.due,
+          amount: r.amount / 100,
+        })),
       };
       const agreed = p.publishedBudget || p.budget;
       player.depositPaid = paid(player) >= parts[0];

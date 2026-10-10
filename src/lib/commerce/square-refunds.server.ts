@@ -70,6 +70,7 @@ export async function applySquareRefundBalance(
       (order_id=${reference.order_id} and ${payment.id === order.square_payment_id} and
       not exists(select 1 from credit_uses u where u.booking_id=booking_records.id))) returning id`;
     await sql`delete from booking_occupancy where booking_id=any(${cancelled.map((b) => b.id)}::text[])`;
+    await sql`update training_event_registrations set status='cancelled' where order_id=${reference.order_id}`;
     await sql`update commerce_orders set status='refunded',subscription_setup_status=null,updated_at=now()
       where id=${reference.order_id} and not coalesce((snapshot->>'recurring')::boolean,false)`;
     await sql`update payment_notifications set status='resolved' where order_id=${reference.order_id}

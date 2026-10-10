@@ -32,6 +32,7 @@ export type SquareOrder = {
   email: string;
   athlete_id: string | null;
   snapshot: Quote & {
+    eventRegistration?: import("../training-events.server").EventSnapshot;
     rescheduleFee?: import("./reschedule-fee.server").FeeOrder["snapshot"]["rescheduleFee"];
     bookingWindow?: {
       start: string;
@@ -142,6 +143,11 @@ export async function fulfillSquarePayment(
     await sql`delete from booking_occupancy where booking_id in(select id from booking_records where order_id=${order.id} and status='expired')`;
     await queueExpiredCheckoutRefunds(sql, config.environment, order.id);
     await sql`insert into payment_notifications(id,order_id,kind) values(${"owner-review:" + order.id},${order.id},'owner-payment-review') on conflict do nothing`;
+    return;
+  }
+  if (order.kind === 'event') {
+    const {fulfillEventPayment}=await import('../training-events.server');
+    await fulfillEventPayment(sql,order,config.environment);
     return;
   }
   if (order.kind === "reschedule-fee" || order.snapshot.rescheduleFee) {
@@ -369,7 +375,10 @@ export async function paySquareOrder(
         await tx`select booking_id from booking_occupancy where resource_id=any(${b.resources}::text[]) and slot_at>=${target.start.toISOString()} and slot_at<${target.end.toISOString()} and booking_id<>${b.id} limit 1`;
       if (occupied.length) throw new Error("That time was just booked. No fee was submitted.");
     }
-    await assertStoredOrderAllowed(tx, current, identity);
+    if(current.kind==='event') {
+      const {validateEventPayment}=await import('../training-events.server');
+      await validateEventPayment(tx,current,identity);
+    } else await assertStoredOrderAllowed(tx, current, identity);
     if (current.snapshot.bookingWindow) {
       const window = current.snapshot.bookingWindow;
       if (current.snapshot.kind !== "cage") {

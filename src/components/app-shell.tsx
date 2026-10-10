@@ -56,7 +56,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   }, [openMenu]);
   const tabs = [
     { to: "/", label: "Home", icon: Home, match: (path: string) => path === "/" || ["/more", "/fundraising", "/contact", "/facility", "/privacy", "/terms"].some(p => path.startsWith(p)) },
-    { to: "/training", label: "Train", icon: Dumbbell, match: (path: string) => ["/training", "/instructor", "/my-profile", "/account"].some(p => path.startsWith(p)) },
+    { to: "/training", label: "Train", icon: Dumbbell, match: (path: string) => ["/events", "/training", "/instructor", "/my-profile", "/account"].some(p => path.startsWith(p)) },
     { to: "/teams", label: "Teams", icon: Users, match: (path: string) => ["/teams", "/baseball", "/softball", "/tryouts", "/coaches", "/recruiting", "/coach", "/family", "/office"].some(p => path.startsWith(p)) },
     { to: "/book", label: "Book", icon: CalendarClock, match: (path: string) => ["/book", "/go", "/memberships", "/pay", "/paid"].some(p => path.startsWith(p)) },
     { to: "/games", label: "Games", icon: Trophy, match: (path: string) => path.startsWith("/games") },
@@ -164,6 +164,7 @@ export function AppShell({ children }: { children: ReactNode }) {
               <div role="menu" aria-label={`${openMenu} submenu`} className="grid grid-cols-2 gap-2">
                 {(openMenu === "Train" ? [
                   {label:"Lessons",to:"/training" as const, search:{view:"lessons" as const}},
+                  {label:"Events",to:"/events" as const},
                   {label:"Instructors",to:"/instructors" as const},
                   {label:"Training Plans",to:"/training" as const, search:{view:"plans" as const}},
                 ] : [
@@ -177,7 +178,7 @@ export function AppShell({ children }: { children: ReactNode }) {
                     to={item.to}
                     search={"search" in item ? item.search : undefined}
                                         role="menuitem"
-                    className={cn("flex min-h-12 items-center justify-center rounded-lg bg-paper-2 px-3 text-sm font-semibold text-ink no-underline focus-visible:outline-2 focus-visible:outline-powder", item.label === "Training Plans" && "col-span-2")}
+                    className={cn("flex min-h-12 items-center justify-center rounded-lg bg-paper-2 px-3 text-sm font-semibold text-ink no-underline focus-visible:outline-2 focus-visible:outline-powder")}
                     onClick={() => setOpenMenu(null)}
                   >
                     {item.label}

@@ -157,7 +157,7 @@ export function FamilyBilling({ bookingsOnly = false }: { bookingsOnly?: boolean
               <strong>Coach recap:</strong> {b.completion_recap}
             </p>
           ) : null}
-          {b.status === "confirmed" ? (
+          {data.orders.find(o=>o.id===b.order_id)?.snapshot.kind === 'event' ? <p className="mt-3">Camp / clinic registration. Contact Front Office for changes under the event policy. <a href="/events" className="underline">View event details</a></p> : b.status === "confirmed" ? (
             <div className="mt-3 flex flex-wrap gap-3">
               <Button
                 disabled={busy || Boolean(b.checked_in_at)}
@@ -180,8 +180,8 @@ export function FamilyBilling({ bookingsOnly = false }: { bookingsOnly?: boolean
               </Button>
             </div>
           ) : null}
-          {b.status === "confirmed" && !b.checked_in_at ? <RescheduleBooking id={b.id} onSaved={load}/> : null}
-          {b.status === "confirmed" && !b.checked_in_at ? (
+          {b.status === "confirmed" && !b.checked_in_at && data.orders.find(o=>o.id===b.order_id)?.snapshot.kind !== "event" ? <RescheduleBooking id={b.id} onSaved={load}/> : null}
+          {b.status === "confirmed" && !b.checked_in_at && data.orders.find(o=>o.id===b.order_id)?.snapshot.kind !== "event" ? (
             <>
               <Participants
                 id={b.id}

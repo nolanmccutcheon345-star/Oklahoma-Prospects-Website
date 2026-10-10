@@ -6,6 +6,7 @@ export const OFFICE_SECTIONS = [
   ["teams", "Teams & Players"],
   ["evaluations", "Evaluations"],
   ["bookings", "Bookings"],
+  ["events", "Camps & Clinics"],
   ["payments", "Payments"],
   ["services", "Services & Pricing"],
   ["staff", "Staff & Access"],

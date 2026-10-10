@@ -33,6 +33,7 @@ export async function saveParentBookingCancellation(
       snapshot: { recurring: boolean };
     }>`select * from commerce_orders where id=${orderId} for update`;
     if (!order) throw new Error("Booking order not found.");
+    if(order.kind === "event") throw Error("Contact Front Office for camp or clinic changes under the event policy.");
     const key = "booking:" + bookingId;
     const existing =
       await tx<RefundRecord>`select id,amount_cents,status from commerce_refunds where request_key=${key} or request_key=${key + ":setup"} order by request_key`;
