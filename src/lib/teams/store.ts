@@ -133,9 +133,8 @@ export const recordTeamPayment = createServerFn({ method: "POST" })
       label: data.label,
       receipt: newRecordedTeamPaymentReceipt(),
     });
-    if (!player.depositPaid && data.label.toLowerCase().includes("deposit")) {
-      player.depositPaid = true;
-    }
+    const requiredDeposit=player.planLock?.dep;
+    if(requiredDeposit!==undefined)player.depositPaid=Math.round(player.payments.reduce((s,p)=>s+p.amount,0)*100)>=Math.round(requiredDeposit*100);
     stored._rev += 1;
     stored._savedAt = new Date().toISOString();
     stored.audit.unshift({

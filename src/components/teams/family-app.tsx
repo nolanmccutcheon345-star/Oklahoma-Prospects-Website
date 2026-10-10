@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { TeamFeeWorkspace } from './fee-workspace';
 import { Link } from "@tanstack/react-router";
 import { Button } from "@/components/ui/button";
 import type { ClubRecord, Player } from "@/lib/teams/types";
@@ -102,6 +103,7 @@ export function FamilyApp({
 
   return (
     <div className="grid gap-3">
+      {!isPlayer&&<TeamFeeWorkspace teamId={team.id}/>}
       {mine.length > 1 ? (
         <div className="flex flex-wrap gap-2">
           {mine.map((m) => (
@@ -143,7 +145,7 @@ export function FamilyApp({
           <p className="text-sm text-muted">
             Season total {money(signed)} · family combined {money(combined)}
           </p>
-          {player.feeLock?.components ? (
+          {player.feeLock?.components&&!player.feeLock.components.season ? (
             <ul className="mt-2 text-sm">
               <li>Team and event costs {money(player.feeLock.components.teamAndEvents ?? 0)}</li>
               <li>Coaching and instruction {money(player.feeLock.components.coaching ?? 0)}</li>
@@ -170,8 +172,8 @@ export function FamilyApp({
       <Section title={t.plan}>
         {player.planLock ? (
           <ul className="text-sm">
-            {player.planLock.rows.map((r) => (
-              <li key={r.date}>
+            {player.planLock.rows.map((r, index) => (
+              <li key={index}>
                 {r.date} · {isPlayer ? "installment" : money(r.amount)}
               </li>
             ))}
