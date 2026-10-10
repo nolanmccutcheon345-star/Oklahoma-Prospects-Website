@@ -6,6 +6,7 @@ import { PGlite } from "@electric-sql/pglite";
 import type { Sql } from "./db";
 import { resolveIdentity } from "./identity.server";
 import {
+  listTrainingEvents,
   saveTrainingEvent,
   prepareEventCheckout,
   validateEventPayment,
@@ -49,6 +50,7 @@ test("paid camps: ownership, staff conflicts, capacity, price changes, verified 
     const me = await resolveIdentity(sql, "parent");
     for (const id of ["a", "b", "c"])
       await sql`insert into club_athletes(id,user_id,household_email,name,household_id) values(${id},'parent','parent@test.invalid',${"Player " + id},${me.billingHouseholdIds[0]})`;
+    await sql`insert into pd_working_file(id,payload,revision) values('club',${JSON.stringify({ coaches: [{ id: "coach1", name: "Coach One", email: "coach-private@example.invalid", specialties: [], active: true }] })},1)`;
     const coaches = [{ id: "coach1", name: "Coach One" }];
     let e: TrainingEvent = {
       id: randomUUID(),
@@ -71,6 +73,9 @@ test("paid camps: ownership, staff conflicts, capacity, price changes, verified 
     await assert.rejects(saveTrainingEvent(sql, "parent", e, coaches), /Admin/);
     await assert.rejects(saveTrainingEvent(sql, "coach", e, coaches), /Admin/);
     e = await saveTrainingEvent(sql, "owner", e, coaches);
+    const published = await listTrainingEvents(sql);
+    assert.deepEqual(published[0].coaches, [{ id: "coach1", name: "Coach One" }]);
+    assert.doesNotMatch(JSON.stringify(published), /coach-private/);
     assert.equal(
       (await sql`select id from booking_records where order_id is null and status='confirmed'`)
         .length,

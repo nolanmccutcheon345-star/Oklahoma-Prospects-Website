@@ -41,10 +41,14 @@ export async function eventCoaches(sql: Sql) {
     ...disabled.map((u) => u.email),
     ...file.coaches.filter((c) => !c.active).map((c) => c.email.trim().toLowerCase()),
   ]);
-  const people = new Map<string, { id: string; name: string }>();
+  const people = new Map<string, { id: string; name: string; email: string }>();
   for (const c of file.coaches)
     if (c.active && !blocked.has(c.email.trim().toLowerCase()))
-      people.set(c.email.trim().toLowerCase(), { id: c.id, name: c.name });
+      people.set(c.email.trim().toLowerCase(), {
+        id: c.id,
+        name: c.name,
+        email: c.email.trim().toLowerCase(),
+      });
   for (const t of club?.payload.teams || [])
     for (const c of [
       { name: t.headCoach, email: t.coachEmail },
@@ -52,7 +56,7 @@ export async function eventCoaches(sql: Sql) {
     ]) {
       const email = c.email?.trim().toLowerCase();
       if (email && !blocked.has(email) && !people.has(email))
-        people.set(email, { id: newCoachId(email), name: c.name });
+        people.set(email, { id: newCoachId(email), name: c.name, email });
     }
   return [...people.values()].sort((a, b) => a.name.localeCompare(b.name));
 }
@@ -81,7 +85,9 @@ export async function listTrainingEvents(sql: Sql) {
       ),
       registrationOpen:
         r.payload.status === "published" && windows(r.payload)[0].start > new Date(),
-      coaches: coaches.filter((c) => r.payload.coachIds.includes(c.id)),
+      coaches: coaches
+        .filter((c) => r.payload.coachIds.includes(c.id))
+        .map(({ id, name }) => ({ id, name })),
     }))
     .filter((e) => windows(e).some((w) => w.end > new Date()))
     .sort((a, b) => +windows(a)[0].start - +windows(b)[0].start);
