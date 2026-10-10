@@ -15,5 +15,4 @@ export const config = {
   excludedPath: ["/api/*", "/.netlify/*"],
   // Netlify's edge routing does not reliably expose Host as a matchable header.
   // The handler checks the URL hostname; POSTs and callback paths bypass it.
-  method: ["GET", "HEAD"],
 };
