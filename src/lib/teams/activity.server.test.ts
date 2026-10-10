@@ -11,7 +11,7 @@ import {
   publicTeamGames,
 } from "./activity.server";
 import { publicGamesFor } from "../games.server";
-import { publicTeamView, playerStatsView } from "./public-view";
+import { canReadTeamStats, publicTeamView, playerStatsView } from "./public-view";
 import { scopeClub, mergeSave } from "./privacy";
 import { parseClubSave } from "./contracts";
 import { feeWorkspace, mutateFeePlan } from "./fee.server";
@@ -72,6 +72,8 @@ test("assigned coaches manage schedules/results, family chat stays scoped, prici
     p.parents = [{ name: "Parent", email: "parent@example.invalid", phone: "", rel: "parent" }];
     p.stats = { ab: 5, h: 2 };
     p.withdrawn = false;
+    assert.equal(canReadTeamStats(t,{role:'player',email:'sibling@example.invalid',familyIds:[p.familyId],householdEmails:['parent@example.invalid']}),false,'a sibling household alone does not grant player team access');
+    assert.equal(canReadTeamStats(t,{role:'parent',email:'stranger@example.invalid',familyId:p.familyId,familyIds:[]}),false,'unverified profile family ID is not membership');
     await sql`insert into club_state(id,payload,rev,demo) values('oklahoma-prospects',${JSON.stringify(club)}::jsonb,0,false)`;
     const input: TeamActivity = {
       teamId: t.id,
