@@ -5,7 +5,6 @@ import { getTrainingEvents, getEventFamily, startEventCheckout } from "@/lib/tra
 import { submitSquarePayment } from "@/lib/commerce/api";
 import { useCurrentUser } from "@/lib/auth/use-current-user";
 import { SquareCard } from "@/components/commerce/square-card";
-import { TrainingNav } from "@/components/training-nav";
 import { Button } from "@/components/ui/button";
 import { formatMoney } from "@/lib/pricing";
 import { formatClockTime } from "@/lib/time-display";
@@ -78,7 +77,6 @@ export function EventsPage() {
           <p>Learn together. Build your game. Explore upcoming events and register your player.</p>
         </div>
       </header>
-      <TrainingNav current="events" />
       <div className="mx-auto grid max-w-5xl gap-6 px-5 py-6">
         {error && (
           <p role="alert" className="text-maroon">

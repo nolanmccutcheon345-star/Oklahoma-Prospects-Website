@@ -108,7 +108,7 @@ export function TeamFeeWorkspace({ teamId }: { teamId?: string }) {
     <section className="my-5 grid min-w-0 gap-4">
       <header>
         <p className="text-xs tracking-widest text-maroon uppercase">Team planning</p>
-        <h2 className="text-3xl">Team Fees & Profitability</h2>
+        <h2 className="text-3xl">{data?.admin ? "Team Fees & Profitability" : "Team Fees & Payment Status"}</h2>
         <p className="text-sm text-muted">
           Approved season fees, payment schedules, and roster readiness.
         </p>

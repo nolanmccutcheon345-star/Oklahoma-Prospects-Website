@@ -23,7 +23,7 @@ test('camp registration UI, calendar, and admin event editor use authoritative d
  const result=await build({stdin:{contents:`export {EventsPage} from './src/routes/events';export {EventOffice} from './src/components/event-office';`,resolveDir:process.cwd(),loader:'tsx'},bundle:true,platform:'node',format:'esm',write:false,external:['react','react/*','react-dom','react-dom/*'],plugins:[{name:'event-fixture',setup(b){b.onResolve({filter:/.*/},a=>mocks[a.path]?{path:a.path,namespace:'fixture'}:null);b.onLoad({filter:/.*/,namespace:'fixture'},a=>({contents:mocks[a.path],loader:'js'}));}}]});await writeFile(out,result.outputFiles[0].text);
  const {EventsPage,EventOffice}=await import(pathToFileURL(out).href);let root=createRoot(document.getElementById('root'));const host=document.getElementById('root');const button=text=>[...host.querySelectorAll('button')].find(b=>b.textContent===text);
  try{
- await act(async()=>root.render(createElement(EventsPage)));assert.match(host.textContent,/Summer Skills Clinic/);assert.match(host.textContent,/\$45.67/);
+ await act(async()=>root.render(createElement(EventsPage)));assert.equal(host.querySelector('[aria-label="Training"]'),null);assert.match(host.textContent,/Summer Skills Clinic/);assert.match(host.textContent,/\$45.67/);
  await act(async()=>button('Calendar').click());assert.ok(host.querySelector('[aria-label="Upcoming events calendar"]'));
  await act(async()=>button('Upcoming events').click());await act(async()=>button('Register a player').click());
  const choose=host.querySelector('select');await act(async()=>{choose.value='player';choose.dispatchEvent(new dom.window.Event('change',{bubbles:true}));});

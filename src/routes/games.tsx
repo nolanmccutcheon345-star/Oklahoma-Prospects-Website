@@ -62,7 +62,9 @@ function GameCard({game}:{game:PublicGameEvent}){
     {game.inning?<span className="ml-3 align-middle text-sm font-medium text-muted">{game.inning}</span>:null}
   </p>:null}
   <p className="mt-3 text-sm text-muted"><CalendarDays className="mr-1 inline size-4" aria-hidden="true"/> {game.date} · {formatClockTime(game.startTime)} CT{game.venue?` · ${game.venue}`:""}</p>
+  {game.teamStats && <p className="mt-2 text-sm">Team batting: {Object.entries(game.teamStats).map(([k,v])=>k.toUpperCase()+": "+v).join(" · ")}</p>}
   <div className="mt-4 flex flex-wrap gap-2">
+    {game.teamId && <a className="inline-flex min-h-11 items-center underline" href={"/teams/"+encodeURIComponent(game.teamId)}>Team record, roster & stats</a>}
     <Button asChild size="sm" variant="outlineDark">
       <Link to="/games" search={{view:game.videoId?"watch":"schedule",game:game.id}}>Game details</Link>
     </Button>
@@ -200,7 +202,7 @@ function GamesStudio(){
    <p className="text-xs font-bold tracking-widest text-powder uppercase"><ShieldCheck className="mr-2 inline size-4"/> Authorized owner tools</p>
    <h2 className="mt-2 text-3xl">Games publishing desk</h2>
    <p className="mt-2 text-sm text-fg-soft">Add verified games, update scores, publish approved videos. No athlete names, photos or lineup uploads are accepted here. Changes are audited.</p>
-   <div className="mt-4 flex flex-wrap gap-2">
+  <div className="mt-4 flex flex-wrap gap-2">
     <Button onClick={()=>{setEditing(initialGame());setMessage("");}} variant="outline">New game</Button>
     {games.slice(0,20).map(g=><Button key={g.id} variant="outline" onClick={()=>{setEditing(g);setMessage("");}}>{g.teamName} · {g.date}{g.published?" ✓":""}</Button>)}
    </div>

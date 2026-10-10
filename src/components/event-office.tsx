@@ -27,7 +27,7 @@ export function EventOffice() {
         <h2 className="text-3xl">Camps & Clinics</h2>
         <p>
           Create events, assign coaches, and review paid player registrations. Times are Central
-          Time. Published events appear under Train → Events.
+          Time. Published events appear under Train → Camps.
         </p>
       </header>
       {error && (
@@ -117,7 +117,7 @@ export function EventOffice() {
             try {
               setEdit(await saveEvent({ data: edit }));
               await load();
-              setNotice("Event saved. Published events are now visible under Train → Events.");
+              setNotice("Event saved. Published events are now visible under Train → Camps.");
             } catch (e) {
               setError((e as Error).message);
             } finally {

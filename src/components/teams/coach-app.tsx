@@ -1,3 +1,4 @@
+import {TeamActivities} from "./team-activities";
 import { formatClockTime } from "@/lib/time-display";
 import {PrivatePlayerBirthday} from '@/components/commerce/player-birthdays';
 import { useState } from "react";
@@ -16,10 +17,12 @@ export function CoachApp({
   club,
   onChange,
   onSave,
+  onReload,
 }: {
   club: ClubRecord;
   onChange: (club: ClubRecord) => void;
   onSave: () => void;
+  onReload: () => Promise<void>;
 }) {
   const [teamId, setTeamId] = useState(club.teams[0]?.id ?? "");
   const [filter, setFilter] = useState<(typeof FILTERS)[number]>("all");
@@ -94,6 +97,7 @@ export function CoachApp({
       </Section>
 
       <TeamFeeWorkspace teamId={team.id}/>
+      <TeamActivities key={team.id} teamId={team.id} onSaved={onReload}/>
 
       <Section title="Roster" count={roster.length} defaultOpen>
         <p className="mb-3 text-sm">Manage players only on teams assigned to your signed-in coaching email. Billing records are protected.</p>
@@ -142,6 +146,10 @@ export function CoachApp({
                   finally{setRosterBusy(false);}
                 }}>Remove player</button>
               </div>
+              <details className="rounded border p-3"><summary className="min-h-11 cursor-pointer">Edit roster details</summary>
+                <div className="grid gap-2">{(['name','number','bats','throws'] as const).map(key=><label key={key}>{key}<input maxLength={key==='name'?200:12} className="office-control w-full" value={p[key]} onChange={e=>patchTeam({...team,roster:team.roster.map(x=>x.id===p.id?{...x,[key]:e.target.value}:x)})}/></label>)}
+                <label>Positions (comma separated)<input className="office-control w-full" maxLength={100} value={p.positions.join(',')} onChange={e=>patchTeam({...team,roster:team.roster.map(x=>x.id===p.id?{...x,positions:e.target.value.split(',').map(s=>s.trim()).filter(Boolean)}:x)})}/></label><Button onClick={onSave}>Save roster details</Button></div>
+              </details>
               <PrivatePlayerBirthday athleteId={p.id}/>
             </li>
           ))}
@@ -151,7 +159,7 @@ export function CoachApp({
       <Section title="Schedule">
         <ul className="grid gap-2">
           {club.catalog
-            .filter((ev) => ev.ages.includes(team.age) && ev.sport === team.sport)
+            .filter((ev) => ev.ages.includes(team.age) && ev.sport === team.sport && ev.org !== "Team schedule")
             .map((ev) => {
               const on = team.tournamentIds.includes(ev.id);
               const nextSpend = spent + (on ? 0 : ev.fee);
@@ -177,7 +185,7 @@ export function CoachApp({
                     type="button"
                     className="mt-2 min-h-11 text-sm font-semibold text-maroon"
                     onClick={() => {
-                      if (over) return;
+
                       patchTeam({
                         ...team,
                         tournamentIds: on
@@ -186,7 +194,7 @@ export function CoachApp({
                       });
                     }}
                   >
-                    {over ? "Ask for more budget" : on ? "Remove" : "Add to schedule"}
+                    {on ? "Remove" : "Add to schedule"}
                   </button>
                 </li>
               );
@@ -289,9 +297,10 @@ export function CoachApp({
           {team.playerCageHoursPerWeek}.
         </p>
         <ul className="mt-2 grid gap-2">
-          {team.practices.map((pr) => (
+          {team.practices.filter(pr=>!/^[a-f0-9-]{36}$/.test(pr.id)).map((pr) => (
             <li key={pr.id} className="rounded-lg bg-paper p-3">
               {pr.date} {formatClockTime(pr.time)} · {pr.where} · {pr.cageHours}h · {pr.status}
+              {!/^[a-f0-9-]{36}$/.test(pr.id) && <details><summary>Edit existing practice</summary>{(['date','time','where'] as const).map(key=><label key={key}>{key}<input className="office-control w-full" type={key==='where'?'text':key} value={pr[key]} onChange={e=>patchTeam({...team,practices:team.practices.map(p=>p.id===pr.id?{...p,[key]:e.target.value}:p)})}/></label>)}<Button onClick={onSave}>Save practice</Button></details>}
               <div className="mt-2 flex flex-wrap gap-1">
                 {(["delayed", "moved", "cancelled", "on"] as const).map((st) => (
                   <Chip
@@ -345,64 +354,6 @@ export function CoachApp({
             </div>
           </div>
         ))}
-      </Section>
-
-      <Section title="Chat — group only">
-        <p className="text-xs text-muted">No adult-to-player direct messages. One thread per team.</p>
-        <ul className="mt-2 grid gap-2">
-          {team.messages.map((m) => (
-            <li key={m.id} className="rounded-lg bg-paper p-3 text-sm">
-              <strong>{m.from}</strong>
-              <span className="block">{m.body}</span>
-            </li>
-          ))}
-        </ul>
-        <form
-          className="mt-2"
-          onSubmit={(e) => {
-            e.preventDefault();
-            const body = String(new FormData(e.currentTarget).get("body") ?? "");
-            patchTeam({
-              ...team,
-              messages: [
-                ...team.messages,
-                { id: `m-${Date.now()}`, at: new Date().toISOString(), from: team.headCoach, body },
-              ],
-            });
-            e.currentTarget.reset();
-          }}
-        >
-          <label>Team message<input name="body" maxLength={5000} required className="min-h-11 w-full rounded-md border border-line px-3" /></label>
-          <Button type="submit" className="mt-2">
-            Post to team
-          </Button>
-        </form>
-      </Section>
-
-      <Section title="Scoring">
-        <p>
-          Record {team.record.w}-{team.record.l}-{team.record.t}
-        </p>
-        <div className="mt-2 flex gap-2">
-          <Button
-            type="button"
-            onClick={() => patchTeam({ ...team, record: { ...team.record, w: team.record.w + 1 } })}
-          >
-            Win
-          </Button>
-          <Button
-            type="button"
-            variant="outlineDark"
-            onClick={() => patchTeam({ ...team, record: { ...team.record, l: team.record.l + 1 } })}
-          >
-            Loss
-          </Button>
-        </div>
-        <p className="mt-2 text-sm">
-          <a href="https://gc.com" className="text-maroon">
-            GameChanger scorebook
-          </a>
-        </p>
       </Section>
 
       <Section title="Pay election">
