@@ -258,6 +258,7 @@ export function TryoutForm({
           an event spot, appointment, or roster place.
         </p>
         <p className="mt-3 text-sm">Reference: {requestId}</p>
+        <p className="mt-2 text-sm">Your request is saved. Keep this reference; you do not need to submit again. Staff will contact you using the details you provided.</p>
       </div>
     );
   return (

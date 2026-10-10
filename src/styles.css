@@ -473,3 +473,12 @@ body:has(.booking-review-bar) footer { padding-bottom: 7rem; }
 .booking-page input, .booking-page summary { scroll-margin-block: 6rem calc(var(--bottom-nav-space) + 7rem); }
 @media (max-width: 360px) { .booking-space { gap: .5rem; padding-inline: .65rem; } .booking-space .font-display { font-size: 1.125rem; } }
 @media (max-height: 500px) { .booking-review-bar { position: static; box-shadow: none; } body:has(.booking-review-bar) .booking-page, body:has(.booking-review-bar) footer { padding-bottom: 0; } }
+
+/* Staff workspace: the focused navigation replaces the public tab bar. */
+body:has(.front-office) [data-site-nav], body:has(.front-office) footer {display:none;}
+.office-control {min-height:44px;width:100%;min-width:0;max-width:100%;box-sizing:border-box;border:1px solid var(--color-line);border-radius:.5rem;background:white;padding:.6rem .75rem;font-size:1rem;color:var(--color-ink);}
+.office-mobile-nav {padding-bottom:env(safe-area-inset-bottom);}
+.front-office {padding-bottom:calc(4rem + env(safe-area-inset-bottom));}
+.front-office input,.front-office select,.front-office textarea {min-width:0;max-width:100%;}
+.front-office details[open]>summary {margin-bottom:.75rem;}
+@media(min-width:1024px){.front-office{padding-bottom:0;}}

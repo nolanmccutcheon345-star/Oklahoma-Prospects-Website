@@ -45,13 +45,13 @@ export function AlertQueue({
             {rows.length === 0 ? "Queue is clear." : `${buckets.today.length} today.`}
           </h3>
           <p className="mt-2 text-sm text-fg-soft">
-            Arm-health first. Commercial noise waits. Every card is a specific next move.
+            Review player needs and follow-ups, starting with health and readiness.
           </p>
         </div>
       </div>
       {rows.length === 0 ? (
         <p className="rounded-xl bg-paper-2 px-4 py-3 text-sm text-muted shadow-border" data-alert-empty="true">
-          Nothing in the queue. That’s the point.
+          No actions need attention right now.
         </p>
       ) : (
         (["today", "week", "fyi"] as const).map((bucket) => {
@@ -60,7 +60,7 @@ export function AlertQueue({
           return (
             <div key={bucket} data-alert-bucket={bucket}>
               <p className="mb-2 text-xs font-semibold tracking-[0.16em] text-maroon uppercase">
-                {bucket === "today" ? "Today" : bucket === "week" ? "This week" : "FYI"}
+                {bucket === "today" ? "Needs Action" : bucket === "week" ? "This Week" : "Updates"}
               </p>
               <ul className="grid gap-2">
                 {list.map((row, index) => (
@@ -104,13 +104,13 @@ function AlertCard({
     >
       <div className="pd-card">
         <p className="text-xs font-semibold tracking-[0.16em] uppercase opacity-80">
-          {row.kind === "health" ? "Arm / health" : row.kind === "development" ? "Development" : "Commercial"}
+          {row.bucket === "today" ? "Needs Action" : row.bucket === "week" ? "This Week" : "Updates"}
         </p>
         <h4 className="mt-1 font-display text-xl uppercase">{row.title}</h4>
         <p className={cn("mt-1 text-sm", row.kind === "health" ? "text-fg-soft" : "text-muted")}>{row.detail}</p>
         <p className="mt-2 text-sm font-semibold">{row.action}</p>
         <div className="mt-3 flex flex-wrap gap-2">
-          {row.athleteId && onOpenAthlete ? (
+          {row.athleteId && onOpenAthlete && !row.desk ? (
             <Button
               type="button"
               size="sm"
@@ -118,12 +118,12 @@ function AlertCard({
               variant={row.kind === "health" ? "outline" : "primary"}
               onClick={() => onOpenAthlete(row.athleteId!)}
             >
-              Open record
+              {row.view === "documents" ? "View Waiver Status" : "View Player"}
             </Button>
           ) : null}
           {row.desk && onOpenDesk ? (
             <Button type="button" size="sm" variant="outlineDark" className="min-h-12" onClick={() => onOpenDesk(row.desk!)}>
-              Open desk
+              {row.desk === "intake" ? "View Assessment" : row.desk === "today" ? "View Schedule" : row.desk === "retention" ? "View Follow-ups" : row.desk === "lesson" ? "Open Lessons" : "View Development"}
             </Button>
           ) : null}
         </div>

@@ -1,3 +1,4 @@
+import { formatDollars } from "@/lib/pricing";
 import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { ArmConfirm, pushUndo } from "@/components/pd/polish";
@@ -6,7 +7,6 @@ import { useDevelopment } from "@/lib/pd/context";
 import {
   SERVICE_KINDS,
   deleteAccount,
-  deleteService,
   deleteStaff,
   getServices,
   listAccounts,
@@ -30,7 +30,8 @@ function emptyService(kind: ServiceKind): ServiceInput {
   return {
     kind,
     name: "",
-    discipline: kind === "lesson" ? "Pitching" : kind === "cage" || kind === "cage_plan" ? "Cage" : "",
+    discipline:
+      kind === "lesson" ? "Pitching" : kind === "cage" || kind === "cage_plan" ? "Cage" : "",
     price: 0,
     minutes: kind === "cage" ? 60 : 0,
     purpose: "",
@@ -123,25 +124,38 @@ function CheckField({
 }) {
   return (
     <label className="flex min-h-11 items-center gap-2 text-sm font-semibold">
-      <input type="checkbox" checked={checked} onChange={(event) => onChange(event.target.checked)} />
+      <input
+        type="checkbox"
+        checked={checked}
+        onChange={(event) => onChange(event.target.checked)}
+      />
       {label}
     </label>
   );
 }
 
 export function AdminServicesDesk() {
+  const [loaded, setLoaded] = useState(false);
   const [rows, setRows] = useState<ClubService[]>([]);
   const [filter, setFilter] = useState<string>("all");
+  const [search, setSearch] = useState("");
+  const [state, setState] = useState("active");
   const [editing, setEditing] = useState<ServiceInput | null>(null);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   async function refresh() {
     setRows(await getServices());
+    setLoaded(true);
   }
   useEffect(() => {
-    refresh().catch(() => setRows([]));
+    refresh().catch((e) => setError(e instanceof Error ? e.message : "Could not load services."));
   }, []);
-  const visible = rows.filter((row) => (filter === "all" ? true : row.kind === filter));
+  const visible = rows.filter(
+    (row) =>
+      (filter === "all" || row.kind === filter) &&
+      (!search || row.name.toLowerCase().includes(search.toLowerCase())) &&
+      (state === "all" || row.active === (state === "active")),
+  );
   async function onSave(event: React.FormEvent) {
     event.preventDefault();
     if (!editing) return;
@@ -161,30 +175,64 @@ export function AdminServicesDesk() {
     <section>
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h3 className="text-2xl">Services and prices</h3><p className="mt-2 text-sm">Published services use the approved price schedule shown here. New service IDs remain drafts until added to that schedule; changing a draft price does not change a published charge.</p>
-          <p className="mt-1 text-sm text-muted">Lessons, packages, memberships, cages. Changes show on Train, Book, and Pay.</p>
+          <h3 className="text-2xl">Services & Pricing</h3>
+          <p className="mt-2 text-sm">
+            Published services use the approved price schedule shown here. New service IDs remain
+            drafts until added to that schedule; changing a draft price does not change a published
+            charge.
+          </p>
+          <p className="mt-1 text-sm text-muted">
+            Lessons, packages, memberships, cages. Changes show on Train, Book, and Pay.
+          </p>
         </div>
         <Button type="button" onClick={() => setEditing(emptyService("lesson"))}>
           Add service
         </Button>
       </div>
-      <div className="mt-4 flex gap-1 overflow-x-auto rounded-xl bg-ink p-1 text-fg-inverse">
-        {[{ id: "all", label: "All" }, ...SERVICE_KINDS].map((item) => (
-          <button
-            key={item.id}
-            type="button"
-            onClick={() => setFilter(item.id)}
-            className={cn(
-              "min-h-11 shrink-0 rounded-lg px-3 text-xs font-semibold tracking-wide uppercase",
-              filter === item.id ? "bg-maroon text-fg-inverse" : "text-fg-soft",
-            )}
+      <div className="my-4 grid gap-3 sm:grid-cols-3">
+        <label className="grid gap-1 text-sm">
+          Search services
+          <input
+            type="search"
+            className="office-control"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+        </label>
+        <label className="grid gap-1 text-sm">
+          Category
+          <select
+            className="office-control"
+            value={filter}
+            onChange={(e) => setFilter(e.target.value)}
           >
-            {item.label}
-          </button>
-        ))}
+            <option value="all">All categories</option>
+            {SERVICE_KINDS.map((k) => (
+              <option key={k.id} value={k.id}>
+                {k.label}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="grid gap-1 text-sm">
+          Status
+          <select
+            className="office-control"
+            value={state}
+            onChange={(e) => setState(e.target.value)}
+          >
+            <option value="active">Active</option>
+            <option value="archived">Archived</option>
+            <option value="all">All</option>
+          </select>
+        </label>
       </div>
+      {error && !editing && <p role="alert">{error}</p>}
       {editing ? (
-        <form onSubmit={onSave} className="mt-4 grid gap-3 rounded-2xl bg-paper-2 p-5 shadow-border">
+        <form
+          onSubmit={onSave}
+          className="mt-4 grid gap-3 rounded-2xl bg-paper-2 p-5 shadow-border"
+        >
           <p className="text-xs font-semibold tracking-[0.16em] text-maroon uppercase">
             {editing.id ? `Edit ${editing.name}` : "New service"}
           </p>
@@ -192,7 +240,9 @@ export function AdminServicesDesk() {
             Type
             <select
               value={editing.kind}
-              onChange={(event) => setEditing({ ...editing, kind: event.target.value as ServiceKind })}
+              onChange={(event) =>
+                setEditing({ ...editing, kind: event.target.value as ServiceKind })
+              }
               className={fieldClass}
             >
               {SERVICE_KINDS.map((item) => (
@@ -212,8 +262,17 @@ export function AdminServicesDesk() {
             />
           </label>
           <div className="grid grid-cols-2 gap-3">
-            <NumberField label="Price ($)" step={0.01} value={editing.price} onChange={(price) => setEditing({ ...editing, price })} />
-            <NumberField label="Minutes" value={editing.minutes} onChange={(minutes) => setEditing({ ...editing, minutes })} />
+            <NumberField
+              label="Price ($)"
+              step={0.01}
+              value={editing.price}
+              onChange={(price) => setEditing({ ...editing, price })}
+            />
+            <NumberField
+              label="Minutes"
+              value={editing.minutes}
+              onChange={(minutes) => setEditing({ ...editing, minutes })}
+            />
           </div>
           <label className="text-sm font-semibold">
             Short description
@@ -223,7 +282,11 @@ export function AdminServicesDesk() {
               className={fieldClass}
             />
           </label>
-          <CheckField label="Active (visible on the site)" checked={editing.active} onChange={(active) => setEditing({ ...editing, active })} />
+          <CheckField
+            label="Active (visible on the site)"
+            checked={editing.active}
+            onChange={(active) => setEditing({ ...editing, active })}
+          />
           {error ? <p className="text-sm text-maroon">{error}</p> : null}
           <div className="flex gap-2">
             <Button type="submit" disabled={busy}>
@@ -235,6 +298,8 @@ export function AdminServicesDesk() {
           </div>
         </form>
       ) : null}
+      {!loaded && !error && <p role="status">Loading services…</p>}
+      {loaded && !visible.length && <p>No services match these filters.</p>}
       <ul className="mt-4 grid gap-2">
         {visible.map((row) => (
           <li key={row.id} className="rounded-2xl bg-paper-2 p-4 shadow-border">
@@ -242,32 +307,62 @@ export function AdminServicesDesk() {
               <div>
                 <p className="font-display text-xl uppercase">{row.name}</p>
                 <p className="text-sm text-muted">
-                  {row.kind}
-                  {row.minutes ? ` · ${row.minutes} min` : ""} · {row.purpose || row.detail}
+                  {SERVICE_KINDS.find((k) => k.id === row.kind)?.label || row.kind}
+                  {row.minutes ? ` · ${row.minutes} min` : ""} ·{" "}
+                  {row.active ? "Active" : "Archived"}
                 </p>
               </div>
-              <p className="font-display text-2xl">${row.price}</p>
+              <div className="shrink-0 text-right">
+                <p className="font-display text-2xl">{formatDollars(row.price)}</p>
+                <p className="text-xs text-muted">
+                  {row.kind === "cage"
+                    ? "per hour"
+                    : ["membership", "cage_plan"].includes(row.kind)
+                      ? "per month"
+                      : row.kind === "package"
+                        ? "per package"
+                        : "per session"}
+                </p>
+              </div>
             </div>
             <div className="mt-3 flex flex-wrap gap-2">
-              <Button type="button" variant="outlineDark" size="sm" onClick={() => setEditing(fromRow(row))}>
+              <Button
+                type="button"
+                variant="outlineDark"
+                size="sm"
+                onClick={() => setEditing(fromRow(row))}
+              >
                 Edit
               </Button>
-              <ArmConfirm
-                label="Delete"
-                armedLabel="Tap again to delete"
-                onConfirm={async () => {
-                  const snapshot = fromRow(row);
-                  await deleteService({ data: { id: row.id } });
-                  await refresh();
-                  pushUndo({
-                    label: `Deleted ${row.name}.`,
-                    run: async () => {
-                      await saveService({ data: snapshot });
+              <details>
+                <summary className="min-h-11 cursor-pointer px-3 py-2 text-sm">
+                  More actions
+                </summary>
+                <p className="max-w-sm text-xs text-muted">
+                  Archiving removes this service from the public catalog and keeps its booking
+                  history.
+                </p>
+                <Button
+                  type="button"
+                  variant="outlineDark"
+                  size="sm"
+                  disabled={busy}
+                  onClick={async () => {
+                    setBusy(true);
+                    setError("");
+                    try {
+                      await saveService({ data: { ...fromRow(row), active: !row.active } });
                       await refresh();
-                    },
-                  });
-                }}
-              />
+                    } catch (e) {
+                      setError(e instanceof Error ? e.message : "Could not update service.");
+                    } finally {
+                      setBusy(false);
+                    }
+                  }}
+                >
+                  {row.active ? "Archive Service" : "Restore Service"}
+                </Button>
+              </details>
             </div>
           </li>
         ))}
@@ -564,7 +659,10 @@ export function AdminStaffDesk() {
   );
 }
 
-export function AdminAccountsDesk() {
+export function AdminAccountsDesk({ assignments = {} }: { assignments?: Record<string, string> }) {
+  const [search, setSearch] = useState("");
+  const [status, setStatus] = useState("active");
+  const [loaded, setLoaded] = useState(false);
   const [rows, setRows] = useState<ClubAccount[]>([]);
   const [editing, setEditing] = useState<{
     userId?: string;
@@ -576,13 +674,14 @@ export function AdminAccountsDesk() {
     owner?: boolean;
   } | null>(null);
   const [error, setError] = useState("");
-  const [notice,setNotice]=useState("");
+  const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState(false);
   async function refresh() {
     setRows(await listAccounts());
+    setLoaded(true);
   }
   useEffect(() => {
-    refresh().catch(() => setRows([]));
+    refresh().catch((e) => setError(e instanceof Error ? e.message : "Could not load accounts."));
   }, []);
   const counts = useMemo(
     () => ({
@@ -599,7 +698,7 @@ export function AdminAccountsDesk() {
     setBusy(true);
     setError("");
     try {
-      const saved=await saveAccount({
+      const saved = await saveAccount({
         data: {
           userId: editing.userId,
           name: editing.name,
@@ -610,7 +709,7 @@ export function AdminAccountsDesk() {
       });
       setEditing(null);
       await refresh();
-      setNotice(saved.invitation||"Changes saved.");
+      setNotice(saved.invitation || "Changes saved.");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not save that account.");
     } finally {
@@ -619,38 +718,92 @@ export function AdminAccountsDesk() {
   }
   return (
     <section>
-      {notice?<p role="status" className="mb-3">{notice}</p>:null}
+      {notice ? (
+        <p role="status" className="mb-3">
+          {notice}
+        </p>
+      ) : null}
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h3 className="text-2xl">Accounts and access</h3>
-          <p className="mt-1 text-sm text-muted">New accounts receive a pending invitation at /invitations. Share that link with the recipient; they choose their own password and verify their email.</p>
+          <h3 className="text-2xl">Users & Permissions</h3>
+          <p className="mt-1 text-sm text-muted">
+            New accounts receive a pending invitation at /invitations. Share that link with the
+            recipient; they choose their own password and verify their email.
+          </p>
         </div>
         <Button
           type="button"
           onClick={() =>
-            setEditing({ name: "", email: "", role: "parent", playerName: "", password: "", owner: false })
+            setEditing({
+              name: "",
+              email: "",
+              role: "parent",
+              playerName: "",
+              password: "",
+              owner: false,
+            })
           }
         >
-          Add account
+          Invite User
         </Button>
       </div>
+      <div className="my-4 grid gap-3 sm:grid-cols-2">
+        <label className="grid gap-1 text-sm">
+          Search users
+          <input
+            className="office-control"
+            type="search"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+        </label>
+        <label className="grid gap-1 text-sm">
+          Access status
+          <select
+            className="office-control"
+            value={status}
+            onChange={(e) => setStatus(e.target.value)}
+          >
+            <option value="active">Active</option>
+            <option value="invited">Invited</option>
+            <option value="inactive">Inactive</option>
+            <option value="all">All</option>
+          </select>
+        </label>
+      </div>
+      {error && !editing && <p role="alert">{error}</p>}
       <div className="mt-4 grid grid-cols-4 gap-2">
         {(["admin", "coach", "parent", "player"] as const).map((role) => (
           <div key={role} className="rounded-xl bg-paper-2 px-3 py-3 shadow-border">
-            <p className="text-[0.65rem] font-semibold tracking-widest text-muted uppercase">{role}</p>
+            <p className="text-[0.65rem] font-semibold tracking-widest text-muted uppercase">
+              {role}
+            </p>
             <p className="pd-num font-display text-2xl">{counts[role]}</p>
           </div>
         ))}
       </div>
       {editing ? (
-        <form onSubmit={onSave} className="mt-4 grid gap-3 rounded-2xl bg-paper-2 p-5 shadow-border">
+        <form
+          onSubmit={onSave}
+          className="mt-4 grid gap-3 rounded-2xl bg-paper-2 p-5 shadow-border"
+        >
           <label className="text-sm font-semibold">
             Name
-            <input required className={fieldClass} value={editing.name} onChange={(e) => setEditing({ ...editing, name: e.target.value })} />
+            <input
+              required
+              className={fieldClass}
+              value={editing.name}
+              onChange={(e) => setEditing({ ...editing, name: e.target.value })}
+            />
           </label>
           <label className="text-sm font-semibold">
             Email
-            <input required className={fieldClass} value={editing.email} onChange={(e) => setEditing({ ...editing, email: e.target.value })} />
+            <input
+              required
+              className={fieldClass}
+              value={editing.email}
+              onChange={(e) => setEditing({ ...editing, email: e.target.value })}
+            />
           </label>
           <label className="text-sm font-semibold">
             Role
@@ -676,46 +829,85 @@ export function AdminAccountsDesk() {
           </div>
         </form>
       ) : null}
+      {!loaded && !error && <p role="status">Loading users…</p>}
+      {loaded &&
+        !rows.some(
+          (row) =>
+            (status === "all" || (row.status || "active") === status) &&
+            (!search || `${row.name} ${row.email}`.toLowerCase().includes(search.toLowerCase())),
+        ) && <p>No users match these filters.</p>}
       <ul className="mt-4 grid gap-2">
-        {rows.map((row) => (
-          <li key={row.user_id} className="rounded-2xl bg-paper-2 p-4 shadow-border">
-            <p className="font-display text-xl uppercase">{row.name}</p>
-            <p className="text-sm text-muted">
-              {row.email} · {row.role}
-            </p>
-            <div className="mt-3 flex flex-wrap gap-2">
-              <Button
-                type="button"
-                variant="outlineDark"
-                size="sm"
-                onClick={() =>
-                  setEditing({
-                    userId: row.user_id,
-                    name: row.name,
-                    email: row.email,
-                    role: row.role,
-                    playerName: row.player_name,
-                    password: "",
-                    owner: row.owner,
-                  })
-                }
-              >
-                Edit
-              </Button>
-              {row.owner ? null : (
-                <ArmConfirm
-                  label="Deactivate"
-                  armedLabel="Tap again to deactivate"
-                  onConfirm={async () => {
-                    await deleteAccount({ data: { userId: row.user_id } });
-                    await refresh();
-
-                  }}
-                />
+        {rows
+          .filter(
+            (row) =>
+              (status === "all" || (row.status || "active") === status) &&
+              (!search || `${row.name} ${row.email}`.toLowerCase().includes(search.toLowerCase())),
+          )
+          .map((row) => (
+            <li key={row.user_id} className="rounded-2xl bg-paper-2 p-4 shadow-border">
+              <p className="font-display text-xl uppercase">{row.name}</p>
+              <p className="text-sm text-muted">
+                {row.email} · {row.role} · {row.status || "active"}
+              </p>
+              {assignments[row.email.toLowerCase()] && (
+                <p className="mt-1 text-sm">Teams: {assignments[row.email.toLowerCase()]}</p>
               )}
-            </div>
-          </li>
-        ))}
+              {row.assignments && <p className="mt-1 text-sm">Services: {row.assignments}</p>}
+              {row.player_name && <p className="mt-1 text-sm">Player: {row.player_name}</p>}
+              {row.status === "invited" && (
+                <p className="mt-2 text-sm">
+                  Pending invitation. Sign in with this email at /invitations
+                  {row.expires_at ? ` before ${new Date(row.expires_at).toLocaleDateString()}` : ""}
+                  .
+                </p>
+              )}
+              {row.status !== "invited" && (
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <Button
+                    type="button"
+                    variant="outlineDark"
+                    size="sm"
+                    onClick={() =>
+                      setEditing({
+                        userId: row.user_id,
+                        name: row.name,
+                        email: row.email,
+                        role: row.role,
+                        playerName: row.player_name,
+                        password: "",
+                        owner: row.owner,
+                      })
+                    }
+                  >
+                    Edit
+                  </Button>
+                  {row.owner || row.status === "inactive" ? null : (
+                    <details>
+                      <summary className="min-h-11 cursor-pointer px-3 py-2 text-sm">
+                        More actions
+                      </summary>
+                      <p className="max-w-sm text-sm">
+                        Deactivation blocks sign-in, ends active sessions, and disables staff
+                        access. Saved records remain.
+                      </p>
+                      <ArmConfirm
+                        label="Deactivate"
+                        armedLabel="Confirm Deactivation"
+                        onConfirm={async () => {
+                          try {
+                            await deleteAccount({ data: { userId: row.user_id } });
+                            await refresh();
+                          } catch (e) {
+                            setError(e instanceof Error ? e.message : "Could not deactivate user.");
+                          }
+                        }}
+                      />
+                    </details>
+                  )}
+                </div>
+              )}
+            </li>
+          ))}
       </ul>
     </section>
   );

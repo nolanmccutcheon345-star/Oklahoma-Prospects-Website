@@ -15,12 +15,14 @@ export function OfficeApp({
   club,
   onChange,
   onSave,
+  initialTab = "overview",
 }: {
+  initialTab?: "teams" | "overview";
   club: ClubRecord;
   onChange: (club: ClubRecord) => void;
   onSave: (next?: ClubRecord) => Promise<boolean>;
 }) {
-  const [activeTab, setActiveTab] = useState<"teams" | "overview">("overview");
+  const [activeTab, setActiveTab] = useState<"teams" | "overview">(initialTab);
   const players = club.teams.flatMap((t) => t.roster.map((p) => ({ team: t, player: p })));
   const attention = {
     unsigned: players.filter((x) => !x.player.agreement.signedAt),
