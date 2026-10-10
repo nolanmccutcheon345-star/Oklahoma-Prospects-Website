@@ -57,6 +57,9 @@ test("admin service assignments persist, control exact booking services, and fai
     assert.deepEqual((await coachesWithAvailability(sql,roster,[{...schedules[0],window:'19:00–20:00'}],services))[0].serviceIds,['s3']);
     await sql.transaction(tx => replaceCoachServices(tx,"staff-off",[{serviceId:"s3",profitSplit:60}]));
     await sql.transaction(tx => replaceCoachServices(tx,"staff-parent",[{serviceId:"s3",profitSplit:60}]));
+    assert.equal((await bookableCoaches(sql,roster)).length,2); // primary parent role may also instruct
+    assert.ok((await bookableCoaches(sql,roster)).some(c=>c.name==='Parent'));
+    await sql.transaction(tx=>replaceCoachServices(tx,'staff-parent',[]));
     assert.equal((await bookableCoaches(sql,roster)).length,1);
     assert.deepEqual(await bookableCoaches(sql,[{...roster[0],active:false}]),[]);
     assert.match((await bookableCoaches(sql,[]))[0].id,/^c-[a-f0-9]{32}$/);

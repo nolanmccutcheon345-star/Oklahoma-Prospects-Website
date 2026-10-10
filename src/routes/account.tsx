@@ -1,3 +1,5 @@
+import {PlayerBirthdays} from '@/components/commerce/player-birthdays';
+import {chicagoDate} from '@/lib/scheduling';
 import { AccountSecurity } from "@/components/account-security";
 import { pageHead } from "@/lib/seo";
 import { createFileRoute, Link, Navigate } from "@tanstack/react-router";
@@ -52,6 +54,7 @@ function AccountHome() {
   const [profile, setProfile] = useState<Awaited<ReturnType<typeof getProfile>>>();
   const [role, setRole] = useState<ClubRole>("parent");
   const [playerName, setPlayerName] = useState("");
+  const [birthDate,setBirthDate]=useState("");
   const [name, setName] = useState(user?.displayName ?? "");
   const [loadError, setLoadError] = useState("");
   const [registrationAccess, setRegistrationAccess] = useState(false);
@@ -131,6 +134,7 @@ function AccountHome() {
                     name: name || user?.displayName || "Prospects member",
                     role,
                     playerName,
+                    birthDate:role==='player'?birthDate:undefined,
                     email: user?.primaryEmail ?? "",
                   },
                 });
@@ -173,6 +177,7 @@ function AccountHome() {
                 className="mt-1.5 block min-h-11 w-full rounded-md border border-line bg-paper px-3"
               />
             </label>
+            {role==='player'?<label className="grid gap-1">Your date of birth<input type="date" required max={chicagoDate()} value={birthDate} onChange={e=>setBirthDate(e.target.value)}/><span className="text-xs">Required for age eligibility. Your birthday is private to your parent/guardian and assigned team coaches.</span></label>:null}
             <Button type="submit">Save account</Button>
           </form>
         </div>
@@ -254,9 +259,9 @@ function AccountHome() {
           Your invitations
         </Link>
         <PdErrorBoundary section="Train · account">
-          <Suspense fallback={<p role="status">Loading your workspace…</p>}>
+          <PlayerBirthdays><Suspense fallback={<p role="status">Loading your workspace…</p>}>
             <PdWorkspace profile={profile} />
-          </Suspense>
+          </Suspense></PlayerBirthdays>
         </PdErrorBoundary>
       </div>
     </main>
