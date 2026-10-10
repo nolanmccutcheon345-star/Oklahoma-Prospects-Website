@@ -1,4 +1,3 @@
-import {TrainingNav} from "@/components/training-nav";
 import {getPublicPeople} from "@/lib/person-api";
 import type {PublicPerson} from "@/lib/person-contracts";
 import { CLUB } from "@/lib/club";
@@ -61,7 +60,7 @@ function TrainingPage() {
           </>
         }
       />
-      <TrainingNav current={search.view||"lessons"}/><CatalogAndBook view={search.view||"lessons"} instructor={search.instructor}/>
+      <CatalogAndBook view={search.view||"lessons"} instructor={search.instructor}/>
       </PdErrorBoundary>
     </main>
   );

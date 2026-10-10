@@ -8,9 +8,10 @@ import { assertSameSiteRequest } from "../auth/isolation.server";
 import { commerceIdentity as clubIdentity } from "./access.server";
 import { readWorkingFile, loadDeskForUser } from "../pd/desk-impl.server";
 import { calculateQuote, type CheckoutInput, type Product, type Quote } from "./contracts";
-import { CAGE_BOOKING_DAYS, slotsFor, validateWindow, validDate } from "../scheduling";
+import { CAGE_BOOKING_DAYS, chicagoDate, slotsFor, validateWindow, validDate } from "../scheduling";
 import { withinBookingHorizon } from "./booking-policy.server";
 import { coachAvailable } from "./availability";
+import { availableLessonTimes, calendarDay, NEXT_LESSON_DAYS } from "./available-lesson-times";
 import { paymentMode, squarePublicConfig, squareConfig, planVariation } from "./square.server";
 import { approvedProducts, CATALOG_VERSION } from "./catalog";
 import { assertSquareCheckoutScope } from "./square-config";
@@ -136,13 +137,18 @@ export async function quoteForRequest(
 
 export async function availableSlots(input: CheckoutInput, verifiedUserId?: string) {
   const { quote, file } = await quoteForRequest(input, false, verifiedUserId);
-  if (!quote.needsSlot || !input.date || !validDate(input.date)) return { quote, slots: [] };
+  if (!quote.needsSlot || !input.date || !validDate(input.date)) return { quote, slots: [], nextAvailable: null };
   const sql = await getSql();
+  const firstDate = input.date < chicagoDate() ? chicagoDate() : input.date;
+  const lastDate = quote.kind === "cage" ? firstDate : calendarDay(firstDate, NEXT_LESSON_DAYS);
   const occupied = await sql<{
     resource_id: string;
     slot_at: Date;
   }>`select resource_id,slot_at from booking_occupancy b join booking_records r on r.id=b.booking_id left join commerce_orders o on o.id=r.order_id
-    where r.status in ('confirmed','completed') and resource_id = any(${quote.resources}::text[]) and slot_at >= ${input.date}::date - interval '1 day' and slot_at < ${input.date}::date + interval '2 days'`;
+    where r.status in ('confirmed','completed') and resource_id = any(${quote.resources}::text[]) and slot_at >= ${firstDate}::date - interval '1 day' and slot_at < ${lastDate}::date + interval '2 days'`;
+  if (quote.kind !== "cage") return { quote, ...availableLessonTimes({
+    date: input.date, duration: quote.duration, coachId: input.coachId!, availability: file.availability, occupied,
+  }) };
   const slots = slotsFor(input.date, quote.duration).filter((slot) => {
     if (
       quote.kind !== "cage" &&
@@ -152,7 +158,7 @@ export async function availableSlots(input: CheckoutInput, verifiedUserId?: stri
     const { start, end } = validateWindow(input.date!, slot.value, quote.duration);
     return !occupied.some((row) => new Date(row.slot_at) >= start && new Date(row.slot_at) < end);
   });
-  return { quote, slots };
+  return { quote, slots, nextAvailable: null };
 }
 
 export async function beginCheckout(input: CheckoutInput, verifiedUserId?: string) {

@@ -9,7 +9,7 @@ import {
   ShoppingBag,
   ChevronUp,
 } from "lucide-react";
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { CLUB } from "@/lib/club";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
 import { Button } from "@/components/ui/button";
@@ -43,17 +43,20 @@ function ClubWordmark({ name }: { name: string }) {
 export function AppShell({ children }: { children: ReactNode }) {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const { user, isPending } = useCurrentUserState();
-  const [teamsMenuOpen, setTeamsMenuOpen] = useState(false);
-  useEffect(() => { setTeamsMenuOpen(false); }, [pathname]);
+  const [openMenu, setOpenMenu] = useState<"Teams" | "Train" | null>(null);
+  const navRef = useRef<HTMLElement>(null);
+  useEffect(() => { setOpenMenu(null); }, [pathname]);
   useEffect(() => {
-    if (!teamsMenuOpen) return;
-    const dismiss = (event: KeyboardEvent) => { if (event.key === "Escape") setTeamsMenuOpen(false); };
+    if (!openMenu) return;
+    const dismiss = (event: KeyboardEvent) => { if (event.key === "Escape") setOpenMenu(null); };
+    const outside = (event: PointerEvent) => { if (event.target instanceof Node && !navRef.current?.contains(event.target)) setOpenMenu(null); };
     window.addEventListener("keydown", dismiss);
-    return () => window.removeEventListener("keydown", dismiss);
-  }, [teamsMenuOpen]);
+    window.addEventListener("pointerdown", outside);
+    return () => { window.removeEventListener("keydown", dismiss); window.removeEventListener("pointerdown", outside); };
+  }, [openMenu]);
   const tabs = [
     { to: "/", label: "Home", icon: Home, match: (path: string) => path === "/" || ["/more", "/fundraising", "/contact", "/facility", "/privacy", "/terms"].some(p => path.startsWith(p)) },
-    { to: "/training", label: "Train", icon: Dumbbell, match: (path: string) => path.startsWith("/training") || path.startsWith("/account") },
+    { to: "/training", label: "Train", icon: Dumbbell, match: (path: string) => ["/training", "/instructor", "/my-profile", "/account"].some(p => path.startsWith(p)) },
     { to: "/teams", label: "Teams", icon: Users, match: (path: string) => ["/teams", "/baseball", "/softball", "/tryouts", "/coaches", "/recruiting", "/coach", "/family", "/office"].some(p => path.startsWith(p)) },
     { to: "/book", label: "Book", icon: CalendarClock, match: (path: string) => ["/book", "/go", "/memberships", "/pay", "/paid"].some(p => path.startsWith(p)) },
     { to: "/games", label: "Games", icon: Trophy, match: (path: string) => path.startsWith("/games") },
@@ -112,6 +115,7 @@ export function AppShell({ children }: { children: ReactNode }) {
 
       <nav
         aria-label="Primary"
+        ref={navRef}
         data-site-nav
         className="fixed inset-x-0 bottom-0 z-40 border-t border-fg-inverse/10 bg-ink/96 text-fg-inverse backdrop-blur-md"
         style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
@@ -126,21 +130,21 @@ export function AppShell({ children }: { children: ReactNode }) {
             );
             return (
               <li key={tab.label}>
-                {tab.label === "Teams" ? (
+                {tab.label === "Teams" || tab.label === "Train" ? (
                   <button
                     type="button"
                     className={tabClass}
                     aria-current={active ? "page" : undefined}
-                    aria-expanded={teamsMenuOpen}
+                    aria-expanded={openMenu === tab.label}
                     aria-haspopup="menu"
-                    aria-controls="teams-submenu"
-                    onClick={() => setTeamsMenuOpen((open) => !open)}
+                    aria-controls={`${tab.label.toLowerCase()}-submenu`}
+                    onClick={() => setOpenMenu(open => open === tab.label ? null : tab.label)}
                   >
                     <span className="relative">
                       <Icon className="size-5" strokeWidth={active ? 2.4 : 2} />
-                      <ChevronUp aria-hidden="true" className={cn("absolute -right-3 top-0 size-3 transition-transform", teamsMenuOpen && "rotate-180")} />
+                      <ChevronUp aria-hidden="true" className={cn("absolute -right-3 top-0 size-3 transition-transform", openMenu === tab.label && "rotate-180")} />
                     </span>
-                    Teams
+                    {tab.label}
                   </button>
                 ) : (
                   <Link
@@ -155,21 +159,26 @@ export function AppShell({ children }: { children: ReactNode }) {
               </li>
             );
           })}
-          {teamsMenuOpen ? (
-            <li className="absolute bottom-[calc(100%+0.5rem)] left-1/2 z-50 w-[min(92vw,19rem)] -translate-x-1/2 rounded-2xl border border-powder/30 bg-ink p-2 shadow-xl" id="teams-submenu">
-              <div role="menu" aria-label="Teams submenu" className="grid grid-cols-2 gap-2">
-                {[
+          {openMenu ? (
+            <li className="absolute bottom-[calc(100%+0.5rem)] left-1/2 z-50 w-[min(92vw,19rem)] -translate-x-1/2 rounded-2xl border border-powder/30 bg-ink p-2 shadow-xl" id={`${openMenu.toLowerCase()}-submenu`}>
+              <div role="menu" aria-label={`${openMenu} submenu`} className="grid grid-cols-2 gap-2">
+                {(openMenu === "Train" ? [
+                  {label:"Lessons",to:"/training" as const, search:{view:"lessons" as const}},
+                  {label:"Instructors",to:"/instructors" as const},
+                  {label:"Training Plans",to:"/training" as const, search:{view:"plans" as const}},
+                ] : [
                   {label:"Baseball",to:"/baseball" as const},
                   {label:"Softball",to:"/softball" as const},
                   {label:"Coaches",to:"/coaches" as const},
                   {label:"Tryouts",to:"/tryouts" as const},
-                ].map((item) => (
+                ]).map((item) => (
                   <Link
                     key={item.label}
                     to={item.to}
+                    search={"search" in item ? item.search : undefined}
                                         role="menuitem"
-                    className="flex min-h-12 items-center justify-center rounded-lg bg-paper-2 px-3 text-sm font-semibold text-ink no-underline focus-visible:outline-2 focus-visible:outline-powder"
-                    onClick={() => setTeamsMenuOpen(false)}
+                    className={cn("flex min-h-12 items-center justify-center rounded-lg bg-paper-2 px-3 text-sm font-semibold text-ink no-underline focus-visible:outline-2 focus-visible:outline-powder", item.label === "Training Plans" && "col-span-2")}
+                    onClick={() => setOpenMenu(null)}
                   >
                     {item.label}
                   </Link>

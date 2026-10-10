@@ -43,6 +43,7 @@ function PayPage() {
   const playerName = "",
     birthDate = "";
   const [date, setDate] = useState(search.date || chicagoDate());
+  const dateChosen = useRef(Boolean(search.date));
   const [time, setTime] = useState(search.time || "");
   const [household, setHousehold] = useState(checkoutParty(search).household);
   const [count, setCount] = useState(checkoutParty(search).count);
@@ -61,6 +62,8 @@ function PayPage() {
   const [slotError, setSlotError] = useState("");
   const [slots, setSlots] = useState<{ value: string; label: string }[]>([]);
   const [loadingSlots, setLoadingSlots] = useState(false);
+  const [nextAvailable, setNextAvailable] = useState<{ date: string } | null>(null);
+  const [dateNotice, setDateNotice] = useState("");
   const [prepared, setPrepared] = useState<Awaited<ReturnType<typeof startCheckout>> | null>(null);
   const requestId = useRef(crypto.randomUUID());
   const paymentLock = useRef(false);
@@ -197,14 +200,24 @@ function PayPage() {
   useEffect(() => {
     let cancelled = false;
     setSlots([]);
+    setNextAvailable(null);
     setSlotError("");
     setLoadingSlots(false);
-    if (!quote?.needsSlot || !email.includes("@") || !name || (kind !== "cage" && !coachId)) return;
+    if (!quote?.needsSlot || !user || !email.includes("@") || !name || (kind !== "cage" && (!coachId || !athleteId))) return;
     setLoadingSlots(true);
     const timer = window.setTimeout(() => {
       getCheckoutQuote({ data: { ...input, requestId: requestId.current } })
         .then((result) => {
-          if (!cancelled) setSlots(result.slots);
+          if (!cancelled) {
+            if (kind !== "cage" && !dateChosen.current && !result.slots.length && result.nextAvailable) {
+              setDate(result.nextAvailable.date);
+              setTime("");
+              setDateNotice("Showing this instructor’s next available date. Choose a start time below.");
+            } else {
+              setSlots(result.slots);
+              setNextAvailable(result.nextAvailable || null);
+            }
+          }
         })
         .catch((e) => {
           if (!cancelled)
@@ -221,6 +234,7 @@ function PayPage() {
     // Time selection and consent do not change which slots are available.
   }, [
     context,
+    user?.id,
     quote?.duration,
     quote?.needsSlot,
     date,
@@ -259,6 +273,7 @@ function PayPage() {
       return;
     }
     setAssigningCoach(true);
+    let nearest: { coachId: string; date: string } | null = null;
     try {
       for (const coach of qualified) {
         try {
@@ -270,9 +285,16 @@ function PayPage() {
             setCoachId(coach.id);
             return;
           }
+          if (result.nextAvailable && (!nearest || result.nextAvailable.date < nearest.date))
+            nearest = { coachId: coach.id, date: result.nextAvailable.date };
         } catch {
           // An unqualified/unavailable coach cannot be selected; try the next.
         }
+      }
+      if (generation === autoCoachAttempt.current && nearest) {
+        setCoachId(nearest.coachId);
+        if (!dateChosen.current) setDate(nearest.date);
+        return;
       }
       if (generation === autoCoachAttempt.current)
         setAutoCoachError("No qualified coach has available times that day. Choose a different date.");
@@ -519,13 +541,13 @@ function PayPage() {
             </fieldset>
           ) : null}
           {quote?.needsSlot && !locked ? (
-            <fieldset className="grid gap-4">
+            <fieldset className="grid min-w-0 gap-4">
               <legend className="font-semibold">
                 Choose your available time · {quote.duration} minutes
               </legend>
               {kind !== "cage" ? (
                 <label className="grid gap-1">
-                  Coach
+                  Instructor
                   <select
                     className="rounded-lg border p-3"
                     required
@@ -537,9 +559,10 @@ function PayPage() {
                       setAutoCoachError("");
                       setCoachId(e.target.value);
                       setTime("");
+                      setDateNotice("");
                     }}
                   >
-                    <option value="">Select a coach</option>
+                    <option value="">Select an instructor</option>
                     {context?.coaches
                       .filter((c) => c.serviceIds.includes(checkoutLessonService(quote)))
                       .map((c) => (
@@ -579,19 +602,22 @@ function PayPage() {
               <label className="grid gap-1">
                 Date · America/Chicago
                 <input
-                  className="rounded-lg border p-3"
+                  className="box-border min-w-0 w-full max-w-full rounded-lg border p-3"
                   type="date"
                   min={chicagoDate()}
                   required
                   value={date}
                   onChange={(e) => {
                     const chosenDate = e.target.value;
+                    dateChosen.current = true;
+                    setDateNotice("");
                     setDate(chosenDate);
                     setTime("");
                     if (autoAssignCoach) void chooseAvailableCoach(chosenDate);
                   }}
                 />
               </label>
+              {dateNotice ? <p role="status" className="text-sm">{dateNotice}</p> : null}
               {loadingSlots ? (
                 <p role="status">Checking available times…</p>
               ) : slotError ? (
@@ -613,16 +639,27 @@ function PayPage() {
                   ))}
                 </div>
               ) : (
+                <div className="grid gap-3" role="status">
                 <p>
                   {!user
                     ? "Sign in to check available times."
                     : kind === "cage"
-                      ? "Choose a date to check available cage times."
-                      : "Choose a coach or check Assign coach for me, then choose a date."}{" "}
-                  {slotsFor(date, quote.duration).length === 0
-                    ? "No times remain on this date."
-                    : "If no times appear, choose another date."}
+                      ? "No cage times are available on this date. Choose another date."
+                      : !athleteId ? "Select your player to check lesson times."
+                      : !coachId ? "Select an instructor or choose Assign coach for me."
+                      : !date ? "Choose a date to check lesson times."
+                      : slotsFor(date, quote.duration).length === 0
+                        ? "No start times remain on this date that fit the full lesson before closing."
+                        : "This instructor has no open times for this lesson on the selected date."}
                 </p>
+                {nextAvailable ? <Button type="button" variant="maroon" onClick={() => {
+                  dateChosen.current = true;
+                  setDate(nextAvailable.date);
+                  setTime("");
+                  setDateNotice("Choose a start time below. All times are Central Time.");
+                }}>Show next available date · {new Date(`${nextAvailable.date}T12:00:00Z`).toLocaleDateString("en-US", { timeZone: "America/Chicago", weekday: "short", month: "short", day: "numeric" })}</Button>
+                  : user && coachId && athleteId && kind !== "cage" && date ? <p className="text-sm">No openings found in the following 28 days. Try another instructor or <Link to="/contact" className="underline">contact the office</Link>.</p> : null}
+                </div>
               )}
             </fieldset>
           ) : null}
