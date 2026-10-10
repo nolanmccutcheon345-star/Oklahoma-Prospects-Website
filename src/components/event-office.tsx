@@ -277,6 +277,9 @@ export function EventOffice() {
                     }
                   />
                   {c.name}
+                  {data.coaches.filter((other) => other.name === c.name).length > 1
+                    ? ` · ${c.email}`
+                    : ""}
                 </label>
               ))}
             </div>
