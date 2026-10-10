@@ -39,6 +39,8 @@ export const budgetSchema = z
       )
       .max(60),
     tournament: cents,
+    hotelNightly: cents.default(0),
+    hotelNights: z.number().int().min(0).max(10000).default(0),
     uniformId: z.string().max(100),
     uniformCost: cents,
     fullIncremental: cents,
@@ -105,6 +107,8 @@ export const defaultBudget = (): FeeBudget => ({
     "Miscellaneous",
   ].map((name, i) => ({ id: "cost-" + i, name, cents: 0 })),
   tournament: 0,
+  hotelNightly: 0,
+  hotelNights: 0,
   uniformId: "",
   uniformCost: 0,
   fullIncremental: 0,
@@ -205,7 +209,7 @@ function gross(net: number, b: FeeBudget) {
 }
 export function calculateFees(input: FeeBudget) {
   const b = budgetSchema.parse(input);
-  const fixed = sum(b.costs.map((c) => c.cents)) + b.tournament;
+  const fixed = sum(b.costs.map((c) => c.cents)) + b.tournament + b.hotelNightly * b.hotelNights;
   const each = b.uniformCost + b.fullIncremental,
     direct = fixed + b.baseline * each,
     contingency = Math.ceil((direct * b.contingencyBps) / 10000),

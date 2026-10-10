@@ -1,3 +1,4 @@
+import { TeamFundingNotice } from "./team-funding-notice";
 import { UniformGallery, UniformPhotoEditor } from "./uniform-photos";
 import { useEffect, useState, type ReactNode } from "react";
 import { getFeeWorkspace, changeFeePlan, saveFeeBusiness } from "@/lib/teams/fee-api";
@@ -100,6 +101,9 @@ export function TeamFeeWorkspace({ teamId }: { teamId?: string }) {
   };
   useEffect(() => {
     void load();
+    const changed = () => void load();
+    window.addEventListener("team-budget-updated", changed);
+    return () => window.removeEventListener("team-budget-updated", changed);
   }, []);
   useEffect(() => {
     if (teamId) setSelected(teamId);
@@ -143,6 +147,7 @@ export function TeamFeeWorkspace({ teamId }: { teamId?: string }) {
               </select>
             </label>
           )}
+          <TeamFundingNotice teamId={team.id} />
           <TeamPlan
             key={team.id + ":" + team.revision}
             team={team}
@@ -187,6 +192,7 @@ function TeamPlan({
     try {
       await changeFeePlan({ data: action });
       window.dispatchEvent(new CustomEvent("team-uniform-updated", { detail: team.id }));
+      window.dispatchEvent(new CustomEvent("team-budget-updated", { detail: team.id }));
       if (action.action === "accept") {
         window.location.reload();
         return;
@@ -274,6 +280,12 @@ function TeamPlan({
             .map((u) => (
               <UniformGallery key={u.id} name={u.name} photos={u.photos} />
             ))}
+          <p>
+            Season hotel stipend: {team.choices.hotelNights} nights ×{" "}
+            {money(team.choices.hotelNightly)} ={" "}
+            {money(team.choices.hotelNights * team.choices.hotelNightly)}. The nightly rate is set
+            by Front Office.
+          </p>
           <Numbers
             rows={[
               ["Current draft full-player fee", team.choices.full],
@@ -364,6 +376,25 @@ function TeamPlan({
             </p>
           </Panel>
           <Panel title="Direct team costs">
+            <Dollars
+              label="Nightly hotel stipend"
+              value={plan.budget.hotelNightly || 0}
+              onChange={(hotelNightly) => update({ hotelNightly })}
+            />
+            <p>
+              {plan.budget.hotelNights || 0} overnight stays ×{" "}
+              {money(plan.budget.hotelNightly || 0)} ={" "}
+              <strong>
+                {money((plan.budget.hotelNights || 0) * (plan.budget.hotelNightly || 0))}
+              </strong>{" "}
+              season hotel stipend.
+            </p>
+            <p className="text-sm">
+              Automatically added to shared team costs from non-cancelled travel games and
+              tournaments within these season dates. Save after changing season dates to recalculate
+              nights. Do not enter the same stipend again under Hotels or Coach travel. Schedule
+              changes update draft fees; publish after review. Accepted player fees remain locked.
+            </p>
             <Dollars
               label="Tournament and league entries"
               value={plan.budget.tournament}

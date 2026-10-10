@@ -1,3 +1,5 @@
+import { withScheduledHotels } from "./travel-budget";
+import type { FeePlan } from "./fee-contracts";
 import { randomUUID } from "node:crypto";
 import type { Sql } from "../db";
 import { resolveIdentity } from "../identity.server";
@@ -139,6 +141,25 @@ export async function saveTeamActivity(sql: Sql, userId: string, raw: TeamActivi
       if (next.status !== "cancelled") t.tournamentIds.push(id);
     }
     await tx`insert into team_activities(id,team_id,payload,revision,updated_by) values(${id},${t.id},${JSON.stringify(next)}::jsonb,${next.revision},${userId}) on conflict(id) do update set payload=excluded.payload,revision=excluded.revision,updated_by=excluded.updated_by,updated_at=now()`;
+    const [feeRow] = await tx<{
+      payload: FeePlan;
+      revision: number;
+    }>`select payload,revision from team_fee_plans where team_id=${t.id} for update`;
+    if (feeRow && feeRow.payload.status !== "closed") {
+      const plan = feeRow.payload;
+      const budget = await withScheduledHotels(tx, t.id, plan.budget);
+      if (budget.hotelNights !== (plan.budget.hotelNights || 0)) {
+        plan.budget = budget;
+        plan.revision = feeRow.revision + 1;
+        plan.status = "pending";
+        plan.history.push({
+          at: new Date().toISOString(),
+          actor: userId,
+          action: "Scheduled hotel stays updated; review revised player fees.",
+        });
+        await tx`update team_fee_plans set payload=${JSON.stringify(plan)}::jsonb,revision=${plan.revision},updated_at=now() where team_id=${t.id}`;
+      }
+    }
     club._rev = rev + 1;
     club._savedAt = new Date().toISOString();
     await tx`update club_state set payload=${JSON.stringify(club)}::jsonb,rev=${rev + 1},updated_at=now() where id='oklahoma-prospects'`;

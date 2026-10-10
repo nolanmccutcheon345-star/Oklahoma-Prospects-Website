@@ -34,3 +34,12 @@ export const getTeamUniform = createServerFn({ method: "POST" })
     const { teamUniform } = await import("./fee.server");
     return teamUniform(await getSql(), context.userId, data.teamId);
   });
+
+export const getTeamFundingStatus = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
+  .validator(z.object({ teamId: z.string().min(1).max(150) }).strict())
+  .handler(async ({ context, data }) => {
+    const { getSql } = await import("../db");
+    const { teamFundingStatus } = await import("./fee.server");
+    return teamFundingStatus(await getSql(), context.userId, data.teamId);
+  });
