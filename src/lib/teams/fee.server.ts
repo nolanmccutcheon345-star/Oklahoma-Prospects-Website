@@ -1,3 +1,4 @@
+import { linkedPODraft } from "./budget-matrix";
 import { feeHealth, offersPO, pendingGas } from "./fee-health";
 import { teamSeasonOverhead } from "./facility-overhead";
 import { loadBudgetMaster } from "./budget-matrix.server";
@@ -204,8 +205,12 @@ export async function feeWorkspace(sql: Sql, userId: string) {
       const row = rows.find((r) => r.team_id === t.id),
         p = row ? { ...row.payload, revision: row.revision } : initial(t),
         coach = coaching(t, me.email);
+      if (p.published && !p.publishedBudget) p.publishedBudget = structuredClone(p.budget);
       if (p.status !== "closed")
-        p.budget = teamSeasonOverhead(pendingGas(p.budget), overheadMaster);
+        p.budget = teamSeasonOverhead(
+          pendingGas(linkedPODraft(p.budget, overheadMaster, t)),
+          overheadMaster,
+        );
       const players = t.roster
         .filter((x) => admin || coach || guardian(x, me))
         .map((x) => ({
@@ -368,6 +373,7 @@ export async function mutateFeePlan(sql: Sql, userId: string, raw: z.infer<typeo
     if (!admin && input.action !== "propose" && input.action !== "accept")
       throw Error("Admin access required.");
     if (p.status === "closed") throw Error("This season is financially closed.");
+    if (p.published && !p.publishedBudget) p.publishedBudget = structuredClone(p.budget);
     p.budget = await withScheduledHotels(tx, t.id, p.budget);
     let clubChanged = false;
     if (input.action === "applyDefaults") {
@@ -436,7 +442,9 @@ export async function mutateFeePlan(sql: Sql, userId: string, raw: z.infer<typeo
         status: "pending",
       });
     }
-    p.budget = teamSeasonOverhead(p.budget, (await loadBudgetMaster(tx)).value);
+    const currentMaster = (await loadBudgetMaster(tx)).value;
+    if (input.action !== "accept") p.budget = linkedPODraft(p.budget, currentMaster, t);
+    p.budget = teamSeasonOverhead(p.budget, currentMaster);
     if (input.action === "publish") {
       checkBudget(p);
       const health = feeHealth(p.budget, {
@@ -646,7 +654,8 @@ export async function mutateFeePlan(sql: Sql, userId: string, raw: z.infer<typeo
         status: "Confirmed",
         note: "Guardian accepted the published fee and policy.",
         acceptedPolicy: p.published.policy,
-        membershipAllocation: calculateFees(agreed).member,
+        membershipAllocation:
+          player.roleType === "po" ? calculateFees(agreed).poMember : calculateFees(agreed).member,
         contingencyAllocation:
           player.roleType === "po"
             ? calculateFees(agreed).poContingency

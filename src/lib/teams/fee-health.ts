@@ -93,6 +93,18 @@ export function feeHealth(
       "Complete and confirm the actual monthly facility costs and staffing in the master editor.",
     );
   const p = project(b, full, po);
+  if (
+    b.poEnabled &&
+    b.poModel === 2 &&
+    ([b.poTeamBps, b.poUniformBps, b.poContingencyBps, b.poProcessingBps].some(
+      (n) => (n ?? 10000) < 10000,
+    ) ||
+      b.poOrg === 0) &&
+    (b.poOverrideReason || "").trim().length < 10
+  )
+    pending.push(
+      "Explain the explicit admin override for discounted PO cost allocations or a zero PO organization fee.",
+    );
   if (b.paymentSchedule && finalDue) {
     try {
       for (const role of (b.poEnabled ? ["full", "po"] : ["full"]) as ("full" | "po")[]) {

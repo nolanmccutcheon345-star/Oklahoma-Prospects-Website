@@ -7,7 +7,13 @@ import {
   type OverheadRule,
 } from "./facility-overhead";
 import { z } from "zod";
-import { defaultBudget, type FeeBudget } from "./fee-model";
+import {
+  defaultBudget,
+  defaultPOOrganization,
+  poAllocationFields,
+  poDefaults,
+  type FeeBudget,
+} from "./fee-model";
 import type { Team } from "./types";
 const money = z.number().int().min(0).max(1000000000);
 export const seasons = ["winter", "spring", "summer", "fall", "springSummer"] as const;
@@ -27,6 +33,7 @@ export const matrixRow = z
     head: money,
     assistant: money,
     organization: money,
+    poOrganization: money.optional(),
     insurance: money,
     background: money,
     balls: money,
@@ -38,6 +45,7 @@ export const matrixRow = z
   .strict();
 export const masterSchema = z
   .object({
+    ...poAllocationFields,
     baseline: z.number().int().min(1).max(100),
     membershipMonthly: money,
     contingencyBps: z.number().int().min(0).max(10000),
@@ -148,6 +156,7 @@ export function seedMasterMatrix(): MasterMatrix {
           head: head[age - 6][s] * 100,
           assistant: head[age - 6][s] * 50,
           organization: org[age - 6][s] * 100,
+          poOrganization: defaultPOOrganization(org[age - 6][s] * 100),
           insurance: (age <= 12 ? 200 : age <= 15 ? 250 : 300) * 100,
           background: 3000,
           balls: (sport === "baseball" ? baseball : softball)[group][s] * 100,
@@ -158,6 +167,7 @@ export function seedMasterMatrix(): MasterMatrix {
         });
       }
   return {
+    ...poDefaults,
     baseline: 10,
     membershipMonthly: 20000,
     contingencyBps: 1500,
@@ -217,6 +227,14 @@ export function budgetFromMatrix(team: Team, master: MasterMatrix, row: MatrixRo
     hotelNightly: master.hotelNightly,
     roundTo: master.roundTo,
     fullOrg: row.organization,
+    poOrg: row.poOrganization ?? defaultPOOrganization(row.organization),
+    ...Object.fromEntries(
+      Object.keys(poDefaults).map((k) => [
+        k,
+        master[k as keyof typeof poDefaults] ?? poDefaults[k as keyof typeof poDefaults],
+      ]),
+    ),
+    poOverrideReason: master.poOverrideReason,
     costs: b.costs.map((c) => ({
       ...c,
       id:
@@ -301,5 +319,34 @@ export function allocateMonthlyBusiness(
     reserve,
     net,
     distributable: Math.max(0, net - reserve),
+  };
+}
+
+// Upgrade working drafts, never publishedBudget or accepted player locks.
+export function linkedPODraft(b: FeeBudget, master: MasterMatrix, team: Team): FeeBudget {
+  b = { ...b, poEnabled: b.poEnabled ?? team.sport === "baseball" };
+  if (b.poModel === 2) return b;
+  const row = matchMatrix(team, master);
+  return {
+    ...b,
+    ...Object.fromEntries(
+      Object.keys(poDefaults).map((k) => [
+        k,
+        master[k as keyof typeof poDefaults] ?? poDefaults[k as keyof typeof poDefaults],
+      ]),
+    ),
+    poModel: 2,
+    poOrg: b.poOrg || (row?.poOrganization ?? defaultPOOrganization(b.fullOrg)),
+    poOverrideReason: master.poOverrideReason,
+  };
+}
+export function normalizePOMaster(m: MasterMatrix): MasterMatrix {
+  return {
+    ...poDefaults,
+    ...m,
+    rows: m.rows.map((r) => ({
+      ...r,
+      poOrganization: r.poOrganization ?? defaultPOOrganization(r.organization),
+    })),
   };
 }

@@ -498,22 +498,24 @@ function TeamPlan({
               />
               {(
                 [
-                  ["membershipMonthly", "Membership / facility per player per month"],
+                  ["membershipMonthly", "Membership / facility per full player per month"],
+                  [
+                    "poMembershipMonthly",
+                    "Membership / facility per pitcher-only player per month",
+                  ],
                   ["fullOrg", "Organization fee per full player"],
                   ["poOrg", "Organization fee per pitcher-only player"],
-                  ["fullIncremental", "Other direct cost per full player (exclude uniform)"],
-                  ["poIncremental", "Other direct cost per pitcher-only player (exclude uniform)"],
-                  ["poSharedAllocation", "Pitcher-only shared-cost allocation"],
+                  [
+                    "fullIncremental",
+                    "Other direct cost per player (full and PO; exclude uniform)",
+                  ],
                   ["serviceCostMonthly", "Membership service cost per player per month"],
                   ["overhead", "Manual season overhead estimate / override"],
                   ["reserve", "Required business reserve contribution"],
                   ["processingFixed", "Fixed processing cost per payment"],
                 ] as const
               )
-                .filter(
-                  ([key]) =>
-                    canPO || !["poOrg", "poIncremental", "poSharedAllocation"].includes(key),
-                )
+                .filter(([key]) => canPO || !["poOrg", "poMembershipMonthly"].includes(key))
                 .filter(
                   ([key]) =>
                     key !== "overhead" ||
@@ -524,7 +526,7 @@ function TeamPlan({
                   <Dollars
                     key={key}
                     label={label}
-                    value={plan.budget[key]}
+                    value={plan.budget[key] ?? 15000}
                     onChange={(v) => {
                       if (
                         key !== "overhead" ||
@@ -551,6 +553,50 @@ function TeamPlan({
                 />
               ))}
             </div>
+            {canPO && (
+              <div className="grid gap-3 rounded-xl border border-line p-3">
+                <h3>Pitcher-only cost allocations</h3>
+                <p className="text-sm">
+                  POs share the full-player team-cost component. Membership and organization fees
+                  are the only automatic discounts. Extra roster spots do not reduce the 10-player
+                  baseline.
+                </p>
+                {(
+                  [
+                    ["poTeamBps", "PO team-cost allocation (%)"],
+                    ["poUniformBps", "PO uniform cost allocation (%)"],
+                    ["poContingencyBps", "PO contingency allocation (%)"],
+                    ["poProcessingBps", "PO processing allocation (%)"],
+                  ] as const
+                ).map(([k, label]) => (
+                  <Field
+                    key={k}
+                    label={label}
+                    type="number"
+                    value={String((plan.budget[k] ?? 10000) / 100)}
+                    onChange={(s) => update({ [k]: Math.round(Number(s) * 100) })}
+                  />
+                ))}
+                {([
+                  plan.budget.poTeamBps,
+                  plan.budget.poUniformBps,
+                  plan.budget.poContingencyBps,
+                  plan.budget.poProcessingBps,
+                ].some((n) => (n ?? 10000) < 10000) ||
+                  plan.budget.poOrg === 0) && (
+                  <p role="alert" className="font-semibold text-red-800">
+                    Reducing PO allocations below 100% causes other players or organization profit
+                    to subsidize this player’s costs. A zero organization fee also requires an
+                    explicit admin reason before publishing.
+                  </p>
+                )}
+                <Field
+                  label="Admin reason for PO subsidy / zero organization fee"
+                  value={plan.budget.poOverrideReason || ""}
+                  onChange={(poOverrideReason) => update({ poOverrideReason })}
+                />
+              </div>
+            )}
             <p className="text-xs">
               Membership service costs reduce contribution separately; do not include those costs
               again in facility overhead. Processing is included in the published fee, with a
@@ -967,7 +1013,17 @@ function TeamPlan({
               <Numbers
                 rows={[
                   ["Full-player fee", preview.full],
-                  ...(canPO ? [["Pitcher-only fee", preview.po] as [string, number]] : []),
+                  ...(canPO
+                    ? ([
+                        ["Pitcher-only fee", preview.po],
+                        ["Full shared/direct component", preview.allocation],
+                        ["PO shared/direct component", preview.poAllocation],
+                        ["Full membership for season", preview.member],
+                        ["PO membership for season", preview.poMember],
+                        ["PO discount before processing / rounding", preview.poDiscount],
+                        ["PO cost subsidy per player", preview.poSubsidy],
+                      ] as [string, number][])
+                    : []),
 
                   [
                     "Baseline direct team costs",

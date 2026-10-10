@@ -124,6 +124,11 @@ test("team fee UI saves admin drafts and offers only permitted coach controls", 
       .find((l) => l.textContent.includes("Head coach — season ($)"))
       .querySelector("input");
     assert.equal(head.value, "3900");
+    const poOrg = [...host.querySelectorAll("label")]
+      .find((l) => l.textContent.includes("PO organization fee for this age"))
+      .querySelector("input");
+    assert.equal(poOrg.value, "350");
+    assert.match(host.textContent, /Membership \/ facility per pitcher-only player per month/);
     const rules = [...host.querySelectorAll("select")].filter((s) =>
       s.parentElement.textContent.includes("Facility overhead contribution"),
     );
@@ -173,6 +178,17 @@ test("team fee UI saves admin drafts and offers only permitted coach controls", 
     await act(async () => save.click());
     assert.equal(fixture.saved[0].action, "save");
     assert.equal(fixture.saved[0].budget.membershipMonthly, 20000);
+    const poToggle = [...host.querySelectorAll("label")]
+      .find((l) => l.textContent.includes("pitcher-only roster spots"))
+      ?.querySelector("input");
+    assert.ok(poToggle);
+    await act(async () => poToggle.click());
+    assert.match(host.textContent, /PO shared\/direct component/);
+    assert.match(host.textContent, /PO team-cost allocation/);
+    assert.doesNotMatch(
+      host.textContent,
+      /Pitcher-only shared-cost allocation|Other direct cost per pitcher-only/,
+    );
     await act(async () => root.unmount());
     fixture.data = { admin: true, teams: [], business: null };
     root = createRoot(host);
