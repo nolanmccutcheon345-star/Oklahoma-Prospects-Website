@@ -117,6 +117,7 @@ export function TeamActivities({
                 e.preventDefault();
                 void run(async () => {
                   await changeTeamActivity({ data: draft });
+                  window.dispatchEvent(new CustomEvent("team-budget-updated", { detail: teamId }));
                   setDraft(null);
                   await onSaved?.();
                 }, "Schedule and stats saved.");
@@ -198,6 +199,50 @@ export function TeamActivities({
                   onChange={(e) => setDraft({ ...draft, location: e.target.value })}
                 />
               </label>
+              {draft.kind !== "practice" && (
+                <fieldset className="grid gap-3 rounded-xl border p-3">
+                  <legend>Travel & overnight stays</legend>
+                  <label>
+                    Local or travel
+                    <select
+                      className={field}
+                      value={draft.travel || "local"}
+                      onChange={(e) =>
+                        setDraft({
+                          ...draft,
+                          travel: e.target.value as "local" | "travel",
+                          overnightNights: 0,
+                        })
+                      }
+                    >
+                      <option value="local">Local</option>
+                      <option value="travel">Travel</option>
+                    </select>
+                  </label>
+                  {draft.travel === "travel" && (
+                    <label>
+                      Overnight stays (nights)
+                      <input
+                        className={field}
+                        type="number"
+                        min={0}
+                        max={30}
+                        step={1}
+                        required
+                        value={draft.overnightNights || 0}
+                        onChange={(e) =>
+                          setDraft({ ...draft, overnightNights: Number(e.target.value) })
+                        }
+                      />
+                    </label>
+                  )}
+                  <p className="text-sm">
+                    Count each hotel stay once. For a tournament with several games, enter the
+                    nights on the tournament and use 0 on its games. Day trips use 0 nights.
+                    Cancelled events are excluded.
+                  </p>
+                </fieldset>
+              )}
               <label>
                 Status
                 <select
@@ -333,6 +378,13 @@ export function TeamActivities({
                 {g.date} · {formatClockTime(g.startTime)}–{formatClockTime(g.endTime)} CT ·{" "}
                 {g.location}
               </p>
+              {g.kind !== "practice" && (
+                <p className="text-sm">
+                  {g.travel === "travel"
+                    ? `Travel · ${g.overnightNights || 0} overnight stays`
+                    : "Local"}
+                </p>
+              )}
               {g.kind === "game" && (
                 <>
                   <p>

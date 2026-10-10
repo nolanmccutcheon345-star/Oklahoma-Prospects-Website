@@ -1,3 +1,5 @@
+import type { TeamActivity } from "./activity-contracts";
+import { seasonHotelNights, withScheduledHotels } from "./travel-budget";
 import type { Sql } from "../db";
 import { resolveIdentity } from "../identity.server";
 import type { ClubRecord, Team, Player } from "./types";
@@ -153,6 +155,20 @@ export async function feeWorkspace(sql: Sql, userId: string) {
     revision: number;
     payload: FeePlan;
   }>`select team_id,revision,payload from team_fee_plans`;
+  const activities = await sql<{
+    team_id: string;
+    payload: TeamActivity;
+  }>`select team_id,payload from team_activities`;
+  for (const row of rows)
+    if (row.payload.status !== "closed")
+      row.payload.budget = {
+        ...row.payload.budget,
+        hotelNightly: row.payload.budget.hotelNightly || 0,
+        hotelNights: seasonHotelNights(
+          activities.filter((a) => a.team_id === row.team_id).map((a) => a.payload),
+          row.payload.budget,
+        ),
+      };
   const admin = me.role === "admin";
   const teams = club.teams
     .filter((t) => admin || coaching(t, me.email) || t.roster.some((p) => guardian(p, me)))
@@ -227,6 +243,8 @@ export async function feeWorkspace(sql: Sql, userId: string) {
         choices:
           admin || coach
             ? {
+                hotelNightly: p.budget.hotelNightly || 0,
+                hotelNights: p.budget.hotelNights || 0,
                 tournament: p.budget.tournament,
                 uniformId: p.budget.uniformId,
                 canTournament: p.budget.coachTournament,
@@ -306,11 +324,12 @@ export async function mutateFeePlan(sql: Sql, userId: string, raw: z.infer<typeo
     if (!admin && input.action !== "propose" && input.action !== "accept")
       throw Error("Admin access required.");
     if (p.status === "closed") throw Error("This season is financially closed.");
+    p.budget = await withScheduledHotels(tx, t.id, p.budget);
     let clubChanged = false;
     if (input.action === "save") {
       p = checkBudget({
         ...p,
-        budget: input.budget,
+        budget: await withScheduledHotels(tx, t.id, input.budget),
         uniforms: input.uniforms,
         expenses: input.expenses,
         status: "draft",
@@ -613,4 +632,40 @@ export async function teamUniform(sql: Sql, userId: string, teamId: string) {
   }
   const u = club.uniforms.find((u) => u.id === team.uniformPackageId);
   return u ? { name: u.name, items: u.items.join(", "), photos: [] } : null;
+}
+
+/** Aggregate payment status only; never expose families, amounts or budget detail. */
+export async function teamFundingStatus(sql: Sql, userId: string, teamId: string) {
+  const me = await resolveIdentity(sql, userId);
+  const { payload: club } = await clubFor(sql);
+  const t = club.teams.find((t) => t.id === teamId);
+  if (
+    !t ||
+    !(
+      me.role === "admin" ||
+      coaching(t, me.email) ||
+      (me.role !== "player" && t.roster.some((p) => !p.withdrawn && guardian(p, me)))
+    )
+  )
+    return null;
+  const [row] = await sql<{
+    payload: FeePlan;
+  }>`select payload from team_fee_plans where team_id=${teamId}`;
+  if (!row) return { overduePlayers: 0, tracking: false };
+  const players = t.roster.filter(
+    (p) =>
+      p.feeLock &&
+      row.payload.players[p.id]?.status !== "Removed" &&
+      (!p.withdrawn || row.payload.players[p.id]?.status === "Roster Hold"),
+  );
+  const overduePlayers = players.filter((p) => {
+    const v = playerView(t, p, row.payload);
+    return v.rows.some(
+      (r, i) =>
+        r.remaining > 0 &&
+        (r.due || (i === 0 ? v.accepted : "")) &&
+        (r.due || v.accepted) < today(),
+    );
+  }).length;
+  return { overduePlayers, tracking: players.length > 0 };
 }

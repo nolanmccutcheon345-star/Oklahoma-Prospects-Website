@@ -1,3 +1,4 @@
+import { TeamFundingNotice } from "@/components/teams/team-funding-notice";
 import { createFileRoute, Outlet, useRouterState } from "@tanstack/react-router";
 import { PublicTeamRoster } from "@/components/public-team-roster";
 import { CLUB } from "@/lib/club";
@@ -21,6 +22,9 @@ function Page() {
       <a className="inline-flex min-h-11 items-center px-5 underline" href="/teams">
         All teams
       </a>
+      <div className="mx-auto max-w-3xl px-5">
+        <TeamFundingNotice teamId={teamId} />
+      </div>
       <PublicTeamRoster key={teamId} teamId={teamId} />
     </main>
   );

@@ -22,6 +22,8 @@ export const activityInput = teamKey
     id: z.union([z.string().uuid(), z.literal("")]),
     revision: z.number().int().nonnegative(),
     kind: z.enum(["game", "tournament", "practice"]),
+    travel: z.enum(["local", "travel"]).optional(),
+    overnightNights: z.number().int().min(0).max(30).optional(),
     season: z.string().trim().max(100).optional(),
     title: z.string().trim().min(2).max(140),
     date: day,
@@ -37,6 +39,11 @@ export const activityInput = teamKey
   })
   .strict()
   .superRefine((a, c) => {
+    if ((a.kind === "practice" || a.travel !== "travel") && (a.overnightNights || 0) > 0)
+      c.addIssue({
+        code: "custom",
+        message: "Overnight stays are only available for travel games and tournaments.",
+      });
     if (a.endTime <= a.startTime)
       c.addIssue({
         code: "custom",
