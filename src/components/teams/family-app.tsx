@@ -38,7 +38,8 @@ export function FamilyApp({
   club,
   familyId,
   familyIds,
-  isPlayer,
+  playerIds = [],
+  isPlayer: playerAccount,
   lang,
   onChange,
   onReload,
@@ -46,6 +47,7 @@ export function FamilyApp({
   club: ClubRecord;
   familyId: string;
   familyIds?:string[];
+  playerIds?:string[];
   isPlayer: boolean;
   lang: "en" | "es";
   onChange: (club: ClubRecord) => void;
@@ -53,7 +55,7 @@ export function FamilyApp({
 }) {
   const t = copy[lang];
   const mine = club.teams.flatMap((team) =>
-    team.roster.filter((p) => (familyIds||[familyId]).includes(p.familyId)).map((p) => ({ team, player: p })),
+    team.roster.filter((p) => (familyIds||[familyId]).includes(p.familyId)||playerIds.includes(p.id)).map((p) => ({ team, player: p })),
   );
   const [active, setActive] = useState(mine[0]?.player.id ?? "");
   const row = mine.find((m) => m.player.id === active) ?? mine[0];
@@ -77,6 +79,7 @@ export function FamilyApp({
     );
   }
   const { team, player } = row;
+  const isPlayer=playerAccount||!(familyIds||[familyId]).includes(player.familyId);
   const signed = player.feeLock?.amount ?? 0;
   const due = balance(player, signed);
   const combined = mine.reduce((sum, m) => sum + balance(m.player, m.player.feeLock?.amount ?? 0), 0);

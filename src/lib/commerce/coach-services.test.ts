@@ -20,6 +20,8 @@ test("admin service assignments persist, control exact booking services, and fai
   try {
     await db.exec(await readFile(new URL("../../../migrations/0005_ops.sql", import.meta.url), "utf8"));
     await db.exec(`
+      create table "user" (id text primary key,email text,"disabledAt" timestamptz);
+      create table person_profiles (user_id text primary key,instructor boolean);
       insert into club_services(id,kind,name,discipline,minutes) values
         ('s1','lesson','Assessment','Pitching',75),('s2','lesson','Pitching 30','Pitching',30),
         ('s3','lesson','Pitching 60','Pitching',60),('s7','lesson','Hitting 30','Hitting',30),

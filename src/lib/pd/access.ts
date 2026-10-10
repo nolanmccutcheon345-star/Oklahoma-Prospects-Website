@@ -1,6 +1,8 @@
 import type { DevelopmentData, ViewerRole } from "./types";
 
 export type PdViewer = {
+  canInstruct?: boolean;
+  playerIds?: string[];
   role: ViewerRole;
   email: string;
   householdEmails?: string[];
@@ -51,6 +53,8 @@ export function familyForViewer(viewer: PdViewer, data: DevelopmentData) {
 }
 
 export function athleteForPlayer(viewer: PdViewer, data: DevelopmentData) {
+  const linked=data.athletes.find(a=>viewer.playerIds?.includes(a.id));
+  if(linked)return linked;
   const family = familyForViewer(viewer, data);
   if (!family) return undefined;
   const kids = data.athletes.filter((row) => family.athleteIds.includes(row.id));
@@ -74,7 +78,7 @@ export function scopeForViewer(viewer: PdViewer, data: DevelopmentData): PdScope
       includeCoachOps: true,
     };
   }
-  if (viewer.role === "coach") {
+  if (viewer.role === "coach" || viewer.canInstruct) {
     const me = data.coaches.find(
       (row) =>
         row.active !== false &&
@@ -95,9 +99,10 @@ export function scopeForViewer(viewer: PdViewer, data: DevelopmentData): PdScope
         .map((a) => a.id),
     );
     const emails = new Set([viewer.email.trim().toLowerCase(), ...(viewer.householdEmails || [])]);
-    const ownIds = data.families
+    const householdIds = data.families
       .filter((f) => emails.has(f.email.trim().toLowerCase()))
       .flatMap((f) => f.athleteIds);
+    const ownIds=viewer.role==='player' ? [...(viewer.playerIds||[]),...householdIds.filter(id=>data.families.some(f=>viewer.householdEmails?.includes(f.email.trim().toLowerCase())&&f.athleteIds.includes(id))),...(athleteForPlayer(viewer,data)?[athleteForPlayer(viewer,data)!.id]:[])] : [...householdIds,...(viewer.playerIds||[])];
     const ids = new Set([...coachingAthleteIds, ...ownIds]);
     const familyIds = new Set(
       data.athletes.filter((row) => ids.has(row.id)).map((row) => row.familyId),
@@ -117,8 +122,8 @@ export function scopeForViewer(viewer: PdViewer, data: DevelopmentData): PdScope
   }
   if (viewer.role === "player") {
     const self = athleteForPlayer(viewer, data);
-    const ids = new Set(self ? [self.id] : []);
-    const familyIds = new Set(self ? [self.familyId] : []);
+    const ids = new Set([...(self ? [self.id] : []),...(viewer.playerIds||[])]);
+    const familyIds = new Set(data.athletes.filter(a=>ids.has(a.id)).map(a=>a.familyId));
     return {
       role: "player",
       viewerEmail: viewer.email.trim().toLowerCase(),
@@ -132,7 +137,7 @@ export function scopeForViewer(viewer: PdViewer, data: DevelopmentData): PdScope
   }
   const emails = new Set([viewer.email.trim().toLowerCase(), ...(viewer.householdEmails || [])]);
   const families = data.families.filter((f) => emails.has(f.email.trim().toLowerCase()));
-  const ids = new Set(families.flatMap((f) => f.athleteIds));
+  const ids = new Set([...families.flatMap((f) => f.athleteIds),...(viewer.playerIds||[])]);
   const familyIds = new Set(families.map((f) => f.id));
   return {
     role: "parent",
@@ -230,7 +235,7 @@ export function filterDevelopmentData(data: DevelopmentData, scope: PdScope): De
     ...data,
     athletes,
     coaches: staff ? data.coaches : data.coaches.map(({id,name,email,specialties,active}) => ({
-      id, name, email: scope.role === "coach" && email.trim().toLowerCase() === scope.viewerEmail ? email : "", specialties, active,
+      id, name, email: scope.includeCoachOps && email.trim().toLowerCase() === scope.viewerEmail ? email : "", specialties, active,
     })),
     families: player ? playerFamilies : families,
     services: player

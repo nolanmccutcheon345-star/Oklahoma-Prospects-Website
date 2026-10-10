@@ -57,9 +57,10 @@ export const saveTeamCoachProfile = createServerFn({method:"POST"})
    const {clubIdentity}=await import("@/lib/identity.server");
    const me=await clubIdentity(context.userId);
    const email=data.email.trim().toLowerCase();
-   if(me.role!=="admin" && (me.role!=="coach" || me.email!==email))throw new Error("Not permitted to edit this coach.");
+   if(me.role!=="admin" && (!me.canTeamCoach || me.email!==email))throw new Error("Not permitted to edit this coach.");
    const {getSql}=await import("@/lib/db");const sql=await getSql();
-   const [row]=await sql<{payload:unknown;rev:number;demo:boolean}>`select payload,rev,demo from club_state where id='oklahoma-prospects'`;
+   return sql.transaction(async tx=>{
+   const [row]=await tx<{payload:unknown;rev:number;demo:boolean}>`select payload,rev,demo from club_state where id='oklahoma-prospects'`;
    if(!row||row.demo)throw new Error("Club unavailable.");
    const club=typeof row.payload==="string"?JSON.parse(row.payload):row.payload;
    if(!club||!Array.isArray(club.teams))throw new Error("Invalid club.");
@@ -76,7 +77,9 @@ export const saveTeamCoachProfile = createServerFn({method:"POST"})
      }
    }
    if(!matched)throw new Error("Coach is not assigned to a team.");
-   const result=await sql`update club_state set payload=${JSON.stringify({...club,_rev:row.rev+1,_savedAt:new Date().toISOString()})}::jsonb,rev=${row.rev+1},updated_at=now() where id='oklahoma-prospects' and rev=${row.rev} returning rev`;
+   const result=await tx`update club_state set payload=${JSON.stringify({...club,_rev:row.rev+1,_savedAt:new Date().toISOString()})}::jsonb,rev=${row.rev+1},updated_at=now() where id='oklahoma-prospects' and rev=${row.rev} returning rev`;
    if(!result.length)throw new Error("Another edit was saved. Reload and try again.");
+   await tx`update person_profiles set profile=profile || ${JSON.stringify({name:data.name,bio:data.bio,photo:data.photo})}::jsonb,revision=revision+1,updated_at=now() where user_id in (select id from "user" where lower(trim(email))=${email})`;
    return {ok:true as const};
+   });
  });

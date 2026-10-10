@@ -1,3 +1,4 @@
+import {PersonEditor} from "@/components/staff/person-editor";
 import { formatDollars } from "@/lib/pricing";
 import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
@@ -659,7 +660,8 @@ export function AdminStaffDesk() {
   );
 }
 
-export function AdminAccountsDesk({ assignments = {} }: { assignments?: Record<string, string> }) {
+export function AdminAccountsDesk({ assignments = {}, initialPerson }: { assignments?: Record<string, string>; initialPerson?:string }) {
+  const [personId,setPersonId]=useState(initialPerson||" ".trim());
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState("active");
   const [loaded, setLoaded] = useState(false);
@@ -718,6 +720,7 @@ export function AdminAccountsDesk({ assignments = {} }: { assignments?: Record<s
   }
   return (
     <section>
+      {personId&&<PersonEditor key={personId} userId={personId} onClose={()=>{setPersonId("");void refresh();}}/>}
       {notice ? (
         <p role="status" className="mb-3">
           {notice}
@@ -847,7 +850,7 @@ export function AdminAccountsDesk({ assignments = {} }: { assignments?: Record<s
             <li key={row.user_id} className="rounded-2xl bg-paper-2 p-4 shadow-border">
               <p className="font-display text-xl uppercase">{row.name}</p>
               <p className="text-sm text-muted">
-                {row.email} · {row.role} · {row.status || "active"}
+                {row.email} · {row.role}{row.instructor?" · Instructor":""} · {row.status || "active"}
               </p>
               {assignments[row.email.toLowerCase()] && (
                 <p className="mt-1 text-sm">Teams: {assignments[row.email.toLowerCase()]}</p>
@@ -863,6 +866,7 @@ export function AdminAccountsDesk({ assignments = {} }: { assignments?: Record<s
               )}
               {row.status !== "invited" && (
                 <div className="mt-3 flex flex-wrap gap-2">
+                  {row.status!=="inactive"&&<Button type="button" size="sm" onClick={()=>setPersonId(row.user_id)}>Edit Person</Button>}
                   <Button
                     type="button"
                     variant="outlineDark"
@@ -879,7 +883,7 @@ export function AdminAccountsDesk({ assignments = {} }: { assignments?: Record<s
                       })
                     }
                   >
-                    Edit
+                    Account Settings
                   </Button>
                   {row.owner || row.status === "inactive" ? null : (
                     <details>

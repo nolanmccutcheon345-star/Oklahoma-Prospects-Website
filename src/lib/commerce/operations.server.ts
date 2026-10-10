@@ -1,3 +1,4 @@
+import {clubIdentity as staffIdentity} from "../identity.server";
 import { getSql } from "../db";
 import { commerceIdentity as clubIdentity } from "./access.server";
 import { readWorkingFile } from "../pd/desk-impl.server";
@@ -43,8 +44,8 @@ export async function setParticipants(userId: string, id: string, athleteIds: st
 }
 
 export async function earnings(userId: string) {
-  const me = await clubIdentity(userId);
-  if (me.role !== "admin" && me.role !== "coach") throw new Error("Coach access required.");
+  const me = await staffIdentity(userId);
+  if (me.role !== "admin" && me.role !== "coach" && !me.canInstruct) throw new Error("Coach access required.");
   const file = await readWorkingFile();
   const coachId = assignedCoachIdFor(me,file);
   const sql = await getSql();

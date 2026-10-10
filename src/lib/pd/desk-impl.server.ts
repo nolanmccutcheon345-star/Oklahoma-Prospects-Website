@@ -81,7 +81,7 @@ async function provisionViewer(viewer: PdViewer, full: DevelopmentData): Promise
     }
     return full;
   }
-  if (viewer.role === "coach") {
+  if (viewer.role === "coach" || viewer.canInstruct) {
     const email = viewer.email.trim().toLowerCase();
     if (full.coaches.some((row) => row.email.trim().toLowerCase() === email)) return full;
     const next = {

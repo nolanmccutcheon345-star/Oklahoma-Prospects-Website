@@ -32,7 +32,8 @@ function PayPage() {
     null,
   );
   const [athleteId, setAthleteId] = useState("");
-  const [coachId, setCoachId] = useState("");
+  const [coachId, setCoachId] = useState(search.instructor || "");
+  useEffect(()=>{setCoachId(search.instructor||" ".trim());},[search.instructor]);
   const [autoAssignCoach, setAutoAssignCoach] = useState(false);
   const [assigningCoach, setAssigningCoach] = useState(false);
   const [autoCoachError, setAutoCoachError] = useState("");

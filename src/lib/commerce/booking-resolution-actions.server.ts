@@ -13,9 +13,9 @@ import { settleRefundBatch } from "./refund-funding.server";
 export async function staffCancellationContext(userId: string) {
   const me = await clubIdentity(userId),
     sql = await getSql();
-  if (me.role !== "admin" && me.role !== "coach") throw new Error("Staff access required.");
+  if (me.role !== "admin" && me.role !== "coach" && !me.canInstruct) throw new Error("Staff access required.");
   const file = await readWorkingFile();
-  const coachId = file.coaches.find((c) => c.email.trim().toLowerCase() === me.email)?.id || null;
+  const coachId = file.coaches.find((c) => c.active!==false && c.email.trim().toLowerCase() === me.email)?.id || null;
   return { me, sql, coachId };
 }
 export async function cancelClubSessionAction(

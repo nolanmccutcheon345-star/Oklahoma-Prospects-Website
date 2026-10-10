@@ -27,7 +27,11 @@ export async function bookableCoaches(sql: Sql, roster: Coach[]) {
     from club_staff staff
     join club_staff_services offer on offer.staff_id=staff.id
     join club_services service on service.id=offer.service_id
-    where staff.active=true and staff.role in ('coach','admin') and staff.email<>''
+    left join "user" account on account.id=staff.user_id or (staff.user_id='' and lower(trim(account.email))=lower(trim(staff.email)))
+    left join person_profiles person on person.user_id=account.id
+    where staff.active=true and staff.email<>''
+      and (account.id is null or account."disabledAt" is null)
+      and coalesce(person.instructor,staff.role in ('coach','admin'))
       and service.active=true and service.kind='lesson'
     group by staff.id, staff.name, staff.email order by staff.name, staff.id`;
   const seen = new Set<string>();

@@ -29,9 +29,9 @@ export function OfficeWorkspace({
   onSave: (c?: ClubRecord) => Promise<boolean>;
   name: string;
 }) {
-  const { section = "dashboard", filter } = useSearch({ strict: false }) as {
+  const { section = "dashboard", filter, person } = useSearch({ strict: false }) as {
     section?: OfficeSection;
-    filter?: string;
+    filter?: string; person?:string;
   };
   const navigate = useNavigate();
   const [data, setData] = useState<Awaited<ReturnType<typeof getFrontOffice>>>(),
@@ -218,7 +218,7 @@ export function OfficeWorkspace({
       )}
       {section === "staff" && (
         <div className="grid gap-6">
-          <AdminAccountsDesk
+          <AdminAccountsDesk initialPerson={person}
             assignments={Object.fromEntries(
               club.teams
                 .flatMap((t) => [

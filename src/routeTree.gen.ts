@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AccountRouteImport } from './routes/account'
+import { Route as BaseballRouteImport } from './routes/baseball'
 import { Route as BookRouteImport } from './routes/book'
 import { Route as CoachRouteImport } from './routes/coach'
 import { Route as CoachesRouteImport } from './routes/coaches'
@@ -19,12 +20,15 @@ import { Route as EvaluationsRouteImport } from './routes/evaluations'
 import { Route as FacilityRouteImport } from './routes/facility'
 import { Route as FamilyRouteImport } from './routes/family'
 import { Route as GamesRouteImport } from './routes/games'
+import { Route as InstructorRouteImport } from './routes/instructor'
+import { Route as InstructorsRouteImport } from './routes/instructors'
 import { Route as InvitationsRouteImport } from './routes/invitations'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as MembersRouteImport } from './routes/members'
 import { Route as MembershipsRouteImport } from './routes/memberships'
 import { Route as MerchandiseRouteImport } from './routes/merchandise'
 import { Route as MoreRouteImport } from './routes/more'
+import { Route as MyProfileRouteImport } from './routes/my-profile'
 import { Route as OfficeRouteImport } from './routes/office'
 import { Route as OfficePreviewRouteImport } from './routes/office-preview'
 import { Route as PaidRouteImport } from './routes/paid'
@@ -33,7 +37,6 @@ import { Route as PayRouteImport } from './routes/pay'
 import { Route as PrivacyRouteImport } from './routes/privacy'
 import { Route as RecruitingRouteImport } from './routes/recruiting'
 import { Route as RegistrationsRouteImport } from './routes/registrations'
-import { Route as BaseballRouteImport } from './routes/baseball'
 import { Route as SoftballRouteImport } from './routes/softball'
 import { Route as TeamsRouteImport } from './routes/teams'
 import { Route as TermsRouteImport } from './routes/terms'
@@ -43,8 +46,8 @@ import { Route as TwoFactorRouteImport } from './routes/two-factor'
 import { Route as VisitRouteImport } from './routes/visit'
 import { Route as VisitsRouteImport } from './routes/visits'
 import { Route as WaiverRouteImport } from './routes/waiver'
-import { Route as ApiSiteAlertsRouteImport } from './routes/api/site-alerts'
 import { Route as ApiHealthRouteImport } from './routes/api/health'
+import { Route as ApiSiteAlertsRouteImport } from './routes/api/site-alerts'
 import { Route as ApiTryoutNotificationsRouteImport } from './routes/api/tryout-notifications'
 import { Route as FundraisingIndexRouteImport } from './routes/fundraising.index'
 import { Route as FundraisingExampleRouteImport } from './routes/fundraising.example'
@@ -76,6 +79,11 @@ const IndexRoute = IndexRouteImport.update({
 const AccountRoute = AccountRouteImport.update({
   id: '/account',
   path: '/account',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const BaseballRoute = BaseballRouteImport.update({
+  id: '/baseball',
+  path: '/baseball',
   getParentRoute: () => rootRouteImport,
 } as any)
 const BookRoute = BookRouteImport.update({
@@ -118,6 +126,16 @@ const GamesRoute = GamesRouteImport.update({
   path: '/games',
   getParentRoute: () => rootRouteImport,
 } as any)
+const InstructorRoute = InstructorRouteImport.update({
+  id: '/instructor',
+  path: '/instructor',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const InstructorsRoute = InstructorsRouteImport.update({
+  id: '/instructors',
+  path: '/instructors',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const InvitationsRoute = InvitationsRouteImport.update({
   id: '/invitations',
   path: '/invitations',
@@ -146,6 +164,11 @@ const MerchandiseRoute = MerchandiseRouteImport.update({
 const MoreRoute = MoreRouteImport.update({
   id: '/more',
   path: '/more',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const MyProfileRoute = MyProfileRouteImport.update({
+  id: '/my-profile',
+  path: '/my-profile',
   getParentRoute: () => rootRouteImport,
 } as any)
 const OfficeRoute = OfficeRouteImport.update({
@@ -186,11 +209,6 @@ const RecruitingRoute = RecruitingRouteImport.update({
 const RegistrationsRoute = RegistrationsRouteImport.update({
   id: '/registrations',
   path: '/registrations',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const BaseballRoute = BaseballRouteImport.update({
-  id: '/baseball',
-  path: '/baseball',
   getParentRoute: () => rootRouteImport,
 } as any)
 const SoftballRoute = SoftballRouteImport.update({
@@ -238,14 +256,14 @@ const WaiverRoute = WaiverRouteImport.update({
   path: '/waiver',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ApiSiteAlertsRoute = ApiSiteAlertsRouteImport.update({
-  id: '/api/site-alerts',
-  path: '/api/site-alerts',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const ApiHealthRoute = ApiHealthRouteImport.update({
   id: '/api/health',
   path: '/api/health',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiSiteAlertsRoute = ApiSiteAlertsRouteImport.update({
+  id: '/api/site-alerts',
+  path: '/api/site-alerts',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiTryoutNotificationsRoute = ApiTryoutNotificationsRouteImport.update({
@@ -363,6 +381,7 @@ const TeamsTeamIdPlayersRosterPlayerIdRoute =
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/account': typeof AccountRoute
+  '/baseball': typeof BaseballRoute
   '/book': typeof BookRoute
   '/coach': typeof CoachRoute
   '/coaches': typeof CoachesRoute
@@ -371,12 +390,15 @@ export interface FileRoutesByFullPath {
   '/facility': typeof FacilityRoute
   '/family': typeof FamilyRoute
   '/games': typeof GamesRoute
+  '/instructor': typeof InstructorRoute
+  '/instructors': typeof InstructorsRoute
   '/invitations': typeof InvitationsRoute
   '/login': typeof LoginRoute
   '/members': typeof MembersRoute
   '/memberships': typeof MembershipsRoute
   '/merchandise': typeof MerchandiseRoute
   '/more': typeof MoreRoute
+  '/my-profile': typeof MyProfileRoute
   '/office': typeof OfficeRoute
   '/office-preview': typeof OfficePreviewRoute
   '/paid': typeof PaidRoute
@@ -385,7 +407,6 @@ export interface FileRoutesByFullPath {
   '/privacy': typeof PrivacyRoute
   '/recruiting': typeof RecruitingRoute
   '/registrations': typeof RegistrationsRoute
-  '/baseball': typeof BaseballRoute
   '/softball': typeof SoftballRoute
   '/teams': typeof TeamsRouteWithChildren
   '/terms': typeof TermsRoute
@@ -395,8 +416,8 @@ export interface FileRoutesByFullPath {
   '/visit': typeof VisitRoute
   '/visits': typeof VisitsRoute
   '/waiver': typeof WaiverRoute
-  '/api/site-alerts': typeof ApiSiteAlertsRoute
   '/api/health': typeof ApiHealthRoute
+  '/api/site-alerts': typeof ApiSiteAlertsRoute
   '/api/tryout-notifications': typeof ApiTryoutNotificationsRoute
   '/fundraising/example': typeof FundraisingExampleRoute
   '/fundraising/my': typeof FundraisingMyRoute
@@ -423,6 +444,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/account': typeof AccountRoute
+  '/baseball': typeof BaseballRoute
   '/book': typeof BookRoute
   '/coach': typeof CoachRoute
   '/coaches': typeof CoachesRoute
@@ -431,12 +453,15 @@ export interface FileRoutesByTo {
   '/facility': typeof FacilityRoute
   '/family': typeof FamilyRoute
   '/games': typeof GamesRoute
+  '/instructor': typeof InstructorRoute
+  '/instructors': typeof InstructorsRoute
   '/invitations': typeof InvitationsRoute
   '/login': typeof LoginRoute
   '/members': typeof MembersRoute
   '/memberships': typeof MembershipsRoute
   '/merchandise': typeof MerchandiseRoute
   '/more': typeof MoreRoute
+  '/my-profile': typeof MyProfileRoute
   '/office': typeof OfficeRoute
   '/office-preview': typeof OfficePreviewRoute
   '/paid': typeof PaidRoute
@@ -445,7 +470,6 @@ export interface FileRoutesByTo {
   '/privacy': typeof PrivacyRoute
   '/recruiting': typeof RecruitingRoute
   '/registrations': typeof RegistrationsRoute
-  '/baseball': typeof BaseballRoute
   '/softball': typeof SoftballRoute
   '/teams': typeof TeamsRouteWithChildren
   '/terms': typeof TermsRoute
@@ -455,8 +479,8 @@ export interface FileRoutesByTo {
   '/visit': typeof VisitRoute
   '/visits': typeof VisitsRoute
   '/waiver': typeof WaiverRoute
-  '/api/site-alerts': typeof ApiSiteAlertsRoute
   '/api/health': typeof ApiHealthRoute
+  '/api/site-alerts': typeof ApiSiteAlertsRoute
   '/api/tryout-notifications': typeof ApiTryoutNotificationsRoute
   '/fundraising/example': typeof FundraisingExampleRoute
   '/fundraising/my': typeof FundraisingMyRoute
@@ -484,6 +508,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/account': typeof AccountRoute
+  '/baseball': typeof BaseballRoute
   '/book': typeof BookRoute
   '/coach': typeof CoachRoute
   '/coaches': typeof CoachesRoute
@@ -492,12 +517,15 @@ export interface FileRoutesById {
   '/facility': typeof FacilityRoute
   '/family': typeof FamilyRoute
   '/games': typeof GamesRoute
+  '/instructor': typeof InstructorRoute
+  '/instructors': typeof InstructorsRoute
   '/invitations': typeof InvitationsRoute
   '/login': typeof LoginRoute
   '/members': typeof MembersRoute
   '/memberships': typeof MembershipsRoute
   '/merchandise': typeof MerchandiseRoute
   '/more': typeof MoreRoute
+  '/my-profile': typeof MyProfileRoute
   '/office': typeof OfficeRoute
   '/office-preview': typeof OfficePreviewRoute
   '/paid': typeof PaidRoute
@@ -506,7 +534,6 @@ export interface FileRoutesById {
   '/privacy': typeof PrivacyRoute
   '/recruiting': typeof RecruitingRoute
   '/registrations': typeof RegistrationsRoute
-  '/baseball': typeof BaseballRoute
   '/softball': typeof SoftballRoute
   '/teams': typeof TeamsRouteWithChildren
   '/terms': typeof TermsRoute
@@ -516,8 +543,8 @@ export interface FileRoutesById {
   '/visit': typeof VisitRoute
   '/visits': typeof VisitsRoute
   '/waiver': typeof WaiverRoute
-  '/api/site-alerts': typeof ApiSiteAlertsRoute
   '/api/health': typeof ApiHealthRoute
+  '/api/site-alerts': typeof ApiSiteAlertsRoute
   '/api/tryout-notifications': typeof ApiTryoutNotificationsRoute
   '/fundraising/example': typeof FundraisingExampleRoute
   '/fundraising/my': typeof FundraisingMyRoute
@@ -546,6 +573,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/account'
+    | '/baseball'
     | '/book'
     | '/coach'
     | '/coaches'
@@ -554,12 +582,15 @@ export interface FileRouteTypes {
     | '/facility'
     | '/family'
     | '/games'
+    | '/instructor'
+    | '/instructors'
     | '/invitations'
     | '/login'
     | '/members'
     | '/memberships'
     | '/merchandise'
     | '/more'
+    | '/my-profile'
     | '/office'
     | '/office-preview'
     | '/paid'
@@ -568,7 +599,6 @@ export interface FileRouteTypes {
     | '/privacy'
     | '/recruiting'
     | '/registrations'
-    | '/baseball'
     | '/softball'
     | '/teams'
     | '/terms'
@@ -578,8 +608,8 @@ export interface FileRouteTypes {
     | '/visit'
     | '/visits'
     | '/waiver'
-    | '/api/site-alerts'
     | '/api/health'
+    | '/api/site-alerts'
     | '/api/tryout-notifications'
     | '/fundraising/example'
     | '/fundraising/my'
@@ -606,6 +636,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/account'
+    | '/baseball'
     | '/book'
     | '/coach'
     | '/coaches'
@@ -614,12 +645,15 @@ export interface FileRouteTypes {
     | '/facility'
     | '/family'
     | '/games'
+    | '/instructor'
+    | '/instructors'
     | '/invitations'
     | '/login'
     | '/members'
     | '/memberships'
     | '/merchandise'
     | '/more'
+    | '/my-profile'
     | '/office'
     | '/office-preview'
     | '/paid'
@@ -628,7 +662,6 @@ export interface FileRouteTypes {
     | '/privacy'
     | '/recruiting'
     | '/registrations'
-    | '/baseball'
     | '/softball'
     | '/teams'
     | '/terms'
@@ -638,8 +671,8 @@ export interface FileRouteTypes {
     | '/visit'
     | '/visits'
     | '/waiver'
-    | '/api/site-alerts'
     | '/api/health'
+    | '/api/site-alerts'
     | '/api/tryout-notifications'
     | '/fundraising/example'
     | '/fundraising/my'
@@ -666,6 +699,7 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/account'
+    | '/baseball'
     | '/book'
     | '/coach'
     | '/coaches'
@@ -674,12 +708,15 @@ export interface FileRouteTypes {
     | '/facility'
     | '/family'
     | '/games'
+    | '/instructor'
+    | '/instructors'
     | '/invitations'
     | '/login'
     | '/members'
     | '/memberships'
     | '/merchandise'
     | '/more'
+    | '/my-profile'
     | '/office'
     | '/office-preview'
     | '/paid'
@@ -688,7 +725,6 @@ export interface FileRouteTypes {
     | '/privacy'
     | '/recruiting'
     | '/registrations'
-    | '/baseball'
     | '/softball'
     | '/teams'
     | '/terms'
@@ -698,8 +734,8 @@ export interface FileRouteTypes {
     | '/visit'
     | '/visits'
     | '/waiver'
-    | '/api/site-alerts'
     | '/api/health'
+    | '/api/site-alerts'
     | '/api/tryout-notifications'
     | '/fundraising/example'
     | '/fundraising/my'
@@ -727,6 +763,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AccountRoute: typeof AccountRoute
+  BaseballRoute: typeof BaseballRoute
   BookRoute: typeof BookRoute
   CoachRoute: typeof CoachRoute
   CoachesRoute: typeof CoachesRoute
@@ -735,12 +772,15 @@ export interface RootRouteChildren {
   FacilityRoute: typeof FacilityRoute
   FamilyRoute: typeof FamilyRoute
   GamesRoute: typeof GamesRoute
+  InstructorRoute: typeof InstructorRoute
+  InstructorsRoute: typeof InstructorsRoute
   InvitationsRoute: typeof InvitationsRoute
   LoginRoute: typeof LoginRoute
   MembersRoute: typeof MembersRoute
   MembershipsRoute: typeof MembershipsRoute
   MerchandiseRoute: typeof MerchandiseRoute
   MoreRoute: typeof MoreRoute
+  MyProfileRoute: typeof MyProfileRoute
   OfficeRoute: typeof OfficeRoute
   OfficePreviewRoute: typeof OfficePreviewRoute
   PaidRoute: typeof PaidRoute
@@ -749,7 +789,6 @@ export interface RootRouteChildren {
   PrivacyRoute: typeof PrivacyRoute
   RecruitingRoute: typeof RecruitingRoute
   RegistrationsRoute: typeof RegistrationsRoute
-  BaseballRoute: typeof BaseballRoute
   SoftballRoute: typeof SoftballRoute
   TeamsRoute: typeof TeamsRouteWithChildren
   TermsRoute: typeof TermsRoute
@@ -759,8 +798,8 @@ export interface RootRouteChildren {
   VisitRoute: typeof VisitRoute
   VisitsRoute: typeof VisitsRoute
   WaiverRoute: typeof WaiverRoute
-  ApiSiteAlertsRoute: typeof ApiSiteAlertsRoute
   ApiHealthRoute: typeof ApiHealthRoute
+  ApiSiteAlertsRoute: typeof ApiSiteAlertsRoute
   ApiTryoutNotificationsRoute: typeof ApiTryoutNotificationsRoute
   FundraisingExampleRoute: typeof FundraisingExampleRoute
   FundraisingMyRoute: typeof FundraisingMyRoute
@@ -796,6 +835,13 @@ declare module '@tanstack/react-router' {
       path: '/account'
       fullPath: '/account'
       preLoaderRoute: typeof AccountRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/baseball': {
+      id: '/baseball'
+      path: '/baseball'
+      fullPath: '/baseball'
+      preLoaderRoute: typeof BaseballRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/book': {
@@ -854,6 +900,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof GamesRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/instructor': {
+      id: '/instructor'
+      path: '/instructor'
+      fullPath: '/instructor'
+      preLoaderRoute: typeof InstructorRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/instructors': {
+      id: '/instructors'
+      path: '/instructors'
+      fullPath: '/instructors'
+      preLoaderRoute: typeof InstructorsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/invitations': {
       id: '/invitations'
       path: '/invitations'
@@ -894,6 +954,13 @@ declare module '@tanstack/react-router' {
       path: '/more'
       fullPath: '/more'
       preLoaderRoute: typeof MoreRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/my-profile': {
+      id: '/my-profile'
+      path: '/my-profile'
+      fullPath: '/my-profile'
+      preLoaderRoute: typeof MyProfileRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/office': {
@@ -950,13 +1017,6 @@ declare module '@tanstack/react-router' {
       path: '/registrations'
       fullPath: '/registrations'
       preLoaderRoute: typeof RegistrationsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/baseball': {
-      id: '/baseball'
-      path: '/baseball'
-      fullPath: '/baseball'
-      preLoaderRoute: typeof BaseballRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/softball': {
@@ -1022,18 +1082,18 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof WaiverRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/api/site-alerts': {
-      id: '/api/site-alerts'
-      path: '/api/site-alerts'
-      fullPath: '/api/site-alerts'
-      preLoaderRoute: typeof ApiSiteAlertsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/api/health': {
       id: '/api/health'
       path: '/api/health'
       fullPath: '/api/health'
       preLoaderRoute: typeof ApiHealthRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/site-alerts': {
+      id: '/api/site-alerts'
+      path: '/api/site-alerts'
+      fullPath: '/api/site-alerts'
+      preLoaderRoute: typeof ApiSiteAlertsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/tryout-notifications': {
@@ -1231,6 +1291,7 @@ const ApiFundraisingPlayersRouteWithChildren =
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AccountRoute: AccountRoute,
+  BaseballRoute: BaseballRoute,
   BookRoute: BookRoute,
   CoachRoute: CoachRoute,
   CoachesRoute: CoachesRoute,
@@ -1239,12 +1300,15 @@ const rootRouteChildren: RootRouteChildren = {
   FacilityRoute: FacilityRoute,
   FamilyRoute: FamilyRoute,
   GamesRoute: GamesRoute,
+  InstructorRoute: InstructorRoute,
+  InstructorsRoute: InstructorsRoute,
   InvitationsRoute: InvitationsRoute,
   LoginRoute: LoginRoute,
   MembersRoute: MembersRoute,
   MembershipsRoute: MembershipsRoute,
   MerchandiseRoute: MerchandiseRoute,
   MoreRoute: MoreRoute,
+  MyProfileRoute: MyProfileRoute,
   OfficeRoute: OfficeRoute,
   OfficePreviewRoute: OfficePreviewRoute,
   PaidRoute: PaidRoute,
@@ -1253,7 +1317,6 @@ const rootRouteChildren: RootRouteChildren = {
   PrivacyRoute: PrivacyRoute,
   RecruitingRoute: RecruitingRoute,
   RegistrationsRoute: RegistrationsRoute,
-  BaseballRoute: BaseballRoute,
   SoftballRoute: SoftballRoute,
   TeamsRoute: TeamsRouteWithChildren,
   TermsRoute: TermsRoute,
@@ -1263,8 +1326,8 @@ const rootRouteChildren: RootRouteChildren = {
   VisitRoute: VisitRoute,
   VisitsRoute: VisitsRoute,
   WaiverRoute: WaiverRoute,
-  ApiSiteAlertsRoute: ApiSiteAlertsRoute,
   ApiHealthRoute: ApiHealthRoute,
+  ApiSiteAlertsRoute: ApiSiteAlertsRoute,
   ApiTryoutNotificationsRoute: ApiTryoutNotificationsRoute,
   FundraisingExampleRoute: FundraisingExampleRoute,
   FundraisingMyRoute: FundraisingMyRoute,

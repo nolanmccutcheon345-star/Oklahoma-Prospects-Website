@@ -57,7 +57,7 @@ export function MembershipPlans({
           Household athletes only. Team practices use team cage rates.
         </p>
         <Button asChild variant="outlineDark" className="w-full">
-          <Link to="/training">Lesson memberships</Link>
+          <Link to="/training" search={{view:"plans"}}>Lesson memberships</Link>
         </Button>
       </div>
     </div>

@@ -8,7 +8,7 @@ import { FamilyApp } from "@/components/teams/family-app";
 import { FailScreen } from "@/components/teams/ui";
 import { TeamsShell } from "@/components/teams/shell";
 import { Button } from "@/components/ui/button";
-import { getTeamsClub, saveTeamsClub } from "@/lib/teams/store";
+import { getFamilyTeamsClub, saveFamilyTeamsClub } from "@/lib/teams/store";
 import type { ClubRecord } from "@/lib/teams/types";
 
 export const Route = createFileRoute("/family")({head:()=>pageHead("/family","Family Account","Manage your household athletes, bookings, receipts, and memberships.",true), component: Page });
@@ -29,14 +29,14 @@ function Page() {
 function FamilyPage() {
   const [lang, setLang] = useState<"en" | "es">("en");
   const [familyId, setFamilyId] = useState("");
-  const [state, setState] = useState<Awaited<ReturnType<typeof getTeamsClub>>>();
+  const [state, setState] = useState<Awaited<ReturnType<typeof getFamilyTeamsClub>>>();
   const [club, setClub] = useState<ClubRecord>();
   const [error, setError] = useState("");
   const [saveError, setSaveError] = useState("");
   const [saved, setSaved] = useState("");
 
   async function load() {
-    const row = await getTeamsClub();
+    const row = await getFamilyTeamsClub();
     setState(row);
         if (row.ok) {
           setClub(row.club);
@@ -136,6 +136,7 @@ function FamilyPage() {
         club={club}
         familyId={familyId || state.me.familyId}
         familyIds={state.role==='admin'?[familyId||state.me.familyId]:state.me.familyIds}
+        playerIds={state.me.playerIds}
         isPlayer={state.role === "player"}
         lang={lang}
         onChange={setClub}
@@ -147,7 +148,7 @@ function FamilyPage() {
         onClick={async () => {
           try {
             setSaveError("");
-            const savedClub = await saveTeamsClub({ data: { club, baseRev: club._rev } });
+            const savedClub = await saveFamilyTeamsClub({ data: { club, baseRev: club._rev } });
             setClub(savedClub.club);
             setSaved("Family record saved.");
           } catch (err) {
