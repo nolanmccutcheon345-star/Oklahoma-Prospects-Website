@@ -65,6 +65,9 @@ test("owner work queues preserve placement, protect billing, and track evaluatio
     );
     await saveWorkFor(sql, "owner", { ...data, status: "closed", note: "" });
     assert.equal((await frontOfficeFor(sql, "owner")).counts.requests, 1);
+    await sql`update club_requests set status='resolved' where id='r'`;
+    await assert.rejects(() => saveWorkFor(sql, "owner", data), /already completed/);
+    await saveWorkFor(sql, "owner", { ...data, status: "closed", note: "" });
     await sql`insert into tryout_evaluations(id,team_id,evaluator_id,evaluator_name,player_name,age_group,sport,evaluation_date,status,recommendation,payload) values('e','','coach','Coach','Sample','13U','baseball','2026-10-09','submitted','undecided','{}')`;
     assert.equal((await frontOfficeFor(sql, "owner")).counts.evaluations, 1);
     await assert.rejects(

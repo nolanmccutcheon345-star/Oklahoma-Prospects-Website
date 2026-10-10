@@ -534,6 +534,7 @@ function RequestFollowUp({
         Request status
         <select
           value={status}
+          disabled={["resolved", "accepted"].includes(request.status)}
           onChange={(e) => setStatus(e.target.value)}
           className="office-control"
         >

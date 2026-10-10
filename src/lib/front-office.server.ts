@@ -73,6 +73,8 @@ export async function saveWorkFor(
       status: string;
     }>`select kind,status from club_requests where id=${input.id} for update`;
     if (!request) throw new Error("Request not found.");
+    if (["resolved", "accepted"].includes(request.status) && input.status !== "closed")
+      throw new Error("This request is already completed. You can still update its staff assignment and notes.");
     if (
       input.status === "closed" &&
       ["membership-pause", "refund-review"].includes(request.kind) &&
