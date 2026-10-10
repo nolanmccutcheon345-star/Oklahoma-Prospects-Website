@@ -8,7 +8,13 @@ import { SquareCard } from "@/components/commerce/square-card";
 import { Button } from "@/components/ui/button";
 import { formatMoney } from "@/lib/pricing";
 import { formatClockTime } from "@/lib/time-display";
-import { campPurchase, campPriceLabel } from "@/lib/training-events-contracts";
+import {
+  campPurchase,
+  campPriceLabel,
+  campAgeLabel,
+  campAgeError,
+  eventTypes,
+} from "@/lib/training-events-contracts";
 import { chicagoDate } from "@/lib/scheduling";
 export const Route = createFileRoute("/events")({
   head: () =>
@@ -168,10 +174,14 @@ export function EventsPage() {
                 className="grid content-start gap-3 rounded-2xl border border-line bg-white p-5"
               >
                 <p className="text-xs font-semibold uppercase text-maroon">
-                  {e.type} · {e.sport}
+                  {eventTypes[e.type]} · {e.sport}
                 </p>
                 <h2 className="text-3xl">{e.name}</h2>
                 <p className="whitespace-pre-wrap">{e.description}</p>
+                <p>
+                  {campAgeLabel(e)}
+                  {e.minAge !== undefined || e.maxAge !== undefined ? " on the first camp day" : ""}
+                </p>
                 <Sessions event={e} />
                 <p>{e.location}</p>
                 <p>Coaches: {e.coaches.map((c) => c.name).join(", ")}</p>
@@ -298,6 +308,9 @@ function EventRegistration({
   } catch {
     /* A day selection is required before checkout. */
   }
+  const ageError = player
+    ? campAgeError(event, family?.players.find((p) => p.id === player)?.birthDate)
+    : "";
   const changeChoice = () => {
     setConsent(false);
     setError("");
@@ -305,6 +318,10 @@ function EventRegistration({
   };
   return (
     <div className="mt-4 grid gap-4">
+      <p>
+        {campAgeLabel(event)}
+        {event.minAge !== undefined || event.maxAge !== undefined ? " on the first camp day" : ""}
+      </p>
       <Sessions event={event} />
       <p>
         {event.location} ·{" "}
@@ -408,6 +425,14 @@ function EventRegistration({
               ))}
             </select>
           </label>
+          {ageError && (
+            <p role="alert">
+              {ageError}{" "}
+              <a className="underline" href="/family">
+                Manage players
+              </a>
+            </p>
+          )}
           <label className="flex gap-3">
             <input
               type="checkbox"
@@ -425,7 +450,7 @@ function EventRegistration({
             is pending.
           </p>
           <Button
-            disabled={!player || !consent || !purchase || busy || !!prepared}
+            disabled={!player || !!ageError || !consent || !purchase || busy || !!prepared}
             onClick={async () => {
               setBusy(true);
               setError("");

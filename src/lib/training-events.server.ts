@@ -6,6 +6,7 @@ import { chicagoInstant } from "./scheduling";
 import {
   trainingEventSchema,
   campPurchase,
+  campAgeError,
   eventCheckoutSchema,
   type TrainingEvent,
   type EventCheckout,
@@ -19,6 +20,9 @@ import {
 } from "./commerce/store.server";
 
 export type EventSnapshot = {
+  minAge?: number;
+  maxAge?: number;
+  ageAsOf?: string;
   option?: "package" | "days";
   dates?: string[];
   id: string;
@@ -235,7 +239,8 @@ export async function eventFamily(sql: Sql, userId: string) {
     sql<{
       id: string;
       name: string;
-    }>`select id,name from club_athletes where household_id=any(${me.billingHouseholdIds}::text[]) order by name`,
+      birthDate: string | null;
+    }>`select id,name,birth_date::text as "birthDate" from club_athletes where household_id=any(${me.billingHouseholdIds}::text[]) order by name`,
     sql<{
       id: string;
       name: string;
@@ -278,6 +283,11 @@ async function eventAvailable(
   }>`select payload,revision from training_events where id=${id} for update`;
   if (!row || row.payload.status !== "published")
     throw Error("Registration is closed for this event.");
+  const [player] = await sql<{
+    birth_date: string | null;
+  }>`select birth_date::text as birth_date from club_athletes where id=${athleteId}`;
+  const ageError = campAgeError(row.payload, player?.birth_date);
+  if (ageError) throw Error(ageError);
   const purchase = campPurchase(row.payload, choice);
   if (windows(purchase)[0].start <= new Date())
     throw Error("Registration is closed for the selected camp days.");
@@ -382,6 +392,9 @@ export async function prepareEventCheckout(
       eventRegistration: {
         id: e.id,
         revision: e.revision,
+        minAge: e.minAge,
+        maxAge: e.maxAge,
+        ageAsOf: e.sessions.map((s) => s.date).sort()[0],
         option: e.purchase.option,
         dates: e.purchase.dates,
         sessions: e.purchase.sessions,

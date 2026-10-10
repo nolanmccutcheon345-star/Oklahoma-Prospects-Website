@@ -1,6 +1,11 @@
 import { useEffect, useState } from "react";
 import { getEventOffice, saveEvent } from "@/lib/training-events-api";
-import { campPriceLabel, type TrainingEvent } from "@/lib/training-events-contracts";
+import {
+  campPriceLabel,
+  eventTypes,
+  campAgeLabel,
+  type TrainingEvent,
+} from "@/lib/training-events-contracts";
 import { Button } from "./ui/button";
 import { formatMoney } from "@/lib/pricing";
 const control = "office-control min-w-0 w-full";
@@ -70,7 +75,7 @@ export function EventOffice() {
             <article key={e.id} className="rounded-xl border bg-white p-4">
               <h3 className="text-xl">{e.name}</h3>
               <p>
-                {e.type} · {e.sport} · {e.status} · {campPriceLabel(e)} per player
+                {eventTypes[e.type]} · {e.sport} · {e.status} · {campPriceLabel(e)} per player
               </p>
               <p>
                 {e.sessions.map((s) => s.date).join(", ")} ·{" "}
@@ -150,8 +155,11 @@ export function EventOffice() {
                 value={edit.type}
                 onChange={(e) => update({ type: e.target.value as TrainingEvent["type"] })}
               >
-                <option value="camp">Camp</option>
-                <option value="clinic">Clinic</option>
+                {Object.entries(eventTypes).map(([value, label]) => (
+                  <option key={value} value={value}>
+                    {label}
+                  </option>
+                ))}
               </select>
             </label>
             <label>
@@ -167,6 +175,31 @@ export function EventOffice() {
               </select>
             </label>
           </div>
+          <fieldset className="grid min-w-0 gap-3 sm:grid-cols-2">
+            <legend className="font-semibold">Player age eligibility</legend>
+            {(["minAge", "maxAge"] as const).map((key) => (
+              <label key={key} className="min-w-0">
+                {key === "minAge" ? "Youngest player age" : "Oldest player age"}
+                <input
+                  type="number"
+                  className={control}
+                  min={0}
+                  max={100}
+                  step={1}
+                  placeholder="No limit"
+                  value={edit[key] ?? ""}
+                  onChange={(e) =>
+                    update({ [key]: e.target.value === "" ? undefined : Number(e.target.value) })
+                  }
+                />
+              </label>
+            ))}
+            <p className="text-sm sm:col-span-2">
+              {campAgeLabel(edit)}. Age is measured on the first camp day, including individual-day
+              purchases. Leave a limit blank for no restriction. Players must have a valid birthday
+              in their family account when an age limit is set.
+            </p>
+          </fieldset>
           <label>
             Description
             <textarea

@@ -12,7 +12,13 @@ import {
   validateEventPayment,
   eventFamily,
 } from "./training-events.server";
-import { campPurchase, trainingEventSchema, type TrainingEvent } from "./training-events-contracts";
+import {
+  campAgeError,
+  eventTypes,
+  campPurchase,
+  trainingEventSchema,
+  type TrainingEvent,
+} from "./training-events-contracts";
 import { fulfillSquarePayment, type SquareOrder } from "./commerce/square-payments.server";
 import { applySquareRefundBalance } from "./commerce/square-refunds.server";
 import { saveParentBookingCancellation } from "./commerce/family-cancellation.server";
@@ -295,7 +301,86 @@ test("multi-day camp pricing, day-specific capacity, repeat disjoint registratio
       ).length,
       2,
     );
+
+    const ageCamp = await saveTrainingEvent(
+      sql,
+      "owner",
+      {
+        ...e,
+        id: randomUUID(),
+        revision: 0,
+        type: "skills-class",
+        minAge: 8,
+        maxAge: 12,
+        capacity: 10,
+        sessions: e.sessions.map((s) => ({ ...s, date: s.date.replace("06-", "08-") })),
+      },
+      coaches,
+    );
+    assert.equal(
+      trainingEventSchema.safeParse({ ...ageCamp, minAge: 13, maxAge: 12 }).success,
+      false,
+    );
+    const ageReq = (id: string) => ({
+      eventId: ageCamp.id,
+      revision: ageCamp.revision,
+      athleteId: id,
+      requestId: randomUUID(),
+      consent: true as const,
+      option: "package" as const,
+    });
+    await assert.rejects(
+      () => prepareEventCheckout(sql, "parent", ageReq("a"), "sandbox"),
+      /birthday/,
+    );
+    await sql`update club_athletes set birth_date='2018-08-03' where id='a'`;
+    await sql`update club_athletes set birth_date='2017-08-03' where id='b'`;
+    await sql`update club_athletes set birth_date='2023-08-03' where id='c'`;
+    await assert.rejects(
+      () => prepareEventCheckout(sql, "parent", ageReq("b"), "sandbox"),
+      /not eligible/,
+    );
+    await assert.rejects(
+      () => prepareEventCheckout(sql, "parent", ageReq("c"), "sandbox"),
+      /not eligible/,
+    );
+    const eligible = await prepareEventCheckout(sql, "parent", ageReq("a"), "sandbox");
+    const [ageOrder] =
+      await sql<SquareOrder>`select * from commerce_orders where id=${eligible.orderId}`;
+    assert.equal(ageOrder.snapshot.eventRegistration?.maxAge, 12);
+    await sql`update club_athletes set birth_date='2017-08-03' where id='a'`;
+    await assert.rejects(
+      () => sql.transaction((tx) => validateEventPayment(tx, ageOrder, me)),
+      /not eligible/,
+    );
+    await pay(eligible.orderId, 12500);
+    const [ageReview] = await sql<{
+      status: string;
+    }>`select status from commerce_orders where id=${eligible.orderId}`;
+    assert.equal(ageReview.status, "payment_review");
+    const publicEvents = await listTrainingEvents(sql);
+    assert.equal(JSON.stringify(publicEvents).includes("birthDate"), false);
   } finally {
     await db.close();
   }
+});
+
+test("event age boundaries and facility event types", () => {
+  const e = {
+    minAge: 8,
+    maxAge: 12,
+    sessions: [{ date: "2030-08-03", start: "13:00", end: "15:00" }],
+  };
+  assert.equal(campAgeError(e, "2018-08-03"), "");
+  assert.equal(campAgeError(e, "2022-08-03"), "");
+  assert.match(campAgeError(e, "2022-08-04"), /not eligible/);
+  assert.match(campAgeError(e, "2017-08-03"), /not eligible/);
+  assert.equal(campAgeError(e, "2017-08-04"), "");
+  for (const birth of [null, "", "2020-02-30", "2040-01-01"])
+    assert.match(campAgeError(e, birth), /birthday/);
+  assert.equal(campAgeError({ ...e, minAge: undefined, maxAge: undefined }, null), "");
+  assert.equal(campAgeError({ ...e, minAge: undefined }, "2025-01-01"), "");
+  assert.equal(campAgeError({ ...e, maxAge: undefined }, "1990-01-01"), "");
+  for (const type of Object.keys(eventTypes))
+    assert.equal(trainingEventSchema.shape.type.safeParse(type).success, true);
 });

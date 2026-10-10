@@ -1,4 +1,15 @@
 import { z } from "zod";
+export const eventTypes = {
+  camp: "Camp",
+  clinic: "Clinic",
+  "skills-class": "Skills class",
+  "small-group-training": "Small-group training",
+  "speed-agility": "Speed & agility session",
+  showcase: "Showcase",
+  combine: "Player combine",
+  "open-practice": "Open practice",
+  "special-event": "Special event",
+} as const;
 const date = z
   .string()
   .regex(/^\d{4}-\d{2}-\d{2}$/)
@@ -12,7 +23,19 @@ export const trainingEventSchema = z
     id: z.string().uuid(),
     revision: z.number().int().min(0),
     name: z.string().trim().min(3).max(120),
-    type: z.enum(["camp", "clinic"]),
+    type: z.enum([
+      "camp",
+      "clinic",
+      "skills-class",
+      "small-group-training",
+      "speed-agility",
+      "showcase",
+      "combine",
+      "open-practice",
+      "special-event",
+    ]),
+    minAge: z.number().int().min(0).max(100).optional(),
+    maxAge: z.number().int().min(0).max(100).optional(),
     sport: z.enum(["Baseball", "Softball", "Both"]),
     description: z.string().trim().min(10).max(5000),
     priceCents: z.number().int().min(0).max(1000000),
@@ -30,6 +53,8 @@ export const trainingEventSchema = z
   })
   .strict()
   .superRefine((e, c) => {
+    if (e.minAge !== undefined && e.maxAge !== undefined && e.minAge > e.maxAge)
+      c.addIssue({ code: "custom", message: "Youngest age cannot exceed oldest age." });
     const mode = e.pricingMode || "package";
     if (mode !== "days" && e.priceCents < 1)
       c.addIssue({ code: "custom", message: "Set the full-camp price." });
@@ -100,4 +125,27 @@ export function campPriceLabel(
     : e.pricingMode === "both"
       ? money(e.priceCents) + " full camp or " + money(e.dayPriceCents || 0) + " per day"
       : money(e.priceCents) + " full camp";
+}
+
+// Eligibility uses the first camp date for all purchases, including selected days.
+export function campAgeLabel(e: Pick<TrainingEvent, "minAge" | "maxAge">) {
+  if (e.minAge === undefined && e.maxAge === undefined) return "All ages";
+  if (e.minAge === undefined) return `Ages ${e.maxAge} and younger`;
+  if (e.maxAge === undefined) return `Ages ${e.minAge} and older`;
+  return e.minAge === e.maxAge ? `Age ${e.minAge}` : `Ages ${e.minAge}–${e.maxAge}`;
+}
+export function campAgeError(
+  e: Pick<TrainingEvent, "minAge" | "maxAge" | "sessions">,
+  birthDate?: string | null,
+) {
+  if (e.minAge === undefined && e.maxAge === undefined) return "";
+  const asOf = e.sessions.map((s) => s.date).sort()[0];
+  const birth = birthDate?.slice(0, 10);
+  if (!birth || !date.safeParse(birth).success || birth > asOf)
+    return "Add a valid player birthday in your family account before registering for this event.";
+  let age = Number(asOf.slice(0, 4)) - Number(birth.slice(0, 4));
+  if (asOf.slice(5) < birth.slice(5)) age--;
+  if ((e.minAge !== undefined && age < e.minAge) || (e.maxAge !== undefined && age > e.maxAge))
+    return `This event is for ${campAgeLabel(e).toLowerCase()} on ${asOf}, the first camp day. This player is not eligible.`;
+  return "";
 }
