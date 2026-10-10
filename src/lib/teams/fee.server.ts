@@ -1,3 +1,5 @@
+import { poRosterLimit } from "./po-roster";
+import { assertRosterAssignment, assertRosterCapacity } from "./po-roster.server";
 import { linkedPODraft } from "./budget-matrix";
 import { feeHealth, offersPO, pendingGas } from "./fee-health";
 import { teamSeasonOverhead } from "./facility-overhead";
@@ -285,6 +287,9 @@ export async function feeWorkspace(sql: Sql, userId: string) {
         choices:
           admin || coach
             ? {
+                poRosterLimit: offersPO(p.budget, t.sport)
+                  ? (p.budget.poRosterLimit ?? poRosterLimit(t.age))
+                  : 0,
                 hotelNightly: p.budget.hotelNightly || 0,
                 hotelNights: p.budget.hotelNights || 0,
                 tournament: p.budget.tournament,
@@ -445,6 +450,11 @@ export async function mutateFeePlan(sql: Sql, userId: string, raw: z.infer<typeo
     const currentMaster = (await loadBudgetMaster(tx)).value;
     if (input.action !== "accept") p.budget = linkedPODraft(p.budget, currentMaster, t);
     p.budget = teamSeasonOverhead(p.budget, currentMaster);
+    if (
+      (input.action === "save" && p.budget.poRosterLimit !== row?.payload.budget.poRosterLimit) ||
+      input.action === "publish"
+    )
+      await assertRosterCapacity(tx, t, p.budget);
     if (input.action === "publish") {
       checkBudget(p);
       const health = feeHealth(p.budget, {
@@ -575,6 +585,8 @@ export async function mutateFeePlan(sql: Sql, userId: string, raw: z.infer<typeo
         view.balance > 0
       )
         throw Error("Settle the outstanding balance before reinstatement.");
+      if (input.status === "Confirmed" && player.withdrawn)
+        await assertRosterAssignment(tx, t, player.roleType, player.id);
       p.players[player.id] = { ...p.players[player.id], status: input.status, note: input.note };
       player.withdrawn = input.status === "Removed" || input.status === "Roster Hold";
       clubChanged = true;
@@ -588,6 +600,7 @@ export async function mutateFeePlan(sql: Sql, userId: string, raw: z.infer<typeo
         );
       if (input.role === "po" && !offersPO(p.budget, t.sport))
         throw Error("This team does not offer pitcher-only roster spots.");
+      await assertRosterAssignment(tx, t, input.role, player.id);
       player.roleType = input.role;
       clubChanged = true;
     }

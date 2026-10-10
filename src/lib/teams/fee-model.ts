@@ -102,6 +102,7 @@ export const budgetSchema = z
     deadlineOverride: day,
     secondDue: day,
     poEnabled: z.boolean().optional(),
+    poRosterLimit: z.number().int().min(0).max(100).optional(),
     noUniformReason: z.string().max(1000).optional(),
     processingZeroReason: z.string().max(1000).optional(),
     uniformCutoff: day,

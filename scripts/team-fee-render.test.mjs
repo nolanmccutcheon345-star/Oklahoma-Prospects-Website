@@ -185,6 +185,8 @@ test("team fee UI saves admin drafts and offers only permitted coach controls", 
     await act(async () => poToggle.click());
     assert.match(host.textContent, /PO shared\/direct component/);
     assert.match(host.textContent, /PO team-cost allocation/);
+    assert.match(host.textContent, /Allowed POs on this team/);
+    assert.match(host.textContent, /4 POs for 15U–17U/);
     assert.doesNotMatch(
       host.textContent,
       /Pitcher-only shared-cost allocation|Other direct cost per pitcher-only/,
@@ -202,6 +204,8 @@ test("team fee UI saves admin drafts and offers only permitted coach controls", 
     };
     root = createRoot(host);
     await act(async () => root.render(createElement(TeamFeeWorkspace)));
+    assert.match(host.textContent, /Allowed pitcher-only players/);
+    assert.doesNotMatch(host.textContent, /Allowed POs on this team/);
     assert.match(host.textContent, /3 nights × \$200.00 = \$600.00/);
     assert.doesNotMatch(
       host.textContent,

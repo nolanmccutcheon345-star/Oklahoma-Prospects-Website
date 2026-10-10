@@ -55,3 +55,9 @@ Master Defaults and individual admin team budgets expose separate PO membership 
 Legacy master records acquire these defaults on read, then persist with the next admin save. Legacy working team drafts upgrade without overwriting positive explicit PO organization amounts. Published-budget snapshots and accepted fee/payment locks retain their original values and legacy calculation. Changing a working draft does not republish fees or reprice accepted players. PO is still opt-in on newly created teams.
 
 Additional Player Contribution deducts incremental direct costs, service costs, processing and the extra PO contingency reserve. It includes that player's membership and organization revenue; it is not pure profit. Membership recognition on new PO acceptances uses the PO membership rate, with existing locked allocations preserved.
+
+### Roster fee types and PO limits
+
+Staff must explicitly choose Full / Position Player or Pitcher Only when adding a roster player or making/accepting a placement offer. Parents cannot change this assignment to obtain a different fee. Published acceptance selects the amount using the assigned roster role; agreed fees cannot be changed by editing that role.
+
+PO defaults: 1 spot for 6U–14U, 4 for 15U–17U. Admins may override the count (including zero) in that team's PO settings; blank restores the age default. Coaches can see the limit but cannot edit it. Teams must also explicitly offer PO spots. Active PO placement offers reserve capacity until accepted onto the roster or moved out of Offer status. Validation runs on the server against roster players plus pending offers, and club writes serialize with fee-plan edits so concurrent additions cannot exceed capacity. Lowering a team's limit below its active players/offers is rejected until staff resolve the assignments. Existing players are never automatically removed or repriced.

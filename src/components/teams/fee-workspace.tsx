@@ -287,6 +287,10 @@ function TeamPlan({
       )}
       {team.access === "coach" && team.choices && (
         <Panel title="Coach budget selections" open>
+          <p className="text-sm font-semibold">
+            Allowed pitcher-only players: {team.choices.poRosterLimit ?? "See Front Office"}. Active
+            PO offers also reserve spots. This limit is managed by admins.
+          </p>
           <p className="text-sm">
             Only authorized selections can be changed. Front Office must approve them before new
             fees are published.
@@ -555,7 +559,19 @@ function TeamPlan({
             </div>
             {canPO && (
               <div className="grid gap-3 rounded-xl border border-line p-3">
-                <h3>Pitcher-only cost allocations</h3>
+                <h3>Pitcher-only roster and cost settings</h3>
+                <Field
+                  label="Allowed POs on this team — admin override (blank uses age default)"
+                  type="number"
+                  value={
+                    plan.budget.poRosterLimit === undefined ? "" : String(plan.budget.poRosterLimit)
+                  }
+                  onChange={(s) => update({ poRosterLimit: s === "" ? undefined : Number(s) })}
+                />
+                <p className="text-sm">
+                  Default: 1 PO for 6U–14U; 4 POs for 15U–17U. Active PO offers count toward the
+                  limit. Only admins can change it.
+                </p>
                 <p className="text-sm">
                   POs share the full-player team-cost component. Membership and organization fees
                   are the only automatic discounts. Extra roster spots do not reduce the 10-player
