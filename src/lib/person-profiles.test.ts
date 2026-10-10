@@ -14,6 +14,7 @@ import { emptyDevelopment } from "./pd/empty";
 import { commerceIdentityFor } from "./commerce/access.server";
 import { revokeStaffAccess } from "./staff-access.server";
 import { parsePaySearch, checkoutReturnPath } from "./pay";
+import { evaluationWorkspaceFor } from "./tryout-evaluations.server";
 
 test("one account retains primary role, scoped assignments and shared publication; stale or unauthorized writes fail atomically", async () => {
   const db = new PGlite();
@@ -86,6 +87,8 @@ test("one account retains primary role, scoped assignments and shared publicatio
     assert.equal(identity.canInstruct, true);
     assert.equal(identity.canTeamCoach, true);
     assert.deepEqual(identity.playerIds, [child.id]);
+    await sql`update club_staff set role='parent' where user_id='student'`;
+    assert.deepEqual((await evaluationWorkspaceFor(sql, "student")).teams.map(t => t.id), [team.id]);
     await assert.rejects(() => commerceIdentityFor(sql, "student"), /Player accounts/);
     const published = await publicPeopleFor(sql);
     const p = published.find((p) => p.name === "Same Name")!;

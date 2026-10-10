@@ -21,7 +21,7 @@ async function evaluationAccess(sql: Sql, userId: string) {
   if (me.role !== "admin") {
     const staff =
       await sql`select id from club_staff where lower(trim(email))=${me.email} and active=true
-      and role in ('coach','admin') and (user_id='' or user_id=${userId})`;
+      and (role in ('coach','admin') or ${Boolean(me.canTeamCoach)}) and (user_id='' or user_id=${userId})`;
     if (!staff.length) throw new Error("An active staff assignment is required. Ask a club owner.");
   }
   const [state] = await sql<{
