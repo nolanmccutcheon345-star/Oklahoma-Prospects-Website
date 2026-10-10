@@ -94,7 +94,7 @@ test("persistent evaluations enforce staff/team access, author attribution, retr
           age: "13U",
           sport: "baseball",
           coachEmail: "coach@example.invalid",
-          staff: [{ email: "assistant@example.invalid" }],
+          staff: [{ email: "assistant@example.invalid", role: "Assistant Coach" }],
         },
         {
           id: "softball",
@@ -129,10 +129,11 @@ test("persistent evaluations enforce staff/team access, author attribution, retr
       coach.teams.map((t) => t.id),
       ["baseball"],
     );
-    assert.deepEqual(
-      coach.candidates.map((c) => c.id),
-      ["reg-baseball"],
-    );
+    assert.deepEqual(coach.candidates.map((c) => c.id).sort(), [
+      "reg-baseball",
+      "reg-softball",
+      "reg-young",
+    ]);
     assert.doesNotMatch(JSON.stringify(coach), /private@example|phone|notes/);
     const input: EvaluationInput = {
       id: randomUUID(),
@@ -278,14 +279,20 @@ test("persistent evaluations enforce staff/team access, author attribution, retr
       /original evaluator/,
     );
     await assert.rejects(() => saveEvaluationFor(sql, "parent", general), /access/);
-    await assert.rejects(
-      () =>
-        saveEvaluationFor(sql, "coach", {
-          ...general,
-          id: randomUUID(),
-          registrationId: "reg-softball",
-        }),
-      /assigned teams/,
+    const crossSport = await saveEvaluationFor(sql, "coach", {
+      ...general,
+      id: randomUUID(),
+      registrationId: "reg-softball",
+    });
+    assert.equal(crossSport.teamId, "");
+    assert.equal(crossSport.sport, "softball");
+    assert.equal(crossSport.playerName, "reg-softball");
+    assert.equal((await evaluationWorkspaceFor(sql, "coach")).candidates.length, 3);
+    assert.ok(
+      (await evaluationWorkspaceFor(sql, "coach")).evaluations.some((r) => r.id === crossSport.id),
+    );
+    assert.ok(
+      !(await evaluationWorkspaceFor(sql, "other")).evaluations.some((r) => r.id === crossSport.id),
     );
     const registered = await saveEvaluationFor(sql, "owner", {
       ...general,

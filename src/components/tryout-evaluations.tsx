@@ -140,10 +140,12 @@ export function TryoutEvaluations({ pendingOnly = false }: { pendingOnly?: boole
       baseRevision: 0,
       registrationId: null,
       ageGroup: "",
-      sport: "baseball",
-      teamId: workspace?.teams.some((t) => t.id === teamFilter)
-        ? teamFilter
-        : workspace?.teams[0]?.id || "",
+      sport:
+        workspace?.teams.find((t) => t.id === teamFilter)?.sport === "softball" ||
+        sportFilter === "softball"
+          ? "softball"
+          : "baseball",
+      teamId: workspace?.teams.some((t) => t.id === teamFilter) ? teamFilter : "",
       playerName: "",
       evaluationDate: chicagoDate(),
       status: "draft",
@@ -227,7 +229,7 @@ export function TryoutEvaluations({ pendingOnly = false }: { pendingOnly?: boole
   const total = form ? evaluationTotal(form.payload.ratings) : null;
   const teamOptions = form?.registrationId
     ? workspace.teams.filter((t) => candidate?.teamIds.includes(t.id))
-    : workspace.teams;
+    : workspace.teams.filter((t) => t.sport === form?.sport);
   const resultTeams = [
     ...new Map(
       [
@@ -556,6 +558,31 @@ export function TryoutEvaluations({ pendingOnly = false }: { pendingOnly?: boole
             >
               <section className="grid gap-4 rounded-xl border border-line bg-white p-4">
                 <h2 className="text-2xl">Player &amp; tryout</h2>
+                <Field label="Sport">
+                  <select
+                    className={control}
+                    value={form.sport}
+                    disabled={form.baseRevision > 0}
+                    onChange={(e) => {
+                      const sport = e.target.value as EvaluationInput["sport"];
+                      change({
+                        sport,
+                        registrationId: null,
+                        playerName: "",
+                        ageGroup: "",
+                        teamId: "",
+                        payload: { ...form.payload, session: "" },
+                      });
+                    }}
+                  >
+                    <option value="baseball">Baseball</option>
+                    <option value="softball">Softball</option>
+                  </select>
+                </Field>
+                <p className="text-sm text-muted">
+                  Choose a sport to see all registered players, across every age group and team.
+                  Players outside your assigned teams can be evaluated as a general tryout.
+                </p>
                 <Field label="Registration">
                   <select
                     className={control}
@@ -588,11 +615,13 @@ export function TryoutEvaluations({ pendingOnly = false }: { pendingOnly?: boole
                         {form.playerName} · Saved registration
                       </option>
                     ) : null}
-                    {workspace.candidates.map((c) => (
-                      <option key={c.id} value={c.id}>
-                        {c.name} · {c.age} · {c.sport}
-                      </option>
-                    ))}
+                    {workspace.candidates
+                      .filter((c) => c.sport === form.sport)
+                      .map((c) => (
+                        <option key={c.id} value={c.id}>
+                          {c.name} · {c.age} · {c.sport}
+                        </option>
+                      ))}
                   </select>
                 </Field>
                 <div className="grid gap-4 sm:grid-cols-2">
@@ -645,19 +674,6 @@ export function TryoutEvaluations({ pendingOnly = false }: { pendingOnly?: boole
                           onChange={(e) => change({ ageGroup: e.target.value })}
                           placeholder="Example: 8U"
                         />
-                      </Field>
-                      <Field label="Sport">
-                        <select
-                          className={control}
-                          value={form.sport}
-                          disabled={!!form.registrationId}
-                          onChange={(e) =>
-                            change({ sport: e.target.value as EvaluationInput["sport"] })
-                          }
-                        >
-                          <option value="baseball">Baseball</option>
-                          <option value="softball">Softball</option>
-                        </select>
                       </Field>
                     </>
                   ) : null}

@@ -107,7 +107,7 @@ export async function evaluationWorkspaceFor(
     await sql<RequestRow>`select id,kind,payload from club_requests where kind in ('tryout','team-inquiry') order by created_at desc,id desc`;
   const candidates = requests
     .map((row) => candidateFor(row, teams))
-    .filter((c) => c.name && (me.role === "admin" || c.teamIds.length));
+    .filter((c) => c.name && ["baseball", "softball"].includes(c.sport));
   const rows =
     me.role === "admin"
       ? await sql<EvaluationRow>`select * from tryout_evaluations order by evaluation_date desc,updated_at desc,id`
@@ -158,11 +158,9 @@ export async function saveEvaluationFor(
         await tx<RequestRow>`select id,kind,payload from club_requests where id=${input.registrationId} and kind in ('tryout','team-inquiry') for share`;
       if (!request) throw new Error("Registration not found.");
       const candidate = candidateFor(request, teams);
-      if (
-        input.teamId
-          ? !candidate.teamIds.includes(team.id)
-          : me.role !== "admin" && !candidate.teamIds.length
-      )
+      // Registration discovery and general evaluations are club-wide for active
+      // coaches. Assigning an evaluation to a team still requires that team.
+      if (input.teamId && !candidate.teamIds.includes(team.id))
         throw new Error("This registration does not match your assigned teams.");
       playerName = candidate.name;
       if (!playerName) throw new Error("This registration has no player name.");
