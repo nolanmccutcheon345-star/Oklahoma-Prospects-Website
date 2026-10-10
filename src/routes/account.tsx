@@ -1,19 +1,33 @@
-import {AccountSecurity} from "@/components/account-security";
-import {pageHead} from "@/lib/seo";
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { AccountSecurity } from "@/components/account-security";
+import { pageHead } from "@/lib/seo";
+import { createFileRoute, Link, Navigate } from "@tanstack/react-router";
 import { useEffect, useState, lazy, Suspense } from "react";
 import { RedirectToSignIn, UserButton } from "@/lib/auth/gates";
 import { useCurrentUser, useCurrentUserState } from "@/lib/auth/use-current-user";
 import { Button } from "@/components/ui/button";
 import { PageHero } from "@/components/page-hero";
 import { DevelopmentProvider } from "@/lib/pd/context";
-const PdWorkspace=lazy(()=>import("@/components/pd/workspace").then(m=>({default:m.PdWorkspace})));
+const PdWorkspace = lazy(() =>
+  import("@/components/pd/workspace").then((m) => ({ default: m.PdWorkspace })),
+);
 import { PdErrorBoundary } from "@/components/pd/error-boundary";
 import { getProfile, saveProfile, type ClubRole } from "@/lib/club-data";
 import { getRegistrationAccess } from "@/lib/registrations-api";
 import { ROLE_LABEL } from "@/lib/pd";
 
-export const Route = createFileRoute("/account")({head:()=>pageHead("/account","Player Development Account","Your assigned development work, coaching notes, and player progress.",true), validateSearch: (search: Record<string, unknown>): { desk?: string } => ({ desk: typeof search.desk === "string" ? search.desk : undefined }), component: AccountPage });
+export const Route = createFileRoute("/account")({
+  head: () =>
+    pageHead(
+      "/account",
+      "Player Development Account",
+      "Your assigned development work, coaching notes, and player progress.",
+      true,
+    ),
+  validateSearch: (search: Record<string, unknown>): { desk?: string } => ({
+    desk: typeof search.desk === "string" ? search.desk : undefined,
+  }),
+  component: AccountPage,
+});
 
 function AccountPage() {
   const { user, isPending } = useCurrentUserState();
@@ -25,11 +39,16 @@ function AccountPage() {
     );
   }
   if (!user) return <RedirectToSignIn />;
-  return <DevelopmentProvider><AccountHome /></DevelopmentProvider>;
+  return (
+    <DevelopmentProvider>
+      <AccountHome />
+    </DevelopmentProvider>
+  );
 }
 
 function AccountHome() {
   const user = useCurrentUser();
+  const { desk } = Route.useSearch();
   const [profile, setProfile] = useState<Awaited<ReturnType<typeof getProfile>>>();
   const [role, setRole] = useState<ClubRole>("parent");
   const [playerName, setPlayerName] = useState("");
@@ -38,8 +57,16 @@ function AccountHome() {
   const [registrationAccess, setRegistrationAccess] = useState(false);
   useEffect(() => {
     let active = true;
-    getRegistrationAccess().then(a => { if (active) setRegistrationAccess(a.allowed); }).catch(() => { if (active) setRegistrationAccess(false); });
-    return () => { active = false; };
+    getRegistrationAccess()
+      .then((a) => {
+        if (active) setRegistrationAccess(a.allowed);
+      })
+      .catch(() => {
+        if (active) setRegistrationAccess(false);
+      });
+    return () => {
+      active = false;
+    };
   }, []);
   useEffect(() => {
     let cancelled = false;
@@ -135,8 +162,8 @@ function AccountHome() {
               </select>
             </label>
             <p className="text-xs text-muted">
-              Coaches and the front office are invited by Prospects. Sign in with
-              your staff email if you already have one.
+              Coaches and the front office are invited by Prospects. Sign in with your staff email
+              if you already have one.
             </p>
             <label className="text-sm font-semibold">
               Athlete name
@@ -153,46 +180,82 @@ function AccountHome() {
     );
   }
 
+  if (profile.role === "admin" && !desk)
+    return <Navigate to="/office" search={{ section: "dashboard" }} />;
+  if (desk === "security")
+    return (
+      <main id="main" className="mx-auto max-w-3xl px-5 py-8">
+        <a
+          className="inline-flex min-h-11 items-center underline"
+          href={profile.role === "admin" ? "/office" : "/account"}
+        >
+          Back to {profile.role === "admin" ? "Front Office" : "Account"}
+        </a>
+        <h1 className="text-3xl">Account → Security</h1>
+        <AccountSecurity />
+      </main>
+    );
   return (
     <main id="main">
-      <PageHero
-        compact
-        eyebrow={`${ROLE_LABEL[profile.role]} · player development`}
-        title={profile.name || "Your club"}
-        accent="Plans, cages, and teams."
-        copy={
-          profile.assessment_complete
-            ? "Assessment on file. Private 30s and 60s are open."
-            : "No completed assessment is on file yet. Choose an assessment or explore monthly plans. Ordinary lessons and packages unlock after coach-confirmed completion."
-        }
-        image="/brand/training.jpg"
-        actions={
-          <>
-            {registrationAccess ? <Button asChild><a href="/registrations">Registrations & inquiries</a></Button> : null}
-            {profile.role === "admin" ? (
-              <Button asChild>
-                <Link to="/office">Front office</Link>
-              </Button>
-            ) : null}
-            {profile.role === "coach" || profile.role === "admin" ? (
+      {profile.role === "admin" ? (
+        <header className="bg-ink p-5 text-white">
+          <div className="mx-auto max-w-3xl">
+            <a href="/office" className="inline-flex min-h-11 items-center text-powder underline">
+              Back to Front Office
+            </a>
+            <h1 className="text-3xl">Player Development</h1>
+            <p className="text-sm">Signed in as {profile.name} · Admin</p>
+          </div>
+        </header>
+      ) : (
+        <PageHero
+          compact
+          eyebrow={`${ROLE_LABEL[profile.role]} · player development`}
+          title={profile.name || "Your club"}
+          accent="Plans, cages, and teams."
+          copy={
+            profile.assessment_complete
+              ? "Assessment on file. Private 30s and 60s are open."
+              : "No completed assessment is on file yet. Choose an assessment or explore monthly plans. Ordinary lessons and packages unlock after coach-confirmed completion."
+          }
+          image="/brand/training.jpg"
+          actions={
+            <>
+              {registrationAccess ? (
+                <Button asChild>
+                  <a href="/registrations">Registrations & inquiries</a>
+                </Button>
+              ) : null}
+              {profile.role === "coach" ? (
+                <Button asChild variant="outline">
+                  <Link to="/coach">Coach app</Link>
+                </Button>
+              ) : null}
               <Button asChild variant="outline">
-                <Link to="/coach">Coach app</Link>
+                <Link to="/family">Family app</Link>
               </Button>
-            ) : null}
-            <Button asChild variant="outline">
-              <Link to="/family">Family app</Link>
-            </Button>
-            <div className="flex min-h-11 items-center rounded-md bg-navy px-3 text-fg-inverse">
-              <UserButton />
-            </div>
-          </>
-        }
-      />
+              <div className="flex min-h-11 items-center rounded-md bg-navy px-3 text-fg-inverse">
+                <UserButton />
+              </div>
+            </>
+          }
+        />
+      )}
       <div className="mx-auto max-w-3xl px-5 py-8 pb-24">
-        <AccountSecurity/>
-        <Link to="/invitations" className="inline-flex min-h-11 items-center underline">Your invitations</Link>
+        <Link
+          to="/account"
+          search={{ desk: "security" }}
+          className="mr-4 inline-flex min-h-11 items-center underline"
+        >
+          Account security
+        </Link>
+        <Link to="/invitations" className="inline-flex min-h-11 items-center underline">
+          Your invitations
+        </Link>
         <PdErrorBoundary section="Train · account">
-          <Suspense fallback={<p role="status">Loading your workspace…</p>}><PdWorkspace profile={profile} /></Suspense>
+          <Suspense fallback={<p role="status">Loading your workspace…</p>}>
+            <PdWorkspace profile={profile} />
+          </Suspense>
         </PdErrorBoundary>
       </div>
     </main>

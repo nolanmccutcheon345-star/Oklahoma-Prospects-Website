@@ -79,32 +79,7 @@ export function ViewAsBar({
   onChange: (role: ClubRole) => void;
 }) {
   return (
-    <section className="pd-os bg-ink text-fg-inverse" data-density="compact">
-      <div className="mx-auto max-w-3xl px-5 pb-5">
-        <p className="text-xs font-semibold tracking-[0.16em] text-powder uppercase">
-          Preview player development
-        </p>
-        <p className="mt-1 text-sm text-fg-soft">See the coach, parent, and player desks without signing out.</p>
-        <div role="tablist" className="mt-3 grid grid-cols-4 gap-1 rounded-xl bg-navy p-1">
-          {PREVIEW_ROLES.map((role) => (
-            <button
-              key={role}
-              type="button"
-              role="tab"
-              data-view-as={role}
-              aria-selected={value === role}
-              onClick={() => onChange(role)}
-              className={cn(
-                "pd-control rounded-lg text-xs font-semibold tracking-wide uppercase",
-                value === role ? "bg-maroon text-fg-inverse" : "text-fg-soft",
-              )}
-            >
-              {ROLE_LABEL[role]}
-            </button>
-          ))}
-        </div>
-      </div>
-    </section>
+    <details className="rounded-xl border border-line bg-paper-2 p-3"><summary className="min-h-11 cursor-pointer text-sm font-semibold">Workspace preview (read-only)</summary><p className="text-sm text-muted">Preview a selected household or coach in read-only mode. Your account permissions do not change.</p><label className="mt-2 grid gap-1 text-sm">Preview role<select className="office-control" value={value} onChange={e=>onChange(e.target.value as ClubRole)}>{PREVIEW_ROLES.map(role=><option key={role} value={role}>{ROLE_LABEL[role]}</option>)}</select></label></details>
   );
 }
 
@@ -187,24 +162,7 @@ function ScopedWorkspace({
           }}
           onOpenDesk={(id) => setTab(id)}
         />
-        <div role="tablist" className="flex gap-1 overflow-x-auto rounded-xl bg-ink p-1 text-fg-inverse">
-          {tabs.map((item) => (
-            <button
-              key={item.id}
-              type="button"
-              role="tab"
-              data-desk-tab={item.id}
-              aria-selected={tab === item.id}
-              onClick={() => setTab(item.id)}
-              className={cn(
-                "pd-control shrink-0 rounded-lg px-3 text-xs font-semibold tracking-wide uppercase",
-                tab === item.id ? "bg-maroon text-fg-inverse" : "text-fg-soft",
-              )}
-            >
-              {item.label}
-            </button>
-          ))}
-        </div>
+        <label className="my-3 grid gap-1 text-sm font-semibold">Development section<select value={tab} onChange={e=>setTab(e.target.value)} className="office-control">{tabs.map(item=><option key={item.id} value={item.id}>{item.label.replace('Athletes','Players')}</option>)}</select></label>
         <div className="mt-6">
           <DeskFrame name={`Train · ${ROLE_LABEL[previewRole]} · ${activeLabel}`}>
             <BreakProbe />
@@ -306,7 +264,7 @@ function HomeDesk({
         <div className="pd-card">
           <p className="text-xs font-semibold tracking-[0.16em] text-powder uppercase">
             {profile.role === "admin"
-              ? "Club today"
+              ? "Today at Prospects"
               : profile.role === "coach"
                 ? "Today at a glance"
                 : profile.role === "player"
@@ -314,7 +272,7 @@ function HomeDesk({
                   : "Your development"}
           </p>
           <h2 className="mt-2 text-3xl italic">
-            {profile.role === "admin" || profile.role === "coach" ? "Your athletes and coaching work." : self?.assessmentComplete ? "Assessment on file." : "Choose an athlete to get started."}
+            {profile.role === "admin" || profile.role === "coach" ? "Players & Sessions" : self?.assessmentComplete ? "Assessment on file." : "Choose an athlete to get started."}
           </h2>
           <p className="mt-2 text-sm text-fg-soft">
             {profile.role === "admin" || profile.role === "coach" ? `${data.athletes.length} athletes available on your desk. Open an athlete to review their saved programs and lessons.` : self?.assessmentComplete
@@ -344,8 +302,8 @@ function HomeDesk({
       ) : null}
       {trueRole === "admin" && profile.role === "admin" ? (
         <section className="rounded-2xl bg-navy p-5 text-fg-inverse">
-          <p className="text-xs font-semibold tracking-[0.16em] text-powder uppercase">Staff ops</p>
-          <h3 className="mt-2 text-2xl italic">Coaches, prices, logins.</h3>
+          <p className="text-xs font-semibold tracking-[0.16em] text-powder uppercase">Staff & Business Settings</p>
+          <h3 className="mt-2 text-2xl italic">Manage Staff, Services & Access</h3>
           <div className="mt-4 flex flex-wrap gap-2">
             <Button type="button" onClick={() => onOpenTab("coaches")}>
               Coaches
@@ -477,7 +435,7 @@ function BusinessDesk() {
     <>
       <SubPills
         items={[
-          { id: "launch", label: "Launch" },
+          { id: "launch", label: "Checkout Status" },
           { id: "services", label: "Services" },
           { id: "accounts", label: "Accounts" },
           { id: "staff", label: "Staff directory" },
@@ -499,7 +457,7 @@ function BusinessDesk() {
             <p className="mt-2 text-sm text-muted">
               View paid cage bookings, customer details, and owner alerts in the front office.
             </p>
-            <Link to="/office" className="mt-3 inline-flex min-h-11 items-center font-semibold underline">Open bookings and payments</Link>
+            <Link to="/office" search={{section:"payments"}} className="mt-3 inline-flex min-h-11 items-center font-semibold underline">Open bookings and payments</Link>
           </div>
         </section>
       ) : null}
@@ -828,23 +786,7 @@ function SubPills({
   onChange: (id: string) => void;
 }) {
   return (
-    <div role="tablist" className="flex gap-1 overflow-x-auto rounded-xl bg-paper p-1">
-      {items.map((item) => (
-        <button
-          key={item.id}
-          type="button"
-          role="tab"
-          aria-selected={value === item.id}
-          onClick={() => onChange(item.id)}
-          className={cn(
-            "pd-control shrink-0 rounded-lg px-3 text-xs font-semibold tracking-wide uppercase",
-            value === item.id ? "bg-maroon text-fg-inverse" : "text-muted",
-          )}
-        >
-          {item.label}
-        </button>
-      ))}
-    </div>
+    <label className="mb-4 grid gap-1 text-sm font-semibold">Section<select className="office-control" value={value} onChange={e=>onChange(e.target.value)}>{items.map(item=><option key={item.id} value={item.id}>{item.label}</option>)}</select></label>
   );
 }
 

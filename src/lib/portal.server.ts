@@ -46,7 +46,7 @@ export async function signWaiver(userId:string,input:z.infer<typeof waiverInput>
 }
 export async function officeRequests(userId:string){
  const me=await clubIdentity(userId);if(me.role!=='admin')throw new Error('Front-office access required.');const sql=await getSql();
- const rows=await sql<{id:string;kind:string;payload:Record<string,unknown>;status:string;created_at:Date}>`select id,kind,payload,status,created_at from club_requests order by created_at desc limit 500`;
+ const rows=await sql<{id:string;kind:string;payload:Record<string,unknown>;status:string;created_at:Date}>`select id,kind,payload,status,created_at from club_requests order by created_at desc`;
  return rows.map(row=>({...row,payload:Object.fromEntries(Object.entries(row.payload).map(([key,value])=>[key,typeof value==='string'?value:JSON.stringify(value)??'']))}));
 }
 export async function resolveRequest(userId:string,id:string){const me=await clubIdentity(userId);if(me.role!=='admin')throw new Error('Front-office access required.');const sql=await getSql();const [request]=await sql<{kind:string}>`select kind from club_requests where id=${id}`;if(request&&['membership-pause','refund-review'].includes(request.kind))throw new Error('Billing requests require a confirmed provider outcome before resolution.');await sql`update club_requests set status='resolved' where id=${id}`;return {ok:true};}

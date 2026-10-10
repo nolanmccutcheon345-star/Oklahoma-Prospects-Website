@@ -123,6 +123,9 @@ export type StaffInput = {
 };
 
 export type ClubAccount = {
+  status?: "active" | "inactive" | "invited";
+  assignments?: string;
+  expires_at?: string;
   user_id: string;
   name: string;
   email: string;
@@ -741,6 +744,8 @@ export const listAccounts = createServerFn({ method: "GET" })
       role: string;
       player_name: string;
       assessment_complete: boolean | string | null;
+      disabled_at: Date | null;
+      assignments:string;
     }>`
       select
         u.id as user_id,
@@ -748,15 +753,18 @@ export const listAccounts = createServerFn({ method: "GET" })
         lower(u.email) as email,
         coalesce(p.role, 'parent') as role,
         coalesce(p.player_name, '') as player_name,
-        p.assessment_complete
+        p.assessment_complete, u."disabledAt" as disabled_at,
+        coalesce((select string_agg(s.name,', ') from club_staff_services c join club_staff st on st.id=c.staff_id join club_services s on s.id=c.service_id where st.user_id=u.id),'') as assignments
       from "user" u
       left join profiles p on p.user_id = u.id
-      where u."disabledAt" is null
+
       order by u.email
     `;
-    return Promise.all(rows.map(async (row) => {
+    const accounts=await Promise.all(rows.map(async (row) => {
       const email = row.email.toLowerCase();
       return {
+        status: row.disabled_at ? "inactive" as const : "active" as const,
+        assignments:row.assignments,
         user_id: row.user_id,
         name: row.name,
         email,
@@ -766,6 +774,8 @@ export const listAccounts = createServerFn({ method: "GET" })
         owner: await isOwnerEmail(email),
       } satisfies ClubAccount;
     }));
+    const invites=await sql<{id:string;email:string;role:string;expires_at:Date}>`select id,email,role,expires_at from club_invites where status='pending' and expires_at>now() order by email`;
+    return [...accounts,...invites.map(i=>({user_id:`invite:${i.id}`,name:i.email,email:i.email,role:asRole(i.role,i.email),player_name:'',assessment_complete:false,owner:false,status:'invited' as const,expires_at:new Date(i.expires_at).toISOString(),assignments:''}))] satisfies ClubAccount[];
   });
 
 export const saveAccount = createServerFn({ method: "POST" })

@@ -1,3 +1,4 @@
+import { getEvaluationReviews, markEvaluationReviewed } from "@/lib/front-office-api";
 import { CLUB } from "@/lib/club";
 import { cloneElement, useEffect, useId, useState, type ReactElement } from "react";
 import { getTryoutEvaluations, saveTryoutEvaluation } from "@/lib/tryout-evaluations-api";
@@ -46,7 +47,11 @@ function editInput(row: SavedEvaluation): EvaluationInput {
   };
 }
 
-export function TryoutEvaluations() {
+export function TryoutEvaluations({ pendingOnly = false }: { pendingOnly?: boolean }) {
+  const [reviewOnly, setReviewOnly] = useState(pendingOnly);
+  const [reviews, setReviews] = useState<Awaited<ReturnType<typeof getEvaluationReviews>>>([]);
+  const [reviewError, setReviewError] = useState("");
+  const [reviewsLoaded, setReviewsLoaded] = useState(false);
   const [workspace, setWorkspace] = useState<EvaluationWorkspace>();
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
@@ -99,6 +104,17 @@ export function TryoutEvaluations() {
     window.addEventListener("beforeunload", warn);
     return () => window.removeEventListener("beforeunload", warn);
   }, [dirty]);
+  useEffect(() => {
+    if (workspace?.owner)
+      void getEvaluationReviews()
+        .then((rows) => {
+          setReviews(rows);
+          setReviewsLoaded(true);
+        })
+        .catch((e) => setReviewError(e.message));
+  }, [workspace]);
+  const reviewed = (r: SavedEvaluation) =>
+    reviews.some((v) => v.evaluation_id === r.id && v.revision === r.revision);
   const readonly = !!viewing && !viewing.canEdit;
   function leave() {
     if (dirty && !window.confirm("Leave without saving these evaluation changes?")) return;
@@ -194,6 +210,9 @@ export function TryoutEvaluations() {
 
   const rows = workspace.evaluations.filter(
     (r) =>
+      (!workspace.owner ||
+        !reviewOnly ||
+        (reviewsLoaded && r.status === "submitted" && !reviewed(r))) &&
       (!search || r.playerName.toLowerCase().includes(search.toLowerCase())) &&
       (!teamFilter || r.teamId === (teamFilter === "__general__" ? "" : teamFilter)) &&
       (!ageFilter || r.ageGroup === ageFilter) &&
@@ -230,6 +249,47 @@ export function TryoutEvaluations() {
 
   return (
     <div className="grid gap-5">
+      {workspace.owner && !reviewsLoaded && !reviewError && (
+        <p role="status">Loading review status…</p>
+      )}
+      {reviewError && <p role="alert">Review status could not load: {reviewError}</p>}
+      {workspace.owner && !form && (
+        <label className="flex min-h-11 items-center gap-3">
+          <input
+            type="checkbox"
+            checked={reviewOnly}
+            onChange={(e) => setReviewOnly(e.target.checked)}
+          />
+          Awaiting review only
+        </label>
+      )}
+      {workspace.owner && viewing?.status === "submitted" && (
+        <div className="rounded-xl border border-line bg-white p-4">
+          <p className="text-sm">
+            {reviewed(viewing) ? "Reviewed at this saved version." : "Awaiting owner review."}
+          </p>
+          <Button
+            disabled={saving || dirty || reviewed(viewing)}
+            onClick={async () => {
+              setSaving(true);
+              setReviewError("");
+              try {
+                await markEvaluationReviewed({
+                  data: { id: viewing.id, revision: viewing.revision },
+                });
+                setReviews(await getEvaluationReviews());
+                setNotice("Evaluation marked reviewed.");
+              } catch (e) {
+                setReviewError(e instanceof Error ? e.message : "Could not save review.");
+              } finally {
+                setSaving(false);
+              }
+            }}
+          >
+            Mark Reviewed
+          </Button>
+        </div>
+      )}
       {!form ? (
         <>
           <header className="flex flex-wrap items-start justify-between gap-4 border-b-4 border-maroon pb-5">
@@ -370,6 +430,7 @@ export function TryoutEvaluations() {
                     setDateFilter("");
                     setCoachFilter("");
                     setStatusFilter("");
+                    setReviewOnly(false);
                   }}
                 >
                   Clear filters

@@ -121,7 +121,7 @@ export function ContractorEarnings() {
     </section>
   );
 }
-export function OfficeOperations() {
+export function OfficeOperations({view="all"}:{view?:"all"|"bookings"|"reports"}) {
   const [data, setData] = useState<Awaited<ReturnType<typeof getOfficeOperations>>>(),
     [error, setError] = useState(""),
     [busy, setBusy] = useState(false);
@@ -147,6 +147,7 @@ export function OfficeOperations() {
     <section className="my-6 grid gap-4">
       <h2 className="text-3xl">Bookings, waivers & records</h2>
       {error ? <p role="alert">{error}</p> : null}
+      {view!=="reports"&&<>
       <h3 className="text-2xl">Upcoming visits</h3>
       {data?.bookings.length === 0 ? <p>No confirmed visits in the next two weeks.</p> : null}
       {data?.bookings.map((b) => (
@@ -231,6 +232,8 @@ export function OfficeOperations() {
           </form>
         ))}
       </details>
+      </>}
+      {view!=="bookings"&&<>
       <details>
         <summary className="min-h-11 cursor-pointer text-xl">Reconciliation overview</summary>
         {data ? (
@@ -269,6 +272,7 @@ export function OfficeOperations() {
         </ul>
       </details>
       <ContractorEarnings />
+      </>}
     </section>
   );
 }

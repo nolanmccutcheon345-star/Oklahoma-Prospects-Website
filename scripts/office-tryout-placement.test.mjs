@@ -9,7 +9,7 @@ test("owner's front office must display preferred team/coach and require a consc
   assert.match(view, /const differentTeam =/);
   assert.match(view, /differentTeam && !acknowledge/);
   assert.match(view, /getPublicTryoutTeams\(\)/);
-  assert.match(view, /!team\.closed && validDate\(team\.seasonEnd\)/);
+  assert.match(view, /!team\.closed\s*&&\s*validDate\(team\.seasonEnd\)/);
 });
 
 test("owner's POST revalidates sport age team season and override independently of browser", () => {

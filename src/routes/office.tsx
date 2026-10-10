@@ -1,25 +1,32 @@
+import { OfficeWorkspace } from "@/components/office-workspace";
+import { OFFICE_SECTIONS, type OfficeSection } from "@/components/front-office-shell";
 import { CLUB } from "@/lib/club";
 import { StaffBookingChanges } from "@/components/commerce/booking-changes";
 import { pageHead } from "@/lib/seo";
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { RedirectToSignIn } from "@/lib/auth/gates";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
 import { SquareOffice } from "@/components/commerce/square-office";
 import { DiscountOffice } from "@/components/commerce/discount-office";
 import { OfficeRequests } from "@/components/commerce/office-requests";
-import { OfficeApp } from "@/components/teams/office-app";
 import { OfficeOperations } from "@/components/commerce/operations";
 import { FailScreen } from "@/components/teams/ui";
-import { TeamsShell } from "@/components/teams/shell";
 import { Button } from "@/components/ui/button";
 import { PageHero } from "@/components/page-hero";
 import { getTeamsClub, onboardTeamsClub, saveTeamsClub } from "@/lib/teams/store";
 import type { ClubRecord } from "@/lib/teams/types";
 
 export const Route = createFileRoute("/office")({
-  head: () =>
-    pageHead("/office", "Front Office", `Manage ${CLUB.name} club operations.`, true),
+  head: () => pageHead("/office", "Front Office", `Manage ${CLUB.name} club operations.`, true),
+  validateSearch: (
+    search: Record<string, unknown>,
+  ): { section?: OfficeSection; filter?: string } => ({
+    section: (OFFICE_SECTIONS.some(([id]) => id === search.section)
+      ? search.section
+      : "dashboard") as OfficeSection,
+    filter: typeof search.filter === "string" ? search.filter : undefined,
+  }),
   component: Page,
 });
 
@@ -116,21 +123,35 @@ function OfficePage() {
           compact
         />
         <div className="mx-auto max-w-3xl px-5 py-8">
-          <section id="office-teams" className="mb-8 rounded-2xl border-2 border-maroon bg-white p-5">
+          <section
+            id="office-teams"
+            className="mb-8 rounded-2xl border-2 border-maroon bg-white p-5"
+          >
             <h2 className="text-2xl font-bold">Teams & coaches</h2>
-            <p className="my-3 text-sm">Open your team's admin workspace to create baseball and softball teams, create coach profiles, and assign coaches. This is a one-time setup; no sample teams will be added.</p>
+            <p className="my-3 text-sm">
+              Open your team's admin workspace to create baseball and softball teams, create coach
+              profiles, and assign coaches. This is a one-time setup; no sample teams will be added.
+            </p>
             <Button
               type="button"
               onClick={async () => {
                 try {
                   const row = await onboardTeamsClub({ data: { mode: "empty" } });
                   setClub(row.club);
-                  setState({ ok: true, missing: false, role: "admin", me: state.me, club: row.club });
+                  setState({
+                    ok: true,
+                    missing: false,
+                    role: "admin",
+                    me: state.me,
+                    club: row.club,
+                  });
                 } catch (err) {
                   setError(err instanceof Error ? err.message : "Could not initialize teams.");
                 }
               }}
-            >Open teams & coaches admin</Button>
+            >
+              Open teams & coaches admin
+            </Button>
           </section>
           <SquareOffice />
           <DiscountOffice />
@@ -144,61 +165,21 @@ function OfficePage() {
   if (!club) return <FailScreen message="Club record missing after load." />;
 
   return (
-    <TeamsShell
-      title="Front office"
-      path="/office"
-      demo={club._demo}
-      nav={[
-        { to: "/office", label: "Office" },
-        { to: "/evaluations", label: "Evaluations" },
-        { to: "/coach", label: "Coach" },
-        { to: "/family", label: "Family" },
-        { to: "/account", label: "Development" },
-      ]}
-    >
-      <nav aria-label="Front office sections" className="mb-6 rounded-2xl border border-line bg-paper-2 p-5">
-        <h2 className="text-2xl">Front office tools</h2>
-        <p className="mt-1 text-sm text-muted">Jump directly to the area you need. All controls remain owner-only.</p>
-        <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-3">
-          {[
-            ["Tryout results", "#office-evaluations"],
-            ["Requests", "#office-requests"],
-            ["Payments", "#office-payments"],
-            ["Promotions", "#office-discounts"],
-            ["Operations & reporting", "#office-operations"],
-            ["Booking changes", "#office-booking-changes"],
-            ["Teams & coach assignments", "#office-teams"],
-          ].map(([label, hash]) => (
-            <a key={hash} href={hash}
-              className="flex min-h-11 items-center rounded-xl border border-line bg-paper px-3 py-2 text-sm font-semibold text-ink underline underline-offset-2 focus-visible:outline-2 focus-visible:outline-maroon">
-              {label}
-            </a>
-          ))}
-        </div>
-      </nav>
-      <section id="office-evaluations" className="mb-5 scroll-mt-32 rounded-xl border border-line bg-white p-4"><h2 className="text-2xl">Tryout results</h2><p className="mt-2 text-sm text-muted">Review coach scores, notes and next steps across all teams and age groups.</p><Button asChild className="mt-3"><Link to="/evaluations">Review evaluations</Link></Button></section>
-      <section id="office-requests" className="scroll-mt-32"><OfficeRequests /></section>
-      <section id="office-payments" className="scroll-mt-32"><SquareOffice /></section>
-      <section id="office-discounts" className="scroll-mt-32"><DiscountOffice /></section>
-      <section id="office-operations" className="scroll-mt-32"><OfficeOperations /></section>
-      <section id="office-booking-changes" className="scroll-mt-32"><StaffBookingChanges /></section>
-      <section id="office-teams" className="scroll-mt-32" aria-label="Team administration">
-      <OfficeApp
-        club={club}
-        onChange={setClub}
-        onSave={async (nextClub) => {
-          try {
-            const incoming = nextClub ?? club;
-            const saved = await saveTeamsClub({ data: { club: incoming, baseRev: incoming._rev } });
-            setClub(saved.club);
-            return true;
-          } catch (err) {
-            window.alert(err instanceof Error ? err.message : "Save failed");
-            return false;
-          }
-        }}
-      />
-      </section>
-    </TeamsShell>
+    <OfficeWorkspace
+      club={club}
+      onChange={setClub}
+      name={state.me.name}
+      onSave={async (nextClub) => {
+        const incoming = nextClub ?? club;
+        try {
+          const saved = await saveTeamsClub({ data: { club: incoming, baseRev: incoming._rev } });
+          setClub(saved.club);
+          return true;
+        } catch (err) {
+          window.alert(err instanceof Error ? err.message : "Save failed");
+          return false;
+        }
+      }}
+    />
   );
 }
