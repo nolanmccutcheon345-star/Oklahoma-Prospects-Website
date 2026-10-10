@@ -15,6 +15,7 @@ import {
   linkInput,
   CONSENT_TEXT,
   CONSENT_VERSION,
+  lessonMetricInput,
 } from "./recruiting-contracts";
 import type { z } from "zod";
 type Person = { id: string; name: string; household_id: string | null };
@@ -79,6 +80,35 @@ function head(p: Person, me: Me, club: ClubRecord | null, links: Link[]) {
       ),
   );
 }
+export async function instructorLessons(sql: Sql, me: Me) {
+  if (me.role !== "admin" && me.role !== "coach" && !me.canInstruct) return [];
+  const [file] = await sql<{
+    payload: string | { coaches?: { id: string; email: string; active?: boolean }[] };
+  }>`select payload from pd_working_file where id='club'`;
+  const payload =
+    typeof file?.payload === "string"
+      ? (JSON.parse(file.payload) as {
+          coaches?: { id: string; email: string; active?: boolean }[];
+        })
+      : file?.payload;
+  const matching = (payload?.coaches || []).filter(
+    (c) => c.email.trim().toLowerCase() === me.email,
+  );
+  const staff = await sql<{
+    id: string;
+  }>`select id from club_staff where active=true and (user_id=${me.userId} or (coalesce(user_id,'')='' and lower(trim(email))=${me.email}))`;
+  const ids = matching.some((c) => c.active === false)
+    ? []
+    : [...matching.filter((c) => c.active !== false).map((c) => c.id), ...staff.map((c) => c.id)];
+  return sql<{
+    id: string;
+    athlete_id: string;
+    name: string;
+    starts_at: string;
+    date: string;
+    status: string;
+  }>`select b.id,b.athlete_id,a.name,b.starts_at::text as starts_at,to_char(b.starts_at at time zone 'America/Chicago','YYYY-MM-DD') as date,b.status from booking_records b join club_athletes a on a.id=b.athlete_id left join commerce_orders o on o.id=b.order_id where b.status in ('confirmed','completed') and b.coach_id is not null and b.coach_id<>'' and (b.coach_id=any(${ids}::text[]) or ${me.role === "admin"}) and b.product_id not like 'training-event:%' and coalesce(o.kind,'lesson') not in ('event','cage','team') order by b.starts_at desc`;
+}
 async function access(sql: Sql, userId: string, id: string) {
   const me = await resolveIdentity(sql, userId);
   const [p] = await sql<Person>`select id,name,household_id from club_athletes where id=${id}`;
@@ -91,7 +121,10 @@ async function access(sql: Sql, userId: string, id: string) {
     links,
     guardian: guardian(p, me),
     edit: me.role === "admin" || guardian(p, me) || self(p, me, links),
-    review: me.role === "admin" || head(p, me, club, links),
+    review:
+      me.role === "admin" ||
+      head(p, me, club, links) ||
+      (await instructorLessons(sql, me)).some((l) => l.athlete_id === p.id),
   };
 }
 async function audit(sql: Sql, userId: string, action: string, id: string, data: unknown) {
@@ -162,7 +195,7 @@ export async function saveRecruitingMetric(
       throw Error("Measurement changed. Reload before saving.");
     const id = old?.id || randomUUID();
     if (old)
-      await tx`update recruiting_metrics set value=${d.value},measured_on=${d.measuredOn},evidence=${d.evidence},status=${d.request ? "pending" : "unverified"},revision=revision+1,submitted_by=${userId},verified_by=null,verifier_name=null,verified_at=null,method='',review_note='',updated_at=now() where id=${id}`;
+      await tx`update recruiting_metrics set value=${d.value},measured_on=${d.measuredOn},evidence=${d.evidence},status=${d.request ? "pending" : "unverified"},revision=revision+1,submitted_by=${userId},verified_by=null,verifier_name=null,verified_at=null,source_booking_id=null,method='',review_note='',updated_at=now() where id=${id}`;
     else
       await tx`insert into recruiting_metrics(id,athlete_id,metric,value,measured_on,evidence,status,submitted_by) values(${id},${d.athleteId},${d.metric},${d.value},${d.measuredOn},${d.evidence},${d.request ? "pending" : "unverified"},${userId})`;
     await audit(tx, userId, "recruiting-metric-submit", d.athleteId, {
@@ -182,7 +215,8 @@ export async function reviewRecruitingMetric(
   const [m] = await sql<Metric>`select * from recruiting_metrics where id=${d.id}`;
   if (!m) throw Error("Request unavailable.");
   const a = await access(sql, userId, m.athlete_id);
-  if (!a.review) throw Error("Only an admin or this player’s assigned head coach may verify.");
+  if (!a.review)
+    throw Error("Only an admin, assigned head coach, or assigned lesson instructor may verify.");
   if (d.approve && !d.method) throw Error("Describe how the measurement was verified.");
   await sql.transaction(async (tx) => {
     const [updated] =
@@ -217,12 +251,14 @@ export async function linkRecruitingRoster(
 export async function recruitingWorkspace(sql: Sql, userId: string) {
   const me = await resolveIdentity(sql, userId),
     { club, links } = await records(sql);
+  const lessons = await instructorLessons(sql, me);
   const people = await sql<Person>`select id,name,household_id from club_athletes order by name`;
   const profiles = await sql<Profile>`select * from recruiting_profiles`;
   const metrics =
     await sql<Metric>`select id,athlete_id,metric,value::float as value,measured_on::text as measured_on,status,revision,evidence,verifier_name,verified_at::text as verified_at,method,review_note from recruiting_metrics`;
   return {
     admin: me.role === "admin",
+    lessons,
     players: people
       .filter((p) => me.role === "admin" || guardian(p, me) || self(p, me, links))
       .map((p) => {
@@ -244,7 +280,11 @@ export async function recruitingWorkspace(sql: Sql, userId: string) {
         (m) =>
           m.status === "pending" &&
           people.some(
-            (p) => p.id === m.athlete_id && (me.role === "admin" || head(p, me, club, links)),
+            (p) =>
+              p.id === m.athlete_id &&
+              (me.role === "admin" ||
+                head(p, me, club, links) ||
+                lessons.some((l) => l.athlete_id === p.id)),
           ),
       )
       .map((m) => ({ ...m, playerName: people.find((p) => p.id === m.athlete_id)!.name })),
@@ -362,4 +402,60 @@ export async function publicRecruiting(sql: Sql, id?: string) {
       method: m.status === "verified" ? m.method : "",
     })),
   }));
+}
+
+export async function lessonMetricContext(sql: Sql, userId: string, bookingId: string) {
+  const me = await resolveIdentity(sql, userId);
+  const lesson = (await instructorLessons(sql, me)).find((l) => l.id === bookingId);
+  if (!lesson)
+    throw Error("Only this lesson’s assigned instructor or an admin can record these metrics.");
+  const metrics =
+    await sql<Metric>`select id,athlete_id,metric,value::float as value,measured_on::text as measured_on,status,revision,evidence,verifier_name,verified_at::text as verified_at,method,review_note from recruiting_metrics where athlete_id=${lesson.athlete_id}`;
+  return { lesson, metrics, canRecord: new Date(lesson.starts_at) <= new Date() };
+}
+export async function recordLessonMetric(
+  sql: Sql,
+  userId: string,
+  raw: z.infer<typeof lessonMetricInput>,
+) {
+  const input = lessonMetricInput.parse(raw),
+    me = await resolveIdentity(sql, userId);
+  return sql.transaction(async (tx) => {
+    await tx`select id from booking_records where id=${input.bookingId} for update`;
+    const lesson = (await instructorLessons(tx, me)).find((l) => l.id === input.bookingId);
+    if (!lesson)
+      throw Error("Only this lesson’s assigned instructor or an admin can record these metrics.");
+    const context = { lesson, canRecord: new Date(lesson.starts_at) <= new Date() };
+    if (!context.canRecord)
+      throw Error("Record measurements during or after this lesson, not before it starts.");
+    const d = metricInput.parse({
+      athleteId: context.lesson.athlete_id,
+      id: input.id,
+      revision: input.revision,
+      metric: input.metric,
+      value: input.value,
+      measuredOn: context.lesson.date,
+      evidence: input.evidence,
+      request: false,
+    });
+    await tx`select id from club_athletes where id=${d.athleteId} for update`;
+    const [old] =
+      await tx<Metric>`select * from recruiting_metrics where athlete_id=${d.athleteId} and metric=${d.metric} for update`;
+    if (old ? old.id !== d.id || old.revision !== d.revision : d.id !== "" || d.revision !== 0)
+      throw Error("Measurement changed. Reload before saving.");
+    const id = old?.id || randomUUID();
+    await tx`insert into recruiting_profiles(athlete_id,payload) values(${d.athleteId},${JSON.stringify(blankProfile)}::jsonb) on conflict do nothing`;
+    if (old)
+      await tx`update recruiting_metrics set value=${d.value},measured_on=${d.measuredOn},evidence=${d.evidence},status='verified',revision=revision+1,submitted_by=${userId},verified_by=${userId},verifier_name=${me.name},verified_at=now(),method=${input.method},review_note='',source_booking_id=${input.bookingId},updated_at=now() where id=${id}`;
+    else
+      await tx`insert into recruiting_metrics(id,athlete_id,metric,value,measured_on,evidence,status,submitted_by,verified_by,verifier_name,verified_at,method,source_booking_id) values(${id},${d.athleteId},${d.metric},${d.value},${d.measuredOn},${d.evidence},'verified',${userId},${userId},${me.name},now(),${input.method},${input.bookingId})`;
+    await audit(tx, userId, "recruiting-lesson-metric", d.athleteId, {
+      id,
+      bookingId: input.bookingId,
+      metric: d.metric,
+      value: d.value,
+      method: input.method,
+    });
+    return { saved: true };
+  });
 }

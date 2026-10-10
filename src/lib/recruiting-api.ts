@@ -7,6 +7,8 @@ import {
   metricInput,
   reviewInput,
   linkInput,
+  lessonMetricInput,
+  lessonMetricKey,
 } from "./recruiting-contracts";
 export const getRecruitingDirectory = createServerFn({ method: "GET" }).handler(
   async ({ context, data }) => {
@@ -68,4 +70,21 @@ export const linkRecruiting = createServerFn({ method: "POST" })
     const { getSql } = await import("./db");
     const { linkRecruitingRoster } = await import("./recruiting.server");
     return linkRecruitingRoster(await getSql(), context.userId, data);
+  });
+
+export const getLessonMetrics = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
+  .validator(lessonMetricKey)
+  .handler(async ({ context, data }) => {
+    const { getSql } = await import("./db");
+    const { lessonMetricContext } = await import("./recruiting.server");
+    return lessonMetricContext(await getSql(), context.userId, data.bookingId);
+  });
+export const saveLessonMetric = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
+  .validator(lessonMetricInput)
+  .handler(async ({ context, data }) => {
+    const { getSql } = await import("./db");
+    const { recordLessonMetric } = await import("./recruiting.server");
+    return recordLessonMetric(await getSql(), context.userId, data);
   });

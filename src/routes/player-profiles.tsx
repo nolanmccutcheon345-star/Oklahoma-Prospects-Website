@@ -1,3 +1,4 @@
+import { LessonRecruitingMetrics } from "@/components/lesson-recruiting-metrics";
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
@@ -29,6 +30,7 @@ function Page() {
   const [data, setData] = useState<Workspace>(),
     [error, setError] = useState(""),
     [selected, setSelected] = useState("");
+  const [lesson, setLesson] = useState("");
   const reload = async () => setData(await getRecruitingWorkspace());
   useEffect(() => {
     if (user && !user.isDevFallback) reload().catch((e) => setError(e.message));
@@ -56,7 +58,7 @@ function Page() {
       <h1 className="text-3xl">Recruiting workspace</h1>
       <p className="my-3">
         Players and guardians manage their profile. Only a guardian can publish it. Admins and
-        assigned head coaches review measurement requests here.
+        assigned head coaches and lesson instructors review measurement requests here.
       </p>
       {error && <p role="alert">{error}</p>}
       {!data ? (
@@ -88,11 +90,32 @@ function Page() {
             </p>
           )}
           {player && <Editor key={player.id} player={player} data={data} reload={reload} />}
+          {!!data.lessons?.length && (
+            <section className="my-5">
+              <h2 className="text-2xl">Lesson players</h2>
+              <label>
+                Assigned lesson
+                <select
+                  className="office-control"
+                  value={lesson}
+                  onChange={(e) => setLesson(e.target.value)}
+                >
+                  <option value="">Choose a lesson</option>
+                  {data.lessons.map((l) => (
+                    <option key={l.id} value={l.id}>
+                      {l.name} · {l.date} · {l.status}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              {lesson && <LessonRecruitingMetrics key={lesson} bookingId={lesson} />}
+            </section>
+          )}
           <section className="mt-8">
             <h2 className="text-2xl">Metric verification requests · {data.requests.length}</h2>
             <p className="mb-3">
-              This is the approval inbox for admins and each player’s assigned head coach. Approve
-              only a measurement you can substantiate.
+              This is the approval inbox for admins and each player’s assigned head coach and lesson
+              instructors. Approve only a measurement you can substantiate.
             </p>
             {data.requests.map((r) => (
               <Review key={r.id + ":" + r.revision} request={r} reload={reload} />
@@ -325,7 +348,8 @@ function Editor({
         <h3 className="text-xl">Player measurements</h3>
         <p>
           Enter the measured value and date. Request verification to send it to the admin and
-          assigned head coach inbox. Editing a value removes any previous verification.
+          assigned head coach / lesson instructor inbox. Editing a value removes any previous
+          verification.
         </p>
         {(Object.keys(metricDefinitions) as MetricKey[]).map((k) => (
           <MetricEditor
@@ -495,7 +519,7 @@ function MetricEditor({
         </label>
         <label className="flex gap-3">
           <input type="checkbox" checked={request} onChange={(e) => setRequest(e.target.checked)} />
-          Request admin / head-coach verification
+          Request admin / coach / instructor verification
         </label>
         {old?.review_note && <p>Staff feedback: {old.review_note}</p>}
         {error && <p role="alert">{error}</p>}

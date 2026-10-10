@@ -1,10 +1,85 @@
+import { LessonRecruitingMetrics } from "../lesson-recruiting-metrics";
 import { StaffBookingChanges } from "./booking-changes";
-import { useEffect,useState } from "react";
-import { getCoachBookings,finishSession } from "@/lib/commerce/portal-api";
+import { useEffect, useState } from "react";
+import { getCoachBookings, finishSession } from "@/lib/commerce/portal-api";
 import { Button } from "@/components/ui/button";
-export function CoachSessions(){
- const [rows,setRows]=useState<Awaited<ReturnType<typeof getCoachBookings>>>([]);const [error,setError]=useState("");const [notice,setNotice]=useState("");const [busy,setBusy]=useState(false);
- async function load(){setRows(await getCoachBookings());}
- useEffect(()=>{void load().catch(e=>setError(e instanceof Error?e.message:"Sessions could not load."));},[]);
- return <section className="my-6 grid gap-4"><StaffBookingChanges/><h2 className="text-3xl">Paid sessions & assessment completion</h2><p>Complete a session after it ends. Completing an assessment here unlocks the athlete’s ordinary lessons and packages.</p>{error?<p role="alert" className="text-maroon">{error}</p>:null}{notice?<p role="status">{notice}</p>:null}{!rows.length?<p>No paid sessions assigned yet.</p>:null}{rows.map(row=><article key={row.id} className="rounded-xl border p-4"><h3 className="text-xl">{row.athlete_name} · {row.product_id}</h3><p>{new Date(row.starts_at).toLocaleString("en-US",{timeZone:"America/Chicago"})} · {row.status}</p>{row.status!=="completed"?<form className="mt-3 grid gap-3" onSubmit={async e=>{e.preventDefault();if(busy)return;const notes=String(new FormData(e.currentTarget).get("notes")||"");setBusy(true);setError("");try{const result=await finishSession({data:{id:row.id,notes}});await load();setNotice(result.assessmentCompleted?"Assessment completed and saved. Ordinary lessons and packages are unlocked.":"Session completed and saved.");}catch(e){setError(e instanceof Error?e.message:"Completion did not save.");}finally{setBusy(false);}}}><label>Session recap (shared with the household)<textarea name="notes" required minLength={5} maxLength={5000} className="mt-1 w-full rounded-lg border p-3"/></label><Button disabled={busy||new Date(row.ends_at)>new Date()} type="submit">Complete session</Button></form>:null}</article>)}</section>;
+export function CoachSessions() {
+  const [rows, setRows] = useState<Awaited<ReturnType<typeof getCoachBookings>>>([]);
+  const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
+  const [busy, setBusy] = useState(false);
+  async function load() {
+    setRows(await getCoachBookings());
+  }
+  useEffect(() => {
+    void load().catch((e) => setError(e instanceof Error ? e.message : "Sessions could not load."));
+  }, []);
+  return (
+    <section className="my-6 grid gap-4">
+      <StaffBookingChanges />
+      <h2 className="text-3xl">Paid sessions & assessment completion</h2>
+      <p>
+        Complete a session after it ends. Completing an assessment here unlocks the athlete’s
+        ordinary lessons and packages.
+      </p>
+      {error ? (
+        <p role="alert" className="text-maroon">
+          {error}
+        </p>
+      ) : null}
+      {notice ? <p role="status">{notice}</p> : null}
+      {!rows.length ? <p>No paid sessions assigned yet.</p> : null}
+      {rows.map((row) => (
+        <article key={row.id} className="rounded-xl border p-4">
+          <h3 className="text-xl">
+            {row.athlete_name} · {row.product_id}
+          </h3>
+          <p>
+            {new Date(row.starts_at).toLocaleString("en-US", { timeZone: "America/Chicago" })} ·{" "}
+            {row.status}
+          </p>
+          <LessonRecruitingMetrics bookingId={row.id} />
+          {row.status !== "completed" ? (
+            <form
+              className="mt-3 grid gap-3"
+              onSubmit={async (e) => {
+                e.preventDefault();
+                if (busy) return;
+                const notes = String(new FormData(e.currentTarget).get("notes") || "");
+                setBusy(true);
+                setError("");
+                try {
+                  const result = await finishSession({ data: { id: row.id, notes } });
+                  await load();
+                  setNotice(
+                    result.assessmentCompleted
+                      ? "Assessment completed and saved. Ordinary lessons and packages are unlocked."
+                      : "Session completed and saved.",
+                  );
+                } catch (e) {
+                  setError(e instanceof Error ? e.message : "Completion did not save.");
+                } finally {
+                  setBusy(false);
+                }
+              }}
+            >
+              <label>
+                Session recap (shared with the household)
+                <textarea
+                  name="notes"
+                  required
+                  minLength={5}
+                  maxLength={5000}
+                  className="mt-1 w-full rounded-lg border p-3"
+                />
+              </label>
+              <Button disabled={busy || new Date(row.ends_at) > new Date()} type="submit">
+                Complete session
+              </Button>
+            </form>
+          ) : null}
+        </article>
+      ))}
+    </section>
+  );
 }

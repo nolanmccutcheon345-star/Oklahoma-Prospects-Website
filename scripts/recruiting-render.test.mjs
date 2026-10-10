@@ -78,6 +78,7 @@ test("recruiting editor submits drafts, explicit guardian consent and verificati
         additional: [],
       },
     ],
+    lessonSaves: [],
     saves: [],
     consents: [],
     metrics: [],
@@ -86,13 +87,13 @@ test("recruiting editor submits drafts, explicit guardian consent and verificati
   const mocks = {
     "@tanstack/react-router": `export const createFileRoute=()=>config=>({...config,useParams:()=>({playerId:'a'})});`,
     "@/lib/auth/use-current-user": `export const useCurrentUserState=()=>({user:{id:'parent'},isPending:false});`,
-    "@/lib/recruiting-api": `const f=()=>globalThis.__recruitingFixture;export const getRecruitingWorkspace=async()=>structuredClone(f().workspace);export const getRecruitingPlayer=async()=>f().public;export const saveRecruiting=async({data})=>{f().saves.push(data);f().workspace.players[0].revision++;};export const setRecruitingConsent=async({data})=>{f().consents.push(data);f().workspace.players[0].published=data.publish;};export const submitRecruitingMetric=async({data})=>f().metrics.push(data);export const reviewRecruiting=async()=>{};export const linkRecruiting=async()=>{};`,
+    "@/lib/recruiting-api": `const f=()=>globalThis.__recruitingFixture;export const getRecruitingWorkspace=async()=>structuredClone(f().workspace);export const getRecruitingPlayer=async()=>f().public;export const saveRecruiting=async({data})=>{f().saves.push(data);f().workspace.players[0].revision++;};export const setRecruitingConsent=async({data})=>{f().consents.push(data);f().workspace.players[0].published=data.publish;};export const submitRecruitingMetric=async({data})=>f().metrics.push(data);export const reviewRecruiting=async()=>{};export const linkRecruiting=async()=>{};export const getLessonMetrics=async()=>({lesson:{name:"Example Player",date:"2026-10-01"},canRecord:true,metrics:f().workspace.players[0].metrics});export const saveLessonMetric=async({data})=>{f().lessonSaves.push(data);};`,
   };
   const out = resolve("artifacts/recruiting-render.mjs");
   await mkdir("artifacts", { recursive: true });
   const result = await build({
     stdin: {
-      contents: `export {Route as Workspace} from './src/routes/player-profiles';export {Route as Public} from './src/routes/player.$playerId';`,
+      contents: `export {Route as Workspace} from './src/routes/player-profiles';export {Route as Public} from './src/routes/player.$playerId';export {LessonRecruitingMetrics} from './src/components/lesson-recruiting-metrics';`,
       resolveDir: process.cwd(),
       loader: "tsx",
     },
@@ -117,7 +118,7 @@ test("recruiting editor submits drafts, explicit guardian consent and verificati
     ],
   });
   await writeFile(out, result.outputFiles[0].text);
-  const { Workspace, Public } = await import(pathToFileURL(out).href);
+  const { Workspace, Public, LessonRecruitingMetrics } = await import(pathToFileURL(out).href);
   const host = document.getElementById("root");
   let root = createRoot(host);
   const button = (text) => [...host.querySelectorAll("button")].find((b) => b.textContent === text);
@@ -162,6 +163,28 @@ test("recruiting editor submits drafts, explicit guardian consent and verificati
     await select(season, "all");
     assert.match(host.querySelector("table").textContent, /0.300/);
     assert.match(host.querySelector("table").textContent, /At bats10/);
+
+    await act(async () => root.unmount());
+    root = createRoot(host);
+    await act(async () =>
+      root.render(createElement(LessonRecruitingMetrics, { bookingId: "lesson-past" })),
+    );
+    await act(async () => button("Record verified player metric").click());
+    const method = [...host.querySelectorAll("label")]
+      .find((l) => l.textContent.startsWith("How you measured"))
+      .querySelector("input");
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(dom.window.HTMLInputElement.prototype, "value").set.call(
+        method,
+        "Observed radar reading",
+      );
+      method.dispatchEvent(new dom.window.Event("input", { bubbles: true }));
+    });
+    await act(async () => button("Save verified metric").click());
+    assert.equal(fixture.lessonSaves.length, 1);
+    assert.equal(fixture.lessonSaves[0].bookingId, "lesson-past");
+    assert.equal(fixture.lessonSaves[0].method, "Observed radar reading");
+    assert.match(host.textContent, /Saved to the player’s profile as verified/);
   } finally {
     await act(async () => root.unmount());
     dom.window.close();

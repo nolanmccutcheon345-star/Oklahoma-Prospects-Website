@@ -15,6 +15,8 @@ import {
   linkRecruitingRoster,
   recruitingWorkspace,
   publicRecruiting,
+  lessonMetricContext,
+  recordLessonMetric,
 } from "./recruiting.server";
 test("recruiting consent, identity boundaries, verification invalidation, shared stats, and withdrawal", async () => {
   const db = new PGlite();
@@ -40,6 +42,7 @@ test("recruiting consent, identity boundaries, verification invalidation, shared
       ["player", "player"],
       ["sibling", "player"],
       ["head", "coach"],
+      ["instructor", "parent"],
       ["assistant", "coach"],
       ["stranger", "parent"],
       ["fake-admin", "admin"],
@@ -173,6 +176,90 @@ test("recruiting consent, identity boundaries, verification invalidation, shared
       approve: false,
     });
     assert.equal((await publicRecruiting(sql, "athlete"))[0].metrics[0].status, "unverified");
+
+    await sql`insert into person_profiles(user_id,instructor) values('instructor',true)`;
+    await sql`insert into pd_working_file(id,payload,revision) values('club',${JSON.stringify({ coaches: [{ id: "lesson-coach", email: "instructor@example.invalid", active: true }] })}::jsonb,1)`;
+    for (const [id, athlete, status, start] of [
+      ["lesson-past", "athlete", "completed", "2026-10-01T18:00:00Z"],
+      ["lesson-future", "athlete", "confirmed", "2030-10-01T18:00:00Z"],
+      ["lesson-cancelled", "unrelated", "cancelled", "2026-10-01T18:00:00Z"],
+    ]) {
+      const end = new Date(Date.parse(start) + 3600000).toISOString();
+      await sql`insert into booking_records(id,athlete_id,coach_id,product_id,starts_at,ends_at,resources,status) values(${id},${athlete},'lesson-coach','private-pitching',${start},${end},'[]'::jsonb,${status})`;
+    }
+    assert.equal(
+      (await recruitingWorkspace(sql, "instructor")).players.length,
+      0,
+      "lesson access does not grant profile/guardian editing",
+    );
+    await assert.rejects(() => lessonMetricContext(sql, "instructor", "lesson-cancelled"), /Only/);
+    for (const id of ["parent", "player", "assistant", "head", "stranger"])
+      await assert.rejects(() => lessonMetricContext(sql, id, "lesson-past"), /Only/);
+    let latest = (await lessonMetricContext(sql, "instructor", "lesson-past")).metrics[0];
+    const lessonInput = {
+      bookingId: "lesson-past",
+      id: latest.id,
+      revision: latest.revision,
+      metric: "pitchVelocity" as const,
+      value: 82,
+      evidence: "",
+      method: "Measured with facility radar during lesson",
+    };
+    await assert.rejects(
+      () => recordLessonMetric(sql, "instructor", { ...lessonInput, bookingId: "lesson-future" }),
+      /not before/,
+    );
+    await recordLessonMetric(sql, "instructor", lessonInput);
+    pub = (await publicRecruiting(sql, "athlete"))[0];
+    assert.equal(pub.metrics[0].status, "verified");
+    assert.equal(pub.metrics[0].value, 82);
+    assert.equal(pub.metrics[0].verifiedBy, "instructor");
+    assert.equal(pub.metrics[0].date, "2026-10-01");
+    assert.equal(JSON.stringify(pub).includes("lesson-past"), false);
+    const [source] = await sql<{
+      source_booking_id: string;
+    }>`select source_booking_id from recruiting_metrics where id=${latest.id}`;
+    assert.equal(source.source_booking_id, "lesson-past");
+    await assert.rejects(() => recordLessonMetric(sql, "instructor", lessonInput), /changed/);
+    latest = (await lessonMetricContext(sql, "instructor", "lesson-past")).metrics[0];
+    await saveRecruitingMetric(sql, "parent", {
+      ...metric,
+      id: latest.id,
+      revision: latest.revision,
+      value: 83,
+    });
+    assert.equal((await publicRecruiting(sql, "athlete"))[0].metrics[0].status, "pending");
+    const pending = (await recruitingWorkspace(sql, "instructor")).requests[0];
+    assert.equal(pending.athlete_id, "athlete");
+    await reviewRecruitingMetric(sql, "instructor", {
+      id: pending.id,
+      revision: pending.revision,
+      approve: true,
+      method: "Observed in private lesson",
+      note: "",
+    });
+    await sql`insert into booking_records(id,athlete_id,coach_id,product_id,starts_at,ends_at,resources,status) values('lesson-private','unrelated','lesson-coach','private-hitting','2026-10-01T18:00:00Z','2026-10-01T19:00:00Z','[]'::jsonb,'completed')`;
+    await recordLessonMetric(sql, "instructor", {
+      bookingId: "lesson-private",
+      id: "",
+      revision: 0,
+      metric: "exitVelocity",
+      value: 80,
+      evidence: "",
+      method: "Observed with hitting sensor",
+    });
+    assert.equal(
+      (await publicRecruiting(sql, "unrelated")).length,
+      0,
+      "automatic lesson entry must never authorize public visibility",
+    );
+    assert.equal(
+      (await recruitingWorkspace(sql, "stranger")).players.find((p) => p.id === "unrelated")!
+        .metrics[0].status,
+      "verified",
+    );
+    await sql`update pd_working_file set payload=jsonb_set(payload::jsonb,'{coaches,0,active}','false'::jsonb)::text where id='club'`;
+    await assert.rejects(() => lessonMetricContext(sql, "instructor", "lesson-past"), /Only/);
     const createdGame = await saveTeamActivity(sql, "head", {
       teamId: team.id,
       id: "",
