@@ -3,7 +3,14 @@ import assert from "node:assert/strict";
 import { readFile, readdir } from "node:fs/promises";
 import { PGlite } from "@electric-sql/pglite";
 import type { Sql } from "./db";
-import { deliverSiteAlerts, batchSiteAlerts, siteAlertsEnabled } from "./site-alerts.server";
+import {
+  deliverSiteAlerts,
+  batchSiteAlerts,
+  batchDailySiteAlerts,
+  alertPriority,
+  digestDay,
+  siteAlertsEnabled,
+} from "./site-alerts.server";
 function wrap(db: PGlite): Sql {
   const client = (query: PGlite["query"]): Sql => {
     const sql = (async (parts: TemplateStringsArray, ...values: unknown[]) =>
@@ -64,6 +71,7 @@ test("site alerts preserve transaction boundaries, privacy, recipient scope and 
       from: "test@example.test",
       origin: "https://example.test",
       production: true,
+      now: new Date("2026-10-12T05:00:00Z"),
     };
     await t.test("nonproduction sends nothing and leaves queue intact", async () => {
       assert.deepEqual(await deliverSiteAlerts(sql, { ...config, production: false }, send), []);
@@ -110,6 +118,53 @@ test("site alerts preserve transaction boundaries, privacy, recipient scope and 
         ).length,
       );
     });
+    await t.test(
+      "routine changes wait for one private daily digest; sync noise stays in history",
+      async () => {
+        const start = attempts.length;
+        await sql`insert into commerce_policy(id,value,updated_by) values('square-plan:production:test','{"variationId":"private-provider-id"}','nolan'),('cage-booking-window','{"hours":24}','nolan')`;
+        await sql`update commerce_policy set updated_at=now() where id='cage-booking-window'`;
+        await deliverSiteAlerts(sql, config, send);
+        assert.equal(attempts.length, start, "routine changes do not send immediate mail");
+        assert.equal(
+          (await sql`select * from site_alert_events where audience='daily' and batched_at is null`)
+            .length,
+          1,
+        );
+        assert.ok(
+          (await sql`select * from audit_events where target_id='square-plan:production:test'`)
+            .length,
+          "background audit is preserved",
+        );
+        assert.equal(
+          await batchDailySiteAlerts(sql, config.origin, new Date("2027-07-01T12:59:00Z")),
+          0,
+        );
+        assert.equal(
+          await batchDailySiteAlerts(sql, config.origin, new Date("2027-07-01T13:00:00Z")),
+          1,
+        );
+        assert.equal(
+          await batchDailySiteAlerts(sql, config.origin, new Date("2027-07-01T14:00:00Z")),
+          0,
+        );
+        await deliverSiteAlerts(sql, config, send);
+        const digests = attempts.slice(start);
+        assert.equal(digests.length, 2);
+        assert.ok(
+          digests.every(
+            (d) =>
+              d.key.startsWith("daily:2027-07-01:") &&
+              d.text.includes("Booking policy: 1 update") &&
+              !d.text.includes("private-provider-id"),
+          ),
+        );
+        assert.equal(
+          (await sql`select * from site_alert_events where batched_at is null`).length,
+          0,
+        );
+      },
+    );
     await t.test("revoked owner cannot receive pending mail", async () => {
       await sql`insert into club_requests(id,kind,payload) values('new','contact','{}')`;
       await batchSiteAlerts(sql, config.origin);
@@ -128,4 +183,61 @@ test("alert environment guard accepts the pinned production context and rejects 
   assert.equal(siteAlertsEnabled("deploy-preview", "production"), false);
   assert.equal(siteAlertsEnabled("production", "sandbox"), false);
   assert.equal(siteAlertsEnabled("development", "production"), false);
+});
+
+test("daily summaries follow Central time in summer and winter", () => {
+  assert.equal(digestDay(new Date("2027-07-01T12:59:00Z")), null);
+  assert.equal(digestDay(new Date("2027-07-01T13:00:00Z")), "2027-07-01");
+  assert.equal(digestDay(new Date("2027-01-01T13:59:00Z")), null);
+  assert.equal(digestDay(new Date("2027-01-01T14:00:00Z")), "2027-01-01");
+});
+
+test("customer transitions stay immediate while unchanged and routine records are quiet", () => {
+  const event = {
+    id: 1,
+    action: "UPDATE",
+    target_id: "test",
+    created_at: new Date(),
+    before_state: { status: "pending" },
+    after_state: { status: "failed" },
+  };
+  for (const target_table of ["commerce_orders", "square_payments", "billing_invoices"])
+    assert.equal(alertPriority({ ...event, target_table }), "immediate");
+  assert.equal(
+    alertPriority({
+      ...event,
+      target_table: "commerce_orders",
+      after_state: { status: "payment_review" },
+    }),
+    "immediate",
+  );
+  assert.equal(
+    alertPriority({
+      ...event,
+      target_table: "booking_records",
+      after_state: { status: "cancelled" },
+    }),
+    "immediate",
+  );
+  assert.equal(
+    alertPriority({
+      ...event,
+      target_table: "club_subscriptions",
+      after_state: { status: "canceled" },
+    }),
+    "immediate",
+  );
+  assert.equal(
+    alertPriority({ ...event, target_table: "club_requests", action: "INSERT" }),
+    "immediate",
+  );
+  assert.equal(alertPriority({ ...event, target_table: "club_services" }), "daily");
+  assert.equal(
+    alertPriority({
+      ...event,
+      target_table: "billing_invoices",
+      before_state: { status: "failed" },
+    }),
+    "history",
+  );
 });

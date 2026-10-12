@@ -126,7 +126,7 @@ export async function prepareMonthlyPlans(
       }
       const { object } = await client.catalog.object.get({ objectId: variationId });
       assertMonthlyPlan(object, cents);
-      await sql`insert into commerce_policy(id,value,updated_by) values(${planMappingKey(c, plan.id)},${JSON.stringify({ variationId, cents })}::jsonb,${userId}) on conflict(id) do update set value=excluded.value,updated_by=excluded.updated_by,updated_at=now()`;
+      await sql`insert into commerce_policy(id,value,updated_by) values(${planMappingKey(c, plan.id)},${JSON.stringify({ variationId, cents })}::jsonb,${userId}) on conflict(id) do update set value=excluded.value,updated_by=excluded.updated_by,updated_at=now() where commerce_policy.value is distinct from excluded.value`;
       results.push({ ...plan, cents, ready: true });
     } catch (e) {
       // Never expose provider response bodies, credentials or request headers.
