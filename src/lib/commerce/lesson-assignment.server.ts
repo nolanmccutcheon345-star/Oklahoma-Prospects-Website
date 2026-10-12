@@ -1,0 +1,139 @@
+import { getSql, type Sql } from "../db";
+import { commerceIdentityFor } from "./access.server";
+import { readWorkingFile } from "../pd/desk-impl.server";
+import { bookableCoaches } from "./coach-services.server";
+import { coachAvailable } from "./availability";
+
+type Lesson = {
+  id: string;
+  product_id: string;
+  coach_id: string | null;
+  starts_at: Date;
+  ends_at: Date;
+  resources: string[];
+  status: string;
+  checked_in_at: Date | null;
+};
+async function admin(sql: Sql, userId: string) {
+  if ((await commerceIdentityFor(sql, userId)).role !== "admin")
+    throw new Error("Administrator access required.");
+}
+function windowFor(b: Lesson) {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Chicago",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  }).formatToParts(new Date(b.starts_at));
+  const part = (type: string) => parts.find((p) => p.type === type)!.value;
+  return {
+    date: `${part("year")}-${part("month")}-${part("day")}`,
+    time: `${part("hour")}:${part("minute")}`,
+    minutes: (+new Date(b.ends_at) - +new Date(b.starts_at)) / 60000,
+  };
+}
+async function candidates(sql: Sql, b: Lesson) {
+  const file = await readWorkingFile(sql),
+    window = windowFor(b);
+  const coaches = (await bookableCoaches(sql, file.coaches)).filter(
+    (c) =>
+      c.serviceIds.includes(b.product_id) &&
+      coachAvailable(file.availability, c.id, window.date, window.time, window.minutes),
+  );
+  const occupied = await sql<{
+    resource_id: string;
+  }>`select distinct resource_id from booking_occupancy where resource_id=any(${coaches.map((c) => "coach:" + c.id)}::text[]) and booking_id<>${b.id} and slot_at>=${new Date(b.starts_at).toISOString()} and slot_at<${new Date(b.ends_at).toISOString()}`;
+  return coaches
+    .filter((c) => !occupied.some((o) => o.resource_id === "coach:" + c.id))
+    .map((c) => ({ id: c.id, name: c.name }));
+}
+export async function lessonAssignmentList(userId: string) {
+  const sql = await getSql();
+  await admin(sql, userId);
+  const rows = await sql<
+    Lesson & { service_name: string; player_name: string | null; customer_email: string | null }
+  >`select b.*,s.name as service_name,a.name as player_name,o.email as customer_email from booking_records b join club_services s on s.id=b.product_id and s.kind='lesson' left join club_athletes a on a.id=b.athlete_id left join commerce_orders o on o.id=b.order_id where b.status='confirmed' and b.starts_at>now() and b.checked_in_at is null order by (b.coach_id is not null),b.starts_at,b.id limit 200`;
+  const file = await readWorkingFile(sql);
+  return rows.map((b) => ({
+    id: b.id,
+    serviceName: b.service_name,
+    playerName: b.player_name,
+    customerEmail: b.customer_email,
+    coachId: b.coach_id,
+    coachName:
+      file.coaches.find((c) => c.id === b.coach_id)?.name ||
+      (b.coach_id ? "Assigned instructor" : ""),
+    startsAt: new Date(b.starts_at).toISOString(),
+    endsAt: new Date(b.ends_at).toISOString(),
+  }));
+}
+export async function lessonInstructorChoices(userId: string, id: string) {
+  const sql = await getSql();
+  await admin(sql, userId);
+  const [b] =
+    await sql<Lesson>`select b.* from booking_records b join club_services s on s.id=b.product_id and s.kind='lesson' where b.id=${id} and b.status='confirmed' and b.starts_at>now() and b.checked_in_at is null`;
+  if (!b)
+    throw new Error(
+      "This lesson is no longer available for assignment. Refresh the bookings list.",
+    );
+  return {
+    coachId: b.coach_id,
+    startsAt: new Date(b.starts_at).toISOString(),
+    endsAt: new Date(b.ends_at).toISOString(),
+    instructors: await candidates(sql, b),
+  };
+}
+export async function assignLessonInstructor(
+  userId: string,
+  input: {
+    id: string;
+    coachId: string;
+    expectedCoachId: string | null;
+    startsAt: string;
+    endsAt: string;
+  },
+) {
+  const sql = await getSql();
+  await admin(sql, userId);
+  return sql.transaction(async (tx) => {
+    await tx`select set_config('app.actor_id',${userId},true)`;
+    const [b] =
+      await tx<Lesson>`select b.* from booking_records b join club_services s on s.id=b.product_id and s.kind='lesson' where b.id=${input.id} for update of b`;
+    if (!b || b.status !== "confirmed" || b.checked_in_at || new Date(b.starts_at) <= new Date())
+      throw new Error("Only upcoming confirmed lessons can be assigned.");
+    if (
+      b.coach_id !== input.expectedCoachId ||
+      new Date(b.starts_at).toISOString() !== input.startsAt ||
+      new Date(b.ends_at).toISOString() !== input.endsAt
+    )
+      throw new Error(
+        "This booking changed. Refresh and review it before assigning an instructor.",
+      );
+    if (!(await candidates(tx, b)).some((c) => c.id === input.coachId))
+      throw new Error(
+        "This instructor no longer offers this lesson or is unavailable for the full session. Refresh available instructors.",
+      );
+    const resource = "coach:" + input.coachId;
+    // Acquire the new instructor first. A unique occupancy conflict rolls back
+    // the entire transaction, preserving the old assignment and paid booking.
+    for (let ms = +new Date(b.starts_at); ms < +new Date(b.ends_at); ms += 300000) {
+      const inserted =
+        await tx`insert into booking_occupancy(resource_id,slot_at,booking_id) values(${resource},${new Date(ms).toISOString()},${b.id}) on conflict(resource_id,slot_at) do update set booking_id=excluded.booking_id where booking_occupancy.booking_id=excluded.booking_id returning booking_id`;
+      if (!inserted.length)
+        throw new Error(
+          "This instructor was just booked. Refresh available instructors and choose another.",
+        );
+    }
+    await tx`delete from booking_occupancy where booking_id=${b.id} and resource_id like 'coach:%' and resource_id<>${resource}`;
+    const resources = [
+      ...new Set([...b.resources.filter((r) => !r.startsWith("coach:")), resource]),
+    ];
+    await tx`update booking_records set coach_id=${input.coachId},resources=${JSON.stringify(resources)}::jsonb where id=${b.id}`;
+    // Never touch commerce_orders, payment snapshots, credits, participants,
+    // lesson times, or facility/athlete occupancy during instructor assignment.
+    return { ok: true };
+  });
+}

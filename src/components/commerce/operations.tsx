@@ -1,3 +1,4 @@
+import {LessonAssignments} from "./lesson-assignments";
 import {MyFinance} from "../finance/my-finance";
 import { useEffect, useState } from "react";
 import {
@@ -87,6 +88,7 @@ export function OfficeOperations({view="all"}:{view?:"all"|"bookings"|"reports"}
       <h2 className="text-3xl">Bookings, waivers & records</h2>
       {error ? <p role="alert">{error}</p> : null}
       {view!=="reports"&&<>
+      <LessonAssignments />
       <h3 className="text-2xl">Upcoming visits</h3>
       {data?.bookings.length === 0 ? <p>No confirmed visits in the next two weeks.</p> : null}
       {data?.bookings.map((b) => (
