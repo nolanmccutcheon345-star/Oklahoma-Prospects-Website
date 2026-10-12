@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { isDeepStrictEqual } from "node:util";
 import type { Sql } from "./db";
 import { bookingNoticeDetails } from "./commerce/square-notifications.server";
 
@@ -50,6 +51,109 @@ const labels: Record<string, string> = {
   booking_participants: "Booking participants",
 };
 
+// Audit summaries already exclude timestamps and private form fields.
+export function alertPriority(e: Event): "immediate" | "daily" | "history" {
+  if (e.action === "UPDATE" && isDeepStrictEqual(e.before_state, e.after_state)) return "history";
+  if (e.target_table === "commerce_policy" && e.target_id.startsWith("square-plan:"))
+    return "history";
+  const status = String(e.after_state?.status || "").toLowerCase();
+  const previous = String(e.before_state?.status || "").toLowerCase();
+  const changed = status !== previous;
+  if (e.target_table === "club_requests" && e.action === "INSERT") return "immediate";
+  if (e.target_table === "booking_records") {
+    if (changed && ["confirmed", "cancelled", "canceled"].includes(status)) return "immediate";
+    return status === "held" || status === "expired" ? "history" : "daily";
+  }
+  if (e.target_table === "square_disputes") return "immediate";
+  if (e.target_table === "commerce_refunds" && (changed || e.action === "INSERT"))
+    return "immediate";
+  if (
+    e.target_table === "club_subscriptions" &&
+    ((changed && ["canceled", "cancelled", "past_due", "unpaid"].includes(status)) ||
+      (e.after_state?.cancel_at_period_end === true &&
+        e.before_state?.cancel_at_period_end !== true))
+  )
+    return "immediate";
+  if (["commerce_orders", "square_payments", "billing_invoices"].includes(e.target_table)) {
+    if (
+      changed &&
+      [
+        "paid",
+        "failed",
+        "payment_failed",
+        "unpaid",
+        "overdue",
+        "partially_refunded",
+        "refunded",
+        "review",
+        "payment_review",
+      ].includes(status)
+    )
+      return "immediate";
+    return "history"; // Checkout creation and processor bookkeeping are not customer actions.
+  }
+  if (
+    ["credit_grants", "credit_uses", "contractor_earnings", "booking_participants"].includes(
+      e.target_table,
+    )
+  )
+    return "history";
+  return "daily";
+}
+
+// Local calendar dates keep the digest at 8 AM across daylight-saving changes.
+export function digestDay(now: Date): string | null {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/Chicago",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    hourCycle: "h23",
+  }).formatToParts(now);
+  const part = (name: string) => parts.find((p) => p.type === name)!.value;
+  return Number(part("hour")) >= 8 ? `${part("year")}-${part("month")}-${part("day")}` : null;
+}
+
+export async function batchDailySiteAlerts(sql: Sql, origin: string, now = new Date()) {
+  const day = digestDay(now);
+  if (!day) return 0;
+  return sql.transaction(async (tx) => {
+    // Drain older unclassified work before claiming today's summary (including concurrent batches).
+    const waiting = await tx`select q.id from site_alert_events q join audit_events a on a.id=q.id
+      where q.audience='owners' and q.batched_at is null
+      and a.created_at < ((${day}::date + time '08:00') at time zone 'America/Chicago') limit 1`;
+    if (waiting.length) return 0;
+    // A durable date claim and deliveries commit together; concurrent workers/retries cannot duplicate a digest.
+    const claimed =
+      await tx`insert into site_alert_digest_runs(day) values(${day}::date) on conflict do nothing returning day`;
+    if (!claimed.length) return 0;
+    const events =
+      await tx<Event>`select a.* from site_alert_events q join audit_events a on a.id=q.id
+      where q.audience='daily' and q.batched_at is null
+      and a.created_at < ((${day}::date + time '08:00') at time zone 'America/Chicago')
+      order by q.id for update of q`;
+    if (!events.length) return 0;
+    const counts = new Map<string, number>();
+    for (const e of events) {
+      const label = labels[e.target_table] || "Site record";
+      counts.set(label, (counts.get(label) || 0) + 1);
+    }
+    const body = `Routine site activity — ${day}\n\n${[...counts].map(([label, count]) => `${label}: ${count} update${count === 1 ? "" : "s"}`).join("\n")}\n\nCustomer alerts are sent separately. Background sync updates remain in admin history.\nReview details: ${origin}/office`;
+    for (const r of await owners(tx))
+      await addDelivery(
+        tx,
+        `daily:${day}:${r.email}`,
+        r.email,
+        "owners",
+        "Prospects Sports Academy — daily site summary",
+        body,
+      );
+    await tx`update site_alert_events set batched_at=now() where id=any(${events.map((e) => e.id)}::bigint[])`;
+    return events.length;
+  });
+}
+
 export function activityLine(e: Event) {
   const when = new Date(e.created_at).toLocaleString("en-US", {
     timeZone: "America/Chicago",
@@ -79,12 +183,20 @@ export async function batchSiteAlerts(sql: Sql, origin: string) {
   return sql.transaction(async (tx) => {
     const recipients = await owners(tx);
     const events =
-      await tx<Event>`select a.* from site_alert_events q join audit_events a on a.id=q.id where q.batched_at is null order by q.id limit 50 for update of q skip locked`;
+      await tx<Event>`select a.* from site_alert_events q join audit_events a on a.id=q.id where q.batched_at is null and q.audience='owners' order by q.id limit 500 for update of q skip locked`;
     if (!events.length) return 0;
     const batch = randomUUID();
     // Summaries omit raw form bodies, credentials, medical details, and private coaching notes.
     const lines: string[] = [];
+    const completed: number[] = [];
     for (const e of events) {
+      const priority = alertPriority(e);
+      if (priority === "daily") {
+        await tx`update site_alert_events set audience='daily' where id=${e.id}`;
+        continue;
+      }
+      completed.push(e.id);
+      if (priority === "history") continue;
       let line = activityLine(e);
       if (e.target_table === "club_requests") {
         const [r] = await tx<{
@@ -127,21 +239,22 @@ export async function batchSiteAlerts(sql: Sql, origin: string) {
         }
       }
     }
-    const subject = `Prospects Sports Academy — ${events.length} site activity update${events.length === 1 ? "" : "s"}`;
-    const body = `Saved site activity:\n\n${lines.join("\n\n")}\n\nReview details: ${origin}/office`;
-    for (const r of recipients)
+    const subject = `Prospects Sports Academy — ${lines.length} customer alert${lines.length === 1 ? "" : "s"}`;
+    const body = `Customer activity:\n\n${lines.join("\n\n")}\n\nReview details: ${origin}/office`;
+    for (const r of lines.length ? recipients : [])
       await addDelivery(tx, `activity:${batch}:${r.email}`, r.email, "owners", subject, body);
-    await tx`update site_alert_events set batched_at=now() where id=any(${events.map((e) => e.id)}::bigint[])`;
+    await tx`update site_alert_events set batched_at=now() where id=any(${completed}::bigint[])`;
     return events.length;
   });
 }
 export async function deliverSiteAlerts(
   sql: Sql,
-  config: { key: string; from: string; origin: string; production: boolean },
+  config: { key: string; from: string; origin: string; production: boolean; now?: Date },
   send: typeof fetch = fetch,
 ) {
   if (!config.production) return [];
   await batchSiteAlerts(sql, config.origin);
+  await batchDailySiteAlerts(sql, config.origin, config.now);
   const pending = await sql<{
     id: string;
     recipient: string;
@@ -260,7 +373,7 @@ export async function testSiteAlerts(userId: string) {
       r.audience,
       "TEST — Prospects Sports Academy site alerts",
       r.audience === "owners"
-        ? "Your owner site-activity alerts are enabled. New saved business activity is checked every minute. This is a delivery test; no booking or payment was created."
+        ? "Your customer alerts are enabled and checked every minute. Routine changes are summarized daily at 8 AM Central; background sync updates stay in admin history. This is a delivery test; no booking or payment was created."
         : "Your cage-booking alerts are enabled. New paid cage bookings will include the date, time and lanes. This is a delivery test; no booking or payment was created.",
     );
   await flushSiteAlerts();
