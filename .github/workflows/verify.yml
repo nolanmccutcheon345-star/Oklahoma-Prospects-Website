@@ -34,7 +34,9 @@ jobs:
       - run: npm run build
         env:
           NETLIFY: "true"
-          CONTEXT: deploy-preview
+          # This is an offline synthetic build, not a hosted Netlify preview.
+          # Actual preview builds receive SITE_ID and DEPLOY_PRIME_URL from Netlify.
+          CONTEXT: dev
           SQUARE_LIVE_ENABLED: "false"
           SQUARE_ENVIRONMENT: sandbox
       - run: npm run verify:build
