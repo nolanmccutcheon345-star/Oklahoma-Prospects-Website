@@ -81,10 +81,41 @@ Additive migration: `migrations/0056_guided_lesson_sessions.sql` and generated N
 
 The exception report identifies possible legacy fielding/pitching conflicts using lesson context plus same-day bullpen records, and changed booking associations after a draft starts. These are **candidates, not proven errors**. The production count is unknown until an authorized read-only scan is reviewed. No automatic historical correction is provided.
 
+## Continuation verification — October 12
+
+Recovered the uncommitted full-application test improvements from the original working chat and added them to this branch. CI now explicitly uses `LESSON_FULL_APP=true`; the disposable database is exposed through a loopback PostgreSQL socket so the real authentication configuration guard remains intact. No production authentication bypass was added.
+
+- Original commit `aa7e905` passed GitHub verification run 38313869188: typecheck, all regression tests, lint, audit, build, built-server smoke and component walkthrough.
+- The recovered full-application evidence contains six passing login → instructor desk → guided lesson → save → reload → complete cases, with zero browser errors. Its mobile hitting-tracker and completed softball-session screenshots were visually reviewed during continuation.
+- Rebuilt recovered source and reran typecheck and built-server smoke successfully.
+- Re-ran hosted preview HTTP/security/anonymous-session checks successfully at `https://deploy-preview-197--oklahoma-prospects.netlify.app`.
+- Independently verified different PostgreSQL destination fingerprints for production and preview. This alone does not certify preview permissions, payment isolation or authenticated hosted workflows.
+- A fresh local browser rerun could not start because the carried-over browser executable is empty and the browser download is unavailable in this environment. The recovered evidence is labeled as such; the updated GitHub workflow must pass on the new commit before this gate is closed.
+
+The six full-application cases still use a disposable database and intercepted browser transport into the actual built Netlify handler. They are not an authenticated walkthrough of the hosted preview. Family history UI, checkout UI, live catalog coverage and historical exception review remain outstanding.
+
+### Curriculum review requested by the user's directive
+
+No qualified coaching approval is recorded. Review the versioned template content in `src/lib/pd/lesson-templates.ts` and the existing reused drills before release:
+
+| Content | Required review |
+|---|---|
+| Baseball pitching | Preparation, command activities, age/experience suitability and workload/rest handling |
+| Softball windmill pitching | Underhand circle, stride/release and target drills; softball-specific workload and prerequisites |
+| Hitting, catching and fielding | Sport-specific cues, protection, suitable challenge and observable outcomes |
+| Strength/speed | Movement selection, supervision, recovery and progression prerequisites |
+| All 75-minute variants | Baseline, focused coaching, recovery and comparable reassessment; timing must not imply continuous throwing |
+
+Record reviewer, qualification/role, template version, date and required changes. Technical test results are not coaching approval.
+
+### Master expansion V2 scope
+
+The later Master Expansion Directive V2 is not implemented by this repair. This branch has one generated template per sport/discipline/duration combination (30 combinations), not three differentiated selectable approaches per combination. Expanded authored drills, multiweek program assignment, instructor customization and the complete parent-to-instructor practice loop remain to be implemented in the requested phases after the foundation gates. Do not count the repair as completion of that expansion.
+
 ## Remaining release gates and limitations
 
 1. Full regression now passes. Updated stale navigation/age/copy assertions and incomplete test fixtures, and added explicit submit types to five existing form actions. Player-account fixtures use explicit `person_player_links`, without relaxing access rules. Generated test bundles are excluded from lint; source remains checked. Review these supporting repairs alongside the lesson changes.
-2. The attempted built-application login walkthrough stops at the production authentication configuration guard because the disposable environment has no configured production account database. That guard was not weakened. Confirm an isolated hosted preview database and complete the full application route/middleware walkthrough, including checkout selection, instructor desk entry and family history. The browser component test is strong workflow evidence, not a substitute for that gate.
+2. The recovered built-application login/instructor lesson walkthrough now passes with a disposable PostgreSQL socket and unchanged authentication guard. Confirm the updated CI run, then complete authenticated hosted preview validation including checkout selection and family history. Database destination isolation and read-only hosted checks have passed; they do not replace authenticated role walkthroughs.
 3. Review the live catalog coverage and new coaching curriculum. No active service is automatically reconfigured by this release.
 4. Run and review the production historical exception report read-only. Preserve original records and use a separately reviewed correction for any confirmed anomaly.
 5. Drafts whose booking is reassigned/rescheduled after initialization fail closed and retain their original snapshot. They require explicit admin exception review; this release does not silently migrate their saved tracking to a changed appointment.

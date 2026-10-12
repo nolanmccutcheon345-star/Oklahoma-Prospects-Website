@@ -43,6 +43,7 @@ jobs:
         run: npm run test:guided:browser
         env:
           NETLIFY: "true"
+          LESSON_FULL_APP: "true"
           LESSON_SCREENSHOT_DIR: artifacts/guided-lessons
       - uses: actions/upload-artifact@v4
         if: always()

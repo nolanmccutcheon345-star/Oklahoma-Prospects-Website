@@ -1,11 +1,13 @@
-// Authenticated Chromium walkthrough: actual React lesson component, Better Auth and
-// migrated disposable PostgreSQL. Only HTTP/server-function transport is bridged.
+// Authenticated Chromium walkthrough with disposable migrated PostgreSQL.
+// LESSON_FULL_APP=true exercises the built Netlify handler, real login and instructor desk.
+// The default mode exercises the lesson component with bridged server-function transport.
 import test from "node:test";
 import assert from "node:assert/strict";
 import { build } from "esbuild";
 import { chromium } from "playwright";
 import { readFile, readdir, mkdir, writeFile } from "node:fs/promises";
-import {resolve,extname} from "node:path";
+import { resolve, extname } from "node:path";
+import { PGLiteSocketServer } from "@electric-sql/pglite-socket";
 import { randomBytes } from "node:crypto";
 import { auditHarness } from "./audit-support.mjs";
 
@@ -13,9 +15,10 @@ test("authenticated instructor walkthrough: both sports, 30/60/75, durable draft
   const h = await auditHarness(),
     { api, sql, state, base } = h;
   let browser, page;
-  const fullApp=process.env.LESSON_FULL_APP==="true";
-  const previousDb={sql:globalThis.__pgSqlPromise__,pg:globalThis.__pgliteInstance__};
-  let appHandler;
+  const fullApp = process.env.LESSON_FULL_APP === "true";
+  const previousDb = { sql: globalThis.__pgSqlPromise__, pg: globalThis.__pgliteInstance__ };
+  let appHandler, socketServer;
+  const originalDatabaseUrl = process.env.DATABASE_URL;
   const password = randomBytes(24).toString("base64url");
   const screenshots = process.env.LESSON_SCREENSHOT_DIR || "/workspace/screenshots/guided-lessons";
   await mkdir(screenshots, { recursive: true });
@@ -93,10 +96,20 @@ test("authenticated instructor walkthrough: both sports, 30/60/75, durable draft
         },
       ],
     });
-    if(fullApp){
+    if (fullApp) {
       await sql`insert into person_profiles(user_id,instructor,profile) values(${userId},true,'{}')`;
-      globalThis.__pgSqlPromise__=Promise.resolve(sql);globalThis.__pgliteInstance__=Promise.resolve(h.db);
-      appHandler=(await import('../.netlify/v1/functions/server.mjs')).default;
+      globalThis.__pgSqlPromise__ = Promise.resolve(sql);
+      globalThis.__pgliteInstance__ = Promise.resolve(h.db);
+      socketServer = new PGLiteSocketServer({
+        db: h.db,
+        host: "127.0.0.1",
+        port: 0,
+        maxConnections: 20,
+      });
+      await socketServer.start();
+      process.env.DATABASE_URL =
+        "postgresql://postgres@" + socketServer.getServerConn() + "/postgres";
+      appHandler = (await import("../.netlify/v1/functions/server.mjs")).default;
     }
     const assets = process.env.NETLIFY ? "dist/client/assets" : ".vercel/output/static/assets";
     const css = (
@@ -126,17 +139,48 @@ test("authenticated instructor walkthrough: both sports, 30/60/75, durable draft
     page = testPage;
     page.setDefaultTimeout(10000);
     page.on("pageerror", (e) => errors.push(e.message));
+    page.on("response", (r) => {
+      if (r.status() >= 400 && /\.(css|js|woff2)(\?|$)/.test(r.url()))
+        errors.push(`Asset failed: ${r.status()} ${new URL(r.url()).pathname}`);
+    });
     await page.route("**/*", async (route) => {
       const req = route.request(),
         url = new URL(req.url());
       if (url.origin !== base) return route.abort();
-      if(fullApp){
-        const root=resolve('dist/client'),path=resolve(root,'.'+url.pathname);
-        if(path.startsWith(root+'/')){try{const body=await readFile(path);const mime={'.js':'application/javascript','.css':'text/css','.png':'image/png','.svg':'image/svg+xml','.woff2':'font/woff2','.ico':'image/x-icon'}[extname(path)]||'application/octet-stream';return route.fulfill({contentType:mime,body});}catch{/* The actual application handles non-static routes. */}}
-        const request=new Request(req.url(),{method:req.method(),headers:await req.allHeaders(),...(!['GET','HEAD'].includes(req.method())?{body:req.postDataBuffer()}: {})});
-        const response=await appHandler(request);
-        const headers=Object.fromEntries(response.headers);if(response.headers.getSetCookie().length)headers['set-cookie']=response.headers.getSetCookie().join('\n');
-        return route.fulfill({status:response.status,headers,body:Buffer.from(await response.arrayBuffer())});
+      if (fullApp) {
+        const root = resolve("dist/client"),
+          path = resolve(root, "." + url.pathname);
+        if (path.startsWith(root + "/")) {
+          try {
+            const body = await readFile(path);
+            const mime =
+              {
+                ".js": "application/javascript",
+                ".css": "text/css",
+                ".png": "image/png",
+                ".svg": "image/svg+xml",
+                ".woff2": "font/woff2",
+                ".ico": "image/x-icon",
+              }[extname(path)] || "application/octet-stream";
+            return route.fulfill({ contentType: mime, body });
+          } catch {
+            /* The actual application handles non-static routes. */
+          }
+        }
+        const request = new Request(req.url(), {
+          method: req.method(),
+          headers: { ...(await req.allHeaders()), "x-nf-client-connection-ip": "192.0.2.1" },
+          ...(!["GET", "HEAD"].includes(req.method()) ? { body: req.postDataBuffer() } : {}),
+        });
+        const response = await appHandler(request);
+        const headers = Object.fromEntries(response.headers);
+        if (response.headers.getSetCookie().length)
+          headers["set-cookie"] = response.headers.getSetCookie().join("\n");
+        return route.fulfill({
+          status: response.status,
+          headers,
+          body: Buffer.from(await response.arrayBuffer()),
+        });
       }
       if (url.pathname === "/app.js")
         return route.fulfill({
@@ -191,15 +235,28 @@ test("authenticated instructor walkthrough: both sports, 30/60/75, durable draft
     let authenticated = false;
     for (const [sport, , discipline, minutes] of cases) {
       const id = sport + minutes;
-      await page.goto(fullApp?base+"/login?next=%2Finstructor":base + "/?booking=" + id);
+      await page.goto(fullApp ? base + "/login?next=%2Finstructor" : base + "/?booking=" + id);
       if (!authenticated) {
-        await page.getByLabel(/^Email/).first().fill("instructor@audit.example.invalid");
-        await page.getByLabel(/^Password/).first().fill(password);
+        await page
+          .getByLabel(/^Email/)
+          .first()
+          .fill("instructor@audit.example.invalid");
+        await page
+          .getByLabel(/^Password/)
+          .first()
+          .fill(password);
         await page.getByRole("button", { name: "Sign in", exact: true }).click();
-        if(fullApp)await page.getByRole("heading",{name:"Instructor workspace",exact:true}).waitFor();
+        if (fullApp)
+          await page.getByRole("heading", { name: "Instructor workspace", exact: true }).waitFor();
         authenticated = true;
       }
-      if(fullApp){await page.goto(base+'/instructor');await page.locator(`[data-booking-id="${id}"]`).getByRole('button',{name:'Open guided lesson',exact:true}).click();}
+      if (fullApp) {
+        await page.goto(base + "/instructor");
+        await page
+          .locator(`[data-booking-id="${id}"]`)
+          .getByRole("button", { name: "Open guided lesson", exact: true })
+          .click();
+      }
       await page.getByRole("heading", { name: "Guided lesson", exact: true }).waitFor();
       await page.getByLabel(/^Attendance/).selectOption("present");
       await page.getByLabel(/^Readiness/).selectOption("ready");
@@ -244,7 +301,10 @@ test("authenticated instructor walkthrough: both sports, 30/60/75, durable draft
           await page
             .getByRole("heading", { name: discipline + " practice tracker" })
             .scrollIntoViewIfNeeded();
-          await page.screenshot({ path: screenshots + "/" + id + "-tracking.png", fullPage: true });
+          await page.screenshot({
+            path: screenshots + "/" + id + "-tracking.png",
+            fullPage: false,
+          });
         }
         if (i === 7) {
           await page
@@ -261,8 +321,17 @@ test("authenticated instructor walkthrough: both sports, 30/60/75, durable draft
       await page.getByRole("button", { name: "Save Draft", exact: true }).click();
       await page.getByRole("status").filter({ hasText: "Draft saved" }).waitFor();
       await page.reload();
-      if(fullApp)await page.locator(`[data-booking-id="${id}"]`).getByRole('button',{name:'Open guided lesson',exact:true}).click();
+      if (fullApp)
+        await page
+          .locator(`[data-booking-id="${id}"]`)
+          .getByRole("button", { name: "Open guided lesson", exact: true })
+          .click();
       await page.getByLabel("Family recap", { exact: true }).waitFor();
+      assert.equal(
+        await page.getByRole("dialog").evaluate((el) => getComputedStyle(el).position),
+        "fixed",
+        "Built CSS must style the lesson overlay",
+      );
       assert.match(await page.getByLabel("Family recap", { exact: true }).inputValue(), /improved/);
       await page.getByRole("button", { name: "Publish & Complete Session", exact: true }).click();
       await page.getByRole("status").filter({ hasText: "Session completed" }).waitFor();
@@ -275,7 +344,7 @@ test("authenticated instructor walkthrough: both sports, 30/60/75, durable draft
         await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
       );
       await page.getByRole("dialog").evaluate((el) => (el.scrollTop = 0));
-      await page.screenshot({ path: screenshots + "/" + id + "-completed.png", fullPage: true });
+      await page.screenshot({ path: screenshots + "/" + id + "-completed.png", fullPage: false });
     }
     assert.deepEqual(errors, []);
     assert.equal((await sql`select * from recruiting_metrics`).length, 0);
@@ -291,8 +360,9 @@ test("authenticated instructor walkthrough: both sports, 30/60/75, durable draft
             result: "pass",
           })),
           browserErrors: errors,
-          scope: fullApp ? "Built Netlify application: real login route, instructor desk, TanStack server-function transport and middleware, booking lesson UI, injected disposable migrated PostgreSQL. No external providers or production records." :
-            "Actual lesson React component + Better Auth + disposable migrated DB. HTTP server-function transport bridged; recruiting action not exercised.",
+          scope: fullApp
+            ? "Built Netlify application: real login route, instructor desk, TanStack server-function transport and middleware, booking lesson UI, injected disposable migrated PostgreSQL. No external providers or production records."
+            : "Actual lesson React component + Better Auth + disposable migrated DB. HTTP server-function transport bridged; recruiting action not exercised.",
         },
         null,
         2,
@@ -301,12 +371,28 @@ test("authenticated instructor walkthrough: both sports, 30/60/75, durable draft
   } catch (e) {
     if (page) {
       console.error((await page.locator("body").innerText()).slice(0, 2500));
-      await page.screenshot({ path: screenshots + "/failure.png", fullPage: true });
+      await page.screenshot({ path: screenshots + "/failure.png", fullPage: false });
     }
     throw e;
   } finally {
     await browser?.close();
-    globalThis.__pgSqlPromise__=previousDb.sql;globalThis.__pgliteInstance__=previousDb.pg;
+    globalThis.__pgSqlPromise__ = previousDb.sql;
+    globalThis.__pgliteInstance__ = previousDb.pg;
+    // Let the real pg pool expire idle clients before closing its disposable server.
+    // Closing the server first makes pg report an unrelated teardown connection error.
+    if (socketServer) {
+      const deadline = Date.now() + 15000;
+      while (socketServer.getStats().activeConnections && Date.now() < deadline)
+        await new Promise((r) => setTimeout(r, 100));
+      assert.equal(
+        socketServer.getStats().activeConnections,
+        0,
+        "Auth database connections must drain cleanly",
+      );
+      await socketServer.stop();
+    }
+    if (originalDatabaseUrl === undefined) delete process.env.DATABASE_URL;
+    else process.env.DATABASE_URL = originalDatabaseUrl;
     await h.close();
   }
 });
