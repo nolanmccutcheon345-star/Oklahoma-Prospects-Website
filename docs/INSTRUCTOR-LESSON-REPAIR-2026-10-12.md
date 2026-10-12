@@ -184,3 +184,21 @@ The audit harness refuses external database and payment/email credentials. CI in
 - `src/routes/instructors.tsx`
 - `src/routes/pay.tsx`
 - `docs/lesson-system-evidence/`: 12 synthetic workflow screenshots, walkthrough JSON and seeded coverage JSON.
+
+
+## Hosted continuation findings
+
+- Recovered full-application CI commit `04d0d642` passed run **38316408166**: all **870 regression tests**, typecheck, lint, audit, build, built-server smoke, and all six authenticated full-application lesson scenarios (`LESSON_FULL_APP=true`). This resolves the fresh full-application rerun gate discussed above.
+- Hosted preview login initially returned **Invalid origin**. Commit `9170aba9` fixes this by capturing the exact trusted Prospects deploy-preview origin at build time and setting the authentication base before importing the application. Other sites, credentials in URLs, paths, query strings, HTTP origins and production contexts are excluded. Three adapter/origin tests pass, as do local build and built-server smoke.
+- The corrected Netlify preview deployment is **6acd5ed62f749186bfa09f0f**. Actual secure sign-in then opened the instructor workspace successfully. No production deployment occurred.
+- Opening the existing unstarted preview booking correctly displayed the missing booked-sport/original-service-configuration guard and requested an explicit admin review. No sport was inferred and no resolution or completion was submitted.
+- The authenticated preview's read-only report showed **30 covered service/sport rows** across **15 scheduled lesson services**, plus two separate remote-video-review rows. It reported **zero historical candidates and zero changed-booking exceptions in the preview copy**. This is not a fresh scan of production.
+- The live production Services & Pricing screen was inspected read-only. It showed the same 15 scheduled lesson offerings plus remote video review. This confirms the visible names/durations; the structured configuration report above was run only against the preview.
+- A [coach-review packet](lesson-system-evidence/curriculum-review.md) now lists the implemented content for all 30 template combinations at age 12 / level 1. It is explicitly unapproved and does not certify every age/experience adaptation.
+
+Still required: final code-commit CI result, hosted synthetic instructor/family/checkout workflows with isolated providers, a fresh production read-only exception/configuration review, qualified coaching approval, and independent release review. Master Expansion V2 remains separate and unimplemented. Do not promote this draft release or treat its foundation as the completed expansion.
+
+
+### Latest verification state
+
+The preview-origin code commit `9170aba9` passed **872/872 tests**, typecheck, lint and dependency audit in run **38316776503**. Its GitHub build then correctly rejected missing Netlify site identity because the offline workflow incorrectly labeled itself `deploy-preview`. Commit `27092988` changes only that offline build context to `dev`; real Netlify previews retain strict identity/origin validation. The exact corrected local CI build and built-server smoke pass. GitHub run **38317662458** is the final rerun and was still in progress when this report was saved. No failed or pending check is being counted as passed.
