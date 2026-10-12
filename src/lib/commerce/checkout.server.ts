@@ -129,6 +129,10 @@ export async function quoteForRequest(
     );
   if (quote.needsSlot && quote.kind !== "cage") {
     const spaceProduct = checkoutLessonService(quote);
+    const [savedService] = await sql<import('./contracts').Product & {lesson_version:number}>`select * from club_services where id=${spaceProduct} and kind='lesson'`;
+    const [playerSport] = await sql<{profile:{sport?:string;sports?:string[]}}>`select profile from club_athletes where id=${athleteId}`;
+    const sport = input.sport || ((playerSport?.profile?.sports?.length || 0)<=1 ? playerSport?.profile?.sport : undefined);
+    quote.lessonConfig = {service:savedService,sport:sport==='baseball'||sport==='softball'?sport:null,source:'checkout-quote'};
     await requireCoachService(sql, file.coaches, input.coachId, spaceProduct);
     const { lessonResources } = await import("./operations.server");
     quote.resources = [`coach:${input.coachId}`, ...(await lessonResources(spaceProduct, sql))];

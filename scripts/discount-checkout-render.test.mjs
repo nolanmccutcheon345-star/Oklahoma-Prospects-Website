@@ -104,6 +104,7 @@ test("checkout displays applied savings, rejects stale results, and sends only t
   };
   globalThis.__discountUiFixture = fixture;
   const mocks = {
+    "@/components/commerce/player-birthdays": `export const PlayerBirthdays=()=>null;`,
     "@tanstack/react-router": `import {createElement} from 'react'; export const createFileRoute=()=>options=>({...options,useSearch:()=>globalThis.__discountUiFixture.search}); export const Link=({children,...props})=>createElement('a',null,children);`,
     "@/lib/auth/use-current-user": `export const useCurrentUser=()=>globalThis.__discountUiFixture.user;`,
     "@/lib/commerce/api": `export const getCheckoutContext=(...a)=>globalThis.__discountUiFixture.context(...a); export const getCheckoutQuote=(...a)=>globalThis.__discountUiFixture.quote(...a); export const startCheckout=(...a)=>globalThis.__discountUiFixture.start(...a); export const submitSquarePayment=()=>{throw new Error('No real payments in fixture')};`,

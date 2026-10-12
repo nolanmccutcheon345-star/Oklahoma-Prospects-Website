@@ -23,6 +23,8 @@ export async function holdWindow(
     userId: string | null;
     athleteId: string | null;
     coachId?: string;
+    lessonSport?: "baseball"|"softball";
+    lessonConfig?: Record<string,unknown>;
     productId: string;
     start: Date;
     end: Date;
@@ -60,8 +62,8 @@ export async function createPaidBooking(sql: Sql, input: Parameters<typeof holdW
     return null;
   const id = randomUUID();
   const resources = [...new Set([...input.resources, ...(input.athleteId ? [`athlete:${input.athleteId}`] : [])])].sort();
-  await sql`insert into booking_records(id,order_id,user_id,athlete_id,coach_id,product_id,starts_at,ends_at,resources,participant_count,participants_verified,status)
-    values(${id},${input.orderId},${input.userId},${input.athleteId},${input.coachId || null},${input.productId},${input.start.toISOString()},${input.end.toISOString()},${JSON.stringify(resources)}::jsonb,${input.participantCount || 1},${Boolean(input.athleteId)},'confirmed')`;
+  await sql`insert into booking_records(id,order_id,user_id,athlete_id,coach_id,product_id,starts_at,ends_at,resources,participant_count,participants_verified,status,lesson_sport,lesson_config)
+    values(${id},${input.orderId},${input.userId},${input.athleteId},${input.coachId || null},${input.productId},${input.start.toISOString()},${input.end.toISOString()},${JSON.stringify(resources)}::jsonb,${input.participantCount || 1},${Boolean(input.athleteId)},'confirmed',${input.lessonSport || null},${input.lessonConfig?JSON.stringify(input.lessonConfig):null}::jsonb)`;
   for (const resource of resources) {
     for (let ms = input.start.getTime(); ms < input.end.getTime(); ms += 300_000) {
       const inserted = await sql`insert into booking_occupancy(resource_id,slot_at,booking_id) values(${resource},${new Date(ms).toISOString()},${id}) on conflict do nothing returning booking_id`;

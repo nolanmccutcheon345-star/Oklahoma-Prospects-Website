@@ -45,18 +45,19 @@ test('coach booking, completion and earning desks require active assignments wit
     const oldSql=state.__pgSqlPromise__,oldUrl=process.env.DATABASE_URL,oldContext=process.env.CONTEXT;
     try {
       process.env.DATABASE_URL='postgresql://unused.invalid/disposable';process.env.CONTEXT='dev';state.__pgSqlPromise__=Promise.resolve(sql);
-      const {coachBookings,completeSession}=await import('./commerce/portal.server');
+      const {coachBookings}=await import('./commerce/portal.server');
+      const {openLessonSession}=await import('./pd/lesson-session.server');
       const {earnings}=await import('./commerce/operations.server');
       await sql`insert into commerce_orders(id,request_key,user_id,email,athlete_id,product_id,kind,snapshot,total_cents,status) values('order','order','parent','parent@example.invalid','athlete','s1','lesson','{"discipline":"Pitching"}',14900,'paid')`;
       await sql`insert into booking_records(id,order_id,user_id,athlete_id,coach_id,product_id,starts_at,ends_at,resources,status) values('assigned','order','parent','athlete','coach-record','s1','2026-01-01T18:00:00Z','2026-01-01T19:15:00Z','[]','confirmed'),('unassigned','order','parent','athlete','','s1','2026-01-02T18:00:00Z','2026-01-02T19:15:00Z','[]','confirmed')`;
       await sql`insert into contractor_earnings(booking_id,coach_id,gross_cents,split_pct,amount_cents,status) values('assigned','coach-record',14900,50,7450,'payable'),('unassigned','',14900,50,7450,'payable')`;
       assert.deepEqual((await coachBookings('coach')).map(b=>b.id),['assigned']);
       assert.deepEqual((await earnings('coach')).rows.map(b=>b.booking_id),['assigned']);
-      await assert.rejects(()=>completeSession('coach','unassigned','Valid synthetic recap'),/Only an assigned coach/);
+      await assert.rejects(()=>openLessonSession('coach','unassigned'),/assigned instructor/);
       full.coaches[0].active=false;await sql`update pd_working_file set payload=${JSON.stringify(full)}::jsonb where id='club'`;
       await assert.rejects(()=>coachBookings('coach'),/active coach assignment/);
       await assert.rejects(()=>earnings('coach'),/active coach assignment/);
-      await assert.rejects(()=>completeSession('coach','assigned','Valid synthetic recap'),/active coach assignment/);
+      await assert.rejects(()=>openLessonSession('coach','assigned'),/active coach assignment/);
       full.coaches=[];await sql`update pd_working_file set payload=${JSON.stringify(full)}::jsonb where id='club'`;
       await assert.rejects(()=>coachBookings('coach'),/active coach assignment/);
       await assert.rejects(()=>earnings('coach'),/active coach assignment/);

@@ -13,7 +13,7 @@ test('checkout finds next instructor opening, accepts a time, and Train uses the
  const {calculateQuote}=await import('../src/lib/commerce/contracts.ts');
  const product={id:'s1',kind:'lesson',name:'New Pitcher Assessment',price:149,minutes:75,credits:0,remote:0,expires_days:0,hours:0,discipline:'Pitching',active:true};
  const f={search:{kind:'lesson',id:'s1',instructor:'nolan'},path:'/pay',calls:[],target:'2027-01-04'};
- f.context=async()=>({products:[product],athletes:[{id:'child',name:'Test Player',assessmentComplete:false}],coaches:[{id:'nolan',name:'Test Instructor',serviceIds:['s1']}],mode:'test',square:{checkoutScope:'all'}});
+ f.context=async()=>({products:[product],athletes:[{id:'child',name:'Test Player',assessmentComplete:false}],coachAvailability:[{id:'nolan',serviceIds:['s1']}],coaches:[{id:'nolan',name:'Test Instructor',serviceIds:['s1']}],mode:'test',square:{checkoutScope:'all'}});
  f.quote=async({data})=>{f.calls.push(data);return {quote:calculateQuote(data,product,false,[],false),slots:data.date===f.target?[{value:'16:00',label:'4:00 PM'}]:[],nextAvailable:data.date===f.target?null:{date:f.target,slots:[{value:'16:00',label:'4:00 PM'}]}}};
  globalThis.__lessonUi=f;
  const mocks={
@@ -43,7 +43,7 @@ test('checkout finds next instructor opening, accepts a time, and Train uses the
  assert.ok(next);await act(async()=>next.click());await settle();assert.ok(button('4:00 PM'));
  const train=button('Train'),teams=button('Teams');assert.ok(train);assert.ok(teams);
  await act(async()=>train.click());let menu=document.querySelector('[aria-label="Train submenu"]');assert.ok(menu);
- assert.deepEqual([...menu.querySelectorAll('a')].map(a=>[a.textContent,a.getAttribute('href')]),[['Lessons','/training?view=lessons'],['Instructors','/instructors'],['Training Plans','/training?view=plans']]);
+ assert.deepEqual([...menu.querySelectorAll('a')].map(a=>[a.textContent,a.getAttribute('href')]),[['Lessons','/training?view=lessons'],['Camps','/events'],['Instructors','/instructors'],['Training Plans','/training?view=plans']]);
  await act(async()=>teams.click());assert.equal(document.querySelector('[aria-label="Train submenu"]'),null);assert.ok(document.querySelector('[aria-label="Teams submenu"]'));
  await act(async()=>train.click());await act(async()=>document.querySelector('[aria-label="Train submenu"] a').click());assert.equal(document.querySelector('[role="menu"]'),null);
  await act(async()=>train.click());await act(async()=>window.dispatchEvent(new dom.window.KeyboardEvent('keydown',{key:'Escape'})));assert.equal(document.querySelector('[role="menu"]'),null);

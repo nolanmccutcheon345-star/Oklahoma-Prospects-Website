@@ -162,7 +162,7 @@ for (const role of ["full", "po"] as const)
       }
       await assert.rejects(() => teamUniform(sql, "stranger", team.id), /Assigned team/);
       await assert.rejects(() => teamUniform(sql, "coach", "not-their-team"), /Assigned team/);
-      let coach = await feeWorkspace(sql, "coach");
+      const coach = await feeWorkspace(sql, "coach");
       assert.equal(coach.teams[0].status, "pending");
       assert.equal(coach.teams[0].choices?.uniforms[0].photos[0].caption, "Navy jersey front");
       assert.equal(coach.teams[0].private, null);

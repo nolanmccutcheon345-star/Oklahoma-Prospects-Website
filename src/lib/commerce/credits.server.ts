@@ -139,6 +139,7 @@ export async function redeemCredit(userId: string, input: Input) {
         userId,
         athleteId: grant.athlete_id || null,
         coachId: input.coachId,
+        lessonSport: input.sport,
         productId: grant.kind === "cage-minutes" ? "individual" : input.serviceId,
         ...window,
         resources,

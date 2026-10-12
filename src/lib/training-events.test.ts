@@ -103,7 +103,7 @@ test("paid camps: ownership, staff conflicts, capacity, price changes, verified 
     );
     await assert.rejects(prepareEventCheckout(sql, "parent", req("b"), "sandbox"), /full/);
     await assert.rejects(prepareEventCheckout(sql, "parent", req(), "sandbox"), /already exists/);
-    let [order] =
+    const [order] =
       await sql<SquareOrder>`select * from commerce_orders where id=${checkout.orderId}`;
     await sql.transaction((tx) => validateEventPayment(tx, order, me));
     e = await saveTrainingEvent(sql, "owner", { ...e, priceCents: 8000 }, coaches);

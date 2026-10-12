@@ -1,3 +1,4 @@
+import {LessonExceptionReport} from "../pd/booked-guided-lesson";
 import {LessonAssignments} from "./lesson-assignments";
 import {MyFinance} from "../finance/my-finance";
 import { useEffect, useState } from "react";
@@ -89,6 +90,7 @@ export function OfficeOperations({view="all"}:{view?:"all"|"bookings"|"reports"}
       {error ? <p role="alert">{error}</p> : null}
       {view!=="reports"&&<>
       <LessonAssignments />
+      <LessonExceptionReport/>
       <h3 className="text-2xl">Upcoming visits</h3>
       {data?.bookings.length === 0 ? <p>No confirmed visits in the next two weeks.</p> : null}
       {data?.bookings.map((b) => (

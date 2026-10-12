@@ -64,6 +64,7 @@ test('isolated full account and lesson journey through real server commands',asy
    player=await fixtureUser('audit-player','player','Audit Athlete');
    const me=await api.clubIdentity(parent);
    await sql`insert into household_members(household_id,user_id) values(${me.billingHouseholdIds[0]},${player})`;
+   await sql`insert into person_player_links(user_id,player_id) values(${player},${athlete})`;
    const desk=await api.loadDeskForUser(coach);coachId=desk.data.coaches.find(c=>c.email==='audit-coach@audit.example.invalid').id;
    await sql`insert into club_staff(id,user_id,name,email,role) values('audit-staff',${coach},'Audit Coach','audit-coach@audit.example.invalid','coach')`;
    await sql`insert into club_staff_services(staff_id,service_id,profit_split) values('audit-staff','s1',60),('audit-staff','s2',60)`;
@@ -94,12 +95,14 @@ test('isolated full account and lesson journey through real server commands',asy
    assert.equal((await api.loadAthleteForUser(coach,athlete)).ok,true);
   });
   await t.test('only assigned coach can complete after the end; first completion records one assessment and one earning',async()=>{
-   await assert.rejects(api.completeSession(coach,booking,'Too early'),/after it ends/);
+   await assert.rejects(api.completeSession(coach,booking,'Old path'),/guided lesson/);
    await assert.rejects(api.completeSession(parent,booking,'Forged'),/Coach access/);
    // Advance this isolated fixture to an ended session, retaining five-minute alignment.
-   await sql`update booking_records set starts_at=date_trunc('hour',now())-interval '2 hours',ends_at=date_trunc('hour',now())-interval '1 hour' where id=${booking}`;
-   assert.equal((await api.completeSession(coach,booking,'Audit assessment completed')).assessmentCompleted,true);
-   await api.completeSession(coach,booking,'Retry must not overwrite');
+   await sql`update booking_records set starts_at=date_trunc('hour',now())-interval '2 hours',ends_at=date_trunc('hour',now())-interval '45 minutes' where id=${booking}`;
+   const opened=await api.openLessonSession(coach,booking);
+   const document={...opened.session.document,attendance:'present',readiness:'ready',familyRecap:'Audit assessment completed',homework:'Review safe practice plan.',nextSteps:'Next lesson',overrideReason:'Assessment observations documented in stage notes.',stageNotes:Array(8).fill('Assessment completed and documented.')};
+   const completion={bookingId:booking,revision:1,document,complete:true};
+   await api.saveLessonSession(coach,completion);await api.saveLessonSession(coach,completion);
    assert.equal((await sql`select * from athlete_assessments where athlete_id=${athlete}`).length,1);
    const earning=(await sql`select * from contractor_earnings where booking_id=${booking}`)[0];
    assert.equal(earning.amount_cents,9240);assert.equal(earning.status,'payable');

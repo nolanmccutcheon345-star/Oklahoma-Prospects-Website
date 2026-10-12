@@ -1,14 +1,10 @@
-import assert from "node:assert/strict";
-import test from "node:test";
-import { readFileSync } from "node:fs";
-
-test("unified tryout form gets published events from route loader and avoids season name guesswork",()=>{
- const route=readFileSync("src/routes/tryouts.tsx","utf8");
- const form=readFileSync("src/components/inquiry-form.tsx","utf8");
- assert.match(route,/publishedEvents=\{events\}/);
- assert.match(form,/publishedTryoutSeasons\(publishedEvents, values\.sport, values\.age\)/);
- assert.match(form,/Choose a published tryout season/);
- assert.match(form,/No group date is published for this sport and age/);
- assert.match(form,/age: nextAge, season: "", preferredTeamId/);
- assert.match(form,/autoEnroll: false,\s*season: "",\s*session:/);
+import test from'node:test';import assert from'node:assert/strict';import{withRendered}from'./render-component-support.mjs';
+test('scheduled tryout choice uses published sport, season and ages; switching sports clears selection',async()=>{
+ const events=[{id:'baseball',sport:'Baseball',season:'Spring 2027',ageGroups:['12U'],date:'2027-01-09',startTime:'13:00',endTime:'14:00',location:'Test Facility'},{id:'softball',sport:'Softball',season:'Summer 2027',ageGroups:['14U'],date:'2027-01-10',startTime:'13:00',endTime:'14:00',location:'Test Field'}];
+ await withRendered('src/components/inquiry-form.tsx','TryoutForm',{publishedEvents:events,initialEventId:'baseball'},{'@/lib/portal-api':'export const sendInquiry=async()=>{throw Error("No requests sent by this test")};','@/lib/tryout-events-api':'export const getPublicTryoutTeams=async()=>[];'},async({host,act,change})=>{
+ const select=label=>[...host.querySelectorAll('label')].find(l=>l.textContent.trim().startsWith(label))?.querySelector('select');
+ assert.equal(select('Scheduled tryout').value,'baseball');assert.deepEqual([...select('Age group').options].map(o=>o.value),['','12U']);assert.match(host.textContent,/Spring 2027/);assert.match(host.textContent,/Season is set by the published event/);assert.equal(host.querySelector('input[type="checkbox"]').checked,false);
+ await change(select('Sport'),'Softball');assert.equal(select('Scheduled tryout').value,'');assert.deepEqual([...select('Scheduled tryout').options].map(o=>o.value),['','softball']);await change(select('Scheduled tryout'),'softball');assert.match(host.textContent,/Summer 2027/);assert.equal(select('Age group').value,'14U');
+ await act(async()=>host.querySelector('input[value="individual"]').click());assert.equal(select('Scheduled tryout'),undefined);assert.ok([...host.querySelectorAll('label')].some(l=>l.textContent.includes('Preferred season')));
+ });
 });

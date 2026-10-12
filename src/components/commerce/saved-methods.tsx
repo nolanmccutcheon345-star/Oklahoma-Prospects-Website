@@ -52,7 +52,7 @@ export function SavedMethods() {
                   <input type="checkbox" required />I authorize this card as my primary renewal
                   payment method.
                 </label>
-                <Button disabled={busy}>Make backup primary</Button>
+                <Button type="submit" disabled={busy}>Make backup primary</Button>
               </form>
             </>
           )}

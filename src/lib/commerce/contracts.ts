@@ -9,6 +9,7 @@ export const checkoutInput = z
     productId: z.string().trim().min(1).max(80),
     kind: z.enum(["lesson", "package", "membership", "cage", "cage-plan"]),
     athleteId: z.string().max(100).optional(),
+    sport: z.enum(["baseball","softball"]).optional(),
     coachId: z.string().max(100).optional(),
     date: z.string().max(10).optional(),
     time: z.string().max(5).optional(),
@@ -39,7 +40,9 @@ export type Product = {
   discipline: string;
   active: boolean;
 };
+export type BookedServiceConfig = {service:Product & {lesson_version:number};sport:'baseball'|'softball'|null;source:string;capturedAt?:string};
 export type Quote = {
+  lessonConfig?: BookedServiceConfig;
   productId: string;
   kind: string;
   title: string;

@@ -201,13 +201,15 @@ export async function coachBookings(userId: string) {
 }
 export const sessionCompletionInput=z.object({id:z.string().trim().min(1).max(150),notes:z.string().trim().min(5).max(5000)}).strict();
 export async function completeSession(userId: string, bookingId: string, notes: string) {
-  const input=sessionCompletionInput.parse({id:bookingId,notes});bookingId=input.id;notes=input.notes;
+  sessionCompletionInput.parse({id:bookingId,notes});
   const me = await staffIdentity(userId);
   if (me.role !== "coach" && me.role !== "admin" && !me.canInstruct) throw new Error("Coach access required.");
-  const file = await readWorkingFile();
-  const coachId = assignedCoachIdFor(me,file);
-  const sql = await getSql();
-  return sql.transaction(async (tx) => {
+  throw new Error("Open the booked guided lesson and use Publish & Complete Session to save attendance, tracking and the recap together.");
+}
+export async function completeSessionInTransaction(tx: Awaited<ReturnType<typeof getSql>>, me: Awaited<ReturnType<typeof staffIdentity>>, file: Awaited<ReturnType<typeof readWorkingFile>>, bookingId: string, notes: string, discipline: string) {
+  const userId=me.userId;
+  const coachId=assignedCoachIdFor(me,file);
+
     const [booking] = await tx<{
       id: string;
       athlete_id: string;
@@ -228,7 +230,7 @@ export async function completeSession(userId: string, bookingId: string, notes: 
     if (!order || order.status !== "paid") throw new Error("A verified paid order is required before completing this session.");
     if (ASSESSMENT_PRODUCTS.has(booking.product_id)) {
       await tx`insert into athlete_assessments (id,athlete_id,discipline,coach_user_id,completed_at,notes,booking_id,delivery)
-        values (${"assessment:" + booking.id},${booking.athlete_id},${order?.snapshot.discipline || "Pitching"},${userId},now(),${notes},${booking.id},${order?.snapshot.productId === "m5" ? "remote" : "in-person"})
+        values (${"assessment:" + booking.id},${booking.athlete_id},${discipline},${userId},now(),${notes},${booking.id},${order?.snapshot.productId === "m5" ? "remote" : "in-person"})
         on conflict (id) do nothing`;
     }
     const assignedCoach = file.coaches.find((c) => c.id === booking.coach_id);
@@ -250,5 +252,5 @@ export async function completeSession(userId: string, bookingId: string, notes: 
         values (${booking.id},${booking.coach_id},${gross},${split},${Math.round((gross * split) / 100)},'payable') on conflict (booking_id) do nothing`;
     }
     return { ok: true, assessmentCompleted: ASSESSMENT_PRODUCTS.has(booking.product_id) };
-  });
+
 }

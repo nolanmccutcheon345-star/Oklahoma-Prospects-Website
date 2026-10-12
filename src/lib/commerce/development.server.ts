@@ -1,5 +1,6 @@
 import type { DevelopmentData, Athlete, Booking } from '../pd/types';
 import type { Sql } from '../db';
+import {scoreChart} from '../pd/lesson';
 import { chicagoDate } from '../scheduling';
 import { loadVerifiedAssessmentIds } from './assessment-gate.server';
 
@@ -35,6 +36,15 @@ export async function withCommerceRecords(sql: Sql, data: DevelopmentData): Prom
   const ledger = bookings.map(row=>({id:row.id,athleteId:row.athlete_id,coachId:row.coach_id,serviceId:row.product_id,
     date:chicagoDate(new Date(row.starts_at)),time:new Intl.DateTimeFormat('en-GB',{timeZone:'America/Chicago',hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).format(new Date(row.starts_at)),
     status:row.status==='confirmed'?'paid':row.status==='completed'?'completed':row.status==='cancelled'?'cancelled':'unconfirmed',price:row.total_cents/100} as Booking));
+  const guided = await sql<{id:string;athlete_id:string;instructor_id:string;snapshot:{startsAt:string;template:{minutes:number;discipline:string}};document:{objective:string;familyRecap:string;logs:import('../pd/lesson-templates').LessonDocument['logs']}}>`select id,athlete_id,instructor_id,snapshot,document from guided_lesson_sessions where status='published'`;
+  const guidedLessons=guided.map(s=>({id:'guided:'+s.id,athleteId:s.athlete_id,coachId:s.instructor_id,date:chicagoDate(new Date(s.snapshot.startsAt)),focus:s.document.objective,minutes:s.snapshot.template.minutes,notes:s.document.familyRecap}));
+  const guidedBullpens=guided.filter(s=>s.snapshot.template.discipline==='Pitching').flatMap(s=>{
+    const logs=s.document.logs.filter(l=>l.kind==='Pitching');
+    if(!logs.length)return [];
+    const chart=scoreChart(logs.filter(l=>l.intent&&l.actual).map(l=>({intent:l.intent!,actual:l.actual!,velo:l.velocity})));
+    return [{id:'guided:'+s.id,athleteId:s.athlete_id,date:chicagoDate(new Date(s.snapshot.startsAt)),pitches:logs.reduce((n,l)=>n+(l.repetitions??1),0),tci:chart.tci,chart:chart.pitches,notes:'Practice log from completed booked lesson. Not a verified recruiting metric.'}];
+  });
+  data={...data,lessons:[...guidedLessons,...data.lessons.filter(l=>!l.id.startsWith('guided:'))],bullpens:[...guidedBullpens,...data.bullpens.filter(l=>!l.id.startsWith('guided:'))]};
   const known = new Set(ledger.map(b=>b.id));
   return {...data,families:families.map(f=>({...f,plan:{...f.plan,type:f.plan?.type||'none',lessonCredits:credits.filter(c=>f.athleteIds.includes(c.athlete_id)).reduce((n,c)=>n+c.remaining,0)}})),
     athletes:all.map(a=>({...a,assessmentComplete:assessmentIds.has(a.id)})),

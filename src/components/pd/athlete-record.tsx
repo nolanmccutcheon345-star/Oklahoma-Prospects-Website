@@ -1,3 +1,4 @@
+import {BookedLessonHistory} from "./booked-guided-lesson";
 import {athleteAge} from '@/lib/pd/engines';
 import { Link } from "@tanstack/react-router";
 import { useMemo, useState, type ReactNode } from "react";
@@ -417,6 +418,7 @@ function RecordView({
       }
       return (
         <Panel eyebrow="Lessons" title={`${slice.lessons.length} on file`}>
+          <BookedLessonHistory athleteId={slice.athlete.id}/>
           <Notes
             rows={slice.lessons.map((row) => ({
               key: row.id,

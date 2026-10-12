@@ -38,6 +38,18 @@ jobs:
           SQUARE_LIVE_ENABLED: "false"
           SQUARE_ENVIRONMENT: sandbox
       - run: npm run verify:build
+      - run: npx playwright install --with-deps chromium
+      - name: Authenticated isolated instructor walkthrough
+        run: npm run test:guided:browser
+        env:
+          NETLIFY: "true"
+          LESSON_SCREENSHOT_DIR: artifacts/guided-lessons
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: guided-lesson-walkthrough
+          path: artifacts/guided-lessons
+          if-no-files-found: ignore
       - name: Read-only hosted HTTP smoke
         if: github.event_name == 'workflow_dispatch' && inputs.hosted_origin != 'skip'
         run: npm run verify:hosted -- "$HOSTED_ORIGIN"

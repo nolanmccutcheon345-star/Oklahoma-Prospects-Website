@@ -31,6 +31,7 @@ function PayPage() {
   const [context, setContext] = useState<Awaited<ReturnType<typeof getCheckoutContext>> | null>(
     null,
   );
+  const [lessonSport,setLessonSport]=useState<"baseball"|"softball"|"">("");
   const [athleteId, setAthleteId] = useState("");
   const [coachId, setCoachId] = useState(search.instructor || "");
   useEffect(()=>{setCoachId(search.instructor||" ".trim());},[search.instructor]);
@@ -108,6 +109,7 @@ function PayPage() {
       productId: search.id || "",
       kind,
       athleteId: athleteId || undefined,
+      sport: lessonSport || undefined,
       coachId: coachId || undefined,
       date,
       time,
@@ -125,6 +127,7 @@ function PayPage() {
       search.id,
       kind,
       athleteId,
+      lessonSport,
       coachId,
       date,
       time,
@@ -501,6 +504,7 @@ function PayPage() {
               <p>{enrollmentHelp}</p>
             </div>
           ) : null}
+          {kind!=="cage"&&kind!=="cage-plan"&&<label className="grid gap-1">Lesson sport<select className="rounded-lg border p-3" value={lessonSport} onChange={e=>setLessonSport(e.target.value as "baseball"|"softball"|"")}><option value="">Use player profile (single-sport only)</option><option value="baseball">Baseball</option><option value="softball">Softball</option></select></label>}
           {locked ? (
             <div className="rounded-xl border border-maroon p-4" role="status">
               <p>
