@@ -1,6 +1,6 @@
 # Prospects Sports Academy: full-system baseline and improvement backlog
 
-Audit date: 13 October 2026. Baseline production commit: `5025c9a17f8028080dadc9562cd5f6304ca87305`, released by PR #204. Scope: the owner's uploaded website mastery directive, all 50 page-route definitions, all 16 API-route definitions, and major operational domains. This is an initial risk-based audit, not certification of every runtime state or legal/accessibility compliance.
+Audit date: 13 October 2026. Baseline production commit: `5025c9a17f8028080dadc9562cd5f6304ca87305`, released by PR #204. Scope: the owner's uploaded website mastery directive, all 50 page-route definitions, all 15 API-route definitions, and major operational domains. This is an initial risk-based audit, not certification of every runtime state or legal/accessibility compliance.
 
 ## Executive assessment
 
