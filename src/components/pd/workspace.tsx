@@ -1,3 +1,4 @@
+import {TrainingInbox} from "./training-review";
 import {MyTraining} from "./my-training";
 import { formatClockTime } from "@/lib/time-display";
 
@@ -156,6 +157,7 @@ function ScopedWorkspace({
     <div className="pd-os mt-6" data-density={density} data-viewer-role={previewRole}>
 {loadError?<p role="alert">{loadError}</p>:null}
       <PdErrorBoundary section="Player development">
+        {trueRole===previewRole&&<TrainingInbox/>}
         <PdSearch
           onOpenAthlete={(id) => {
             setTab(previewRole === "admin" ? "athletes" : previewRole === "coach" ? "roster" : "progress");

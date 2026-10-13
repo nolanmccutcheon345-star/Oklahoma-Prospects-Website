@@ -40,7 +40,10 @@ export async function auditHarness() {
     export * from './src/lib/pd/empty';
     export * from './src/lib/pd/training.server';
     export * from './src/lib/pd/training-content.server';
+    export * from './src/lib/pd/curriculum-controls.server';
     export * from './src/lib/pd/training-catalog';
+    export * from './src/lib/pd/development-programs';
+    export * from './src/lib/pd/development-evidence';
     export * from './src/lib/pd/lesson-choices';
     export * from './src/lib/pd/lesson-session.server';
     export * from './src/lib/pd/lesson-templates';

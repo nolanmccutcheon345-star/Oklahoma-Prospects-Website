@@ -1,3 +1,6 @@
+import { TrainingQuality } from "./training-review";
+import { DevelopmentContext } from "./development-context";
+import { compatibleProgram } from "@/lib/pd/development-programs";
 import { CurriculumEditor } from "./curriculum-editor";
 import { useReadOnlyPreview } from "@/lib/pd/preview";
 import {
@@ -108,6 +111,8 @@ export function MyTraining({
               resumes.
             </Problem>
           )}
+          <DevelopmentContext data={data} />
+          {data.admin && !compact && <TrainingQuality athleteId={athleteId} />}
           {compact ? (
             <>
               <p>
@@ -189,6 +194,25 @@ export function MyTraining({
                     Days without assigned tasks are unscheduled or recovery days. Check team
                     activities and existing throwing plans before training.
                   </p>
+                  {tab === "This Week" && (
+                    <ol className="grid gap-2 sm:grid-cols-2">
+                      {Array.from({ length: 7 }, (_, i) => isoAdd(today, i)).map((date) => {
+                        const planned = data.assignments
+                          .filter((a) => a.status === "active" || a.status === "paused")
+                          .flatMap((a) => a.document.tasks.filter((t) => t.date === date));
+                        return (
+                          <li key={date} className={card}>
+                            <strong>{date}</strong>
+                            <p>
+                              {planned.length
+                                ? `${planned.length} assigned activities — see instructions below`
+                                : "No assigned home work. Confirm team activity; allow planned recovery."}
+                            </p>
+                          </li>
+                        );
+                      })}
+                    </ol>
+                  )}
                   {data.assignments
                     .filter((a) => a.status === "active" || a.status === "paused")
                     .flatMap((a) =>
@@ -288,7 +312,42 @@ export function MyTraining({
                         {logs.filter((l) => l.document.source === "coach-observed").length}{" "}
                         coach-observed records
                       </p>
+                      <p>Baseline: {a.document.baseline}</p>
                       <p>Target: {a.document.goal}</p>
+                      <p>
+                        Current checkpoint:{" "}
+                        {a.document.program?.phases[a.document.phase]?.checkpoint ||
+                          a.document.phases[a.document.phase]}
+                      </p>
+                      <div className="overflow-x-auto">
+                        <table className="my-3 w-full text-left text-sm">
+                          <caption>
+                            Recorded outcomes — self-reports remain separate from observations
+                          </caption>
+                          <thead>
+                            <tr>
+                              <th>Planned date</th>
+                              <th>Source</th>
+                              <th>Result</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {logs.map((l) => (
+                              <tr key={l.id}>
+                                <td className="p-2">
+                                  {a.document.tasks.find((t) => t.id === l.task_id)?.date}
+                                </td>
+                                <td className="p-2">{l.document.source}</td>
+                                <td className="p-2">
+                                  {l.document.status}: {l.document.successful}/
+                                  {l.document.repetitions} successful; {l.document.minutes} minutes;
+                                  effort {l.document.rpe}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
                       <p className="text-sm text-muted">
                         Practice reports are not verified recruiting metrics or standardized ability
                         scores.
@@ -325,7 +384,7 @@ export function MyTraining({
               )}
               {tab === "Drill Library" && (
                 <>
-                  <DrillLibrary drills={data.drills} />
+                  <DrillLibrary drills={data.drills} recommended={data.academyRecommended} />
                   {data.coach && !readOnly && <CurriculumEditor onChanged={load} />}
                 </>
               )}
@@ -336,10 +395,18 @@ export function MyTraining({
     </section>
   );
 }
-function DrillLibrary({ drills }: { drills: typeof trainingDrills }) {
+function DrillLibrary({
+  drills,
+  recommended,
+}: {
+  drills: typeof trainingDrills;
+  recommended: Awaited<ReturnType<typeof loadTraining>>["academyRecommended"];
+}) {
   const [q, setQ] = useState(""),
     [sport, setSport] = useState("baseball"),
-    [discipline, setDiscipline] = useState("Hitting");
+    [discipline, setDiscipline] = useState("Hitting"),
+    [age, setAge] = useState(""),
+    [skill, setSkill] = useState(4);
   return (
     <div className="grid gap-3">
       <p>
@@ -364,6 +431,29 @@ function DrillLibrary({ drills }: { drills: typeof trainingDrills }) {
             ))}
           </select>
         </Field>
+        <Field label="Athlete age filter (optional)">
+          <input
+            type="number"
+            min="5"
+            max="100"
+            className={control}
+            value={age}
+            onChange={(e) => setAge(e.target.value)}
+          />
+        </Field>
+        <Field label="Maximum reviewed skill">
+          <select
+            className={control}
+            value={skill}
+            onChange={(e) => setSkill(Number(e.target.value))}
+          >
+            {skillBands.map((v, i) => (
+              <option key={v} value={i}>
+                {v}
+              </option>
+            ))}
+          </select>
+        </Field>
         <Field label="Search drills">
           <input className={control} value={q} onChange={(e) => setQ(e.target.value)} />
         </Field>
@@ -373,11 +463,21 @@ function DrillLibrary({ drills }: { drills: typeof trainingDrills }) {
           (d) =>
             d.sports.includes(sport as "baseball" | "softball") &&
             d.discipline === discipline &&
-            `${d.name} ${d.purpose}`.toLowerCase().includes(q.toLowerCase()),
+            (!age || d.minAge <= Number(age)) &&
+            d.minimumSkill <= skill &&
+            `${d.name} ${d.purpose} ${d.equipment}`.toLowerCase().includes(q.toLowerCase()),
         )
         .map((d) => (
           <details key={d.id} className={card}>
             <summary className="cursor-pointer">{d.name}</summary>
+            {recommended.some(
+              (c) => c.kind === "drill" && c.id === d.id && c.version === d.version,
+            ) && <p>Academy recommended</p>}
+            <p>
+              {d.lastQualifiedReviewAt
+                ? `Academy reviewed ${new Date(d.lastQualifiedReviewAt).toLocaleDateString()}; individual coach review still required.`
+                : "Individual qualified coach review required."}
+            </p>
             <p>{d.purpose}</p>
             <p>Equipment: {d.equipment}</p>
             <ol className="list-inside list-decimal">
@@ -428,12 +528,14 @@ function AssignmentForm({
   const [family, setFamily] = useState(
       programFamilies.find((p) => p.sport === data.sport)?.id || programFamilies[0].id,
     ),
+    [programId, setProgramId] = useState(""),
     [skill, setSkill] = useState<(typeof skillBands)[number]>("beginner"),
     [selected, setSelected] = useState<string[]>([]),
     [preview, setPreview] = useState<AssignmentInput>(),
     [error, setError] = useState(""),
     [busy, setBusy] = useState(false);
   const program = programFamilies.find((p) => p.id === family)!;
+  const specialty = data.programs.find((p) => p.id === programId);
   const available = data.drills.filter(
     (d) =>
       d.sports.includes(program.sport) &&
@@ -463,24 +565,44 @@ function AssignmentForm({
           startDate = String(f.get("startDate")),
           weeks = Number(f.get("weeks")) as AssignmentInput["weeks"],
           frequency = Number(f.get("frequency"));
-        if (!selected.length) {
+        if (!specialty && !selected.length) {
           setError("Choose at least one drill.");
           return;
         }
-        const tasks = [];
-        for (let week = 0; week < weeks; week++)
-          for (let day = 0; day < frequency; day++)
-            tasks.push({
-              id: crypto.randomUUID(),
-              drillId: selected[(week * frequency + day) % selected.length],
-              date: isoAdd(startDate, week * 7 + day * 2),
-              dose: String(f.get("dose")),
-              rest: String(f.get("rest")),
-              target: String(f.get("goal")),
-            });
+        const tasks: AssignmentInput["tasks"] = [];
+        if (specialty) {
+          const sessions = Math.max(4, weeks * frequency);
+          for (let n = 0; n < sessions; n++) {
+            const phase = Math.min(3, Math.floor((n * 4) / sessions));
+            for (const drillId of specialty.phases[phase].drillIds)
+              tasks.push({
+                id: crypto.randomUUID(),
+                drillId,
+                phase,
+                date: isoAdd(startDate, Math.floor((n * weeks * 7) / sessions)),
+                dose: String(f.get("dose")),
+                rest: String(f.get("rest")),
+                target: specialty.phases[phase].checkpoint,
+              });
+          }
+        } else
+          for (let week = 0; week < weeks; week++)
+            for (let day = 0; day < frequency; day++)
+              tasks.push({
+                id: crypto.randomUUID(),
+                drillId: selected[(week * frequency + day) % selected.length],
+                date: isoAdd(startDate, week * 7 + day * 2),
+                dose: String(f.get("dose")),
+                rest: String(f.get("rest")),
+                target: String(f.get("goal")),
+              });
         setPreview({
           id: crypto.randomUUID(),
           athleteId,
+          ...(specialty ? { programId: specialty.id } : {}),
+          reviewedAssignmentIds: data.assignments
+            .filter((a) => a.status === "active")
+            .map((a) => a.id),
           sport: program.sport,
           discipline: program.discipline,
           title: String(f.get("title")),
@@ -534,6 +656,7 @@ function AssignmentForm({
             value={family}
             onChange={(e) => {
               setFamily(e.target.value);
+              setProgramId("");
               setSelected([]);
               setPreview(undefined);
             }}
@@ -551,6 +674,7 @@ function AssignmentForm({
             value={skill}
             onChange={(e) => {
               setSkill(e.target.value as typeof skill);
+              setProgramId("");
               setSelected([]);
               setPreview(undefined);
             }}
@@ -561,6 +685,68 @@ function AssignmentForm({
           </select>
         </Field>
       </div>
+      <Field label="Specialty program">
+        <select
+          className={control}
+          value={programId}
+          onChange={(e) => {
+            setProgramId(e.target.value);
+            setPreview(undefined);
+            setSelected([]);
+          }}
+        >
+          <option value="">Custom individualized plan</option>
+          {data.programs
+            .filter(
+              (p) =>
+                p.discipline === program.discipline &&
+                compatibleProgram(
+                  p,
+                  program.sport,
+                  data.age || 0,
+                  skillBands.indexOf(skill),
+                  data.drills,
+                ),
+            )
+            .map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.name}
+                {data.academyRecommended.some(
+                  (c) => c.kind === "program" && c.id === p.id && c.version === p.version,
+                )
+                  ? " · Academy recommended"
+                  : ""}
+              </option>
+            ))}
+        </select>
+      </Field>
+      {specialty && (
+        <section className={card}>
+          <h5 className="font-semibold">{specialty.name}</h5>
+          <p>{specialty.objective}</p>
+          <p>Baseline: {specialty.baseline}</p>
+          <p>{specialty.frequency}</p>
+          <p>{specialty.recovery}</p>
+          {specialty.phases.map((p, i) => (
+            <details key={p.name}>
+              <summary>
+                Phase {i + 1}: {p.name}
+              </summary>
+              <p>
+                {p.drillIds.map((id) => data.drills.find((d) => d.id === id)?.name).join(" → ")}
+              </p>
+              <p>Checkpoint: {p.checkpoint}</p>
+              <p>{p.regression}</p>
+            </details>
+          ))}
+          <p>{specialty.completion}</p>
+          <p>{specialty.next}</p>
+          <p>
+            Later-phase tasks stay locked until coach review. Adjust dates when progression takes
+            longer.
+          </p>
+        </section>
+      )}
       <Field label="Program title">
         <input
           className={control}
@@ -568,7 +754,8 @@ function AssignmentForm({
           required
           minLength={3}
           maxLength={150}
-          defaultValue="Individual development plan"
+          key={programId}
+          defaultValue={specialty?.name || "Individual development plan"}
         />
       </Field>
       {(["goal", "baseline", "reason", "equipment", "workload", "dose", "rest"] as const).map(
@@ -588,7 +775,27 @@ function AssignmentForm({
               }[name]
             }
           >
-            <textarea className={control} name={name} required minLength={5} maxLength={3000} />
+            <textarea
+              key={`${programId}:${name}`}
+              className={control}
+              name={name}
+              required
+              minLength={5}
+              maxLength={3000}
+              defaultValue={
+                specialty
+                  ? {
+                      goal: specialty.objective,
+                      baseline: specialty.baseline,
+                      equipment: specialty.equipment,
+                      rest: specialty.recovery,
+                      reason: "",
+                      workload: "",
+                      dose: "",
+                    }[name]
+                  : ""
+              }
+            />
           </Field>
         ),
       )}
@@ -626,30 +833,32 @@ function AssignmentForm({
           </select>
         </Field>
       </div>
-      <fieldset>
-        <legend className="font-semibold">
-          Compatible drills — preview each instruction before selecting
-        </legend>
-        {available.map((d) => (
-          <label key={d.id} className="flex items-start gap-2 py-2">
-            <input
-              type="checkbox"
-              className="mt-1"
-              checked={selected.includes(d.id)}
-              onChange={(e) => {
-                setSelected((s) =>
-                  e.target.checked ? [...s, d.id] : s.filter((id) => id !== d.id),
-                );
-                setPreview(undefined);
-              }}
-            />
-            <span>
-              <strong>{d.name}</strong> — {d.steps.join(" ")}{" "}
-              <span className="text-muted">Measure: {d.measure}</span>
-            </span>
-          </label>
-        ))}
-      </fieldset>
+      {!specialty && (
+        <fieldset>
+          <legend className="font-semibold">
+            Compatible drills — preview each instruction before selecting
+          </legend>
+          {available.map((d) => (
+            <label key={d.id} className="flex items-start gap-2 py-2">
+              <input
+                type="checkbox"
+                className="mt-1"
+                checked={selected.includes(d.id)}
+                onChange={(e) => {
+                  setSelected((s) =>
+                    e.target.checked ? [...s, d.id] : s.filter((id) => id !== d.id),
+                  );
+                  setPreview(undefined);
+                }}
+              />
+              <span>
+                <strong>{d.name}</strong> — {d.steps.join(" ")}{" "}
+                <span className="text-muted">Measure: {d.measure}</span>
+              </span>
+            </label>
+          ))}
+        </fieldset>
+      )}
       <label className="flex items-start gap-2">
         <input type="checkbox" required />
         <span>
@@ -748,6 +957,12 @@ function TaskCard({
       <p>
         {t.date} · {a.document.title}
       </p>
+      {t.phase !== undefined && (
+        <p>
+          Phase {t.phase + 1}
+          {t.phase > a.document.phase ? " — awaiting coach approval; do not start" : " — available"}
+        </p>
+      )}
       <p>Purpose: {drill.purpose}</p>
       <p>Equipment: {drill.equipment}</p>
       {drill.demoUrl && (

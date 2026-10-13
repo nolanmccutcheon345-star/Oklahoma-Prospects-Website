@@ -90,7 +90,7 @@ test("authenticated instructor walkthrough: both sports, 30/60/75, durable draft
               loader: "js",
               contents: a.path.endsWith("recruiting-api")
                 ? `export const getLessonMetrics=async()=>{throw Error('Separate recruiting verification is outside this walkthrough')};export const saveLessonMetric=getLessonMetrics;`
-                : `const call=async(name,input)=>{const r=await fetch('/test-api/'+name,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(input?.data||{})});const d=await r.json();if(!r.ok)throw Error(d.error);return d;};${["openBookedLesson", "saveBookedLesson", "reviewBookedLesson", "getBookedLessonHistory", "getLessonExceptions", "chooseLesson", "getLessonPresets", "reviewLessonPreset", "loadTraining", "assignTraining", "logTraining", "reviewTraining", "getTrainingContent", "submitTrainingDrill", "reviewTrainingDrill"].map((n) => `export const ${n}=input=>call('${n}',input);`).join("")}`,
+                : `const call=async(name,input)=>{const r=await fetch('/test-api/'+name,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(input?.data||{})});const d=await r.json();if(!r.ok)throw Error(d.error);return d;};${["openBookedLesson", "saveBookedLesson", "reviewBookedLesson", "getBookedLessonHistory", "getLessonExceptions", "chooseLesson", "getLessonPresets", "reviewLessonPreset", "loadTraining", "assignTraining", "logTraining", "reviewTraining", "getTrainingContent", "submitTrainingDrill", "reviewTrainingDrill", "loadTrainingInbox", "loadTrainingQuality", "reviewTrainingQuality", "reviewAcademyCurriculum"].map((n) => `export const ${n}=input=>call('${n}',input);`).join("")}`,
             }));
           },
         },
@@ -137,6 +137,9 @@ test("authenticated instructor walkthrough: both sports, 30/60/75, durable draft
       testPage = await context.newPage(),
       errors = [];
     page = testPage;
+    // Distinct synthetic households retain real per-client production rate limits.
+    let syntheticIp = "192.0.2.1";
+    const syntheticUsers = new Map();
     page.setDefaultTimeout(10000);
     page.on("pageerror", (e) => errors.push(e.message));
     page.on("response", (r) => {
@@ -169,7 +172,7 @@ test("authenticated instructor walkthrough: both sports, 30/60/75, durable draft
         }
         const request = new Request(req.url(), {
           method: req.method(),
-          headers: { ...(await req.allHeaders()), "x-nf-client-connection-ip": "192.0.2.1" },
+          headers: { ...(await req.allHeaders()), "x-nf-client-connection-ip": syntheticIp, "x-forwarded-for": syntheticIp },
           ...(!["GET", "HEAD"].includes(req.method()) ? { body: req.postDataBuffer() } : {}),
         });
         const response = await appHandler(request);
@@ -364,6 +367,8 @@ test("authenticated instructor walkthrough: both sports, 30/60/75, durable draft
         await page.getByRole('heading',{name:'My Training',exact:true}).waitFor();
       }
       async function signInAs(email){
+        if (!syntheticUsers.has(email)) syntheticUsers.set(email, `192.0.2.${syntheticUsers.size + 10}`);
+        syntheticIp = syntheticUsers.get(email);
         await page.goto(base+'/login?next=%2Faccount%3Fdesk%3Dprograms');
         await page.getByLabel(/^Email/).first().fill(email);
         await page.getByLabel(/^Password/).first().fill(password);
@@ -436,6 +441,62 @@ test("authenticated instructor walkthrough: both sports, 30/60/75, durable draft
       await signInAs('guardian@audit.example.invalid');
       await page.getByRole('button',{name:'My Coach',exact:true}).click();
       await page.getByText('Synthetic coach feedback: repeat the same cue and compare at the next lesson.',{exact:true}).waitFor();
+      // A second athlete and instructor exercise different sport, age and household selection.
+      const secondSignup=await api.handleAuthRequest(new Request(base+'/api/auth/sign-up/email',{method:'POST',headers:{origin:base,'content-type':'application/json'},body:JSON.stringify({name:'Synthetic Softball Instructor',email:'softballcoach@audit.example.invalid',password})}));
+      assert.equal(secondSignup.status,200);const secondCoachId=(await secondSignup.json()).user.id;
+      await sql`update "user" set "emailVerified"=true where id=${secondCoachId}`;
+      await sql`insert into profiles(user_id,email,name,role) values(${secondCoachId},'softballcoach@audit.example.invalid','Synthetic Softball Instructor','coach') on conflict(user_id) do update set role='coach'`;
+      const [stored]=await sql`select payload from pd_working_file where id='club'`;
+      const expanded=typeof stored.payload==='string'?JSON.parse(stored.payload):stored.payload;
+      expanded.coaches.push({id:'second-instructor',name:'Synthetic Softball Instructor',email:'softballcoach@audit.example.invalid',active:true,specialties:['Pitching']});
+      await sql`update pd_working_file set payload=${JSON.stringify(expanded)},revision=revision+1 where id='club'`;
+      await sql`insert into club_athletes(id,user_id,household_email,name,birth_date,profile,coach_ids) values('young-softball',${guardianId},'guardian@audit.example.invalid','Synthetic Younger Softball','2019-04-01','{"sport":"softball"}'::jsonb,'["test-instructor","second-instructor"]'::jsonb)`;
+      await signOut();await signInAs('softballcoach@audit.example.invalid');
+      await page.getByRole('button',{name:'Assign training',exact:true}).click();
+      await page.getByLabel('Program family',{exact:true}).selectOption('softball:Pitching');
+      await page.getByLabel('Specialty program',{exact:true}).selectOption('softball-pitch-foundation');
+      await page.getByLabel('Program title',{exact:true}).fill('Synthetic younger windmill plan');
+      for(const label of ['Why this plan fits the player’s history and goals','Confirm games, team practices, other coaches, throwing/rest restrictions and recovery','Individual dose: sets, repetitions or time; include intensity'])await page.getByLabel(label,{exact:true}).fill('Synthetic qualified review: dry comfortable rehearsals only, with adult supervision and complete recovery.');
+      await page.getByRole('checkbox',{name:/I am qualified to review/}).check();
+      await page.getByRole('button',{name:'Preview family assignment',exact:true}).click();
+      await page.getByRole('button',{name:'Approve and publish assignment',exact:true}).click();
+      await page.getByRole('heading',{name:'Synthetic younger windmill plan',exact:true}).waitFor();
+      await signOut();await signInAs('guardian@audit.example.invalid');
+      await page.getByLabel(/^Athlete/).first().selectOption('young-softball');
+      await page.getByRole('button',{name:'Log practice or ask coach',exact:true}).first().click();
+      await page.getByLabel('repetitions',{exact:true}).first().fill('3');
+      await page.getByLabel('Practice notes, outcomes or modifications',{exact:true}).first().fill('Synthetic younger athlete: three dry rehearsals with adult supervision.');
+      await page.getByLabel('Question for coach',{exact:true}).first().fill('Synthetic softball question: review the dry circle next lesson?');
+      await page.getByRole('button',{name:'Save practice report',exact:true}).first().click();
+      await signOut();await signInAs('guardian@audit.example.invalid');
+      await page.getByLabel(/^Athlete/).first().selectOption('young-softball');
+      await page.getByRole('button',{name:'My Coach',exact:true}).click();
+      await page.getByText('Synthetic softball question: review the dry circle next lesson?',{exact:true}).waitFor();
+      assert.equal(await page.getByText('Synthetic question: repeat the same cue?',{exact:true}).count(),0);
+      await page.getByLabel(/^Athlete/).first().selectOption('test-player');
+      await page.getByRole('button',{name:'My Coach',exact:true}).click();
+      await page.getByText('Synthetic question: repeat the same cue?',{exact:true}).waitFor();
+      assert.equal(await page.getByText('Synthetic softball question: review the dry circle next lesson?',{exact:true}).count(),0);
+      await signOut();await signInAs('instructor@audit.example.invalid');
+      await page.getByLabel(/^Athlete/).first().selectOption('young-softball');
+      await page.getByRole('button',{name:'My Coach',exact:true}).click();
+      await page.getByText('Synthetic softball question: review the dry circle next lesson?',{exact:true}).waitFor();
+      await page.getByRole('button',{name:'My Programs',exact:true}).click();
+      await page.getByLabel('Coach decision',{exact:true}).selectOption('repeat');
+      await page.getByLabel('Shared feedback and evidence for the decision',{exact:true}).fill('Synthetic shared-coach feedback: keep the dry circle comfortable and repeat before advancing.');
+      await page.getByRole('button',{name:'Save coach review',exact:true}).click();
+      await signOut();await signInAs('softballcoach@audit.example.invalid');
+      await page.getByRole('button',{name:'My Coach',exact:true}).click();
+      await page.getByText('Synthetic shared-coach feedback: keep the dry circle comfortable and repeat before advancing.',{exact:true}).waitFor();
+      await page.screenshot({path:screenshots+'/training-softball-second-coach.png',fullPage:false});
+      await page.setViewportSize({width:1280,height:900});
+      await page.getByRole('button',{name:'My Programs',exact:true}).click();
+      await page.screenshot({path:screenshots+'/training-specialty-desktop.png',fullPage:false});
+      assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
+      await signOut();await signInAs('guardian@audit.example.invalid');
+      await page.getByLabel(/^Athlete/).first().selectOption('young-softball');
+      await page.getByRole('button',{name:'My Coach',exact:true}).click();
+      await page.getByText('Synthetic shared-coach feedback: keep the dry circle comfortable and repeat before advancing.',{exact:true}).waitFor();
     }
     assert.deepEqual(errors, []);
     assert.equal((await sql`select * from recruiting_metrics`).length, 0);

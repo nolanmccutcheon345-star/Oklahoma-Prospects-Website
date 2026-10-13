@@ -8,6 +8,7 @@ import {
 import type { TrainingDrill } from "@/lib/pd/training-catalog";
 import type { DrillSubmission } from "@/lib/pd/training-content";
 import { useReadOnlyPreview } from "@/lib/pd/preview";
+import { AcademyStandards } from "./academy-standards";
 const control = "w-full min-w-0 min-h-11 rounded-lg border border-line bg-white p-2";
 export function CurriculumEditor({ onChanged }: { onChanged: () => Promise<void> }) {
   const readOnly = useReadOnlyPreview(),
@@ -52,6 +53,7 @@ export function CurriculumEditor({ onChanged }: { onChanged: () => Promise<void>
   return (
     <section className="grid gap-3 rounded-xl border p-4">
       <h4 className="text-xl">Curriculum versions</h4>
+      {data.builtins && <AcademyStandards catalog={data.builtins} onChanged={refresh} />}
       <p>
         Submissions remain drafts until academy approval. Editing creates a new version; assigned
         snapshots stay unchanged.
