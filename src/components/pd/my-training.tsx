@@ -112,6 +112,26 @@ export function MyTraining({
                   <p>Workload reviewed: {a.document.workload}</p>
                 </div>
               ))}
+              <p>
+                {
+                  data.assignments
+                    .filter((a) => a.status === "active")
+                    .flatMap((a) =>
+                      a.document.tasks.filter(
+                        (t) =>
+                          t.date < today &&
+                          !data.logs.some((l) => l.assignment_id === a.id && l.task_id === t.id),
+                      ),
+                    ).length
+                }{" "}
+                overdue / unreported tasks. Ask before assuming practice was missed.
+              </p>
+              {data.events
+                .filter((e) => e.kind === "coach review" || e.kind === "safety hold")
+                .slice(0, 3)
+                .map((e) => (
+                  <p key={e.id}>{e.document.feedback}</p>
+                ))}
               {data.logs.slice(0, 5).map((l) => (
                 <p key={l.id}>
                   {l.document.status} · {l.document.source} · {l.document.notes}{" "}

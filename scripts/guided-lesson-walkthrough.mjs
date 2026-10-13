@@ -417,6 +417,7 @@ test("authenticated instructor walkthrough: both sports, 30/60/75, durable draft
       await page.locator('[data-booking-id="baseball30"]').getByRole('button',{name:'Open saved lesson',exact:true}).click();
       await page.getByText('Development brief · programs and home practice',{exact:true}).click();
       await page.getByText('Synthetic home contact plan · active',{exact:true}).waitFor();
+      await page.getByText('Synthetic coach feedback: repeat the same cue and compare at the next lesson.',{exact:true}).waitFor();
       await page.screenshot({path:screenshots+'/training-next-lesson-brief.png',fullPage:false});
       await page.goto(base+'/account?desk=programs');
       await page.getByRole('button',{name:'Sign out',exact:true}).first().waitFor();
