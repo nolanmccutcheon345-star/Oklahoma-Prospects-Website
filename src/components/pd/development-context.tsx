@@ -8,7 +8,20 @@ export function DevelopmentContext({ data }: { data: Data }) {
   if (!data.coach || !data.context) return null;
   const recommendations =
     data.age !== null && ["baseball", "softball"].includes(data.sport)
-      ? recommendPrograms(data.context, data.sport as "baseball" | "softball", data.age, skill)
+      ? recommendPrograms(
+          data.context,
+          data.sport as "baseball" | "softball",
+          data.age,
+          skill,
+        ).filter((r) =>
+          data.programs.some(
+            (p) =>
+              p.id === r.programId &&
+              p.phases.every((phase) =>
+                phase.drillIds.every((id) => data.drills.some((d) => d.id === id)),
+              ),
+          ),
+        )
       : [];
   return (
     <details className="rounded-xl border border-line bg-white p-4">

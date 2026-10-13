@@ -53,6 +53,25 @@ export const reviewTrainingDrill = createServerFn({ method: "POST" })
   .handler(async ({ context, data }) =>
     (await import("./training-content.server")).reviewDrillForUser(context.userId, data),
   );
+export const reviewAcademyCurriculum = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
+  .validator(
+    z
+      .object({
+        kind: z.enum(["drill", "program"]),
+        id: z.string().min(1).max(150),
+        version: z.string().min(1).max(150),
+        revision: z.number().int().min(0),
+        status: z.enum(["review-required", "approved", "retired"]),
+        recommended: z.boolean(),
+        reason: z.string().trim().min(10).max(2000),
+        qualifiedReview: z.literal(true),
+      })
+      .strict(),
+  )
+  .handler(async ({ context, data }) =>
+    (await import("./curriculum-controls.server")).reviewCurriculumForUser(context.userId, data),
+  );
 export const loadTrainingInbox = createServerFn({ method: "GET" })
   .middleware([authMiddleware])
   .handler(async ({ context }) =>

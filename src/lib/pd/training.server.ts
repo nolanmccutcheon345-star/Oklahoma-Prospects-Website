@@ -1,4 +1,5 @@
-import { developmentPrograms, compatibleProgram } from "./development-programs";
+import { compatibleProgram } from "./development-programs";
+import { availablePrograms, curriculumControls } from "./curriculum-controls.server";
 import { developmentEvidence, developmentWorkload } from "./development-evidence";
 import { approvedDrills } from "./training-content.server";
 import { isDeepStrictEqual } from "node:util";
@@ -98,6 +99,10 @@ export async function loadTrainingForUser(userId: string, athleteId: string) {
         )
       : null,
     drills: await approvedDrills(sql),
+    programs: await availablePrograms(sql),
+    academyRecommended: (await curriculumControls(sql))
+      .filter((c) => c.status === "approved" && c.recommended)
+      .map((c) => ({ kind: c.kind, id: c.content_id, version: c.content_version })),
     age,
     athleteName: athlete ? `${athlete.firstName} ${athlete.lastName}` : "Player",
     sport: athlete?.sport || "",
@@ -193,7 +198,7 @@ export async function assignTrainingForUser(userId: string, raw: AssignmentInput
       (p) => p.sport === input.sport && p.discipline === input.discipline,
     )!;
     const program = input.programId
-      ? developmentPrograms.find((p) => p.id === input.programId)
+      ? (await availablePrograms(tx)).find((p) => p.id === input.programId)
       : undefined;
     if (
       input.programId &&
@@ -462,9 +467,14 @@ export async function reviewTrainingQualityForUser(
     const { me } = await authority(tx, userId, a.athlete_id, true, identity);
     if (me.role !== "admin")
       throw new Error("Only an administrator can record academy quality feedback.");
-    const prior =
-      await tx`select id from home_training_events where assignment_id=${a.id} and kind='quality review' and document->>'requestId'=${input.requestId}`;
-    if (prior.length) return { ok: true };
+    const prior = await tx<{
+      document: typeof input;
+    }>`select document from home_training_events where assignment_id=${a.id} and kind='quality review' and document->>'requestId'=${input.requestId}`;
+    if (prior.length) {
+      if (!isDeepStrictEqual(prior[0].document, input))
+        throw new Error("Review request already saved with different feedback.");
+      return { ok: true };
+    }
     await tx`select set_config('app.actor_id',${userId},true)`;
     await event(tx, userId, a, "quality review", input);
     return { ok: true };

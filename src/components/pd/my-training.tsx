@@ -1,6 +1,6 @@
 import { TrainingQuality } from "./training-review";
 import { DevelopmentContext } from "./development-context";
-import { developmentPrograms, compatibleProgram } from "@/lib/pd/development-programs";
+import { compatibleProgram } from "@/lib/pd/development-programs";
 import { CurriculumEditor } from "./curriculum-editor";
 import { useReadOnlyPreview } from "@/lib/pd/preview";
 import {
@@ -384,7 +384,7 @@ export function MyTraining({
               )}
               {tab === "Drill Library" && (
                 <>
-                  <DrillLibrary drills={data.drills} />
+                  <DrillLibrary drills={data.drills} recommended={data.academyRecommended} />
                   {data.coach && !readOnly && <CurriculumEditor onChanged={load} />}
                 </>
               )}
@@ -395,7 +395,13 @@ export function MyTraining({
     </section>
   );
 }
-function DrillLibrary({ drills }: { drills: typeof trainingDrills }) {
+function DrillLibrary({
+  drills,
+  recommended,
+}: {
+  drills: typeof trainingDrills;
+  recommended: Awaited<ReturnType<typeof loadTraining>>["academyRecommended"];
+}) {
   const [q, setQ] = useState(""),
     [sport, setSport] = useState("baseball"),
     [discipline, setDiscipline] = useState("Hitting"),
@@ -464,6 +470,14 @@ function DrillLibrary({ drills }: { drills: typeof trainingDrills }) {
         .map((d) => (
           <details key={d.id} className={card}>
             <summary className="cursor-pointer">{d.name}</summary>
+            {recommended.some(
+              (c) => c.kind === "drill" && c.id === d.id && c.version === d.version,
+            ) && <p>Academy recommended</p>}
+            <p>
+              {d.lastQualifiedReviewAt
+                ? `Academy reviewed ${new Date(d.lastQualifiedReviewAt).toLocaleDateString()}; individual coach review still required.`
+                : "Individual qualified coach review required."}
+            </p>
             <p>{d.purpose}</p>
             <p>Equipment: {d.equipment}</p>
             <ol className="list-inside list-decimal">
@@ -521,7 +535,7 @@ function AssignmentForm({
     [error, setError] = useState(""),
     [busy, setBusy] = useState(false);
   const program = programFamilies.find((p) => p.id === family)!;
-  const specialty = developmentPrograms.find((p) => p.id === programId);
+  const specialty = data.programs.find((p) => p.id === programId);
   const available = data.drills.filter(
     (d) =>
       d.sports.includes(program.sport) &&
@@ -682,7 +696,7 @@ function AssignmentForm({
           }}
         >
           <option value="">Custom individualized plan</option>
-          {developmentPrograms
+          {data.programs
             .filter(
               (p) =>
                 p.discipline === program.discipline &&
@@ -697,6 +711,11 @@ function AssignmentForm({
             .map((p) => (
               <option key={p.id} value={p.id}>
                 {p.name}
+                {data.academyRecommended.some(
+                  (c) => c.kind === "program" && c.id === p.id && c.version === p.version,
+                )
+                  ? " · Academy recommended"
+                  : ""}
               </option>
             ))}
         </select>

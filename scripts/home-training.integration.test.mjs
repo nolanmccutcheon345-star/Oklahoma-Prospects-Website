@@ -475,6 +475,96 @@ test("connected home training: authority, snapshots, idempotency, evidence and s
         );
       },
     );
+    await t.test(
+      "built-in curriculum governance preserves snapshots and rejects stale or unauthorized decisions",
+      async () => {
+        const base = {
+          kind: "drill",
+          id: drill.id,
+          version: drill.version,
+          revision: 0,
+          status: "retired",
+          recommended: false,
+          reason: "Qualified synthetic review: retire future selection pending revision.",
+          qualifiedReview: true,
+        };
+        await assert.rejects(() => api.reviewCurriculumForUser("coach", base), /admin/);
+        await assert.rejects(() => api.reviewCurriculumForUser("parent", base), /admin/);
+        assert.equal((await api.contentForUser("parent")).builtins, null);
+        const before = JSON.stringify(
+          (await api.loadTrainingForUser("parent", "child")).assignments,
+        );
+        await api.reviewCurriculumForUser("admin", base);
+        assert.ok(!(await api.approvedDrills(sql)).some((d) => d.id === drill.id));
+        const active = (await api.loadTrainingForUser("coach", "sibling")).assignments
+          .filter((a) => ["active", "paused"].includes(a.status))
+          .map((a) => a.id);
+        await assert.rejects(
+          () =>
+            api.assignTrainingForUser("coach", {
+              ...input,
+              id: "retired-builtin",
+              athleteId: "sibling",
+              reviewedAssignmentIds: active,
+            }),
+          /incompatible/,
+        );
+        assert.equal(
+          JSON.stringify((await api.loadTrainingForUser("parent", "child")).assignments),
+          before,
+        );
+        await assert.rejects(
+          () => api.reviewCurriculumForUser("admin", { ...base, status: "approved" }),
+          /Another reviewer/,
+        );
+        await assert.rejects(
+          () => api.reviewCurriculumForUser("admin", { ...base, revision: 1, version: "obsolete" }),
+          /Content changed/,
+        );
+        await api.reviewCurriculumForUser("admin", {
+          ...base,
+          revision: 1,
+          status: "approved",
+          recommended: true,
+        });
+        assert.ok((await api.approvedDrills(sql)).some((d) => d.id === drill.id));
+        assert.ok(
+          (await api.loadTrainingForUser("coach", "child")).academyRecommended.some(
+            (c) => c.id === drill.id && c.version === drill.version,
+          ),
+        );
+        const program = api.developmentPrograms.find((p) => p.id === "softball-pitch-foundation");
+        await api.reviewCurriculumForUser("admin", {
+          ...base,
+          kind: "program",
+          id: program.id,
+          version: program.version,
+        });
+        assert.ok(!(await api.availablePrograms(sql)).some((p) => p.id === program.id));
+        await assert.rejects(
+          () =>
+            api.assignTrainingForUser("coach", {
+              ...input,
+              id: "retired-program",
+              athleteId: "sibling",
+              sport: "softball",
+              discipline: "Pitching",
+              programId: program.id,
+              reviewedAssignmentIds: active,
+              tasks: program.phases.map((p, phase) => ({
+                ...input.tasks[0],
+                id: "control-phase-" + phase,
+                phase,
+                drillId: p.drillIds[0],
+              })),
+            }),
+          /Program prerequisites/,
+        );
+        const controls = (await api.contentForUser("admin")).builtins.controls;
+        assert.equal(controls.find((c) => c.content_id === program.id).reviewed_by, "admin");
+        assert.equal(controls.find((c) => c.content_id === drill.id).revision, 2);
+      },
+    );
   } finally {
     await h.close();
   }

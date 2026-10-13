@@ -3,6 +3,8 @@ import { getSql, type Sql } from "../db";
 import { resolveIdentity } from "../identity.server";
 import { drillSubmission, type DrillSubmission } from "./training-content";
 import { trainingDrills, type TrainingDrill } from "./training-catalog";
+import { curriculumControls } from "./curriculum-controls.server";
+import { developmentPrograms } from "./development-programs";
 type ContentVersion = {
   id: string;
   author_id: string;
@@ -13,7 +15,30 @@ type ContentVersion = {
 export async function approvedDrills(sql: Sql) {
   const rows =
     await sql<ContentVersion>`select * from pd_curriculum_versions where status='approved' order by created_at desc`;
-  return [...trainingDrills, ...rows.map((r) => r.document)];
+  const controls = await curriculumControls(sql);
+  return [
+    ...trainingDrills
+      .filter(
+        (d) =>
+          !controls.some(
+            (c) => c.kind === "drill" && c.content_id === d.id && c.status === "retired",
+          ),
+      )
+      .map((d) => {
+        const review = controls.find(
+          (c) =>
+            c.kind === "drill" &&
+            c.content_id === d.id &&
+            c.content_version === d.version &&
+            c.status === "approved",
+        );
+        return {
+          ...d,
+          lastQualifiedReviewAt: review ? new Date(review.reviewed_at).toISOString() : null,
+        };
+      }),
+    ...rows.map((r) => r.document),
+  ];
 }
 export async function contentForUser(userId: string) {
   const sql = await getSql(),
@@ -27,6 +52,14 @@ export async function contentForUser(userId: string) {
     submissions,
     canSubmit,
     canApprove: me.role === "admin",
+    builtins:
+      me.role === "admin"
+        ? {
+            drills: trainingDrills,
+            programs: developmentPrograms,
+            controls: await curriculumControls(sql),
+          }
+        : null,
   };
 }
 export async function submitDrillForUser(userId: string, raw: DrillSubmission) {

@@ -90,7 +90,7 @@ test("authenticated instructor walkthrough: both sports, 30/60/75, durable draft
               loader: "js",
               contents: a.path.endsWith("recruiting-api")
                 ? `export const getLessonMetrics=async()=>{throw Error('Separate recruiting verification is outside this walkthrough')};export const saveLessonMetric=getLessonMetrics;`
-                : `const call=async(name,input)=>{const r=await fetch('/test-api/'+name,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(input?.data||{})});const d=await r.json();if(!r.ok)throw Error(d.error);return d;};${["openBookedLesson", "saveBookedLesson", "reviewBookedLesson", "getBookedLessonHistory", "getLessonExceptions", "chooseLesson", "getLessonPresets", "reviewLessonPreset", "loadTraining", "assignTraining", "logTraining", "reviewTraining", "getTrainingContent", "submitTrainingDrill", "reviewTrainingDrill", "loadTrainingInbox", "loadTrainingQuality", "reviewTrainingQuality"].map((n) => `export const ${n}=input=>call('${n}',input);`).join("")}`,
+                : `const call=async(name,input)=>{const r=await fetch('/test-api/'+name,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(input?.data||{})});const d=await r.json();if(!r.ok)throw Error(d.error);return d;};${["openBookedLesson", "saveBookedLesson", "reviewBookedLesson", "getBookedLessonHistory", "getLessonExceptions", "chooseLesson", "getLessonPresets", "reviewLessonPreset", "loadTraining", "assignTraining", "logTraining", "reviewTraining", "getTrainingContent", "submitTrainingDrill", "reviewTrainingDrill", "loadTrainingInbox", "loadTrainingQuality", "reviewTrainingQuality", "reviewAcademyCurriculum"].map((n) => `export const ${n}=input=>call('${n}',input);`).join("")}`,
             }));
           },
         },
@@ -137,6 +137,9 @@ test("authenticated instructor walkthrough: both sports, 30/60/75, durable draft
       testPage = await context.newPage(),
       errors = [];
     page = testPage;
+    // Distinct synthetic households retain real per-client production rate limits.
+    let syntheticIp = "192.0.2.1";
+    const syntheticUsers = new Map();
     page.setDefaultTimeout(10000);
     page.on("pageerror", (e) => errors.push(e.message));
     page.on("response", (r) => {
@@ -169,7 +172,7 @@ test("authenticated instructor walkthrough: both sports, 30/60/75, durable draft
         }
         const request = new Request(req.url(), {
           method: req.method(),
-          headers: { ...(await req.allHeaders()), "x-nf-client-connection-ip": "192.0.2.1" },
+          headers: { ...(await req.allHeaders()), "x-nf-client-connection-ip": syntheticIp, "x-forwarded-for": syntheticIp },
           ...(!["GET", "HEAD"].includes(req.method()) ? { body: req.postDataBuffer() } : {}),
         });
         const response = await appHandler(request);
@@ -364,6 +367,8 @@ test("authenticated instructor walkthrough: both sports, 30/60/75, durable draft
         await page.getByRole('heading',{name:'My Training',exact:true}).waitFor();
       }
       async function signInAs(email){
+        if (!syntheticUsers.has(email)) syntheticUsers.set(email, `192.0.2.${syntheticUsers.size + 10}`);
+        syntheticIp = syntheticUsers.get(email);
         await page.goto(base+'/login?next=%2Faccount%3Fdesk%3Dprograms');
         await page.getByLabel(/^Email/).first().fill(email);
         await page.getByLabel(/^Password/).first().fill(password);
