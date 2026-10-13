@@ -101,7 +101,7 @@ export function MyFinance() {
                 Only you and financial admins can see your preference. Never enter full bank/card
                 numbers, CVV, PIN or passwords.
               </p>
-              <Button disabled={busy}>Save payment preference</Button>
+              <Button type="submit" disabled={busy}>Save payment preference</Button>
             </form>
           )}
         </>

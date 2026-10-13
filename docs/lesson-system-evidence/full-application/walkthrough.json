@@ -1,0 +1,48 @@
+{
+  "cases": [
+    {
+      "sport": "baseball",
+      "service": "s7",
+      "discipline": "Hitting",
+      "minutes": 30,
+      "result": "pass"
+    },
+    {
+      "sport": "softball",
+      "service": "s10",
+      "discipline": "Catching",
+      "minutes": 30,
+      "result": "pass"
+    },
+    {
+      "sport": "baseball",
+      "service": "s12",
+      "discipline": "Fielding",
+      "minutes": 60,
+      "result": "pass"
+    },
+    {
+      "sport": "softball",
+      "service": "s3",
+      "discipline": "Pitching",
+      "minutes": 60,
+      "result": "pass"
+    },
+    {
+      "sport": "baseball",
+      "service": "s1",
+      "discipline": "Pitching",
+      "minutes": 75,
+      "result": "pass"
+    },
+    {
+      "sport": "softball",
+      "service": "s1",
+      "discipline": "Pitching",
+      "minutes": 75,
+      "result": "pass"
+    }
+  ],
+  "browserErrors": [],
+  "scope": "Built Netlify application: real login route, instructor desk, TanStack server-function transport and middleware, booking lesson UI, injected disposable migrated PostgreSQL. No external providers or production records."
+}

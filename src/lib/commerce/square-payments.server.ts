@@ -190,6 +190,7 @@ export async function fulfillSquarePayment(
       userId: order.user_id,
       athleteId: order.athlete_id,
       coachId: window.coachId,
+      lessonConfig: order.snapshot.lessonConfig,
       productId:
         (order.snapshot.assessment && order.snapshot.recurring) || order.snapshot.setupCents > 0
           ? order.snapshot.discipline === "Hitting"

@@ -143,7 +143,7 @@ test("master admin permissions, durable revisions, draft initialization, review 
       roster: [],
     });
     await sql`insert into club_state(id,payload,rev,demo) values('oklahoma-prospects',${JSON.stringify(club)}::jsonb,0,false)`;
-    let master = await getBudgetMaster(sql, "admin");
+    const master = await getBudgetMaster(sql, "admin");
     assert.deepEqual(master.value, seedMasterMatrix());
     for (const id of ["coach", "parent"]) {
       await assert.rejects(() => getBudgetMaster(sql, id), /Admin/);

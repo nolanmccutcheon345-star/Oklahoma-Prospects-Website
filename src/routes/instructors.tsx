@@ -12,7 +12,7 @@ export const Route = createFileRoute("/instructors")({
       false,
     ),
   loader: () => getPublicPeople(),
-  component: () => (
+  component: function InstructorDirectoryPage() { return (
     <main id="main">
       <PageHero
         eyebrow="Oklahoma Prospects"
@@ -22,5 +22,5 @@ export const Route = createFileRoute("/instructors")({
       />
       <PeopleDirectory people={Route.useLoaderData()} kind="instructors" />
     </main>
-  ),
+  ); },
 });

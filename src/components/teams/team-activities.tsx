@@ -476,7 +476,7 @@ export function TeamActivities({
                   maxLength={3000}
                 />
               </label>
-              <Button disabled={busy || !body.trim()}>Post to team</Button>
+              <Button type="submit" disabled={busy || !body.trim()}>Post to team</Button>
             </form>
           </details>
         </>

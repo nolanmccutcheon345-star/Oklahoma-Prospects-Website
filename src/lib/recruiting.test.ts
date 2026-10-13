@@ -125,7 +125,7 @@ test("recruiting consent, identity boundaries, verification invalidation, shared
     };
     await assert.rejects(() => saveRecruitingMetric(sql, "stranger", metric), /Only/);
     await saveRecruitingMetric(sql, "player", metric);
-    let work = await recruitingWorkspace(sql, "head");
+    const work = await recruitingWorkspace(sql, "head");
     assert.equal(work.requests.length, 1);
     let request = work.requests[0];
     assert.equal((await recruitingWorkspace(sql, "assistant")).requests.length, 0);
@@ -157,7 +157,7 @@ test("recruiting consent, identity boundaries, verification invalidation, shared
       "consent_by",
     ])
       assert.ok(!publicText.includes(secret), secret);
-    let editable = (await recruitingWorkspace(sql, "parent")).players[0].metrics[0];
+    const editable = (await recruitingWorkspace(sql, "parent")).players[0].metrics[0];
     await saveRecruitingMetric(sql, "parent", {
       ...metric,
       id: editable.id,

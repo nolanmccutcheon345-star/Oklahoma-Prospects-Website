@@ -24,7 +24,8 @@
     "lint": "eslint .",
     "format": "prettier --write .",
     "square:catalog": "node --import tsx scripts/square-catalog.ts",
-    "test:square": "node --import tsx --test src/lib/commerce/square.test.ts src/lib/commerce/commerce.audit.test.ts"
+    "test:square": "node --import tsx --test src/lib/commerce/square.test.ts src/lib/commerce/commerce.audit.test.ts",
+    "test:guided:browser": "node --test scripts/guided-lesson-walkthrough.mjs"
   },
   "dependencies": {
     "@electric-sql/pglite": "^0.5.4",
@@ -84,6 +85,7 @@
     "zustand": "^5.0.0"
   },
   "devDependencies": {
+    "@electric-sql/pglite-socket": "0.2.11",
     "@eslint/js": "^9.20.0",
     "@types/node": "^22.16.5",
     "@types/pg": "^8.11.10",

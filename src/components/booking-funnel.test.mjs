@@ -3,7 +3,9 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { JSDOM } from 'jsdom';
 
-test('booking review uses current availability, correct rates and matching consent', async () => {
+test('booking review uses current availability, correct rates and matching consent', async (t) => {
+  // Availability correctly runs out near closing; exercise pricing during a fixed open day.
+  t.mock.timers.enable({apis:['Date'],now:new Date('2026-10-12T15:00:00Z')});
   const dom = new JSDOM('<div id="root"></div>', { url: 'https://example.invalid' });
   Object.assign(globalThis, { window: dom.window, document: dom.window.document, HTMLElement: dom.window.HTMLElement, IS_REACT_ACT_ENVIRONMENT: true });
   const React = await import('react');

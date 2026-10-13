@@ -28,16 +28,32 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run typecheck
-      - run: npm test
-      - run: npm run lint
-      - run: npm audit --audit-level=high
       - run: npm run build
         env:
           NETLIFY: "true"
-          CONTEXT: deploy-preview
+          # This is an offline synthetic build, not a hosted Netlify preview.
+          # Actual preview builds receive SITE_ID and DEPLOY_PRIME_URL from Netlify.
+          CONTEXT: dev
           SQUARE_LIVE_ENABLED: "false"
           SQUARE_ENVIRONMENT: sandbox
       - run: npm run verify:build
+      - run: npx playwright install --with-deps chromium
+      - name: Authenticated isolated instructor walkthrough
+        run: npm run test:guided:browser
+        env:
+          NETLIFY: "true"
+          LESSON_FULL_APP: "true"
+          LESSON_SCREENSHOT_DIR: artifacts/guided-lessons
+      # Run the real interaction loop first so interface failures are found promptly.
+      - run: npm test
+      - run: npm run lint
+      - run: npm audit --audit-level=high
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: guided-lesson-walkthrough
+          path: artifacts/guided-lessons
+          if-no-files-found: ignore
       - name: Read-only hosted HTTP smoke
         if: github.event_name == 'workflow_dispatch' && inputs.hosted_origin != 'skip'
         run: npm run verify:hosted -- "$HOSTED_ORIGIN"

@@ -248,7 +248,9 @@ function TeamPlan({
         full,
         po: canPO ? po : 0,
       });
-  } catch {}
+  } catch {
+    // An incomplete draft has no valid preview; server validation still gates publication.
+  }
   const base = { teamId: team.id, revision: team.revision };
   let preview: ReturnType<typeof project> | undefined;
   try {
@@ -260,7 +262,9 @@ function TeamPlan({
         plan.expenses,
         plan.status === "closed",
       );
-  } catch {}
+  } catch {
+    // An incomplete draft has no valid preview; server validation still gates publication.
+  }
   const publication = team.publication;
   return (
     <div className="grid gap-4">
@@ -1416,7 +1420,7 @@ function TeamPlan({
                         className="office-control w-full"
                       />
                     </label>
-                    <Button disabled={busy}>Record verified payment</Button>
+                    <Button type="submit" disabled={busy}>Record verified payment</Button>
                   </form>
                 </details>
               )}

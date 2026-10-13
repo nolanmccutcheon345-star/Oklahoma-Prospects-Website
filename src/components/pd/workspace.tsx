@@ -1,3 +1,4 @@
+import {MyTraining} from "./my-training";
 import { formatClockTime } from "@/lib/time-display";
 
 import {DevelopmentBoard} from "@/components/commerce/development-board";
@@ -626,7 +627,7 @@ function ProgramsDesk() {
   const [selected, setSelected] = useState("");
   const id = data.athletes.some(a => a.id === selected) ? selected : data.athletes[0]?.id;
   const current = id ? slice(id) : null;
-  const [section, setSection] = useState("strength");
+  const [section, setSection] = useState("practice");
   return <div className="pd-stack">
     <h2 className="text-3xl">My assigned programs</h2>
     {data.athletes.length ? <label>Athlete<select className="pd-control block w-full" value={id} onChange={e => setSelected(e.target.value)}>{data.athletes.map(a => <option key={a.id} value={a.id}>{a.firstName} {a.lastName}</option>)}</select></label> : <p>No athletes are linked to this desk. <Link to="/family" className="underline">Add or review your athletes</Link>; contact the club if an existing athlete is missing. Existing history should be recovered before a replacement record is created.</p>}
@@ -637,8 +638,8 @@ function ProgramsDesk() {
         <label>Position(s)<input name="position" required maxLength={80} defaultValue={current.athlete.position} placeholder="Example: RHP / SS" /></label>
         <Button type="submit">Save athlete profile</Button>
       </form>
-    </details><div role="tablist" aria-label="Assigned programs" className="flex flex-wrap gap-2">{["strength", "throwing"].map(key => <Button key={key} role="tab" aria-selected={section === key} onClick={() => setSection(key)}>{key === "strength" ? "Strength" : "Throwing"}</Button>)}</div>
-    {section === "strength" ? <StrengthProgramView key={id} slice={current} role={canCoach(id) ? viewer?.role ?? "coach" : "parent"} /> : <ThrowingPlanView key={id} slice={current} role={canCoach(id) ? viewer?.role ?? "coach" : "parent"} />}</> : null}
+    </details><div role="tablist" aria-label="Assigned programs" className="flex flex-wrap gap-2">{["practice", "strength", "throwing"].map(key => <Button key={key} role="tab" aria-selected={section === key} onClick={() => setSection(key)}>{key === "practice" ? "My Training" : key === "strength" ? "Strength" : "Throwing"}</Button>)}</div>
+    {section === "practice" ? <MyTraining key={id} athleteId={id!}/> : section === "strength" ? <StrengthProgramView key={id} slice={current} role={canCoach(id) ? viewer?.role ?? "coach" : "parent"} /> : <ThrowingPlanView key={id} slice={current} role={canCoach(id) ? viewer?.role ?? "coach" : "parent"} />}</> : null}
     <details><summary className="min-h-12 cursor-pointer">Curriculum library</summary><ProgramsCurriculum /></details>
   </div>;
 }

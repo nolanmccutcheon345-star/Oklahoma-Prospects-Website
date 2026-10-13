@@ -1,3 +1,5 @@
+import {MyTraining} from "./my-training";
+import {BookedLessonHistory} from "./booked-guided-lesson";
 import {athleteAge} from '@/lib/pd/engines';
 import { Link } from "@tanstack/react-router";
 import { useMemo, useState, type ReactNode } from "react";
@@ -320,7 +322,7 @@ function RecordView({
         </Panel>
       );
     case "skill-plan":
-      return <SkillPlanLibrary slice={slice} role={role} />;
+      return <div className="grid gap-6"><MyTraining athleteId={slice.athlete.id}/><details><summary className="cursor-pointer">Existing skill plans</summary><SkillPlanLibrary slice={slice} role={role} /></details></div>;
     case "strength":
       return <StrengthProgramView slice={slice} role={role} />;
     case "warmups":
@@ -417,6 +419,7 @@ function RecordView({
       }
       return (
         <Panel eyebrow="Lessons" title={`${slice.lessons.length} on file`}>
+          <BookedLessonHistory athleteId={slice.athlete.id}/>
           <Notes
             rows={slice.lessons.map((row) => ({
               key: row.id,

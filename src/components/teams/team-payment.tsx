@@ -76,7 +76,7 @@ export function TeamPayment({
             />
             I authorize this amount toward my player’s accepted team fee.
           </label>
-          <Button disabled={busy || !consent}>
+          <Button type="submit" disabled={busy || !consent}>
             {busy ? "Preparing payment…" : "Review secure payment"}
           </Button>
         </form>
