@@ -153,6 +153,9 @@ export async function openLessonSession(userId: string, bookingId: string) {
         canReview: me.role === "admin",
         resolutionError: null,
         athleteName: existing.snapshot.context.name as string,
+        instructorName:
+          file.coaches.find((coach) => coach.id === booking.coach_id)?.name ||
+          "Assigned instructor",
       };
     }
     if (booking.status === "completed")
@@ -239,6 +242,8 @@ export async function openLessonSession(userId: string, bookingId: string) {
       canReview: me.role === "admin",
       resolutionError: null,
       athleteName: context.name,
+      instructorName:
+        file.coaches.find((coach) => coach.id === booking.coach_id)?.name || "Assigned instructor",
     };
   });
 }

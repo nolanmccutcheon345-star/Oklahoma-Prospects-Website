@@ -1,3 +1,4 @@
+import { AthleteSelector, athleteScope } from "@/components/pd/athlete-selector";
 import {getPublicPeople} from "@/lib/person-api";
 import type {PublicPerson} from "@/lib/person-contracts";
 import { CLUB } from "@/lib/club";
@@ -75,6 +76,7 @@ function CatalogAndBook({view,instructor}:{view:"lessons"|"plans";instructor?:st
   const [discipline, setDiscipline] = useState("Pitching");
   const [athletes, setAthletes] = useState<{id:string;name:string;assessmentComplete:boolean}[]>([]);
   const [athleteId, setAthleteId] = useState("");
+  const [scopeRole, setScopeRole] = useState("parent");
   const [loadingAthletes, setLoadingAthletes] = useState(false);
   const [athleteError, setAthleteError] = useState("");
   const lessons = instructor ? (selectedInstructor ? catalog.lessons.filter(s=>selectedInstructor.serviceIds.includes(s.id)) : []) : catalog.lessons;
@@ -93,6 +95,7 @@ function CatalogAndBook({view,instructor}:{view:"lessons"|"plans";instructor?:st
       .then(value => {
         if (!active) return;
         setAthletes(value.athletes);
+        setScopeRole(value.athleteScopeRole);
         setAthleteId(current =>
           value.athletes.some(a => a.id === current) ? current :
           value.athletes.length === 1 ? value.athletes[0].id : ""
@@ -178,7 +181,7 @@ function CatalogAndBook({view,instructor}:{view:"lessons"|"plans";instructor?:st
           {athleteError ? <p role="alert" className="mt-3 text-maroon">{athleteError}</p> : null}
           {!user ? <p className="mt-3"><Link to="/login" search={{next:instructor?`/training?instructor=${encodeURIComponent(instructor)}`:"/training"}} className="font-semibold underline">Sign in</Link> to choose your athlete. You can browse lessons and compare plans before signing in.</p> : null}
           {user && !loadingAthletes && athletes.length === 0 ? <p className="mt-3"><Link to="/family" className="font-semibold underline">Add an athlete</Link> to your household before booking.</p> : null}
-          {athletes.length > 0 ? <label className="mt-3 grid gap-2">Athlete<select value={athleteId} onChange={e=>setAthleteId(e.target.value)} className="min-h-12 w-full min-w-0 rounded-lg border p-3"><option value="">Select an athlete</option>{athletes.map(a=><option key={a.id} value={a.id}>{a.name}{a.assessmentComplete ? " · assessment completed" : " · assessment needed"}</option>)}</select></label> : null}
+          {athletes.length > 0 ? <AthleteSelector athletes={athletes} value={athleteId} onChange={setAthleteId} scope={athleteScope(scopeRole)}/> : null}
           {hasAssessment ? <p className="mt-3">Assessment completed. Choose View Available Times on a lesson to pick a coach and session time.</p> : null}
         </div>
         <section id="youth-lessons" className="mt-6 rounded-xl bg-paper-2 p-5">

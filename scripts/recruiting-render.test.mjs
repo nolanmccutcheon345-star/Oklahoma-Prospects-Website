@@ -169,7 +169,7 @@ test("recruiting editor submits drafts, explicit guardian consent and verificati
     await act(async () =>
       root.render(createElement(LessonRecruitingMetrics, { bookingId: "lesson-past" })),
     );
-    await act(async () => button("Record verified player metric").click());
+    await act(async () => button("Add Verified Measurement").click());
     const method = [...host.querySelectorAll("label")]
       .find((l) => l.textContent.startsWith("How you measured"))
       .querySelector("input");

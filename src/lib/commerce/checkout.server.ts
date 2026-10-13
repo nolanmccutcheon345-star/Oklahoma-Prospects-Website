@@ -51,6 +51,7 @@ export async function checkoutContext(verifiedUserId?: string) {
   const coaches = await bookableCoaches(sql, bookingFile.coaches);
   // Guest callers receive only coach names/specialties and the public catalog.
   return {
+    athleteScopeRole: me?.role === "admin" ? "admin" : me?.canInstruct || me?.canTeamCoach ? "coach" : me?.role || "parent",
     mode: paymentMode(),
     square: squarePublicConfig(),
     products: publicProducts,

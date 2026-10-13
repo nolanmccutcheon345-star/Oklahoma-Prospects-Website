@@ -1,3 +1,4 @@
+import { athleteScope } from "./athlete-selector";
 import {MyTraining} from "./my-training";
 import {BookedLessonHistory} from "./booked-guided-lesson";
 import {athleteAge} from '@/lib/pd/engines';
@@ -672,6 +673,7 @@ export function AthleteRoster({
   onStartLesson?: (athleteId: string) => void;
 }) {
   const dev = useDevelopment();
+  const [search, setSearch] = useState("");
   const athletes = useMemo(
     () => dev.listAthletes(role, familyId, selfName),
     [dev, familyId, role, selfName],
@@ -698,12 +700,14 @@ export function AthleteRoster({
 
   return (
     <section data-athlete-count={athletes.length}>
-      <h3 className="text-2xl">{role === "admin" ? "Athletes" : "Roster"}</h3>
+      <h3 className="text-2xl">Choose Athlete</h3>
       <p className="mt-1 text-sm text-muted">
-        {athletes.length} on this desk. Open a record — {RECORD_GROUPS.flatMap((g) => g.views).length} views, phone first.
+        {athleteScope(role)} {athletes.length} on this desk.
       </p>
+      {athletes.length >= 8 && <label className="mt-3 grid gap-1">Search athletes<input type="search" className="min-h-11 rounded-lg border p-2" value={search} onChange={e => setSearch(e.target.value)}/></label>}
+      {search && !athletes.some(a => `${a.firstName} ${a.lastName}`.toLowerCase().includes(search.trim().toLowerCase())) && <p role="status">No athletes match your search.</p>}
       <ul className="mt-3 grid gap-2">
-        {athletes.map((row) => {
+        {athletes.filter(a => `${a.firstName} ${a.lastName}`.toLowerCase().includes(search.trim().toLowerCase())).map((row) => {
           const pts = activityPoints({
             athlete: row,
             pointsLog: dev.data.pointsLog.filter((item) => item.athleteId === row.id),
