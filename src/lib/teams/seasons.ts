@@ -1,3 +1,4 @@
+import { ACTIVE_SEASON_YEAR } from "../active-season";
 export function teamSeasons(team: { seasons?: string[]; seasonLabel: string }): string[] {
   if (team.seasons?.length) return [...new Set(team.seasons)];
   const combined = /^(Spring|Summer|Fall|Winter)\s*&\s*(Spring|Summer|Fall|Winter)\s+(\d{4})$/i.exec(team.seasonLabel);
@@ -6,6 +7,6 @@ export function teamSeasons(team: { seasons?: string[]; seasonLabel: string }): 
 }
 
 export function seasonOptions(current: string[] = []) {
-  const year = new Date().getFullYear();
+  const year = Math.max(ACTIVE_SEASON_YEAR, new Date().getFullYear());
   return [...new Set([...Array.from({length: 4}, (_, i) => ["Spring", "Summer", "Fall", "Winter"].map(s => `${s} ${year+i}`)).flat(), ...current])];
 }

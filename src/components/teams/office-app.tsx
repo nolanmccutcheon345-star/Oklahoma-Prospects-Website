@@ -1,3 +1,4 @@
+import { ACTIVE_SEASON } from "@/lib/active-season";
 import { RosterRoleSelect } from "@/components/teams/roster-role-select";
 import type { RosterRole } from "@/lib/teams/po-roster";
 import { SeasonPicker } from "./season-picker";
@@ -312,7 +313,7 @@ function RosterTools({
   const [teamName, setTeamName] = useState("");
   const [age, setAge] = useState("13U");
   const [sport, setSport] = useState<"baseball" | "softball">("baseball");
-  const [seasons, setSeasons] = useState(["Spring 2027"]);
+  const [seasons, setSeasons] = useState([ACTIVE_SEASON]);
   const [seasonDrafts, setSeasonDrafts] = useState<Record<string,string[]>>({});
   const [notice, setNotice] = useState("");
   const [teamId, setTeamId] = useState(club.teams[0]?.id ?? "");

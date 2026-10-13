@@ -1,3 +1,4 @@
+import { ACTIVE_SEASON } from "./active-season";
 import { z } from "zod";
 export const CONSENT_VERSION = "recruiting-2026-10-10";
 export const CONSENT_TEXT =
@@ -115,17 +116,9 @@ export const linkInput = playerKey
     remove: z.boolean().optional(),
   })
   .strict();
-export function currentSeason(date = new Date()) {
-  const month = Number(
-    new Intl.DateTimeFormat("en-US", { timeZone: "America/Chicago", month: "numeric" }).format(
-      date,
-    ),
-  );
-  const year = new Intl.DateTimeFormat("en-US", {
-    timeZone: "America/Chicago",
-    year: "numeric",
-  }).format(date);
-  return `${month >= 9 && month <= 11 ? "Fall" : month >= 6 && month <= 8 ? "Summer" : month >= 3 && month <= 5 ? "Spring" : "Winter"} ${year}`;
+/** Default view follows the club's recruiting season, not today's calendar quarter. */
+export function currentSeason() {
+  return ACTIVE_SEASON;
 }
 
 export const lessonMetricKey = z.object({ bookingId: z.string().min(1).max(150) }).strict();

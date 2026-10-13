@@ -5,6 +5,6 @@ test('scheduled tryout choice uses published sport, season and ages; switching s
  const select=label=>[...host.querySelectorAll('label')].find(l=>l.textContent.trim().startsWith(label))?.querySelector('select');
  assert.equal(select('Scheduled tryout').value,'baseball');assert.deepEqual([...select('Age group').options].map(o=>o.value),['','12U']);assert.match(host.textContent,/Spring 2027/);assert.match(host.textContent,/Season is set by the published event/);assert.equal(host.querySelector('input[type="checkbox"]').checked,false);
  await change(select('Sport'),'Softball');assert.equal(select('Scheduled tryout').value,'');assert.deepEqual([...select('Scheduled tryout').options].map(o=>o.value),['','softball']);await change(select('Scheduled tryout'),'softball');assert.match(host.textContent,/Summer 2027/);assert.equal(select('Age group').value,'14U');
- await act(async()=>host.querySelector('input[value="individual"]').click());assert.equal(select('Scheduled tryout'),undefined);assert.ok([...host.querySelectorAll('label')].some(l=>l.textContent.includes('Preferred season')));
+ await act(async()=>host.querySelector('input[value="individual"]').click());assert.equal(select('Scheduled tryout'),undefined);assert.equal([...host.querySelectorAll('label')].find(l=>l.textContent.includes('Preferred season')).querySelector('input').value,'Spring 2027');assert.ok([...host.querySelectorAll('label')].some(l=>l.textContent.includes('Preferred season')));
  });
 });

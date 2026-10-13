@@ -4,7 +4,7 @@ import {PGlite} from "@electric-sql/pglite";
 import type {Sql} from "../db";
 import {sampleClub} from "./seed";
 import {persistTeamSeasons} from "./season-save.server";
-import {teamSeasons} from "./seasons";
+import {teamSeasons, seasonOptions} from "./seasons";
 
 test("season edit survives a database reload, preserves other teams and coach photos, rejects stale writes", async () => {
   const db=new PGlite();
@@ -28,4 +28,13 @@ test("season edit survives a database reload, preserves other teams and coach ph
     await assert.rejects(persistTeamSeasons(sql,{teamId:team.id,baseRev:first._rev,seasons:["Fall 2027"]}),/changed/);
     await assert.rejects(persistTeamSeasons(sql,{teamId:team.id,baseRev:second._rev,seasons:[]}));
   } finally {await db.close();}
+});
+
+// Existing historical selections remain editable while new teams start with the active year.
+test("season choices prioritize 2027 without dropping stored historical seasons", () => {
+  const options=seasonOptions(["Fall 2026"]);
+  assert.equal(options[0], "Spring 2027");
+  assert.ok(options.includes("Fall 2026"));
+  assert.ok(!seasonOptions().includes("Spring 2026"));
+  assert.deepEqual(teamSeasons({seasonLabel:"Fall 2026"}), ["Fall 2026"]);
 });
