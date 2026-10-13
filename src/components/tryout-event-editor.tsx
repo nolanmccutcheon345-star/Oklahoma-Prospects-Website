@@ -1,3 +1,4 @@
+import { ACTIVE_SEASON } from "@/lib/active-season";
 import { formatClockTime } from "@/lib/time-display";
 import { TimeInput } from "@/components/time-input";
 import { useEffect, useState, type FormEvent } from "react";
@@ -13,7 +14,7 @@ const blank = (): TryoutEventInput => ({
   id: crypto.randomUUID(),
   revision: 0,
   sport: "Baseball",
-  season: "",
+  season: ACTIVE_SEASON,
   ageGroups: [],
   date: "",
   startTime: "",

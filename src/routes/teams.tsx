@@ -1,3 +1,4 @@
+import { ACTIVE_SEASON } from "@/lib/active-season";
 import { PublicTeamRoster } from "@/components/public-team-roster";
 import {pageHead} from "@/lib/seo";
 import { createFileRoute, Link, Outlet, useRouterState } from "@tanstack/react-router";
@@ -104,7 +105,7 @@ function TeamsPublic() {
   return (
     <>
       <PageHero
-        eyebrow={`${CLUB.name} teams`}
+        eyebrow={`${ACTIVE_SEASON} · ${CLUB.name} teams`}
         title="Find your team."
         accent="Bring your game."
         copy="Competitive baseball and softball, purposeful development, and a place to belong. Request a free individual tryout at any age group."

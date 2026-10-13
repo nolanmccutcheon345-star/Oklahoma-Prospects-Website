@@ -348,5 +348,5 @@ test("metric schema rejects forged verification and invalid measurements", () =>
     { verifiedBy: "admin" },
   ])
     assert.equal(metricInput.safeParse({ ...d, ...patch }).success, false);
-  assert.equal(currentSeason(new Date("2026-10-10T12:00:00Z")), "Fall 2026");
+  assert.equal(currentSeason(), "Spring 2027");
 });

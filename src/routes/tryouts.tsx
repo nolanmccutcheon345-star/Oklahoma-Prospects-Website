@@ -1,3 +1,4 @@
+import { ACTIVE_SEASON } from "@/lib/active-season";
 import { pageHead } from "@/lib/seo";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { ContactForm, TryoutForm } from "@/components/inquiry-form";
@@ -15,7 +16,7 @@ export const Route = createFileRoute("/tryouts")({
     pageHead(
       "/tryouts",
       "Request a Tryout",
-      "Request a free individual tryout for baseball or softball at any age group. Private appointments are arranged with a coach.",
+      `Request a free ${ACTIVE_SEASON} tryout for baseball or softball at any age group. Private appointments are arranged with a coach.`,
       false,
     ),
   loader: () => getPublicTryoutEvents(),
@@ -33,7 +34,7 @@ function TryoutsPage() {
   return (
     <main id="main">
       <PageHero
-        eyebrow="Team opportunities"
+        eyebrow={`${ACTIVE_SEASON} · Team opportunities`}
         title="Tryouts."
         accent="Find your team."
         copy="Explore upcoming baseball and softball tryouts or request an individual evaluation. Our staff will help you find the right next step."

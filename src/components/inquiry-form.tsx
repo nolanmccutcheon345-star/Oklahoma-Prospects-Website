@@ -1,3 +1,4 @@
+import { ACTIVE_SEASON } from "@/lib/active-season";
 import { useEffect, useState, type FormEvent } from "react";
 import { sendInquiry } from "@/lib/portal-api";
 import { Button } from "@/components/ui/button";
@@ -162,7 +163,7 @@ export function TryoutForm({
           ? initialEvent.ageGroups[0]
           : ""
       : initialAge,
-    season: initialEvent?.season || "",
+    season: initialEvent?.season || ACTIVE_SEASON,
     session: intent === "register" ? TRYOUT_REQUEST_SESSION : "",
     preferredTeamId: "",
     preferredCoachId: "",
@@ -294,7 +295,7 @@ export function TryoutForm({
                   setEventId("");
                   setValues((v) => ({
                     ...v,
-                    season: "",
+                    season: value === "individual" ? ACTIVE_SEASON : "",
                     preferredTeamId: "",
                     preferredCoachId: "",
                   }));
@@ -316,7 +317,7 @@ export function TryoutForm({
             setValues((v) => ({
               ...v,
               sport: e.target.value,
-              season: "",
+              season: mode === "individual" ? ACTIVE_SEASON : "",
               preferredTeamId: "",
               preferredCoachId: "",
             }));
@@ -406,7 +407,7 @@ export function TryoutForm({
             required
             maxLength={120}
             className={fieldClass}
-            placeholder="For example, Spring 2027"
+            placeholder={ACTIVE_SEASON}
             value={values.season}
             onChange={(e) => setValues((v) => ({ ...v, season: e.target.value }))}
           />
