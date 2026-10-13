@@ -8,6 +8,7 @@ import type { TryoutEvent } from "@/lib/tryout-events-contracts";
 import { formatClockTime } from "@/lib/time-display";
 import type { PublicTryoutTeam } from "@/lib/tryout-preferences.server";
 import { cn } from "@/lib/utils";
+import { inquiryInput } from "@/lib/portal-contracts";
 
 const fieldClass =
   "mt-1.5 block min-h-11 w-full rounded-md border border-muted/40 bg-paper-2 px-3 text-base text-ink placeholder:text-muted";
@@ -26,6 +27,9 @@ type TryoutValues = {
   phone: string;
   email: string;
   notes: string;
+  positions: string;
+  usssaStatus: "" | "provided" | "unknown" | "not-registered";
+  usssaAthleteId: string;
   sport: string;
   session: string;
   season: string;
@@ -154,6 +158,9 @@ export function TryoutForm({
     phone: "",
     email: "",
     notes: "",
+    positions: "",
+    usssaStatus: "",
+    usssaAthleteId: "",
     autoEnroll: false,
     sport: initialEvent?.sport || initialSport,
     age: initialEvent
@@ -227,8 +234,7 @@ export function TryoutForm({
     setBusy(true);
     setError("");
     try {
-      await sendInquiry({
-        data: {
+      const data = inquiryInput.parse({
           ...values,
           kind: intent === "register" ? "tryout" : "team-inquiry",
           requestId,
@@ -241,11 +247,13 @@ export function TryoutForm({
                 requestConsent: consent,
               }
             : {}),
-        },
       });
+      await sendInquiry({ data });
       setSent(true);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Submission did not save. Please retry.");
+      setError(e && typeof e === "object" && "issues" in e
+        ? (e as { issues: { message: string }[] }).issues.map((issue) => issue.message).join(" ")
+        : e instanceof Error ? e.message : "Submission did not save. Please retry.");
     } finally {
       setBusy(false);
     }
@@ -452,9 +460,86 @@ export function TryoutForm({
           />
         </label>
       </div>
-      <details className="rounded-xl border bg-paper p-4">
+      <fieldset className="grid min-w-0 gap-4 rounded-xl border bg-paper p-4">
+        <legend className="px-2 font-semibold">
+          Player details {intent === "register" && <span className="text-maroon">— mandatory</span>}
+        </legend>
+        <label className="text-sm font-semibold">
+          Player positions {intent === "register" && <span className="text-maroon">*</span>}
+          <input
+            required={intent === "register"}
+            maxLength={200}
+            className={fieldClass}
+            placeholder="Pitcher, catcher, shortstop, outfield…"
+            value={values.positions}
+            onChange={(e) => setValues((v) => ({ ...v, positions: e.target.value }))}
+          />
+          <span className="mt-1 block text-xs font-normal text-muted">
+            List primary and other positions. Beginners can enter “New player / still learning.”
+          </span>
+        </label>
+        <label className="text-sm font-semibold">
+          Player notes {intent === "register" && <span className="text-maroon">*</span>}
+          <textarea
+            required={intent === "register"}
+            rows={3}
+            maxLength={5000}
+            className={cn(fieldClass, "py-2.5")}
+            placeholder="Experience, goals, or anything your coach should know"
+            value={values.notes}
+            onChange={(e) => setValues((v) => ({ ...v, notes: e.target.value }))}
+          />
+          <span className="mt-1 block text-xs font-normal text-muted">
+            Enter “No additional notes” if there is nothing else to share.
+          </span>
+        </label>
+        {intent === "register" && (
+          <>
+            <label className="text-sm font-semibold">
+              USSSA Player ID status <span className="text-maroon">*</span>
+              <select
+                required
+                className={fieldClass}
+                value={values.usssaStatus}
+                onChange={(e) => setValues((v) => ({
+                  ...v,
+                  usssaStatus: e.target.value as TryoutValues["usssaStatus"],
+                  usssaAthleteId: "",
+                }))}
+              >
+                <option value="">Choose an option</option>
+                <option value="provided">I have the Player ID</option>
+                <option value="unknown">I don’t know it yet</option>
+                <option value="not-registered">Not registered with USSSA yet</option>
+              </select>
+            </label>
+            {values.usssaStatus === "provided" && (
+              <label className="text-sm font-semibold">
+                USSSA Player / Athlete ID <span className="text-maroon">*</span>
+                <input
+                  required
+                  inputMode="numeric"
+                  pattern="[0-9]+"
+                  maxLength={30}
+                  className={fieldClass}
+                  value={values.usssaAthleteId}
+                  onChange={(e) => setValues((v) => ({ ...v, usssaAthleteId: e.target.value.trim() }))}
+                />
+              </label>
+            )}
+            <p className="text-sm text-muted">
+              This helps staff find the correct USSSA player record. You can still request a tryout
+              if you don’t know the ID or haven’t registered yet.{" "}
+              <a href="https://support.usssa.com/hc/en-us/articles/49338934982419-Gathering-Player-IDs" target="_blank" rel="noreferrer" className="font-semibold underline">
+                How to find a Player ID
+              </a>
+            </p>
+          </>
+        )}
+      </fieldset>
+      {intent === "register" && <details className="rounded-xl border bg-paper p-4">
         <summary className="min-h-11 cursor-pointer font-semibold">
-          Additional Preferences <span className="font-normal">(optional)</span>
+          Team & coach preferences <span className="font-normal">(optional)</span>
         </summary>
         <div className="mt-2 grid gap-4">
           {intent === "register" && (
@@ -507,19 +592,8 @@ export function TryoutForm({
               </p>
             </>
           )}
-          <label className="text-sm font-semibold">
-            Player notes
-            <textarea
-              rows={3}
-              maxLength={5000}
-              className={cn(fieldClass, "py-2.5")}
-              placeholder="Positions, goals, or questions"
-              value={values.notes}
-              onChange={(e) => setValues((v) => ({ ...v, notes: e.target.value }))}
-            />
-          </label>
         </div>
-      </details>
+      </details>}
       {intent === "register" && (
         <label className="flex items-start gap-3 rounded-xl border bg-paper p-4 text-sm">
           <input

@@ -13,6 +13,7 @@ import {WAIVER_TEXT,WAIVER_VERSION} from './waiver-content';
 import {inquiryInput,athleteInput,waiverInput} from './portal-contracts';
 export async function submitInquiry(input:z.infer<typeof inquiryInput>) {
  assertSameSiteRequest();await rateLimit('inquiry',10);
+ input=inquiryInput.parse(input);
  if(input.kind==='tryout'){
   validateTryoutRegistration(input,chicagoDate());
  }
