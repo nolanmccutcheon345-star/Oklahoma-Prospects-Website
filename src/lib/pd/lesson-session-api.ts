@@ -1,3 +1,4 @@
+import {lessonChoiceInput} from "./lesson-choices";
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { authMiddleware } from "../auth/middleware";
@@ -55,3 +56,6 @@ export const getLessonExceptions = createServerFn({ method: "GET" })
     const m = await import("./lesson-session.server");
     return m.historicalLessonExceptions(context.userId);
   });
+export const chooseLesson=createServerFn({method:'POST'}).middleware([authMiddleware]).validator(lessonChoiceInput).handler(async({context,data})=>(await import('./lesson-session.server')).chooseLessonForUser(context.userId,data));
+export const getLessonPresets=createServerFn({method:'GET'}).middleware([authMiddleware]).validator(z.object({bookingId:id}).strict()).handler(async({context,data})=>(await import('./lesson-session.server')).lessonPresetsForUser(context.userId,data.bookingId));
+export const reviewLessonPreset=createServerFn({method:'POST'}).middleware([authMiddleware]).validator(z.object({id,status:z.enum(['approved','retired']),reason:z.string().trim().min(10).max(1000)}).strict()).handler(async({context,data})=>(await import('./lesson-session.server')).reviewLessonPresetForUser(context.userId,data));

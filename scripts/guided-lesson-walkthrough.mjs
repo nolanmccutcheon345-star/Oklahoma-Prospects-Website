@@ -82,7 +82,7 @@ test("authenticated instructor walkthrough: both sports, 30/60/75, durable draft
         {
           name: "transport",
           setup(b) {
-            b.onResolve({ filter: /lesson-session-api$|recruiting-api$/ }, (a) => ({
+            b.onResolve({ filter: /lesson-session-api$|recruiting-api$|training-api$/ }, (a) => ({
               path: a.path,
               namespace: "transport",
             }));
@@ -90,7 +90,7 @@ test("authenticated instructor walkthrough: both sports, 30/60/75, durable draft
               loader: "js",
               contents: a.path.endsWith("recruiting-api")
                 ? `export const getLessonMetrics=async()=>{throw Error('Separate recruiting verification is outside this walkthrough')};export const saveLessonMetric=getLessonMetrics;`
-                : `const call=async(name,input)=>{const r=await fetch('/test-api/'+name,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(input?.data||{})});const d=await r.json();if(!r.ok)throw Error(d.error);return d;};${["openBookedLesson", "saveBookedLesson", "reviewBookedLesson", "getBookedLessonHistory", "getLessonExceptions"].map((n) => `export const ${n}=input=>call('${n}',input);`).join("")}`,
+                : `const call=async(name,input)=>{const r=await fetch('/test-api/'+name,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(input?.data||{})});const d=await r.json();if(!r.ok)throw Error(d.error);return d;};${["openBookedLesson", "saveBookedLesson", "reviewBookedLesson", "getBookedLessonHistory", "getLessonExceptions", "chooseLesson", "getLessonPresets", "reviewLessonPreset", "loadTraining", "assignTraining", "logTraining", "reviewTraining"].map((n) => `export const ${n}=input=>call('${n}',input);`).join("")}`,
             }));
           },
         },
@@ -218,6 +218,8 @@ test("authenticated instructor walkthrough: both sports, 30/60/75, durable draft
           let result;
           if (name === "openBookedLesson")
             result = await api.openLessonSession(uid, data.bookingId);
+          else if (name === "loadTraining") result = await api.loadTrainingForUser(uid, data.athleteId);
+          else if (name === "getLessonPresets") result = await api.lessonPresetsForUser(uid, data.bookingId);
           else if (name === "saveBookedLesson") result = await api.saveLessonSession(uid, data);
           else if (name === "getBookedLessonHistory")
             result = await api.lessonHistory(uid, data.athleteId);
@@ -345,6 +347,83 @@ test("authenticated instructor walkthrough: both sports, 30/60/75, durable draft
       );
       await page.getByRole("dialog").evaluate((el) => (el.scrollTop = 0));
       await page.screenshot({ path: screenshots + "/" + id + "-completed.png", fullPage: false });
+    }
+    if (fullApp) {
+      // Complete the real coach → family → coach loop through built routes and server functions.
+      const guardian = await api.handleAuthRequest(new Request(base + '/api/auth/sign-up/email', {
+        method:'POST',headers:{origin:base,'content-type':'application/json'},
+        body:JSON.stringify({name:'Synthetic Guardian',email:'guardian@audit.example.invalid',password}),
+      }));
+      assert.equal(guardian.status,200);
+      const guardianId=(await guardian.json()).user.id;
+      await sql`update "user" set "emailVerified"=true where id=${guardianId}`;
+      await sql`insert into profiles(user_id,email,name,role) values(${guardianId},'guardian@audit.example.invalid','Synthetic Guardian','parent') on conflict(user_id) do update set role='parent'`;
+      async function programs(){
+        await page.goto(base+'/account?desk=programs');
+        await page.getByRole('heading',{name:'My Training',exact:true}).waitFor();
+      }
+      async function signInAs(email){
+        await page.goto(base+'/login?next=%2Faccount%3Fdesk%3Dprograms');
+        await page.getByLabel(/^Email/).first().fill(email);
+        await page.getByLabel(/^Password/).first().fill(password);
+        await page.getByRole('button',{name:'Sign in',exact:true}).click();
+        await page.getByRole('button',{name:'Sign out',exact:true}).first().waitFor();
+        await programs();
+      }
+      async function signOut(){
+        await page.getByRole('button',{name:'Sign out',exact:true}).first().click();
+        await page.waitForURL(url=>!url.pathname.startsWith('/account'));
+      }
+      await programs();
+      await page.getByRole('button',{name:'Assign training',exact:true}).click();
+      await page.getByLabel('Program family',{exact:true}).selectOption('baseball:Hitting');
+      await page.getByLabel('Program title',{exact:true}).fill('Synthetic home contact plan');
+      for(const label of ['Measurable goal and mastery target','Observed baseline and prerequisites','Why this plan fits the player’s history and goals','Available equipment, space and adult supervision','Confirm games, team practices, other coaches, throwing/rest restrictions and recovery','Individual dose: sets, repetitions or time; include intensity','Rest between efforts and recovery between sessions']) {
+        await page.getByLabel(label,{exact:true}).fill('Synthetic coach review: comfortable controlled practice with individual rest and readiness checks.');
+      }
+      await page.getByRole('checkbox',{name:/Balanced tee contact/}).check();
+      await page.getByRole('checkbox',{name:/I am qualified to review/}).check();
+      await page.getByRole('button',{name:'Preview family assignment',exact:true}).click();
+      await page.getByRole('button',{name:'Approve and publish assignment',exact:true}).click();
+      await page.getByRole('heading',{name:'Synthetic home contact plan',exact:true}).waitFor();
+      await page.screenshot({path:screenshots+'/training-coach-assigned.png',fullPage:false});
+      await signOut();
+      await signInAs('guardian@audit.example.invalid');
+      await page.getByRole('button',{name:'Log practice or ask coach',exact:true}).first().click();
+      await page.getByLabel('repetitions',{exact:true}).fill('6');
+      await page.getByLabel('Successful outcomes',{exact:true}).fill('4');
+      await page.getByLabel('Practice notes, outcomes or modifications',{exact:true}).fill('Synthetic family report: four balanced contacts.');
+      await page.getByLabel('Question for coach',{exact:true}).fill('Synthetic question: repeat the same cue?');
+      await page.getByRole('button',{name:'Save practice report',exact:true}).click();
+      await page.getByRole('button',{name:'My Programs',exact:true}).click();
+      await page.getByRole('heading',{name:'Synthetic home contact plan',exact:true}).waitFor();
+      await signOut();
+      await signInAs('guardian@audit.example.invalid');
+      await page.getByRole('button',{name:'My Coach',exact:true}).click();
+      await page.getByText('Synthetic question: repeat the same cue?',{exact:true}).waitFor();
+      assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
+      await page.screenshot({path:screenshots+'/training-family-persisted.png',fullPage:false});
+      await signOut();
+      await signInAs('instructor@audit.example.invalid');
+      await page.getByRole('button',{name:'My Coach',exact:true}).click();
+      await page.getByText('Synthetic question: repeat the same cue?',{exact:true}).waitFor();
+      await page.getByRole('button',{name:'My Programs',exact:true}).click();
+      await page.getByLabel('Coach decision',{exact:true}).selectOption('repeat');
+      await page.getByLabel('Shared feedback and evidence for the decision',{exact:true}).fill('Synthetic coach feedback: repeat the same cue and compare at the next lesson.');
+      await page.getByRole('button',{name:'Save coach review',exact:true}).click();
+      await page.getByRole('button',{name:'My Coach',exact:true}).click();
+      await page.getByText('Synthetic coach feedback: repeat the same cue and compare at the next lesson.',{exact:true}).waitFor();
+      await page.goto(base+'/instructor');
+      await page.locator('[data-booking-id="baseball30"]').getByRole('button',{name:'Open saved lesson',exact:true}).click();
+      await page.getByText('Development brief · programs and home practice',{exact:true}).click();
+      await page.getByText('Synthetic home contact plan · active',{exact:true}).waitFor();
+      await page.screenshot({path:screenshots+'/training-next-lesson-brief.png',fullPage:false});
+      await page.goto(base+'/account?desk=programs');
+      await page.getByRole('button',{name:'Sign out',exact:true}).first().waitFor();
+      await signOut();
+      await signInAs('guardian@audit.example.invalid');
+      await page.getByRole('button',{name:'My Coach',exact:true}).click();
+      await page.getByText('Synthetic coach feedback: repeat the same cue and compare at the next lesson.',{exact:true}).waitFor();
     }
     assert.deepEqual(errors, []);
     assert.equal((await sql`select * from recruiting_metrics`).length, 0);

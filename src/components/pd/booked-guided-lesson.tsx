@@ -1,3 +1,5 @@
+import {LessonChoices} from "./lesson-choices";
+import {MyTraining} from "./my-training";
 import { useCallback, useEffect, useState } from "react";
 import { Button } from "../ui/button";
 import {
@@ -148,6 +150,7 @@ export function BookedGuidedLesson({
             </p>
           </section>
         )}
+        {session && <details className="rounded-xl border p-4"><summary className="cursor-pointer font-semibold">Development brief · programs and home practice</summary><div className="mt-4"><MyTraining athleteId={session.athlete_id} compact/></div></details>}
         {opened?.resolutionError && (
           <section className="rounded-xl border p-4">
             <p>{opened.resolutionError}</p>
@@ -230,6 +233,7 @@ export function BookedGuidedLesson({
               Template {template.version} · {template.ageBand} ·{" "}
               {readonly ? "Read-only saved session" : dirty ? "Unsaved changes" : "Saved draft"}
             </p>
+            {!readonly && <LessonChoices bookingId={bookingId} revision={session.revision} template={template} canReview={Boolean(opened?.canReview)} disabled={busy||dirty} onSaved={load}/>}
             <nav className="grid grid-cols-2 gap-2 sm:grid-cols-4" aria-label="Lesson stages">
               {template.stages.map((s, i) => (
                 <button

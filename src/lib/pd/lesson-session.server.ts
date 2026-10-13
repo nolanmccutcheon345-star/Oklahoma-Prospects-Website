@@ -485,3 +485,36 @@ export async function historicalLessonExceptions(userId: string) {
     note: "Read-only candidates. No historical records have been altered.",
   };
 }
+/** Replace draft curriculum only; authoritative booking/service identity is immutable. */
+export async function chooseLessonForUser(userId:string,raw:import('./lesson-choices').LessonChoiceInput){
+ const {lessonChoiceInput,customizeLesson}=await import('./lesson-choices');
+ const input=lessonChoiceInput.parse(raw),sql=await getSql(),identity=await resolveIdentity(sql,userId);
+ return sql.transaction(async tx=>{
+ const {booking}=await access(tx,identity,input.bookingId,true);
+ const [s]=await tx<Session>`select * from guided_lesson_sessions where booking_id=${booking.id} for update`;
+ if(!s||s.status!=='draft'||booking.status!=='confirmed')throw new Error('Only an open confirmed lesson draft can change curriculum.');
+ checkSnapshot(booking,s);
+ if(s.revision!==input.revision)throw new Error('Lesson changed. Save or reload before choosing a template.');
+ const template=customizeLesson(s.snapshot.template,input),snapshot={...s.snapshot,template},document={...s.document,objective:input.objective};
+ await tx`select set_config('app.actor_id',${userId},true)`;
+ await tx`update guided_lesson_sessions set snapshot=${JSON.stringify(snapshot)}::jsonb,document=${JSON.stringify(document)}::jsonb,revision=revision+1,updated_by=${userId},updated_at=now() where id=${s.id}`;
+ if(input.saveAs)await tx`insert into instructor_lesson_presets(id,author_id,name,sport,discipline,minutes,document) values(${randomUUID()},${userId},${input.saveAs},${template.sport},${template.discipline},${template.minutes},${JSON.stringify(input)}::jsonb)`;
+ return {ok:true};
+ });
+}
+export async function lessonPresetsForUser(userId:string,bookingId:string){
+ const sql=await getSql(),me=await resolveIdentity(sql,userId),{booking}=await access(sql,me,bookingId);
+ const [s]=await sql<Session>`select * from guided_lesson_sessions where booking_id=${booking.id}`;
+ if(!s)return [];
+ return sql<{id:string;name:string;status:string;document:import('./lesson-choices').LessonChoiceInput}>`select id,name,status,document from instructor_lesson_presets where sport=${s.snapshot.template.sport} and discipline=${s.snapshot.template.discipline} and minutes=${s.snapshot.template.minutes} and (author_id=${userId} or status='approved' or ${me.role==='admin'}) and status<>'retired' order by created_at desc`;
+}
+export async function reviewLessonPresetForUser(userId:string,input:{id:string;status:'approved'|'retired';reason:string}){
+ const sql=await getSql(),me=await resolveIdentity(sql,userId);
+ if(me.role!=='admin')throw new Error('Academy approval requires an admin.');
+ return sql.transaction(async tx=>{
+ await tx`select set_config('app.actor_id',${userId},true)`;
+ const rows=await tx`update instructor_lesson_presets set status=${input.status},reviewed_by=${userId},review_note=${input.reason} where id=${input.id} returning id`;
+ if(!rows.length)throw new Error('Preset unavailable.');
+ return {ok:true};
+ });
+}
