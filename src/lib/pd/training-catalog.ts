@@ -191,6 +191,13 @@ const rows: Record<string, Row[]> = {
       "Balanced legal steps / attempts",
     ],
     [
+      "Name-the-target tee",
+      "Connect a named target to controlled contact",
+      "Bat, tee, net with two targets",
+      "Coach names one of two targets before each tee swing. Athlete points to it, swings at comfortable effort, and checks the outcome before resetting.",
+      "Named-target contacts / attempts",
+    ],
+    [
       "Pre-pitch reset",
       "Build a repeatable preparation routine",
       "Bat, tee, net",
@@ -800,6 +807,35 @@ const build = (key: string, r: Row, i: number): TrainingDrill => ({
   demoUrl: null,
 });
 export const trainingDrills: TrainingDrill[] = [
+  ...(
+    [
+      [
+        "Dry overhand rhythm",
+        "Coordinate an easy throwing rehearsal",
+        "Clear lane",
+        "With no ball, rehearse a comfortable overhand throwing movement at slow speed. Stop in balance and reset.",
+        "Balanced rehearsals",
+      ],
+      [
+        "Baseball target routine",
+        "Name a target before preparing",
+        "Target diagram",
+        "Point to a broad target, state the intended location, and rehearse the setup without throwing. Reset after each choice.",
+        "Clear target intentions",
+      ],
+      [
+        "Ready-to-throw conversation",
+        "Recognize readiness and stop signals",
+        "Training log",
+        "Before any throwing, tell the adult about other practice, fatigue or discomfort. Explain the stop signal and rehearse it without a ball.",
+        "Readiness checks explained",
+      ],
+    ] as Row[]
+  ).map((r, i) => ({
+    ...build("SoftballPitching", r, i),
+    id: `baseball-foundation-${i + 1}`,
+    sports: ["baseball"] as LessonSport[],
+  })),
   ...Object.entries(rows).flatMap(([key, list]) => list.map((r, i) => build(key, r, i))),
   ...DRILLS.filter((d) => d.discipline === "Pitching" && !/Fatigue/.test(d.name)).map((d, i) => ({
     ...build(

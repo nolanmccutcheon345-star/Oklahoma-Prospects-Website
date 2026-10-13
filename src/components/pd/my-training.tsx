@@ -55,8 +55,18 @@ export function MyTraining({
   useEffect(() => {
     setData(undefined);
     setError("");
-    void load().catch((e) => setError(e.message));
-  }, [load]);
+    let active = true;
+    void loadTraining({ data: { athleteId } })
+      .then((value) => {
+        if (active) setData(value);
+      })
+      .catch((e) => {
+        if (active) setError(e.message);
+      });
+    return () => {
+      active = false;
+    };
+  }, [athleteId]);
   const today = chicagoDate(new Date()),
     weekEnd = isoAdd(today, 7);
   return (
@@ -619,6 +629,43 @@ function AssignmentForm({
           <p>
             Dose: {preview.tasks[0].dose} · Rest: {preview.tasks[0].rest}
           </p>
+          <details>
+            <summary className="cursor-pointer font-semibold">
+              Review and adjust every assigned session
+            </summary>
+            <div className="mt-3 grid gap-3">
+              {preview.tasks.map((task, index) => (
+                <div key={task.id} className="grid gap-2 rounded-lg border bg-white p-3">
+                  <strong>
+                    Session {index + 1}: {trainingDrills.find((d) => d.id === task.drillId)?.name}
+                  </strong>
+                  <p>{trainingDrills.find((d) => d.id === task.drillId)?.steps.join(" ")}</p>
+                  {(["date", "dose", "rest", "target"] as const).map((field) => (
+                    <Field key={field} label={`Session ${index + 1} ${field}`}>
+                      <input
+                        className={control}
+                        type={field === "date" ? "date" : "text"}
+                        value={task[field]}
+                        maxLength={3000}
+                        onChange={(e) =>
+                          setPreview((p) =>
+                            p
+                              ? {
+                                  ...p,
+                                  tasks: p.tasks.map((t, i) =>
+                                    i === index ? { ...t, [field]: e.target.value } : t,
+                                  ),
+                                }
+                              : p,
+                          )
+                        }
+                      />
+                    </Field>
+                  ))}
+                </div>
+              ))}
+            </div>
+          </details>
           <p>Stop for pain or unusual fatigue and tell a guardian and coach.</p>
           <Button type="button" disabled={busy} onClick={() => void publish()}>
             {busy ? "Publishing…" : "Approve and publish assignment"}
