@@ -1,3 +1,4 @@
+import { OperationsHealth } from "./operations-health";
 import {FinanceWorkspace} from "./finance/finance-workspace";
 import {EventOffice} from "./event-office";
 import { useEffect, useState } from "react";
@@ -94,6 +95,7 @@ export function OfficeWorkspace({
     <FrontOfficeShell section={section} name={name} onSection={go}>
       {section === "dashboard" && (
         <div className="grid gap-6">
+          <OperationsHealth />
           <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
             {(
               [

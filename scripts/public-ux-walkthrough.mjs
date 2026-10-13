@@ -97,8 +97,16 @@ try {
  assert.equal(await page.getByLabel('Date',{exact:true}).isVisible(),true);
  await page.waitForFunction(()=>document.activeElement?.textContent==='2. Pick your date & time');
  await page.screenshot({path:output+'/booking-mobile.png'});
+ // 200% root text-size check at a narrow viewport. This is not a real iOS/VoiceOver certification.
+ for (const routePath of ['/training','/tryouts','/book']) {
+  await page.goto(h.base+routePath); await page.waitForLoadState('networkidle');
+  await page.addStyleTag({content:'html { font-size: 200% !important; }'});
+  await page.screenshot({path:output+'/text-resize-'+routePath.slice(1)+'.png'});
+  const overflow = await page.evaluate(()=>[...document.querySelectorAll('body *')].filter(e=>e.getBoundingClientRect().right>innerWidth+1 || e.scrollWidth>e.clientWidth+1).map(e=>({tag:e.tagName,class:e.className,text:e.textContent?.slice(0,80),right:e.getBoundingClientRect().right})).slice(-25));
+  assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true,`200% text overflow on ${routePath}: ${JSON.stringify(overflow)}`);
+ }
  assert.deepEqual(errors,[]);
- await writeFile(output+'/verification.json',JSON.stringify({viewports:[320,390,430,768,1280],navigation:'focus, Escape, return focus and links passed',training:'age and sport filters passed',tryouts:'required fields, back navigation and persisted submission passed',booking:'space-to-time progression passed',browserErrors:errors},null,2));
+ await writeFile(output+'/verification.json',JSON.stringify({viewports:[320,390,430,768,1280],navigation:'focus, Escape, return focus and links passed',training:'age and sport filters passed',tryouts:'required fields, back navigation and persisted submission passed',booking:'space-to-time progression passed',textResize:'200% root text at 390px on training, tryouts and booking; no horizontal overflow',browserErrors:errors},null,2));
  console.log('PASS public UX: five viewports, keyboard navigation, training filters, persisted tryout and booking progression; no browser errors');
 } catch(e) { console.error(e); throw e; } finally {
  if(browser)await browser.close();

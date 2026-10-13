@@ -42,3 +42,7 @@ export const markEvaluationReviewed = createServerFn({ method: "POST" })
     const m = await import("./front-office.server");
     return m.markReviewed(context.userId, data);
   });
+
+export const getOperationsHealth = createServerFn({ method: "GET" })
+  .middleware([authMiddleware])
+  .handler(async ({ context }) => (await import('./operations-health.server')).operationsHealth(context.userId));

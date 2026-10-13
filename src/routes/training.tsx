@@ -1,3 +1,4 @@
+import { CatalogStatus } from "@/components/catalog-status";
 import { AthleteSelector, athleteScope } from "@/components/pd/athlete-selector";
 import {getPublicPeople} from "@/lib/person-api";
 import type {PublicPerson} from "@/lib/person-contracts";
@@ -68,8 +69,9 @@ function TrainingPage() {
 }
 
 function CatalogAndBook({view,instructor}:{view:"lessons"|"plans";instructor?:string}) {
+  const [peopleError,setPeopleError]=useState(false),[peopleAttempt,setPeopleAttempt]=useState(0);
   const [people,setPeople]=useState<PublicPerson[]>([]),[instructorsLoaded,setInstructorsLoaded]=useState(false);
-  useEffect(()=>{let active=true;setInstructorsLoaded(false);getPublicPeople().then(p=>{if(active)setPeople(p);}).catch(()=>{if(active)setPeople([]);}).finally(()=>{if(active)setInstructorsLoaded(true);});return()=>{active=false;};},[instructor]);
+  useEffect(()=>{let active=true;setInstructorsLoaded(false);setPeopleError(false);getPublicPeople().then(p=>{if(active)setPeople(p);}).catch(()=>{if(active){setPeople([]);setPeopleError(true);}}).finally(()=>{if(active)setInstructorsLoaded(true);});return()=>{active=false;};},[instructor,peopleAttempt]);
   const selectedInstructor=people.find(p=>p.coachId===instructor&&p.instructor);
   const user = useCurrentUser();
   const catalog = useLiveCatalog();
@@ -116,6 +118,7 @@ function CatalogAndBook({view,instructor}:{view:"lessons"|"plans";instructor?:st
     return () => { active = false; };
   }, [user?.id]);
 
+  if (catalog.status === "loading" || catalog.status === "error" || !instructorsLoaded || peopleError) return <div className="mx-auto max-w-6xl px-5 py-8"><CatalogStatus label="available lessons and training plans" error={catalog.status === "error" || peopleError} retry={()=>{catalog.retry();setPeopleAttempt(n=>n+1);}} /></div>;
   const groups = ["Pitching", "Hitting", "Catching", "Fielding"] as const;
   const availableGroups = groups.filter(group => lessons.some(item => item.discipline === group && !item.group));
   const activeGroup = availableGroups.find(group => group === discipline) ?? availableGroups[0];
@@ -154,8 +157,8 @@ function CatalogAndBook({view,instructor}:{view:"lessons"|"plans";instructor?:st
         <div className="mt-4 flex flex-wrap gap-3">
           {lessons.filter(item => ASSESSMENT_PRODUCTS.has(item.id)).map(item =>
             canPurchase(catalog.purchaseAvailability, "lesson", item.id)
-              ? <Button asChild key={item.id} className="h-auto min-h-12 whitespace-normal text-center"><Link to="/pay" search={{kind:"lesson",id:item.id,instructor}}>Book {item.name}</Link></Button>
-              : <Button key={item.id} disabled className="h-auto min-h-12 whitespace-normal text-center">{item.name} · {catalog.purchaseAvailability ? "checkout unavailable" : "loading checkout…"}</Button>
+              ? <Button asChild key={item.id} className="h-auto min-h-12 max-w-full whitespace-normal break-words text-center"><Link to="/pay" search={{kind:"lesson",id:item.id,instructor}}>Book {item.name}</Link></Button>
+              : <Button key={item.id} disabled className="h-auto min-h-12 max-w-full whitespace-normal break-words text-center">{item.name} · {catalog.purchaseAvailability ? "checkout unavailable" : "loading checkout…"}</Button>
           )}
         </div>
         <p className="mt-3 text-sm text-fg-soft">Already completed an assessment? Select your athlete in the booking section below. If the record is missing, your coach or the office can review it.</p>
@@ -296,7 +299,7 @@ function TrainingPlanCard({plan,hasAssessment,availability,setupFee}:{plan:Train
 function ServiceCard({item,locked,ready,athleteSelected,instructor}:{item:LessonService;locked:boolean;ready:boolean;athleteSelected:boolean;instructor?:string}) {
   const assessment = ASSESSMENT_PRODUCTS.has(item.id);
   return <article className="flex min-w-0 flex-col rounded-xl bg-paper-2 p-4 shadow-border">
-    <div className="flex items-start justify-between gap-3"><h4 className="font-display text-xl uppercase">{item.name}</h4><span className="shrink-0 pd-num font-display text-2xl">{formatDollars(item.price)}</span></div>
+    <div className="flex flex-wrap items-start justify-between gap-3"><h4 className="font-display text-xl uppercase">{item.name}</h4><span className="shrink-0 pd-num font-display text-2xl">{formatDollars(item.price)}</span></div>
     <p className="mt-2 text-sm text-muted">{item.minutes} min · {item.purpose}</p>
     {YOUTH_PRODUCTS.has(item.id) && <p className="mt-3 text-sm font-semibold">11U & under · No assessment required</p>}
     {locked && <p className="mt-3 text-sm font-semibold">Assessment required before booking.</p>}

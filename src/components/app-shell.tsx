@@ -74,8 +74,8 @@ export function AppShell({ children }: { children: ReactNode }) {
       </a>
       <header className="sticky top-0 z-40 border-b border-fg-inverse/10 bg-ink text-fg-inverse">
         <div className="h-1 bg-maroon" />
-        <div className="mx-auto flex min-h-16 max-w-6xl items-center justify-between gap-2 overflow-visible px-2.5 py-2 sm:gap-3 sm:px-4">
-          <Link to="/" aria-label={`${CLUB.name} home`} className="flex min-w-0 flex-1 items-center gap-2 overflow-visible no-underline sm:gap-3">
+        <div className="mx-auto flex min-h-16 max-w-6xl flex-wrap items-center justify-between gap-2 overflow-visible px-2.5 py-2 sm:gap-3 sm:px-4">
+          <Link to="/" aria-label={`${CLUB.name} home`} className="flex min-w-0 flex-1 basis-48 items-center gap-2 overflow-visible no-underline sm:gap-3">
             <img
               src="/brand/mark.png"
               alt="Prospects Sports Academy"
@@ -120,7 +120,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             const active = tab.match(pathname);
             const Icon = tab.icon;
             const tabClass = cn(
-              "flex min-h-14 w-full flex-col items-center justify-center gap-1 px-0.5 text-[0.53rem] leading-none font-semibold tracking-normal whitespace-nowrap no-underline uppercase focus-visible:outline-offset-[-3px] min-[380px]:text-[0.62rem] min-[440px]:text-[0.7rem] lg:min-h-12 lg:flex-row lg:gap-2 lg:text-sm",
+              "flex min-h-14 w-full flex-col items-center justify-center gap-1 px-0.5 text-[0.53rem] leading-none font-semibold tracking-normal whitespace-normal break-words no-underline uppercase focus-visible:outline-offset-[-3px] min-[380px]:text-[0.62rem] min-[440px]:text-[0.7rem] lg:min-h-12 lg:flex-row lg:gap-2 lg:text-sm",
               active ? "text-powder" : "text-fg-soft",
             );
             return (

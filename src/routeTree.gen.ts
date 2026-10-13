@@ -68,6 +68,7 @@ import { Route as ApiFundraisingPlayersRouteImport } from './routes/api/fundrais
 import { Route as ApiFundraisingReceiptRouteImport } from './routes/api/fundraising/receipt'
 import { Route as ApiFundraisingReconcileRouteImport } from './routes/api/fundraising/reconcile'
 import { Route as ApiFundraisingTeamsRouteImport } from './routes/api/fundraising/teams'
+import { Route as ApiPublicCoachPhotoIdRouteImport } from './routes/api/public-coach-photo/$id'
 import { Route as ApiSquareReconcileRouteImport } from './routes/api/square/reconcile'
 import { Route as ApiSquareWebhookRouteImport } from './routes/api/square/webhook'
 import { Route as ApiStripeWebhookRouteImport } from './routes/api/stripe/webhook'
@@ -370,6 +371,11 @@ const ApiFundraisingTeamsRoute = ApiFundraisingTeamsRouteImport.update({
   path: '/api/fundraising/teams',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicCoachPhotoIdRoute = ApiPublicCoachPhotoIdRouteImport.update({
+  id: '/api/public-coach-photo/$id',
+  path: '/api/public-coach-photo/$id',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiSquareReconcileRoute = ApiSquareReconcileRouteImport.update({
   id: '/api/square/reconcile',
   path: '/api/square/reconcile',
@@ -462,6 +468,7 @@ export interface FileRoutesByFullPath {
   '/api/fundraising/receipt': typeof ApiFundraisingReceiptRoute
   '/api/fundraising/reconcile': typeof ApiFundraisingReconcileRoute
   '/api/fundraising/teams': typeof ApiFundraisingTeamsRoute
+  '/api/public-coach-photo/$id': typeof ApiPublicCoachPhotoIdRoute
   '/api/square/reconcile': typeof ApiSquareReconcileRoute
   '/api/square/webhook': typeof ApiSquareWebhookRoute
   '/api/stripe/webhook': typeof ApiStripeWebhookRoute
@@ -529,6 +536,7 @@ export interface FileRoutesByTo {
   '/api/fundraising/receipt': typeof ApiFundraisingReceiptRoute
   '/api/fundraising/reconcile': typeof ApiFundraisingReconcileRoute
   '/api/fundraising/teams': typeof ApiFundraisingTeamsRoute
+  '/api/public-coach-photo/$id': typeof ApiPublicCoachPhotoIdRoute
   '/api/square/reconcile': typeof ApiSquareReconcileRoute
   '/api/square/webhook': typeof ApiSquareWebhookRoute
   '/api/stripe/webhook': typeof ApiStripeWebhookRoute
@@ -597,6 +605,7 @@ export interface FileRoutesById {
   '/api/fundraising/receipt': typeof ApiFundraisingReceiptRoute
   '/api/fundraising/reconcile': typeof ApiFundraisingReconcileRoute
   '/api/fundraising/teams': typeof ApiFundraisingTeamsRoute
+  '/api/public-coach-photo/$id': typeof ApiPublicCoachPhotoIdRoute
   '/api/square/reconcile': typeof ApiSquareReconcileRoute
   '/api/square/webhook': typeof ApiSquareWebhookRoute
   '/api/stripe/webhook': typeof ApiStripeWebhookRoute
@@ -666,6 +675,7 @@ export interface FileRouteTypes {
     | '/api/fundraising/receipt'
     | '/api/fundraising/reconcile'
     | '/api/fundraising/teams'
+    | '/api/public-coach-photo/$id'
     | '/api/square/reconcile'
     | '/api/square/webhook'
     | '/api/stripe/webhook'
@@ -733,6 +743,7 @@ export interface FileRouteTypes {
     | '/api/fundraising/receipt'
     | '/api/fundraising/reconcile'
     | '/api/fundraising/teams'
+    | '/api/public-coach-photo/$id'
     | '/api/square/reconcile'
     | '/api/square/webhook'
     | '/api/stripe/webhook'
@@ -800,6 +811,7 @@ export interface FileRouteTypes {
     | '/api/fundraising/receipt'
     | '/api/fundraising/reconcile'
     | '/api/fundraising/teams'
+    | '/api/public-coach-photo/$id'
     | '/api/square/reconcile'
     | '/api/square/webhook'
     | '/api/stripe/webhook'
@@ -867,6 +879,7 @@ export interface RootRouteChildren {
   ApiFundraisingReceiptRoute: typeof ApiFundraisingReceiptRoute
   ApiFundraisingReconcileRoute: typeof ApiFundraisingReconcileRoute
   ApiFundraisingTeamsRoute: typeof ApiFundraisingTeamsRoute
+  ApiPublicCoachPhotoIdRoute: typeof ApiPublicCoachPhotoIdRoute
   ApiSquareReconcileRoute: typeof ApiSquareReconcileRoute
   ApiSquareWebhookRoute: typeof ApiSquareWebhookRoute
   ApiStripeWebhookRoute: typeof ApiStripeWebhookRoute
@@ -1288,6 +1301,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiFundraisingTeamsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public-coach-photo/$id': {
+      id: '/api/public-coach-photo/$id'
+      path: '/api/public-coach-photo/$id'
+      fullPath: '/api/public-coach-photo/$id'
+      preLoaderRoute: typeof ApiPublicCoachPhotoIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/square/reconcile': {
       id: '/api/square/reconcile'
       path: '/api/square/reconcile'
@@ -1427,6 +1447,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiFundraisingReceiptRoute: ApiFundraisingReceiptRoute,
   ApiFundraisingReconcileRoute: ApiFundraisingReconcileRoute,
   ApiFundraisingTeamsRoute: ApiFundraisingTeamsRoute,
+  ApiPublicCoachPhotoIdRoute: ApiPublicCoachPhotoIdRoute,
   ApiSquareReconcileRoute: ApiSquareReconcileRoute,
   ApiSquareWebhookRoute: ApiSquareWebhookRoute,
   ApiStripeWebhookRoute: ApiStripeWebhookRoute,
