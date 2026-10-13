@@ -3,7 +3,9 @@ Allow: /
 Disallow: /api/
 Disallow: /account
 Disallow: /family
-Disallow: /coach
+Disallow: /coach$
+Disallow: /coach/
+Disallow: /coach?
 Disallow: /office
 Disallow: /pay
 Disallow: /paid
