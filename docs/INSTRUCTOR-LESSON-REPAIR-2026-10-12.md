@@ -1,3 +1,5 @@
+> Historical foundation report. The 13 October continuation and release decision are recorded in [Player Development release](PLAYER-DEVELOPMENT-RELEASE-2026-10-13.md). Earlier HOLD and incomplete-expansion statements below describe the state at that time.
+
 # Instructor lesson integration repair — controlled release report
 
 Date: October 12, 2026 (America/Chicago)
