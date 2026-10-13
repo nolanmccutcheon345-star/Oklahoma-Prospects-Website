@@ -3,12 +3,17 @@ import assert from "node:assert/strict";
 import {sampleClub} from "./seed";
 import {parseClubSave} from "./contracts";
 import {publicTeamsView, playerStatsView, canReadTeamStats, aggregateTeamStats, teamCoaches} from "./public-view";
+import { ROSTER_CONSENT_VERSION, ROSTER_CONSENT_TEXT } from "../roster-consent";
 
 test("public team view publishes names, coaches and totals without individual stats or private records", () => {
   const club=sampleClub(); club._demo=false;
   const team=club.teams[0], p=team.roster[0];
   p.stats={ab:10,h:4,hr:1}; p.emergency.notes="secret medical";
   p.publicProfile.enabled=false;
+  p.rosterConsent = {
+    version: ROSTER_CONSENT_VERSION, text: ROSTER_CONSENT_TEXT,
+    signedBy: "Guardian", signerEmail: "guardian@example.test", signedAt: "2026-10-13T10:00:00Z",
+  };
   const publicTeam=publicTeamsView(club).find(t=>t.id===team.id)!;
   assert(publicTeam.players.some(row=>row.name===p.name));
   assert.deepEqual(Object.keys(publicTeam.players[0]).sort(),["id","name","number"]);
@@ -18,6 +23,35 @@ test("public team view publishes names, coaches and totals without individual st
   assert.equal(publicTeam.stats.hr, team.roster.filter(p=>!p.withdrawn).reduce((s,p)=>s+(p.stats.hr||0),0));
   assert.deepEqual(publicTeamsView({...club,_demo:true}),[]);
   team.closed=true; assert(!publicTeamsView(club).some(t=>t.id===team.id));
+});
+
+test("public roster excludes minors without a current signed roster-publication agreement", () => {
+  const club = sampleClub();
+  club._demo = false;
+  const team = club.teams[0];
+  const player = team.roster[0];
+  for (const rosterPlayer of team.roster) rosterPlayer.rosterConsent = undefined;
+
+  const publicPlayers = () => publicTeamsView(club).find(t => t.id === team.id)!.players;
+  assert.equal(publicPlayers().length, 0, "unconsented names must not be published");
+
+  player.rosterConsent = {
+    version: ROSTER_CONSENT_VERSION,
+    text: ROSTER_CONSENT_TEXT,
+    signedBy: "Guardian",
+    signerEmail: "guardian@example.test",
+    signedAt: "2026-10-13T10:00:00Z",
+  };
+  assert.deepEqual(publicPlayers().map(p => p.id), [player.id]);
+
+  player.rosterConsent.version = "outdated";
+  assert.equal(publicPlayers().length, 0, "outdated consent is not valid for this release");
+  player.rosterConsent.version = ROSTER_CONSENT_VERSION;
+  player.rosterConsent.signedBy = "";
+  assert.equal(publicPlayers().length, 0, "unsigned consent does not authorize publication");
+  player.rosterConsent.signedBy = "Guardian";
+  player.withdrawn = true;
+  assert.equal(publicPlayers().length, 0, "withdrawn players are never published");
 });
 
 test("team members can read teammate stats, unrelated and former members cannot; detail is stats only", () => {
