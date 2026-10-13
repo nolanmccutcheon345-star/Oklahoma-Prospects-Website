@@ -5,8 +5,10 @@ import {mkdtemp,writeFile,rm} from 'node:fs/promises';
 import {pathToFileURL} from 'node:url';
 import {JSDOM} from 'jsdom';
 
-test('checkout finds next instructor opening, accepts a time, and Train uses the bottom popup',async()=>{
+test('checkout finds next instructor opening, accepts a time, and Train uses dismissible section navigation',async()=>{
  const dom=new JSDOM('<div id="root"></div>',{url:'https://fixture.invalid/pay'});
+ dom.window.HTMLDialogElement.prototype.showModal=function(){this.open=true;};
+ dom.window.HTMLDialogElement.prototype.close=function(){this.open=false;};
  const previous={}; for(const key of ['window','document','HTMLElement','Node','IS_REACT_ACT_ENVIRONMENT'])previous[key]=globalThis[key];
  Object.assign(globalThis,{window:dom.window,document:dom.window.document,HTMLElement:dom.window.HTMLElement,Node:dom.window.Node,IS_REACT_ACT_ENVIRONMENT:true});
  const {act,createElement}=await import('react'); const {createRoot}=await import('react-dom/client');
@@ -42,10 +44,14 @@ test('checkout finds next instructor opening, accepts a time, and Train uses the
  const next=[...document.querySelectorAll('button')].find(b=>b.textContent.includes('Show next available date'));
  assert.ok(next);await act(async()=>next.click());await settle();assert.ok(button('4:00 PM'));
  const train=button('Train'),teams=button('Teams');assert.ok(train);assert.ok(teams);
- await act(async()=>train.click());let menu=document.querySelector('[aria-label="Train submenu"]');assert.ok(menu);
- assert.deepEqual([...menu.querySelectorAll('a')].map(a=>[a.textContent,a.getAttribute('href')]),[['Lessons','/training?view=lessons'],['Camps','/events'],['Instructors','/instructors'],['Training Plans','/training?view=plans']]);
- await act(async()=>teams.click());assert.equal(document.querySelector('[aria-label="Train submenu"]'),null);assert.ok(document.querySelector('[aria-label="Teams submenu"]'));
- await act(async()=>train.click());await act(async()=>document.querySelector('[aria-label="Train submenu"] a').click());assert.equal(document.querySelector('[role="menu"]'),null);
- await act(async()=>train.click());await act(async()=>window.dispatchEvent(new dom.window.KeyboardEvent('keydown',{key:'Escape'})));assert.equal(document.querySelector('[role="menu"]'),null);
+ await act(async()=>train.click());let menu=document.querySelector('[aria-label="Train destinations"]');assert.ok(menu);
+ assert.deepEqual([...menu.querySelectorAll('a')].map(a=>a.textContent),['All training','Private lessons','Monthly training plans','Instructors','Camps & clinics','Cage memberships']);
+ assert.equal(document.querySelector('dialog').open,true);
+ await act(async()=>button('Close').click());assert.equal(document.querySelector('dialog').open,false);
+ await act(async()=>teams.click());assert.ok(document.querySelector('[aria-label="Teams destinations"]'));
+ assert.ok([...document.querySelectorAll('a')].some(a=>a.textContent==='Browse all teams'));
+ await act(async()=>button('Close').click());
+ await act(async()=>train.click());await act(async()=>document.querySelector('[aria-label="Train destinations"] a').click());assert.equal(document.querySelector('dialog').open,false);
+ await act(async()=>train.click());await act(async()=>document.querySelector('dialog').dispatchEvent(new dom.window.Event('cancel')));assert.equal(document.querySelector('dialog').open,false);
  }finally{if(root)await act(async()=>root.unmount());dom.window.close();Object.assign(globalThis,previous);delete globalThis.__lessonUi;await rm(temp,{recursive:true,force:true});}
 });

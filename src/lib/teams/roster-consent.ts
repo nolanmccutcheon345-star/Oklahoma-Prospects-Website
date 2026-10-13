@@ -12,3 +12,13 @@ export function recordTeamRosterConsent(club: ClubRecord, input: {teamId: string
   club.audit.unshift({at: now.toISOString(), action: 'roster-consent', detail: `${player.name} on ${team!.name}: ${ROSTER_CONSENT_VERSION}`});
   return club;
 }
+
+export function revokeTeamRosterConsent(club: ClubRecord, input: {teamId: string; playerId: string}, viewer: {role: string; familyIds: string[]}, now = new Date()) {
+  const team = club.teams.find(t => t.id === input.teamId && !t.closed);
+  const player = team?.roster.find(p => p.id === input.playerId && !p.withdrawn);
+  if (!player || viewer.role !== 'parent' || !viewer.familyIds.includes(player.familyId))
+    throw new Error('Only a parent or legal guardian in this player’s household can withdraw consent.');
+  if (player.rosterConsent) player.rosterConsent.revokedAt = now.toISOString();
+  club.audit.unshift({at: now.toISOString(), action: 'roster-consent-revoked', detail: `Public roster consent withdrawn for player ${player.id} on team ${team!.id}`});
+  return club;
+}

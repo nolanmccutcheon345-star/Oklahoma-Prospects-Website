@@ -5,6 +5,7 @@ import { getPublicTeamsView, getTeamStatsAccess } from "@/lib/teams/public-api";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
 import { CoachBio } from "./coach-bio";
 import { StatsTable } from "./team-stats-table";
+import { publicRecordLabel } from "@/lib/public-record";
 type PublicTeam = Awaited<ReturnType<typeof getPublicTeamsView>>[number];
 export function PublicTeamRoster({
   teamId,
@@ -144,7 +145,7 @@ export function PublicTeamRoster({
                   <p>Coaches have not been assigned yet.</p>
                 )}
                 <p className="mt-5 font-semibold">
-                  Record: {t.record.w}–{t.record.l}–{t.record.t} (W–L–T)
+                  {publicRecordLabel(t.record) ?? "Season results not published yet."}
                 </p>
                 <h4 className="mt-5 text-xl">Team stats</h4>
                 <StatsTable stats={t.stats} />
@@ -192,7 +193,7 @@ export function PublicTeamRoster({
                   )}
                 </div>
                 <p className="mt-4 mb-5 font-semibold">
-                  Record: {t.record.w}–{t.record.l}–{t.record.t} (W–L–T)
+                  {publicRecordLabel(t.record) ?? "Season results not published yet."}
                 </p>
                 <Button asChild className="mt-auto w-full">
                   <a

@@ -44,15 +44,16 @@ export function AppShell({ children }: { children: ReactNode }) {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const { user, isPending } = useCurrentUserState();
   const [openMenu, setOpenMenu] = useState<"Teams" | "Train" | null>(null);
-  const navRef = useRef<HTMLElement>(null);
+  const menuRef = useRef<HTMLDialogElement>(null);
   useEffect(() => { setOpenMenu(null); }, [pathname]);
   useEffect(() => {
-    if (!openMenu) return;
-    const dismiss = (event: KeyboardEvent) => { if (event.key === "Escape") setOpenMenu(null); };
-    const outside = (event: PointerEvent) => { if (event.target instanceof Node && !navRef.current?.contains(event.target)) setOpenMenu(null); };
-    window.addEventListener("keydown", dismiss);
-    window.addEventListener("pointerdown", outside);
-    return () => { window.removeEventListener("keydown", dismiss); window.removeEventListener("pointerdown", outside); };
+    const dialog = menuRef.current;
+    if (!dialog) return;
+    if (!openMenu) { dialog.close(); return; }
+    dialog.showModal();
+    const previous = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => { document.body.style.overflow = previous; dialog.close(); };
   }, [openMenu]);
   const tabs = [
     { to: "/", label: "Home", icon: Home, match: (path: string) => path === "/" || ["/more", "/fundraising", "/contact", "/facility", "/privacy", "/terms"].some(p => path.startsWith(p)) },
@@ -64,7 +65,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   ] as const;
 
   return (
-    <div className="flex min-h-dvh flex-col bg-paper pb-[var(--bottom-nav-space)] text-fg">
+    <div className="flex min-h-dvh flex-col bg-paper pb-[var(--bottom-nav-space)] text-fg lg:pb-0">
       <a
         href="#main"
         className="sr-only focus:not-sr-only focus:absolute focus:top-2 focus:left-2 focus:z-50 focus:rounded-md focus:bg-paper-2 focus:px-4 focus:py-2 focus:text-ink"
@@ -73,7 +74,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       </a>
       <header className="sticky top-0 z-40 border-b border-fg-inverse/10 bg-ink text-fg-inverse">
         <div className="h-1 bg-maroon" />
-        <div className="mx-auto flex min-h-16 max-w-3xl items-center justify-between gap-2 overflow-visible px-2.5 py-2 sm:gap-3 sm:px-4">
+        <div className="mx-auto flex min-h-16 max-w-6xl items-center justify-between gap-2 overflow-visible px-2.5 py-2 sm:gap-3 sm:px-4">
           <Link to="/" aria-label={`${CLUB.name} home`} className="flex min-w-0 flex-1 items-center gap-2 overflow-visible no-underline sm:gap-3">
             <img
               src="/brand/mark.png"
@@ -108,24 +109,18 @@ export function AppShell({ children }: { children: ReactNode }) {
             )}
           </div>
         </div>
-      </header>
-
-      <div className="flex-1">{children}</div>
-      <SiteFooter/>
-
       <nav
         aria-label="Primary"
-        ref={navRef}
         data-site-nav
-        className="fixed inset-x-0 bottom-0 z-40 border-t border-fg-inverse/10 bg-ink/96 text-fg-inverse backdrop-blur-md"
+        className="fixed inset-x-0 bottom-0 z-40 border-t border-fg-inverse/10 bg-ink/96 text-fg-inverse backdrop-blur-md lg:static lg:border-t-0"
         style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
       >
-        <ul className="relative mx-auto grid max-w-3xl grid-cols-6">
+        <ul className="relative mx-auto grid max-w-6xl grid-cols-6">
           {tabs.map((tab) => {
             const active = tab.match(pathname);
             const Icon = tab.icon;
             const tabClass = cn(
-              "flex min-h-14 w-full flex-col items-center justify-center gap-1 px-0.5 text-[0.53rem] leading-none font-semibold tracking-normal whitespace-nowrap no-underline uppercase focus-visible:outline-offset-[-3px] min-[380px]:text-[0.62rem] min-[440px]:text-[0.7rem]",
+              "flex min-h-14 w-full flex-col items-center justify-center gap-1 px-0.5 text-[0.53rem] leading-none font-semibold tracking-normal whitespace-nowrap no-underline uppercase focus-visible:outline-offset-[-3px] min-[380px]:text-[0.62rem] min-[440px]:text-[0.7rem] lg:min-h-12 lg:flex-row lg:gap-2 lg:text-sm",
               active ? "text-powder" : "text-fg-soft",
             );
             return (
@@ -136,8 +131,8 @@ export function AppShell({ children }: { children: ReactNode }) {
                     className={tabClass}
                     aria-current={active ? "page" : undefined}
                     aria-expanded={openMenu === tab.label}
-                    aria-haspopup="menu"
-                    aria-controls={`${tab.label.toLowerCase()}-submenu`}
+                    aria-haspopup="dialog"
+                    aria-controls={"site-section-navigation"}
                     onClick={() => setOpenMenu(open => open === tab.label ? null : tab.label)}
                   >
                     <span className="relative">
@@ -159,38 +154,49 @@ export function AppShell({ children }: { children: ReactNode }) {
               </li>
             );
           })}
-          {openMenu ? (
-            <li className="absolute bottom-[calc(100%+0.5rem)] left-1/2 z-50 w-[min(92vw,19rem)] -translate-x-1/2 rounded-2xl border border-powder/30 bg-ink p-2 shadow-xl" id={`${openMenu.toLowerCase()}-submenu`}>
-              <div role="menu" aria-label={`${openMenu} submenu`} className="grid grid-cols-2 gap-2">
-                {(openMenu === "Train" ? [
-                  {label:"Lessons",to:"/training" as const, search:{view:"lessons" as const}},
-                  {label:"Camps",to:"/events" as const},
-                  {label:"Instructors",to:"/instructors" as const},
-                  {label:"Training Plans",to:"/training" as const, search:{view:"plans" as const}},
-                ] : [
-                  {label:"Baseball",to:"/baseball" as const},
-                  {label:"Softball",to:"/softball" as const},
-                  {label:"Coaches",to:"/coaches" as const},
-                  {label:"Players",to:"/players" as const},
-                  {label:"Tryouts",to:"/tryouts" as const},
-                ]).map((item) => (
-                  <Link
-                    key={item.label}
-                    to={item.to}
-                    search={"search" in item ? item.search : undefined}
-                                        role="menuitem"
-                    className={cn("flex min-h-12 items-center justify-center rounded-lg bg-paper-2 px-3 text-sm font-semibold text-ink no-underline focus-visible:outline-2 focus-visible:outline-powder")}
-                    onClick={() => setOpenMenu(null)}
-                  >
-                    {item.label}
-                  </Link>
-                ))}
-              </div>
-            </li>
-          ) : null}
-
         </ul>
       </nav>
+      </header>
+
+      <div className="flex-1">{children}</div>
+      <SiteFooter/>
+      <dialog
+        ref={menuRef}
+        id="site-section-navigation"
+        aria-labelledby="site-menu-heading"
+        onCancel={() => setOpenMenu(null)}
+        onClose={() => setOpenMenu(null)}
+        onClick={event => { if (event.target === event.currentTarget) setOpenMenu(null); }}
+        className="site-navigation-sheet"
+      >
+        <div className="p-5 pb-[max(1.25rem,env(safe-area-inset-bottom))]">
+          <div className="mb-4 flex items-center justify-between gap-4">
+            <h2 id="site-menu-heading" className="text-3xl">{openMenu === "Train" ? "Find your training" : "Find your team"}</h2>
+            <button type="button" autoFocus onClick={() => setOpenMenu(null)} className="min-h-11 rounded-lg border border-line px-4 font-semibold">Close</button>
+          </div>
+          <nav aria-label={`${openMenu || "Section"} destinations`} className="grid gap-2 sm:grid-cols-2">
+            {openMenu && (openMenu === "Train" ? [
+              {label:"All training",to:"/training" as const},
+              {label:"Private lessons",to:"/training" as const,search:{view:"lessons" as const}},
+              {label:"Monthly training plans",to:"/training" as const,search:{view:"plans" as const}},
+              {label:"Instructors",to:"/instructors" as const},
+              {label:"Camps & clinics",to:"/events" as const},
+              {label:"Cage memberships",to:"/memberships" as const},
+            ] : [
+              {label:"Browse all teams",to:"/teams" as const},
+              {label:"Baseball",to:"/baseball" as const},
+              {label:"Softball",to:"/softball" as const},
+              {label:"Coaches",to:"/coaches" as const},
+              {label:"Tryouts",to:"/tryouts" as const},
+              {label:"Players",to:"/players" as const},
+            ]).map(item => <Link key={item.label} to={item.to} search={"search" in item ? item.search : undefined}
+              className="flex min-h-12 items-center rounded-lg bg-paper-2 px-4 py-3 font-semibold text-ink no-underline"
+              onClick={() => setOpenMenu(null)}>{item.label}</Link>)}
+          </nav>
+        </div>
+      </dialog>
+
+
     </div>
   );
 }

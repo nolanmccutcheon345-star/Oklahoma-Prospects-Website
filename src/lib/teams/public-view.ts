@@ -1,4 +1,5 @@
 import { teamSeasons } from "./seasons";
+import { hasPublicRosterConsent } from "../roster-consent";
 import type { ClubRecord, Team } from "./types";
 
 const norm = (value: string | undefined) => value?.trim().toLowerCase() || "";
@@ -50,7 +51,11 @@ export function publicTeamView(team: Team) {
     seasons: teamSeasons(team),
     record: {w: team.record.w, l: team.record.l, t: team.record.t},
     stats: aggregateTeamStats(team), coaches: teamCoaches(team),
-    players: team.roster.filter(p => !p.withdrawn).map(p => ({id: p.id, name: p.name, number: p.number})),
+    // Public player identities require the current signed public-roster agreement.
+    // A team membership, private profile setting, or unsigned historical record is not consent.
+    players: team.roster
+      .filter(p => !p.withdrawn && hasPublicRosterConsent(p.rosterConsent))
+      .map(p => ({id: p.id, name: p.name, number: p.number})),
   };
 }
 

@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { sampleClub } from './seed';
-import { recordTeamRosterConsent } from './roster-consent';
+import { recordTeamRosterConsent, revokeTeamRosterConsent } from './roster-consent';
 import { publicTeamView } from './public-view';
 import { parseClubSave } from './contracts';
 import { waiverInput } from '../portal-contracts';
@@ -32,4 +32,20 @@ test('new annual waiver requires explicit roster consent and saves owner-approve
   assert.ok(WAIVER_TEXT.includes(ROSTER_CONSENT_TEXT));
   assert.equal(WAIVER_VERSION,'facility-2026-10-09');
   assert.ok(!WAIVER_TEXT.includes('Oklahoma Prospects'));
+});
+
+test('only linked guardians can revoke consent; revocation persists and signing again restores public identity',()=>{
+ const club=sampleClub(),team=club.teams[0],player=team.roster[0];
+ const input={teamId:team.id,playerId:player.id,signerName:'Guardian',consent:true as const};
+ const viewer={role:'parent',email:'guardian@example.test',familyIds:[player.familyId]};
+ recordTeamRosterConsent(club,input,viewer);
+ for (const invalid of [{...viewer,role:'coach'},{...viewer,role:'player'},{...viewer,familyIds:['unrelated']}])
+   assert.throws(()=>revokeTeamRosterConsent(club,input,invalid),/parent or legal guardian/);
+ revokeTeamRosterConsent(club,input,viewer);
+ const saved=parseClubSave({club:JSON.parse(JSON.stringify(club)),baseRev:club._rev}).club;
+ assert.ok(saved.teams[0].roster[0].rosterConsent?.revokedAt);
+ assert.ok(!publicTeamView(saved.teams[0]).players.some(p=>p.id===player.id));
+ assert.equal(player.withdrawn,false);
+ recordTeamRosterConsent(club,input,viewer);
+ assert.ok(publicTeamView(team).players.some(p=>p.id===player.id));
 });
