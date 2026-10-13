@@ -79,7 +79,7 @@ export function EventsPage() {
     <main id="main" className="pb-10">
       <header className="border-b-4 border-maroon bg-ink px-5 py-10 text-white">
         <div className="mx-auto max-w-5xl">
-          <p className="text-xs tracking-widest text-powder">OKLAHOMA PROSPECTS</p>
+          <p className="text-xs tracking-widest text-powder">PROSPECTS SPORTS ACADEMY</p>
           <h1 className="my-3 text-5xl">Camps & Clinics.</h1>
           <p>Learn together. Build your game. Explore upcoming events and register your player.</p>
         </div>
