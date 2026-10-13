@@ -90,7 +90,7 @@ test("authenticated instructor walkthrough: both sports, 30/60/75, durable draft
               loader: "js",
               contents: a.path.endsWith("recruiting-api")
                 ? `export const getLessonMetrics=async()=>{throw Error('Separate recruiting verification is outside this walkthrough')};export const saveLessonMetric=getLessonMetrics;`
-                : `const call=async(name,input)=>{const r=await fetch('/test-api/'+name,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(input?.data||{})});const d=await r.json();if(!r.ok)throw Error(d.error);return d;};${["openBookedLesson", "saveBookedLesson", "reviewBookedLesson", "getBookedLessonHistory", "getLessonExceptions", "chooseLesson", "getLessonPresets", "reviewLessonPreset", "loadTraining", "assignTraining", "logTraining", "reviewTraining"].map((n) => `export const ${n}=input=>call('${n}',input);`).join("")}`,
+                : `const call=async(name,input)=>{const r=await fetch('/test-api/'+name,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(input?.data||{})});const d=await r.json();if(!r.ok)throw Error(d.error);return d;};${["openBookedLesson", "saveBookedLesson", "reviewBookedLesson", "getBookedLessonHistory", "getLessonExceptions", "chooseLesson", "getLessonPresets", "reviewLessonPreset", "loadTraining", "assignTraining", "logTraining", "reviewTraining", "getTrainingContent", "submitTrainingDrill", "reviewTrainingDrill"].map((n) => `export const ${n}=input=>call('${n}',input);`).join("")}`,
             }));
           },
         },
@@ -218,6 +218,7 @@ test("authenticated instructor walkthrough: both sports, 30/60/75, durable draft
           let result;
           if (name === "openBookedLesson")
             result = await api.openLessonSession(uid, data.bookingId);
+          else if (name === "getTrainingContent") result = await api.contentForUser(uid);
           else if (name === "loadTraining") result = await api.loadTrainingForUser(uid, data.athleteId);
           else if (name === "getLessonPresets") result = await api.lessonPresetsForUser(uid, data.bookingId);
           else if (name === "saveBookedLesson") result = await api.saveLessonSession(uid, data);
@@ -375,6 +376,16 @@ test("authenticated instructor walkthrough: both sports, 30/60/75, durable draft
         await page.waitForURL(url=>!url.pathname.startsWith('/account'));
       }
       await programs();
+      await page.getByRole('button',{name:'Drill Library',exact:true}).click();
+      await page.getByRole('button',{name:'Submit a new drill',exact:true}).click();
+      await page.getByLabel('Drill name',{exact:true}).fill('Synthetic draft drill');
+      await page.getByRole('checkbox',{name:'baseball',exact:true}).check();
+      await page.getByLabel('Step-by-step instructions (one per line)',{exact:true}).fill('Synthetic instructions for test review only.');
+      for(const label of ['Purpose and problem addressed','Equipment and space','Coaching cue','Common errors and corrections','Easier version','Prerequisites and harder version','Tracking and mastery criteria','Home suitability and supervision','Safety and stop conditions','Dose, intensity and rest guidance','Source, authorship and review context'])await page.getByLabel(label,{exact:true}).fill('Synthetic draft requiring qualified review; not assigned to a real player.');
+      await page.getByRole('button',{name:'Submit version for review',exact:true}).click();
+      await page.getByRole('status').filter({hasText:'New drill version submitted'}).waitFor();
+      await page.getByText('Synthetic draft drill · draft',{exact:true}).waitFor();
+      await page.getByRole('button',{name:'Today',exact:true}).click();
       await page.getByRole('button',{name:'Assign training',exact:true}).click();
       await page.getByLabel('Program family',{exact:true}).selectOption('baseball:Hitting');
       await page.getByLabel('Program title',{exact:true}).fill('Synthetic home contact plan');

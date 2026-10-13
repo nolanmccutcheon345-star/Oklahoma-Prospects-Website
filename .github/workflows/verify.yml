@@ -28,9 +28,6 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run typecheck
-      - run: npm test
-      - run: npm run lint
-      - run: npm audit --audit-level=high
       - run: npm run build
         env:
           NETLIFY: "true"
@@ -47,6 +44,10 @@ jobs:
           NETLIFY: "true"
           LESSON_FULL_APP: "true"
           LESSON_SCREENSHOT_DIR: artifacts/guided-lessons
+      # Run the real interaction loop first so interface failures are found promptly.
+      - run: npm test
+      - run: npm run lint
+      - run: npm audit --audit-level=high
       - uses: actions/upload-artifact@v4
         if: always()
         with:

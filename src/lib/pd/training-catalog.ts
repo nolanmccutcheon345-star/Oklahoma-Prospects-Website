@@ -50,7 +50,7 @@ export type TrainingDrill = {
   dose: string;
   review: "qualified coach review required";
   provenance: string;
-  demoUrl: null;
+  demoUrl: string | null;
 };
 // Each row defines a distinct task/constraint. Shared baseball/softball field skills retain one ID.
 // Original academy copy remains in content/drills.ts; this catalog does not silently rewrite it.

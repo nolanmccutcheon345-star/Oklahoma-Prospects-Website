@@ -1,3 +1,4 @@
+import { approvedDrills } from "./training-content.server";
 import { isDeepStrictEqual } from "node:util";
 import { randomUUID } from "node:crypto";
 import { getSql, type Sql } from "../db";
@@ -6,13 +7,7 @@ import { readWorkingFile } from "./desk-impl.server";
 import { scopeForViewer, assertAthleteAccess, canCoachAthlete } from "./access";
 import { ageOnClubDay } from "./engines";
 import { chicagoDate } from "../scheduling";
-import {
-  ageBand,
-  skillBands,
-  trainingDrills,
-  programFamilies,
-  TRAINING_VERSION,
-} from "./training-catalog";
+import { ageBand, skillBands, programFamilies, TRAINING_VERSION } from "./training-catalog";
 import {
   assignmentInput,
   practiceInput,
@@ -63,6 +58,7 @@ export async function loadTrainingForUser(userId: string, athleteId: string) {
   const age = a?.birth_date ? ageOnClubDay(a.birth_date, chicagoDate(new Date())) : null;
   return {
     coach,
+    drills: await approvedDrills(sql),
     age,
     athleteName: athlete ? `${athlete.firstName} ${athlete.lastName}` : "Player",
     sport: athlete?.sport || "",
@@ -125,8 +121,9 @@ export async function assignTrainingForUser(userId: string, raw: AssignmentInput
     const brief = await trainingBrief(tx, input.athleteId);
     if (brief.assignments.some((a) => a.status === "paused"))
       throw new Error("Resolve the existing training hold before assigning more activity.");
+    const library = await approvedDrills(tx);
     const drills = [...new Set(input.tasks.map((t) => t.drillId))].map((id) => {
-      const d = trainingDrills.find((d) => d.id === id);
+      const d = library.find((d) => d.id === id);
       if (
         !d ||
         d.discipline !== input.discipline ||

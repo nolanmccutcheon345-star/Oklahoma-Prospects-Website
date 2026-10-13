@@ -1,3 +1,4 @@
+import { getTrainingContent } from "@/lib/pd/training-api";
 import { useEffect, useState } from "react";
 import { Button } from "../ui/button";
 import { lessonChoices, type LessonChoiceInput } from "@/lib/pd/lesson-choices";
@@ -41,7 +42,21 @@ export function LessonChoices({
       .then(setPresets)
       .catch((e) => setError(e.message));
   }, [bookingId, revision]);
-  const compatible = trainingDrills.filter(
+  const [library, setLibrary] = useState(trainingDrills);
+  useEffect(() => {
+    let active = true;
+    void getTrainingContent()
+      .then((d) => {
+        if (active) setLibrary(d.drills);
+      })
+      .catch((e) => {
+        if (active) setError(e.message);
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+  const compatible = library.filter(
     (d) =>
       d.sports.includes(template.sport) &&
       d.discipline === template.discipline &&

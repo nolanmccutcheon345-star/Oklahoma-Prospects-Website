@@ -260,6 +260,63 @@ test("connected home training: authority, snapshots, idempotency, evidence and s
         await assert.rejects(sql`delete from home_training_events`, /append-only/);
       },
     );
+    await t.test(
+      "drill governance requires academy review and preserves assigned versions after retirement",
+      async () => {
+        const { id: _id, version: _version, review: _review, ...fields } = drill;
+        const versionId = "9b6b0a12-6598-43a7-a055-95fe3a4cf970";
+        const submission = { ...fields, id: versionId, name: "Synthetic reviewed contact drill" };
+        await assert.rejects(api.submitDrillForUser("parent", submission), /Instructor/);
+        await api.submitDrillForUser("coach", submission);
+        const customId = "custom:" + versionId;
+        assert.equal((await api.contentForUser("parent")).submissions.length, 0);
+        assert.ok(!(await api.contentForUser("parent")).drills.some((d) => d.id === customId));
+        assert.equal((await api.contentForUser("other")).submissions.length, 0);
+        const assigned = {
+          ...input,
+          id: "custom-plan",
+          athleteId: "sibling",
+          tasks: [{ ...input.tasks[0], drillId: customId }],
+        };
+        await assert.rejects(api.assignTrainingForUser("coach", assigned), /incompatible/);
+        await assert.rejects(
+          api.reviewDrillForUser("coach", {
+            id: versionId,
+            status: "approved",
+            reason: "Synthetic qualified review",
+          }),
+          /admin/,
+        );
+        await api.reviewDrillForUser("admin", {
+          id: versionId,
+          status: "approved",
+          reason: "Synthetic admin review of qualified authorship, technique and constraints.",
+        });
+        await api.assignTrainingForUser("coach", assigned);
+        await api.reviewDrillForUser("admin", {
+          id: versionId,
+          status: "retired",
+          reason: "Synthetic retirement for future selections.",
+        });
+        assert.ok(!(await api.contentForUser("parent")).drills.some((d) => d.id === customId));
+        await assert.rejects(
+          api.assignTrainingForUser("coach", { ...assigned, id: "retired-plan" }),
+          /incompatible/,
+        );
+        assert.equal(
+          (await api.loadTrainingForUser("parent", "sibling")).assignments[0].document.drills[0]
+            .name,
+          submission.name,
+        );
+        await api.submitDrillForUser("coach", {
+          ...submission,
+          id: "9b6b0a12-6598-43a7-a055-95fe3a4cf971",
+          parentId: versionId,
+          name: "Synthetic revised contact drill",
+        });
+        assert.equal((await api.contentForUser("coach")).submissions.length, 2);
+      },
+    );
     await t.test("ninety lesson approaches preserve stage order, duration and discipline", () => {
       let count = 0;
       for (const sport of ["baseball", "softball"])

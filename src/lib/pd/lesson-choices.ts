@@ -61,6 +61,7 @@ export function lessonChoices(
 export function customizeLesson(
   base: ReturnType<typeof resolveTemplate>,
   input: LessonChoiceInput,
+  library = trainingDrills,
 ) {
   const choice = lessonChoices(
     base.sport,
@@ -77,7 +78,7 @@ export function customizeLesson(
   if (input.approach === "game performance" && skillBands.indexOf(input.skill) < 1)
     throw new Error("Confirm foundational skill before game-performance training.");
   const drills = input.drillIds.map((id) => {
-    const d = trainingDrills.find((d) => d.id === id);
+    const d = library.find((d) => d.id === id);
     if (
       !d ||
       !d.sports.includes(base.sport) ||

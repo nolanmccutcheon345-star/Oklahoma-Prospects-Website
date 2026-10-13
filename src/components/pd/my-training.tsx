@@ -1,5 +1,14 @@
+import { CurriculumEditor } from "./curriculum-editor";
 import { useReadOnlyPreview } from "@/lib/pd/preview";
-import { useCallback, useEffect, useState, type ReactNode } from "react";
+import {
+  useCallback,
+  useEffect,
+  useState,
+  useId,
+  cloneElement,
+  isValidElement,
+  type ReactNode,
+} from "react";
 import { Button } from "../ui/button";
 import { loadTraining, assignTraining, logTraining, reviewTraining } from "@/lib/pd/training-api";
 import {
@@ -20,11 +29,14 @@ import { chicagoDate } from "@/lib/scheduling";
 const control = "w-full min-w-0 min-h-11 rounded-lg border border-line bg-white p-2 text-ink";
 const card = "rounded-xl border border-line bg-white p-4";
 function Field({ label, children }: { label: string; children: ReactNode }) {
+  const id = useId();
   return (
-    <label className="grid min-w-0 gap-1 text-sm">
-      {label}
-      {children}
-    </label>
+    <div className="grid min-w-0 gap-1 text-sm">
+      <label htmlFor={id}>{label}</label>
+      {isValidElement<Record<string, unknown>>(children)
+        ? cloneElement(children, { id })
+        : children}
+    </div>
   );
 }
 function Problem({ children }: { children: ReactNode }) {
@@ -311,7 +323,12 @@ export function MyTraining({
                     ))}
                 </>
               )}
-              {tab === "Drill Library" && <DrillLibrary />}
+              {tab === "Drill Library" && (
+                <>
+                  <DrillLibrary drills={data.drills} />
+                  {data.coach && !readOnly && <CurriculumEditor onChanged={load} />}
+                </>
+              )}
             </>
           )}
         </>
@@ -319,7 +336,7 @@ export function MyTraining({
     </section>
   );
 }
-function DrillLibrary() {
+function DrillLibrary({ drills }: { drills: typeof trainingDrills }) {
   const [q, setQ] = useState(""),
     [sport, setSport] = useState("baseball"),
     [discipline, setDiscipline] = useState("Hitting");
@@ -351,7 +368,7 @@ function DrillLibrary() {
           <input className={control} value={q} onChange={(e) => setQ(e.target.value)} />
         </Field>
       </div>
-      {trainingDrills
+      {drills
         .filter(
           (d) =>
             d.sports.includes(sport as "baseball" | "softball") &&
@@ -375,7 +392,14 @@ function DrillLibrary() {
             <p>Measure: {d.measure}</p>
             <p>{d.safety}</p>
             <p className="text-sm text-muted">
-              {d.provenance} · {d.version} · No demonstration video attached.
+              {d.provenance} · {d.version}{" "}
+              {d.demoUrl ? (
+                <a className="underline" href={d.demoUrl} target="_blank" rel="noreferrer">
+                  Demonstration video
+                </a>
+              ) : (
+                " · No demonstration video attached."
+              )}
             </p>
           </details>
         ))}
@@ -410,7 +434,7 @@ function AssignmentForm({
     [error, setError] = useState(""),
     [busy, setBusy] = useState(false);
   const program = programFamilies.find((p) => p.id === family)!;
-  const available = trainingDrills.filter(
+  const available = data.drills.filter(
     (d) =>
       d.sports.includes(program.sport) &&
       d.discipline === program.discipline &&
@@ -657,9 +681,9 @@ function AssignmentForm({
               {preview.tasks.map((task, index) => (
                 <div key={task.id} className="grid gap-2 rounded-lg border bg-white p-3">
                   <strong>
-                    Session {index + 1}: {trainingDrills.find((d) => d.id === task.drillId)?.name}
+                    Session {index + 1}: {data.drills.find((d) => d.id === task.drillId)?.name}
                   </strong>
-                  <p>{trainingDrills.find((d) => d.id === task.drillId)?.steps.join(" ")}</p>
+                  <p>{data.drills.find((d) => d.id === task.drillId)?.steps.join(" ")}</p>
                   {(["date", "dose", "rest", "target"] as const).map((field) => (
                     <Field key={field} label={`Session ${index + 1} ${field}`}>
                       <input
@@ -726,6 +750,11 @@ function TaskCard({
       </p>
       <p>Purpose: {drill.purpose}</p>
       <p>Equipment: {drill.equipment}</p>
+      {drill.demoUrl && (
+        <a className="underline" href={drill.demoUrl} target="_blank" rel="noreferrer">
+          Watch demonstration
+        </a>
+      )}
       <ol className="list-inside list-decimal">
         {drill.steps.map((s) => (
           <li key={s}>{s}</li>

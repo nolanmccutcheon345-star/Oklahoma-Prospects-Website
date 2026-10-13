@@ -1,3 +1,4 @@
+import { drillSubmission } from "./training-content";
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { authMiddleware } from "../auth/middleware";
@@ -25,4 +26,30 @@ export const reviewTraining = createServerFn({ method: "POST" })
   .validator(trainingReviewInput)
   .handler(async ({ context, data }) =>
     (await import("./training.server")).reviewTrainingForUser(context.userId, data),
+  );
+
+export const getTrainingContent = createServerFn({ method: "GET" })
+  .middleware([authMiddleware])
+  .handler(async ({ context }) =>
+    (await import("./training-content.server")).contentForUser(context.userId),
+  );
+export const submitTrainingDrill = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
+  .validator(drillSubmission)
+  .handler(async ({ context, data }) =>
+    (await import("./training-content.server")).submitDrillForUser(context.userId, data),
+  );
+export const reviewTrainingDrill = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
+  .validator(
+    z
+      .object({
+        id: z.string().uuid(),
+        status: z.enum(["approved", "retired"]),
+        reason: z.string().trim().min(10).max(2000),
+      })
+      .strict(),
+  )
+  .handler(async ({ context, data }) =>
+    (await import("./training-content.server")).reviewDrillForUser(context.userId, data),
   );

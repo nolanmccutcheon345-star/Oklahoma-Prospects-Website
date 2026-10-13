@@ -495,7 +495,8 @@ export async function chooseLessonForUser(userId:string,raw:import('./lesson-cho
  if(!s||s.status!=='draft'||booking.status!=='confirmed')throw new Error('Only an open confirmed lesson draft can change curriculum.');
  checkSnapshot(booking,s);
  if(s.revision!==input.revision)throw new Error('Lesson changed. Save or reload before choosing a template.');
- const template=customizeLesson(s.snapshot.template,input),snapshot={...s.snapshot,template},document={...s.document,objective:input.objective};
+ const library=await (await import("./training-content.server")).approvedDrills(tx);
+ const template=customizeLesson(s.snapshot.template,input,library),snapshot={...s.snapshot,template},document={...s.document,objective:input.objective};
  await tx`select set_config('app.actor_id',${userId},true)`;
  await tx`update guided_lesson_sessions set snapshot=${JSON.stringify(snapshot)}::jsonb,document=${JSON.stringify(document)}::jsonb,revision=revision+1,updated_by=${userId},updated_at=now() where id=${s.id}`;
  if(input.saveAs)await tx`insert into instructor_lesson_presets(id,author_id,name,sport,discipline,minutes,document) values(${randomUUID()},${userId},${input.saveAs},${template.sport},${template.discipline},${template.minutes},${JSON.stringify(input)}::jsonb)`;
