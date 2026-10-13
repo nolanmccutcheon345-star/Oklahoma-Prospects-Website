@@ -53,3 +53,40 @@ export const reviewTrainingDrill = createServerFn({ method: "POST" })
   .handler(async ({ context, data }) =>
     (await import("./training-content.server")).reviewDrillForUser(context.userId, data),
   );
+export const loadTrainingInbox = createServerFn({ method: "GET" })
+  .middleware([authMiddleware])
+  .handler(async ({ context }) =>
+    (await import("./training.server")).trainingInboxForUser(context.userId),
+  );
+export const loadTrainingQuality = createServerFn({ method: "GET" })
+  .middleware([authMiddleware])
+  .validator(z.object({ athleteId: z.string().min(1).max(150) }).strict())
+  .handler(async ({ context, data }) =>
+    (await import("./training.server")).trainingQualityForUser(context.userId, data.athleteId),
+  );
+export const reviewTrainingQuality = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
+  .validator(
+    z
+      .object({
+        assignmentId: z.string().min(1).max(150),
+        requestId: z.string().uuid(),
+        feedback: z.string().trim().min(10).max(3000),
+        checks: z
+          .array(
+            z.enum([
+              "objective alignment",
+              "prior work reviewed",
+              "homework appropriate",
+              "evidence supports progression",
+              "safeguarding reviewed",
+            ]),
+          )
+          .min(1)
+          .max(5),
+      })
+      .strict(),
+  )
+  .handler(async ({ context, data }) =>
+    (await import("./training.server")).reviewTrainingQualityForUser(context.userId, data),
+  );

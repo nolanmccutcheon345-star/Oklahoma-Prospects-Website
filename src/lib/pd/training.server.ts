@@ -1,3 +1,5 @@
+import { developmentPrograms, compatibleProgram } from "./development-programs";
+import { developmentEvidence, developmentWorkload } from "./development-evidence";
 import { approvedDrills } from "./training-content.server";
 import { isDeepStrictEqual } from "node:util";
 import { randomUUID } from "node:crypto";
@@ -48,16 +50,53 @@ export async function trainingBrief(sql: Sql, athleteId: string) {
   }>`select id,assignment_id,kind,document,created_at from home_training_events where athlete_id=${athleteId} order by id desc limit 100`;
   return { assignments, logs, events };
 }
+async function recordedDevelopmentEvidence(
+  sql: Sql,
+  file: Awaited<ReturnType<typeof readWorkingFile>>,
+  athleteId: string,
+) {
+  const context = developmentEvidence(file, athleteId, chicagoDate(new Date()));
+  const assessments = await sql<{
+    id: string;
+    discipline: string;
+    completed_at: Date;
+    notes: string;
+  }>`select id,discipline,completed_at,notes from athlete_assessments where athlete_id=${athleteId} order by completed_at desc limit 8`;
+  for (const a of assessments)
+    context.evidence.push({
+      id: a.id,
+      kind: "Completed service assessment",
+      date: new Date(a.completed_at).toISOString().slice(0, 10),
+      text: `${a.discipline}: ${a.notes}`,
+      source: "coach record",
+    });
+  if (assessments.length) context.missing = context.missing.filter((m) => m !== "Coach evaluation");
+  return context;
+}
 export async function loadTrainingForUser(userId: string, athleteId: string) {
   const sql = await getSql(),
-    { coach, file } = await authority(sql, userId, athleteId);
+    { coach, file, me } = await authority(sql, userId, athleteId);
   const athlete = file.athletes.find((a) => a.id === athleteId);
   const [a] = await sql<{
     birth_date: string | null;
   }>`select birth_date::text from club_athletes where id=${athleteId}`;
   const age = a?.birth_date ? ageOnClubDay(a.birth_date, chicagoDate(new Date())) : null;
+  const brief = await trainingBrief(sql, athleteId);
   return {
     coach,
+    admin: me.role === "admin",
+    context: coach ? await recordedDevelopmentEvidence(sql, file, athleteId) : null,
+    workload: coach
+      ? developmentWorkload(
+          file,
+          athleteId,
+          brief.assignments,
+          brief.logs,
+          chicagoDate(new Date()),
+          athlete?.sport || "",
+          age,
+        )
+      : null,
     drills: await approvedDrills(sql),
     age,
     athleteName: athlete ? `${athlete.firstName} ${athlete.lastName}` : "Player",
@@ -66,7 +105,13 @@ export async function loadTrainingForUser(userId: string, athleteId: string) {
       .filter((g) => g.athleteId === athleteId)
       .map((g) => ({ title: g.title, target: g.target })),
     recentWorkload: file.workload.filter((w) => w.athleteId === athleteId).slice(-14),
-    ...(await trainingBrief(sql, athleteId)),
+    ...brief,
+    assignments: brief.assignments.map((a) =>
+      coach
+        ? a
+        : { ...a, document: { ...a.document, evidence: undefined, workloadSnapshot: undefined } },
+    ),
+    events: brief.events.filter((e) => coach || e.kind !== "quality review"),
   };
 }
 async function event(
@@ -121,6 +166,14 @@ export async function assignTrainingForUser(userId: string, raw: AssignmentInput
     const brief = await trainingBrief(tx, input.athleteId);
     if (brief.assignments.some((a) => a.status === "paused"))
       throw new Error("Resolve the existing training hold before assigning more activity.");
+    const activeIds = brief.assignments
+      .filter((a) => a.status === "active")
+      .map((a) => a.id)
+      .sort();
+    if (!isDeepStrictEqual(activeIds, [...input.reviewedAssignmentIds].sort()))
+      throw new Error(
+        "Assigned workload changed. Reload and review all current programs before publishing.",
+      );
     const library = await approvedDrills(tx);
     const drills = [...new Set(input.tasks.map((t) => t.drillId))].map((id) => {
       const d = library.find((d) => d.id === id);
@@ -139,13 +192,54 @@ export async function assignTrainingForUser(userId: string, raw: AssignmentInput
     const family = programFamilies.find(
       (p) => p.sport === input.sport && p.discipline === input.discipline,
     )!;
+    const program = input.programId
+      ? developmentPrograms.find((p) => p.id === input.programId)
+      : undefined;
+    if (
+      input.programId &&
+      (!program ||
+        program.discipline !== input.discipline ||
+        !compatibleProgram(program, input.sport, age, skillBands.indexOf(input.skill), library))
+    )
+      throw new Error(
+        "Program prerequisites do not match this athlete's reviewed age, sport or skill.",
+      );
+    if (
+      program &&
+      input.tasks.some(
+        (t) => t.phase === undefined || !program.phases[t.phase].drillIds.includes(t.drillId),
+      )
+    )
+      throw new Error(
+        "Program tasks must retain compatible phase sequences. Use a custom plan for substitutions.",
+      );
+    const workloadSnapshot = developmentWorkload(
+      file,
+      input.athleteId,
+      brief.assignments,
+      brief.logs,
+      chicagoDate(new Date()),
+      input.sport,
+      age,
+    );
+    if (
+      input.discipline === "Pitching" &&
+      workloadSnapshot.restUntil &&
+      input.tasks.some((t) => t.date < workloadSnapshot.restUntil!)
+    )
+      throw new Error(
+        `Recorded baseball pitching rest runs until ${workloadSnapshot.restUntil}. Schedule pitching after the restriction and confirm readiness.`,
+      );
     const document = {
       ...input,
+      ...(program ? { program } : {}),
+      evidence: (await recordedDevelopmentEvidence(tx, file, input.athleteId)).evidence,
+      workloadSnapshot,
       age,
       ageBand: ageBand(age),
       version: TRAINING_VERSION,
       coachName: me.name,
-      phases: family.phases,
+      phases: program ? program.phases.map((p) => p.name) : family.phases,
       drills,
       phase: 0,
     };
@@ -196,7 +290,21 @@ export async function logTrainingForUser(userId: string, raw: PracticeInput) {
       throw new Error("Practice changed. Reload before saving again.");
     if (a.status !== "active" && !input.pain && input.fatigue !== "unusual")
       throw new Error("This program is on hold or closed. Contact your coach.");
-    const document = { ...input, source: coach ? "coach-observed" : "self-reported" };
+    const task = a.document.tasks.find((t) => t.id === input.taskId)!;
+    if (
+      task.phase !== undefined &&
+      task.phase > a.document.phase &&
+      !input.pain &&
+      input.fatigue !== "unusual"
+    )
+      throw new Error(
+        "This phase needs coach approval before activity begins. Follow the current phase or ask your coach to adjust the plan.",
+      );
+    const document = {
+      ...input,
+      phase: a.document.phase,
+      source: coach ? "coach-observed" : "self-reported",
+    };
     const [log] =
       await tx<TrainingLog>`insert into training_practice_logs(id,assignment_id,athlete_id,task_id,actor_id,document) values(${old?.id || randomUUID()},${a.id},${a.athlete_id},${input.taskId},${userId},${JSON.stringify(document)}::jsonb) on conflict(assignment_id,task_id) do update set document=excluded.document,actor_id=excluded.actor_id,revision=training_practice_logs.revision+1,updated_at=now() returning *`;
     await event(tx, userId, a, "practice", document);
@@ -243,6 +351,7 @@ export async function reviewTrainingForUser(userId: string, raw: TrainingReviewI
       ["advance", "complete"].includes(input.action) &&
       !logs.some(
         (l) =>
+          (l.document.phase ?? 0) === a.document.phase &&
           l.document.source === "coach-observed" &&
           !l.document.pain &&
           l.document.fatigue !== "unusual",
@@ -267,5 +376,97 @@ export async function reviewTrainingForUser(userId: string, raw: TrainingReviewI
       await tx<TrainingAssignment>`update training_assignments set status=${status},document=${JSON.stringify(document)}::jsonb,revision=revision+1,updated_at=now() where id=${a.id} returning *`;
     await event(tx, userId, a, "coach review", input);
     return next;
+  });
+}
+
+export async function trainingInboxForUser(userId: string) {
+  const sql = await getSql(),
+    me = await resolveIdentity(sql, userId),
+    file = await readWorkingFile(sql),
+    scope = scopeForViewer(me, file);
+  const ids = scope.athleteIds === "all" ? file.athletes.map((a) => a.id) : [...scope.athleteIds];
+  if (!ids.length) return [];
+  const rows = await sql<{
+    id: string;
+    athlete_id: string;
+    status: string;
+    document: TrainingAssignment["document"];
+  }>`select id,athlete_id,status,document from training_assignments where athlete_id=any(${ids}::text[]) and status='paused' order by updated_at desc`;
+  return rows.map((a) => ({
+    id: a.id,
+    athleteId: a.athlete_id,
+    name: file.athletes.find((x) => x.id === a.athlete_id)?.firstName || "Player",
+    title: a.document.title,
+    message:
+      "Training is on hold. Stop the affected activity. Guardian and assigned coach: open My Training to review the report and any required professional clearance.",
+  }));
+}
+export async function trainingQualityForUser(userId: string, athleteId: string) {
+  const sql = await getSql(),
+    { me } = await authority(sql, userId, athleteId, true);
+  if (me.role !== "admin")
+    throw new Error("Only an administrator can inspect the academy quality review.");
+  const brief = await trainingBrief(sql, athleteId);
+  const lessons = await sql<{
+    id: string;
+    booking_id: string;
+    status: string;
+    document: {
+      objective?: string;
+      familyRecap?: string;
+      homework?: string;
+      nextSteps?: string;
+      logs?: unknown[];
+    };
+    published_at: Date | null;
+  }>`select id,booking_id,status,document,published_at from guided_lesson_sessions where athlete_id=${athleteId} order by updated_at desc limit 30`;
+  return {
+    lessons: lessons.map((l) => ({
+      id: l.id,
+      bookingId: l.booking_id,
+      status: l.status,
+      objective: l.document.objective || "",
+      recap: l.document.familyRecap || "",
+      homework: l.document.homework || "",
+      nextSteps: l.document.nextSteps || "",
+      practiceRecords: l.document.logs?.length || 0,
+    })),
+    plans: brief.assignments.map((a) => ({
+      id: a.id,
+      title: a.document.title,
+      coach: a.document.coachName,
+      reason: a.document.reason,
+      goal: a.document.goal,
+      baseline: a.document.baseline,
+      workload: a.document.workload,
+      reviewDate: a.document.reviewDate,
+      qualifiedReview: a.document.qualifiedReview,
+      drills: a.document.drills.map((d) => ({ name: d.name, purpose: d.purpose })),
+      observations: brief.logs.filter(
+        (l) => l.assignment_id === a.id && l.document.source === "coach-observed",
+      ).length,
+    })),
+    reviews: brief.events.filter((e) => e.kind === "quality review"),
+  };
+}
+export async function reviewTrainingQualityForUser(
+  userId: string,
+  input: { assignmentId: string; requestId: string; feedback: string; checks: string[] },
+) {
+  const sql = await getSql(),
+    identity = await resolveIdentity(sql, userId);
+  return sql.transaction(async (tx) => {
+    const [a] =
+      await tx<TrainingAssignment>`select * from training_assignments where id=${input.assignmentId} for update`;
+    if (!a) throw new Error("Assignment unavailable.");
+    const { me } = await authority(tx, userId, a.athlete_id, true, identity);
+    if (me.role !== "admin")
+      throw new Error("Only an administrator can record academy quality feedback.");
+    const prior =
+      await tx`select id from home_training_events where assignment_id=${a.id} and kind='quality review' and document->>'requestId'=${input.requestId}`;
+    if (prior.length) return { ok: true };
+    await tx`select set_config('app.actor_id',${userId},true)`;
+    await event(tx, userId, a, "quality review", input);
+    return { ok: true };
   });
 }

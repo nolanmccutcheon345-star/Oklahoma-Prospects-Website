@@ -31,7 +31,11 @@ export function LessonChoices({
   );
   const [approach, setApproach] = useState<LessonChoiceInput["approach"]>("foundations"),
     [skill, setSkill] = useState<LessonChoiceInput["skill"]>("beginner"),
-    [selected, setSelected] = useState<string[]>([]),
+    [selected, setSelected] = useState<string[]>(() =>
+      choices[0].recommendedDrillIds.filter(
+        (id) => trainingDrills.find((d) => d.id === id)?.minimumSkill === 0,
+      ),
+    ),
     [error, setError] = useState(""),
     [busy, setBusy] = useState(false),
     [presets, setPresets] = useState<Awaited<ReturnType<typeof getLessonPresets>>>([]),
@@ -106,6 +110,11 @@ export function LessonChoices({
             value={approach}
             onChange={(e) => {
               setApproach(e.target.value as typeof approach);
+              setSelected(
+                choices
+                  .find((c) => c.approach === e.target.value)!
+                  .recommendedDrillIds.filter((id) => compatible.some((d) => d.id === id)),
+              );
               setPreset(undefined);
             }}
           >
@@ -115,6 +124,22 @@ export function LessonChoices({
           </select>
         </label>
         <p>{choice.rationale}</p>
+        <details>
+          <summary>Preview all eight stages</summary>
+          <h4>{choice.name}</h4>
+          <p>{choice.objective}</p>
+          <p>Equipment: {choice.equipment.join("; ")}</p>
+          {choice.stages.map((s) => (
+            <section key={s.name} className="my-3">
+              <strong>
+                {s.name} · {s.minutes} minutes
+              </strong>
+              {s.instructions.map((v, i) => (
+                <p key={i}>{v}</p>
+              ))}
+            </section>
+          ))}
+        </details>
         <label>
           Reviewed skill level
           <select

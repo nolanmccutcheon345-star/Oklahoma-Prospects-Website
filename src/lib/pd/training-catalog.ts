@@ -1,6 +1,7 @@
+import { drillCoaching, academyAdaptations } from "./drill-coaching";
 import { DRILLS } from "./content/drills";
 import type { LessonDiscipline, LessonSport } from "./lesson-templates";
-export const TRAINING_VERSION = "2026-10-13.2";
+export const TRAINING_VERSION = "2026-10-13.3";
 export const skillBands = ["beginner", "developing", "intermediate", "advanced", "elite"] as const;
 export const approaches = ["foundations", "targeted skill", "game performance"] as const;
 export const ageBand = (age: number) =>
@@ -17,12 +18,16 @@ export const ageBand = (age: number) =>
             : "19+";
 export const safetySources = [
   {
+    name: "American Academy of Pediatrics — youth resistance training, reaffirmed 2024",
+    url: "https://publications.aap.org/pediatrics/article/145/6/e20201011/76942/",
+  },
+  {
     name: "MLB / USA Baseball Pitch Smart — baseball workload and rest",
     url: "https://www.mlb.com/pitch-smart/pitching-guidelines",
   },
   {
-    name: "American Academy of Pediatrics — youth sports injury prevention",
-    url: "https://www.healthychildren.org/English/health-issues/injuries-emergencies/sports-injuries/Pages/Sports-Injuries-Treatment.aspx",
+    name: "American Academy of Pediatrics — overuse prevention",
+    url: "https://www.healthychildren.org/English/health-issues/injuries-emergencies/sports-injuries/Pages/Preventing-Overuse-Injuries.aspx",
   },
   {
     name: "Nationwide Children’s — baseball and softball injury prevention",
@@ -51,6 +56,9 @@ export type TrainingDrill = {
   review: "qualified coach review required";
   provenance: string;
   demoUrl: string | null;
+  relatedIds?: string[];
+  contentUpdatedAt?: string;
+  lastQualifiedReviewAt?: string | null;
 };
 // Each row defines a distinct task/constraint. Shared baseball/softball field skills retain one ID.
 // Original academy copy remains in content/drills.ts; this catalog does not silently rewrite it.
@@ -805,6 +813,9 @@ const build = (key: string, r: Row, i: number): TrainingDrill => ({
   provenance:
     "Academy draft authored for coach review; safety references inform guardrails, not validation of this drill.",
   demoUrl: null,
+  contentUpdatedAt: "2026-10-13",
+  lastQualifiedReviewAt: null,
+  ...drillCoaching(key, i),
 });
 export const trainingDrills: TrainingDrill[] = [
   ...(
@@ -834,6 +845,28 @@ export const trainingDrills: TrainingDrill[] = [
   ).map((r, i) => ({
     ...build("SoftballPitching", r, i),
     id: `baseball-foundation-${i + 1}`,
+    ...[
+      {
+        cue: "Move easily; finish balanced",
+        correction: "Forcing arm position: stop and reduce the dry range.",
+        regression: "Rehearse only a comfortable step and finish.",
+        progression: "Connect the dry arm movement after the step is controlled.",
+      },
+      {
+        cue: "Point first; name the location",
+        correction: "Choosing after starting: return to the target diagram before moving.",
+        regression: "Use one broad central target.",
+        progression: "Choose between two named targets before the dry routine.",
+      },
+      {
+        cue: "Say how you feel; use the stop signal",
+        correction:
+          "Hiding fatigue to continue: pause and invite an honest readiness conversation.",
+        regression: "Adult asks one readiness question at a time.",
+        progression:
+          "Athlete explains readiness, other activity and the stop signal without prompts.",
+      },
+    ][i],
     sports: ["baseball"] as LessonSport[],
   })),
   ...Object.entries(rows).flatMap(([key, list]) => list.map((r, i) => build(key, r, i))),
@@ -855,6 +888,7 @@ export const trainingDrills: TrainingDrill[] = [
     minAge: d.levels[0] >= 4 ? 13 : 8,
     cue: d.cues.join("; "),
     correction: d.watch.join("; "),
+    ...academyAdaptations[d.id],
     provenance: `Existing academy drill ${d.id}; original copy retained. Individual workload and technique require qualified review.`,
   })),
 ];

@@ -12,12 +12,22 @@ export const trainingDate = z
     "Invalid date",
   );
 export const trainingTask = z
-  .object({ id, drillId: id, date: trainingDate, dose: required, rest: required, target: required })
+  .object({
+    id,
+    drillId: id,
+    phase: z.number().int().min(0).max(3).optional(),
+    date: trainingDate,
+    dose: required,
+    rest: required,
+    target: required,
+  })
   .strict();
 export const assignmentInput = z
   .object({
     id,
     athleteId: id,
+    programId: id.optional(),
+    reviewedAssignmentIds: z.array(id).max(200).default([]),
     sport: z.enum(["baseball", "softball"]),
     discipline: z.enum(lessonDisciplines),
     title: z.string().trim().min(3).max(150),
@@ -103,6 +113,9 @@ export type TrainingAssignment = {
     phases: string[];
     drills: import("./training-catalog").TrainingDrill[];
     phase: number;
+    program?: import("./development-programs").DevelopmentProgram;
+    evidence?: import("./development-evidence").Evidence[];
+    workloadSnapshot?: ReturnType<typeof import("./development-evidence").developmentWorkload>;
   };
 };
 export type TrainingLog = {
@@ -112,5 +125,5 @@ export type TrainingLog = {
   task_id: string;
   actor_id: string;
   revision: number;
-  document: PracticeInput & { source: "self-reported" | "coach-observed" };
+  document: PracticeInput & { source: "self-reported" | "coach-observed"; phase?: number };
 };

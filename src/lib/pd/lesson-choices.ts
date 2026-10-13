@@ -26,37 +26,124 @@ export function lessonChoices(
   priorities: string[] = [],
 ) {
   const base = resolveTemplate(sport, discipline, minutes, age, level, priorities);
-  return approaches.map((approach, i) => ({
-    ...base,
-    id: `${base.id}:${approach}`,
-    version: "2026-10-13.1",
-    ageBand: ageBand(age),
-    approach,
-    objective: [
-      `Establish comfortable, repeatable ${discipline.toLowerCase()} fundamentals and record a baseline.`,
-      `Address one observed ${discipline.toLowerCase()} constraint; compare the same task before and after one cue.`,
-      `Apply a familiar ${discipline.toLowerCase()} skill to a game decision; review both the choice and execution.`,
-    ][i],
-    rationale: [
-      `Useful when skill experience or a reliable baseline is missing. Age ${age} sets eligibility, not expertise.`,
-      `Use when an actual assessment or recent lesson identifies a constraint: ${priorities.filter(Boolean).length ? "review the recorded goals and observations in the briefing" : "no priorities recorded; ask and observe first"}.`,
-      `Use after the coach confirms foundational control. Requires familiarity; age alone does not qualify the player.`,
-    ][i],
-    stages: base.stages.map((s, index) => ({
-      ...s,
-      instructions:
-        index === 4
-          ? [
-              [
-                "Demonstrate one simple task. Rehearse slowly, rest, and record comfortable control.",
-                "Give one cue and repeat the same task. Compare like-for-like outcomes after recovery.",
-                "Name outs, runners or a performance situation. Athlete chooses an action, then performs a familiar task.",
-              ][i],
-              ...s.instructions,
-            ]
-          : s.instructions,
-    })),
-  }));
+  const groups: Record<LessonDiscipline, number[][]> = {
+    Pitching:
+      sport === "softball"
+        ? [
+            [1, 3, 7],
+            [2, 5, 9],
+            [13, 16, 18],
+          ]
+        : [
+            [1, 2],
+            [3, 11],
+            [12, 16],
+          ],
+    Hitting: [
+      [1, 2, 3],
+      [9, 10, 11],
+      [14, 16, 21],
+    ],
+    Catching: [
+      [1, 2, 3],
+      [11, 12, 14],
+      [15, 17, 19],
+    ],
+    Fielding: [
+      [1, 2, 5],
+      [3, 4, 8],
+      [17, 18, 19],
+    ],
+    "Strength/Speed": [
+      [1, 2, 6],
+      [7, 8, 10],
+      [16, 17, 19],
+    ],
+  };
+  const prefix =
+    discipline === "Pitching"
+      ? sport === "softball"
+        ? "training-softballpitching-"
+        : "academy-d"
+      : `training-${discipline.toLowerCase().replace(/[^a-z]/g, "")}-`;
+  const eligible = trainingDrills.filter(
+    (d) =>
+      d.sports.includes(sport) &&
+      d.discipline === discipline &&
+      d.minAge <= age &&
+      d.minimumSkill <= Math.max(0, level - 1),
+  );
+  return approaches.map((approach, i) => {
+    let selected = groups[discipline][i]
+      .map((n) => eligible.find((d) => d.id === prefix + n))
+      .filter((d): d is (typeof trainingDrills)[number] => !!d);
+    if (!selected.length)
+      selected = eligible.slice(i, i + 2).length ? eligible.slice(i, i + 2) : eligible.slice(0, 2);
+    const drills = selected.map((d) => ({
+      id: d.id,
+      name: d.name,
+      setup: d.steps.join(" "),
+      dose: d.dose,
+      cues: d.cue.split(";"),
+      watch: [d.correction, d.safety],
+    }));
+    const objective = [
+      `Establish ${selected[0]?.purpose.toLowerCase() || discipline.toLowerCase() + " fundamentals"}; record comfortable execution before adding difficulty.`,
+      `Compare one observed limitation using ${selected.map((d) => d.name).join(" and ")}; retain one cue and repeat the same measurement.`,
+      `Explain and execute a game or movement choice using ${selected.map((d) => d.name).join(" and ")} within an approved workload.`,
+    ][i];
+    return {
+      ...base,
+      id: `${base.id}:${approach}`,
+      version: "2026-10-13.3",
+      name: `${sport} ${discipline} — ${approach}`,
+      ageBand: ageBand(age),
+      approach,
+      objective,
+      drills,
+      recommendedDrillIds: drills.map((d) => d.id),
+      equipment: [...new Set(selected.map((d) => d.equipment))],
+      rationale: [
+        "Use when a reliable baseline is missing. Observe first; age is not evidence of proficiency.",
+        priorities.filter(Boolean).length
+          ? "Review the recorded priorities and recent results, then select the specific constraint to test."
+          : "No priority is recorded. Obtain an observation before choosing a corrective focus.",
+        "Use only after the coach confirms control of the component skills. Review decisions separately from execution.",
+      ][i],
+      stages: base.stages.map((stage, index) => ({
+        ...stage,
+        instructions:
+          index === 0
+            ? [...stage.instructions, `Prepare: ${selected.map((d) => d.equipment).join("; ")}`]
+            : index === 4
+              ? [
+                  [
+                    "Demonstrate the task, let the athlete explain it, then rehearse at comfortable effort.",
+                    "Record a baseline, give one specific cue, allow recovery, and compare the same task.",
+                    "State a realistic situation, require an athlete choice, and review the decision before the outcome.",
+                  ][i],
+                  ...selected.map(
+                    (d) =>
+                      `${d.name}: ${d.steps.join(" ")} Cues: ${d.cue}. Correct: ${d.correction}. Easier: ${d.regression}. Next: ${d.progression}. ${d.dose}`,
+                  ),
+                ]
+              : index === 5
+                ? [
+                    ...stage.instructions,
+                    ...selected.map(
+                      (d) =>
+                        `Record ${d.measure}; compare only like-for-like conditions and preserve missing measurements.`,
+                    ),
+                  ]
+                : index === 7
+                  ? [
+                      ...stage.instructions,
+                      `Discuss whether ${selected[0]?.name || "the selected task"} is suitable for home practice. Publish an individualized program only after supervision and workload review.`,
+                    ]
+                  : stage.instructions,
+      })),
+    };
+  });
 }
 export function customizeLesson(
   base: ReturnType<typeof resolveTemplate>,
