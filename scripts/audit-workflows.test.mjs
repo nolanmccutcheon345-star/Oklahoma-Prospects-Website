@@ -176,7 +176,7 @@ test('isolated full account and lesson journey through real server commands',asy
    assert.equal((await api.readWorkingFile()).lessons.some(l=>l.id==='forged'),false);
   });
   await t.test('softball registration submission persists once and rejects cross-origin requests',async()=>{
-   const input={kind:'tryout',requestId:randomUUID(),player:'Audit Softball Player',age:'12U',parent:'Audit Parent',phone:'555-0100',email:'parent@audit.example.invalid',notes:'ISOLATED AUDIT ONLY',sport:'Softball',session:'Individual tryout request'};
+   const input={kind:'tryout',requestId:randomUUID(),player:'Audit Softball Player',age:'12U',parent:'Audit Parent',phone:'555-0100',email:'parent@audit.example.invalid',positions:'Pitcher, shortstop',notes:'ISOLATED AUDIT ONLY',usssaStatus:'provided',usssaAthleteId:'00123456',sport:'Softball',session:'Individual tryout request'};
    await api.submitInquiry(input);await api.submitInquiry(input);
    assert.equal((await sql`select id from club_requests where id=${input.requestId}`).length,1);
    for(const sport of ['Baseball','Softball']){
@@ -184,8 +184,14 @@ test('isolated full account and lesson journey through real server commands',asy
     await api.submitInquiry(extended);
     const [saved]=await sql`select payload from club_requests where id=${extended.requestId}`;
     assert.equal(saved.payload.age,'18U');assert.equal(saved.payload.sport,sport);
+    assert.equal(saved.payload.positions,input.positions);assert.equal(saved.payload.usssaAthleteId,'00123456');
    }
-   await assert.rejects(api.submitInquiry({...input,requestId:randomUUID(),age:' '}),/age group/);
+   for(const field of ['positions','notes','usssaStatus','usssaAthleteId']){
+    const invalid={...input,requestId:randomUUID(),[field]:''};
+    await assert.rejects(api.submitInquiry(invalid));
+    assert.equal((await sql`select id from club_requests where id=${invalid.requestId}`).length,0);
+   }
+   await assert.rejects(api.submitInquiry({...input,requestId:randomUUID(),age:' '}));
    const prior=state.request;
    state.request=new Request(base,{method:'POST',headers:{origin:'https://unrelated.example.invalid','sec-fetch-site':'cross-site'}});
    await assert.rejects(api.submitInquiry({...input,requestId:randomUUID()}),/cross-site/);state.request=prior;

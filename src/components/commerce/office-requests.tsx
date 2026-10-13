@@ -8,6 +8,7 @@ import { getTeamsClub, reviewTeamInquiry } from "@/lib/teams/store";
 import { chicagoDate, validDate } from "@/lib/scheduling";
 import type { PublicTryoutTeam } from "@/lib/tryout-preferences.server";
 import { Button } from "@/components/ui/button";
+import { UsssaPlayerId, usssaStatusLabel } from "@/components/usssa-player-id";
 
 type OfficeRequest = Awaited<ReturnType<typeof getOfficeRequests>>[number];
 type TeamChoice = {
@@ -219,7 +220,7 @@ export function OfficeRequests() {
       s = state(r);
     return (
       (!search ||
-        [p.player, p.parent, p.name, p.email, p.notes, p.message].some((v) =>
+        [p.player, p.parent, p.name, p.email, p.positions, p.usssaAthleteId, p.notes, p.message].some((v) =>
           String(v || "")
             .toLowerCase()
             .includes(search.toLowerCase()),
@@ -378,6 +379,9 @@ export function OfficeRequests() {
                   ["Parent / guardian", p.parent || p.name],
                   ["Email", p.email],
                   ["Phone", p.phone],
+                  ["Player positions", p.positions],
+                  ["USSSA status", usssaStatusLabel(p.usssaStatus || "")],
+                  ["USSSA Player / Athlete ID", p.usssaAthleteId],
                   ["Player notes", p.notes],
                   ["Message", p.message],
                 ]
@@ -385,7 +389,8 @@ export function OfficeRequests() {
                   .map(([label, value]) => (
                     <div key={String(label)} className="min-w-0 break-words">
                       <dt className="font-semibold">{String(label)}</dt>
-                      <dd className="whitespace-pre-wrap">{String(value)}</dd>
+                      <dd className="whitespace-pre-wrap">{label === "USSSA Player / Athlete ID"
+                        ? <UsssaPlayerId value={String(value)} /> : String(value)}</dd>
                     </div>
                   ))}
               </dl>

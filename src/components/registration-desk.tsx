@@ -9,6 +9,7 @@ import {
 } from "@/lib/registrations-api";
 
 import { TryoutEventEditor } from "./tryout-event-editor";
+import { UsssaPlayerId, usssaStatusLabel } from "./usssa-player-id";
 
 type Rows = Awaited<ReturnType<typeof getRegistrationRows>>;
 const labels: Record<string, string> = {
@@ -21,6 +22,9 @@ const labels: Record<string, string> = {
   email: "Email",
   phone: "Phone",
   notes: "Notes",
+  positions: "Player positions",
+  usssaStatus: "USSSA status",
+  usssaAthleteId: "USSSA Player / Athlete ID",
   message: "Message",
 };
 export function RegistrationDesk() {
@@ -173,7 +177,9 @@ export function RegistrationDesk() {
                       .map(([key, value]) => (
                         <div key={key} className="break-words">
                           <dt className="text-sm font-semibold">{labels[key] || key}</dt>
-                          <dd className="whitespace-pre-wrap">{value}</dd>
+                          <dd className="whitespace-pre-wrap">{key === "usssaAthleteId"
+                            ? <UsssaPlayerId value={value} />
+                            : key === "usssaStatus" ? usssaStatusLabel(value) : value}</dd>
                         </div>
                       ))}
                   </dl>
