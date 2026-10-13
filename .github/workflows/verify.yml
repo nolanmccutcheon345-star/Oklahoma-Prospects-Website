@@ -19,7 +19,7 @@ permissions:
 jobs:
   verify:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -44,6 +44,11 @@ jobs:
           NETLIFY: "true"
           LESSON_FULL_APP: "true"
           LESSON_SCREENSHOT_DIR: artifacts/guided-lessons
+      - name: Public navigation and tryout walkthrough
+        run: node scripts/public-ux-walkthrough.mjs
+        env:
+          NETLIFY: "true"
+          PUBLIC_UX_SCREENSHOTS: artifacts/guided-lessons/public-ux
       # Run the real interaction loop first so interface failures are found promptly.
       - run: npm test
       - run: npm run lint

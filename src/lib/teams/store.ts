@@ -15,7 +15,7 @@ import { emptyClub, sampleClub } from "./seed";
 import type { ClubRecord, Player, Team } from "./types";
 import type { ClubRole } from "@/lib/club-data";
 import { seasonSaveInput, persistTeamSeasons } from "./season-save.server";
-import { recordTeamRosterConsent } from './roster-consent';
+import { recordTeamRosterConsent, revokeTeamRosterConsent } from './roster-consent';
 
 type Identity = { primaryRole:ClubRole; playerIds:string[]; guardianHouseholdIds:string[]; email: string; familyId: string; familyIds:string[]; role: ClubRole; name: string };
 
@@ -171,6 +171,19 @@ export const saveTeamRosterConsent = createServerFn({ method: 'POST' })
     const club = await loadRaw();
     if (!club || club._rev !== data.baseRev) throw new Error('The club changed. Reload before signing.');
     recordTeamRosterConsent(club,data,{...me,familyIds:[...new Set([...me.familyIds,me.familyId])]});
+    club._rev += 1; club._savedAt = new Date().toISOString();
+    await writeRaw(club,data.baseRev);
+    return {ok:true};
+  });
+
+export const withdrawTeamRosterConsent = createServerFn({method: 'POST'})
+  .middleware([authMiddleware])
+  .validator(z.object({teamId:z.string().min(1).max(150),playerId:z.string().min(1).max(150),baseRev:z.number().int().nonnegative()}).strict())
+  .handler(async ({context,data}) => {
+    const me = await identity(context.userId);
+    const club = await loadRaw();
+    if (!club || club._rev !== data.baseRev) throw new Error('The club changed. Reload before withdrawing consent.');
+    revokeTeamRosterConsent(club,data,{...me,familyIds:[...new Set([...me.familyIds,me.familyId])]});
     club._rev += 1; club._savedAt = new Date().toISOString();
     await writeRaw(club,data.baseRev);
     return {ok:true};

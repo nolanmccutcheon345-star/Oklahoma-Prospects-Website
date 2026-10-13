@@ -36,12 +36,12 @@ function TrainingPage() {
         title="Train with purpose. Build your game."
         compact
 
-        copy="Personalized baseball and softball coaching to build skills, confidence, and consistency. Start with an assessment or explore a monthly development plan."
+        copy="Find the right training for your athlete. Explore private lessons, player assessments, and monthly development programs for baseball and softball."
         image="/brand/training.jpg"
         actions={
           <>
             <Button asChild>
-              <a href="/training#lessons">Explore Private Lessons</a>
+              <a href="/training#find-training">Find My Training</a>
             </Button>
             <Button asChild variant="outline">
               <a href="/training?view=plans#memberships">Compare Monthly Plans</a>
@@ -69,17 +69,23 @@ function TrainingPage() {
 
 function CatalogAndBook({view,instructor}:{view:"lessons"|"plans";instructor?:string}) {
   const [people,setPeople]=useState<PublicPerson[]>([]),[instructorsLoaded,setInstructorsLoaded]=useState(false);
-  useEffect(()=>{let active=true;setInstructorsLoaded(false);if(instructor)getPublicPeople().then(p=>{if(active)setPeople(p);}).catch(()=>{if(active)setPeople([]);}).finally(()=>{if(active)setInstructorsLoaded(true);});return()=>{active=false;};},[instructor]);
+  useEffect(()=>{let active=true;setInstructorsLoaded(false);getPublicPeople().then(p=>{if(active)setPeople(p);}).catch(()=>{if(active)setPeople([]);}).finally(()=>{if(active)setInstructorsLoaded(true);});return()=>{active=false;};},[instructor]);
   const selectedInstructor=people.find(p=>p.coachId===instructor&&p.instructor);
   const user = useCurrentUser();
   const catalog = useLiveCatalog();
+  const [sport, setSport] = useState("all");
+  const [agePath, setAgePath] = useState("all");
   const [discipline, setDiscipline] = useState("Pitching");
   const [athletes, setAthletes] = useState<{id:string;name:string;assessmentComplete:boolean}[]>([]);
   const [athleteId, setAthleteId] = useState("");
   const [scopeRole, setScopeRole] = useState("parent");
   const [loadingAthletes, setLoadingAthletes] = useState(false);
   const [athleteError, setAthleteError] = useState("");
-  const lessons = instructor ? (selectedInstructor ? catalog.lessons.filter(s=>selectedInstructor.serviceIds.includes(s.id)) : []) : catalog.lessons;
+  const instructorLessons = instructor ? (selectedInstructor ? catalog.lessons.filter(s=>selectedInstructor.serviceIds.includes(s.id)) : []) : catalog.lessons;
+  const lessons = instructorLessons.filter(item =>
+    (sport === "all" || people.some(p => p.bookable && p.sports.includes(sport as "baseball" | "softball") && p.serviceIds.includes(item.id))) &&
+    (agePath === "all" || (agePath === "youth" ? YOUTH_PRODUCTS.has(item.id) : !YOUTH_PRODUCTS.has(item.id)))
+  );
   const selectedAthlete = athletes.find(a => a.id === athleteId);
   // Derived from the selected, server-verified athlete only. A sibling cannot unlock another.
   const hasAssessment = selectedAthlete?.assessmentComplete === true;
@@ -114,32 +120,35 @@ function CatalogAndBook({view,instructor}:{view:"lessons"|"plans";instructor?:st
   const availableGroups = groups.filter(group => lessons.some(item => item.discipline === group && !item.group));
   const activeGroup = availableGroups.find(group => group === discipline) ?? availableGroups[0];
   return (
-    <div className="mx-auto max-w-3xl px-5 py-8">
+    <div className="mx-auto max-w-6xl px-5 py-8">
       {catalog.purchaseAvailability && !canPurchase(catalog.purchaseAvailability, "lesson", "s1") ? <aside role="status" className="mb-6 rounded-xl border border-line p-4"><h2 className="text-xl">Online lesson checkout temporarily unavailable</h2><p>Lessons and development memberships cannot be purchased online until secure checkout is verified. You can review assessment options below. Cage availability remains on Book.</p></aside> : null}
       {instructor&&<aside className="mb-5 rounded-xl border p-4"><p>Requested instructor: <strong>{selectedInstructor?.name||(instructorsLoaded?"This instructor is not currently listed for online lessons.":"Checking instructor availability…")}</strong></p><p className="text-sm">Choose an offered lesson below. Availability and assessment requirements are confirmed at checkout.</p><a href="/training" className="inline-flex min-h-11 items-center underline">Choose any instructor</a></aside>}
       <div hidden={view==='plans'}>
-      <section aria-label="Choose your training path" className="grid gap-4 sm:grid-cols-2">
-        <article className="rounded-2xl bg-ink p-5 text-fg-inverse">
-          <h2 className="text-2xl">New to Prospects?</h2>
-          <p className="mt-2 text-fg-soft">Start with an assessment to understand your current skills and plan your next steps.</p>
-          <Button asChild className="mt-4"><a href="#assessments">Start with an assessment</a></Button>
-        </article>
-        <article className="rounded-2xl bg-paper-2 p-5 shadow-border">
-          <h2 className="text-2xl">Ready for consistent training?</h2>
-          <p className="mt-2 text-muted">Compare monthly plans for coaching, development priorities, and progress tracking.</p>
-          <p className="mt-3 text-sm text-muted">Eligible in-person plans include your assessment as the first session. Without a completed assessment, the one-time assessment fee shown with your plan is added to the first month.</p>
-          <Button asChild variant="maroon" className="mt-4"><a href="/training?view=plans#memberships">Compare Monthly Plans</a></Button>
-        </article>
+      <section id="find-training" aria-label="Find my training" className="scroll-mt-40 rounded-2xl border border-line bg-paper-2 p-5">
+        <p className="text-xs font-semibold uppercase tracking-widest text-maroon">Your next session</p>
+        <h2 className="mt-2 text-3xl">Find my training</h2>
+        <p className="mt-2 text-muted">Choose your sport, age range and skill. Then select a lesson to review instructors and times. Your athlete’s age and assessment record are verified at checkout.</p>
+        <div className="mt-4 grid gap-4 sm:grid-cols-3">
+          <label className="font-semibold">Sport<select aria-label="Sport" className="office-control" value={sport} onChange={e=>setSport(e.target.value)}>
+            <option value="all">Both sports</option><option value="baseball">Baseball</option><option value="softball">Softball</option>
+          </select></label>
+          <label className="font-semibold">Age on lesson date<select aria-label="Age on lesson date" className="office-control" value={agePath} onChange={e=>setAgePath(e.target.value)}>
+            <option value="all">Browse all ages</option><option value="youth">11 or younger</option><option value="older">12 or older</option>
+          </select></label>
+          <label className="font-semibold">Skill to develop<select aria-label="Skill to develop" className="office-control" value={activeGroup || ""} onChange={e=>setDiscipline(e.target.value)}>
+            {!availableGroups.length && <option value="">No matching lessons</option>}
+            {availableGroups.map(group=><option key={group}>{group}</option>)}
+          </select></label>
+        </div>
+        <p role="status" className="mt-4 rounded-lg bg-white p-3 text-sm">{agePath === "youth" ? "Youth lessons for ages 11 and under do not require an assessment. Choose an available youth lesson below." : hasAssessment ? "Your selected athlete has a completed assessment. Choose a lesson below to continue." : "New to training? Most private lessons require a completed assessment. Eligible monthly plans can begin with an assessment; youth lessons for ages 11 and under do not require one."}</p>
+        <div className="mt-3 flex flex-wrap gap-4">
+          <a href="#lessons" className="inline-flex min-h-11 items-center font-semibold underline">View matching lessons</a>
+          <Link to="/training" search={{view:"plans"}} className="inline-flex min-h-11 items-center underline">Compare monthly plans</Link>
+          <Link to="/instructors" className="inline-flex min-h-11 items-center underline">Meet the instructors</Link>
+        </div>
       </section>
 
-      <section aria-label="How training works" className="mt-8 rounded-xl border border-line p-5">
-        <h2 className="text-2xl">How training works</h2>
-        <ol className="mt-4 grid grid-cols-2 gap-4 sm:grid-cols-4">
-          {["Assessment", "Training plan", "Coaching", "Progress review"].map((step, i) => <li key={step}><span className="block text-sm font-semibold text-maroon">{i + 1}</span><span className="font-semibold">{step}</span></li>)}
-        </ol>
-      </section>
-
-      <section id="assessments" aria-label="Player assessments" className="mt-8 scroll-mt-40 rounded-2xl bg-ink p-5 text-fg-inverse">
+      <section hidden={agePath === "youth"} id="assessments" aria-label="Player assessments" className="mt-8 scroll-mt-40 rounded-2xl bg-ink p-5 text-fg-inverse">
         <h2 className="text-2xl">Your first step: a player assessment</h2>
         <p className="mt-2 text-fg-soft">Your coach evaluates your current skills and recommends your next steps. Youth lessons for 11U and under are available without an assessment. For other private lessons, complete an assessment, or join an eligible monthly plan with the assessment included as your first session.</p>
         <div className="mt-4 flex flex-wrap gap-3">
@@ -154,7 +163,18 @@ function CatalogAndBook({view,instructor}:{view:"lessons"|"plans";instructor?:st
 
       <section id="lessons" className="mt-10 scroll-mt-40" aria-label="Lesson booking">
         <h2 className="text-3xl">Choose your lesson</h2>
+        {sport !== "all" && !instructorsLoaded && <p role="status">Loading instructors for this sport…</p>}
+        {instructorsLoaded && !lessons.length && <p role="status" className="mt-3 rounded-xl border p-4">No lessons match these choices. Try another age range or sport, or <Link to="/contact" className="underline">ask the office for help</Link>.</p>}
         <p className="mt-2 mb-5 text-sm text-muted">Explore a discipline, then choose your next session. Youth lessons for 11U and under do not require an assessment. Other private lessons require a completed player assessment.</p>
+        <div id="lesson-booking" className="mt-6 scroll-mt-40 rounded-xl border border-line p-5">
+          <h3 className="text-xl">Ready to book? Choose your athlete.</h3>
+          {user && loadingAthletes ? <p role="status" className="mt-3">Checking your athletes and completed assessments…</p> : null}
+          {athleteError ? <p role="alert" className="mt-3 text-maroon">{athleteError}</p> : null}
+          {!user ? <p className="mt-3"><Link to="/login" search={{next:instructor?`/training?instructor=${encodeURIComponent(instructor)}`:"/training"}} className="font-semibold underline">Sign in</Link> to choose your athlete. You can browse lessons and compare plans before signing in.</p> : null}
+          {user && !loadingAthletes && athletes.length === 0 ? <p className="mt-3"><Link to="/family" className="font-semibold underline">Add an athlete</Link> to your household before booking.</p> : null}
+          {athletes.length > 0 ? <AthleteSelector athletes={athletes} value={athleteId} onChange={setAthleteId} scope={athleteScope(scopeRole)}/> : null}
+          {hasAssessment ? <p className="mt-3">Assessment completed. Choose View Available Times on a lesson to pick a coach and session time.</p> : null}
+        </div>
         <div role="tablist" aria-label="Lesson disciplines" className="mb-5 grid grid-cols-2 gap-2 sm:grid-cols-4">
           {availableGroups.map(group => <button key={group} type="button" role="tab" id={`tab-${group.toLowerCase()}`} aria-selected={activeGroup === group} aria-controls={`lesson-${group.toLowerCase()}`} tabIndex={activeGroup === group ? 0 : -1}
             className={`min-h-12 rounded-lg border px-3 py-2 font-semibold ${activeGroup === group ? "border-maroon bg-maroon text-fg-inverse" : "border-line bg-paper-2"}`}
@@ -175,15 +195,6 @@ function CatalogAndBook({view,instructor}:{view:"lessons"|"plans";instructor?:st
               athleteSelected={Boolean(user && selectedAthlete)} />)}
           </div>
         </section>)}
-        <div id="lesson-booking" className="mt-6 scroll-mt-40 rounded-xl border border-line p-5">
-          <h3 className="text-xl">Ready to book? Choose your athlete.</h3>
-          {user && loadingAthletes ? <p role="status" className="mt-3">Checking your athletes and completed assessments…</p> : null}
-          {athleteError ? <p role="alert" className="mt-3 text-maroon">{athleteError}</p> : null}
-          {!user ? <p className="mt-3"><Link to="/login" search={{next:instructor?`/training?instructor=${encodeURIComponent(instructor)}`:"/training"}} className="font-semibold underline">Sign in</Link> to choose your athlete. You can browse lessons and compare plans before signing in.</p> : null}
-          {user && !loadingAthletes && athletes.length === 0 ? <p className="mt-3"><Link to="/family" className="font-semibold underline">Add an athlete</Link> to your household before booking.</p> : null}
-          {athletes.length > 0 ? <AthleteSelector athletes={athletes} value={athleteId} onChange={setAthleteId} scope={athleteScope(scopeRole)}/> : null}
-          {hasAssessment ? <p className="mt-3">Assessment completed. Choose View Available Times on a lesson to pick a coach and session time.</p> : null}
-        </div>
         <section id="youth-lessons" className="mt-6 rounded-xl bg-paper-2 p-5">
           <h3 className="text-xl">Youth lessons · 11U and under</h3>
           <p className="mt-2 text-sm text-muted">For players age 11 or younger on the lesson date. No new player assessment is required. Choose a youth service above to see assigned instructors and available times.</p>
@@ -194,6 +205,7 @@ function CatalogAndBook({view,instructor}:{view:"lessons"|"plans";instructor?:st
       <section hidden={view!=="plans"} id="memberships" className="mt-12 scroll-mt-40">
         <p className="text-xs font-semibold tracking-[0.16em] text-maroon uppercase">Build consistency. Keep developing.</p>
         <h2 className="mt-2 text-3xl">Monthly training plans</h2>
+        <Link to="/training" className="inline-flex min-h-11 items-center underline">Find a private lesson instead</Link>
         <p className="mt-2 text-sm text-muted">Compare coaching formats and choose the right fit. Monthly prices and any applicable first-month assessment fee are shown below.</p>
         {planGroups.map(group => {
           const plans = catalog.memberships.filter(group.matches);

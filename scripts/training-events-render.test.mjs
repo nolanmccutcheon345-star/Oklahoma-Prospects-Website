@@ -90,7 +90,7 @@ test("camp registration UI, calendar, and admin event editor use authoritative d
     await act(async () => button("Calendar").click());
     assert.ok(host.querySelector('[aria-label="Upcoming events calendar"]'));
     await act(async () => button("Upcoming events").click());
-    await act(async () => button("Register a player").click());
+    await act(async () => button("Register for This Camp").click());
     const choose = host.querySelector("select");
     await act(async () => {
       choose.value = "player";
@@ -177,7 +177,7 @@ test("camp registration UI, calendar, and admin event editor use authoritative d
     await act(async () => root.unmount());
     root = createRoot(host);
     await act(async () => root.render(createElement(EventsPage)));
-    await act(async () => button("Register a player").click());
+    await act(async () => button("Register for This Camp").click());
     assert.match(host.textContent, /\$125.00 total per player/);
     assert.match(host.textContent, /Ages 8–12/);
     await act(async () => host.querySelectorAll("input[type=radio]")[1].click());

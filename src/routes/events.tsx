@@ -5,12 +5,12 @@ import { getTrainingEvents, getEventFamily, startEventCheckout } from "@/lib/tra
 import { submitSquarePayment } from "@/lib/commerce/api";
 import { useCurrentUser } from "@/lib/auth/use-current-user";
 import { SquareCard } from "@/components/commerce/square-card";
+import { PageHero } from "@/components/page-hero";
 import { Button } from "@/components/ui/button";
 import { formatMoney } from "@/lib/pricing";
 import { formatClockTime } from "@/lib/time-display";
 import {
   campPurchase,
-  campPriceLabel,
   campAgeLabel,
   campAgeError,
   eventTypes,
@@ -77,13 +77,8 @@ export function EventsPage() {
     count = new Date(Date.UTC(first.getUTCFullYear(), first.getUTCMonth() + 1, 0)).getUTCDate();
   return (
     <main id="main" className="pb-10">
-      <header className="border-b-4 border-maroon bg-ink px-5 py-10 text-white">
-        <div className="mx-auto max-w-5xl">
-          <p className="text-xs tracking-widest text-powder">OKLAHOMA PROSPECTS</p>
-          <h1 className="my-3 text-5xl">Camps & Clinics.</h1>
-          <p>Learn together. Build your game. Explore upcoming events and register your player.</p>
-        </div>
-      </header>
+      <PageHero eyebrow="Prospects Sports Academy" title="Camps & Clinics." compact
+        copy="Explore upcoming baseball and softball camps, clinics, and skills sessions. See dates, ages, pricing, and registration details." />
       <div className="mx-auto grid max-w-5xl gap-6 px-5 py-6">
         {error && (
           <p role="alert" className="text-maroon">
@@ -91,11 +86,11 @@ export function EventsPage() {
           </p>
         )}
         <div className="flex gap-2" aria-label="Event view">
-          <Button variant={view === "list" ? "maroon" : "outline"} onClick={() => setView("list")}>
+          <Button variant={view === "list" ? "maroon" : "outlineDark"} onClick={() => setView("list")}>
             Upcoming events
           </Button>
           <Button
-            variant={view === "calendar" ? "maroon" : "outline"}
+            variant={view === "calendar" ? "maroon" : "outlineDark"}
             onClick={() => setView("calendar")}
           >
             Calendar
@@ -153,7 +148,7 @@ export function EventsPage() {
               Central Time.
             </p>
             {day && (
-              <Button variant="outline" onClick={() => setDay("")}>
+              <Button variant="outlineDark" onClick={() => setDay("")}>
                 Show whole month
               </Button>
             )}
@@ -178,14 +173,17 @@ export function EventsPage() {
                 </p>
                 <h2 className="text-3xl">{e.name}</h2>
                 <p className="whitespace-pre-wrap">{e.description}</p>
-                <p>
-                  {campAgeLabel(e)}
-                  {e.minAge !== undefined || e.maxAge !== undefined ? " on the first camp day" : ""}
-                </p>
-                <Sessions event={e} />
-                <p>{e.location}</p>
-                <p>Coaches: {e.coaches.map((c) => c.name).join(", ")}</p>
-                <p className="font-semibold">{campPriceLabel(e)} per player</p>
+                <dl className="grid grid-cols-2 gap-3 rounded-xl bg-paper-2 p-4 text-sm">
+                  <div><dt className="font-semibold">Ages</dt><dd>{campAgeLabel(e)}{e.minAge !== undefined || e.maxAge !== undefined ? " on the first camp day" : ""}</dd></div>
+                  <div><dt className="font-semibold">Location</dt><dd>{e.location}</dd></div>
+                  {e.pricingMode !== "days" && <div><dt className="font-semibold">Full camp</dt><dd>{formatMoney(e.priceCents)} per player</dd></div>}
+                  {e.pricingMode !== "package" && e.dayPriceCents !== undefined && <div><dt className="font-semibold">Individual day</dt><dd>{formatMoney(e.dayPriceCents)} per player</dd></div>}
+                </dl>
+                {e.sessions.length > 2 ? <details className="rounded-lg border p-3">
+                  <summary className="min-h-11 cursor-pointer font-semibold">{e.sessions.length} sessions · {e.sessions[0]?.date} to {e.sessions[e.sessions.length - 1]?.date} · View schedule</summary>
+                  <Sessions event={e}/>
+                </details> : <Sessions event={e}/>}
+                <p className="text-sm">Coaches: {e.coaches.map((c) => c.name).join(", ") || "Contact the office for coaching details"}</p>
                 <Button
                   disabled={
                     e.status !== "published" ||
@@ -197,7 +195,7 @@ export function EventsPage() {
                   {e.remainingSeats === 0
                     ? "Event full"
                     : e.status === "published" && e.registrationOpen !== false
-                      ? "Register a player"
+                      ? "Register for This Camp"
                       : "Registration closed"}
                 </Button>
               </article>

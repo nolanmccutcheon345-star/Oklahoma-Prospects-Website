@@ -7,11 +7,13 @@ import { JSDOM } from "jsdom";
 import { act, createElement } from "react";
 import { createRoot } from "react-dom/client";
 
-test("player details stay visible and mandatory; USSSA unknown and new-player choices remain usable", async () => {
+test("three-step tryout retains mandatory player details; USSSA unknown and new-player choices remain usable", async () => {
   const temp = await mkdtemp("scripts/.tryout-render-");
   const dom = new JSDOM('<div id="root"></div>', { url: "https://test.invalid/tryouts" });
   const old = { window: globalThis.window, document: globalThis.document, act: globalThis.IS_REACT_ACT_ENVIRONMENT };
   Object.assign(globalThis, { window: dom.window, document: dom.window.document, IS_REACT_ACT_ENVIRONMENT: true });
+  globalThis.requestAnimationFrame = (fn) => fn();
+  dom.window.HTMLElement.prototype.scrollIntoView = ()=>{};
   let root;
   try {
     const outfile = temp + "/form.mjs";
@@ -24,6 +26,16 @@ test("player details stay visible and mandatory; USSSA unknown and new-player ch
     const control = (label) => [...document.querySelectorAll("label")].find((el) => el.textContent.trim().startsWith(label))?.querySelector("input,textarea,select");
     for (const sport of ["Baseball", "Softball"]) {
       await act(async () => root.render(createElement(TryoutForm, { key: sport, initialSport: sport })));
+      const change=async(field,value)=>{await act(async()=>{const proto=field.tagName==='SELECT'?dom.window.HTMLSelectElement.prototype:dom.window.HTMLInputElement.prototype;Object.getOwnPropertyDescriptor(proto,'value').set.call(field,value);field.dispatchEvent(new dom.window.Event(field.tagName==='SELECT'?'change':'input',{bubbles:true}));});};
+      await act(async()=>[...document.querySelectorAll('button')].find(b=>b.textContent==='Continue to player details').click());
+      assert.match(document.querySelector('h3').textContent,/Step 1/,'empty first step cannot advance');
+      await change(control('Age group'),'12U');
+      await change(control('Player name'),'Test Player');
+      await change(control('Parent / Guardian'),'Test Guardian');
+      await change(control('Phone'),'9185550123');
+      await change(control('Email'),'test@example.invalid');
+      await act(async()=>[...document.querySelectorAll('button')].find(b=>b.textContent==='Continue to player details').click());
+      assert.match(document.querySelector('h3').textContent,/Step 2/);
       assert.match(document.body.textContent, /Player details — mandatory/);
       for (const name of ["Player positions", "Player notes", "USSSA Player ID status"]) {
         const field = control(name);

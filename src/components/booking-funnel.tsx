@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import { Button } from "./ui/button";
 import { BOOKABLE_LANES, CANCEL_POLICY, type BookableLaneId } from "@/lib/club";
 import { formatDollars } from "@/lib/pricing";
@@ -38,6 +38,15 @@ export function BookingFunnel({
 }) {
   const today = chicagoDateISO(),
     maxDate = cageBookingLastDate();
+  const [bookingStep, setBookingStep] = useState(0);
+  const bookingRef = useRef<HTMLElement>(null);
+  function goToBookingStep(step: number) {
+    setBookingStep(step);
+    requestAnimationFrame(()=>{
+      const summary=bookingRef.current?.querySelector<HTMLElement>(`[data-booking-step="${step}"] > summary`);
+      summary?.focus();summary?.scrollIntoView({block:"start",behavior:"instant"});
+    });
+  }
   const [party, setParty] = useState<"household" | "team">(
     initial === "team" ? "team" : "household",
   );
@@ -143,10 +152,12 @@ export function BookingFunnel({
   }
   if (householdHour === undefined || teamHour === undefined || fieldHour === undefined) return <p role="status" className="p-5">Loading current rental rates. If rates do not appear, refresh or contact Front Office.</p>;
   return (
-    <section className="mx-auto max-w-3xl px-5 py-8" data-booking-ready={complete}>
+    <section ref={bookingRef} className="mx-auto max-w-3xl px-5 py-8" data-booking-ready={complete}>
       <form id="cage-booking-form" onSubmit={onSubmit} className="grid min-w-0 gap-8">
-        <div>
-          <h2 className="text-3xl">1. Who’s training?</h2>
+        <details data-booking-step="0" open={bookingStep === 0} className="rounded-2xl border border-line p-4">
+          <summary className="min-h-11 cursor-pointer text-2xl font-semibold">1. Choose your spaces</summary>
+          <div className="mt-4">
+          <h2 className="text-xl">Who’s training?</h2>
           <fieldset className="mt-4 grid gap-2 sm:grid-cols-2">
             <legend className="sr-only">Who is training</legend>
             {(
@@ -200,7 +211,7 @@ export function BookingFunnel({
           )}
         </div>
         <div>
-          <h2 className="text-3xl">2. Choose your space</h2>
+          <h2 className="mt-5 text-xl">Choose your space</h2>
           <p className="mt-2 text-sm text-muted">
             Select one or more spaces. All selected spaces use the same start time and duration.
           </p>
@@ -246,8 +257,11 @@ export function BookingFunnel({
             })}
           </fieldset>
         </div>
-        <div className="grid min-w-0 gap-4">
-          <h2 className="text-3xl">3. Pick your date & time</h2>
+          <Button type="button" className="mt-4" disabled={!lanes.length} onClick={()=>goToBookingStep(1)}>Continue to date & time</Button>
+        </details>
+        <details data-booking-step="1" open={bookingStep === 1} className="rounded-2xl border border-line p-4">
+          <summary className="min-h-11 cursor-pointer text-2xl font-semibold">2. Pick your date & time</summary>
+          <div className="mt-4 grid min-w-0 gap-4">
           <label className="block min-w-0 text-sm font-semibold">
             Date
             <input
@@ -333,7 +347,11 @@ export function BookingFunnel({
             )}
           </fieldset>
         </div>
-        <div className="grid gap-4">
+          <Button type="button" className="mt-4" disabled={!complete} onClick={()=>goToBookingStep(2)}>Review this booking</Button>
+        </details>
+        <details data-booking-step="2" open={bookingStep === 2} className="rounded-2xl border border-line p-4">
+          <summary className="min-h-11 cursor-pointer text-2xl font-semibold">3. Review & continue</summary>
+          <div className="mt-4 grid gap-4">
           <section
             id="cage-total"
             aria-label="Booking summary"
@@ -441,6 +459,7 @@ export function BookingFunnel({
             </div>
           </div>
         </div>
+        </details>
       </form>
     </section>
   );

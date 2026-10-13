@@ -1,3 +1,4 @@
+import { ACTIVE_SEASON } from "@/lib/active-season";
 import { formatDollars } from "@/lib/pricing";
 import {useLiveCatalog} from "@/lib/use-catalog";
 import {pageHead} from "@/lib/seo";
@@ -39,7 +40,7 @@ function Home() {
             <span className="block">TRAIN WITH PURPOSE.</span>
           </h1>
           <p className="mt-5 max-w-md text-[1.05rem] leading-relaxed text-fg-soft">
-            Baseball and softball development in Broken Arrow. Book indoor cage time, train with experienced coaches, and find your team at Prospects Sports Academy.
+            Indoor baseball and softball training in Broken Arrow. Rent a batting cage, book private instruction, or explore Prospects teams and tryouts.
           </p>
           <div className="mt-7 flex flex-wrap gap-3">
             <Button asChild>
@@ -73,8 +74,8 @@ function Home() {
         <p className="text-xs font-semibold tracking-[0.16em] text-maroon uppercase">
           Start here
         </p>
-        <h2 className="mt-2 text-3xl">Choose your next step.</h2>
-        <div className="mt-5 grid gap-3">
+        <h2 className="mt-2 text-3xl">What would you like to do?</h2>
+        <div className="mt-5 grid gap-3 sm:grid-cols-2">
           <PathCard
             to="/book"
             kicker={catalog.cages.find(r=>r.id==="individual") ? `From ${formatDollars(catalog.cages.find(r=>r.id==="individual")!.price)} / hour` : "Cage rentals"}
@@ -83,16 +84,16 @@ function Home() {
           />
           <PathCard
             to="/training"
-            kicker={`From ${formatDollars(catalog.memberships.find(m=>m.id==="m1")?.price ?? 239)} / mo`}
-            title="Explore lesson memberships"
-            body="Build consistency with monthly coaching, a development plan, and progress tracking."
+            kicker="Baseball & softball instruction"
+            title="Book coaching"
+            body="Find private lessons, player assessments, and monthly development plans."
           />
           <MemberPathCard />
           <PathCard
-            to="/more"
-            kicker="First visit"
-            title="Get ready for your first visit"
-            body="Complete your waiver, find directions, and get ready to train."
+            to="/tryouts"
+            kicker={`${ACTIVE_SEASON} teams`}
+            title="Find a team or tryout"
+            body="Meet our teams and request a scheduled tryout or individual evaluation."
           />
         </div>
       </section>
@@ -105,7 +106,7 @@ function Home() {
         />
         <div>
           <p className="text-xs font-semibold tracking-[0.16em] text-maroon uppercase">Coaching and teams</p>
-          <h2 className="mt-2 text-3xl">Coaching. Development. Teamwork.</h2>
+          <h2 className="mt-2 text-3xl">Coaching built around your athlete.</h2>
           <p className="mt-3 text-muted">Work with experienced coaches, build your skills through lessons, and explore baseball and softball teams at Prospects Sports Academy.</p>
           <div className="mt-5 flex flex-wrap gap-2">
             <Button asChild variant="maroon"><Link to="/training">Explore Lessons</Link></Button>
@@ -241,7 +242,7 @@ function PathCard({
   title,
   body,
 }: {
-  to: "/book" | "/training" | "/more" | "/account" | "/login";
+  to: "/book" | "/training" | "/more" | "/tryouts" | "/account" | "/login";
   kicker: string;
   title: string;
   body: string;

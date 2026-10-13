@@ -39,7 +39,7 @@ export function PeopleDirectory({
           <article key={p.id} className="flex flex-col rounded-xl border border-line bg-white p-5">
             <div className="mb-4 flex h-48 items-center justify-center overflow-hidden rounded-lg bg-paper-2">
               {p.photo ? (
-                <img src={p.photo} alt={p.name} className="h-full w-full object-contain" />
+                <img src={p.photo} alt={p.name} loading="lazy" width={480} height={320} className="h-full w-full object-contain" />
               ) : (
                 <span className="text-5xl font-semibold text-navy" aria-hidden="true">
                   {p.name
@@ -62,7 +62,7 @@ export function PeopleDirectory({
             </p>
             {kind === "instructors" && (
               <>
-                <p className="mt-3">{p.specialties.join(" · ")}</p>
+                <p className="mt-3">{p.specialties.join(" · ") || "Contact the office to discuss coaching focus."}</p>
                 {p.ages && <p className="mt-1 text-sm">Ages & experience: {p.ages}</p>}
               </>
             )}
@@ -100,9 +100,9 @@ export function PeopleDirectory({
             {p.bookable && (
               <a
                 href={`/training?instructor=${encodeURIComponent(p.coachId)}`}
-                className="mt-5 flex min-h-12 items-center justify-center rounded-lg bg-maroon px-4 py-3 font-semibold text-white"
+                className="mt-auto flex min-h-12 items-center justify-center rounded-lg bg-maroon px-4 py-3 font-semibold text-white"
               >
-                Book a Lesson
+                View Lessons & Availability
               </a>
             )}
             {kind === "instructors" && !p.bookable && (

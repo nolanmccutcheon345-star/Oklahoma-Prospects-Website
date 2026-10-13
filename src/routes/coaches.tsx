@@ -15,7 +15,7 @@ export const Route = createFileRoute("/coaches")({
   component: function CoachDirectoryPage() { return (
     <main id="main">
       <PageHero
-        eyebrow="Oklahoma Prospects"
+        eyebrow="Prospects Sports Academy"
         title="Meet our coaches."
         copy="Meet the coaches guiding our athletes’ development and leading our baseball and softball teams."
         compact

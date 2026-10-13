@@ -1,5 +1,5 @@
 import { ACTIVE_SEASON } from "@/lib/active-season";
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import { sendInquiry } from "@/lib/portal-api";
 import { Button } from "@/components/ui/button";
 import { TRYOUT_AGE_GROUPS, TRYOUT_REQUEST_SESSION } from "@/lib/club";
@@ -151,6 +151,16 @@ export function TryoutForm({
     initialEvent ? "scheduled" : "individual",
   );
   const [eventId, setEventId] = useState(initialEvent?.id || "");
+  const [step, setStep] = useState(0);
+  const formRef = useRef<HTMLFormElement>(null);
+  const headingRef = useRef<HTMLHeadingElement>(null);
+  function goToStep(next: number) {
+    setStep(next);
+    requestAnimationFrame(() => { headingRef.current?.focus(); headingRef.current?.scrollIntoView({block:"start",behavior:"instant"}); });
+  }
+  function nextStep() {
+    if (formRef.current?.reportValidity()) goToStep(step + 1);
+  }
   const [consent, setConsent] = useState(false);
   const [values, setValues] = useState<TryoutValues>({
     player: "",
@@ -222,6 +232,7 @@ export function TryoutForm({
   }
   async function onSubmit(event: FormEvent) {
     event.preventDefault();
+    if (intent === "register" && step < 2) { nextStep(); return; }
     if (busy || sent) return;
     if (intent === "register" && !consent) {
       setError("Please confirm the request consent.");
@@ -271,7 +282,12 @@ export function TryoutForm({
       </div>
     );
   return (
-    <form onSubmit={onSubmit} className="grid gap-4">
+    <form ref={formRef} onSubmit={onSubmit} className="grid gap-4">
+      {intent === "register" && <div className="rounded-xl bg-ink p-4 text-white">
+        <h3 ref={headingRef} tabIndex={-1} className="scroll-mt-40 text-2xl">Step {step + 1} of 3 · {["Player & contact", "Player details", "Review & send"][step]}</h3>
+        <p className="mt-2 text-sm">Tell us about your player. Staff will confirm the next available evaluation option. A request does not reserve a roster position.</p>
+        <progress aria-label="Tryout request progress" value={step + 1} max={3} className="mt-3 h-2 w-full accent-powder" />
+      </div>}
       {error && (
         <p role="alert" className="text-maroon">
           {error}
@@ -283,6 +299,7 @@ export function TryoutForm({
           individual evaluation.
         </p>
       )}
+      <fieldset hidden={intent === "register" && step !== 0} disabled={intent === "register" && step !== 0} className="grid min-w-0 gap-4" aria-label="Player and contact information">
       {intent === "register" && (
         <fieldset className="grid gap-2 rounded-xl border bg-paper p-4 sm:grid-cols-2">
           <legend className="px-2 font-semibold">Choose your next step</legend>
@@ -460,7 +477,8 @@ export function TryoutForm({
           />
         </label>
       </div>
-      <fieldset className="grid min-w-0 gap-4 rounded-xl border bg-paper p-4">
+      </fieldset>
+      <fieldset hidden={intent === "register" && step !== 1} disabled={intent === "register" && step !== 1} className="grid min-w-0 gap-4 rounded-xl border bg-paper p-4">
         <legend className="px-2 font-semibold">
           Player details {intent === "register" && <span className="text-maroon">— mandatory</span>}
         </legend>
@@ -537,6 +555,17 @@ export function TryoutForm({
           </>
         )}
       </fieldset>
+      <fieldset hidden={intent === "register" && step !== 2} disabled={intent === "register" && step !== 2} className="grid min-w-0 gap-4" aria-label="Review tryout request">
+      {intent === "register" && <div className="rounded-xl border bg-paper p-4">
+        <h4 className="text-xl">Review your request</h4>
+        <dl className="mt-3 grid gap-3 text-sm">
+          <div><dt className="font-semibold">Player</dt><dd>{values.player} · {values.sport} · {values.age} · {values.season}</dd></div>
+          <div><dt className="font-semibold">Evaluation</dt><dd>{scheduled && selectedEvent ? `${selectedEvent.date} · ${formatClockTime(selectedEvent.startTime)} Central · ${selectedEvent.location}` : "Individual evaluation — staff will confirm an appointment"}</dd></div>
+          <div><dt className="font-semibold">Parent / guardian</dt><dd className="break-words">{values.parent} · {values.phone} · {values.email}</dd></div>
+          <div><dt className="font-semibold">Positions & notes</dt><dd className="whitespace-pre-wrap break-words">{values.positions}<br/>{values.notes}</dd></div>
+          <div><dt className="font-semibold">USSSA Player ID</dt><dd>{values.usssaStatus === "provided" ? values.usssaAthleteId : values.usssaStatus === "unknown" ? "Not known yet" : "Not registered yet"}</dd></div>
+        </dl>
+      </div>}
       {intent === "register" && <details className="rounded-xl border bg-paper p-4">
         <summary className="min-h-11 cursor-pointer font-semibold">
           Team & coach preferences <span className="font-normal">(optional)</span>
@@ -609,6 +638,10 @@ export function TryoutForm({
           </span>
         </label>
       )}
+      </fieldset>
+      <div className="flex flex-wrap items-center gap-3">
+      {intent === "register" && step > 0 && <Button type="button" variant="outlineDark" disabled={busy} onClick={()=>goToStep(step - 1)}>Back</Button>}
+      {intent === "register" && step < 2 ? <Button type="button" onClick={nextStep}>Continue to {step === 0 ? "player details" : "review"}</Button> : <>
       <Button
         type="submit"
         disabled={busy || (scheduled && !selectedEvent)}
@@ -619,7 +652,8 @@ export function TryoutForm({
           : intent === "register"
             ? "Submit tryout request"
             : "Submit team inquiry"}
-      </Button>
+      </Button></>}
+      </div>
     </form>
   );
 }
