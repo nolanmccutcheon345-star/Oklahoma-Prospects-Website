@@ -1,6 +1,6 @@
-import {LessonChoices} from "./lesson-choices";
-import {MyTraining} from "./my-training";
-import { useCallback, useEffect, useState } from "react";
+import { LessonChoices } from "./lesson-choices";
+import { MyTraining } from "./my-training";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "../ui/button";
 import {
   openBookedLesson,
@@ -17,6 +17,7 @@ import {
 import { scoreChart } from "@/lib/pd/lesson";
 import { LessonRecruitingMetrics } from "../lesson-recruiting-metrics";
 type Opened = Awaited<ReturnType<typeof openBookedLesson>>;
+const stepLabel = (index: number, name: string) => (index === 0 ? "Check-in & Readiness" : name);
 const control = "min-h-11 w-full min-w-0 rounded-lg border border-line bg-white p-2 text-ink";
 export function BookedGuidedLesson({
   bookingId,
@@ -31,6 +32,21 @@ export function BookedGuidedLesson({
     [notice, setNotice] = useState(""),
     [busy, setBusy] = useState(false),
     [dirty, setDirty] = useState(false);
+  const stepHeading = useRef<HTMLHeadingElement>(null);
+  const [stepsOpen, setStepsOpen] = useState(false);
+  const [focusField, setFocusField] = useState("");
+  const [now, setNow] = useState(Date.now());
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(Date.now()), 30000);
+    return () => window.clearInterval(timer);
+  }, []);
+  useEffect(() => {
+    if (!focusField) return;
+    const target = document.getElementById(focusField);
+    target?.focus();
+    target?.scrollIntoView({ block: "center" });
+    setFocusField("");
+  }, [focusField, doc?.stage]);
   const load = useCallback(async () => {
     const value = await openBookedLesson({ data: { bookingId } });
     setOpened(value);
@@ -58,6 +74,69 @@ export function BookedGuidedLesson({
     setDirty(true);
     setNotice("");
   };
+  function goTo(stage: number, field = "lesson-step-heading") {
+    if (readonly) setDoc((d) => (d ? { ...d, stage } : d));
+    else patch({ stage });
+    setStepsOpen(false);
+    setFocusField(field);
+  }
+  const requirements =
+    doc && template
+      ? [
+          {
+            label: "Confirm attendance as present",
+            stage: 0,
+            field: "lesson-attendance",
+            done: doc.attendance === "present",
+          },
+          {
+            label: "Review readiness",
+            stage: 0,
+            field: "lesson-readiness",
+            done: doc.readiness !== "unchecked",
+          },
+          {
+            label: "Explain restrictions or changed objective",
+            stage: 1,
+            field: "lesson-override",
+            done:
+              (doc.readiness !== "restricted" && doc.objective === template.objective) ||
+              Boolean(doc.overrideReason.trim()),
+          },
+          ...template.stages.map((stage, i) => ({
+            label: `Step ${i + 1}: ${stepLabel(i, stage.name)} notes`,
+            stage: i,
+            field: "lesson-stage-notes",
+            done: Boolean(doc.stageNotes[i].trim()),
+          })),
+          {
+            label: "Add practice results or explain why none",
+            stage: 5,
+            field: "lesson-step-heading",
+            done: Boolean(doc.logs.length || doc.overrideReason.trim()),
+          },
+          {
+            label: "Add Player & Parent Recap (at least 10 characters)",
+            stage: 7,
+            field: "lesson-recap",
+            done: doc.familyRecap.trim().length >= 10,
+          },
+          {
+            label: "Add practice assignment or explain why none",
+            stage: 7,
+            field: "lesson-homework",
+            done: Boolean(doc.homework.trim()),
+          },
+          {
+            label: "Add next steps",
+            stage: 7,
+            field: "lesson-next",
+            done: Boolean(doc.nextSteps.trim()),
+          },
+        ]
+      : [];
+  const outstanding = requirements.filter((item) => !item.done);
+  const appointmentEnded = session ? now >= new Date(session.snapshot.endsAt).getTime() : false;
   async function save(complete: boolean) {
     if (!doc || !session) return;
     setBusy(true);
@@ -94,15 +173,15 @@ export function BookedGuidedLesson({
   }
   return (
     <div
-      className="fixed inset-0 z-50 overflow-y-auto bg-paper p-4 pb-28 text-ink"
+      className="fixed inset-0 z-50 overflow-y-auto bg-paper px-3 pb-44 text-ink sm:px-5"
       role="dialog"
       aria-modal="true"
       aria-label="Booked guided lesson"
     >
       <div className="mx-auto grid max-w-4xl gap-4">
-        <header className=" rounded-xl bg-ink p-4 text-white">
+        <header className="sticky top-0 z-20 rounded-b-xl bg-ink p-3 text-white shadow-md">
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <h2 className="text-2xl">Guided lesson</h2>
+            <h2 className="text-lg">Guided lesson</h2>
             <Button
               variant="outline"
               onClick={() => {
@@ -129,7 +208,21 @@ export function BookedGuidedLesson({
               {new Date(session.snapshot.startsAt).toLocaleString("en-US", {
                 timeZone: "America/Chicago",
               })}{" "}
-              Central · {opened?.bookingStatus}
+              Central · Instructor:{" "}
+              {opened && "instructorName" in opened ? opened.instructorName : "Assigned instructor"}
+            </p>
+          )}
+          {session && (
+            <p className="mt-1 text-sm font-semibold" aria-live="polite">
+              {busy
+                ? "Saving…"
+                : session.status === "published"
+                  ? "Completed"
+                  : readonly
+                    ? "Read-only saved session"
+                    : dirty
+                      ? "Unsaved changes"
+                      : "Saved draft"}
             </p>
           )}
         </header>
@@ -150,7 +243,7 @@ export function BookedGuidedLesson({
             </p>
           </section>
         )}
-        {session && <details className="rounded-xl border p-4"><summary className="cursor-pointer font-semibold">Development brief · programs and home practice</summary><div className="mt-4"><MyTraining athleteId={session.athlete_id} compact/></div></details>}
+
         {opened?.resolutionError && (
           <section className="rounded-xl border p-4">
             <p>{opened.resolutionError}</p>
@@ -229,37 +322,139 @@ export function BookedGuidedLesson({
         )}
         {session && template && doc && (
           <>
-            <p className="text-sm">
-              Template {template.version} · {template.ageBand} ·{" "}
-              {readonly ? "Read-only saved session" : dirty ? "Unsaved changes" : "Saved draft"}
-            </p>
-            {!readonly && <LessonChoices bookingId={bookingId} revision={session.revision} template={template} canReview={Boolean(opened?.canReview)} disabled={busy||dirty} onSaved={load}/>}
-            <nav className="grid grid-cols-2 gap-2 sm:grid-cols-4" aria-label="Lesson stages">
-              {template.stages.map((s, i) => (
-                <button
-                  key={s.name}
-                  className={`min-h-11 min-w-0 break-words rounded-lg border p-2 text-sm ${doc.stage === i ? "bg-maroon text-white" : "bg-white"}`}
-                  disabled={busy}
-                  aria-current={doc.stage === i ? "step" : undefined}
-                  onClick={() => (readonly ? setDoc({ ...doc, stage: i }) : patch({ stage: i }))}
-                >
-                  {i + 1}. {s.name} · {s.minutes}m
-                </button>
-              ))}
-            </nav>
-            <progress
-              className="w-full"
-              max={8}
-              value={doc.stage + 1}
-              aria-label="Lesson progress"
-            />
+            <section
+              aria-label="Player brief and safety"
+              className="rounded-xl border bg-white p-3 text-sm"
+            >
+              <h3 className="font-semibold">PLAYER BRIEF &amp; SAFETY</h3>
+              <p className="mt-2">
+                <strong>Today’s objective:</strong> {doc.objective || template.objective}
+              </p>
+              {session.snapshot.context.goals.length > 0 && (
+                <div className="mt-2">
+                  <strong>Current goals</strong>
+                  <RecordDetails value={session.snapshot.context.goals.slice(0, 2)} />
+                </div>
+              )}
+              <p className="mt-2">
+                <strong>Restrictions &amp; recent workload:</strong>{" "}
+                {doc.restrictions ||
+                  "Not reviewed for today. Confirm with the athlete before activity."}
+              </p>
+              {session.snapshot.context.notes && (
+                <p className="mt-2">
+                  <strong>Player notes:</strong> {session.snapshot.context.notes}
+                </p>
+              )}
+              {session.snapshot.context.workload.length > 0 ? (
+                <div className="mt-2">
+                  <strong>Latest recorded workload</strong>
+                  <RecordDetails value={session.snapshot.context.workload.slice(0, 1)} />
+                </div>
+              ) : (
+                <p className="mt-2">No recent workload recorded. Confirm outside-team activity.</p>
+              )}
+              {session.snapshot.context.recentLessons.length > 0 && (
+                <div className="mt-2">
+                  <strong>Last lesson takeaway</strong>
+                  <RecordDetails value={session.snapshot.context.recentLessons.slice(0, 1)} />
+                </div>
+              )}
+              <p className="mt-2 font-semibold text-maroon">{template.safety[0]}</p>
+              <details className="mt-2">
+                <summary className="flex min-h-11 cursor-pointer items-center">
+                  Full safety guidance &amp; development history
+                </summary>
+                <p>Snapshot from lesson setup. Confirm current restrictions and activity.</p>
+                <ul className="list-disc pl-5">
+                  {template.safety.slice(1).map((note) => (
+                    <li key={note}>{note}</li>
+                  ))}
+                </ul>
+                {Object.entries(session.snapshot.context)
+                  .filter(
+                    ([key, value]) =>
+                      !["age", "name", "level", "notes"].includes(key) &&
+                      Array.isArray(value) &&
+                      value.length > 0,
+                  )
+                  .map(([key, value]) => (
+                    <details key={key} className="border-t py-2">
+                      <summary className="min-h-11 cursor-pointer capitalize">
+                        {key.replace(/([a-z])([A-Z])/g, "$1 $2")}
+                      </summary>
+                      <RecordDetails value={value} />
+                    </details>
+                  ))}
+                {!Object.values(session.snapshot.context).some(
+                  (value) => Array.isArray(value) && value.length > 0,
+                ) && <p>No previous development history recorded.</p>}
+              </details>
+            </section>
+            <details className="rounded-xl border bg-white p-3">
+              <summary className="flex min-h-11 cursor-pointer items-center font-semibold">
+                Development brief · programs and home practice
+              </summary>
+              <div className="mt-4">
+                <MyTraining athleteId={session.athlete_id} compact />
+              </div>
+            </details>
+            {!readonly && (
+              <LessonChoices
+                bookingId={bookingId}
+                revision={session.revision}
+                template={template}
+                canReview={Boolean(opened?.canReview)}
+                disabled={busy || dirty}
+                onSaved={load}
+              />
+            )}
+            <div className="rounded-xl border bg-white p-3">
+              <p className="font-semibold">
+                Step {doc.stage + 1} of 8 · {stepLabel(doc.stage, template.stages[doc.stage].name)}
+              </p>
+              <progress
+                className="mt-2 h-2 w-full accent-maroon"
+                max={8}
+                value={doc.stage + 1}
+                aria-label="Lesson progress"
+              />
+              <button
+                className="min-h-11 text-sm font-semibold underline"
+                aria-expanded={stepsOpen}
+                aria-controls="lesson-steps"
+                onClick={() => setStepsOpen(!stepsOpen)}
+              >
+                View All Steps
+              </button>
+              <nav id="lesson-steps" hidden={!stepsOpen} aria-label="Lesson stages">
+                <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                  {template.stages.map((stage, i) => (
+                    <button
+                      key={stage.name}
+                      className={`min-h-11 min-w-0 break-words rounded-lg border p-2 text-sm ${doc.stage === i ? "bg-maroon text-white" : "bg-white"}`}
+                      disabled={busy}
+                      aria-current={doc.stage === i ? "step" : undefined}
+                      onClick={() => goTo(i)}
+                    >
+                      {i + 1}. {stepLabel(i, stage.name)} · {stage.minutes}m
+                    </button>
+                  ))}
+                </div>
+              </nav>
+            </div>
             <section className="grid gap-3 rounded-xl border bg-white p-4">
-              <h3 className="text-2xl">
-                {doc.stage + 1}. {template.stages[doc.stage].name}
+              <h3
+                id="lesson-step-heading"
+                ref={stepHeading}
+                tabIndex={-1}
+                className="scroll-mt-48 text-2xl uppercase"
+              >
+                {doc.stage + 1}. {stepLabel(doc.stage, template.stages[doc.stage].name)}
               </h3>
               <p>
-                Planned: {template.stages[doc.stage].minutes} minutes. Actual time is recorded
-                separately.
+                Suggested time: {template.stages[doc.stage].minutes} min. Record the time you
+                actually spend below.
               </p>
               <ul className="list-disc pl-5">
                 {template.stages[doc.stage].instructions.map((n, i) => (
@@ -272,6 +467,7 @@ export function BookedGuidedLesson({
                     <label>
                       Attendance
                       <select
+                        id="lesson-attendance"
                         aria-label="Attendance"
                         className={control}
                         value={doc.attendance}
@@ -280,13 +476,22 @@ export function BookedGuidedLesson({
                         }
                       >
                         {["unconfirmed", "present", "partial", "no-show"].map((v) => (
-                          <option key={v}>{v}</option>
+                          <option key={v} value={v}>
+                            {v === "unconfirmed"
+                              ? "Select attendance"
+                              : v === "unchecked"
+                                ? "Not reviewed"
+                                : v === "no-show"
+                                  ? "No-show"
+                                  : v.charAt(0).toUpperCase() + v.slice(1)}
+                          </option>
                         ))}
                       </select>
                     </label>
                     <label>
                       Readiness
                       <select
+                        id="lesson-readiness"
                         aria-label="Readiness"
                         className={control}
                         value={doc.readiness}
@@ -295,14 +500,22 @@ export function BookedGuidedLesson({
                         }
                       >
                         {["unchecked", "ready", "restricted"].map((v) => (
-                          <option key={v}>{v}</option>
+                          <option key={v} value={v}>
+                            {v === "unconfirmed"
+                              ? "Select attendance"
+                              : v === "unchecked"
+                                ? "Not reviewed"
+                                : v === "no-show"
+                                  ? "No-show"
+                                  : v.charAt(0).toUpperCase() + v.slice(1)}
+                          </option>
                         ))}
                       </select>
                     </label>
                     <label>
-                      Current restrictions and recent workload review
+                      Restrictions & recent workload
                       <textarea
-                        aria-label="Current restrictions and recent workload review"
+                        aria-label="Restrictions & recent workload"
                         className={control}
                         maxLength={500}
                         value={doc.restrictions}
@@ -326,6 +539,7 @@ export function BookedGuidedLesson({
                     <label>
                       Documented adaptation / override reason
                       <textarea
+                        id="lesson-override"
                         aria-label="Documented adaptation / override reason"
                         className={control}
                         maxLength={500}
@@ -369,18 +583,32 @@ export function BookedGuidedLesson({
                     readonly={readonly || busy}
                   />
                 )}
+                {doc.stage === 5 && !readonly && (
+                  <button
+                    type="button"
+                    className="min-h-11 text-left text-sm underline"
+                    onClick={() => goTo(1, "lesson-override")}
+                  >
+                    Tracking not appropriate? Explain the adaptation.
+                  </button>
+                )}
                 {doc.stage === 7 && (
                   <>
                     <label>
-                      Family recap
+                      Player & Parent Recap
                       <textarea
-                        aria-label="Family recap"
+                        id="lesson-recap"
+                        aria-label="Player & Parent Recap"
                         className={control}
                         maxLength={5000}
                         value={doc.familyRecap}
                         onChange={(e) => patch({ familyRecap: e.target.value })}
                       />
                     </label>
+                    <p className="text-sm text-muted">
+                      Example: Contact improved with a balanced finish. We will keep working on
+                      timing.
+                    </p>
                     <label>
                       Private instructor notes
                       <textarea
@@ -392,18 +620,24 @@ export function BookedGuidedLesson({
                       />
                     </label>
                     <label>
-                      Homework and dose (or explain why none)
+                      Practice Before the Next Lesson
                       <textarea
-                        aria-label="Homework and dose (or explain why none)"
+                        id="lesson-homework"
+                        aria-label="Practice Before the Next Lesson"
                         className={control}
                         maxLength={2000}
                         value={doc.homework}
                         onChange={(e) => patch({ homework: e.target.value })}
                       />
                     </label>
+                    <p className="text-sm text-muted">
+                      Include the drill, amount, rest and stop conditions, or explain why no
+                      practice is assigned.
+                    </p>
                     <label>
                       Next steps
                       <textarea
+                        id="lesson-next"
                         aria-label="Next steps"
                         className={control}
                         maxLength={500}
@@ -414,9 +648,10 @@ export function BookedGuidedLesson({
                   </>
                 )}
                 <label>
-                  Stage notes — document completed, modified or skipped activities
+                  What did you complete or change?
                   <textarea
-                    aria-label="Stage notes — document completed, modified or skipped activities"
+                    id="lesson-stage-notes"
+                    aria-label="What did you complete or change?"
                     className={control}
                     maxLength={2000}
                     value={doc.stageNotes[doc.stage]}
@@ -427,10 +662,14 @@ export function BookedGuidedLesson({
                     }}
                   />
                 </label>
+                <p className="text-sm text-muted">
+                  Example: Completed tee work; shortened the final set to maintain quality. Explain
+                  any skipped activity.
+                </p>
                 <label>
-                  Actual minutes spent
+                  Time spent on this step
                   <input
-                    aria-label="Actual minutes spent"
+                    aria-label="Time spent on this step"
                     className={control}
                     type="number"
                     min={0}
@@ -446,56 +685,89 @@ export function BookedGuidedLesson({
                 </label>
               </fieldset>
             </section>
-            <details className="rounded-xl border bg-white p-4">
-              <summary className="min-h-11 cursor-pointer">
-                Player context, workload and safety review
-              </summary>
-              <p>
-                Age band: {template.ageBand}. Goals and priorities are guidance; review current
-                readiness before prescribing work.
-              </p>
-              <ul className="list-disc pl-5">
-                {template.safety.map((s) => (
-                  <li key={s}>{s}</li>
-                ))}
-              </ul>
-              {Object.entries(session.snapshot.context)
-                .filter(([k]) => !["age", "name", "level"].includes(k))
-                .map(([k, v]) => (
-                  <section key={k}>
-                    <h4 className="mt-3 font-bold capitalize">{k}</h4>
-                    <RecordDetails value={v} />
-                  </section>
-                ))}
-            </details>
-            <p>
-              Planned total: {template.stages.reduce((n, s) => n + s.minutes, 0)} min · Actual
-              recorded: {doc.actualMinutes.reduce((a, b) => a + b, 0)} min
-            </p>
             <p className="text-sm">
-              Practice logs are not verified recruiting metrics. Use the separate verified
-              measurement action only for personally observed, appropriately measured results.
+              Suggested total: {template.stages.reduce((n, stage) => n + stage.minutes, 0)} min ·
+              Time recorded: {doc.actualMinutes.reduce((a, b) => a + b, 0)} min · Template{" "}
+              {template.version}
             </p>
             <LessonRecruitingMetrics bookingId={bookingId} />
-            {!readonly && (
-              <div className="flex flex-wrap gap-3 rounded-xl border bg-paper p-3">
-                <Button variant="outlineDark" disabled={busy} onClick={() => void save(false)}>
-                  Save Draft
-                </Button>
-                <Button disabled={busy || doc.stage !== 7} onClick={() => void save(true)}>
-                  Publish &amp; Complete Session
-                </Button>
-                {doc.stage < 7 && (
+            {!readonly && doc.stage === 7 && (
+              <section
+                className="rounded-xl border bg-white p-4"
+                aria-label="Lesson completion checklist"
+              >
+                <h3 className="text-xl">Ready to complete?</h3>
+                <p id="lesson-completion-help" className="text-sm">
+                  {outstanding.length
+                    ? `${outstanding.length} items still need attention. Select an item to finish it.`
+                    : "All lesson documentation is ready."}{" "}
+                  {!appointmentEnded &&
+                    "Completion opens after the scheduled appointment ends. You can save a draft now."}
+                </p>
+                <ul className="mt-2">
+                  {outstanding.map((item) => (
+                    <li key={item.label}>
+                      <button
+                        className="min-h-11 text-left text-sm underline"
+                        disabled={busy}
+                        onClick={() => goTo(item.stage, item.field)}
+                      >
+                        {item.label}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            )}
+            <footer
+              className="fixed inset-x-0 bottom-0 z-30 border-t bg-paper px-3 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] shadow-lg"
+              aria-label="Lesson actions"
+            >
+              <div className="mx-auto flex max-w-4xl flex-wrap items-center gap-2">
+                {doc.stage > 0 && (
                   <Button
+                    size="sm"
                     variant="outlineDark"
                     disabled={busy}
-                    onClick={() => patch({ stage: doc.stage + 1 })}
+                    onClick={() => goTo(doc.stage - 1)}
                   >
-                    Continue
+                    Back
                   </Button>
                 )}
+                {!readonly && (
+                  <Button
+                    size="sm"
+                    variant="outlineDark"
+                    disabled={busy}
+                    onClick={() => void save(false)}
+                  >
+                    Save Draft
+                  </Button>
+                )}
+                {doc.stage < 7 ? (
+                  <Button
+                    className="ml-auto"
+                    size="sm"
+                    disabled={busy}
+                    onClick={() => goTo(doc.stage + 1)}
+                  >
+                    Next Step
+                  </Button>
+                ) : (
+                  !readonly && (
+                    <Button
+                      className="ml-auto min-w-0 flex-1 whitespace-normal sm:flex-none"
+                      size="sm"
+                      disabled={busy || outstanding.length > 0 || !appointmentEnded}
+                      aria-describedby="lesson-completion-help"
+                      onClick={() => void save(true)}
+                    >
+                      Complete Lesson &amp; Share Recap
+                    </Button>
+                  )
+                )}
               </div>
-            )}
+            </footer>
           </>
         )}
       </div>

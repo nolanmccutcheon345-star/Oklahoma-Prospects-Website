@@ -1,3 +1,4 @@
+import { AthleteSelector, athleteScope } from "./athlete-selector";
 import {TrainingInbox} from "./training-review";
 import {MyTraining} from "./my-training";
 import { formatClockTime } from "@/lib/time-display";
@@ -632,7 +633,7 @@ function ProgramsDesk() {
   const [section, setSection] = useState("practice");
   return <div className="pd-stack">
     <h2 className="text-3xl">My assigned programs</h2>
-    {data.athletes.length ? <label>Athlete<select className="pd-control block w-full" value={id} onChange={e => setSelected(e.target.value)}>{data.athletes.map(a => <option key={a.id} value={a.id}>{a.firstName} {a.lastName}</option>)}</select></label> : <p>No athletes are linked to this desk. <Link to="/family" className="underline">Add or review your athletes</Link>; contact the club if an existing athlete is missing. Existing history should be recovered before a replacement record is created.</p>}
+    {data.athletes.length ? <AthleteSelector athletes={data.athletes.map(a => ({id: a.id, name: `${a.firstName} ${a.lastName}`}))} value={id || ""} onChange={setSelected} scope={athleteScope(viewer?.role === "admin" ? "admin" : viewer?.canInstruct ? "coach" : viewer?.role)}/> : <p>No athletes are linked to this desk. <Link to="/family" className="underline">Add or review your athletes</Link>; contact the club if an existing athlete is missing. Existing history should be recovered before a replacement record is created.</p>}
     {current ? <><details key={id}><summary className="min-h-12 cursor-pointer">Athlete profile · sport, position, date of birth</summary>
       <form className="grid gap-3 rounded-xl border p-4" onSubmit={e => { e.preventDefault(); const f = new FormData(e.currentTarget); updateAthleteProfile(id!, { birthDate: String(f.get("birthDate")), sport: f.get("sport") as "baseball" | "softball", position: String(f.get("position")) }); }}>
         {current.athlete.canViewBirthday?<label>Date of birth<input type="date" required name="birthDate" max={clubDayIso()} defaultValue={current.athlete.birthDate} /></label>:<p>Birthday {current.athlete.birthdayRecorded?'saved privately':'required — complete the player profile in Account'}. Only the parent/guardian and assigned team coaches can view it.</p>}

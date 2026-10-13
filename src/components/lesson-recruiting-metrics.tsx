@@ -23,6 +23,7 @@ export function LessonRecruitingMetrics({ bookingId }: { bookingId: string }) {
         type="button"
         variant="outlineDark"
         disabled={busy}
+        aria-expanded={open}
         onClick={async () => {
           if (open) {
             setOpen(false);
@@ -42,8 +43,9 @@ export function LessonRecruitingMetrics({ bookingId }: { bookingId: string }) {
           }
         }}
       >
-        {open ? "Close lesson metrics" : "Record verified player metric"}
+        {open ? "Close lesson metrics" : "Add Verified Measurement"}
       </Button>
+      <p className="mt-2 text-sm">Only record results you personally observed and measured.</p>
       {open && (
         <div className="mt-3 grid min-w-0 gap-3">
           {error && <p role="alert">{error}</p>}

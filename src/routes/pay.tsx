@@ -1,3 +1,4 @@
+import { AthleteSelector, athleteScope } from "@/components/pd/athlete-selector";
 import {PlayerBirthdays} from '@/components/commerce/player-birthdays';
 import { checkoutLessonService } from "@/lib/commerce/coach-services";
 import { pageHead } from "@/lib/seo";
@@ -473,23 +474,7 @@ function PayPage() {
             </label>
           </div>
           {needsAthlete && context?.athletes.length ? (
-            <label className="grid gap-1">
-              Athlete
-              <select
-                className="rounded-lg border p-3"
-                value={athleteId}
-                onChange={(e) => setAthleteId(e.target.value)}
-                required
-              >
-                <option value="">Select your athlete</option>
-                {context.athletes.map((a) => (
-                  <option key={a.id} value={a.id}>
-                    {a.name}
-                    {a.assessmentComplete ? " · assessment completed" : " · assessment needed"}
-                  </option>
-                ))}
-              </select>
-            </label>
+            <AthleteSelector athletes={context.athletes} value={athleteId} onChange={setAthleteId} scope={athleteScope(context.athleteScopeRole)} />
           ) : null}
           {needsAthlete && !context?.athletes.length ? (
             <p>

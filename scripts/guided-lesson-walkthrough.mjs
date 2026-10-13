@@ -15,6 +15,7 @@ test("authenticated instructor walkthrough: both sports, 30/60/75, durable draft
   const h = await auditHarness(),
     { api, sql, state, base } = h;
   let browser, page;
+  const errors = [];
   const fullApp = process.env.LESSON_FULL_APP === "true";
   const previousDb = { sql: globalThis.__pgSqlPromise__, pg: globalThis.__pgliteInstance__ };
   let appHandler, socketServer;
@@ -134,14 +135,13 @@ test("authenticated instructor walkthrough: both sports, 30/60/75, durable draft
       ],
     });
     const context = await browser.newContext({ viewport: { width: 390, height: 844 } }),
-      testPage = await context.newPage(),
-      errors = [];
+      testPage = await context.newPage();
     page = testPage;
     // Distinct synthetic households retain real per-client production rate limits.
     let syntheticIp = "192.0.2.1";
     const syntheticUsers = new Map();
     page.setDefaultTimeout(10000);
-    page.on("pageerror", (e) => errors.push(e.message));
+    page.on("pageerror", (e) => { errors.push(e.message); console.error("Browser error at", page.url(), e.stack); });
     page.on("response", (r) => {
       if (r.status() >= 400 && /\.(css|js|woff2)(\?|$)/.test(r.url()))
         errors.push(`Asset failed: ${r.status()} ${new URL(r.url()).pathname}`);
@@ -264,18 +264,32 @@ test("authenticated instructor walkthrough: both sports, 30/60/75, durable draft
           .click();
       }
       await page.getByRole("heading", { name: "Guided lesson", exact: true }).waitFor();
+      if (id === "baseball30") {
+        assert.equal(await page.getByRole("navigation", { name: "Lesson stages" }).isVisible(), false);
+        await page.getByRole("button", { name: "View All Steps", exact: true }).click();
+        await page.getByRole("navigation", { name: "Lesson stages" }).getByRole("button").nth(7).click();
+        assert.equal(await page.getByRole("button", { name: "Complete Lesson & Share Recap", exact: true }).isEnabled(), false);
+        await page.getByRole("button", { name: "Confirm attendance as present", exact: true }).click();
+        assert.equal(await page.getByLabel("Attendance", { exact: true }).evaluate(el => document.activeElement === el), true);
+        assert.equal(await page.getByLabel("Lesson actions", { exact: true }).evaluate(el => getComputedStyle(el).position), "fixed");
+        await page.screenshot({path: screenshots + "/workspace-check-in-mobile.png", fullPage: false});
+        await page.setViewportSize({width:1280,height:900});
+        await page.screenshot({path: screenshots + "/workspace-check-in-desktop.png", fullPage: false});
+        await page.setViewportSize({width:390,height:844});
+      }
       await page.getByLabel(/^Attendance/).selectOption("present");
       await page.getByLabel(/^Readiness/).selectOption("ready");
       for (let i = 0; i < 8; i++) {
+        await page.getByRole("button", { name: "View All Steps", exact: true }).click();
         await page
           .getByRole("navigation", { name: "Lesson stages" })
           .getByRole("button")
           .nth(i)
           .click();
         await page
-          .getByLabel("Stage notes")
+          .getByLabel("What did you complete or change?")
           .fill("Completed " + api.stageNames[i] + " with readiness and quality review.");
-        await page.getByLabel("Actual minutes spent").fill("3");
+        await page.getByLabel("Time spent on this step").fill("3");
         if (i === 3 && sport === "softball" && discipline === "Pitching")
           assert.match(await page.locator("body").innerText(), /underhand|Underhand/);
         if (i === 5) {
@@ -314,10 +328,10 @@ test("authenticated instructor walkthrough: both sports, 30/60/75, durable draft
         }
         if (i === 7) {
           await page
-            .getByLabel("Family recap", { exact: true })
+            .getByLabel("Player & Parent Recap", { exact: true })
             .fill("Synthetic player improved execution with one consistent cue.");
           await page
-            .getByLabel("Homework and dose")
+            .getByLabel("Practice Before the Next Lesson")
             .fill("Reviewed controlled practice only; stop for discomfort.");
           await page
             .getByLabel("Next steps", { exact: true })
@@ -332,14 +346,15 @@ test("authenticated instructor walkthrough: both sports, 30/60/75, durable draft
           .locator(`[data-booking-id="${id}"]`)
           .getByRole("button", { name: "Open guided lesson", exact: true })
           .click();
-      await page.getByLabel("Family recap", { exact: true }).waitFor();
+      await page.getByLabel("Player & Parent Recap", { exact: true }).waitFor();
       assert.equal(
         await page.getByRole("dialog").evaluate((el) => getComputedStyle(el).position),
         "fixed",
         "Built CSS must style the lesson overlay",
       );
-      assert.match(await page.getByLabel("Family recap", { exact: true }).inputValue(), /improved/);
-      await page.getByRole("button", { name: "Publish & Complete Session", exact: true }).click();
+      assert.match(await page.getByLabel("Player & Parent Recap", { exact: true }).inputValue(), /improved/);
+      assert.equal(await page.getByRole("button", { name: "Complete Lesson & Share Recap", exact: true }).isEnabled(), true);
+      await page.getByRole("button", { name: "Complete Lesson & Share Recap", exact: true }).click();
       await page.getByRole("status").filter({ hasText: "Session completed" }).waitFor();
       assert.equal(
         (await sql`select status from booking_records where id=${id}`)[0].status,
@@ -462,23 +477,23 @@ test("authenticated instructor walkthrough: both sports, 30/60/75, durable draft
       await page.getByRole('button',{name:'Approve and publish assignment',exact:true}).click();
       await page.getByRole('heading',{name:'Synthetic younger windmill plan',exact:true}).waitFor();
       await signOut();await signInAs('guardian@audit.example.invalid');
-      await page.getByLabel(/^Athlete/).first().selectOption('young-softball');
+      await page.getByLabel("Choose Athlete", { exact: true }).first().selectOption('young-softball');
       await page.getByRole('button',{name:'Log practice or ask coach',exact:true}).first().click();
       await page.getByLabel('repetitions',{exact:true}).first().fill('3');
       await page.getByLabel('Practice notes, outcomes or modifications',{exact:true}).first().fill('Synthetic younger athlete: three dry rehearsals with adult supervision.');
       await page.getByLabel('Question for coach',{exact:true}).first().fill('Synthetic softball question: review the dry circle next lesson?');
       await page.getByRole('button',{name:'Save practice report',exact:true}).first().click();
       await signOut();await signInAs('guardian@audit.example.invalid');
-      await page.getByLabel(/^Athlete/).first().selectOption('young-softball');
+      await page.getByLabel("Choose Athlete", { exact: true }).first().selectOption('young-softball');
       await page.getByRole('button',{name:'My Coach',exact:true}).click();
       await page.getByText('Synthetic softball question: review the dry circle next lesson?',{exact:true}).waitFor();
       assert.equal(await page.getByText('Synthetic question: repeat the same cue?',{exact:true}).count(),0);
-      await page.getByLabel(/^Athlete/).first().selectOption('test-player');
+      await page.getByLabel("Choose Athlete", { exact: true }).first().selectOption('test-player');
       await page.getByRole('button',{name:'My Coach',exact:true}).click();
       await page.getByText('Synthetic question: repeat the same cue?',{exact:true}).waitFor();
       assert.equal(await page.getByText('Synthetic softball question: review the dry circle next lesson?',{exact:true}).count(),0);
       await signOut();await signInAs('instructor@audit.example.invalid');
-      await page.getByLabel(/^Athlete/).first().selectOption('young-softball');
+      await page.getByLabel("Choose Athlete", { exact: true }).first().selectOption('young-softball');
       await page.getByRole('button',{name:'My Coach',exact:true}).click();
       await page.getByText('Synthetic softball question: review the dry circle next lesson?',{exact:true}).waitFor();
       await page.getByRole('button',{name:'My Programs',exact:true}).click();
@@ -494,7 +509,7 @@ test("authenticated instructor walkthrough: both sports, 30/60/75, durable draft
       await page.screenshot({path:screenshots+'/training-specialty-desktop.png',fullPage:false});
       assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
       await signOut();await signInAs('guardian@audit.example.invalid');
-      await page.getByLabel(/^Athlete/).first().selectOption('young-softball');
+      await page.getByLabel("Choose Athlete", { exact: true }).first().selectOption('young-softball');
       await page.getByRole('button',{name:'My Coach',exact:true}).click();
       await page.getByText('Synthetic shared-coach feedback: keep the dry circle comfortable and repeat before advancing.',{exact:true}).waitFor();
     }
@@ -522,6 +537,7 @@ test("authenticated instructor walkthrough: both sports, 30/60/75, durable draft
     );
   } catch (e) {
     if (page) {
+      console.error("Browser failure", page.url(), errors);
       console.error((await page.locator("body").innerText()).slice(0, 2500));
       await page.screenshot({ path: screenshots + "/failure.png", fullPage: false });
     }
