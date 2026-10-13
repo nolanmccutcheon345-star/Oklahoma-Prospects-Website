@@ -1,3 +1,4 @@
+import { publicPhotoLink } from "./public-coach-photo.server";
 import { getSql, type Sql } from "./db";
 import { readWorkingFile } from "./pd/desk-impl.server";
 import { newCoachId } from "./coach-id.server";
@@ -160,5 +161,5 @@ export async function publicPeopleFor(sql: Sql) {
     .sort((a, b) => a.name.localeCompare(b.name));
 }
 export async function publicPeople() {
-  return publicPeopleFor(await getSql());
+  return (await publicPeopleFor(await getSql())).map(person => ({...person, photo: publicPhotoLink(person)}));
 }

@@ -1,3 +1,4 @@
+import { CatalogStatus } from "./catalog-status";
 import {formatDollars} from "@/lib/pricing";
 import { canPurchase } from "@/lib/purchase-availability";
 import { cn } from "@/lib/utils";
@@ -10,10 +11,12 @@ export function MembershipPlans({
 }: {
   cta?: string;
 }) {
-  const { cagePlans, purchaseAvailability } = useLiveCatalog();
+  const { cagePlans, purchaseAvailability, status, retry } = useLiveCatalog();
+  if (status === "loading" || status === "error") return <CatalogStatus label="cage memberships" error={status === "error"} retry={retry} />;
   return (
     <div>
       {!canPurchase(purchaseAvailability, "cage-plan", "prospect") ? <p role="status" className="mb-4 text-fg-soft">Online cage-pass checkout is temporarily unavailable. Plan details and prices are shown for comparison; booking a one-time cage rental is still available on Book when checkout permits it.</p> : null}
+      {!cagePlans.length && <p role="status">No cage memberships are currently published. Contact the front desk for options.</p>}
       <div className="grid gap-3 md:grid-cols-3">
         {cagePlans.map((plan) => (
           <article

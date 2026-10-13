@@ -1,3 +1,6 @@
+import {operationsHealthFor, rosterPublicationCounts} from "./operations-health.server";
+import {sampleClub} from "./teams/seed";
+import {ROSTER_CONSENT_VERSION, ROSTER_CONSENT_TEXT} from "./roster-consent";
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFile, readdir } from "node:fs/promises";
@@ -46,8 +49,21 @@ test("owner work queues preserve placement, protect billing, and track evaluatio
     for (const id of ["parent", "coach", "fake"]) {
       await assert.rejects(() => saveWorkFor(sql, id, data), /Owner access/);
       await assert.rejects(() => frontOfficeFor(sql, id), /Owner access/);
+      await assert.rejects(() => operationsHealthFor(sql, id), /Owner access/);
     }
     assert.equal((await frontOfficeFor(sql, "owner")).counts.requests, 2);
+    const summary = await operationsHealthFor(sql, "owner");
+    assert.equal(summary.outcomes.tryouts, 1);
+    assert.equal(summary.outcomes.paidOrders, 0);
+    assert.equal(summary.queues.pendingRefunds, 0);
+    assert.doesNotMatch(JSON.stringify(summary), /Sample|example.invalid|guardian|signerEmail/);
+    const club = sampleClub(); club._demo = false;
+    for (const team of club.teams) { team.closed = false; team.roster = []; }
+    const consent = {version:ROSTER_CONSENT_VERSION,text:ROSTER_CONSENT_TEXT,signedBy:"Synthetic Guardian",signerEmail:"guardian@example.invalid",signedAt:new Date().toISOString()};
+    club.teams[0].roster = [{rosterConsent:consent},{},{rosterConsent:{...consent,revokedAt:new Date().toISOString()}},{withdrawn:true,rosterConsent:consent}] as typeof club.teams[0]['roster'];
+    assert.deepEqual(rosterPublicationCounts(club),{active:3,published:1,withheld:2,revoked:1,withdrawn:1});
+    club.teams[0].closed=true;
+    assert.deepEqual(rosterPublicationCounts(club),{active:0,published:0,withheld:0,revoked:0,withdrawn:0});
     await saveWorkFor(sql, "owner", data);
     await saveWorkFor(sql, "owner", data);
     assert.equal((await sql`select id from office_request_notes`).length, 1);
