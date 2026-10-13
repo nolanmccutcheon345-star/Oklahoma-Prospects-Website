@@ -1,6 +1,6 @@
 import { DRILLS } from "./content/drills";
 import type { LessonDiscipline, LessonSport } from "./lesson-templates";
-export const TRAINING_VERSION = "2026-10-13.1";
+export const TRAINING_VERSION = "2026-10-13.2";
 export const skillBands = ["beginner", "developing", "intermediate", "advanced", "elite"] as const;
 export const approaches = ["foundations", "targeted skill", "game performance"] as const;
 export const ageBand = (age: number) =>
@@ -191,18 +191,18 @@ const rows: Record<string, Row[]> = {
       "Balanced legal steps / attempts",
     ],
     [
-      "Name-the-target tee",
-      "Connect a named target to controlled contact",
-      "Bat, tee, net with two targets",
-      "Coach names one of two targets before each tee swing. Athlete points to it, swings at comfortable effort, and checks the outcome before resetting.",
-      "Named-target contacts / attempts",
-    ],
-    [
       "Pre-pitch reset",
       "Build a repeatable preparation routine",
       "Bat, tee, net",
       "Step out safely, breathe, choose a target, then step in and take one tee swing. Repeat the same preparation.",
       "Routine completed / attempts",
+    ],
+    [
+      "Name-the-target tee",
+      "Connect a named target to controlled contact",
+      "Bat, tee, net with two targets",
+      "Coach names one of two targets before each tee swing. Athlete points to it, swings at comfortable effort, and checks the outcome before resetting.",
+      "Named-target contacts / attempts",
     ],
   ],
   Catching: [

@@ -223,7 +223,9 @@ export function LessonChoices({
               progression for this athlete after reviewing workload and restrictions.
             </span>
           </label>
-          <Button disabled={!selected.length}>Use reviewed lesson plan</Button>
+          <Button type="submit" disabled={!selected.length}>
+            Use reviewed lesson plan
+          </Button>
         </form>
         {canReview &&
           presets
@@ -271,7 +273,7 @@ export function LessonChoices({
                     name="reason"
                   />
                 </label>
-                <Button>Record academy review</Button>
+                <Button type="submit">Record academy review</Button>
               </form>
             ))}
       </fieldset>

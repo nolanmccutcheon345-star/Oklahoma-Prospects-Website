@@ -901,7 +901,9 @@ function TaskCard({
             {coach ? "Saved as coach-observed practice." : "Saved as self-reported practice."}{" "}
             Recruiting verification stays separate.
           </p>
-          <Button disabled={busy}>{busy ? "Saving…" : "Save practice report"}</Button>
+          <Button type="submit" disabled={busy}>
+            {busy ? "Saving…" : "Save practice report"}
+          </Button>
         </form>
       )}
     </article>
@@ -973,7 +975,10 @@ function ReviewForm({
         Advance and complete require a coach-observed reassessment. To change individual dose or
         dates, discontinue and issue a new reviewed plan; history is retained.
       </p>
-      <Button disabled={busy || a.status === "completed" || a.status === "discontinued"}>
+      <Button
+        type="submit"
+        disabled={busy || a.status === "completed" || a.status === "discontinued"}
+      >
         Save coach review
       </Button>
     </form>
