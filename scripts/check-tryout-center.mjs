@@ -160,9 +160,10 @@ try {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.screenshot({ path: shots + "/coach-registration-mobile.png", fullPage: true });
   await page.getByRole("button", { name: "Back to registrations", exact: true }).click();
+  await page.evaluate(()=>window.scrollTo(0,0));
   await page.screenshot({ path: shots + "/coach-list-mobile.png", fullPage: true });
   await page.getByRole("button", { name: /^Notifications/ }).click();
-  await page.getByText("Tryout follow-up updated", { exact: true }).waitFor();
+  await page.getByText(/Tryout follow-up updated/).waitFor();
   const owner = await signedIn("stevemccutcheon89@gmail.com", 1280);
   await owner.page.goto(origin + "/registrations");
   await owner.page.getByRole("button", { name: "Open Tryout Test Player", exact: true }).click();

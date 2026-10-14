@@ -57,8 +57,8 @@ export async function centerStaff(sql: Sql) {
     name: string;
     email: string;
   }>`select distinct u.id,coalesce(s.id,'') as "staffId",u.name,lower(trim(u.email)) as email from "user" u
- left join club_staff s on s.active=true and s.role in ('coach','admin') and lower(trim(s.email))=lower(trim(u.email)) and (s.user_id='' or s.user_id=u.id)
- where u."disabledAt" is null and u."emailVerified"=true and not exists(select 1 from profiles p where p.user_id=u.id and p.role='player')
+ left join club_staff s on s.active=true and is_tryout_staff(u.id,u.email) and lower(trim(s.email))=lower(trim(u.email)) and (s.user_id='' or s.user_id=u.id)
+ where u."disabledAt" is null and u."emailVerified"=true
  and (s.id is not null or exists(select 1 from owner_grants g where g.user_id=u.id and g.email=lower(trim(u.email)) and g.revoked_at is null)
  or exists(select 1 from registration_readers r where r.user_id=u.id and r.email=lower(trim(u.email)) and r.active and r.can_manage_tryouts)) order by u.name`;
 }

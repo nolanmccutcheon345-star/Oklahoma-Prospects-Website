@@ -3,12 +3,13 @@ import { resolveIdentity } from "./identity.server";
 
 export async function registrationAccessFor(sql: Sql, userId: string) {
   const me = await resolveIdentity(sql, userId);
-  const [staff] =
-    await sql`select id from club_staff where active=true and role in ('coach','admin') and lower(trim(email))=${me.email} and (user_id='' or user_id=${userId})`;
+  const [staff] = await sql<{
+    approved: boolean;
+  }>`select is_tryout_staff(${userId},${me.email}) as approved`;
   const [grant] = await sql<{ active: boolean }>`select active from registration_readers
     where user_id=${userId} and email=${me.email} and active=true`;
   return {
-    allowed: me.role !== "player" && (me.role === "admin" || !!grant || !!staff),
+    allowed: Boolean(staff?.approved) || (me.role !== "player" && (me.role === "admin" || !!grant)),
     owner: me.role === "admin",
   };
 }
