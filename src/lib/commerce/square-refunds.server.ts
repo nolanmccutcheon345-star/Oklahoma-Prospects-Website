@@ -28,7 +28,8 @@ export async function applySquareRefundBalance(
     square_customer_id: string;
     square_payment_id: string;
     payment_environment: string;
-  }>`select square_customer_id,square_payment_id,payment_environment from commerce_orders where id=${reference.order_id} for update`;
+    kind: string;
+  }>`select square_customer_id,square_payment_id,payment_environment,kind from commerce_orders where id=${reference.order_id} for update`;
   const [local] = await sql<{
     amount_cents: number;
     refunded_cents: number;
@@ -53,6 +54,11 @@ export async function applySquareRefundBalance(
     paymentRefundedCents(payment, local.amount_cents),
   );
   await sql`update square_payments set refunded_cents=${refunded} where id=${payment.id!}`;
+  if (refunded > 0 && order.kind === "merchandise") {
+    // Stop queued manufacturing; already submitted goods require manual supplier cancellation.
+    await sql`update shop_order_details set status='review',lease_token=null,lease_until=null,last_error='Customer payment refunded. Review supplier cancellation separately; it is not automatic.',updated_at=now() where order_id=${reference.order_id}`;
+    await sql`insert into payment_notifications(id,order_id,kind) values(${"owner-review:" + reference.order_id},${reference.order_id},'owner-payment-review') on conflict do nothing`;
+  }
   if (refunded === local.amount_cents) {
     // An external full refund can finish a compensating refund before our worker.
     // The provider balance proves there is no money left to return; do not submit again.

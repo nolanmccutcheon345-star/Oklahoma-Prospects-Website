@@ -53,6 +53,7 @@ export function SquareCard({
   recurring = false,
   expiresAt,
   intent = "CHARGE",
+  merchandise = false,
   onToken,
 }: {
   config: PublicSquare;
@@ -60,6 +61,7 @@ export function SquareCard({
   email: string;
   name: string;
   recurring?: boolean;
+  merchandise?: boolean;
   expiresAt?: string;
   intent?: "CHARGE" | "STORE";
   onToken: (token: string, attemptId: string) => Promise<{ message?: string; declined?: boolean }>;
@@ -162,8 +164,10 @@ export function SquareCard({
       {remaining !== null ? (
         <p role="timer">
           {remaining > 0
-            ? `Payment session: ${Math.floor(remaining / 60)}:${String(remaining % 60).padStart(2, "0")} remaining. Your time stays available until payment succeeds.`
-            : "This payment session has expired. Check billing history before choosing a new time."}
+            ? `Payment session: ${Math.floor(remaining / 60)}:${String(remaining % 60).padStart(2, "0")} remaining. ${merchandise ? "Your items are made to order." : "Your time stays available until payment succeeds."}`
+            : merchandise
+              ? "This quote has expired. Check your orders before starting another checkout."
+              : "This payment session has expired. Check billing history before choosing a new time."}
         </p>
       ) : null}
       <div id={id} className="min-h-32" />
@@ -186,8 +190,10 @@ export function SquareCard({
               : `Pay ${formatMoney(amountCents)}${recurring ? " & start membership" : ""}`}
       </Button>
       <p className="text-sm">
-        Card details are entered directly into Square’s secure fields. A booking appears as
-        confirmed only after successful payment.
+        Card details are entered directly into Square’s secure fields.{" "}
+        {merchandise
+          ? "Your order enters fulfillment after payment is verified."
+          : "A booking appears as confirmed only after successful payment."}
       </p>
     </section>
   );

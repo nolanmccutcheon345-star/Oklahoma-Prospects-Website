@@ -2,60 +2,73 @@
 // Never run with a database URL: synthetic users live only in this process.
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
-import { mkdir, mkdtemp, readFile, rm } from "node:fs/promises";
-import { execFileSync } from "node:child_process";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
-import { createServer } from "vite";
+import { mkdir, readFile } from "node:fs/promises";
+import { resolve, extname } from "node:path";
+import { PGLiteSocketServer } from "@electric-sql/pglite-socket";
+import { auditHarness } from "./audit-support.mjs";
 import { chromium } from "playwright";
 import { hashPassword } from "better-auth/crypto";
 
 for (const key of ["DATABASE_URL", "NETLIFY_DATABASE_URL", "NETLIFY_DATABASE_URL_UNPOOLED"]) {
   if (process.env[key]) throw new Error("This check requires a disposable local database.");
 }
-if (process.env.NETLIFY || process.env.NODE_ENV === "production")
-  throw new Error("Local development only.");
-process.env.VITE_AUTH_ENABLED = "true";
-process.env.BETTER_AUTH_URL = "https://localhost:8082";
-const origin = process.env.BETTER_AUTH_URL;
+const h = await auditHarness();
+const origin = h.base;
 const shots = "artifacts/tryout-center";
 await mkdir(shots, { recursive: true });
-const tls = await mkdtemp(join(tmpdir(), "prospects-tryout-"));
-execFileSync(
-  "openssl",
-  [
-    "req",
-    "-x509",
-    "-newkey",
-    "rsa:2048",
-    "-nodes",
-    "-keyout",
-    join(tls, "key.pem"),
-    "-out",
-    join(tls, "cert.pem"),
-    "-days",
-    "1",
-    "-subj",
-    "/CN=localhost",
-  ],
-  { stdio: "ignore" },
-);
-const server = await createServer({
-  server: {
-    host: "127.0.0.1",
-    port: 8082,
-    strictPort: true,
-    https: {
-      key: await readFile(join(tls, "key.pem")),
-      cert: await readFile(join(tls, "cert.pem")),
-    },
-  },
-});
-let browser;
+let browser, socket;
 try {
-  await server.listen();
-  const { getSql } = await server.ssrLoadModule("/src/lib/db.ts");
-  const sql = await getSql();
+  socket = new PGLiteSocketServer({ db: h.db, host: "127.0.0.1", port: 0, maxConnections: 20 });
+  await socket.start();
+  process.env.DATABASE_URL = "postgresql://postgres@" + socket.getServerConn() + "/postgres";
+  const handler = (await import("../.netlify/v1/functions/server.mjs")).default;
+  const sql = h.sql;
+  async function isolatedContext(options = {}) {
+    const context = await browser.newContext(options);
+    await context.route("**/*", async (route) => {
+      const req = route.request(),
+        url = new URL(req.url());
+      if (url.origin !== origin) return route.abort();
+      const root = resolve("dist/client"),
+        path = resolve(root, "." + url.pathname);
+      if (path.startsWith(root + "/"))
+        try {
+          const body = await readFile(path);
+          return route.fulfill({
+            body,
+            contentType:
+              {
+                ".js": "application/javascript",
+                ".css": "text/css",
+                ".png": "image/png",
+                ".jpg": "image/jpeg",
+                ".webp": "image/webp",
+                ".svg": "image/svg+xml",
+                ".woff2": "font/woff2",
+                ".ico": "image/x-icon",
+              }[extname(path)] || "application/octet-stream",
+          });
+        } catch {
+          /* Dynamic routes use the real built application. */
+        }
+      const response = await handler(
+        new Request(req.url(), {
+          method: req.method(),
+          headers: { ...(await req.allHeaders()), "x-nf-client-connection-ip": "192.0.2.92" },
+          ...(!["GET", "HEAD"].includes(req.method()) ? { body: req.postDataBuffer() } : {}),
+        }),
+      );
+      const headers = Object.fromEntries(response.headers);
+      if (response.headers.getSetCookie().length)
+        headers["set-cookie"] = response.headers.getSetCookie().join("\n");
+      return route.fulfill({
+        status: response.status,
+        headers,
+        body: Buffer.from(await response.arrayBuffer()),
+      });
+    });
+    return context;
+  }
   const password = randomUUID() + "Aa9!";
   const hashed = await hashPassword(password);
   for (const [id, email, role] of [
@@ -68,8 +81,7 @@ try {
     await sql`insert into profiles(user_id,email,name,role,family_id) values(${id},${email},${id},${role},${"fam-" + id})`;
   }
   await sql`insert into club_staff(id,user_id,name,email,role,active) values('fixture-coach','fixture-coach','Fixture Coach','coach@example.invalid','coach',true)`;
-  const { emptyClub } = await server.ssrLoadModule("/src/lib/teams/seed.ts");
-  const club = emptyClub();
+  const club = h.api.emptyClub();
   club.teams = [
     {
       id: "fixture-team",
@@ -90,7 +102,7 @@ try {
   });
   const failures = [];
   async function signedIn(email, width = 390) {
-    const context = await browser.newContext({
+    const context = await isolatedContext({
       viewport: { width, height: 844 },
       ignoreHTTPSErrors: true,
     });
@@ -160,7 +172,7 @@ try {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.screenshot({ path: shots + "/coach-registration-mobile.png", fullPage: true });
   await page.getByRole("button", { name: "Back to registrations", exact: true }).click();
-  await page.evaluate(()=>window.scrollTo(0,0));
+  await page.evaluate(() => window.scrollTo(0, 0));
   await page.screenshot({ path: shots + "/coach-list-mobile.png", fullPage: true });
   await page.getByRole("button", { name: /^Notifications/ }).click();
   await page.getByText(/Tryout follow-up updated/).waitFor();
@@ -172,7 +184,8 @@ try {
   await parent.page.goto(origin + "/registrations");
   await parent.page.getByRole("heading", { name: "Access needed", exact: true }).waitFor();
   assert.equal(await parent.page.getByText("Tryout Test Player", { exact: true }).count(), 0);
-  const anonymous = await browser.newContext({ ignoreHTTPSErrors: true });
+  const anonymous = await isolatedContext({ ignoreHTTPSErrors: true });
+  assert.equal((await anonymous.cookies()).length, 0, "anonymous context has no cookies");
   const guest = await anonymous.newPage();
   await guest.goto(origin + "/registrations");
   await guest.waitForURL(/login/);
@@ -207,6 +220,12 @@ try {
   throw error;
 } finally {
   await browser?.close();
-  await server.close();
-  await rm(tls, { recursive: true, force: true });
+  if (socket) {
+    const deadline = Date.now() + 15000;
+    while (socket.getStats().activeConnections && Date.now() < deadline)
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    await socket.stop();
+  }
+  delete process.env.DATABASE_URL;
+  await h.close();
 }

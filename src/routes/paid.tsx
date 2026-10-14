@@ -68,7 +68,7 @@ function Paid() {
           : status === "paid"
             ? "Payment confirmed"
             : status === "payment_review"
-              ? "We’re reviewing your booking"
+              ? payment?.merchandise ? "We’re reviewing your order" : "We’re reviewing your booking"
               : status === "failed"
                 ? "Payment wasn’t completed"
                 : status === "refunded"
@@ -79,9 +79,9 @@ function Paid() {
         {status === "pending_fee"
           ? "Your membership payment was received. The separate first-month fee shown in your order is still due. No booking is confirmed until both payments succeed."
           : status === "paid"
-            ? payment?.eventRegistration ? `${formatMoney(amount)} received. Your player is registered for the event. View sessions and registration details on the Events page.` : `${formatMoney(amount)} received. Your saved booking and receipt are in your account. An assessment stays incomplete until your coach completes it.`
+            ? payment?.merchandise ? `${formatMoney(amount)} received. Your merchandise order and shipping updates are in My shop orders.` : payment?.eventRegistration ? `${formatMoney(amount)} received. Your player is registered for the event. View sessions and registration details on the Events page.` : `${formatMoney(amount)} received. Your saved booking and receipt are in your account. An assessment stays incomplete until your coach completes it.`
             : status === "payment_review"
-              ? "Payment was received, but the selected time could not be booked. A refund is being processed. This booking is not confirmed."
+              ? payment?.merchandise ? "Your payment needs owner review before fulfillment. Do not pay again. Open My shop orders for its current status." : "Payment was received, but the selected time could not be booked. A refund is being processed. This booking is not confirmed."
               : "This page waits for verified payment confirmation. Returning here does not mark an order paid."}
       </p>
       {payment?.feeDue && payment.square && user ? (
@@ -117,6 +117,7 @@ function Paid() {
           {payment.bookingConfirmed ? <p className="mt-3">Questions about your paid booking? <a className="inline-flex min-h-11 items-center underline" href={`tel:${CLUB.phoneTel}`}>Call {CLUB.phoneDisplay}</a>.</p> : null}
         </section>
       ) : null}
+      {payment?.merchandise && <Link className="my-4 inline-flex min-h-11 items-center underline" to="/merchandise">Open My shop orders</Link>}
       {payment?.eventRegistration && <a className="my-4 inline-flex min-h-11 items-center underline" href="/events">View event registrations</a>}
       <div className="flex flex-wrap gap-3">
         <Button asChild>
@@ -128,10 +129,10 @@ function Paid() {
           </Link>
         </Button>
       </div>
-      <p className="mt-5">
+      {!payment?.merchandise && <p className="mt-5">
         Payment is required before any booking is confirmed. Your completed assessment remains a
         separate coach-recorded requirement.
-      </p>
+      </p>}
     </main>
   );
 }
