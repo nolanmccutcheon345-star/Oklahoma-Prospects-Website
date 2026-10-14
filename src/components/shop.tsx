@@ -458,10 +458,26 @@ export function Shop() {
                                     data: { orderId: checkout.orderId, sourceId, attemptId },
                                   });
                                   if (r.url) {
-                                    changeCart([]);
-                                    setOrders(await myShopOrders());
+                                    const rows = await myShopOrders();
+                                    const saved = rows.find(
+                                      (order) => order.id === checkout.orderId,
+                                    );
+                                    setOrders(rows);
                                     setView("orders");
-                                    setMessage("Payment received. Check your order status below.");
+                                    if (
+                                      saved &&
+                                      ["paid", "payment_review", "refunded"].includes(saved.status)
+                                    )
+                                      changeCart([]);
+                                    setMessage(
+                                      saved?.status === "paid"
+                                        ? "Payment confirmed. Check your order status below."
+                                        : saved?.status === "payment_review"
+                                          ? "Payment needs owner review. Please do not pay again."
+                                          : saved?.status === "refunded"
+                                            ? "This payment was refunded. Check your order details below."
+                                            : "Payment confirmation is pending. Refresh your order status before trying again.",
+                                    );
                                   }
                                   return r;
                                 }}
