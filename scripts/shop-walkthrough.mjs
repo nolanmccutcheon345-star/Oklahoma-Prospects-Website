@@ -1,5 +1,7 @@
 // Real built application, disposable database and synthetic requests only.
 import assert from "node:assert/strict";
+import { randomUUID } from "node:crypto";
+import { hashPassword } from "better-auth/crypto";
 import { chromium } from "playwright";
 import { PGLiteSocketServer } from "@electric-sql/pglite-socket";
 import { readFile, mkdir } from "node:fs/promises";
@@ -128,11 +130,57 @@ try {
   );
   await page.getByRole("button", { name: "Remove SYNTHETIC Test Hoodie", exact: true }).click();
   await page.getByText("Your bag is empty.", { exact: true }).waitFor();
+  const password = randomUUID() + "Aa9!",
+    hashed = await hashPassword(password);
+  await h.sql`insert into "user"(id,email,name,"emailVerified","createdAt","updatedAt") values('fixture-owner','shop-owner@example.invalid','SYNTHETIC Shop Owner',true,now(),now())`;
+  await h.sql`insert into account(id,"accountId","providerId","userId",password,"createdAt","updatedAt") values('fixture-owner','fixture-owner','credential','fixture-owner',${hashed},now(),now())`;
+  await h.sql`insert into profiles(user_id,email,name,role,family_id) values('fixture-owner','shop-owner@example.invalid','SYNTHETIC Shop Owner','admin','fixture-shop-family')`;
+  await h.sql`insert into owner_grants(email,user_id) values('shop-owner@example.invalid','fixture-owner')`;
+  const ready = page.waitForResponse((r) => r.url().includes("/api/auth/get-session"));
+  await page.goto(h.base + "/login?next=%2Fmerchandise");
+  await ready;
+  await page.getByLabel("Email", { exact: true }).fill("shop-owner@example.invalid");
+  await page.getByLabel("Password", { exact: true }).fill(password);
+  await page.getByRole("button", { name: "Sign in", exact: true }).click();
+  await page.waitForURL(h.base + "/merchandise");
+  await page.getByRole("button", { name: "Shop owner controls", exact: true }).click();
+  await page.getByRole("button", { name: "Save product", exact: true }).waitFor();
+  await page.getByLabel("Description", { exact: true }).fill("SYNTHETIC owner saved description");
+  await page.getByLabel("Stripe Tax product category code", { exact: true }).fill("txcd_00000000");
+  await page.getByRole("button", { name: "Save product", exact: true }).click();
+  await page.getByRole("status").filter({ hasText: "Saved." }).waitFor();
+  assert.equal(
+    (await h.sql`select description from shop_products where id='fixture-shop'`)[0].description,
+    "SYNTHETIC owner saved description",
+  );
+  await page.getByLabel("Printful sync product ID", { exact: true }).fill("123");
+  await page.getByRole("button", { name: "Import product", exact: true }).click();
+  await page.getByText("Fulfillment is not connected.", { exact: true }).waitFor();
+  assert.equal(
+    (await h.sql`select id from shop_products`).length,
+    1,
+    "disconnected import creates no fake products",
+  );
+  assert.ok(
+    await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),
+    "owner controls reflow",
+  );
+  await page.screenshot({ path: output + "/owner-mobile.png", fullPage: true });
   assert.deepEqual(errors, []);
   console.log(
-    "PASS shop lookbook, variant/quantity/cart persistence, mobile reflow, guest privacy and disabled-payment guard.",
+    "PASS shop lookbook, variant/quantity/cart persistence, mobile reflow, guest privacy, owner save/import forms and disabled-payment guard.",
   );
 } catch (e) {
+  if (browser)
+    for (const context of browser.contexts())
+      for (const page of context.pages())
+        console.error(
+          "Failure page:",
+          await page
+            .locator("body")
+            .innerText()
+            .catch(() => "Unavailable"),
+        );
   console.error(e);
   throw e;
 } finally {

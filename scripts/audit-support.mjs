@@ -7,7 +7,7 @@ import {pathToFileURL} from 'node:url';
 import {randomBytes} from 'node:crypto';
 
 export async function auditHarness() {
-  for (const name of ['DATABASE_URL','PREVIEW_DATABASE_URL','NETLIFY_DATABASE_URL','RESEND_API_KEY','SQUARE_PRODUCTION_ACCESS_TOKEN','SQUARE_SANDBOX_ACCESS_TOKEN']) {
+  for (const name of ['DATABASE_URL','PREVIEW_DATABASE_URL','NETLIFY_DATABASE_URL','RESEND_API_KEY','SQUARE_PRODUCTION_ACCESS_TOKEN','SQUARE_SANDBOX_ACCESS_TOKEN','PRINTFUL_ACCESS_TOKEN','SHOP_STRIPE_TAX_SECRET_KEY']) {
     if (process.env[name]) throw new Error(`Audit refuses externally configured ${name}`);
   }
   // Match src/lib/db.ts driver parsing exactly; DATE is a date-only string.

@@ -715,7 +715,7 @@ function ShopOffice() {
                 onChange={(e) => setId(e.target.value)}
               />
             </label>
-            <Button className="self-end" disabled={busy}>
+            <Button type="submit" className="self-end" disabled={busy}>
               Import product
             </Button>
           </form>
@@ -777,22 +777,25 @@ function ProductEditor({
     >
       <h3 className="text-xl">{p.title}</h3>
       {(["description", "sizeGuide", "teamLabel", "category", "taxCode"] as const).map((key) => (
-        <label key={key}>
-          {
+        <div key={key}>
+          <label htmlFor={`shop-${p.id}-${key}`}>
             {
-              description: "Description",
-              sizeGuide: "Size guide",
-              teamLabel: "Team collection (optional)",
-              category: "Category",
-              taxCode: "Stripe Tax product category code",
-            }[key]
-          }
+              {
+                description: "Description",
+                sizeGuide: "Size guide",
+                teamLabel: "Team collection (optional)",
+                category: "Category",
+                taxCode: "Stripe Tax product category code",
+              }[key]
+            }
+          </label>
           <textarea
+            id={`shop-${p.id}-${key}`}
             className={inputClass}
             value={form[key]}
             onChange={(e) => setForm({ ...form, [key]: e.target.value })}
           />
-        </label>
+        </div>
       ))}
       <p className="text-sm">
         Retail prices are imported from Printful. Review every size:{" "}
@@ -814,7 +817,9 @@ function ProductEditor({
         />
         Publish this product
       </label>
-      <Button disabled={busy}>Save product</Button>
+      <Button type="submit" disabled={busy}>
+        Save product
+      </Button>
     </form>
   );
 }
