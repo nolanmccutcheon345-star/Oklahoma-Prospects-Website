@@ -66,6 +66,10 @@ export type ShopVariant = {
   label: string;
   priceCents: number;
   available: boolean;
+  vendorCostCents?: number;
+  costOverrideCents?: number | null;
+  priceOverrideCents?: number | null;
+  sellEnabled?: boolean;
   item: Omit<PrintItem, "quantity">;
 };
 export type ShopProduct = {
@@ -81,7 +85,16 @@ export type ShopProduct = {
   published: boolean;
   sample_approved: boolean;
   revision: number;
+  provider: "printful" | "printify";
+  provider_product_id: string | null;
+  archived: boolean;
+  pricing_mode: import("./pricing").PricingMode;
+  pricing_bps: number;
+  manufacturing_hash: string;
+  gallery: ShopImage[];
+  image_approved: boolean;
 };
+export type ShopImage = { id: string; url: string; alt: string; variantIds: number[] };
 export function dollarsToCents(value: unknown) {
   if (typeof value !== "string" && typeof value !== "number")
     throw new Error("A provider amount is unavailable.");
@@ -101,8 +114,12 @@ export function safeHttps(value: unknown) {
 }
 export function selectedLines(products: ShopProduct[], cart: Cart) {
   return cartSchema.parse(cart).map((line) => {
-    const p = products.find((p) => p.id === line.productId && p.published && p.sample_approved);
-    const v = p?.variants.find((v) => v.id === line.variantId && v.available);
+    const p = products.find(
+      (p) => p.id === line.productId && p.published && p.sample_approved && !p.archived,
+    );
+    const v = p?.variants.find(
+      (v) => v.id === line.variantId && v.available && v.sellEnabled !== false,
+    );
     if (!p || !v || !Number.isSafeInteger(v.priceCents) || v.priceCents <= 0)
       throw new Error("An item or size is no longer available. Refresh your bag.");
     return { product: p, variant: v, quantity: line.quantity };

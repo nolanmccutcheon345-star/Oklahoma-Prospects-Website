@@ -1,21 +1,13 @@
-import { useEffect, useState } from "react";
+import { lazy, Suspense, useEffect, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { ShoppingBag, Truck, ShieldCheck, PackageCheck } from "lucide-react";
 import { Button } from "./ui/button";
 import { SquareCard } from "./commerce/square-card";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
 import { formatMoney } from "@/lib/pricing";
-import {
-  getShop,
-  canManageShop,
-  quoteShop,
-  myShopOrders,
-  getShopOffice,
-  syncShopProduct,
-  saveShopProduct,
-  refreshShopOrders,
-} from "@/lib/shop/api";
+import { getShop, canManageShop, quoteShop, myShopOrders } from "@/lib/shop/api";
 import { submitSquarePayment } from "@/lib/commerce/api";
+const ShopOffice = lazy(() => import("./shop-office").then((m) => ({ default: m.ShopOffice })));
 import { cartSchema, type Cart } from "@/lib/shop/contracts";
 type Shop = Awaited<ReturnType<typeof getShop>>;
 const inputClass =
@@ -27,7 +19,7 @@ const concepts = [
   ["Structured cap", "Navy / Columbia blue"],
   ["Canvas tote", "Natural"],
 ];
-export function Shop() {
+export function Shop({ selectedProductId }: { selectedProductId?: string }) {
   const { user } = useCurrentUserState();
   const [ownerId, setOwnerId] = useState<string | null>(null);
   const userId = user?.id;
@@ -134,12 +126,22 @@ export function Shop() {
           <p className="text-sm font-semibold uppercase tracking-widest text-sky-200">
             Oklahoma Prospects · Official shop
           </p>
-          <h1 className="mt-3 text-5xl sm:text-7xl">Wear the colors.</h1>
+          <h1 className="mt-3 text-4xl sm:text-6xl">
+            {selectedProductId
+              ? data?.products.find((p) => p.id === selectedProductId)?.title || "Club collection"
+              : "Wear the colors."}
+          </h1>
           <p className="mt-4 max-w-xl text-lg text-white/85">
             From the dugout to the stands. Gear for our players, families, and coaches.
           </p>
           <div className="mt-7 flex flex-wrap gap-3">
-            <Button variant="outline" onClick={() => setView("shop")}>
+            <Button
+              variant="outline"
+              onClick={() => {
+                if (selectedProductId) window.location.href = "/merchandise";
+                else setView("shop");
+              }}
+            >
               Shop collection
             </Button>
             <Button variant="outline" onClick={() => setView("bag")}>
@@ -177,7 +179,7 @@ export function Shop() {
           <p role="status">Loading the collection…</p>
         ) : (
           <>
-            {view === "shop" && (
+            {view === "shop" && !selectedProductId && (
               <>
                 {!data.checkout && (
                   <div className="mb-6 rounded-xl border border-line bg-paper-2 p-5">
@@ -288,6 +290,22 @@ export function Shop() {
                   })}
                 </div>
               </>
+            )}
+            {view === "shop" && selectedProductId && (
+              <section>
+                <a href="/merchandise" className="mb-5 inline-block underline">
+                  Back to the collection
+                </a>
+                {data.products.find((p) => p.id === selectedProductId) ? (
+                  <Product
+                    detail
+                    product={data.products.find((p) => p.id === selectedProductId)!}
+                    add={(id) => add(selectedProductId, id)}
+                  />
+                ) : (
+                  <p>This product is not currently available.</p>
+                )}
+              </section>
             )}
             {view === "bag" && (
               <section className="mx-auto max-w-2xl">
@@ -541,7 +559,17 @@ export function Shop() {
             </Button>
           )}
         </div>
-        {view === "office" && canManage && <ShopOffice />}
+        {view === "office" && canManage && (
+          <Suspense fallback={<p role="status">Loading shop controls…</p>}>
+            <ShopOffice
+              changed={() =>
+                void getShop()
+                  .then(setData)
+                  .catch(() => setError("Refresh the collection to see your changes."))
+              }
+            />
+          </Suspense>
+        )}
       </div>
     </main>
   );
@@ -549,28 +577,71 @@ export function Shop() {
 function Product({
   product: p,
   add,
+  detail = false,
 }: {
   product: Shop["products"][number];
   add: (id: number) => void;
+  detail?: boolean;
 }) {
   const [id, setId] = useState("");
   const variant = p.variants.find((v) => String(v.id) === id);
+  const [photo, setPhoto] = useState("");
+  const images = p.gallery || [];
+  const selectedPhoto =
+    images.find((i) => i.id === photo) ||
+    images.find((i) => variant && i.variantIds.includes(variant.id)) ||
+    images.find((i) => !i.variantIds.length) ||
+    images[0];
   return (
-    <article className="flex min-w-0 flex-col overflow-hidden rounded-2xl border border-line">
-      <img
-        src={p.image_url}
-        alt={p.title}
-        loading="lazy"
-        width="600"
-        height="600"
-        className="aspect-square w-full object-contain bg-paper-2"
-      />
+    <article
+      className={
+        detail
+          ? "grid min-w-0 gap-6 md:grid-cols-2"
+          : "flex min-w-0 flex-col overflow-hidden rounded-2xl border border-line"
+      }
+    >
+      <div className="min-w-0">
+        <img
+          src={selectedPhoto?.url || p.image_url}
+          alt={selectedPhoto?.alt || p.title}
+          loading="lazy"
+          width="600"
+          height="600"
+          className="aspect-square w-full object-contain bg-[#f4f6f8]"
+        />
+        {detail && images.length > 1 && (
+          <div className="mt-3 grid grid-cols-4 gap-2">
+            {images.map((image, index) => (
+              <button
+                type="button"
+                key={image.id}
+                aria-label={`View product photo ${index + 1}`}
+                aria-pressed={selectedPhoto?.id === image.id}
+                onClick={() => setPhoto(image.id)}
+                className="overflow-hidden rounded-lg border border-line focus-visible:outline-2 focus-visible:outline-navy"
+              >
+                <img
+                  src={image.url}
+                  alt={image.alt}
+                  width="150"
+                  height="150"
+                  className="aspect-square w-full object-contain"
+                />
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
       <div className="flex flex-1 flex-col p-5">
         <p className="text-xs uppercase tracking-widest text-muted">
           {p.team_label || "Club collection"}
         </p>
         <h2 className="mt-2 text-2xl">{p.title}</h2>
-        <p className="mt-2 whitespace-pre-wrap text-sm">{p.description}</p>
+        <p className="mt-2 whitespace-pre-wrap text-sm">
+          {detail
+            ? p.description
+            : p.description.slice(0, 160) + (p.description.length > 160 ? "…" : "")}
+        </p>
         <p className="mt-4 font-semibold">
           {variant
             ? formatMoney(variant.priceCents)
@@ -583,7 +654,10 @@ function Product({
           id={"variant-" + p.id}
           className={inputClass}
           value={id}
-          onChange={(e) => setId(e.target.value)}
+          onChange={(e) => {
+            setId(e.target.value);
+            setPhoto("");
+          }}
         >
           <option value="">Choose your selection</option>
           {p.variants.map((v) => (
@@ -597,6 +671,14 @@ function Product({
           <summary className="min-h-10 cursor-pointer py-2 underline">Size guide</summary>
           <p className="whitespace-pre-wrap">{p.size_guide}</p>
         </details>
+        {!detail && (
+          <a
+            className="mb-4 block min-h-10 py-2 text-center underline"
+            href={`/merchandise/${encodeURIComponent(p.id)}`}
+          >
+            View product details
+          </a>
+        )}
         <Button
           className="mt-auto"
           disabled={!variant?.available}
@@ -608,7 +690,7 @@ function Product({
     </article>
   );
 }
-function Orders({ rows }: { rows: Awaited<ReturnType<typeof myShopOrders>> }) {
+export function Orders({ rows }: { rows: Awaited<ReturnType<typeof myShopOrders>> }) {
   return (
     <div className="grid gap-4">
       {!rows.length && <p>No shop orders yet.</p>}
@@ -650,176 +732,5 @@ function Orders({ rows }: { rows: Awaited<ReturnType<typeof myShopOrders>> }) {
         </article>
       ))}
     </div>
-  );
-}
-function ShopOffice() {
-  const [data, setData] = useState<Awaited<ReturnType<typeof getShopOffice>>>();
-  const [id, setId] = useState("");
-  const [message, setMessage] = useState("");
-  const [busy, setBusy] = useState(false);
-  async function refresh() {
-    setData(await getShopOffice());
-  }
-  useEffect(() => {
-    void refresh().catch((e) => setMessage(e.message));
-  }, []);
-  async function run(fn: () => Promise<unknown>) {
-    if (busy) return;
-    setBusy(true);
-    setMessage("");
-    try {
-      await fn();
-      await refresh();
-      setMessage("Saved.");
-    } catch (e) {
-      setMessage(e instanceof Error ? e.message : "Could not save.");
-    } finally {
-      setBusy(false);
-    }
-  }
-  return (
-    <section className="mt-6 rounded-xl border border-line p-5">
-      <h2 className="text-3xl">Shop owner controls</h2>
-      {message && (
-        <p role="status" className="my-4">
-          {message}
-        </p>
-      )}
-      {data && (
-        <>
-          <p className="my-4">
-            Readiness:{" "}
-            {Object.entries(data.readiness)
-              .map(([k, v]) => `${k}: ${v ? "ready" : "pending"}`)
-              .join(" · ")}
-          </p>
-          <p className="text-sm">
-            Create and price your products in the Printful API store. Import a product ID here, then
-            approve its sample, size guide, and description. Reimporting withdraws it from sale
-            until reviewed again.
-          </p>
-          <form
-            className="my-5 grid gap-3 sm:grid-cols-[1fr_auto]"
-            onSubmit={(e) => {
-              e.preventDefault();
-              void run(() => syncShopProduct({ data: { id } }));
-            }}
-          >
-            <label>
-              Printful sync product ID
-              <input
-                className={inputClass}
-                required
-                inputMode="numeric"
-                value={id}
-                onChange={(e) => setId(e.target.value)}
-              />
-            </label>
-            <Button type="submit" className="self-end" disabled={busy}>
-              Import product
-            </Button>
-          </form>
-          {data.products.map((p) => (
-            <ProductEditor
-              key={p.id + ":" + p.revision}
-              product={p}
-              busy={busy}
-              save={(value) => void run(() => saveShopProduct({ data: value }))}
-            />
-          ))}
-          <h3 className="mt-8 text-2xl">Fulfillment queue & orders</h3>
-          <p className="my-3 text-sm">
-            Confirmed payments enter the fulfillment queue. Cost changes, refunds, cancellations,
-            and supplier failures need owner review. Refund customers through the existing Square
-            tools; a supplier refund does not refund the customer.
-          </p>
-          <Button
-            disabled={busy}
-            variant="outlineDark"
-            className="mb-5"
-            onClick={() => void run(() => refreshShopOrders())}
-          >
-            Process next fulfillment update
-          </Button>
-          <Orders rows={data.orders} />
-        </>
-      )}
-    </section>
-  );
-}
-function ProductEditor({
-  product: p,
-  busy,
-  save,
-}: {
-  product: Awaited<ReturnType<typeof getShopOffice>>["products"][number];
-  busy: boolean;
-  save: (v: Parameters<typeof saveShopProduct>[0]["data"]) => void;
-}) {
-  const [form, setForm] = useState({
-    id: p.id,
-    revision: p.revision,
-    description: p.description,
-    sizeGuide: p.size_guide,
-    teamLabel: p.team_label,
-    category: p.category,
-    taxCode: p.tax_code,
-    sampleApproved: p.sample_approved,
-    published: p.published,
-  });
-  return (
-    <form
-      className="my-5 grid gap-3 rounded-xl bg-paper-2 p-4"
-      onSubmit={(e) => {
-        e.preventDefault();
-        save(form);
-      }}
-    >
-      <h3 className="text-xl">{p.title}</h3>
-      {(["description", "sizeGuide", "teamLabel", "category", "taxCode"] as const).map((key) => (
-        <div key={key}>
-          <label htmlFor={`shop-${p.id}-${key}`}>
-            {
-              {
-                description: "Description",
-                sizeGuide: "Size guide",
-                teamLabel: "Team collection (optional)",
-                category: "Category",
-                taxCode: "Stripe Tax product category code",
-              }[key]
-            }
-          </label>
-          <textarea
-            id={`shop-${p.id}-${key}`}
-            className={inputClass}
-            value={form[key]}
-            onChange={(e) => setForm({ ...form, [key]: e.target.value })}
-          />
-        </div>
-      ))}
-      <p className="text-sm">
-        Retail prices are imported from Printful. Review every size:{" "}
-        {p.variants.map((v) => `${v.label} ${formatMoney(v.priceCents)}`).join(" · ")}
-      </p>
-      <label className="flex gap-3">
-        <input
-          type="checkbox"
-          checked={form.sampleApproved}
-          onChange={(e) => setForm({ ...form, sampleApproved: e.target.checked })}
-        />
-        I approved the physical sample and production artwork
-      </label>
-      <label className="flex gap-3">
-        <input
-          type="checkbox"
-          checked={form.published}
-          onChange={(e) => setForm({ ...form, published: e.target.checked })}
-        />
-        Publish this product
-      </label>
-      <Button type="submit" disabled={busy}>
-        Save product
-      </Button>
-    </form>
   );
 }

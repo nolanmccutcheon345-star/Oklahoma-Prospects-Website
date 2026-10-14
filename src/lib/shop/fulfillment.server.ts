@@ -3,23 +3,28 @@ import type { Sql } from "../db";
 import { dollarsToCents, safeHttps } from "./contracts";
 import { providerClient, ProviderError, type Provider, type VendorOrder } from "./provider.server";
 import { assertShopReady } from "./store.server";
-type Job = {
+export type Job = {
   order_id: string;
   vendor_body: Record<string, unknown>;
   vendor_cap_cents: number;
   status: string;
   attempts: number;
   provider_id: string | null;
+  provider: "printful" | "printify";
+  vendor_create_started_at: Date | null;
+  vendor_shipping_cents: number | null;
 };
 /** Poll authenticated provider state. No unsigned webhook can change fulfillment. */
-export async function processShopOrders(sql: Sql, provided?: Provider) {
-  if (!provided) assertShopReady();
-  const provider = provided || providerClient();
+export async function processShopOrders(
+  sql: Sql,
+  provided?: Provider | { printify: import("./printify.server").PrintifyRequest; base: string },
+) {
   const token = randomUUID();
   const job = await sql.transaction(async (tx) => {
     const [j] =
       await tx<Job>`select d.* from shop_order_details d join commerce_orders o on o.id=d.order_id where d.status in ('queued','processing','submitted','partial','hold') and d.next_attempt_at<=now() and (d.lease_until is null or d.lease_until<now()) and o.status='paid' and o.payment_environment='production' and not exists(select 1 from square_payments p where p.order_id=o.id and p.refunded_cents>0) order by d.next_attempt_at,d.order_id for update of d skip locked limit 1`;
     if (!j) return null;
+    if (!provided) assertShopReady(j.provider);
     if (j.attempts >= 8) {
       await tx`update shop_order_details set status='review',last_error='Repeated fulfillment failures; owner review required.' where order_id=${j.order_id}`;
       return null;
@@ -29,6 +34,14 @@ export async function processShopOrders(sql: Sql, provided?: Provider) {
   });
   if (!job) return { processed: 0 };
   try {
+    if (job.provider === "printify") {
+      const deps = provided && typeof provided !== "function" ? provided : undefined;
+      await (
+        await import("./printify-fulfillment.server")
+      ).processPrintifyJob(sql, job, token, deps?.printify, deps?.base);
+      return { processed: 1 };
+    }
+    const provider = typeof provided === "function" ? provided : providerClient();
     const ref = String(job.vendor_body.external_id);
     let order: VendorOrder | undefined;
     try {

@@ -58,6 +58,7 @@ import { Route as FundraisingMyRouteImport } from './routes/fundraising.my'
 import { Route as FundraisingOfficeRouteImport } from './routes/fundraising.office'
 import { Route as FundraisingThankYouRouteImport } from './routes/fundraising.thank-you'
 import { Route as GoDestRouteImport } from './routes/go.$dest'
+import { Route as MerchandiseProductIdRouteImport } from './routes/merchandise_.$productId'
 import { Route as PlayerPlayerIdRouteImport } from './routes/player.$playerId'
 import { Route as TeamsTeamIdRouteImport } from './routes/teams.$teamId'
 import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
@@ -75,6 +76,7 @@ import { Route as ApiSquareWebhookRouteImport } from './routes/api/square/webhoo
 import { Route as ApiStripeWebhookRouteImport } from './routes/api/stripe/webhook'
 import { Route as FundraisingPIdRouteImport } from './routes/fundraising.p.$id'
 import { Route as ApiFundraisingPlayersIdRouteImport } from './routes/api/fundraising/players.$id'
+import { Route as ApiShopImagesImageIdRouteImport } from './routes/api/shop/images/$imageId'
 import { Route as TeamsTeamIdPlayersRosterPlayerIdRouteImport } from './routes/teams.$teamId.players.$rosterPlayerId'
 
 const IndexRoute = IndexRouteImport.update({
@@ -322,6 +324,11 @@ const GoDestRoute = GoDestRouteImport.update({
   path: '/go/$dest',
   getParentRoute: () => rootRouteImport,
 } as any)
+const MerchandiseProductIdRoute = MerchandiseProductIdRouteImport.update({
+  id: '/merchandise_/$productId',
+  path: '/merchandise/$productId',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const PlayerPlayerIdRoute = PlayerPlayerIdRouteImport.update({
   id: '/player/$playerId',
   path: '/player/$playerId',
@@ -407,6 +414,11 @@ const ApiFundraisingPlayersIdRoute = ApiFundraisingPlayersIdRouteImport.update({
   path: '/$id',
   getParentRoute: () => ApiFundraisingPlayersRoute,
 } as any)
+const ApiShopImagesImageIdRoute = ApiShopImagesImageIdRouteImport.update({
+  id: '/api/shop/images/$imageId',
+  path: '/api/shop/images/$imageId',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const TeamsTeamIdPlayersRosterPlayerIdRoute =
   TeamsTeamIdPlayersRosterPlayerIdRouteImport.update({
     id: '/players/$rosterPlayerId',
@@ -463,6 +475,7 @@ export interface FileRoutesByFullPath {
   '/fundraising/office': typeof FundraisingOfficeRoute
   '/fundraising/thank-you': typeof FundraisingThankYouRoute
   '/go/$dest': typeof GoDestRoute
+  '/merchandise/$productId': typeof MerchandiseProductIdRoute
   '/player/$playerId': typeof PlayerPlayerIdRoute
   '/teams/$teamId': typeof TeamsTeamIdRouteWithChildren
   '/fundraising/': typeof FundraisingIndexRoute
@@ -481,6 +494,7 @@ export interface FileRoutesByFullPath {
   '/api/stripe/webhook': typeof ApiStripeWebhookRoute
   '/fundraising/p/$id': typeof FundraisingPIdRoute
   '/api/fundraising/players/$id': typeof ApiFundraisingPlayersIdRoute
+  '/api/shop/images/$imageId': typeof ApiShopImagesImageIdRoute
   '/teams/$teamId/players/$rosterPlayerId': typeof TeamsTeamIdPlayersRosterPlayerIdRoute
 }
 export interface FileRoutesByTo {
@@ -532,6 +546,7 @@ export interface FileRoutesByTo {
   '/fundraising/office': typeof FundraisingOfficeRoute
   '/fundraising/thank-you': typeof FundraisingThankYouRoute
   '/go/$dest': typeof GoDestRoute
+  '/merchandise/$productId': typeof MerchandiseProductIdRoute
   '/player/$playerId': typeof PlayerPlayerIdRoute
   '/teams/$teamId': typeof TeamsTeamIdRouteWithChildren
   '/fundraising': typeof FundraisingIndexRoute
@@ -550,6 +565,7 @@ export interface FileRoutesByTo {
   '/api/stripe/webhook': typeof ApiStripeWebhookRoute
   '/fundraising/p/$id': typeof FundraisingPIdRoute
   '/api/fundraising/players/$id': typeof ApiFundraisingPlayersIdRoute
+  '/api/shop/images/$imageId': typeof ApiShopImagesImageIdRoute
   '/teams/$teamId/players/$rosterPlayerId': typeof TeamsTeamIdPlayersRosterPlayerIdRoute
 }
 export interface FileRoutesById {
@@ -602,6 +618,7 @@ export interface FileRoutesById {
   '/fundraising/office': typeof FundraisingOfficeRoute
   '/fundraising/thank-you': typeof FundraisingThankYouRoute
   '/go/$dest': typeof GoDestRoute
+  '/merchandise_/$productId': typeof MerchandiseProductIdRoute
   '/player/$playerId': typeof PlayerPlayerIdRoute
   '/teams/$teamId': typeof TeamsTeamIdRouteWithChildren
   '/fundraising/': typeof FundraisingIndexRoute
@@ -620,6 +637,7 @@ export interface FileRoutesById {
   '/api/stripe/webhook': typeof ApiStripeWebhookRoute
   '/fundraising/p/$id': typeof FundraisingPIdRoute
   '/api/fundraising/players/$id': typeof ApiFundraisingPlayersIdRoute
+  '/api/shop/images/$imageId': typeof ApiShopImagesImageIdRoute
   '/teams/$teamId/players/$rosterPlayerId': typeof TeamsTeamIdPlayersRosterPlayerIdRoute
 }
 export interface FileRouteTypes {
@@ -673,6 +691,7 @@ export interface FileRouteTypes {
     | '/fundraising/office'
     | '/fundraising/thank-you'
     | '/go/$dest'
+    | '/merchandise/$productId'
     | '/player/$playerId'
     | '/teams/$teamId'
     | '/fundraising/'
@@ -691,6 +710,7 @@ export interface FileRouteTypes {
     | '/api/stripe/webhook'
     | '/fundraising/p/$id'
     | '/api/fundraising/players/$id'
+    | '/api/shop/images/$imageId'
     | '/teams/$teamId/players/$rosterPlayerId'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -742,6 +762,7 @@ export interface FileRouteTypes {
     | '/fundraising/office'
     | '/fundraising/thank-you'
     | '/go/$dest'
+    | '/merchandise/$productId'
     | '/player/$playerId'
     | '/teams/$teamId'
     | '/fundraising'
@@ -760,6 +781,7 @@ export interface FileRouteTypes {
     | '/api/stripe/webhook'
     | '/fundraising/p/$id'
     | '/api/fundraising/players/$id'
+    | '/api/shop/images/$imageId'
     | '/teams/$teamId/players/$rosterPlayerId'
   id:
     | '__root__'
@@ -811,6 +833,7 @@ export interface FileRouteTypes {
     | '/fundraising/office'
     | '/fundraising/thank-you'
     | '/go/$dest'
+    | '/merchandise_/$productId'
     | '/player/$playerId'
     | '/teams/$teamId'
     | '/fundraising/'
@@ -829,6 +852,7 @@ export interface FileRouteTypes {
     | '/api/stripe/webhook'
     | '/fundraising/p/$id'
     | '/api/fundraising/players/$id'
+    | '/api/shop/images/$imageId'
     | '/teams/$teamId/players/$rosterPlayerId'
   fileRoutesById: FileRoutesById
 }
@@ -881,6 +905,7 @@ export interface RootRouteChildren {
   FundraisingOfficeRoute: typeof FundraisingOfficeRoute
   FundraisingThankYouRoute: typeof FundraisingThankYouRoute
   GoDestRoute: typeof GoDestRoute
+  MerchandiseProductIdRoute: typeof MerchandiseProductIdRoute
   PlayerPlayerIdRoute: typeof PlayerPlayerIdRoute
   FundraisingIndexRoute: typeof FundraisingIndexRoute
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
@@ -897,6 +922,7 @@ export interface RootRouteChildren {
   ApiSquareWebhookRoute: typeof ApiSquareWebhookRoute
   ApiStripeWebhookRoute: typeof ApiStripeWebhookRoute
   FundraisingPIdRoute: typeof FundraisingPIdRoute
+  ApiShopImagesImageIdRoute: typeof ApiShopImagesImageIdRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -1244,6 +1270,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof GoDestRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/merchandise_/$productId': {
+      id: '/merchandise_/$productId'
+      path: '/merchandise/$productId'
+      fullPath: '/merchandise/$productId'
+      preLoaderRoute: typeof MerchandiseProductIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/player/$playerId': {
       id: '/player/$playerId'
       path: '/player/$playerId'
@@ -1363,6 +1396,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiFundraisingPlayersIdRouteImport
       parentRoute: typeof ApiFundraisingPlayersRoute
     }
+    '/api/shop/images/$imageId': {
+      id: '/api/shop/images/$imageId'
+      path: '/api/shop/images/$imageId'
+      fullPath: '/api/shop/images/$imageId'
+      preLoaderRoute: typeof ApiShopImagesImageIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/teams/$teamId/players/$rosterPlayerId': {
       id: '/teams/$teamId/players/$rosterPlayerId'
       path: '/players/$rosterPlayerId'
@@ -1457,6 +1497,7 @@ const rootRouteChildren: RootRouteChildren = {
   FundraisingOfficeRoute: FundraisingOfficeRoute,
   FundraisingThankYouRoute: FundraisingThankYouRoute,
   GoDestRoute: GoDestRoute,
+  MerchandiseProductIdRoute: MerchandiseProductIdRoute,
   PlayerPlayerIdRoute: PlayerPlayerIdRoute,
   FundraisingIndexRoute: FundraisingIndexRoute,
   ApiAuthSplatRoute: ApiAuthSplatRoute,
@@ -1473,6 +1514,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiSquareWebhookRoute: ApiSquareWebhookRoute,
   ApiStripeWebhookRoute: ApiStripeWebhookRoute,
   FundraisingPIdRoute: FundraisingPIdRoute,
+  ApiShopImagesImageIdRoute: ApiShopImagesImageIdRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

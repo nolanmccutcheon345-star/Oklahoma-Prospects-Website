@@ -15,6 +15,26 @@ import {
 import { processShopOrders } from "./fulfillment.server";
 import { ProviderError, parseProduct, retailTax, type Provider } from "./provider.server";
 import { fulfillSquarePayment } from "../commerce/square-payments.server";
+import { deflateSync } from "node:zlib";
+import { priceVariant, priceMetrics } from "./pricing";
+import {
+  createDraft,
+  syncPrintifyProduct,
+  saveManagedProduct,
+  savePricingSettings,
+  archiveProduct,
+  uploadStudioPhoto,
+  editGallery,
+  validateStudioPng,
+} from "./management.server";
+import { shopImageResponse } from "./images.server";
+import {
+  parsePrintifyProduct,
+  printifyClient,
+  printifyOrderCost,
+  type PrintifyRequest,
+  type PrintifyOrder,
+} from "./printify.server";
 async function fixture() {
   const db = new PGlite();
   const wrap = (q: PGlite["query"]): Sql => {
@@ -389,4 +409,352 @@ test("product import preserves approved placement and file options and rejects p
   assert.deepEqual(imported.options, file.options);
   raw.sync_variants[0].files.push({ ...file, id: 301, type: "sleeve_left", status: "waiting" });
   assert.throws(() => parseProduct(raw), /production files/);
+});
+
+function printifyProduct() {
+  return {
+    id: "synthetic-product",
+    title: "SYNTHETIC Printify Tee",
+    description: "<p>Test only</p>",
+    blueprint_id: 1,
+    print_provider_id: 2,
+    variants: [
+      { id: 100, title: "Navy / M", cost: 2000, price: 3200, is_enabled: true, is_available: true },
+      { id: 101, title: "Navy / L", cost: 2200, price: 3400, is_enabled: true, is_available: true },
+    ],
+    images: [{ src: "https://example.invalid/product.png", is_default: true }],
+    print_areas: [
+      {
+        variant_ids: [100, 101],
+        placeholders: [
+          {
+            position: "front",
+            images: [{ id: "synthetic-artwork", x: 0.5, y: 0.5, scale: 1, angle: 0 }],
+          },
+        ],
+      },
+    ],
+  };
+}
+function studioPng() {
+  const crc = (b: Buffer) => {
+    let c = 0xffffffff;
+    for (const v of b) {
+      c ^= v;
+      for (let i = 0; i < 8; i++) c = (c >>> 1) ^ (c & 1 ? 0xedb88320 : 0);
+    }
+    return (c ^ 0xffffffff) >>> 0;
+  };
+  const chunk = (type: string, data: Buffer) => {
+    const out = Buffer.alloc(data.length + 12);
+    out.writeUInt32BE(data.length);
+    out.write(type, 4);
+    data.copy(out, 8);
+    out.writeUInt32BE(crc(out.subarray(4, out.length - 4)), out.length - 4);
+    return out;
+  };
+  const header = Buffer.alloc(13);
+  header.writeUInt32BE(1000);
+  header.writeUInt32BE(1000, 4);
+  header[8] = 8;
+  header[9] = 6;
+  const pixels = Buffer.alloc(4001000, 255);
+  for (let row = 0; row < 1000; row++) pixels[row * 4001] = 0;
+  return (
+    "data:image/png;base64," +
+    Buffer.concat([
+      Buffer.from("89504e470d0a1a0a", "hex"),
+      chunk("IHDR", header),
+      chunk("IDAT", deflateSync(pixels)),
+      chunk("IEND", Buffer.alloc(0)),
+    ]).toString("base64")
+  );
+}
+const printifyRequest = (async (path: string) => {
+  if (path.includes("/products/")) return printifyProduct();
+  if (path.endsWith("/orders/shipping.json")) return { standard: 578 };
+  throw new Error("Unexpected synthetic request " + path);
+}) as PrintifyRequest;
+async function publishPrintify(sql: Sql) {
+  const id = await syncPrintifyProduct(
+    sql,
+    "owner",
+    "synthetic-product",
+    undefined,
+    printifyRequest,
+    "/shops/1",
+  );
+  await uploadStudioPhoto(sql, "owner", {
+    id,
+    revision: 1,
+    data: studioPng(),
+    alt: "SYNTHETIC product photo",
+    variantIds: [],
+  });
+  await saveManagedProduct(sql, "owner", {
+    id,
+    revision: 2,
+    title: "SYNTHETIC Printify Tee",
+    description: "Fixture only",
+    sizeGuide: "Fixture sizing",
+    teamLabel: "",
+    category: "Shirts",
+    taxCode: "txcd_00000000",
+    sampleApproved: true,
+    published: true,
+  });
+  return id;
+}
+test("shop pricing distinguishes markup from margin, respects overrides, and rounds cents", () => {
+  assert.equal(
+    priceVariant({ vendorCostCents: 2000, priceCents: 3200 }, "default", 9000, 9000),
+    3800,
+  );
+  assert.equal(
+    priceVariant({ vendorCostCents: 2000, priceCents: 3200 }, "margin", 5000, 9000),
+    4000,
+  );
+  assert.equal(
+    priceVariant(
+      { vendorCostCents: 2000, costOverrideCents: 1500, priceCents: 3200 },
+      "markup",
+      9000,
+      9000,
+    ),
+    2850,
+  );
+  assert.equal(
+    priceVariant(
+      { vendorCostCents: 2000, priceOverrideCents: 3200, priceCents: 3800 },
+      "default",
+      9000,
+      9000,
+    ),
+    3200,
+  );
+  assert.equal(
+    priceVariant({ vendorCostCents: 1001, priceCents: 3200 }, "markup", 2500, 9000),
+    1252,
+  );
+  assert.equal(priceMetrics(2000, 4000)?.margin, 50);
+  assert.throws(() =>
+    priceVariant({ vendorCostCents: 2000, priceCents: 3200 }, "margin", 9500, 9000),
+  );
+  assert.throws(() => priceVariant({ priceCents: 3200 }, "default", 9000, 9000));
+});
+test("Printify management: owner scope, product CRUD, pricing revisions and private studio images", async () => {
+  const { sql, db } = await fixture();
+  try {
+    await assert.rejects(() => createDraft(sql, "parent", "unauthorized"), /Owner/);
+    await assert.rejects(() => createDraft(sql, "fake", "spoofed admin"), /Owner/);
+    const draft = await createDraft(sql, "owner", "SYNTHETIC Draft");
+    assert.ok(draft.startsWith("draft-"));
+    const id = await publishPrintify(sql);
+    let [p] = await sql<
+      import("./contracts").ShopProduct
+    >`select * from shop_products where id=${id}`;
+    assert.equal(p.variants[0].priceCents, 3800);
+    const imageId = p.gallery[0].id;
+    assert.equal((await shopImageResponse(sql, imageId, null)).status, 200);
+    const base = {
+      id,
+      revision: p.revision,
+      title: p.title,
+      description: p.description,
+      sizeGuide: p.size_guide,
+      teamLabel: "13U",
+      category: "Shirts",
+      taxCode: p.tax_code,
+      sampleApproved: true,
+      published: true,
+      pricingMode: "default" as const,
+      pricingBps: 9000,
+      variants: p.variants.map((v) => ({
+        id: v.id,
+        costOverrideCents: null,
+        priceOverrideCents: v.id === 100 ? 3200 : null,
+        sellEnabled: true,
+      })),
+    };
+    await saveManagedProduct(sql, "owner", base);
+    await assert.rejects(() => saveManagedProduct(sql, "owner", base), /changed/);
+    await savePricingSettings(sql, "owner", 1, 10000);
+    [p] = await sql<import("./contracts").ShopProduct>`select * from shop_products where id=${id}`;
+    assert.equal(p.variants[0].priceCents, 3200);
+    assert.equal(p.variants[1].priceCents, 4400);
+    await archiveProduct(sql, "owner", id, p.revision, true);
+    assert.equal((await publicShop(sql)).products.length, 0);
+    assert.equal((await shopImageResponse(sql, imageId, null)).status, 404);
+    assert.equal((await shopImageResponse(sql, imageId, "parent")).status, 404);
+    assert.equal((await shopImageResponse(sql, imageId, "owner")).status, 200);
+    [p] = await sql<import("./contracts").ShopProduct>`select * from shop_products where id=${id}`;
+    await archiveProduct(sql, "owner", id, p.revision, false);
+    [p] = await sql<import("./contracts").ShopProduct>`select * from shop_products where id=${id}`;
+    assert.equal(p.published, false);
+    await editGallery(sql, "owner", { id, revision: p.revision, imageIds: [] });
+    assert.equal((await shopImageResponse(sql, imageId, "owner")).status, 404);
+    assert.ok((await sql`select * from shop_changes`).length >= 7);
+    assert.throws(() => validateStudioPng("data:image/svg+xml;base64,PHN2Zz4="));
+    assert.throws(() => validateStudioPng(studioPng().slice(0, -20)));
+  } finally {
+    await db.close();
+  }
+});
+test("Printify quotes pass exact shipping with markup overrides and reject manufacturing changes", async () => {
+  const { sql, db } = await fixture();
+  try {
+    const id = await publishPrintify(sql),
+      input = request();
+    input.cart[0].productId = id;
+    const q = await createShopQuote(sql, "parent", input, {
+      environment: "production",
+      printify: printifyRequest,
+      printifyBase: "/shops/1",
+      tax: deps.tax,
+    });
+    assert.equal(q.quote.lines.find((l) => l.label === "Standard shipping")?.cents, 578);
+    assert.equal(q.quote.totalCents, 9053);
+    assert.equal(
+      (await sql`select provider,vendor_cap_cents from shop_order_details`)[0].vendor_cap_cents,
+      4578,
+    );
+    const changed = printifyProduct();
+    changed.print_areas[0].placeholders[0].images[0].x = 0.7;
+    await assert.rejects(
+      () =>
+        createShopQuote(
+          sql,
+          "parent",
+          { ...input, requestId: randomUUID() },
+          {
+            environment: "production",
+            printify: (async () => changed) as PrintifyRequest,
+            printifyBase: "/shops/1",
+            tax: deps.tax,
+          },
+        ),
+      /artwork/,
+    );
+    assert.notEqual(
+      parsePrintifyProduct(changed).hash,
+      parsePrintifyProduct(printifyProduct()).hash,
+    );
+    const [p] = await sql<
+      import("./contracts").ShopProduct
+    >`select * from shop_products where id=${id}`;
+    await archiveProduct(sql, "owner", id, p.revision, true);
+    assert.equal((await shopOrders(sql, "parent")).length, 1, "archiving preserves order history");
+    await assert.rejects(
+      () =>
+        createShopQuote(
+          sql,
+          "parent",
+          { ...input, requestId: randomUUID() },
+          {
+            environment: "production",
+            printify: printifyRequest,
+            printifyBase: "/shops/1",
+            tax: deps.tax,
+          },
+        ),
+      /no longer/,
+    );
+  } finally {
+    await db.close();
+  }
+});
+test("Printify fulfillment recovers ambiguous creation without duplicate orders and holds changed shipping", async () => {
+  const { sql, db } = await fixture();
+  try {
+    const id = await publishPrintify(sql),
+      input = request();
+    input.cart[0].productId = id;
+    const q = await createShopQuote(sql, "parent", input, {
+      environment: "production",
+      printify: printifyRequest,
+      printifyBase: "/shops/1",
+      tax: deps.tax,
+    });
+    await sql`update commerce_orders set status='paid' where id=${q.orderId}`;
+    await sql`update shop_order_details set status='queued' where order_id=${q.orderId}`;
+    let created = 0,
+      confirmed = 0;
+    let remote: PrintifyOrder | undefined;
+    const requestVendor = (async (path: string, body?: unknown) => {
+      if (path.includes("/products/")) return printifyProduct();
+      if (path.includes("/orders.json?")) return { data: remote ? [remote] : [], last_page: 1 };
+      if (path.endsWith("/orders.json")) {
+        created++;
+        const data = body as { external_id: string; line_items: PrintifyOrder["line_items"] };
+        remote = {
+          id: "synthetic-order",
+          status: "on-hold",
+          metadata: { shop_order_id: data.external_id },
+          line_items: data.line_items.map((l) => ({ ...l, cost: 2000 })),
+          total_shipping: 578,
+          total_tax: 0,
+        };
+        throw new Error("Synthetic timeout after remote create");
+      }
+      if (path.endsWith("/send_to_production.json")) {
+        confirmed++;
+        remote!.status = "in-production";
+        return {};
+      }
+      return remote;
+    }) as PrintifyRequest;
+    await processShopOrders(sql, { printify: requestVendor, base: "/shops/1" });
+    await sql`update shop_order_details set next_attempt_at=now()`;
+    await processShopOrders(sql, { printify: requestVendor, base: "/shops/1" });
+    assert.equal(created, 1);
+    assert.equal(confirmed, 1);
+    assert.equal(printifyOrderCost(remote!).total, 4578);
+    remote!.status = "fulfilled";
+    remote!.shipments = [
+      {
+        carrier: "Synthetic carrier",
+        number: "TEST-TRACKING",
+        url: "https://example.invalid/track",
+      },
+    ];
+    await sql`update shop_order_details set next_attempt_at=now()`;
+    await processShopOrders(sql, { printify: requestVendor, base: "/shops/1" });
+    assert.equal((await shopOrders(sql, "parent"))[0].fulfillment_status, "shipped");
+    remote!.status = "on-hold";
+    remote!.total_shipping = 579;
+    await sql`update shop_order_details set status='submitted',next_attempt_at=now()`;
+    await processShopOrders(sql, { printify: requestVendor, base: "/shops/1" });
+    assert.equal(confirmed, 1);
+    assert.equal((await sql`select status from shop_order_details`)[0].status, "review");
+    await sql`update shop_order_details set status='processing',provider_id=null,next_attempt_at=now()`;
+    remote = undefined;
+    await processShopOrders(sql, { printify: requestVendor, base: "/shops/1" });
+    assert.equal(created, 1);
+    assert.equal(
+      (await sql`select status from shop_order_details`)[0].status,
+      "review",
+      "uncertain create never repeats",
+    );
+  } finally {
+    await db.close();
+  }
+});
+test("Printify client sends server-side authentication to only the official API", async () => {
+  let called = 0;
+  const client = printifyClient(
+    { PRINTIFY_ACCESS_TOKEN: "SYNTHETIC_NOT_A_CREDENTIAL" },
+    async (url, options) => {
+      called++;
+      assert.equal(url, "https://api.printify.com/v1/shops.json");
+      assert.equal(options?.redirect, "error");
+      assert.equal(
+        (options?.headers as Record<string, string>).Authorization,
+        "Bearer SYNTHETIC_NOT_A_CREDENTIAL",
+      );
+      return Response.json([]);
+    },
+  );
+  await client("/shops.json");
+  assert.equal(called, 1);
+  assert.throws(() => printifyClient({}), /not connected/);
 });
