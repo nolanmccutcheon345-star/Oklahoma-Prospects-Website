@@ -165,8 +165,7 @@ try {
   await page.getByRole("button", { name: /^Notifications/ }).click();
   await page.getByText(/Tryout follow-up updated/).waitFor();
   const owner = await signedIn("stevemccutcheon89@gmail.com", 1280);
-  await owner.page.goto(origin + "/registrations");
-  await owner.page.getByRole("button", { name: "Open Tryout Test Player", exact: true }).click();
+  await owner.page.goto(origin + "/registrations?registration=fixture-registration");
   await owner.page.getByText("Synthetic guardian requested a callback", { exact: true }).waitFor();
   await owner.page.screenshot({ path: shots + "/owner-registration.png", fullPage: true });
   const parent = await signedIn("parent@example.invalid");

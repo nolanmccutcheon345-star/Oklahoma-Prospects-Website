@@ -50,6 +50,8 @@ export async function deliverCenterNotifications(sql: Sql, env: Env, send: typeo
         subject: string;
         body: string;
         reply_to: string;
+        request_id: string;
+        recipient_id: string | null;
         request_body: Record<string, unknown> | null;
         attempts: number;
         first_attempt_at: Date | null;
@@ -63,11 +65,19 @@ export async function deliverCenterNotifications(sql: Sql, env: Env, send: typeo
         await tx`update tryout_center_notices set status='review',lease_token=null,lease_until=null where id=${row.id}`;
         return null;
       }
+      let message = row.body;
+      if (!row.request_body && row.recipient_id) {
+        const [registration] = await tx<{
+          payload: Record<string, string>;
+        }>`select payload from club_requests where id=${row.request_id}`;
+        const p = registration?.payload;
+        message += `\n\nPlayer: ${p?.player || "Registered player"}\nDivision: ${p?.sport || ""} ${p?.age || ""}\nRequested event: ${p?.session || p?.requestedEventId || p?.requestType || "See registration"}\nSecure registration: https://prospectssports.club/registrations?registration=${encodeURIComponent(row.request_id)}`;
+      }
       const body = row.request_body ?? {
         from: env.RESEND_FROM_EMAIL || env.EMAIL_FROM,
         to: [row.email],
         subject: row.subject,
-        text: row.body,
+        text: message,
         ...(row.reply_to ? { reply_to: row.reply_to } : {}),
       };
       await tx`update tryout_center_notices set status='processing',lease_token=${lease},lease_until=now()+interval '2 minutes',attempts=attempts+1,first_attempt_at=coalesce(first_attempt_at,now()),request_body=${JSON.stringify(body)}::jsonb where id=${row.id}`;

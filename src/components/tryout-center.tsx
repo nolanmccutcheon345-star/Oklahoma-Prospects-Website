@@ -90,6 +90,7 @@ export function TryoutCenter() {
     }
   }
   useEffect(() => {
+    setSelected(new URLSearchParams(window.location.search).get("registration") || "");
     void refresh();
   }, []);
   async function run(work: () => Promise<unknown>, message: string) {
