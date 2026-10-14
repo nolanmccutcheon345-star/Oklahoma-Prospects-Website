@@ -10,7 +10,7 @@ export type Job = {
   status: string;
   attempts: number;
   provider_id: string | null;
-  provider: "printful" | "printify";
+  provider: "printful" | "printify" | "fulfill-engine";
   vendor_create_started_at: Date | null;
   vendor_shipping_cents: number | null;
 };
@@ -34,6 +34,10 @@ export async function processShopOrders(
   });
   if (!job) return { processed: 0 };
   try {
+    if (job.provider === "fulfill-engine") {
+      await sql`update shop_order_details set status='review',last_error='Fulfill Engine production submission is not enabled. No supplier order was created.',lease_token=null,lease_until=null where order_id=${job.order_id} and lease_token=${token}`;
+      return { processed: 1 };
+    }
     if (job.provider === "printify") {
       const deps = provided && typeof provided !== "function" ? provided : undefined;
       await (

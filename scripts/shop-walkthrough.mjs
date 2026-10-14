@@ -153,6 +153,16 @@ try {
   await page.getByRole("button", { name: "Sign in", exact: true }).click();
   await page.waitForURL(h.base + "/merchandise");
   await page.getByRole("button", { name: "Shop owner controls", exact: true }).click();
+  await page.getByText("Fulfill Engine connection & launch", { exact: true }).waitFor();
+  assert.equal(
+    (
+      await h.sql`select id from shop_products where id like 'launch-%' and not published and variants='[]'::jsonb`
+    ).length,
+    6,
+  );
+  await h.sql`delete from shop_products where id like 'launch-%'`;
+  await page.reload();
+  await page.getByRole("button", { name: "Shop owner controls", exact: true }).click();
   await page.getByRole("button", { name: "Save product", exact: true }).waitFor();
   await page.getByLabel("Description", { exact: true }).fill("SYNTHETIC owner saved description");
   await page.getByLabel("Stripe Tax product category code", { exact: true }).fill("txcd_00000000");
@@ -162,9 +172,14 @@ try {
     (await h.sql`select description from shop_products where id='fixture-shop'`)[0].description,
     "SYNTHETIC owner saved description",
   );
-  await page.getByLabel("Printify product ID", { exact: true }).fill("123");
+  await page.getByLabel("Fulfill Engine product ID", { exact: true }).fill("123");
   await page.getByRole("button", { name: "Import product", exact: true }).click();
-  await page.getByText("Printify is not connected.", { exact: true }).waitFor();
+  await page
+    .getByText(
+      "Fulfill Engine is not connected. Complete the Platform Connect account request first.",
+      { exact: true },
+    )
+    .waitFor();
   assert.equal(
     (await h.sql`select id from shop_products`).length,
     1,
@@ -206,13 +221,11 @@ try {
     x.fill();
     return c.toDataURL("image/png").split(",")[1];
   });
-  await draft
-    .getByLabel("Upload product photo", { exact: true })
-    .setInputFiles({
-      name: "synthetic-shirt.png",
-      mimeType: "image/png",
-      buffer: Buffer.from(source, "base64"),
-    });
+  await draft.getByLabel("Upload product photo", { exact: true }).setInputFiles({
+    name: "synthetic-shirt.png",
+    mimeType: "image/png",
+    buffer: Buffer.from(source, "base64"),
+  });
   await draft.getByRole("button", { name: "Use prepared photo", exact: true }).waitFor();
   await draft.getByRole("img", { name: "Prepared product photo preview", exact: true }).waitFor();
   assert.equal(

@@ -70,6 +70,7 @@ export type ShopVariant = {
   costOverrideCents?: number | null;
   priceOverrideCents?: number | null;
   sellEnabled?: boolean;
+  fulfillment?: { sku: string; designId: string; campaignId: string; catalogProductId: string };
   item: Omit<PrintItem, "quantity">;
 };
 export type ShopProduct = {
@@ -85,7 +86,7 @@ export type ShopProduct = {
   published: boolean;
   sample_approved: boolean;
   revision: number;
-  provider: "printful" | "printify";
+  provider: "printful" | "printify" | "fulfill-engine";
   provider_product_id: string | null;
   archived: boolean;
   pricing_mode: import("./pricing").PricingMode;
@@ -93,6 +94,7 @@ export type ShopProduct = {
   manufacturing_hash: string;
   gallery: ShopImage[];
   image_approved: boolean;
+  preparation_notes: string;
 };
 export type ShopImage = { id: string; url: string; alt: string; variantIds: number[] };
 export function dollarsToCents(value: unknown) {

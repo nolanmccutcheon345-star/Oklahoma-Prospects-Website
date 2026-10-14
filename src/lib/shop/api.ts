@@ -33,7 +33,15 @@ export const getShopOffice = createServerFn({ method: "GET" })
     const store = await import("./store.server");
     await store.owner(sql, context.paymentUserId);
     return {
-      readiness: store.shopReadiness(),
+      readiness: {
+        vendor: Boolean(
+          process.env.FULFILL_ENGINE_API_KEY && process.env.FULFILL_ENGINE_ACCOUNT_ID,
+        ),
+        campaign: Boolean(process.env.FULFILL_ENGINE_CAMPAIGN_ID),
+        shipping: false,
+        fulfillment: false,
+        tax: store.shopReadiness().tax,
+      },
       settings: await (await import("./management.server")).settings(sql),
       products: (
         await sql<import("./contracts").ShopProduct>`select * from shop_products order by title`
@@ -60,17 +68,18 @@ export const syncShopProduct = createServerFn({ method: "POST" })
       .object({
         id: z.string().regex(/^[a-zA-Z0-9_-]{1,80}$/),
         targetId: z.string().max(80).optional(),
+        provider: z.enum(["printify", "fulfill-engine"]).default("fulfill-engine"),
       })
       .strict(),
   )
   .handler(async ({ context, data }) => {
     const { getSql } = await import("../db");
-    return (await import("./management.server")).syncPrintifyProduct(
-      await getSql(),
-      context.paymentUserId,
-      data.id,
-      data.targetId,
-    );
+    const management = await import("./management.server");
+    return (
+      data.provider === "printify"
+        ? management.syncPrintifyProduct
+        : management.syncFulfillEngineProduct
+    )(await getSql(), context.paymentUserId, data.id, data.targetId);
   });
 export const saveShopProduct = createServerFn({ method: "POST" })
   .middleware([paymentAuth])
@@ -87,6 +96,7 @@ export const saveShopProduct = createServerFn({ method: "POST" })
         sampleApproved: z.boolean(),
         published: z.boolean(),
         title: z.string().trim().min(1).max(200),
+        preparationNotes: z.string().max(5000).optional(),
         pricingMode: z.enum(["default", "markup", "margin", "fixed"]),
         pricingBps: z.number().int().min(0).max(100000),
         variants: z
@@ -233,4 +243,21 @@ export const canManageShop = createServerFn({ method: "GET" })
     } catch {
       return false;
     }
+  });
+
+export const checkFulfillEngineConnection = createServerFn({ method: "POST" })
+  .middleware([paymentAuth])
+  .handler(async ({ context }) => {
+    const { getSql } = await import("../db");
+    await (await import("./store.server")).owner(await getSql(), context.paymentUserId);
+    return (await import("./fulfill-engine.server")).inspectFulfillEngineConnection();
+  });
+export const searchFulfillEngineCatalog = createServerFn({ method: "POST" })
+  .middleware([paymentAuth])
+  .validator(z.object({ query: z.string().trim().min(2).max(100) }).strict())
+  .handler(async ({ context, data }) => {
+    const { getSql } = await import("../db");
+    await (await import("./store.server")).owner(await getSql(), context.paymentUserId);
+    await (await import("../commerce/checkout.server")).rateLimit("shop-catalog", 10);
+    return (await import("./fulfill-engine.server")).browseFulfillEngineCatalog(data.query);
   });

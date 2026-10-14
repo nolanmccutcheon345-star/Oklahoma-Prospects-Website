@@ -1,5 +1,7 @@
 # Oklahoma Prospects — Printify shop setup
 
+**Superseded for new products:** see `SHOP-FULFILL-ENGINE-SETUP.md`. Retained for historical Printify records. Fulfill Engine account, shipping and fulfillment acceptance remain pending.
+
 The owner selected **Printify's free plan** on October 14, 2026. This supersedes the earlier Printful recommendation. Production stays at https://prospectssports.club/merchandise, with existing Better Auth accounts, PostgreSQL records and embedded Square checkout. Customers do not use a Printify storefront. Historical Printful products/orders retain their supplier identity and fulfillment adapter.
 
 ## Product and pricing controls
