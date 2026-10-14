@@ -54,7 +54,7 @@ Six private drafts are added without variants, prices, public photos or approval
 5. Women's Performance Cap — adjustable fit; grey/maroon or navy; P embroidery.
 6. Coach Cage Jacket — target Nike; navy/maroon; P left chest; no shorts.
 
-Each has editable **Private buying & design notes**. Existing approved P/wordmark assets are the design direction; the artwork has not been uploaded or digitized for production. Embroidery requires a supplier-approved DST file, stitch count/thread selection and physical sample. Do not use mockup pixels as print-ready logo art or invent manufacturer colors/sizes.
+Each has editable **Private buying & design notes**. The existing approved P mark and the supplied mockup lettering are the design direction; the artwork has not been uploaded or digitized for production. Embroidery requires a supplier-approved DST file, stitch count/thread selection and physical sample. Do not use mockup pixels as print-ready logo art or invent manufacturer colors/sizes.
 
 ## Remaining launch blockers — do not enable sales
 
