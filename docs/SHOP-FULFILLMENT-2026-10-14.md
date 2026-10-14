@@ -1,5 +1,7 @@
 # Oklahoma Prospects shop — implementation and launch record
 
+**Updated vendor decision:** The owner selected Printify’s free plan after this initial research. Follow [the current Printify setup and product-management guide](SHOP-PRINTIFY-SETUP.md). The Printful costs and recommendation below are historical research, not current Printify product quotes.
+
 Production project: `nolanmccutcheon345-star/Oklahoma-Prospects-Website`, Netlify `c49ad0ab-1b2c-412e-88d9-1f6ddf490a17`, https://prospectssports.club/merchandise. This extends the existing Better Auth accounts, PostgreSQL database, Square payment ledger, verified webhooks, reconciliation and receipt delivery. No separate customer portal or vendor storefront.
 
 ## Vendor decision

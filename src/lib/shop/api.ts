@@ -34,6 +34,7 @@ export const getShopOffice = createServerFn({ method: "GET" })
     await store.owner(sql, context.paymentUserId);
     return {
       readiness: store.shopReadiness(),
+      settings: await (await import("./management.server")).settings(sql),
       products: (
         await sql<import("./contracts").ShopProduct>`select * from shop_products order by title`
       ).map((p) => ({
@@ -43,6 +44,10 @@ export const getShopOffice = createServerFn({ method: "GET" })
           label: v.label,
           priceCents: v.priceCents,
           available: v.available,
+          vendorCostCents: v.vendorCostCents,
+          costOverrideCents: v.costOverrideCents ?? null,
+          priceOverrideCents: v.priceOverrideCents ?? null,
+          sellEnabled: v.sellEnabled !== false,
         })),
       })),
       orders: await store.shopOrders(sql, context.paymentUserId, true),
@@ -50,13 +55,21 @@ export const getShopOffice = createServerFn({ method: "GET" })
   });
 export const syncShopProduct = createServerFn({ method: "POST" })
   .middleware([paymentAuth])
-  .validator(z.object({ id: z.string().regex(/^\d+$/).max(20) }).strict())
+  .validator(
+    z
+      .object({
+        id: z.string().regex(/^[a-zA-Z0-9_-]{1,80}$/),
+        targetId: z.string().max(80).optional(),
+      })
+      .strict(),
+  )
   .handler(async ({ context, data }) => {
     const { getSql } = await import("../db");
-    return (await import("./store.server")).importProduct(
+    return (await import("./management.server")).syncPrintifyProduct(
       await getSql(),
       context.paymentUserId,
       data.id,
+      data.targetId,
     );
   });
 export const saveShopProduct = createServerFn({ method: "POST" })
@@ -73,6 +86,21 @@ export const saveShopProduct = createServerFn({ method: "POST" })
         taxCode: z.string().max(30),
         sampleApproved: z.boolean(),
         published: z.boolean(),
+        title: z.string().trim().min(1).max(200),
+        pricingMode: z.enum(["default", "markup", "margin", "fixed"]),
+        pricingBps: z.number().int().min(0).max(100000),
+        variants: z
+          .array(
+            z
+              .object({
+                id: z.number().int().positive(),
+                costOverrideCents: z.number().int().min(1).max(250000).nullable(),
+                priceOverrideCents: z.number().int().min(1).max(250000).nullable(),
+                sellEnabled: z.boolean(),
+              })
+              .strict(),
+          )
+          .max(500),
       })
       .strict(),
   )
@@ -83,6 +111,107 @@ export const saveShopProduct = createServerFn({ method: "POST" })
       context.paymentUserId,
       data,
     );
+  });
+
+export const createShopDraft = createServerFn({ method: "POST" })
+  .middleware([paymentAuth])
+  .validator(z.object({ title: z.string().trim().min(1).max(200) }).strict())
+  .handler(async ({ context, data }) => {
+    const { getSql } = await import("../db");
+    return (await import("./management.server")).createDraft(
+      await getSql(),
+      context.paymentUserId,
+      data.title,
+    );
+  });
+export const archiveShopProduct = createServerFn({ method: "POST" })
+  .middleware([paymentAuth])
+  .validator(
+    z
+      .object({
+        id: z.string().max(80),
+        revision: z.number().int().positive(),
+        archived: z.boolean(),
+      })
+      .strict(),
+  )
+  .handler(async ({ context, data }) => {
+    const { getSql } = await import("../db");
+    return (await import("./management.server")).archiveProduct(
+      await getSql(),
+      context.paymentUserId,
+      data.id,
+      data.revision,
+      data.archived,
+    );
+  });
+export const saveShopPricing = createServerFn({ method: "POST" })
+  .middleware([paymentAuth])
+  .validator(
+    z
+      .object({
+        revision: z.number().int().positive(),
+        markupBps: z.number().int().min(0).max(100000),
+      })
+      .strict(),
+  )
+  .handler(async ({ context, data }) => {
+    const { getSql } = await import("../db");
+    return (await import("./management.server")).savePricingSettings(
+      await getSql(),
+      context.paymentUserId,
+      data.revision,
+      data.markupBps,
+    );
+  });
+export const uploadShopPhoto = createServerFn({ method: "POST" })
+  .middleware([paymentAuth])
+  .validator(
+    z
+      .object({
+        id: z.string().max(80),
+        revision: z.number().int().positive(),
+        data: z.string().max(2800000),
+        alt: z.string().trim().min(1).max(200),
+        variantIds: z.array(z.number().int().positive()).max(500),
+      })
+      .strict(),
+  )
+  .handler(async ({ context, data }) => {
+    const { rateLimit } = await import("../commerce/checkout.server");
+    await rateLimit("shop-image", 20);
+    const { getSql } = await import("../db");
+    return (await import("./management.server")).uploadStudioPhoto(
+      await getSql(),
+      context.paymentUserId,
+      data,
+    );
+  });
+export const saveShopGallery = createServerFn({ method: "POST" })
+  .middleware([paymentAuth])
+  .validator(
+    z
+      .object({
+        id: z.string().max(80),
+        revision: z.number().int().positive(),
+        imageIds: z.array(z.string().uuid()).max(8),
+      })
+      .strict(),
+  )
+  .handler(async ({ context, data }) => {
+    const { getSql } = await import("../db");
+    return (await import("./management.server")).editGallery(
+      await getSql(),
+      context.paymentUserId,
+      data,
+    );
+  });
+export const checkPrintifyConnection = createServerFn({ method: "POST" })
+  .middleware([paymentAuth])
+  .handler(async ({ context }) => {
+    const { getSql } = await import("../db");
+    await (await import("./store.server")).owner(await getSql(), context.paymentUserId);
+    return (await import("./printify.server")).inspectPrintifyConnection();
   });
 export const refreshShopOrders = createServerFn({ method: "POST" })
   .middleware([paymentAuth])

@@ -86,6 +86,7 @@ try {
       id: 100,
       label: "Navy / M",
       priceCents: 5000,
+      vendorCostCents: 2000,
       available: true,
       item: { variant_id: 200, files: [{ id: 300, type: "front" }], options: [] },
     },
@@ -93,13 +94,21 @@ try {
       id: 101,
       label: "Navy / L",
       priceCents: 5200,
+      vendorCostCents: 2200,
       available: true,
       item: { variant_id: 201, files: [{ id: 300, type: "front" }], options: [] },
     },
   ];
-  await h.sql`insert into shop_products(id,title,description,image_url,variants,size_guide,updated_by,published,sample_approved) values('fixture-shop','SYNTHETIC Test Hoodie','Synthetic product for browser verification only.','/images/shop/starting-collection.jpg',${JSON.stringify(variants)}::jsonb,'Synthetic guide only.','fixture-owner',true,true)`;
+  await h.sql`insert into shop_products(id,title,description,image_url,variants,size_guide,updated_by,published,sample_approved,provider,provider_product_id,pricing_mode) values('fixture-shop','SYNTHETIC Test Hoodie','Synthetic product for browser verification only.','/images/shop/starting-collection.jpg',${JSON.stringify(variants)}::jsonb,'Synthetic guide only.','fixture-owner',true,true,'printify','synthetic-product','default')`;
   await page.reload();
   await page.getByRole("heading", { name: "SYNTHETIC Test Hoodie", exact: true }).waitFor();
+  await page.getByRole("link", { name: "View product details", exact: true }).click();
+  await page.waitForURL(h.base + "/merchandise/fixture-shop");
+  await page.getByRole("link", { name: "Back to the collection" }).waitFor();
+  assert.ok(
+    await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),
+    "product detail reflows",
+  );
   await page.getByLabel("Color / size", { exact: true }).selectOption("101");
   await page.getByRole("button", { name: "Add to bag", exact: true }).click();
   await page.getByRole("button", { name: "Bag (1)", exact: true }).click();
@@ -153,22 +162,98 @@ try {
     (await h.sql`select description from shop_products where id='fixture-shop'`)[0].description,
     "SYNTHETIC owner saved description",
   );
-  await page.getByLabel("Printful sync product ID", { exact: true }).fill("123");
+  await page.getByLabel("Printify product ID", { exact: true }).fill("123");
   await page.getByRole("button", { name: "Import product", exact: true }).click();
-  await page.getByText("Fulfillment is not connected.", { exact: true }).waitFor();
+  await page.getByText("Printify is not connected.", { exact: true }).waitFor();
   assert.equal(
     (await h.sql`select id from shop_products`).length,
     1,
     "disconnected import creates no fake products",
   );
-  assert.ok(
-    await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),
-    "owner controls reflow",
+  await page.getByLabel("Fixed retail override Navy / M", { exact: true }).fill("32");
+  await page.getByRole("button", { name: "Save product", exact: true }).click();
+  await page.getByRole("status").filter({ hasText: "Saved." }).waitFor();
+  await page.getByLabel("Default markup on vendor cost (%)", { exact: true }).fill("100");
+  await page.getByRole("button", { name: "Save store pricing", exact: true }).click();
+  await page.getByRole("status").filter({ hasText: "Saved." }).waitFor();
+  const [priced] = await h.sql`select variants from shop_products where id='fixture-shop'`;
+  assert.equal(priced.variants[0].priceCents, 3200);
+  assert.equal(priced.variants[1].priceCents, 4400);
+  await page.getByLabel("New product title", { exact: true }).fill("SYNTHETIC Photo Draft");
+  await page.getByRole("button", { name: "Create product draft", exact: true }).click();
+  const draft = page
+    .locator("article")
+    .filter({ has: page.getByRole("heading", { name: "SYNTHETIC Photo Draft", exact: true }) });
+  await draft.getByRole("heading", { name: "SYNTHETIC Photo Draft", exact: true }).waitFor();
+  const source = await page.evaluate(() => {
+    const c = document.createElement("canvas");
+    c.width = 600;
+    c.height = 800;
+    const x = c.getContext("2d");
+    x.fillStyle = "#0b223a";
+    x.beginPath();
+    x.moveTo(180, 120);
+    x.lineTo(70, 200);
+    x.lineTo(140, 310);
+    x.lineTo(190, 280);
+    x.lineTo(190, 650);
+    x.lineTo(410, 650);
+    x.lineTo(410, 280);
+    x.lineTo(460, 310);
+    x.lineTo(530, 200);
+    x.lineTo(420, 120);
+    x.closePath();
+    x.fill();
+    return c.toDataURL("image/png").split(",")[1];
+  });
+  await draft
+    .getByLabel("Upload product photo", { exact: true })
+    .setInputFiles({
+      name: "synthetic-shirt.png",
+      mimeType: "image/png",
+      buffer: Buffer.from(source, "base64"),
+    });
+  await draft.getByRole("button", { name: "Use prepared photo", exact: true }).waitFor();
+  await draft.getByRole("img", { name: "Prepared product photo preview", exact: true }).waitFor();
+  assert.equal(
+    await draft
+      .getByRole("img", { name: "Prepared product photo preview", exact: true })
+      .evaluate((img) => img.naturalWidth),
+    1000,
   );
+  await draft.getByRole("button", { name: "Use prepared photo", exact: true }).click();
+  await page.getByRole("status").filter({ hasText: "Saved." }).waitFor();
+  const [savedDraft] = await h.sql`select * from shop_products where title='SYNTHETIC Photo Draft'`;
+  assert.equal(savedDraft.gallery.length, 1);
+  assert.equal(savedDraft.image_approved, true);
+  const privateImage = await handler(new Request(h.base + savedDraft.gallery[0].url));
+  assert.equal(privateImage.status, 404, "draft product images stay private");
+  await draft.getByRole("button", { name: "Remove product from shop", exact: true }).click();
+  await draft.getByRole("button", { name: "Confirm archive", exact: true }).click();
+  await page.getByRole("status").filter({ hasText: "Saved." }).waitFor();
+  assert.equal(
+    (await h.sql`select archived from shop_products where id=${savedDraft.id}`)[0].archived,
+    true,
+  );
+  await page.getByLabel("Show archived products", { exact: true }).check();
+  await draft.getByRole("button", { name: "Restore as draft", exact: true }).click();
+  await page.getByRole("status").filter({ hasText: "Saved." }).waitFor();
+  assert.equal(
+    (await h.sql`select published from shop_products where id=${savedDraft.id}`)[0].published,
+    false,
+  );
+  for (const width of [320, 390, 768, 1280]) {
+    await page.setViewportSize({ width, height: 900 });
+    assert.ok(
+      await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),
+      "owner studio overflow " + width,
+    );
+  }
+  await page.setViewportSize({ width: 390, height: 844 });
   await page.screenshot({ path: output + "/owner-mobile.png", fullPage: true });
   assert.deepEqual(errors, []);
   console.log(
-    "PASS shop lookbook, variant/quantity/cart persistence, mobile reflow, guest privacy, owner save/import forms and disabled-payment guard.",
+    "PASS shop lookbook, variant/quantity/cart persistence, mobile reflow, guest privacy, owner CRUD/pricing, photo normalization/private images, product detail and disabled-payment guard.",
   );
 } catch (e) {
   if (browser)
