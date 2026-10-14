@@ -10,7 +10,8 @@ import {
   saveShopPricing,
   uploadShopPhoto,
   saveShopGallery,
-  checkPrintifyConnection,
+  checkFulfillEngineConnection,
+  searchFulfillEngineCatalog,
 } from "@/lib/shop/api";
 import { priceVariant, priceMetrics, type PricingMode } from "@/lib/shop/pricing";
 import { prepareProductPhoto } from "@/lib/shop/photo-studio";
@@ -72,39 +73,45 @@ export function ShopOffice({ changed }: { changed: () => void }) {
         <>
           <details className="my-5 rounded-xl border border-line p-4" open={!data.readiness.vendor}>
             <summary className="cursor-pointer text-lg font-semibold">
-              Printify connection & launch
+              Fulfill Engine connection &amp; launch
             </summary>
             <p className="mt-3 text-sm">
-              Use the free plan and a dedicated Printify API store. Customer browsing and Square
-              checkout stay here.
+              Selected for the premium Prospects collection. Browsing, product management and Square
+              checkout stay on our website.
             </p>
             <ol className="my-3 list-decimal space-y-2 pl-5 text-sm">
-              <li>Create the Printify account and API store named Oklahoma Prospects.</li>
+              <li>Request the free Platform Connect account for Oklahoma Prospects.</li>
               <li>
-                Set order approval to Manual, disable order routing, choose USD billing, and add
-                your fulfillment payment method.
+                Confirm access to the exact Richardson, Nike, Under Armour and adidas styles. The
+                Game and EvoShield are not verified.
               </li>
               <li>
-                Add the access token and shop ID through the site’s secure production configuration.
-                Never paste a token into a product field.
+                Add the account ID, API key and design campaign ID through secure production
+                configuration. Never paste credentials into a product field.
               </li>
               <li>
-                Import products, prepare photos, approve samples, configure tax and complete a
-                controlled acceptance order before enabling checkout.
+                Configure production artwork in Fulfill Engine, then import the decorated product
+                below. Supplier base prices remain preliminary until decoration, order fees and
+                supplier tax are confirmed.
+              </li>
+              <li>
+                Verify the vendor’s shipping calculation, finish the order integration and test
+                fulfillment before opening sales. The public API does not currently document a
+                pre-checkout shipping quote.
               </li>
             </ol>
             <div className="flex flex-wrap gap-3">
               <a
                 className="underline"
-                href="https://printify.com/app/auth/register"
+                href="https://fulfillengine.com/pages/platform-connect-signup"
                 target="_blank"
                 rel="noreferrer"
               >
-                Create free Printify account
+                Request free Platform Connect account
               </a>
               <a
                 className="underline"
-                href="https://help.printify.com/hc/en-us/articles/4483626447249-How-can-I-generate-an-API-token"
+                href="https://help.fulfillengine.com/en/api-guide/rest-authentication"
                 target="_blank"
                 rel="noreferrer"
               >
@@ -117,18 +124,15 @@ export function ShopOffice({ changed }: { changed: () => void }) {
                   {
                     (
                       {
-                        vendor: "Printify credentials",
-                        manualApproval: "Manual approval confirmed",
-                        usdBilling: "USD billing confirmed",
-                        routingDisabled: "Order routing disabled",
+                        vendor: "Account credentials configured",
+                        campaign: "Design campaign configured",
+                        shipping: "Exact shipping calculation",
+                        fulfillment: "Order submission and tracking",
                         tax: "Tax configuration",
-                        enabled: "Checkout enabled",
-                        accepted: "Live acceptance complete",
-                        worker: "Fulfillment worker",
                       } as Record<string, string>
                     )[k]
                   }
-                  : {v ? "ready" : "pending"}
+                  : {v ? "configured — verify before launch" : "pending"}
                 </li>
               ))}
             </ul>
@@ -137,17 +141,12 @@ export function ShopOffice({ changed }: { changed: () => void }) {
               disabled={busy}
               onClick={() =>
                 void run(async () => {
-                  const r = await checkPrintifyConnection();
-                  setConnection(
-                    r.message +
-                      (r.connected
-                        ? ""
-                        : " " + r.shops.map((s) => `${s.title} — ${s.id}`).join("; ")),
-                  );
+                  const r = await checkFulfillEngineConnection();
+                  setConnection(r.message);
                 })
               }
             >
-              Check Printify connection
+              Check Fulfill Engine connection
             </Button>
             {connection && (
               <p className="mt-3 text-sm" role="status">
@@ -155,6 +154,7 @@ export function ShopOffice({ changed }: { changed: () => void }) {
               </p>
             )}
           </details>
+          <SupplierCatalog busy={busy} />
           <PricingSettings
             key={data.settings.revision}
             settings={data.settings}
@@ -184,7 +184,8 @@ export function ShopOffice({ changed }: { changed: () => void }) {
                 />
               </label>
               <p className="text-sm">
-                Start a draft now, then link its Printify product and prepare the photos.
+                Start a draft now, then link its Fulfill Engine design product and prepare the
+                photos.
               </p>
               <Button type="submit" disabled={busy}>
                 Create product draft
@@ -197,9 +198,9 @@ export function ShopOffice({ changed }: { changed: () => void }) {
                 void run(() => syncShopProduct({ data: { id } }));
               }}
             >
-              <h3 className="text-xl">Import from Printify</h3>
+              <h3 className="text-xl">Import from Fulfill Engine</h3>
               <label>
-                Printify product ID
+                Fulfill Engine product ID
                 <input
                   className={inputClass}
                   value={id}
@@ -227,7 +228,7 @@ export function ShopOffice({ changed }: { changed: () => void }) {
           </label>
           {!data.products.filter((p) => showArchived || !p.archived).length && (
             <p className="my-5">
-              No products yet. Add a draft or import your first Printify product.
+              No products yet. Add a draft or import your first Fulfill Engine product.
             </p>
           )}
           {data.products
@@ -245,7 +246,7 @@ export function ShopOffice({ changed }: { changed: () => void }) {
           <p className="my-3 text-sm">
             Verified payments enter the queue. Supplier cost or shipping changes, refunds and
             production problems need owner review. A Square refund does not cancel manufacturing;
-            cancel an unsubmitted order in Printify separately.
+            check cancellation eligibility with that order’s supplier separately.
           </p>
           <Button
             variant="outlineDark"
@@ -301,7 +302,8 @@ function PricingSettings({
         Retail = vendor cost × (1 + markup). A $20 cost becomes{" "}
         {formatMoney(Math.ceil(2000 * (1 + Number(markup) / 100)))}. Gross margin is{" "}
         {((Number(markup) / (100 + Number(markup))) * 100).toFixed(1)}% before fees and expenses.
-        Shipping passes through at Printify’s exact quote with no markup.
+        Shipping will use verified supplier charges with no markup. Fulfill Engine shipping and
+        complete costs are still pending; these prices are drafts.
       </p>
       <p className="mb-3 text-sm">
         Saving updates products following the store rule. Custom product rules and fixed size prices
@@ -328,6 +330,7 @@ function ProductEditor({
     id: p.id,
     revision: p.revision,
     title: p.title,
+    preparationNotes: p.preparation_notes,
     description: p.description,
     sizeGuide: p.size_guide,
     teamLabel: p.team_label,
@@ -370,16 +373,24 @@ function ProductEditor({
       </div>
       {!p.archived && (
         <>
-          {p.provider === "printify" && (
+          {(p.provider === "printify" || p.provider === "fulfill-engine") && (
             <form
               className="my-4 grid gap-3 sm:grid-cols-[1fr_auto]"
               onSubmit={(e) => {
                 e.preventDefault();
-                void run(() => syncShopProduct({ data: { id: supplierId, targetId: p.id } }));
+                void run(() =>
+                  syncShopProduct({
+                    data: {
+                      id: supplierId,
+                      targetId: p.id,
+                      provider: p.provider === "printify" ? "printify" : "fulfill-engine",
+                    },
+                  }),
+                );
               }}
             >
               <label>
-                Linked Printify product ID
+                Linked {p.provider === "printify" ? "Printify" : "Fulfill Engine"} product ID
                 <input
                   className={inputClass}
                   required
@@ -398,6 +409,13 @@ function ProductEditor({
               </Button>
             </form>
           )}
+          {p.provider === "fulfill-engine" && (
+            <p className="my-3 rounded-lg bg-paper-2 p-3 text-sm">
+              Preparation only. Confirm exact styles, full decorated costs, sample quality and
+              shipping before sales. Importing variants does not approve a product or enable
+              checkout.
+            </p>
+          )}
           {dirty && (
             <p className="my-3 text-sm">
               Save product edits before changing photos or syncing supplier details.
@@ -411,6 +429,16 @@ function ProductEditor({
               void run(() => saveShopProduct({ data: form }));
             }}
           >
+            <label>
+              Private buying &amp; design notes
+              <textarea
+                className={inputClass}
+                rows={4}
+                maxLength={5000}
+                value={form.preparationNotes}
+                onChange={(e) => setForm({ ...form, preparationNotes: e.target.value })}
+              />
+            </label>
             <label>
               Product title
               <input
@@ -822,6 +850,81 @@ function PhotoStudio({ product: p, busy, run }: { product: Product; busy: boolea
           </>
         )}
       </form>
+    </details>
+  );
+}
+
+function SupplierCatalog({ busy }: { busy: boolean }) {
+  const [query, setQuery] = useState("Richardson"),
+    [loading, setLoading] = useState(false),
+    [error, setError] = useState("");
+  const [result, setResult] = useState<Awaited<ReturnType<typeof searchFulfillEngineCatalog>>>();
+  return (
+    <details className="my-4 rounded-xl border border-line p-4">
+      <summary className="cursor-pointer text-lg font-semibold">
+        Find premium supplier products
+      </summary>
+      <p className="my-3 text-sm">
+        Search the catalog available to our connected account. Results are blank styles, not
+        approved decorated merchandise. Choose the exact style and prepare its design in Fulfill
+        Engine before importing a campaign product.
+      </p>
+      <form
+        className="flex flex-wrap items-end gap-3"
+        onSubmit={async (e) => {
+          e.preventDefault();
+          setLoading(true);
+          setError("");
+          setResult(undefined);
+          try {
+            setResult(await searchFulfillEngineCatalog({ data: { query } }));
+          } catch (e) {
+            setError(e instanceof Error ? e.message : "Catalog unavailable.");
+          } finally {
+            setLoading(false);
+          }
+        }}
+      >
+        <label className="min-w-0 flex-1">
+          Brand or style
+          <input
+            className={inputClass}
+            value={query}
+            minLength={2}
+            maxLength={100}
+            required
+            onChange={(e) => setQuery(e.target.value)}
+          />
+        </label>
+        <Button disabled={busy || loading} type="submit">
+          {loading ? "Searching…" : "Search supplier catalog"}
+        </Button>
+      </form>
+      {error && (
+        <p role="alert" className="my-3">
+          {error}
+        </p>
+      )}
+      {result && (
+        <>
+          <p role="status" className="my-3">
+            {result.total} matches. Showing up to 50; narrow the search for more specific results.
+          </p>
+          <ul className="grid gap-3 sm:grid-cols-2">
+            {result.products.map((p) => (
+              <li key={p.id} className="min-w-0 break-words rounded-lg bg-paper-2 p-3">
+                <strong>
+                  {p.brand} {p.name}
+                </strong>
+                <p className="text-sm">Style ID: {p.id}</p>
+                <p className="text-sm">
+                  Decoration: {p.methods.join(", ") || "Confirm with supplier"}
+                </p>
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
     </details>
   );
 }

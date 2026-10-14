@@ -758,3 +758,104 @@ test("Printify client sends server-side authentication to only the official API"
   assert.equal(called, 1);
   assert.throws(() => printifyClient({}), /not connected/);
 });
+
+test("Fulfill Engine launch drafts stay private and cannot charge; owner imports preserve controls", async () => {
+  const { sql, db } = await fixture();
+  try {
+    const fe = await import("./fulfill-engine.server");
+    const management = await import("./management.server");
+    assert.equal((await sql`select id from shop_products where id like 'launch-%'`).length, 6);
+    assert.equal((await publicShop(sql)).products.length, 0);
+    const requestFE = (async (path: string) => {
+      if (path.endsWith("account-prices"))
+        return {
+          products: [{ productId: "design-product", variants: [{ sku: "sku-navy-m", price: 20 }] }],
+        };
+      if (path.endsWith("inventory"))
+        return {
+          products: [{ productId: "cap-style", skus: [{ sku: "sku-navy-m", isAvailable: true }] }],
+        };
+      return [
+        {
+          id: "design-product",
+          name: "SYNTHETIC Cap",
+          catalogProductId: "cap-style",
+          designId: "design",
+          disabled: false,
+          variants: [{ sku: "sku-navy-m", options: { color: "Navy", size: "M" } }],
+        },
+      ];
+    }) as import("./fulfill-engine.server").FulfillEngineRequest;
+    await assert.rejects(
+      () =>
+        management.syncFulfillEngineProduct(
+          sql,
+          "coach",
+          "design-product",
+          undefined,
+          requestFE,
+          "campaign",
+        ),
+      /Owner/,
+    );
+    const id = await management.syncFulfillEngineProduct(
+      sql,
+      "owner",
+      "design-product",
+      "launch-performance-cap",
+      requestFE,
+      "campaign",
+    );
+    let [p] = await sql<
+      import("./contracts").ShopProduct
+    >`select * from shop_products where id=${id}`;
+    assert.equal(p.variants[0].priceCents, 3800);
+    assert.match(p.preparation_notes, /PTS20/);
+    const variantId = p.variants[0].id;
+    await management.saveManagedProduct(sql, "owner", {
+      id,
+      revision: p.revision,
+      description: "Synthetic",
+      sizeGuide: "Synthetic",
+      category: "Headwear",
+      teamLabel: "",
+      taxCode: "txcd_00000000",
+      sampleApproved: false,
+      published: false,
+      variants: [
+        { id: variantId, costOverrideCents: null, priceOverrideCents: 4200, sellEnabled: true },
+      ],
+    });
+    await management.syncFulfillEngineProduct(
+      sql,
+      "owner",
+      "design-product",
+      id,
+      requestFE,
+      "campaign",
+    );
+    [p] = await sql<import("./contracts").ShopProduct>`select * from shop_products where id=${id}`;
+    assert.equal(p.variants[0].priceCents, 4200);
+    assert.equal(p.sample_approved, false);
+    await sql`update shop_products set published=true,sample_approved=true where id=${id}`;
+    const input = request();
+    input.cart = [{ productId: id, variantId, quantity: 1 }];
+    let called = false;
+    await assert.rejects(
+      () =>
+        createShopQuote(sql, "parent", input, {
+          ...deps,
+          provider: (async () => {
+            called = true;
+            return {};
+          }) as Provider,
+        }),
+      /Fulfill Engine sales are pending/,
+    );
+    assert.equal(called, false);
+    assert.equal((await sql`select id from commerce_orders`).length, 0);
+    assert.ok(fe.FULFILL_ENGINE_LAUNCH_BLOCKER.includes("No payment"));
+  } finally {
+    await db.close();
+  }
+});

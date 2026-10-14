@@ -28,7 +28,7 @@ export async function createDraft(sql: Sql, userId: string, title: string) {
   await owner(sql, userId);
   const id = "draft-" + randomUUID();
   await sql.transaction(async (tx) => {
-    await tx`insert into shop_products(id,title,image_url,variants,updated_by,provider,pricing_mode,image_approved) values(${id},${title},'','[]',${userId},'printify','default',false)`;
+    await tx`insert into shop_products(id,title,image_url,variants,updated_by,provider,pricing_mode,image_approved) values(${id},${title},'','[]',${userId},'fulfill-engine','default',false)`;
     await audit(tx, userId, "create-draft", id);
   });
   return id;
@@ -90,6 +90,7 @@ export type ManagedProductInput = {
   id: string;
   revision: number;
   title?: string;
+  preparationNotes?: string;
   description: string;
   sizeGuide: string;
   teamLabel: string;
@@ -142,9 +143,11 @@ export async function saveManagedProduct(sql: Sql, userId: string, input: Manage
       throw new Error(
         "Approve the physical sample and studio photo, link supplier variants, and add a description, size guide and tax category before publishing.",
       );
+    if (p.provider === "fulfill-engine" && input.published)
+      throw new Error((await import("./fulfill-engine.server")).FULFILL_ENGINE_LAUNCH_BLOCKER);
     const title = (input.title ?? p.title).trim();
     if (!title) throw new Error("Product title is required.");
-    await tx`update shop_products set title=${title},description=${input.description},size_guide=${input.sizeGuide},team_label=${input.teamLabel},category=${input.category},tax_code=${input.taxCode},sample_approved=${input.sampleApproved},published=${input.published},pricing_mode=${mode},pricing_bps=${bps},variants=${JSON.stringify(variants)}::jsonb,revision=revision+1,updated_by=${userId},updated_at=now() where id=${p.id}`;
+    await tx`update shop_products set preparation_notes=${input.preparationNotes ?? p.preparation_notes},title=${title},description=${input.description},size_guide=${input.sizeGuide},team_label=${input.teamLabel},category=${input.category},tax_code=${input.taxCode},sample_approved=${input.sampleApproved},published=${input.published},pricing_mode=${mode},pricing_bps=${bps},variants=${JSON.stringify(variants)}::jsonb,revision=revision+1,updated_by=${userId},updated_at=now() where id=${p.id}`;
     await audit(tx, userId, "edit-product", p.id, {
       pricingMode: mode,
       pricingBps: bps,
@@ -292,5 +295,56 @@ export async function editGallery(
     const gallery = input.imageIds.map((id) => p.gallery.find((i) => i.id === id)!);
     await tx`update shop_products set gallery=${JSON.stringify(gallery)}::jsonb,image_url=${gallery[0]?.url || ""},image_approved=${Boolean(gallery.length)},published=${p.published && Boolean(gallery.length)},revision=revision+1,updated_by=${userId},updated_at=now() where id=${p.id}`;
     await audit(tx, userId, "edit-gallery", p.id, { imageIds: input.imageIds });
+  });
+}
+
+export async function syncFulfillEngineProduct(
+  sql: Sql,
+  userId: string,
+  id: string,
+  targetId?: string,
+  request?: import("./fulfill-engine.server").FulfillEngineRequest,
+  campaign?: string,
+) {
+  await owner(sql, userId);
+  const p = await (
+    await import("./fulfill-engine.server")
+  ).fetchFulfillEngineProduct(id, request, campaign);
+  return sql.transaction(async (tx) => {
+    const [s] = await tx<ShopSettings>`select * from shop_settings where id=1 for update`;
+    const [existing] =
+      await tx<ShopProduct>`select * from shop_products where provider='fulfill-engine' and provider_product_id=${id} for update`;
+    if (targetId && existing && existing.id !== targetId)
+      throw new Error("That supplier product is already linked to another listing.");
+    const [target] = targetId
+      ? await tx<ShopProduct>`select * from shop_products where id=${targetId} for update`
+      : [];
+    if (targetId && (!target || target.provider !== "fulfill-engine"))
+      throw new Error("Choose a Fulfill Engine draft.");
+    const current = target || existing,
+      key = current?.id || "fe-" + randomUUID();
+    const mode = current?.pricing_mode || "default",
+      bps = current?.pricing_bps ?? 9000;
+    const variants = p.variants.map((v) => {
+      const old = current?.variants.find((o) => o.id === v.id);
+      const next = {
+        ...v,
+        costOverrideCents: old?.costOverrideCents ?? null,
+        priceOverrideCents: old?.priceOverrideCents ?? null,
+        sellEnabled: old?.sellEnabled ?? true,
+      };
+      if (mode === "fixed" && old) next.priceCents = old.priceCents;
+      return { ...next, priceCents: priceVariant(next, mode, bps, s.default_markup_bps) };
+    });
+    // A design ID can be edited remotely in place; every sync requires artwork/sample reapproval.
+    if (current)
+      await tx`update shop_products set provider_product_id=${id},variants=${JSON.stringify(variants)}::jsonb,manufacturing_hash=${p.hash},published=false,sample_approved=false,revision=revision+1,updated_by=${userId},updated_at=now() where id=${key}`;
+    else
+      await tx`insert into shop_products(id,title,description,image_url,variants,provider,provider_product_id,pricing_mode,manufacturing_hash,image_approved,updated_by) values(${key},${p.title},${p.description},'',${JSON.stringify(variants)}::jsonb,'fulfill-engine',${id},'default',${p.hash},false,${userId})`;
+    await audit(tx, userId, "sync-fulfill-engine", key, {
+      variantCount: variants.length,
+      costsArePreliminary: true,
+    });
+    return key;
   });
 }

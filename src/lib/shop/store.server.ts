@@ -34,7 +34,9 @@ export function shopReadiness(env: Env = process.env) {
     worker: Boolean(env.SHOP_WORKER_SECRET),
   };
 }
-export function assertShopReady(provider: "printful" | "printify" = "printify") {
+export function assertShopReady(provider: ShopProduct["provider"] = "fulfill-engine") {
+  if (provider === "fulfill-engine")
+    throw new Error("Fulfill Engine checkout is pending verified shipping and fulfillment.");
   const r = shopReadiness();
   const c = squareConfig();
   if (
@@ -61,8 +63,10 @@ export async function publicShop(sql: Sql) {
     await sql<ShopProduct>`select * from shop_products where published and sample_approved and not archived order by category,title`;
   let checkout = false;
   try {
-    assertShopReady();
-    checkout = true;
+    if (products.length) {
+      for (const provider of new Set(products.map((p) => p.provider))) assertShopReady(provider);
+      checkout = true;
+    }
   } catch {
     /* Availability is intentionally fail closed. */
   }
@@ -129,7 +133,7 @@ export async function createShopQuote(
     environment: string;
   },
 ) {
-  const c = deps ? { environment: deps.environment } : assertShopReady();
+  const c = deps ? { environment: deps.environment } : squareConfig();
   const data = shopCheckoutSchema.parse(input);
   const me = await commerceIdentityFor(sql, userId);
   const hash = createHash("sha256").update(JSON.stringify(data)).digest("hex");
@@ -155,6 +159,9 @@ export async function createShopQuote(
   const subtotal = selected.reduce((sum, i) => sum + i.variant.priceCents * i.quantity, 0);
   if (subtotal > 250000) throw new Error("Please contact us about orders over $2,500.");
   const kind = selected[0].product.provider;
+  if (kind === "fulfill-engine")
+    throw new Error((await import("./fulfill-engine.server")).FULFILL_ENGINE_LAUNCH_BLOCKER);
+  if (!deps) assertShopReady(kind);
   if (selected.some((l) => l.product.provider !== kind))
     throw new Error("Check out products from one fulfillment supplier at a time.");
   const pfy = await import("./printify.server");
@@ -241,12 +248,13 @@ export async function createShopQuote(
   });
 }
 export async function validateShopPayment(sql: Sql, order: SquareOrder) {
-  assertShopReady();
   const [d] = await sql<{
     product_revisions: Record<string, number>;
     status: string;
-  }>`select product_revisions,status from shop_order_details where order_id=${order.id} and user_id=${order.user_id}`;
+    provider: ShopProduct["provider"];
+  }>`select product_revisions,status,provider from shop_order_details where order_id=${order.id} and user_id=${order.user_id}`;
   if (!d || d.status !== "awaiting-payment") throw new Error("Shop checkout is unavailable.");
+  assertShopReady(d.provider);
   const products =
     await sql<ShopProduct>`select * from shop_products where id=any(${Object.keys(d.product_revisions)}::text[]) order by id for update`;
   if (
