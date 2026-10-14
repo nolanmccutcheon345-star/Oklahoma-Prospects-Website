@@ -38,6 +38,7 @@ export async function auditHarness() {
     export * as fundraisingRoster from './src/lib/fundraising/roster-api';
     export * as fundraising from './src/lib/fundraising/server';
     export * from './src/lib/pd/empty';
+    export {emptyClub} from './src/lib/teams/seed';
     export * from './src/lib/pd/training.server';
     export * from './src/lib/pd/training-content.server';
     export * from './src/lib/pd/curriculum-controls.server';
