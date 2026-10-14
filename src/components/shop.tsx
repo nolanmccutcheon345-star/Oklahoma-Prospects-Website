@@ -29,20 +29,22 @@ const concepts = [
 ];
 export function Shop() {
   const { user } = useCurrentUserState();
-  const [canManage, setCanManage] = useState(false);
+  const [ownerId, setOwnerId] = useState<string | null>(null);
+  const userId = user?.id;
+  const canManage = Boolean(userId && ownerId === userId);
   useEffect(() => {
     let current = true;
     void canManageShop()
       .then((v) => {
-        if (current) setCanManage(v);
+        if (current) setOwnerId(v && userId ? userId : null);
       })
       .catch(() => {
-        if (current) setCanManage(false);
+        if (current) setOwnerId(null);
       });
     return () => {
       current = false;
     };
-  }, [user?.id]);
+  }, [userId]);
   const [data, setData] = useState<Shop>();
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
@@ -64,6 +66,22 @@ export function Shop() {
   const [consent, setConsent] = useState(false);
   const [requestId, setRequestId] = useState("");
   const [orders, setOrders] = useState<Awaited<ReturnType<typeof myShopOrders>>>([]);
+  useEffect(() => {
+    setOrders([]);
+    setCheckout(undefined);
+    setAddress({
+      name: "",
+      address1: "",
+      address2: "",
+      city: "",
+      state_code: "OK",
+      country_code: "US",
+      zip: "",
+    });
+    setConsent(false);
+    setRequestId(crypto.randomUUID());
+    setView("shop");
+  }, [userId]);
   useEffect(() => {
     void getShop()
       .then(setData)
@@ -467,7 +485,7 @@ export function Shop() {
                 )}
               </section>
             )}
-            {view === "orders" && (
+            {view === "orders" && user && (
               <section>
                 <h2 className="text-3xl">My shop orders</h2>
                 <Button
@@ -507,7 +525,7 @@ export function Shop() {
             </Button>
           )}
         </div>
-        {view === "office" && <ShopOffice />}
+        {view === "office" && canManage && <ShopOffice />}
       </div>
     </main>
   );
