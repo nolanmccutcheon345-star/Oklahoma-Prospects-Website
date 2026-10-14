@@ -22,7 +22,7 @@ type TeamChoice = {
 
 const same = (a: string, b: string) => a.trim().toLowerCase() === b.trim().toLowerCase();
 
-function RequestStageForm({
+export function RequestStageForm({
   request,
   teams,
   publicTeams,
@@ -550,6 +550,7 @@ function RequestFollowUp({
           <option value="new">New</option>
           <option value="contacted">Contacted</option>
           <option value="scheduled">Scheduled</option>
+          {["confirmed","attended","no-show","follow-up-needed","offered","accepted"].map(value=><option key={value} value={value}>{value.replaceAll('-',' ')}</option>)}
           <option value="closed">Resolved</option>
         </select>
       </label>

@@ -47,7 +47,13 @@ function editInput(row: SavedEvaluation): EvaluationInput {
   };
 }
 
-export function TryoutEvaluations({ pendingOnly = false }: { pendingOnly?: boolean }) {
+export function TryoutEvaluations({
+  pendingOnly = false,
+  registrationId,
+}: {
+  pendingOnly?: boolean;
+  registrationId?: string;
+}) {
   const [reviewOnly, setReviewOnly] = useState(pendingOnly);
   const [reviews, setReviews] = useState<Awaited<ReturnType<typeof getEvaluationReviews>>>([]);
   const [reviewError, setReviewError] = useState("");
@@ -138,19 +144,23 @@ export function TryoutEvaluations({ pendingOnly = false }: { pendingOnly?: boole
     setForm({
       id: crypto.randomUUID(),
       baseRevision: 0,
-      registrationId: null,
-      ageGroup: "",
+      registrationId: registrationId ?? null,
+      ageGroup: workspace?.candidates.find((c) => c.id === registrationId)?.age ?? "",
       sport:
+        workspace?.candidates.find((c) => c.id === registrationId)?.sport === "softball" ||
         workspace?.teams.find((t) => t.id === teamFilter)?.sport === "softball" ||
         sportFilter === "softball"
           ? "softball"
           : "baseball",
       teamId: workspace?.teams.some((t) => t.id === teamFilter) ? teamFilter : "",
-      playerName: "",
+      playerName: workspace?.candidates.find((c) => c.id === registrationId)?.name ?? "",
       evaluationDate: chicagoDate(),
       status: "draft",
       recommendation: "undecided",
-      payload: blankEvaluationPayload(),
+      payload: {
+        ...blankEvaluationPayload(),
+        positions: workspace?.candidates.find((c) => c.id === registrationId)?.positions ?? "",
+      },
     });
     setViewing(null);
     setDirty(false);
@@ -212,6 +222,7 @@ export function TryoutEvaluations({ pendingOnly = false }: { pendingOnly?: boole
 
   const rows = workspace.evaluations.filter(
     (r) =>
+      (!registrationId || r.registrationId === registrationId) &&
       (!workspace.owner ||
         !reviewOnly ||
         (reviewsLoaded && r.status === "submitted" && !reviewed(r))) &&
@@ -567,7 +578,7 @@ export function TryoutEvaluations({ pendingOnly = false }: { pendingOnly?: boole
                       const sport = e.target.value as EvaluationInput["sport"];
                       change({
                         sport,
-                        registrationId: null,
+                        registrationId: registrationId ?? null,
                         playerName: "",
                         ageGroup: "",
                         teamId: "",
@@ -605,7 +616,11 @@ export function TryoutEvaluations({ pendingOnly = false }: { pendingOnly?: boole
                             ? form.teamId
                             : c.teamIds[0] || ""
                           : form.teamId,
-                        payload: { ...form.payload, session: c?.session || "" },
+                        payload: {
+                          ...form.payload,
+                          session: c?.session || "",
+                          positions: c?.positions || "",
+                        },
                       });
                     }}
                   >

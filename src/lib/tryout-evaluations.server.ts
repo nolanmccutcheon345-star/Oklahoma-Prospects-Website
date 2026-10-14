@@ -1,5 +1,5 @@
 import type { Sql } from "./db";
-import { resolveIdentity } from "./identity.server";
+import { centerAccessFor } from "./tryout-center-access.server";
 import { chicagoDate } from "./scheduling";
 import { coachHoldsTeam } from "./teams/privacy";
 import type { ClubRecord } from "./teams/types";
@@ -15,15 +15,7 @@ import {
 } from "./tryout-evaluation-contracts";
 
 async function evaluationAccess(sql: Sql, userId: string) {
-  const me = await resolveIdentity(sql, userId);
-  if (me.role !== "admin" && me.role !== "coach" && !me.canTeamCoach)
-    throw new Error("Coach or owner access is required.");
-  if (me.role !== "admin") {
-    const staff =
-      await sql`select id from club_staff where lower(trim(email))=${me.email} and active=true
-      and (role in ('coach','admin') or ${Boolean(me.canTeamCoach)}) and (user_id='' or user_id=${userId})`;
-    if (!staff.length) throw new Error("An active staff assignment is required. Ask a club owner.");
-  }
+  const me = await centerAccessFor(sql, userId);
   const [state] = await sql<{
     payload: ClubRecord;
   }>`select payload from club_state where id='oklahoma-prospects'`;
@@ -38,8 +30,8 @@ async function evaluationAccess(sql: Sql, userId: string) {
       (t) => !t.closed && (me.role === "admin" || (club && coachHoldsTeam(club, me.email, t.id))),
     )
     .map((t) => ({ id: t.id, name: t.name, age: t.age, sport: t.sport }));
-  // Owners retain historical results when a team closes. Coaches lose results
-  // when their team assignment is removed, even if they authored them.
+  // Active coaches can review all tryout results. Editing remains attributed
+  // to the original evaluator and requires current assignment for team results.
   return { me, teams };
 }
 
@@ -57,7 +49,15 @@ function candidateFor(row: RequestRow, teams: EvaluationTeam[]): EvaluationCandi
         : t.sport === sport && normalizedEvaluationAge(t.age) === normalizedEvaluationAge(age),
     )
     .map((t) => t.id);
-  return { id: row.id, name: text("player"), age, sport, session: text("session"), teamIds };
+  return {
+    positions: text("positions"),
+    id: row.id,
+    name: text("player"),
+    age,
+    sport,
+    session: text("session"),
+    teamIds,
+  };
 }
 type EvaluationRow = {
   id: string;
@@ -109,9 +109,7 @@ export async function evaluationWorkspaceFor(
     .map((row) => candidateFor(row, teams))
     .filter((c) => c.name && ["baseball", "softball"].includes(c.sport));
   const rows =
-    me.role === "admin"
-      ? await sql<EvaluationRow>`select * from tryout_evaluations order by evaluation_date desc,updated_at desc,id`
-      : await sql<EvaluationRow>`select * from tryout_evaluations where team_id=any(${teams.map((t) => t.id)}::text[]) or (team_id='' and evaluator_id=${userId}) order by evaluation_date desc,updated_at desc,id`;
+    await sql<EvaluationRow>`select * from tryout_evaluations order by evaluation_date desc,updated_at desc,id`;
   return {
     owner: me.role === "admin",
     name: me.name,

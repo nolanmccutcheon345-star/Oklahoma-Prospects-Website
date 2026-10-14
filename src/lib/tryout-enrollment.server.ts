@@ -87,16 +87,41 @@ export async function recordInquiryFor(
   return sql.transaction(async (tx) => {
     if (input.kind === "tryout") {
       if (input.requestType) {
-        if (input.requestConsent !== true || input.autoEnroll === true) throw new Error("Confirm request consent. Staff must confirm your appointment.");
+        if (input.requestConsent !== true || input.autoEnroll === true)
+          throw new Error("Confirm request consent. Staff must confirm your appointment.");
         if (input.requestType === "scheduled") {
           const { publicTryoutEventsFor } = await import("./tryout-events.server");
-          const event = (await publicTryoutEventsFor(tx)).find(e => e.id === input.requestedEventId);
-          if (!event || event.sport !== input.sport || event.season !== input.season || !event.ageGroups.some(age => normalize(age) === normalize(String(input.age)))) throw new Error("This tryout changed or is no longer available. Refresh and choose a published event.");
-          input = {...input, requestedEvent: {id:event.id, sport:event.sport, season:event.season, date:event.date, startTime:event.startTime, endTime:event.endTime, location:event.location}};
-        } else if (input.requestedEventId) throw new Error("Individual evaluations cannot select a scheduled event.");
+          const event = (await publicTryoutEventsFor(tx)).find(
+            (e) => e.id === input.requestedEventId,
+          );
+          if (
+            !event ||
+            event.sport !== input.sport ||
+            event.season !== input.season ||
+            !event.ageGroups.some((age) => normalize(age) === normalize(String(input.age)))
+          )
+            throw new Error(
+              "This tryout changed or is no longer available. Refresh and choose a published event.",
+            );
+          input = {
+            ...input,
+            requestedEvent: {
+              id: event.id,
+              sport: event.sport,
+              season: event.season,
+              date: event.date,
+              startTime: event.startTime,
+              endTime: event.endTime,
+              location: event.location,
+            },
+          };
+        } else if (input.requestedEventId)
+          throw new Error("Individual evaluations cannot select a scheduled event.");
       }
-      const preferredTeamId = typeof input.preferredTeamId === "string" ? input.preferredTeamId : "";
-      const preferredCoachId = typeof input.preferredCoachId === "string" ? input.preferredCoachId : "";
+      const preferredTeamId =
+        typeof input.preferredTeamId === "string" ? input.preferredTeamId : "";
+      const preferredCoachId =
+        typeof input.preferredCoachId === "string" ? input.preferredCoachId : "";
       if (preferredTeamId || preferredCoachId) {
         assertTryoutPreference(await publicTryoutTeamsFor(tx), {
           sport: String(input.sport),
@@ -107,7 +132,35 @@ export async function recordInquiryFor(
         });
       }
     }
-    await tx`insert into club_requests(id,user_id,kind,payload) values(${input.requestId},null,${input.kind},${JSON.stringify(input)}::jsonb) on conflict(id) do nothing`;
+    const [prior] = await tx<{
+      same: boolean;
+    }>`select (payload-'requestedEvent'-'sourceForm')=(${JSON.stringify(input)}::jsonb-'requestedEvent'-'sourceForm') as same from club_requests where id=${input.requestId} for update`;
+    if (prior) {
+      if (!prior.same)
+        throw new Error(
+          "This registration reference was already used with different details. Start a new registration.",
+        );
+      return { ok: true, reference: input.requestId };
+    }
+    input = {
+      ...input,
+      sourceForm:
+        input.kind === "tryout"
+          ? "tryout-registration"
+          : input.kind === "team-inquiry"
+            ? "team-inquiry"
+            : "contact",
+    };
+    const inserted =
+      await tx`insert into club_requests(id,user_id,kind,payload) values(${input.requestId},null,${input.kind},${JSON.stringify(input)}::jsonb) on conflict(id) do nothing returning id`;
+    if (!inserted.length) {
+      const [same] =
+        await tx`select id from club_requests where id=${input.requestId} and (payload-'requestedEvent'-'sourceForm')=(${JSON.stringify(input)}::jsonb-'requestedEvent'-'sourceForm')`;
+      if (!same)
+        throw new Error(
+          "This registration reference was already used with different details. Start a new registration.",
+        );
+    }
     if (input.kind === "tryout") await matchTryoutApplicants(tx);
     return { ok: true, reference: input.requestId };
   });

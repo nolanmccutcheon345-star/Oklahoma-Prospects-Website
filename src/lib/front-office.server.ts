@@ -86,7 +86,7 @@ export async function saveWorkFor(
         await tx`select u.id from "user" u join profiles p on p.user_id=u.id where u.id=${input.assignee} and u."disabledAt" is null and p.role in ('admin','coach')`;
       if (!staff) throw new Error("Choose an active staff account.");
     }
-    await tx`insert into office_request_work(request_id,assignee_id,follow_up) values(${input.id},${input.assignee || null},${input.status}) on conflict(request_id) do update set assignee_id=excluded.assignee_id,follow_up=excluded.follow_up,updated_at=now()`;
+    await tx`insert into office_request_work(request_id,assignee_id,follow_up) values(${input.id},${input.assignee || null},${input.status}) on conflict(request_id) do update set assignee_id=excluded.assignee_id,follow_up=excluded.follow_up,revision=office_request_work.revision+1,updated_at=now()`;
     if (input.note)
       await tx`insert into office_request_notes(id,request_id,actor_id,note) values(${input.noteId},${input.id},${userId},${input.note}) on conflict(id) do nothing`;
     return { ok: true };

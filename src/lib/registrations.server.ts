@@ -3,14 +3,23 @@ import { resolveIdentity } from "./identity.server";
 
 export async function registrationAccessFor(sql: Sql, userId: string) {
   const me = await resolveIdentity(sql, userId);
+  const [staff] =
+    await sql`select id from club_staff where active=true and role in ('coach','admin') and lower(trim(email))=${me.email} and (user_id='' or user_id=${userId})`;
   const [grant] = await sql<{ active: boolean }>`select active from registration_readers
     where user_id=${userId} and email=${me.email} and active=true`;
-  return { allowed: me.role !== "player" && (me.role === "admin" || !!grant), owner: me.role === "admin" };
+  return {
+    allowed: me.role !== "player" && (me.role === "admin" || !!grant || !!staff),
+    owner: me.role === "admin",
+  };
 }
 
 export async function registrationRowsFor(sql: Sql, userId: string) {
-  if (!(await registrationAccessFor(sql, userId)).allowed)
+  const access = await registrationAccessFor(sql, userId);
+  if (!access.allowed)
     throw new Error("Registration viewing access is required. Ask a club owner.");
+  const [reader] =
+    await sql`select r.user_id from registration_readers r join "user" u on u.id=r.user_id where r.user_id=${userId} and r.active=true and r.email=lower(trim(u.email))`;
+  const contactAccess = access.owner || Boolean(reader);
   // Allowlist both request kinds and payload fields. Billing/waiver/internal data
   // never reaches this endpoint, regardless of filters or future request kinds.
   const rows = await sql<{
@@ -21,7 +30,7 @@ export async function registrationRowsFor(sql: Sql, userId: string) {
     payload: Record<string, unknown>;
   }>`
     select id,kind,status,created_at,payload from club_requests
-    where kind in ('tryout','team-inquiry','contact') order by created_at desc,id desc limit 500`;
+    where kind in ('tryout','team-inquiry','contact') and (${contactAccess} or kind<>'contact') order by created_at desc,id desc limit 500`;
   const fields = [
     "player",
     "parent",
@@ -33,6 +42,9 @@ export async function registrationRowsFor(sql: Sql, userId: string) {
     "email",
     "phone",
     "notes",
+    "positions",
+    "usssaStatus",
+    "usssaAthleteId",
     "message",
   ];
   return rows.map((row) => ({
@@ -47,9 +59,15 @@ export async function registrationRowsFor(sql: Sql, userId: string) {
 
 export async function registrationReadersFor(sql: Sql, userId: string) {
   if (!(await registrationAccessFor(sql, userId)).owner) throw new Error("Owner access required.");
-  return sql<{ user_id: string; name: string; email: string; enabled: boolean }>`
+  return sql<{
+    user_id: string;
+    name: string;
+    email: string;
+    enabled: boolean;
+    can_manage_tryouts: boolean;
+  }>`
     select u.id as user_id,coalesce(nullif(p.name,''),u.name) as name,lower(u.email) as email,
-      coalesce(r.active and r.email=lower(u.email),false) as enabled
+      coalesce(r.active and r.email=lower(u.email),false) as enabled, coalesce(r.can_manage_tryouts,false) as can_manage_tryouts
     from "user" u left join profiles p on p.user_id=u.id
     left join registration_readers r on r.user_id=u.id
     where u."disabledAt" is null and u."emailVerified"=true
@@ -70,7 +88,7 @@ export async function setRegistrationReaderFor(
     await tx`insert into registration_readers(user_id,email,active,granted_by)
       values(${input.userId},${user.email},${input.enabled},${actorId})
       on conflict(user_id) do update set email=excluded.email,active=excluded.active,
-        granted_by=excluded.granted_by,updated_at=now()`;
+        granted_by=excluded.granted_by,can_manage_tryouts=case when excluded.active then registration_readers.can_manage_tryouts else false end,updated_at=now()`;
     return { ok: true };
   });
 }

@@ -32,6 +32,12 @@ export async function saveTryoutEventFor(sql: Sql, userId: string, raw: TryoutEv
   return sql.transaction(async (tx) => {
     // Matchers and editors acquire event locks in the same order.
     await tx`select id from tryout_events order by event_date,start_time,id for update`;
+    const [reserved] =
+      await tx`select event_id from tryout_event_reservations where event_id=${input.id}`;
+    if (reserved)
+      throw new Error(
+        "This event has confirmed coach/facility appointments. Cancel those appointments in Tryouts & Evaluations before changing the event, then reschedule and notify families.",
+      );
     const active = await tx<{
       id: string;
     }>`select id from tryout_enrollments where event_id=${input.id} and status='enrolled'`;
