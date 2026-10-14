@@ -69,6 +69,7 @@ import { Route as ApiFundraisingReceiptRouteImport } from './routes/api/fundrais
 import { Route as ApiFundraisingReconcileRouteImport } from './routes/api/fundraising/reconcile'
 import { Route as ApiFundraisingTeamsRouteImport } from './routes/api/fundraising/teams'
 import { Route as ApiPublicCoachPhotoIdRouteImport } from './routes/api/public-coach-photo/$id'
+import { Route as ApiShopFulfillRouteImport } from './routes/api/shop/fulfill'
 import { Route as ApiSquareReconcileRouteImport } from './routes/api/square/reconcile'
 import { Route as ApiSquareWebhookRouteImport } from './routes/api/square/webhook'
 import { Route as ApiStripeWebhookRouteImport } from './routes/api/stripe/webhook'
@@ -376,6 +377,11 @@ const ApiPublicCoachPhotoIdRoute = ApiPublicCoachPhotoIdRouteImport.update({
   path: '/api/public-coach-photo/$id',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiShopFulfillRoute = ApiShopFulfillRouteImport.update({
+  id: '/api/shop/fulfill',
+  path: '/api/shop/fulfill',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiSquareReconcileRoute = ApiSquareReconcileRouteImport.update({
   id: '/api/square/reconcile',
   path: '/api/square/reconcile',
@@ -469,6 +475,7 @@ export interface FileRoutesByFullPath {
   '/api/fundraising/reconcile': typeof ApiFundraisingReconcileRoute
   '/api/fundraising/teams': typeof ApiFundraisingTeamsRoute
   '/api/public-coach-photo/$id': typeof ApiPublicCoachPhotoIdRoute
+  '/api/shop/fulfill': typeof ApiShopFulfillRoute
   '/api/square/reconcile': typeof ApiSquareReconcileRoute
   '/api/square/webhook': typeof ApiSquareWebhookRoute
   '/api/stripe/webhook': typeof ApiStripeWebhookRoute
@@ -537,6 +544,7 @@ export interface FileRoutesByTo {
   '/api/fundraising/reconcile': typeof ApiFundraisingReconcileRoute
   '/api/fundraising/teams': typeof ApiFundraisingTeamsRoute
   '/api/public-coach-photo/$id': typeof ApiPublicCoachPhotoIdRoute
+  '/api/shop/fulfill': typeof ApiShopFulfillRoute
   '/api/square/reconcile': typeof ApiSquareReconcileRoute
   '/api/square/webhook': typeof ApiSquareWebhookRoute
   '/api/stripe/webhook': typeof ApiStripeWebhookRoute
@@ -606,6 +614,7 @@ export interface FileRoutesById {
   '/api/fundraising/reconcile': typeof ApiFundraisingReconcileRoute
   '/api/fundraising/teams': typeof ApiFundraisingTeamsRoute
   '/api/public-coach-photo/$id': typeof ApiPublicCoachPhotoIdRoute
+  '/api/shop/fulfill': typeof ApiShopFulfillRoute
   '/api/square/reconcile': typeof ApiSquareReconcileRoute
   '/api/square/webhook': typeof ApiSquareWebhookRoute
   '/api/stripe/webhook': typeof ApiStripeWebhookRoute
@@ -676,6 +685,7 @@ export interface FileRouteTypes {
     | '/api/fundraising/reconcile'
     | '/api/fundraising/teams'
     | '/api/public-coach-photo/$id'
+    | '/api/shop/fulfill'
     | '/api/square/reconcile'
     | '/api/square/webhook'
     | '/api/stripe/webhook'
@@ -744,6 +754,7 @@ export interface FileRouteTypes {
     | '/api/fundraising/reconcile'
     | '/api/fundraising/teams'
     | '/api/public-coach-photo/$id'
+    | '/api/shop/fulfill'
     | '/api/square/reconcile'
     | '/api/square/webhook'
     | '/api/stripe/webhook'
@@ -812,6 +823,7 @@ export interface FileRouteTypes {
     | '/api/fundraising/reconcile'
     | '/api/fundraising/teams'
     | '/api/public-coach-photo/$id'
+    | '/api/shop/fulfill'
     | '/api/square/reconcile'
     | '/api/square/webhook'
     | '/api/stripe/webhook'
@@ -880,6 +892,7 @@ export interface RootRouteChildren {
   ApiFundraisingReconcileRoute: typeof ApiFundraisingReconcileRoute
   ApiFundraisingTeamsRoute: typeof ApiFundraisingTeamsRoute
   ApiPublicCoachPhotoIdRoute: typeof ApiPublicCoachPhotoIdRoute
+  ApiShopFulfillRoute: typeof ApiShopFulfillRoute
   ApiSquareReconcileRoute: typeof ApiSquareReconcileRoute
   ApiSquareWebhookRoute: typeof ApiSquareWebhookRoute
   ApiStripeWebhookRoute: typeof ApiStripeWebhookRoute
@@ -1308,6 +1321,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicCoachPhotoIdRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/shop/fulfill': {
+      id: '/api/shop/fulfill'
+      path: '/api/shop/fulfill'
+      fullPath: '/api/shop/fulfill'
+      preLoaderRoute: typeof ApiShopFulfillRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/square/reconcile': {
       id: '/api/square/reconcile'
       path: '/api/square/reconcile'
@@ -1448,6 +1468,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiFundraisingReconcileRoute: ApiFundraisingReconcileRoute,
   ApiFundraisingTeamsRoute: ApiFundraisingTeamsRoute,
   ApiPublicCoachPhotoIdRoute: ApiPublicCoachPhotoIdRoute,
+  ApiShopFulfillRoute: ApiShopFulfillRoute,
   ApiSquareReconcileRoute: ApiSquareReconcileRoute,
   ApiSquareWebhookRoute: ApiSquareWebhookRoute,
   ApiStripeWebhookRoute: ApiStripeWebhookRoute,

@@ -1,0 +1,107 @@
+import { createServerFn } from "@tanstack/react-start";
+import { z } from "zod";
+import { paymentAuth, optionalPaymentAuth } from "../commerce/payment-auth";
+import { shopCheckoutSchema } from "./contracts";
+export const getShop = createServerFn({ method: "GET" }).handler(async () => {
+  const { getSql } = await import("../db");
+  return (await import("./store.server")).publicShop(await getSql());
+});
+export const quoteShop = createServerFn({ method: "POST" })
+  .middleware([paymentAuth])
+  .validator(shopCheckoutSchema)
+  .handler(async ({ data, context }) => {
+    const { rateLimit } = await import("../commerce/checkout.server");
+    await rateLimit("shop-quote", 15);
+    const { getSql } = await import("../db");
+    return (await import("./store.server")).createShopQuote(
+      await getSql(),
+      context.paymentUserId,
+      data,
+    );
+  });
+export const myShopOrders = createServerFn({ method: "GET" })
+  .middleware([paymentAuth])
+  .handler(async ({ context }) => {
+    const { getSql } = await import("../db");
+    return (await import("./store.server")).shopOrders(await getSql(), context.paymentUserId);
+  });
+export const getShopOffice = createServerFn({ method: "GET" })
+  .middleware([paymentAuth])
+  .handler(async ({ context }) => {
+    const { getSql } = await import("../db");
+    const sql = await getSql();
+    const store = await import("./store.server");
+    await store.owner(sql, context.paymentUserId);
+    return {
+      readiness: store.shopReadiness(),
+      products: (
+        await sql<import("./contracts").ShopProduct>`select * from shop_products order by title`
+      ).map((p) => ({
+        ...p,
+        variants: p.variants.map((v) => ({
+          id: v.id,
+          label: v.label,
+          priceCents: v.priceCents,
+          available: v.available,
+        })),
+      })),
+      orders: await store.shopOrders(sql, context.paymentUserId, true),
+    };
+  });
+export const syncShopProduct = createServerFn({ method: "POST" })
+  .middleware([paymentAuth])
+  .validator(z.object({ id: z.string().regex(/^\d+$/).max(20) }).strict())
+  .handler(async ({ context, data }) => {
+    const { getSql } = await import("../db");
+    return (await import("./store.server")).importProduct(
+      await getSql(),
+      context.paymentUserId,
+      data.id,
+    );
+  });
+export const saveShopProduct = createServerFn({ method: "POST" })
+  .middleware([paymentAuth])
+  .validator(
+    z
+      .object({
+        id: z.string().max(80),
+        revision: z.number().int().positive(),
+        description: z.string().max(5000),
+        sizeGuide: z.string().max(5000),
+        teamLabel: z.string().max(100),
+        category: z.string().max(60),
+        taxCode: z.string().max(30),
+        sampleApproved: z.boolean(),
+        published: z.boolean(),
+      })
+      .strict(),
+  )
+  .handler(async ({ context, data }) => {
+    const { getSql } = await import("../db");
+    return (await import("./store.server")).publishProduct(
+      await getSql(),
+      context.paymentUserId,
+      data,
+    );
+  });
+export const refreshShopOrders = createServerFn({ method: "POST" })
+  .middleware([paymentAuth])
+  .handler(async ({ context }) => {
+    const { getSql } = await import("../db");
+    const sql = await getSql();
+    await (await import("./store.server")).owner(sql, context.paymentUserId);
+    return (await import("./fulfillment.server")).processShopOrders(sql);
+  });
+
+export const canManageShop = createServerFn({ method: "GET" })
+  .middleware([optionalPaymentAuth])
+  .handler(async ({ context }) => {
+    if (!context.verifiedUserId) return false;
+    try {
+      const { getSql } = await import("../db");
+      await (await import("./store.server")).owner(await getSql(), context.verifiedUserId);
+      return true;
+    } catch {
+      return false;
+    }
+  });

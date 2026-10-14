@@ -146,6 +146,10 @@ export async function fulfillSquarePayment(
     await sql`insert into payment_notifications(id,order_id,kind) values(${"owner-review:" + order.id},${order.id},'owner-payment-review') on conflict do nothing`;
     return;
   }
+  if (order.kind === 'merchandise') {
+    const {fulfillShopPayment}=await import('../shop/store.server');
+    await fulfillShopPayment(sql,order);return;
+  }
   if (order.kind === 'team-fee') {
     const {fulfillTeamPayment}=await import('../teams/payment.server');
     await fulfillTeamPayment(sql,order,config.environment);return;
@@ -381,7 +385,10 @@ export async function paySquareOrder(
         await tx`select booking_id from booking_occupancy where resource_id=any(${b.resources}::text[]) and slot_at>=${target.start.toISOString()} and slot_at<${target.end.toISOString()} and booking_id<>${b.id} limit 1`;
       if (occupied.length) throw new Error("That time was just booked. No fee was submitted.");
     }
-    if(current.kind==='team-fee') {
+    if(current.kind==='merchandise') {
+      const {validateShopPayment}=await import('../shop/store.server');
+      await validateShopPayment(tx,current);
+    } else if(current.kind==='team-fee') {
       const {validateTeamPayment}=await import('../teams/payment.server');
       await validateTeamPayment(tx,current);
     } else if(current.kind==='event') {
