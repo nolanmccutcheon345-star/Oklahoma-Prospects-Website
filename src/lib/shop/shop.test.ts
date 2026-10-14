@@ -361,3 +361,32 @@ test("retail tax: exclusive USD calculation, quantity, shipping and invalid prov
   );
   assert.equal(calls, 1);
 });
+
+test("product import preserves approved placement and file options and rejects partial artwork", () => {
+  const file = {
+    id: 300,
+    type: "front",
+    status: "ok",
+    position: { area_width: 1800, area_height: 2400, width: 900, height: 900, top: 100, left: 300 },
+    options: [{ id: "template_type", value: "native" }],
+  };
+  const raw = {
+    sync_product: { id: 1, name: "Synthetic", thumbnail_url: "https://example.invalid/mockup" },
+    sync_variants: [
+      {
+        id: 100,
+        name: "M",
+        synced: true,
+        currency: "USD",
+        retail_price: "30.00",
+        variant_id: 200,
+        files: [file],
+      },
+    ],
+  };
+  const imported = parseProduct(raw).variants[0].item.files[0];
+  assert.deepEqual(imported.position, file.position);
+  assert.deepEqual(imported.options, file.options);
+  raw.sync_variants[0].files.push({ ...file, id: 301, type: "sleeve_left", status: "waiting" });
+  assert.throws(() => parseProduct(raw), /production files/);
+});

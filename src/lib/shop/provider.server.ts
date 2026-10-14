@@ -1,4 +1,11 @@
-import { dollarsToCents, safeHttps, type ShopVariant, type PrintItem } from "./contracts";
+import {
+  dollarsToCents,
+  safeHttps,
+  printFileSchema,
+  type PrintFile,
+  type ShopVariant,
+  type PrintItem,
+} from "./contracts";
 export type Env = Record<string, string | undefined>;
 export class ProviderError extends Error {
   constructor(public status: number) {
@@ -54,7 +61,7 @@ export function parseProduct(raw: unknown) {
       is_ignored?: boolean;
       availability_status?: string;
       variant_id: number;
-      files: { id: number; type: string; status?: string }[];
+      files: (PrintFile & { status?: string })[];
       options?: { id: string; value: unknown }[];
     }[];
   };
@@ -63,9 +70,17 @@ export function parseProduct(raw: unknown) {
   const variants: ShopVariant[] = p.sync_variants
     .filter((v) => v.synced && !v.is_ignored && v.currency === "USD")
     .map((v) => {
-      const files = v.files
-        .filter((f) => f.type !== "preview" && f.status === "ok")
-        .map((f) => ({ id: f.id, type: f.type }));
+      const productionFiles = v.files.filter((f) => f.type !== "preview");
+      if (productionFiles.some((f) => f.status !== "ok"))
+        throw new Error("Approved production files are missing.");
+      const files = productionFiles.map((f) =>
+        printFileSchema.parse({
+          id: f.id,
+          type: f.type,
+          ...(f.options ? { options: f.options } : {}),
+          ...(f.position ? { position: f.position } : {}),
+        }),
+      );
       if (!files.length || !Number.isSafeInteger(v.variant_id))
         throw new Error("Approved production files are missing.");
       return {

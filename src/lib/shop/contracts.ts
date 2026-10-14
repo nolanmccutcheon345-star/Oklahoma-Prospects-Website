@@ -36,10 +36,27 @@ export const shopCheckoutSchema = z
   .strict();
 export type Cart = z.infer<typeof cartSchema>;
 export type ShopCheckout = z.infer<typeof shopCheckoutSchema>;
+export const printFileSchema = z.object({
+  id: z.number().int().positive(),
+  type: z.string().min(1).max(60),
+  options: z.array(z.object({ id: z.string(), value: z.unknown() })).optional(),
+  position: z
+    .object({
+      area_width: z.number().positive(),
+      area_height: z.number().positive(),
+      width: z.number().positive(),
+      height: z.number().positive(),
+      top: z.number(),
+      left: z.number(),
+      limit_to_print_area: z.boolean().optional(),
+    })
+    .optional(),
+});
+export type PrintFile = z.infer<typeof printFileSchema>;
 export type PrintItem = {
   variant_id: number;
   quantity: number;
-  files: { id: number; type: string }[];
+  files: PrintFile[];
   options: { id: string; value: unknown }[];
   retail_price?: string;
   name?: string;
