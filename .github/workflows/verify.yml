@@ -49,6 +49,8 @@ jobs:
         env:
           NETLIFY: "true"
           PUBLIC_UX_SCREENSHOTS: artifacts/guided-lessons/public-ux
+      - name: Isolated coach tryout center walkthrough
+        run: node scripts/check-tryout-center.mjs
       # Run the real interaction loop first so interface failures are found promptly.
       - run: npm test
       - run: npm run lint
@@ -57,7 +59,9 @@ jobs:
         if: always()
         with:
           name: guided-lesson-walkthrough
-          path: artifacts/guided-lessons
+          path: |
+            artifacts/guided-lessons
+            artifacts/tryout-center
           if-no-files-found: ignore
       - name: Read-only hosted HTTP smoke
         if: github.event_name == 'workflow_dispatch' && inputs.hosted_origin != 'skip'

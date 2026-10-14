@@ -1,11 +1,12 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
+import { TRYOUT_STATUSES } from "./tryout-center-contracts";
 import { authMiddleware } from "./auth/middleware";
 export const requestWorkInput = z
   .object({
     id: z.string().min(1).max(200),
     assignee: z.string().max(200),
-    status: z.enum(["new", "contacted", "scheduled", "closed"]),
+    status: z.enum(TRYOUT_STATUSES),
     note: z.string().trim().max(3000),
     noteId: z.string().uuid(),
   })
@@ -45,4 +46,6 @@ export const markEvaluationReviewed = createServerFn({ method: "POST" })
 
 export const getOperationsHealth = createServerFn({ method: "GET" })
   .middleware([authMiddleware])
-  .handler(async ({ context }) => (await import('./operations-health.server')).operationsHealth(context.userId));
+  .handler(async ({ context }) =>
+    (await import("./operations-health.server")).operationsHealth(context.userId),
+  );

@@ -1,3 +1,4 @@
+import { setTryoutCoordinator } from "@/lib/tryout-center-api";
 import { useEffect, useMemo, useState } from "react";
 import { PageHero } from "@/components/page-hero";
 import { Button } from "@/components/ui/button";
@@ -177,9 +178,15 @@ export function RegistrationDesk() {
                       .map(([key, value]) => (
                         <div key={key} className="break-words">
                           <dt className="text-sm font-semibold">{labels[key] || key}</dt>
-                          <dd className="whitespace-pre-wrap">{key === "usssaAthleteId"
-                            ? <UsssaPlayerId value={value} />
-                            : key === "usssaStatus" ? usssaStatusLabel(value) : value}</dd>
+                          <dd className="whitespace-pre-wrap">
+                            {key === "usssaAthleteId" ? (
+                              <UsssaPlayerId value={value} />
+                            ) : key === "usssaStatus" ? (
+                              usssaStatusLabel(value)
+                            ) : (
+                              value
+                            )}
+                          </dd>
                         </div>
                       ))}
                   </dl>
@@ -211,6 +218,31 @@ export function RegistrationDesk() {
                           {reader.enabled ? "Registration viewing enabled" : "No additional access"}
                         </p>
                       </div>
+                      <Button
+                        variant="outlineDark"
+                        disabled={busy}
+                        onClick={async () => {
+                          setBusy(true);
+                          setError("");
+                          try {
+                            await setTryoutCoordinator({
+                              data: { userId: reader.user_id, enabled: !reader.can_manage_tryouts },
+                            });
+                            setReaders(await getRegistrationReaders());
+                            setNotice("Tryout coordinator access updated.");
+                          } catch (e) {
+                            setError(
+                              e instanceof Error ? e.message : "Could not update coordinator.",
+                            );
+                          } finally {
+                            setBusy(false);
+                          }
+                        }}
+                      >
+                        {reader.can_manage_tryouts
+                          ? "Remove tryout coordinator"
+                          : "Enable tryout coordinator"}
+                      </Button>
                       <Button
                         variant="outlineDark"
                         disabled={busy}

@@ -53,6 +53,8 @@ const labels: Record<string, string> = {
 
 // Audit summaries already exclude timestamps and private form fields.
 export function alertPriority(e: Event): "immediate" | "daily" | "history" {
+  // Tryout email leases/preferences already have their own delivery view; do not generate digest noise.
+  if (["tryout_center_notices", "tryout_center_preferences"].includes(e.target_table)) return "history";
   if (e.action === "UPDATE" && isDeepStrictEqual(e.before_state, e.after_state)) return "history";
   if (e.target_table === "commerce_policy" && e.target_id.startsWith("square-plan:"))
     return "history";

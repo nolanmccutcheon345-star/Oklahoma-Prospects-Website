@@ -81,6 +81,7 @@ export type EvaluationTeam = {
   sport: "baseball" | "softball";
 };
 export type EvaluationCandidate = {
+  positions?: string;
   id: string;
   name: string;
   age: string;

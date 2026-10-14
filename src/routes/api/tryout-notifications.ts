@@ -25,11 +25,19 @@ export const Route = createFileRoute("/api/tryout-notifications")({
         try {
           const { getSql } = await import("@/lib/db");
           const { deliverTryoutNotifications } = await import("@/lib/tryout-notifications.server");
-          const summary = await deliverTryoutNotifications(await getSql(), {
+          const sql = await getSql();
+          const env = {
             ...process.env,
             SQUARE_DEPLOY_CONTEXT: process.env.SQUARE_DEPLOY_CONTEXT,
-          });
-          return Response.json(summary, { status: summary.failed ? 503 : 200 });
+          };
+          const summary = await deliverTryoutNotifications(sql, env, fetch, 1);
+          const center = await (
+            await import("@/lib/tryout-center-delivery.server")
+          ).deliverCenterNotifications(sql, env);
+          return Response.json(
+            { group: summary, center },
+            { status: summary.failed || center.failed ? 503 : 200 },
+          );
         } catch {
           return new Response("Retry pending", { status: 503 });
         }

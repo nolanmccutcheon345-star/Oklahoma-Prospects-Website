@@ -45,7 +45,12 @@ type Notice = {
   attempts: number;
   first_attempt_at: Date | null;
 };
-export async function deliverTryoutNotifications(sql: Sql, env: Env, send: typeof fetch = fetch) {
+export async function deliverTryoutNotifications(
+  sql: Sql,
+  env: Env,
+  send: typeof fetch = fetch,
+  maxAttempts = 2,
+) {
   if (
     env.TRYOUT_NOTIFICATIONS_ENABLED !== "true" ||
     !env.RESEND_API_KEY ||
@@ -67,7 +72,7 @@ export async function deliverTryoutNotifications(sql: Sql, env: Env, send: typeo
     payload: { email?: string };
   }>`select id,payload from tryout_notification_outbox where (status='pending' and next_attempt_at<=now()) or (status='processing' and lease_until<now()) order by created_at,id limit 20`;
   for (const candidate of candidates) {
-    if (accepted + failed >= 2) break;
+    if (accepted + failed >= maxAttempts) break;
     if (!candidate.payload.email || !tryoutEmailAllowed(candidate.payload.email, env)) continue;
     const lease = randomUUID();
     const notice = await sql.transaction(async (tx) => {

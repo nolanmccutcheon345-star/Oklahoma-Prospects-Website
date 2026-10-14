@@ -171,7 +171,7 @@ test("persistent evaluations enforce staff/team access, author attribution, retr
       "identical retries do not duplicate or revise",
     );
     assert.equal((await evaluationWorkspaceFor(sql, "owner")).evaluations.length, 1);
-    assert.equal((await evaluationWorkspaceFor(sql, "other")).evaluations.length, 0);
+    assert.equal((await evaluationWorkspaceFor(sql, "other")).evaluations.length, 1);
     const teammate = await evaluationWorkspaceFor(sql, "assistant");
     assert.equal(teammate.evaluations.length, 1);
     assert.equal(teammate.evaluations[0].canEdit, false);
@@ -238,7 +238,7 @@ test("persistent evaluations enforce staff/team access, author attribution, retr
     await sql`update club_staff set active=true where id='coach'`;
     club.teams[0].coachEmail = "removed@example.invalid";
     await sql`update club_state set payload=${JSON.stringify(club)}::jsonb where id='oklahoma-prospects'`;
-    assert.equal((await evaluationWorkspaceFor(sql, "coach")).evaluations.length, 0);
+    assert.equal((await evaluationWorkspaceFor(sql, "coach")).evaluations.length, 3);
     await assert.rejects(
       () => saveEvaluationFor(sql, "coach", { ...input, baseRevision: 2 }),
       /assigned/,
@@ -247,7 +247,7 @@ test("persistent evaluations enforce staff/team access, author attribution, retr
     await sql`update "user" set "disabledAt"=now() where id='assistant'`;
     await assert.rejects(() => evaluationWorkspaceFor(sql, "assistant"), /Unauthorized/);
     // A team record is optional for general tryouts. Access remains staff-only,
-    // and each coach sees only their own general evaluations.
+    // and active coaches can read all general evaluations; author edits remain scoped.
     await sql`delete from club_state where id='oklahoma-prospects'`;
     const general: EvaluationInput = {
       ...input,
@@ -268,11 +268,10 @@ test("persistent evaluations enforce staff/team access, author attribution, retr
     assert.equal(noTeam.ageGroup, "7U");
     assert.equal(noTeam.teamId, "");
     assert.equal((await saveEvaluationFor(sql, "coach", general)).revision, 1);
-    assert.deepEqual(
-      (await evaluationWorkspaceFor(sql, "coach")).evaluations.map((r) => r.id),
-      [noTeam.id],
+    assert.ok(
+      (await evaluationWorkspaceFor(sql, "coach")).evaluations.some((r) => r.id === noTeam.id),
     );
-    assert.equal((await evaluationWorkspaceFor(sql, "other")).evaluations.length, 0);
+    assert.equal((await evaluationWorkspaceFor(sql, "other")).evaluations.length, 4);
     assert.equal((await evaluationWorkspaceFor(sql, "owner")).evaluations.length, 4);
     await assert.rejects(
       () => saveEvaluationFor(sql, "other", { ...general, baseRevision: 1 }),
@@ -292,7 +291,7 @@ test("persistent evaluations enforce staff/team access, author attribution, retr
       (await evaluationWorkspaceFor(sql, "coach")).evaluations.some((r) => r.id === crossSport.id),
     );
     assert.ok(
-      !(await evaluationWorkspaceFor(sql, "other")).evaluations.some((r) => r.id === crossSport.id),
+      (await evaluationWorkspaceFor(sql, "other")).evaluations.some((r) => r.id === crossSport.id),
     );
     const registered = await saveEvaluationFor(sql, "owner", {
       ...general,
