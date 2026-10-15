@@ -37,7 +37,8 @@ export async function publicPeopleFor(sql: Sql) {
       name: string;
       bio: string;
       program: string;
-    }>`select email,name,bio,program from staff_directory where published=true`,
+      title: string;
+    }>`select email,name,bio,program,title from staff_directory where published=true`,
     sql<{
       payload: ClubRecord;
       demo: boolean;
@@ -72,6 +73,7 @@ export async function publicPeopleFor(sql: Sql) {
         ...emptySharedProfile(name),
         id,
         coachId: coach?.id || id,
+        coach: false,
         instructor: false,
         bookable: false,
         serviceIds: [],
@@ -85,6 +87,8 @@ export async function publicPeopleFor(sql: Sql) {
     const c = get(d.email, d.name);
     if (c) {
       c.instructor = eligible.some((e) => e.id === c.coachId);
+      c.coach = true;
+      c.title = d.title;
       c.bio = d.bio;
       c.sports =
         d.program === "Baseball" ? ["baseball"] : d.program === "Softball" ? ["softball"] : [];
@@ -95,6 +99,7 @@ export async function publicPeopleFor(sql: Sql) {
     if (!u) continue;
     const c = get(u.email, String(p.profile.name || u.name));
     if (c) {
+      c.coach = true;
       Object.assign(c, {
         name: String(p.profile.name || u.name),
         bio: String(p.profile.career || ""),
@@ -126,6 +131,7 @@ export async function publicPeopleFor(sql: Sql) {
     for (const m of members) {
       const c = get(m.email, m.name);
       if (!c) continue;
+      c.coach = true;
       if (!c.teams.some((x) => x.id === t.id))
         c.teams.push({
           id: t.id,
@@ -145,11 +151,12 @@ export async function publicPeopleFor(sql: Sql) {
     const c = get(u.email, s.profile.name);
     if (!c) continue;
     Object.assign(c, s.profile);
+    c.coach = s.publish_coach;
     c.instructor = s.instructor && s.publish_instructor;
     if (!s.publish_coach) c.teams = [];
   }
   return [...cards.values()]
-    .filter((c) => c.teams.length || c.instructor)
+    .filter((c) => c.coach || c.instructor)
     .map((c) => {
       const a = available.find((a) => a.id === c.coachId);
       return {

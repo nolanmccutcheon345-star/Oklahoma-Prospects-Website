@@ -153,11 +153,11 @@ export async function personFor(sql: Sql, userId: string) {
   const windows = coachAvailabilityFields(file.availability.filter((a) => a.coachId === coachId))
     .filter((w) => w.available)
     .map((w) => ({ weekday: w.weekday, start: w.start, end: w.end }));
+  const primaryRole =
+    (await sql<{ role: string }>`select role from profiles where user_id=${userId}`)[0]?.role || "parent";
   return {
     user: { id: user.id, name: user.name, email, disabled: Boolean(user.disabledAt) },
-    primaryRole:
-      (await sql<{ role: string }>`select role from profiles where user_id=${userId}`)[0]?.role ||
-      "parent",
+    primaryRole,
     coachId,
     sources: saved ? [] : sources,
     value: {
@@ -165,7 +165,7 @@ export async function personFor(sql: Sql, userId: string) {
       revision: saved?.revision || 0,
       profile: saved?.profile || draft,
       instructor: saved?.instructor ?? inferred,
-      publishCoach: saved?.publish_coach ?? assignments.length > 0,
+      publishCoach: saved?.publish_coach ?? (primaryRole === "coach" || assignments.length > 0 || inferred),
       publishInstructor: saved?.publish_instructor ?? Boolean(legacy?.published && inferred),
       teams: assignments,
       offerings: [...new Map(offerings.map((o) => [o.serviceId, o])).values()],
@@ -250,8 +250,8 @@ export async function savePersonFor(sql: Sql, actorId: string, raw: PersonSave) 
     if (input.teams.length && !club) throw new Error("Create a team first.");
     if (new Set(input.teams.map((t) => t.teamId)).size !== input.teams.length)
       throw new Error("Choose each team once.");
-    if (input.publishCoach && !input.teams.length)
-      throw new Error("Assign a team before publishing on Coaches.");
+    if (input.publishCoach && !input.profile.sports.length && !input.teams.length)
+      throw new Error("Choose Baseball, Softball, or both before publishing on Coaches.");
     if (club) {
       for (const a of input.teams) {
         const t = club.club.teams.find((t) => t.id === a.teamId && !t.closed);
@@ -400,6 +400,8 @@ export async function saveMyPersonFor(
       throw new Error("Review existing profiles before saving.");
     if ((p.value.publishCoach || p.value.publishInstructor) && !input.profile.bio)
       throw new Error("A published profile needs a bio.");
+    if (p.value.publishCoach && !input.profile.sports.length && !p.value.teams.length)
+      throw new Error("Choose Baseball, Softball, or both before publishing on Coaches.");
     await tx`insert into person_profiles(user_id,revision,instructor,publish_coach,publish_instructor,profile) values(${userId},${input.revision + 1},${p.value.instructor},${p.value.publishCoach},${p.value.publishInstructor},${JSON.stringify(input.profile)}::jsonb) on conflict(user_id) do update set profile=excluded.profile,revision=excluded.revision,updated_at=now()`;
     return { ok: true };
   });

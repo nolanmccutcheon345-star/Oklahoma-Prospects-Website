@@ -1,11 +1,12 @@
 import { useEffect, useState } from "react";
-import { Link } from "@tanstack/react-router";
+import { Link, useRouter } from "@tanstack/react-router";
 import { Button } from "@/components/ui/button";
 import { getStaffDirectory, saveStaffDirectoryListing } from "@/lib/staff-directory-api";
 import type { StaffListing } from "@/lib/staff-directory";
 
 const field = "mt-1 block min-h-11 w-full rounded-md border border-line bg-paper px-3 text-ink";
 export function StaffDirectoryDesk() {
+  const router = useRouter();
   const [rows, setRows] = useState<StaffListing[]>([]);
   const [editing, setEditing] = useState<StaffListing | null>(null);
   const [loading, setLoading] = useState(true);
@@ -39,6 +40,7 @@ export function StaffDirectoryDesk() {
           a.name.localeCompare(b.name),
         ),
       );
+      await router.invalidate();
       setEditing(null);
       setNotice(
         saved.published ? "Staff listing saved and published." : "Staff listing saved privately.",
@@ -56,7 +58,7 @@ export function StaffDirectoryDesk() {
           <h3 className="text-2xl">Staff directory</h3>
           <p className="mt-2 text-muted">
             Titles, contact details and biographies for coordinators, recruiters and staff. Listings
-            do not grant account access.
+            appear on the Coaches page by default. Uncheck publication to hide a listing. Listings do not grant account access.
           </p>
         </div>
         <Button
@@ -72,7 +74,7 @@ export function StaffDirectoryDesk() {
               email: "",
               phone: "",
               bio: "",
-              published: false,
+              published: true,
             });
           }}
         >
@@ -166,7 +168,7 @@ export function StaffDirectoryDesk() {
                 checked={editing.published}
                 onChange={(e) => setEditing({ ...editing, published: e.target.checked })}
               />
-              Publish name, title, biography, email and phone on the website
+              Show on public Coaches & Staff page (on by default; public listing includes name, title, biography, email and phone)
             </label>
             <div className="flex flex-wrap gap-3">
               <Button type="submit">{busy ? "Saving…" : "Save staff listing"}</Button>
