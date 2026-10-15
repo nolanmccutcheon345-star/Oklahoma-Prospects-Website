@@ -10,6 +10,7 @@ const person: PublicPerson = {
   instructor: true,
   bookable: false,
   serviceIds: [],
+  coach: true,
   teams: [],
 };
 test("public coach photo transport removes inline payload and rechecks publication before 304", async () => {

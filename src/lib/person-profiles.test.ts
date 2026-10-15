@@ -153,6 +153,39 @@ test("one account retains primary role, scoped assignments and shared publicatio
     const hidden = await publicPeopleFor(sql);
     assert.ok(!hidden.some((p) => p.id === published[0].id));
     assert.equal((await resolveIdentity(sql, "student")).canInstruct, true);
+    // A new coach can publish without a team, and explicit hiding survives later edits.
+    const standalone = (await personFor(sql, "coach")).value;
+    assert.equal(standalone.publishCoach, true);
+    assert.equal((await personFor(sql, "parent")).value.publishCoach, false);
+    await assert.rejects(() => savePersonFor(sql, "owner", {
+      ...standalone, profile: { ...standalone.profile, bio: "Coach biography" }, reviewedSources: true,
+    }), /Choose Baseball, Softball/);
+    await savePersonFor(sql, "owner", {
+      ...standalone,
+      profile: { ...standalone.profile, name: "Standalone softball coach", bio: "Coach biography", sports: ["softball"] },
+      reviewedSources: true,
+    });
+    const standaloneCard = (await publicPeopleFor(sql)).find(p => p.name === "Standalone softball coach")!;
+    assert.equal(standaloneCard.coach, true);
+    assert.equal(standaloneCard.instructor, false);
+    assert.deepEqual(standaloneCard.teams, []);
+    assert.deepEqual(standaloneCard.sports, ["softball"]);
+    assert.equal((await resolveIdentity(sql, "coach")).canTeamCoach, false);
+    await assert.rejects(() => saveMyPersonFor(sql, "coach", {
+      revision: 1, profile: { ...standalone.profile, bio: "Coach biography", sports: [] }, reviewedSources: true,
+    }), /Choose Baseball, Softball/);
+    let standaloneSaved = (await personFor(sql, "coach")).value;
+    await savePersonFor(sql, "owner", { ...standaloneSaved, publishCoach: false });
+    standaloneSaved = (await personFor(sql, "coach")).value;
+    assert.equal(standaloneSaved.publishCoach, false);
+    await savePersonFor(sql, "owner", { ...standaloneSaved, profile: { ...standaloneSaved.profile, bio: "Still private" } });
+    assert.ok(!(await publicPeopleFor(sql)).some(p => p.id === standaloneCard.id));
+    standaloneSaved = (await personFor(sql, "coach")).value;
+    await savePersonFor(sql, "owner", { ...standaloneSaved, publishCoach: true,
+      profile: { ...standaloneSaved.profile, sports: ["baseball", "softball"] } });
+    assert.deepEqual((await publicPeopleFor(sql)).find(p => p.id === standaloneCard.id)?.sports, ["baseball", "softball"]);
+    await sql`update "user" set "disabledAt"=now() where id='coach'`;
+    assert.ok(!(await publicPeopleFor(sql)).some(p => p.id === standaloneCard.id));
     await sql`update club_staff set active=false where user_id='student'`;
     await revokeStaffAccess(sql, { user_id: "student", email: "student@example.invalid" });
     assert.equal((await resolveIdentity(sql, "student")).canInstruct, false);

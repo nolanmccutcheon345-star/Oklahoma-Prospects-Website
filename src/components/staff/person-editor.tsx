@@ -1,9 +1,12 @@
+import { useRouter } from "@tanstack/react-router";
 import { useEffect, useState, useRef } from "react";
 import { getPerson, getMyPerson, savePerson, saveMyPerson } from "@/lib/person-api";
 import type { PersonSave, SharedProfile } from "@/lib/person-contracts";
 import { Button } from "../ui/button";
 type Options = Awaited<ReturnType<typeof getPerson>>["options"];
 export function PersonEditor({ userId, onClose }: { userId?: string; onClose?: () => void }) {
+  const router = useRouter();
+  const publicationChosen = useRef(false);
   const root = useRef<HTMLElement>(null);
   const [specialtiesText, setSpecialtiesText] = useState("");
   const [record, setRecord] = useState<Awaited<ReturnType<typeof getMyPerson>>>(),
@@ -99,6 +102,7 @@ export function PersonEditor({ userId, onClose }: { userId?: string; onClose?: (
                   reviewedSources: value.reviewedSources,
                 },
               });
+            await router.invalidate();
             await load();
             setNotice("Shared profile saved. Both directories use these details.");
           } catch (e) {
@@ -272,8 +276,8 @@ export function PersonEditor({ userId, onClose }: { userId?: string; onClose?: (
                             teams: e.target.checked
                               ? [...value.teams, { teamId: t.id, role: "Assistant Coach" }]
                               : value.teams.filter((a) => a.teamId !== t.id),
-                            ...(!e.target.checked && value.teams.length === 1
-                              ? { publishCoach: false }
+                            ...(e.target.checked && !value.revision && !publicationChosen.current
+                              ? { publishCoach: true }
                               : {}),
                           })
                         }
@@ -321,6 +325,8 @@ export function PersonEditor({ userId, onClose }: { userId?: string; onClose?: (
                   onChange={(e) =>
                     update({
                       instructor: e.target.checked,
+                      ...(e.target.checked && !value.revision && !publicationChosen.current
+                        ? { publishCoach: true } : {}),
                       ...(!e.target.checked ? { publishInstructor: false } : {}),
                     })
                   }
@@ -496,10 +502,9 @@ export function PersonEditor({ userId, onClose }: { userId?: string; onClose?: (
                 <input
                   type="checkbox"
                   checked={value.publishCoach}
-                  disabled={!value.teams.length}
-                  onChange={(e) => update({ publishCoach: e.target.checked })}
+                  onChange={(e) => { publicationChosen.current = true; update({ publishCoach: e.target.checked }); }}
                 />
-                Publish on Coaches
+                Show on public Coaches page
               </label>
               <label className="flex min-h-11 items-center gap-2">
                 <input
@@ -511,7 +516,7 @@ export function PersonEditor({ userId, onClose }: { userId?: string; onClose?: (
                 Publish on Instructors
               </label>
               <p className="text-sm">
-                Publication does not grant permissions. Admin access remains controlled separately.
+                New coaches are shown by default. Uncheck to hide this coach. A team assignment is optional; select Baseball, Softball, or both above. Publication does not grant permissions. Admin access remains controlled separately.
               </p>
             </fieldset>
           </>

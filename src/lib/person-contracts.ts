@@ -67,6 +67,8 @@ export type PersonSave = z.infer<typeof personSaveInput>;
 export type PublicPerson = SharedProfile & {
   id: string;
   coachId: string;
+  coach: boolean;
+  title?: string;
   instructor: boolean;
   bookable: boolean;
   serviceIds: string[];

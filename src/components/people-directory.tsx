@@ -10,7 +10,7 @@ export function PeopleDirectory({
   kind: "coaches" | "instructors";
 }) {
   const [sport, setSport] = useState("all");
-  const rows = people.filter((p) => (kind === "coaches" ? p.teams.length : p.instructor));
+  const rows = people.filter((p) => (kind === "coaches" ? p.coach : p.instructor));
   const visible = rows.filter(
     (p) =>
       sport === "all" ||
@@ -55,7 +55,7 @@ export function PeopleDirectory({
             <p className="mt-2 font-semibold">
               {kind === "instructors"
                 ? "Lesson Instructor"
-                : [...new Set(p.teams.map((t) => t.role))].join(" · ")}
+                : [...new Set(p.teams.map((t) => t.role))].join(" · ") || p.title || "Coach"}
             </p>
             <p className="mt-1 capitalize text-muted">
               {[...new Set([...p.sports, ...p.teams.map((t) => t.sport)])].join(" · ")}
