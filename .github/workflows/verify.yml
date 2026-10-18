@@ -38,6 +38,8 @@ jobs:
           SQUARE_ENVIRONMENT: sandbox
       - run: npm run verify:build
       - run: npx playwright install --with-deps chromium
+      - name: Isolated coordinator permissions walkthrough
+        run: node scripts/check-coordinator.mjs
       - name: Authenticated isolated instructor walkthrough
         run: npm run test:guided:browser
         env:
@@ -51,8 +53,6 @@ jobs:
           PUBLIC_UX_SCREENSHOTS: artifacts/guided-lessons/public-ux
       - name: Isolated coach tryout center walkthrough
         run: node scripts/check-tryout-center.mjs
-      - name: Isolated coordinator permissions walkthrough
-        run: node scripts/check-coordinator.mjs
       - name: Isolated shop walkthrough
         run: node scripts/shop-walkthrough.mjs
       # Run the real interaction loop first so interface failures are found promptly.

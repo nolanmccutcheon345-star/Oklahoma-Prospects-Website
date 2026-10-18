@@ -139,6 +139,7 @@ export function StaffRoleManagement() {
           <label className="grid gap-1">
             Verified staff account
             <select
+              aria-label="Verified staff account"
               className={field}
               value={value?.userId || ""}
               onChange={(e) => choose(e.target.value, value?.sport || "softball")}

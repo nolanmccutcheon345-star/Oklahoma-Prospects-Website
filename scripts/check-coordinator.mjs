@@ -175,6 +175,7 @@ try {
   owner.page.on("dialog", (d) => d.accept());
   await owner.page.goto(origin + "/office?section=staff");
   await owner.page.getByRole("heading", { name: "Staff Management", exact: true }).waitFor();
+  await owner.page.screenshot({ path: shots + "/owner-before-selection.png", fullPage: true });
   await owner.page
     .getByLabel("Verified staff account", { exact: true })
     .selectOption("fixture-coach");
