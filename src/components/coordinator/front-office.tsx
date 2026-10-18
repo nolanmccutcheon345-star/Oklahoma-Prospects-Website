@@ -1,7 +1,12 @@
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { Button } from "../ui/button";
 import * as api from "@/lib/coordinator/api";
-import { capabilities, type Capability, type Sport } from "@/lib/coordinator/contracts";
+import {
+  capabilities,
+  type Capability,
+  type Sport,
+  type HistoryCursor,
+} from "@/lib/coordinator/contracts";
 import { TRYOUT_STATUSES } from "@/lib/tryout-center-contracts";
 const field = "min-h-11 w-full rounded border border-line bg-white p-2 text-ink";
 const text = (f: FormData, key: string) => String(f.get(key) || "");
@@ -194,37 +199,50 @@ function CoordinatorModule({
     [notice, setNotice] = useState(""),
     [busy, setBusy] = useState(false);
   const [recruits, setRecruits] = useState<
-    Awaited<ReturnType<typeof api.getCoordinatorRecruiting>>
+    Awaited<ReturnType<typeof api.getCoordinatorRecruiting>>["items"]
   >([]);
   const [roster, setRoster] = useState<Awaited<ReturnType<typeof api.getCoordinatorRoster>>>([]);
   const [schedule, setSchedule] = useState<Awaited<ReturnType<typeof api.getCoordinatorSchedule>>>(
     [],
   );
-  const [messages, setMessages] = useState<Awaited<ReturnType<typeof api.getCoordinatorMessages>>>(
-    [],
-  );
+  const [messages, setMessages] = useState<
+    Awaited<ReturnType<typeof api.getCoordinatorMessages>>["items"]
+  >([]);
   const [drafts, setDrafts] = useState<Awaited<ReturnType<typeof api.getCoordinatorDrafts>>>([]);
   const [report, setReport] = useState<Awaited<ReturnType<typeof api.getCoordinatorReports>>>();
   const [activity, setActivity] = useState<Awaited<ReturnType<typeof api.getCoordinatorActivity>>>(
     [],
   );
   const [occupied, setOccupied] = useState<Awaited<ReturnType<typeof api.getCoordinatorCages>>>([]);
+  const [before, setBefore] = useState<HistoryCursor>();
+  const [nextCursor, setNextCursor] = useState<HistoryCursor | null>(null);
   const [loaded, setLoaded] = useState(false);
   const load = useCallback(async () => {
-    if (tab === "recruiting" && allowed("recruiting.read"))
-      setRecruits(await api.getCoordinatorRecruiting({ data: { sport, teamId } }));
+    if (tab === "recruiting" && allowed("recruiting.read")) {
+      const page = await api.getCoordinatorRecruiting({ data: { sport, teamId, before } });
+      setRecruits(page.items);
+      setNextCursor(page.nextCursor);
+    }
     if (tab === "rosters" && teamId) setRoster(await api.getCoordinatorRoster({ data: teamId }));
     if (tab === "events" && teamId && allowed("events.read"))
       setSchedule(await api.getCoordinatorSchedule({ data: teamId }));
-    if (tab === "messages" && teamId && allowed("communications.read"))
-      setMessages(await api.getCoordinatorMessages({ data: teamId }));
+    if (tab === "messages" && teamId && allowed("communications.read")) {
+      const page = await api.getCoordinatorMessages({ data: { teamId, before } });
+      setMessages(page.items);
+      setNextCursor(page.nextCursor);
+    }
     if (tab === "drafts") setDrafts(await api.getCoordinatorDrafts({ data: { sport, teamId } }));
     if (tab === "reports") setReport(await api.getCoordinatorReports({ data: { sport, teamId } }));
     if (tab === "activity")
       setActivity(await api.getCoordinatorActivity({ data: { sport, teamId } }));
-  }, [tab, teamId, sport, allowed]);
+  }, [tab, teamId, sport, allowed, before]);
   useEffect(() => {
     let active = true;
+    setLoaded(false);
+    setRecruits([]);
+    setMessages([]);
+    setNextCursor(null);
+    setError("");
     void load()
       .then(() => {
         if (active) setLoaded(true);
@@ -268,6 +286,24 @@ function CoordinatorModule({
       )}
       {notice && <p role="status">{notice}</p>}
       {!loaded && !error && <p role="status">Loading authorized records…</p>}
+      {["recruiting", "messages"].includes(tab) && (before || nextCursor) && (
+        <nav aria-label="Record history" className="flex flex-wrap gap-3">
+          <Button
+            variant="outlineDark"
+            disabled={!before || !loaded || busy}
+            onClick={() => setBefore(undefined)}
+          >
+            Newest records
+          </Button>
+          <Button
+            variant="outlineDark"
+            disabled={!nextCursor || !loaded || busy}
+            onClick={() => nextCursor && setBefore(nextCursor)}
+          >
+            Older records
+          </Button>
+        </nav>
+      )}
       {["rosters", "events", "messages"].includes(tab) && !teamId ? (
         <p>Select a team above to open this module.</p>
       ) : (

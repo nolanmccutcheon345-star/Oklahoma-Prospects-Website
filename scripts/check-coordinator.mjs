@@ -23,6 +23,9 @@ try {
   process.env.DATABASE_URL = "postgresql://postgres@" + socket.getServerConn() + "/postgres";
   const handler = (await import("../.netlify/v1/functions/server.mjs")).default;
   const sql = h.sql;
+  // PGlite has one backend, so avoid interleaving separate clients' wire portals.
+  // Real database concurrency is covered separately; do not change app authorization.
+  let requestQueue = Promise.resolve();
   async function isolatedContext(options = {}) {
     const context = await browser.newContext(options);
     await context.route("**/*", async (route) => {
@@ -51,20 +54,30 @@ try {
         } catch {
           /* Dynamic routes use the real built application. */
         }
-      const response = await handler(
-        new Request(req.url(), {
-          method: req.method(),
-          headers: { ...(await req.allHeaders()), "x-nf-client-connection-ip": "192.0.2.92" },
-          ...(!["GET", "HEAD"].includes(req.method()) ? { body: req.postDataBuffer() } : {}),
-        }),
+      const responseTask = requestQueue.then(async () => {
+        const response = await handler(
+          new Request(req.url(), {
+            method: req.method(),
+            headers: { ...(await req.allHeaders()), "x-nf-client-connection-ip": "192.0.2.92" },
+            ...(!["GET", "HEAD"].includes(req.method()) ? { body: req.postDataBuffer() } : {}),
+          }),
+        );
+        // Consume streamed output before releasing the isolated backend.
+        const body = Buffer.from(await response.arrayBuffer());
+        return { response, body };
+      });
+      requestQueue = responseTask.then(
+        () => undefined,
+        () => undefined,
       );
+      const { response, body } = await responseTask;
       const headers = Object.fromEntries(response.headers);
       if (response.headers.getSetCookie().length)
         headers["set-cookie"] = response.headers.getSetCookie().join("\n");
       return route.fulfill({
         status: response.status,
         headers,
-        body: Buffer.from(await response.arrayBuffer()),
+        body,
       });
     });
     return context;
@@ -132,6 +145,10 @@ try {
   assert.equal(await zero.page.getByRole("button", { name: "Recruiting", exact: true }).count(), 0);
   await zero.page.screenshot({ path: shots + "/zero-mobile.png", fullPage: true });
   const coordinator = await signedIn("coach@example.invalid");
+  await coordinator.page.goto(origin + "/account");
+  await coordinator.page
+    .getByRole("link", { name: "Coordinator Front Office", exact: true })
+    .click();
   await coordinator.page.getByRole("button", { name: "Recruiting", exact: true }).click();
   await coordinator.page.getByText("Tryout Test Player · 13U", { exact: true }).waitFor();
   assert.equal(
@@ -143,6 +160,17 @@ try {
     0,
   );
   await coordinator.page.screenshot({ path: shots + "/recruiting-mobile.png", fullPage: true });
+  const parent = await signedIn("parent@example.invalid");
+  await parent.page.goto(origin + "/account");
+  await parent.page
+    .getByRole("heading", { name: /fixture-parent/i })
+    .first()
+    .waitFor();
+  assert.equal(
+    await parent.page.getByRole("link", { name: "Coordinator Front Office", exact: true }).count(),
+    0,
+  );
+  await parent.context.close();
   const owner = await signedIn("stevemccutcheon89@gmail.com", 1280);
   owner.page.on("dialog", (d) => d.accept());
   await owner.page.goto(origin + "/office?section=staff");

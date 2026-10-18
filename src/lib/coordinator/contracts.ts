@@ -38,6 +38,15 @@ export const id = z.string().min(1).max(200);
 export const scopeInput = z
   .object({ sport: sportInput, teamId: z.string().max(200).default("") })
   .strict();
+// Keyset cursors preserve access to the full history without unbounded responses.
+export const historyCursor = z.object({ at: z.iso.datetime(), id }).strict();
+export const recruitingHistoryInput = scopeInput
+  .extend({ before: historyCursor.optional() })
+  .strict();
+export const messageHistoryInput = z
+  .object({ teamId: id, before: historyCursor.optional() })
+  .strict();
+export type HistoryCursor = z.infer<typeof historyCursor>;
 export const assignmentInput = z
   .object({
     userId: id,

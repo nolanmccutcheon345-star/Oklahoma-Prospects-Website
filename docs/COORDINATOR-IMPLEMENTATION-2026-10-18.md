@@ -124,3 +124,13 @@ Source changes remain local. An empty remote review branch named `feat/coordinat
 No feature deployment, production migration, new production backup, live role change or Sara activation occurred. Existing production deployment `6ad15aff3eb3f6b5850a09b2` was observed ready at the baseline commit; this is not deployment verification of the new feature.
 
 The accompanying patch applies to the baseline commit above. It is a partial implementation for engineering review, not a production-ready release. The report's remaining requirements are release blockers.
+
+## Account entry and historical access follow-up
+
+The draft now adds a Coordinator Front Office link to the existing account page for active coordinator assignments, including zero-grant assignments. A parent account remains a parent for its independent household workflows. This link conveys no operational authority: every destination operation checks current grants. Suspended, removed and ordinary parent accounts do not receive the link.
+
+Recruiting and team communications now use bounded keyset pagination with Older records and Newest records controls. There is no assignment-date cutoff. Tests cover 205 older registrations and 105 older messages, equal timestamps, no skipped/duplicate IDs, cross-sport denial, field redaction and revoked access on subsequent pages. Registrations with missing or incorrect sport classifications remain excluded until an owner reconciles the source data; that reconciliation has not been performed.
+
+The first hosted CI run reached the coordinator browser check but failed with a PGlite socket portal concurrency error while opening owner management. The browser harness now serializes full dynamic requests to its single embedded database backend, preserving real authentication and authorization. It also exercises the account-to-coordinator link and ordinary-parent link exclusion. These harness changes require a fresh CI result before certification.
+
+Final local targeted suites for this follow-up: 6 passed. Build, TypeScript and targeted lint pass. Chromium installation still fails locally. No production deployment or account assignment has been performed.

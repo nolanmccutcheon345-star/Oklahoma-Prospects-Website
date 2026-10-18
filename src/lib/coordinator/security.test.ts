@@ -1,4 +1,4 @@
-import { requireGrant, secured } from './access.server';
+import { requireGrant, secured } from "./access.server";
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFile, readdir } from "node:fs/promises";
@@ -6,10 +6,17 @@ import { randomUUID } from "node:crypto";
 import { PGlite } from "@electric-sql/pglite";
 import type { Sql } from "../db";
 import { sampleClub } from "../teams/seed";
-import { permissionKeys, assignmentInput, type AssignmentInput, type Capability } from "./contracts";
+import {
+  permissionKeys,
+  assignmentInput,
+  type AssignmentInput,
+  type Capability,
+} from "./contracts";
 import { saveAssignment, staffWorkspace, saveLeadership } from "./admin.server";
 import {
   coordinatorHome,
+  coordinatorEntry,
+  teamCommunications,
   roster,
   editRoster,
   recruiting,
@@ -130,14 +137,19 @@ test("coordinator default-deny matrix, field projections, scopes, revisions, and
     for (const user of ["zero", "softball", "baseball"])
       await assign(user, user === "baseball" ? "baseball" : "softball");
     assert.equal((await coordinatorHome(sql, "zero")).targets.length, 0);
-    for (const permission of permissionKeys) await assert.rejects(() => secured(sql, 'zero', permission, tx => requireGrant(tx, 'zero', permission, 'softball', 'soft')));
-    await assign('baseball','baseball',['rosters.read']);
-    await assert.rejects(()=>roster(sql,'baseball','soft'));
-    assert.equal((await roster(sql,'baseball','base')).length,1);
-    await assign('baseball','softball');
-    await assert.rejects(()=>roster(sql,'baseball','soft'));
-    await assign('baseball','softball',['rosters.read']);
-    assert.equal((await roster(sql,'baseball','soft')).length,1);
+    for (const permission of permissionKeys)
+      await assert.rejects(() =>
+        secured(sql, "zero", permission, (tx) =>
+          requireGrant(tx, "zero", permission, "softball", "soft"),
+        ),
+      );
+    await assign("baseball", "baseball", ["rosters.read"]);
+    await assert.rejects(() => roster(sql, "baseball", "soft"));
+    assert.equal((await roster(sql, "baseball", "base")).length, 1);
+    await assign("baseball", "softball");
+    await assert.rejects(() => roster(sql, "baseball", "soft"));
+    await assign("baseball", "softball", ["rosters.read"]);
+    assert.equal((await roster(sql, "baseball", "soft")).length, 1);
 
     await assert.rejects(() => registrationRowsFor(sql, "zero"));
     for (const user of ["zero", "parent", "coach", "instructor", "fake"]) {
@@ -292,8 +304,8 @@ test("team-only recruiting, strict editing, messages, reports, public title inde
     });
     await sql`insert into club_requests(id,kind,payload) values('other','tryout','{"sport":"baseball","player":"OTHER-SPORT"}'),('unassigned','tryout','{"sport":"softball","player":"UNASSIGNED"}'),('money','refund-review','{"sport":"softball","preferredTeamId":"soft","player":"FINANCIAL"}')`;
     const rows = await recruiting(sql, "softball", { sport: "softball", teamId: "soft" });
-    assert.equal(rows.length, 1);
-    assert.equal(rows[0].id, id);
+    assert.equal(rows.items.length, 1);
+    assert.equal(rows.items[0].id, id);
     await assert.rejects(() => recruiting(sql, "softball", { sport: "softball", teamId: "" }));
     await assert.rejects(() =>
       createProspect(sql, "softball", {
@@ -338,9 +350,23 @@ test("team-only recruiting, strict editing, messages, reports, public title inde
       sendRecruitingEmail(sql, "softball", { ...mail, confirmedEmail: "stranger@example.invalid" }),
     );
     await sendRecruitingEmail(sql, "softball", mail);
-    assert.equal((await sql<{allowed:boolean}>`select coordinator_notice_allowed('softball',${id},'guardian@example.invalid') as allowed`)[0].allowed,true);
+    assert.equal(
+      (
+        await sql<{
+          allowed: boolean;
+        }>`select coordinator_notice_allowed('softball',${id},'guardian@example.invalid') as allowed`
+      )[0].allowed,
+      true,
+    );
     await sql`update coordinator_assignments set status='suspended' where user_id='softball'`;
-    assert.equal((await sql<{allowed:boolean}>`select coordinator_notice_allowed('softball',${id},'guardian@example.invalid') as allowed`)[0].allowed,false);
+    assert.equal(
+      (
+        await sql<{
+          allowed: boolean;
+        }>`select coordinator_notice_allowed('softball',${id},'guardian@example.invalid') as allowed`
+      )[0].allowed,
+      false,
+    );
     await sql`update coordinator_assignments set status='active' where user_id='softball'`;
 
     await assert.rejects(() => sendRecruitingEmail(sql, "softball", mail));
@@ -495,6 +521,73 @@ test("shared occupancy conflict rollback, practice synchronization, approvals an
     assert.equal(
       (await sql`select id from coordinator_approvals where status='pending'`).length,
       0,
+    );
+  } finally {
+    await db.close();
+  }
+});
+
+test("account entry and complete historical pages retain current permissions and scope", async () => {
+  const { db, sql, assign } = await fixture();
+  try {
+    assert.equal((await coordinatorEntry(sql, "parent")).available, false);
+    const empty = await assign("zero", "softball");
+    assert.equal((await coordinatorEntry(sql, "zero")).available, true);
+    await saveAssignment(sql, "owner", { ...empty, status: "suspended" });
+    assert.equal((await coordinatorEntry(sql, "zero")).available, false);
+    const grant = await assign(
+      "softball",
+      "softball",
+      ["recruiting.read", "communications.read"],
+      "teams",
+      ["soft"],
+    );
+    // More than the old hard limits, identical timestamps and source-private fields.
+    await sql`insert into club_requests(id,kind,created_at,payload) select 'history-'||lpad(n::text,4,'0'),'tryout','2020-01-01T12:00:00.123456Z'::timestamptz,jsonb_build_object('sport','softball','preferredTeamId','soft','player','Historical player','email','PRIVATE-CONTACT','medical','PRIVATE-MEDICAL','paymentStatus','PRIVATE-FINANCE') from generate_series(1,205) n`;
+    await sql`insert into club_requests(id,kind,payload) values('foreign','tryout','{"sport":"baseball","preferredTeamId":"base","player":"OTHER-SPORT"}'),('unknown','tryout','{"player":"UNKNOWN-SPORT"}')`;
+    let before: { at: string; id: string } | undefined;
+    const ids: string[] = [];
+    do {
+      const page = await recruiting(sql, "softball", { sport: "softball", teamId: "soft", before });
+      assert.ok(page.items.length <= 100);
+      assert.doesNotMatch(JSON.stringify(page), /PRIVATE|OTHER-SPORT|UNKNOWN-SPORT/);
+      ids.push(...page.items.map((r) => r.id));
+      before = page.nextCursor || undefined;
+    } while (before);
+    assert.equal(ids.length, 205);
+    assert.equal(new Set(ids).size, 205);
+    await assert.rejects(() =>
+      recruiting(sql, "softball", {
+        sport: "baseball",
+        teamId: "base",
+        before: { at: "2026-01-01T00:00:00Z", id: "foreign" },
+      }),
+    );
+    await sql`insert into team_chat_messages(id,team_id,user_id,author,body,created_at) select gen_random_uuid(),'soft','owner','Coach','Historical team note','2020-01-01T00:00:00.123456Z'::timestamptz from generate_series(1,105)`;
+    await sql`insert into team_chat_messages(id,team_id,user_id,author,body) values(gen_random_uuid(),'base','owner','Coach','PRIVATE-BASEBALL')`;
+    const messages = await teamCommunications(sql, "softball", { teamId: "soft" });
+    assert.equal(messages.items.length, 100);
+    assert.ok(messages.nextCursor);
+    const older = await teamCommunications(sql, "softball", {
+      teamId: "soft",
+      before: messages.nextCursor,
+    });
+    assert.equal(older.items.length, 5);
+    assert.equal(older.nextCursor, null);
+    assert.equal(new Set([...messages.items, ...older.items].map((r) => r.id)).size, 105);
+    await assert.rejects(() =>
+      teamCommunications(sql, "softball", { teamId: "base", before: messages.nextCursor! }),
+    );
+    await saveAssignment(sql, "owner", { ...grant, permissions: [] });
+    await assert.rejects(() =>
+      teamCommunications(sql, "softball", { teamId: "soft", before: messages.nextCursor! }),
+    );
+    await assert.rejects(() =>
+      recruiting(sql, "softball", {
+        sport: "softball",
+        teamId: "soft",
+        before: { at: "2026-01-01T00:00:00Z", id: "history-0200" },
+      }),
     );
   } finally {
     await db.close();

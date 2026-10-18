@@ -12,6 +12,8 @@ import {
 } from "./access.server";
 import {
   scopeInput,
+  recruitingHistoryInput,
+  messageHistoryInput,
   rosterEditInput,
   prospectInput,
   requestEditInput,
@@ -19,6 +21,12 @@ import {
   emailInput,
   type Sport,
 } from "./contracts";
+export async function coordinatorEntry(sql: Sql, userId: string) {
+  return secured(sql, userId, "coordinator.entry", async (tx) => {
+    const assigned = await grants(tx, userId, true);
+    return { available: assigned.some((g) => g.status === "active") };
+  });
+}
 export async function coordinatorHome(sql: Sql, userId: string) {
   return secured(sql, userId, "coordinator.home", async (tx) => {
     const assignments = await grants(tx, userId, true);
@@ -125,16 +133,21 @@ export type RequestRow = {
   status: string;
   revision: number;
   work_revision: number;
+  submitted_at: string;
   parent: string | null;
   email: string | null;
   phone: string | null;
 };
 function requestFields(contacts: string) {
-  return `r.id,r.kind,r.payload->>'player' as player,r.payload->>'age' as age,r.payload->>'positions' as positions,lower(r.payload->>'sport') as sport,coalesce(r.payload->>'preferredTeamId','') as team_id,coalesce(w.follow_up,'new') as status,r.coordinator_revision as revision,coalesce(w.revision,0) as work_revision,case when ${contacts} then r.payload->>'parent' end as parent,case when ${contacts} then r.payload->>'email' end as email,case when ${contacts} then r.payload->>'phone' end as phone`;
+  return `r.id,r.kind,to_char(r.created_at at time zone 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"') as submitted_at,r.payload->>'player' as player,r.payload->>'age' as age,r.payload->>'positions' as positions,lower(r.payload->>'sport') as sport,coalesce(r.payload->>'preferredTeamId','') as team_id,coalesce(w.follow_up,'new') as status,r.coordinator_revision as revision,coalesce(w.revision,0) as work_revision,case when ${contacts} then r.payload->>'parent' end as parent,case when ${contacts} then r.payload->>'email' end as email,case when ${contacts} then r.payload->>'phone' end as phone`;
 }
 const requestScope = `g.sport=lower(r.payload->>'sport') and (g.coverage='sport' or coalesce(r.payload->>'preferredTeamId','')=any(g.team_ids))`;
-export async function recruiting(sql: Sql, userId: string, raw: z.infer<typeof scopeInput>) {
-  const input = scopeInput.parse(raw);
+export async function recruiting(
+  sql: Sql,
+  userId: string,
+  raw: z.infer<typeof recruitingHistoryInput>,
+) {
+  const input = recruitingHistoryInput.parse(raw);
   return secured(sql, userId, "recruiting.read", async (tx) => {
     await checkScope(tx, userId, "recruiting.read", input.sport, input.teamId);
     const contacts = permits(
@@ -144,8 +157,15 @@ export async function recruiting(sql: Sql, userId: string, raw: z.infer<typeof s
       input.teamId,
     );
     const rows = await tx.query<RequestRow>(
-      `select ${requestFields("$4::boolean")} from club_requests r left join office_request_work w on w.request_id=r.id where r.kind in ('tryout','team-inquiry') and lower(r.payload->>'sport')=$1 and ($2='' or r.payload->>'preferredTeamId'=$2) and exists(select 1 from coordinator_assignments g where g.user_id=$3 and g.status='active' and 'recruiting.read'=any(g.permissions) and ${requestScope}) order by r.created_at desc limit 200`,
-      [input.sport, input.teamId, userId, contacts],
+      `select ${requestFields("$4::boolean")} from club_requests r left join office_request_work w on w.request_id=r.id where r.kind in ('tryout','team-inquiry') and lower(r.payload->>'sport')=$1 and ($2='' or r.payload->>'preferredTeamId'=$2) and exists(select 1 from coordinator_assignments g where g.user_id=$3 and g.status='active' and 'recruiting.read'=any(g.permissions) and ${requestScope}) and ($5::timestamptz is null or (r.created_at,r.id)<($5::timestamptz,$6::text)) order by r.created_at desc,r.id desc limit 101`,
+      [
+        input.sport,
+        input.teamId,
+        userId,
+        contacts,
+        input.before?.at || null,
+        input.before?.id || "",
+      ],
     );
     await audit(
       tx,
@@ -157,7 +177,12 @@ export async function recruiting(sql: Sql, userId: string, raw: z.infer<typeof s
       input.sport,
       input.teamId,
     );
-    return rows;
+    const items = rows.slice(0, 100);
+    const last = items.at(-1);
+    return {
+      items,
+      nextCursor: rows.length > 100 && last ? { at: last.submitted_at, id: last.id } : null,
+    };
   });
 }
 async function requestFor(
@@ -246,15 +271,27 @@ export async function editRequest(sql: Sql, userId: string, raw: z.infer<typeof 
     return { ok: true };
   });
 }
-export async function teamCommunications(sql: Sql, userId: string, teamId: string) {
+export async function teamCommunications(
+  sql: Sql,
+  userId: string,
+  raw: z.infer<typeof messageHistoryInput>,
+) {
+  const input = messageHistoryInput.parse(raw);
   return secured(sql, userId, "communications.read", async (tx) => {
-    await requireTeam(tx, userId, "communications.read", teamId);
-    return tx<{
-      id: string;
-      author: string;
-      body: string;
-      created_at: Date;
-    }>`select id,author,body,created_at from team_chat_messages where team_id=${teamId} order by created_at desc limit 100`;
+    await requireTeam(tx, userId, "communications.read", input.teamId);
+    const rows = await tx.query<{ id: string; author: string; body: string; created_at: string }>(
+      `select id,author,body,to_char(created_at at time zone 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"') as created_at from team_chat_messages where team_id=$1 and ($2::timestamptz is null or (created_at,id::text)<($2::timestamptz,$3::text)) order by created_at desc,id desc limit 101`,
+      [input.teamId, input.before?.at || null, input.before?.id || ""],
+    );
+    const items = rows.slice(0, 100);
+    const last = items.at(-1);
+    await audit(tx, userId, "communications.read", input.teamId, "allowed", {
+      count: items.length,
+    });
+    return {
+      items,
+      nextCursor: rows.length > 100 && last ? { at: last.created_at, id: last.id } : null,
+    };
   });
 }
 export async function postTeamMessage(sql: Sql, userId: string, raw: z.infer<typeof messageInput>) {

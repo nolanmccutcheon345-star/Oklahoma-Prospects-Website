@@ -5,6 +5,8 @@ import {
   sports,
   id,
   scopeInput,
+  recruitingHistoryInput,
+  messageHistoryInput,
   assignmentInput,
   publicLeadershipInput,
   rosterEditInput,
@@ -17,6 +19,12 @@ import {
   approvalInput,
   decisionInput,
 } from "./contracts";
+export const getCoordinatorEntry = createServerFn({ method: "GET" })
+  .middleware([authMiddleware])
+  .handler(async ({ context }) => {
+    const { getSql } = await import("../db");
+    return (await import("./operations.server")).coordinatorEntry(await getSql(), context.userId);
+  });
 export const getCoordinatorHome = createServerFn({ method: "GET" })
   .middleware([authMiddleware])
   .handler(async ({ context }) => {
@@ -86,7 +94,7 @@ export const saveCoordinatorRoster = createServerFn({ method: "POST" })
   });
 export const getCoordinatorRecruiting = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
-  .validator(scopeInput)
+  .validator(recruitingHistoryInput)
   .handler(async ({ context, data }) => {
     const { getSql } = await import("../db");
     return (await import("./operations.server")).recruiting(await getSql(), context.userId, data);
@@ -111,7 +119,7 @@ export const editCoordinatorRequest = createServerFn({ method: "POST" })
   });
 export const getCoordinatorMessages = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
-  .validator(id)
+  .validator(messageHistoryInput)
   .handler(async ({ context, data }) => {
     const { getSql } = await import("../db");
     return (await import("./operations.server")).teamCommunications(
