@@ -14,7 +14,7 @@ import {
 } from "./person-contracts";
 import type { ClubRecord } from "./teams/types";
 export async function publicPeopleFor(sql: Sql) {
-  const [users, shared, oldProfiles, directory, clubRows, file, products] = await Promise.all([
+  const [users, shared, oldProfiles, directory, clubRows, file, products, leadership] = await Promise.all([
     sql<{
       id: string;
       email: string;
@@ -45,6 +45,7 @@ export async function publicPeopleFor(sql: Sql) {
     }>`select payload,demo from club_state where id='oklahoma-prospects'`,
     readWorkingFile(sql),
     sql<Product>`select id,kind,name,price,minutes,credits,remote,expires_days,hours,discipline,active from club_services where active=true`,
+    sql<{user_id:string;titles:string[];display_order:number}>`select user_id,titles,display_order from public_leadership where enabled=true`,
   ]);
   const club =
     clubRows[0] && !clubRows[0].demo
@@ -155,6 +156,16 @@ export async function publicPeopleFor(sql: Sql) {
     c.instructor = s.instructor && s.publish_instructor;
     if (!s.publish_coach) c.teams = [];
   }
+  for (const leader of leadership) {
+    const user = users.find(u => u.id === leader.user_id);
+    if (!user || !leader.titles.length) continue;
+    const card = get(user.email, user.name);
+    if (!card) continue;
+    card.coach = true;
+    card.title = [...new Set([...(card.title ? [card.title] : []), ...leader.titles])].join(" · ");
+    card.sports = [...new Set([...card.sports, ...leader.titles.map(t => t === 'Baseball Coordinator' ? 'baseball' as const : 'softball' as const)])];
+    card.displayOrder = leader.display_order;
+  }
   return [...cards.values()]
     .filter((c) => c.coach || c.instructor)
     .map((c) => {
@@ -165,7 +176,7 @@ export async function publicPeopleFor(sql: Sql) {
         serviceIds: c.instructor ? a?.serviceIds || [] : [],
       };
     })
-    .sort((a, b) => a.name.localeCompare(b.name));
+    .sort((a, b) => (a.displayOrder || 0) - (b.displayOrder || 0) || a.name.localeCompare(b.name));
 }
 export async function publicPeople() {
   return (await publicPeopleFor(await getSql())).map(person => ({...person, photo: publicPhotoLink(person)}));

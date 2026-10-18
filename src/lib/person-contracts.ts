@@ -69,6 +69,7 @@ export type PublicPerson = SharedProfile & {
   coachId: string;
   coach: boolean;
   title?: string;
+  displayOrder?: number;
   instructor: boolean;
   bookable: boolean;
   serviceIds: string[];

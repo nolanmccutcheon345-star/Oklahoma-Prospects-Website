@@ -57,6 +57,8 @@ export async function deliverCenterNotifications(sql: Sql, env: Env, send: typeo
         first_attempt_at: Date | null;
       }>`select * from tryout_center_notices where id=${c.id} and ((status='pending' and next_attempt_at<=now()) or (status='processing' and lease_until<now())) for update skip locked`;
       if (!row) return null;
+      const [permitted] = await tx`select id from tryout_center_notices where id=${row.id} and (coordinator_actor_id is null or coordinator_notice_allowed(coordinator_actor_id,request_id,email))`;
+      if (!permitted) { await tx`update tryout_center_notices set status='skipped',lease_token=null,lease_until=null where id=${row.id}`; return null; }
       if (
         row.attempts >= 8 ||
         (row.first_attempt_at &&
@@ -85,7 +87,7 @@ export async function deliverCenterNotifications(sql: Sql, env: Env, send: typeo
     });
     if (!n) continue;
     const [current] =
-      await sql`select id from tryout_center_notices where id=${n.id} and status='processing' and lease_token=${lease}`;
+      await sql`select id from tryout_center_notices where id=${n.id} and status='processing' and lease_token=${lease} and (coordinator_actor_id is null or coordinator_notice_allowed(coordinator_actor_id,request_id,email))`;
     if (!current) continue;
     try {
       const response = await send("https://api.resend.com/emails", {

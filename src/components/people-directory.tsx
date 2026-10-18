@@ -55,7 +55,7 @@ export function PeopleDirectory({
             <p className="mt-2 font-semibold">
               {kind === "instructors"
                 ? "Lesson Instructor"
-                : [...new Set(p.teams.map((t) => t.role))].join(" · ") || p.title || "Coach"}
+                : [...new Set([...p.teams.map((t) => t.role), ...(p.title ? [p.title] : [])])].join(" · ") || "Coach"}
             </p>
             <p className="mt-1 capitalize text-muted">
               {[...new Set([...p.sports, ...p.teams.map((t) => t.sport)])].join(" · ")}

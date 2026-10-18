@@ -16,6 +16,7 @@ import { Route as BookRouteImport } from './routes/book'
 import { Route as CoachRouteImport } from './routes/coach'
 import { Route as CoachesRouteImport } from './routes/coaches'
 import { Route as ContactRouteImport } from './routes/contact'
+import { Route as CoordinatorRouteImport } from './routes/coordinator'
 import { Route as EvaluationsRouteImport } from './routes/evaluations'
 import { Route as EventsRouteImport } from './routes/events'
 import { Route as FacilityRouteImport } from './routes/facility'
@@ -112,6 +113,11 @@ const CoachesRoute = CoachesRouteImport.update({
 const ContactRoute = ContactRouteImport.update({
   id: '/contact',
   path: '/contact',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CoordinatorRoute = CoordinatorRouteImport.update({
+  id: '/coordinator',
+  path: '/coordinator',
   getParentRoute: () => rootRouteImport,
 } as any)
 const EvaluationsRoute = EvaluationsRouteImport.update({
@@ -434,6 +440,7 @@ export interface FileRoutesByFullPath {
   '/coach': typeof CoachRoute
   '/coaches': typeof CoachesRoute
   '/contact': typeof ContactRoute
+  '/coordinator': typeof CoordinatorRoute
   '/evaluations': typeof EvaluationsRoute
   '/events': typeof EventsRoute
   '/facility': typeof FacilityRoute
@@ -505,6 +512,7 @@ export interface FileRoutesByTo {
   '/coach': typeof CoachRoute
   '/coaches': typeof CoachesRoute
   '/contact': typeof ContactRoute
+  '/coordinator': typeof CoordinatorRoute
   '/evaluations': typeof EvaluationsRoute
   '/events': typeof EventsRoute
   '/facility': typeof FacilityRoute
@@ -577,6 +585,7 @@ export interface FileRoutesById {
   '/coach': typeof CoachRoute
   '/coaches': typeof CoachesRoute
   '/contact': typeof ContactRoute
+  '/coordinator': typeof CoordinatorRoute
   '/evaluations': typeof EvaluationsRoute
   '/events': typeof EventsRoute
   '/facility': typeof FacilityRoute
@@ -650,6 +659,7 @@ export interface FileRouteTypes {
     | '/coach'
     | '/coaches'
     | '/contact'
+    | '/coordinator'
     | '/evaluations'
     | '/events'
     | '/facility'
@@ -721,6 +731,7 @@ export interface FileRouteTypes {
     | '/coach'
     | '/coaches'
     | '/contact'
+    | '/coordinator'
     | '/evaluations'
     | '/events'
     | '/facility'
@@ -792,6 +803,7 @@ export interface FileRouteTypes {
     | '/coach'
     | '/coaches'
     | '/contact'
+    | '/coordinator'
     | '/evaluations'
     | '/events'
     | '/facility'
@@ -864,6 +876,7 @@ export interface RootRouteChildren {
   CoachRoute: typeof CoachRoute
   CoachesRoute: typeof CoachesRoute
   ContactRoute: typeof ContactRoute
+  CoordinatorRoute: typeof CoordinatorRoute
   EvaluationsRoute: typeof EvaluationsRoute
   EventsRoute: typeof EventsRoute
   FacilityRoute: typeof FacilityRoute
@@ -974,6 +987,13 @@ declare module '@tanstack/react-router' {
       path: '/contact'
       fullPath: '/contact'
       preLoaderRoute: typeof ContactRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/coordinator': {
+      id: '/coordinator'
+      path: '/coordinator'
+      fullPath: '/coordinator'
+      preLoaderRoute: typeof CoordinatorRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/evaluations': {
@@ -1456,6 +1476,7 @@ const rootRouteChildren: RootRouteChildren = {
   CoachRoute: CoachRoute,
   CoachesRoute: CoachesRoute,
   ContactRoute: ContactRoute,
+  CoordinatorRoute: CoordinatorRoute,
   EvaluationsRoute: EvaluationsRoute,
   EventsRoute: EventsRoute,
   FacilityRoute: FacilityRoute,

@@ -1,3 +1,4 @@
+import { StaffRoleManagement } from './coordinator/staff-management';
 import { OperationsHealth } from "./operations-health";
 import {FinanceWorkspace} from "./finance/finance-workspace";
 import {EventOffice} from "./event-office";
@@ -227,6 +228,7 @@ export function OfficeWorkspace({
       )}
       {section === "staff" && (
         <div className="grid gap-6">
+          <StaffRoleManagement />
           <AdminAccountsDesk initialPerson={person}
             assignments={Object.fromEntries(
               club.teams

@@ -8,8 +8,9 @@ export async function registrationAccessFor(sql: Sql, userId: string) {
   }>`select is_tryout_staff(${userId},${me.email}) as approved`;
   const [grant] = await sql<{ active: boolean }>`select active from registration_readers
     where user_id=${userId} and email=${me.email} and active=true`;
+  const [coordinator] = await sql`select user_id from coordinator_assignments where user_id=${userId} and status<>'removed'`;
   return {
-    allowed: Boolean(staff?.approved) || (me.role !== "player" && (me.role === "admin" || !!grant)),
+    allowed: me.role === "admin" || (!coordinator && (Boolean(staff?.approved) || (me.role !== "player" && !!grant))),
     owner: me.role === "admin",
   };
 }
@@ -86,6 +87,7 @@ export async function setRegistrationReaderFor(
     const [user] = await tx<{ email: string }>`select lower(u.email) as email from "user" u
       where u.id=${input.userId} and "disabledAt" is null and "emailVerified"=true and (${!input.enabled} or not exists(select 1 from profiles p where p.user_id=u.id and p.role='player')) for update`;
     if (!user) throw new Error("Choose an active non-player account with a verified email.");
+    if (input.enabled && (await tx`select user_id from coordinator_assignments where user_id=${input.userId} and status<>'removed'`).length) throw new Error("Use scoped coordinator permissions instead of broad registration-reader access.");
     await tx`insert into registration_readers(user_id,email,active,granted_by)
       values(${input.userId},${user.email},${input.enabled},${actorId})
       on conflict(user_id) do update set email=excluded.email,active=excluded.active,

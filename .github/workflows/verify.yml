@@ -51,6 +51,8 @@ jobs:
           PUBLIC_UX_SCREENSHOTS: artifacts/guided-lessons/public-ux
       - name: Isolated coach tryout center walkthrough
         run: node scripts/check-tryout-center.mjs
+      - name: Isolated coordinator permissions walkthrough
+        run: node scripts/check-coordinator.mjs
       - name: Isolated shop walkthrough
         run: node scripts/shop-walkthrough.mjs
       # Run the real interaction loop first so interface failures are found promptly.
@@ -65,6 +67,7 @@ jobs:
             artifacts/guided-lessons
             artifacts/tryout-center
             artifacts/shop
+            artifacts/coordinator
           if-no-files-found: ignore
       - name: Read-only hosted HTTP smoke
         if: github.event_name == 'workflow_dispatch' && inputs.hosted_origin != 'skip'
