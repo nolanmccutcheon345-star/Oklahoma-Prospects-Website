@@ -1,3 +1,4 @@
+import { assertTournamentCatalogEdits } from "./tournament-finder";
 import type { ClubRecord, Player, Team } from "./types";
 
 const norm = (value:string) => value.trim().toLowerCase();
@@ -129,7 +130,10 @@ export function mergeSave(
   role: "admin" | "coach" | "parent" | "player",
   identity: { email: string; familyId: string; familyIds?:string[];playerIds?:string[];guardianHouseholdIds?:string[] },
 ): ClubRecord {
-  if (role === "admin") return { ...incoming, audit: stored.audit, _rev: stored._rev + 1, _savedAt: new Date().toISOString() };
+  if (role === "admin") {
+    assertTournamentCatalogEdits(stored, incoming);
+    return { ...incoming, audit: stored.audit, _rev: stored._rev + 1, _savedAt: new Date().toISOString() };
+  }
 
   if (role === "coach") {
     const next = structuredClone(stored);

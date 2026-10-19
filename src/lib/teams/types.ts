@@ -129,6 +129,11 @@ export type EventItem = {
   type: "tournament" | "showcase";
   stayToPlay: boolean;
   verifiedOn: string;
+  /** Office-supplied organizer link. This is not an independent verification. */
+  sourceUrl?: string;
+  sourceCheckedOn?: string;
+  /** Office-recorded approximate driving miles from Broken Arrow. */
+  distanceMiles?: number;
 };
 
 export type Practice = {

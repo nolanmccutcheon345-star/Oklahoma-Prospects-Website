@@ -137,13 +137,16 @@ function CoachPage() {
           if (row.ok) setClub(row.club);
         }}
         onChange={setClub}
-        onSave={async () => {
+        onSave={async (nextClub) => {
+          const incoming = nextClub ?? club;
           try {
             setSaveError("");
-            const saved = await saveTeamsClub({ data: { club, baseRev: club._rev } });
+            const saved = await saveTeamsClub({ data: { club: incoming, baseRev: incoming._rev } });
             setClub(saved.club);
+            return true;
           } catch (err) {
             setSaveError(err instanceof Error ? err.message : "Save failed");
+            return false;
           }
         }}
       />

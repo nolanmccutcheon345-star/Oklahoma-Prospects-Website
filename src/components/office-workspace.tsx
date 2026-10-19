@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 import { useNavigate, useSearch } from "@tanstack/react-router";
 import { FrontOfficeShell, type OfficeSection } from "./front-office-shell";
 import { OfficeRequests } from "./commerce/office-requests";
+import { TournamentFinder } from "./teams/tournament-finder";
 import { OfficeApp } from "./teams/office-app";
 import { TeamFeeWorkspace } from "./teams/fee-workspace";
 import { SquareOffice } from "./commerce/square-office";
@@ -145,6 +146,7 @@ export function OfficeWorkspace({
           </section>
         </div>
       )}
+      {section === "tournaments" && <TournamentFinder club={club} admin onSave={onSave} />}
       {section === "events" && <EventOffice />}
       {section === "requests" && <OfficeRequests />}
       {section === "teams" && (

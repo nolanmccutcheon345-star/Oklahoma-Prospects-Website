@@ -1,5 +1,6 @@
 import {z} from 'zod';
 import type {ClubRecord} from './types';
+import { assertTournamentCatalogIdentifiers, tournamentMetadata, validTournamentSource } from './tournament-finder';
 const id=z.string().max(150),text=z.string().max(5000),short=z.string().max(200);
 const money=z.number().finite().min(0).max(10000000),count=z.number().int().min(0).max(100000);
 const strings=z.array(short).max(200),numbers=z.record(short,z.number().finite());
@@ -36,7 +37,7 @@ const team=z.object({
 const club=z.object({
  settings:z.object({contingencyPct:money,membershipMonthly:money,facilityMonthly:money,fundingPlayers:count,cardFeePct:money,orgFeeFloor:money,orgFeeCeiling:money,coachPayMin:money,coachPayMax:money,cageHourly:money,roundTo:money,policyVersion:short}).strict(),
  teams:z.array(team).max(200),
- catalog:z.array(z.object({id,org:short,name:short,city:short,state:short,start:short,end:short,ages:strings,levels:strings,fee:money,sport:short,type:z.enum(['tournament','showcase']),stayToPlay:z.boolean(),verifiedOn:short}).strict()).max(3000),
+ catalog:z.array(z.object({id,org:short,name:short,city:short,state:short,start:short,end:short,ages:strings,levels:strings,fee:money,sport:short,type:z.enum(['tournament','showcase']),stayToPlay:z.boolean(),verifiedOn:short,...tournamentMetadata}).strict().refine(validTournamentSource,"Add an organizer link before recording a source check.")).max(3000),
  uniforms:z.array(z.object({id,name:short,sport:z.enum(['baseball','softball']),price:money,items:strings,colourways:strings,sizeFields:strings}).strict()).max(100),
  leads:z.array(z.object({id,name:short,age:short,stage:z.enum(['lead','registered','evaluated','offer','accepted','waitlist']),grades:numbers,teamId:id}).strict()).max(5000),
  alumni:z.array(z.object({id,name:short,kind:z.enum(['college','draft','pro']),detail:text}).strict()).max(2000),
@@ -46,6 +47,7 @@ const club=z.object({
 export function parseClubSave(input:{club:ClubRecord;baseRev:number}) {
  if(JSON.stringify(input).length>5000000)throw new Error('Club record is too large.');
  const parsed=z.object({club,baseRev:count}).strict().parse(input);
+ assertTournamentCatalogIdentifiers(parsed.club.catalog);
  const teamIds=parsed.club.teams.map(t=>t.id);
  if(teamIds.some(id=>!id.trim())||new Set(teamIds).size!==teamIds.length)throw new Error('Team identifiers must be nonempty and unique.');
  for(const t of parsed.club.teams){const staffIds=t.staff.map(s=>s.id);if(staffIds.some(id=>!id.trim())||new Set(staffIds).size!==staffIds.length)throw new Error('Staff identifiers must be nonempty and unique within a team.');}
