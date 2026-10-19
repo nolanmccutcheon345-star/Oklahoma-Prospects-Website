@@ -141,6 +141,15 @@ export type RequestRow = {
 function requestFields(contacts: string) {
   return `r.id,r.kind,to_char(r.created_at at time zone 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"') as submitted_at,r.payload->>'player' as player,r.payload->>'age' as age,r.payload->>'positions' as positions,lower(r.payload->>'sport') as sport,coalesce(r.payload->>'preferredTeamId','') as team_id,coalesce(w.follow_up,'new') as status,r.coordinator_revision as revision,coalesce(w.revision,0) as work_revision,case when ${contacts} then r.payload->>'parent' end as parent,case when ${contacts} then r.payload->>'email' end as email,case when ${contacts} then r.payload->>'phone' end as phone`;
 }
+// Intake payloads are untrusted classifications. A selected team must exist
+// in the authoritative club and agree with the claimed sport before disclosure.
+const classifiedRequest = `(coalesce(r.payload->>'preferredTeamId','')='' or exists (
+  select 1 from club_state c cross join lateral jsonb_array_elements(c.payload->'teams') t
+  where c.id='oklahoma-prospects' and not c.demo
+  and t->>'id'=r.payload->>'preferredTeamId'
+  and t->>'sport'=lower(r.payload->>'sport')
+  and coalesce(t->>'closed','false')<>'true'
+))`;
 const requestScope = `g.sport=lower(r.payload->>'sport') and (g.coverage='sport' or coalesce(r.payload->>'preferredTeamId','')=any(g.team_ids))`;
 export async function recruiting(
   sql: Sql,
@@ -157,7 +166,7 @@ export async function recruiting(
       input.teamId,
     );
     const rows = await tx.query<RequestRow>(
-      `select ${requestFields("$4::boolean")} from club_requests r left join office_request_work w on w.request_id=r.id where r.kind in ('tryout','team-inquiry') and lower(r.payload->>'sport')=$1 and ($2='' or r.payload->>'preferredTeamId'=$2) and exists(select 1 from coordinator_assignments g where g.user_id=$3 and g.status='active' and 'recruiting.read'=any(g.permissions) and ${requestScope}) and ($5::timestamptz is null or (r.created_at,r.id)<($5::timestamptz,$6::text)) order by r.created_at desc,r.id desc limit 101`,
+      `select ${requestFields("$4::boolean")} from club_requests r left join office_request_work w on w.request_id=r.id where r.kind in ('tryout','team-inquiry') and lower(r.payload->>'sport')=$1 and ($2='' or r.payload->>'preferredTeamId'=$2) and exists(select 1 from coordinator_assignments g where g.user_id=$3 and g.status='active' and 'recruiting.read'=any(g.permissions) and ${requestScope}) and ${classifiedRequest} and ($5::timestamptz is null or (r.created_at,r.id)<($5::timestamptz,$6::text)) order by r.created_at desc,r.id desc limit 101`,
       [
         input.sport,
         input.teamId,
@@ -356,10 +365,13 @@ export async function operationalReports(
       teams: number;
       players: number;
     }>`select count(distinct t->>'id')::int as teams,count(p)::int as players from club_state c cross join lateral jsonb_array_elements(c.payload->'teams') t left join lateral jsonb_array_elements(t->'roster') p on coalesce(p->>'withdrawn','false')<>'true' where c.id='oklahoma-prospects' and not c.demo and coalesce(t->>'closed','false')<>'true' and t->>'sport'=${input.sport} and (${input.teamId}='' or t->>'id'=${input.teamId})`;
-    const [intake] = await tx<{
+    const [intake] = await tx.query<{
       registrations: number;
       followups: number;
-    }>`select count(*)::int as registrations,count(*) filter(where w.follow_up in ('new','follow-up-needed') or w.follow_up is null)::int as followups from club_requests r left join office_request_work w on w.request_id=r.id where kind in ('tryout','team-inquiry') and lower(payload->>'sport')=${input.sport} and (${input.teamId}='' or payload->>'preferredTeamId'=${input.teamId})`;
+    }>(
+      `select count(*)::int as registrations,count(*) filter(where w.follow_up in ('new','follow-up-needed') or w.follow_up is null)::int as followups from club_requests r left join office_request_work w on w.request_id=r.id where r.kind in ('tryout','team-inquiry') and lower(r.payload->>'sport')=$1 and ($2='' or r.payload->>'preferredTeamId'=$2) and ${classifiedRequest}`,
+      [input.sport, input.teamId],
+    );
     return { ...counts, ...intake };
   });
 }

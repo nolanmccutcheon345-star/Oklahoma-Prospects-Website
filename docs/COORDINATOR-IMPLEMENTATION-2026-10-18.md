@@ -119,7 +119,7 @@ Before release, owners must approve retention purposes and periods for prospects
 
 ## Delivery and deployment status
 
-Source changes remain local. An empty remote review branch named `feat/coordinator-access` was created at the original baseline; it contains none of these implementation changes. No pull request was created. Automatic approval review rejected uploading the source changes and operational documentation to the public GitHub repository because explicit user approval for that disclosure is required. Netlify metadata confirms the existing production deployment references this repository and the inspected baseline, but that did not satisfy the approval review. Do not retry uploading until approval is supplied.
+Source was uploaded to draft PR #212 after explicit owner approval on October 19, 2026. The previously blocked public-repository upload is resolved. Head `1280aca5fb0b0191c46088330b0d71d614eee62e` includes the explicit Program operations preset and socket-drain cleanup. It remains a draft; no merge or release has occurred.
 
 No feature deployment, production migration, new production backup, live role change or Sara activation occurred. Existing production deployment `6ad15aff3eb3f6b5850a09b2` was observed ready at the baseline commit; this is not deployment verification of the new feature.
 
@@ -136,3 +136,11 @@ The first hosted CI run reached the coordinator browser check but failed with a 
 Final local targeted suites for this follow-up: 6 passed. Build, TypeScript and targeted lint pass. Chromium installation still fails locally. No production deployment or account assignment has been performed.
 
 The next CI run verified the coordinator account link, ordinary parent exclusion, zero-grant landing and scoped recruiting without the earlier socket error. It then stopped at the owner account-picker selector. The picker now has an explicit accessible name, and the browser check captures the owner screen before selection. Coordinator browser validation is scheduled first among browser checks for prompt failure feedback; every existing required gate is retained. Completion of the fresh CI run remains required.
+
+## October 19 development follow-up
+
+- CI run 39210186017 passed installation, typecheck, build and SSR checks, then failed when an in-flight Playwright route accessed a closed parent browser context. The harness now waits for route callbacks before closing each context, retaining all authorization assertions and downstream gates. Fresh CI is required.
+- Recruiting lists and nonfinancial intake reports now validate any selected team against authoritative club sport classification. Forged cross-sport and orphaned team IDs are excluded; properly classified historical records remain available with pagination. Added a direct regression covering sport-wide access and report counts.
+- Program operations is an explicit finite selection of implemented capabilities, not automatic role inheritance. It does not imply that remaining event, roster or reporting capabilities have been implemented.
+- Production remains deployment `6ad15aff3eb3f6b5850a09b2`. No production data or account grants changed.
+- Automatic approval review rejected listing Netlify environment variables because the operation could expose production secrets. No values were retrieved. A narrowly scoped configuration-presence mechanism, separately verified staging/backup evidence, and owner account checks remain necessary; do not bypass this restriction.

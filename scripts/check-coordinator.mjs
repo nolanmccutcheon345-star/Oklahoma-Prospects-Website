@@ -170,6 +170,7 @@ try {
     await parent.page.getByRole("link", { name: "Coordinator Front Office", exact: true }).count(),
     0,
   );
+  await parent.context.unrouteAll({ behavior: "wait" });
   await parent.context.close();
   const owner = await signedIn("stevemccutcheon89@gmail.com", 1280);
   owner.page.on("dialog", (d) => d.accept());
@@ -202,6 +203,7 @@ try {
     "PASS: zero-access landing, scoped recruiting, contact-field exclusion, owner revocation in an active session, and hidden owner-route denial.",
   );
 } finally {
+  for (const context of browser?.contexts() || []) await context.unrouteAll({ behavior: "wait" });
   await browser?.close();
   if (socket) {
     // Match the other authenticated walkthroughs: let pg pools release idle

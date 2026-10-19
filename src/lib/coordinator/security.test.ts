@@ -593,3 +593,23 @@ test("account entry and complete historical pages retain current permissions and
     await db.close();
   }
 });
+
+test("sport-wide intake and reports reject forged or orphaned team classifications", async () => {
+  const { db, sql, assign } = await fixture();
+  try {
+    await assign("softball", "softball", ["recruiting.read", "contacts.read", "reports.read"]);
+    await sql`insert into club_requests(id,kind,payload) values
+      ('valid','tryout','{"sport":"softball","preferredTeamId":"soft","player":"Allowed"}'),
+      ('unassigned','tryout','{"sport":"softball","player":"Unassigned"}'),
+      ('forged','tryout','{"sport":"softball","preferredTeamId":"base","player":"PRIVATE-BASEBALL"}'),
+      ('orphan','tryout','{"sport":"softball","preferredTeamId":"missing","player":"PRIVATE-UNKNOWN"}')`;
+    const page = await recruiting(sql, "softball", { sport: "softball", teamId: "" });
+    assert.deepEqual(page.items.map((r) => r.id).sort(), ["unassigned", "valid"]);
+    assert.doesNotMatch(JSON.stringify(page), /PRIVATE/);
+    const report = await operationalReports(sql, "softball", { sport: "softball", teamId: "" });
+    assert.equal(report.registrations, 2);
+    assert.equal(report.followups, 2);
+  } finally {
+    await db.close();
+  }
+});
