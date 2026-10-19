@@ -40,6 +40,8 @@ jobs:
       - run: npx playwright install --with-deps chromium
       - name: Isolated coordinator permissions walkthrough
         run: node scripts/check-coordinator.mjs
+      - name: Isolated tournament finder walkthrough
+        run: node --import tsx scripts/check-tournament-finder.mjs
       - name: Authenticated isolated instructor walkthrough
         run: npm run test:guided:browser
         env:
@@ -68,6 +70,7 @@ jobs:
             artifacts/tryout-center
             artifacts/shop
             artifacts/coordinator
+            artifacts/tournament-finder
           if-no-files-found: ignore
       - name: Read-only hosted HTTP smoke
         if: github.event_name == 'workflow_dispatch' && inputs.hosted_origin != 'skip'

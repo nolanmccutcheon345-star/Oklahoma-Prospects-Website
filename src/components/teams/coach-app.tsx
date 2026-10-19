@@ -1,3 +1,4 @@
+import { TournamentFinder } from "./tournament-finder";
 import {MyFinance} from "@/components/finance/my-finance";
 import { RosterRoleSelect } from "@/components/teams/roster-role-select";
 import type { RosterRole } from "@/lib/teams/po-roster";
@@ -25,7 +26,7 @@ export function CoachApp({
 }: {
   club: ClubRecord;
   onChange: (club: ClubRecord) => void;
-  onSave: () => void;
+  onSave: (next?: ClubRecord) => Promise<boolean>;
   onReload: () => Promise<void>;
 }) {
   const [teamId, setTeamId] = useState(club.teams[0]?.id ?? "");
@@ -79,7 +80,7 @@ export function CoachApp({
           : "No tournament budget"}
       </p>
       <div className="flex gap-2">
-        <Button type="button" onClick={onSave}>
+        <Button type="button" onClick={() => void onSave()}>
           Save
         </Button>
         <Button asChild variant="outlineDark">
@@ -99,6 +100,8 @@ export function CoachApp({
           </li>
         </ul>
       </Section>
+
+      <TournamentFinder key={team.id} club={club} teamId={team.id} onSave={onSave} />
 
       <MyFinance/>
       <TeamFeeWorkspace teamId={team.id}/>
@@ -154,57 +157,11 @@ export function CoachApp({
               </div>
               <details className="rounded border p-3"><summary className="min-h-11 cursor-pointer">Edit roster details</summary>
                 <div className="grid gap-2">{(['name','number','bats','throws'] as const).map(key=><label key={key}>{key}<input maxLength={key==='name'?200:12} className="office-control w-full" value={p[key]} onChange={e=>patchTeam({...team,roster:team.roster.map(x=>x.id===p.id?{...x,[key]:e.target.value}:x)})}/></label>)}
-                <label>Positions (comma separated)<input className="office-control w-full" maxLength={100} value={p.positions.join(',')} onChange={e=>patchTeam({...team,roster:team.roster.map(x=>x.id===p.id?{...x,positions:e.target.value.split(',').map(s=>s.trim()).filter(Boolean)}:x)})}/></label><Button onClick={onSave}>Save roster details</Button></div>
+                <label>Positions (comma separated)<input className="office-control w-full" maxLength={100} value={p.positions.join(',')} onChange={e=>patchTeam({...team,roster:team.roster.map(x=>x.id===p.id?{...x,positions:e.target.value.split(',').map(s=>s.trim()).filter(Boolean)}:x)})}/></label><Button onClick={() => void onSave()}>Save roster details</Button></div>
               </details>
               <PrivatePlayerBirthday athleteId={p.id}/>
             </li>
           ))}
-        </ul>
-      </Section>
-
-      <Section title="Schedule">
-        <ul className="grid gap-2">
-          {club.catalog
-            .filter((ev) => ev.ages.includes(team.age) && ev.sport === team.sport && ev.org !== "Team schedule")
-            .map((ev) => {
-              const on = team.tournamentIds.includes(ev.id);
-              const nextSpend = spent + (on ? 0 : ev.fee);
-              const over = nextSpend > team.eventBudget && !on;
-              const share = team.eventBudget
-                ? Math.round((ev.fee / team.eventBudget) * 100)
-                : 0;
-              return (
-                <li key={ev.id} className="rounded-lg bg-paper p-3">
-                  <p className="font-semibold">
-                    {ev.name} · {ev.city}, {ev.state}
-                  </p>
-                  <p className="text-xs text-muted">
-                    {ev.start} · {ev.org} · {share}% of budget
-                    {ev.stayToPlay ? " · stay-to-play" : ""}
-                  </p>
-                  {ev.stayToPlay ? (
-                    <p className="mt-1 text-xs text-maroon">
-                      Lodging is paid by each family and is not part of the team fee.
-                    </p>
-                  ) : null}
-                  <button
-                    type="button"
-                    className="mt-2 min-h-11 text-sm font-semibold text-maroon"
-                    onClick={() => {
-
-                      patchTeam({
-                        ...team,
-                        tournamentIds: on
-                          ? team.tournamentIds.filter((id) => id !== ev.id)
-                          : [...team.tournamentIds, ev.id],
-                      });
-                    }}
-                  >
-                    {on ? "Remove" : "Add to schedule"}
-                  </button>
-                </li>
-              );
-            })}
         </ul>
       </Section>
 
@@ -298,7 +255,7 @@ export function CoachApp({
           {team.practices.filter(pr=>!/^[a-f0-9-]{36}$/.test(pr.id)).map((pr) => (
             <li key={pr.id} className="rounded-lg bg-paper p-3">
               {pr.date} {formatClockTime(pr.time)} · {pr.where} · {pr.cageHours}h · {pr.status}
-              {!/^[a-f0-9-]{36}$/.test(pr.id) && <details><summary>Edit existing practice</summary>{(['date','time','where'] as const).map(key=><label key={key}>{key}<input className="office-control w-full" type={key==='where'?'text':key} value={pr[key]} onChange={e=>patchTeam({...team,practices:team.practices.map(p=>p.id===pr.id?{...p,[key]:e.target.value}:p)})}/></label>)}<Button onClick={onSave}>Save practice</Button></details>}
+              {!/^[a-f0-9-]{36}$/.test(pr.id) && <details><summary>Edit existing practice</summary>{(['date','time','where'] as const).map(key=><label key={key}>{key}<input className="office-control w-full" type={key==='where'?'text':key} value={pr[key]} onChange={e=>patchTeam({...team,practices:team.practices.map(p=>p.id===pr.id?{...p,[key]:e.target.value}:p)})}/></label>)}<Button onClick={() => void onSave()}>Save practice</Button></details>}
               <div className="mt-2 flex flex-wrap gap-1">
                 {(["delayed", "moved", "cancelled", "on"] as const).map((st) => (
                   <Chip
