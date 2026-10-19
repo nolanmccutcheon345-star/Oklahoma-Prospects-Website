@@ -17,6 +17,7 @@ const origin = h.base;
 const shots = "artifacts/coordinator";
 await mkdir(shots, { recursive: true });
 let browser, socket;
+let requestQueue = Promise.resolve();
 try {
   socket = new PGLiteSocketServer({ db: h.db, host: "127.0.0.1", port: 0, maxConnections: 20 });
   await socket.start();
@@ -25,7 +26,6 @@ try {
   const sql = h.sql;
   // PGlite has one backend, so avoid interleaving separate clients' wire portals.
   // Real database concurrency is covered separately; do not change app authorization.
-  let requestQueue = Promise.resolve();
   async function isolatedContext(options = {}) {
     const context = await browser.newContext(options);
     await context.route("**/*", async (route) => {
@@ -170,8 +170,8 @@ try {
     await parent.page.getByRole("link", { name: "Coordinator Front Office", exact: true }).count(),
     0,
   );
-  await parent.context.unrouteAll({ behavior: "wait" });
-  await parent.context.close();
+  // Keep this authenticated context alive until final cleanup: account prefetch
+  // can still have queued routes after the visible parent assertion passes.
   const owner = await signedIn("stevemccutcheon89@gmail.com", 1280);
   owner.page.on("dialog", (d) => d.accept());
   await owner.page.goto(origin + "/office?section=staff");
@@ -203,7 +203,11 @@ try {
     "PASS: zero-access landing, scoped recruiting, contact-field exclusion, owner revocation in an active session, and hidden owner-route denial.",
   );
 } finally {
-  for (const context of browser?.contexts() || []) await context.unrouteAll({ behavior: "wait" });
+  await requestQueue;
+  // Assertions have completed. Ignore only route cancellation during teardown;
+  // application errors and failed assertions still fail the walkthrough.
+  for (const context of browser?.contexts() || [])
+    await context.unrouteAll({ behavior: "ignoreErrors" });
   await browser?.close();
   if (socket) {
     // Match the other authenticated walkthroughs: let pg pools release idle
