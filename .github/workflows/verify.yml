@@ -38,6 +38,8 @@ jobs:
           SQUARE_ENVIRONMENT: sandbox
       - run: npm run verify:build
       - run: npx playwright install --with-deps chromium
+      - name: Isolated coordinator permissions walkthrough
+        run: node scripts/check-coordinator.mjs
       - name: Authenticated isolated instructor walkthrough
         run: npm run test:guided:browser
         env:
@@ -65,6 +67,7 @@ jobs:
             artifacts/guided-lessons
             artifacts/tryout-center
             artifacts/shop
+            artifacts/coordinator
           if-no-files-found: ignore
       - name: Read-only hosted HTTP smoke
         if: github.event_name == 'workflow_dispatch' && inputs.hosted_origin != 'skip'

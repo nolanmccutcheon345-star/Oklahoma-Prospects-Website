@@ -78,6 +78,8 @@ export async function saveTeamActivity(sql: Sql, userId: string, raw: TeamActivi
       payload: TeamActivity;
       revision: number;
     }>`select team_id,payload,revision from team_activities where id=${id} for update`;
+    const [coordinatorBooking] = await tx`select activity_id from coordinator_practice_bookings where activity_id=${id}`;
+    if (coordinatorBooking) throw Error("This practice has linked cage reservations. Use the coordinator scheduling workspace or an owner cancellation approval to keep the schedule and cages synchronized.");
     if (old ? old.team_id !== t.id || old.revision !== input.revision : input.revision !== 0)
       throw Error("Activity changed. Reload before saving.");
     if (old && old.payload.kind !== input.kind)

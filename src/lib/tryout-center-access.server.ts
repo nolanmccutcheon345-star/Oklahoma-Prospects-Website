@@ -8,6 +8,8 @@ export async function centerAccessFor(sql: Sql, userId: string) {
   const [grant] = await sql<{
     can_manage_tryouts: boolean;
   }>`select can_manage_tryouts from registration_readers where user_id=${userId} and email=${me.email} and active=true`;
+  const [coordinator] = await sql`select user_id from coordinator_assignments where user_id=${userId} and status<>'removed'`;
+  if (coordinator && me.role !== "admin") throw new Error("Use the scoped Coordinator Front Office for recruiting access.");
   const allowed =
     me.role === "admin" ||
     Boolean(staff?.approved) ||

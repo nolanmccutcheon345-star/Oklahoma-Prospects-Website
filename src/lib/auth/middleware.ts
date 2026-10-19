@@ -44,5 +44,13 @@ export const authMiddleware = createMiddleware({ type: "function" })
     assertSameSiteRequest();
     const userId = await requireUserId(context.bearerToken);
     const { withAuditActor } = await import('../audit-context.server');
-    return withAuditActor(userId, () => next({ context: { userId } }));
+    return withAuditActor(userId, async () => {
+      try { return await next({ context: { userId } }); }
+      catch (error) {
+        const { getSql } = await import('../db');
+        const { recordRejectedCoordinatorRequest } = await import('../coordinator/access.server');
+        await recordRejectedCoordinatorRequest(await getSql(), userId);
+        throw error;
+      }
+    });
   });
