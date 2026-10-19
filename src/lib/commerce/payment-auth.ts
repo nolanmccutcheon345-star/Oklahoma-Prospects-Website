@@ -10,6 +10,11 @@ export const optionalPaymentAuth = createMiddleware({ type: "function" })
     assertSameSiteRequest();
     const { getSessionUser } = await import("../auth/verify.server");
     const session = await getSessionUser(context.bearerToken);
+    if (session) {
+      const { getSql } = await import("../db");
+      const { requireUnrestrictedLegacyAccess } = await import("../coordinator/access.server");
+      await requireUnrestrictedLegacyAccess(await getSql(), session.id);
+    }
     const { withAuditActor } = await import("../audit-context.server");
     return withAuditActor(session?.id || "public", () =>
       next({ context: { verifiedUserId: session?.id || null } }),

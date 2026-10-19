@@ -1,5 +1,5 @@
 import type { Sql } from "./db";
-import { resolveIdentity } from "./identity.server";
+import { audit, requireOrganizationOperations, secured } from "./coordinator/access.server";
 import {
   tryoutEventInput,
   type TryoutEvent,
@@ -19,17 +19,38 @@ export async function publicTryoutEventsFor(sql: Sql) {
   }
 }
 export async function adminTryoutEventsFor(sql: Sql, userId: string) {
-  if ((await resolveIdentity(sql, userId)).role !== "admin")
-    throw new Error("Owner access required.");
-  return sql.query<TryoutEvent>(
-    `select ${fields} from tryout_events order by event_date desc,start_time,id limit 500`,
-  );
+  return secured(sql, userId, "organization.tryout-events.read", async (tx) => {
+    await requireOrganizationOperations(tx, userId);
+    return tx.query<TryoutEvent>(
+      `select ${fields} from tryout_events order by event_date desc,start_time,id limit 500`,
+    );
+  });
 }
+
+/** Dedicated operational DTO: never return request or notification payloads.
+ * A malformed nested value must not be stringified into an identity field. */
+export async function operationalTryoutEnrollmentsFor(sql: Sql, userId: string) {
+  return secured(sql, userId, "organization.tryout-enrollments.read", async (tx) => {
+    await requireOrganizationOperations(tx, userId);
+    return tx<{
+      id: string;
+      eventId: string;
+      player: string;
+      email: string;
+      status: string;
+      notification: string;
+    }>`select n.id,n.event_id as "eventId",
+      case when jsonb_typeof(r.payload->'player')='string' then r.payload->>'player' else '' end as player,
+      case when jsonb_typeof(r.payload->'email')='string' then r.payload->>'email' else '' end as email,
+      n.status,coalesce((select o.status from tryout_notification_outbox o where o.enrollment_id=n.id order by o.created_at desc limit 1),'none') as notification
+      from tryout_enrollments n join club_requests r on r.id=n.request_id order by n.created_at desc limit 500`;
+  });
+}
+
 export async function saveTryoutEventFor(sql: Sql, userId: string, raw: TryoutEventInput) {
-  if ((await resolveIdentity(sql, userId)).role !== "admin")
-    throw new Error("Owner access required.");
-  const input = tryoutEventInput.parse(raw);
-  return sql.transaction(async (tx) => {
+  return secured(sql, userId, "organization.tryout-events.save", async (tx) => {
+    await requireOrganizationOperations(tx, userId);
+    const input = tryoutEventInput.parse(raw);
     // Matchers and editors acquire event locks in the same order.
     await tx`select id from tryout_events order by event_date,start_time,id for update`;
     const [reserved] =
@@ -82,6 +103,7 @@ export async function saveTryoutEventFor(sql: Sql, userId: string, raw: TryoutEv
       );
     }
     await matchTryoutApplicants(tx);
+    await audit(tx, userId, "organization.tryout-events.save", input.id, "allowed");
     return { ok: true };
   });
 }

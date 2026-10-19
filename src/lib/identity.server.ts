@@ -6,6 +6,8 @@ export async function clubIdentity(userId: string) {
   return resolveIdentity(await getSql(), userId);
 }
 export async function resolveIdentity(sql: Sql, userId: string) {
+  const { requireUnrestrictedLegacyAccess } = await import("./coordinator/access.server");
+  await requireUnrestrictedLegacyAccess(sql, userId);
   const [user] = await sql.query<{
     id: string;
     email: string;

@@ -1,3 +1,4 @@
+import { getCoordinatorEntry } from "@/lib/coordinator/api";
 import { CoordinatorAccountLink } from "@/components/coordinator/account-link";
 import {MyFinance} from "@/components/finance/my-finance";
 import {PlayerBirthdays} from '@/components/commerce/player-birthdays';
@@ -43,6 +44,38 @@ function AccountPage() {
     );
   }
   if (!user) return <RedirectToSignIn />;
+  return <AccountDestination key={user.id} />;
+}
+function AccountDestination() {
+  const [entry, setEntry] = useState<Awaited<ReturnType<typeof getCoordinatorEntry>>>();
+  const [error, setError] = useState("");
+  useEffect(() => {
+    let active = true;
+    getCoordinatorEntry()
+      .then((result) => {
+        if (active) setEntry(result);
+      })
+      .catch((e) => {
+        if (active) setError(e.message);
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+  if (error)
+    return (
+      <main id="main" className="p-6">
+        <p role="alert">{error}</p>
+        <UserButton />
+      </main>
+    );
+  if (!entry)
+    return (
+      <main id="main" className="p-6" role="status">
+        Loading account…
+      </main>
+    );
+  if (entry.financialRestricted) return <Navigate to="/coordinator" replace />;
   return (
     <DevelopmentProvider>
       <AccountHome />

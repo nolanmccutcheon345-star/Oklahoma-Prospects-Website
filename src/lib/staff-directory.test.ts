@@ -71,7 +71,7 @@ test("staff listings persist independently of accounts and only published record
       await assert.rejects(saveStaffListingFor(sql, id, staff));
     }
     await assert.rejects(
-      saveStaffListingFor(sql, "owner", { ...staff, role: "admin" } as typeof staff),
+      saveStaffListingFor(sql, "owner", { ...staff, role: "admin" } as unknown as typeof staff),
     );
     const saved = await saveStaffListingFor(sql, "owner", {
       ...staff,

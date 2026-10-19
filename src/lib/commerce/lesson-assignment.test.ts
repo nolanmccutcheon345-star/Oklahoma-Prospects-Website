@@ -5,7 +5,7 @@ import { PGlite } from "@electric-sql/pglite";
 import type { Sql } from "../db";
 import { emptyDevelopment } from "../pd/empty";
 
-test("admin assigns existing paid lessons without changing financial or booking details", async () => {
+test("owners can assign lessons while financially restricted operations cannot change compensation", async () => {
   const db = new PGlite();
   const wrap = (query: PGlite["query"]): Sql => {
     const sql = (async (parts: TemplateStringsArray, ...values: unknown[]) =>
@@ -32,11 +32,12 @@ test("admin assigns existing paid lessons without changing financial or booking 
     state.__pgSqlPromise__ = Promise.resolve(sql);
     process.env.DATABASE_URL = "postgresql://unused.invalid/disposable";
     process.env.CONTEXT = "dev";
-    for (const role of ["admin", "coach", "parent", "player"]) {
+    for (const role of ["admin", "coach", "parent", "player", "operations"]) {
       await sql`insert into "user"(id,email,name,"emailVerified","createdAt","updatedAt") values(${role},${role + "@example.invalid"},${role},true,now(),now())`;
-      await sql`insert into profiles(user_id,email,name,role) values(${role},${role + "@example.invalid"},${role},${role})`;
+      await sql`insert into profiles(user_id,email,name,role) values(${role},${role + "@example.invalid"},${role},${role === "operations" ? "parent" : role})`;
     }
     await sql`insert into owner_grants(email,user_id) values('admin@example.invalid','admin')`;
+    await sql`insert into organization_operational_access(user_id,status,updated_by) values('operations','active','admin')`;
     const file = emptyDevelopment();
     for (const id of ["available", "busy", "short", "wrong", "inactive"]) {
       file.coaches.push({
@@ -83,6 +84,10 @@ test("admin assigns existing paid lessons without changing financial or booking 
     const money = await sql`select * from commerce_orders`;
     const payments = await sql`select * from square_payments`;
     const participants = await sql`select * from booking_participants`;
+    const catalog = await sql`select * from club_services order by id`;
+    const splits = await sql`select * from club_staff_services order by staff_id,service_id`;
+    const credits = await sql`select * from credit_grants order by id`;
+    const workingFile = await sql`select * from pd_working_file`;
     const occupancy =
       await sql`select * from booking_occupancy where booking_id='lesson' order by resource_id,slot_at`;
     for (const role of ["parent", "coach", "player"]) {
@@ -91,6 +96,51 @@ test("admin assigns existing paid lessons without changing financial or booking 
       await assert.rejects(() => assignLessonInstructor(role, input), /access|Player/i);
     }
     assert.equal((await lessonAssignmentList("admin"))[0].coachId, null);
+    const operationalRows = await lessonAssignmentList("operations");
+    assert.deepEqual(operationalRows, await lessonAssignmentList("admin"));
+    assert.deepEqual(
+      Object.keys(operationalRows[0]).sort(),
+      [
+        "id",
+        "serviceName",
+        "playerName",
+        "customerEmail",
+        "coachId",
+        "coachName",
+        "startsAt",
+        "endsAt",
+      ].sort(),
+    );
+    assert.doesNotMatch(
+      JSON.stringify(operationalRows),
+      /total_cents|receipt|snapshot|profit_split|10400|square-paid/,
+    );
+    assert.deepEqual(
+      await lessonInstructorChoices("operations", "lesson"),
+      await lessonInstructorChoices("admin", "lesson"),
+    );
+    for (const extra of [
+      { total_cents: 1 },
+      { profitSplit: 100 },
+      { snapshot: { price: 1 } },
+      { role: "admin" },
+    ]) {
+      await assert.rejects(() => assignLessonInstructor("operations", { ...input, ...extra }));
+    }
+    await assert.rejects(() =>
+      assignLessonInstructor("operations", {
+        ...input,
+        coachId: { id: "available", price: 1 },
+      } as unknown as typeof input),
+    );
+    assert.deepEqual((await sql`select * from booking_records where id='lesson'`)[0], before);
+    // An initial instructor assignment also determines the future payee.
+    await assert.rejects(() => assignLessonInstructor("operations", input), /owner.*compensation/i);
+    assert.deepEqual((await sql`select * from booking_records where id='lesson'`)[0], before);
+    assert.deepEqual(
+      await sql`select * from booking_occupancy where booking_id='lesson' order by resource_id,slot_at`,
+      occupancy,
+    );
     assert.deepEqual((await lessonInstructorChoices("admin", "lesson")).instructors, [
       { id: "available", name: "available" },
     ]);
@@ -137,6 +187,53 @@ test("admin assigns existing paid lessons without changing financial or booking 
     );
     // When a coach becomes free, reassignment releases only the old coach slots.
     await sql`delete from booking_occupancy where booking_id='camp'`;
+    const beforeDeniedReassignment = (
+      await sql`select * from booking_records where id='lesson'`
+    )[0];
+    const occupancyBeforeDeniedReassignment =
+      await sql`select * from booking_occupancy order by resource_id,slot_at`;
+    await assert.rejects(
+      () =>
+        assignLessonInstructor("operations", {
+          ...input,
+          expectedCoachId: "available",
+          coachId: "busy",
+        }),
+      /owner.*compensation/i,
+    );
+    assert.deepEqual(
+      (await sql`select * from booking_records where id='lesson'`)[0],
+      beforeDeniedReassignment,
+    );
+    assert.deepEqual(
+      await sql`select * from booking_occupancy order by resource_id,slot_at`,
+      occupancyBeforeDeniedReassignment,
+    );
+    assert.ok(
+      (
+        await sql`select id from coordinator_audit where actor_id='operations' and action='organization.lessons.assign' and result='denied'`
+      ).length >= 2,
+    );
+    // A matching retry is genuinely idempotent: no booking or occupancy writes.
+    await assignLessonInstructor("operations", {
+      ...input,
+      expectedCoachId: "available",
+      coachId: "available",
+    });
+    assert.deepEqual(
+      (await sql`select * from booking_records where id='lesson'`)[0],
+      beforeDeniedReassignment,
+    );
+    assert.deepEqual(
+      await sql`select * from booking_occupancy order by resource_id,slot_at`,
+      occupancyBeforeDeniedReassignment,
+    );
+    assert.equal(
+      (
+        await sql`select id from audit_events where target_table='booking_records' and target_id='lesson' and actor_id='operations'`
+      ).length,
+      0,
+    );
     await assignLessonInstructor("admin", {
       ...input,
       expectedCoachId: "available",
@@ -151,6 +248,36 @@ test("admin assigns existing paid lessons without changing financial or booking 
       12,
     );
     assert.deepEqual(await sql`select * from commerce_orders`, money);
+    assert.deepEqual(await sql`select * from square_payments`, payments);
+    assert.deepEqual(await sql`select * from booking_participants`, participants);
+    assert.deepEqual(await sql`select * from club_services order by id`, catalog);
+    assert.deepEqual(
+      await sql`select * from club_staff_services order by staff_id,service_id`,
+      splits,
+    );
+    assert.deepEqual(await sql`select * from credit_grants order by id`, credits);
+    assert.deepEqual(await sql`select * from pd_working_file`, workingFile);
+    assert.equal(
+      (await sql`select role from profiles where user_id='operations'`)[0].role,
+      "parent",
+    );
+    assert.equal(
+      (await sql`select user_id from owner_grants where user_id='operations'`).length,
+      0,
+    );
+    assert.ok(
+      (
+        await sql`select id from coordinator_audit where actor_id='operations' and action='organization.lessons.assign' and result='allowed'`
+      ).length,
+    );
+    for (const status of ["suspended", "removed"]) {
+      await sql`update organization_operational_access set status=${status} where user_id='operations'`;
+      await assert.rejects(() => lessonAssignmentList("operations"));
+      await assert.rejects(() => lessonInstructorChoices("operations", "lesson"));
+      await assert.rejects(() =>
+        assignLessonInstructor("operations", { ...input, expectedCoachId: "busy" }),
+      );
+    }
     await sql`update booking_records set checked_in_at=now() where id='lesson'`;
     await assert.rejects(
       () => assignLessonInstructor("admin", { ...input, expectedCoachId: "busy" }),

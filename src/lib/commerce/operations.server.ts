@@ -1,8 +1,8 @@
-import {clubIdentity as staffIdentity} from "../identity.server";
+import { clubIdentity as staffIdentity } from "../identity.server";
 import { getSql } from "../db";
 import { commerceIdentity as clubIdentity } from "./access.server";
 import { readWorkingFile } from "../pd/desk-impl.server";
-import {assignedCoachIdFor} from "./coach-access.server";
+import { assignedCoachIdFor } from "./coach-access.server";
 import { BOOKABLE_LANES } from "../club";
 
 export async function setParticipants(userId: string, id: string, athleteIds: string[]) {
@@ -45,9 +45,10 @@ export async function setParticipants(userId: string, id: string, athleteIds: st
 
 export async function earnings(userId: string) {
   const me = await staffIdentity(userId);
-  if (me.role !== "admin" && me.role !== "coach" && !me.canInstruct) throw new Error("Coach access required.");
+  if (me.role !== "admin" && me.role !== "coach" && !me.canInstruct)
+    throw new Error("Coach access required.");
   const file = await readWorkingFile();
-  const coachId = assignedCoachIdFor(me,file);
+  const coachId = assignedCoachIdFor(me, file);
   const sql = await getSql();
   const rows = await sql<{
     booking_id: string;
@@ -66,7 +67,9 @@ export async function earnings(userId: string) {
 export async function recordSettlement(userId: string, bookingId: string, reference: string) {
   const me = await clubIdentity(userId);
   if (me.role !== "admin") throw new Error("Owner access required.");
-  throw new Error("Use Front Office → Finance → Payout Center to approve, record and reconcile this payment. Entering a reference alone does not mark it paid.");
+  throw new Error(
+    "Use Front Office → Finance → Payout Center to approve, record and reconcile this payment. Entering a reference alone does not mark it paid.",
+  );
 }
 
 export async function officeOperations(userId: string) {
@@ -137,16 +140,38 @@ export async function officeOperations(userId: string) {
   return { bookings, resources, counts: counts[0], events, athletes };
 }
 export async function saveServiceResources(userId: string, serviceId: string, laneIds: string[]) {
-  const me = await clubIdentity(userId);
-  if (me.role !== "admin") throw new Error("Owner access required.");
   if (!laneIds.length || laneIds.some((id) => !BOOKABLE_LANES.some((l) => l.id === id)))
     throw new Error("Choose the physical space this lesson needs.");
   const sql = await getSql();
   return sql.transaction(async (tx) => {
-    const [service] = await tx`select id from club_services where id=${serviceId} and kind='lesson' and active for update`;
+    const { requireOrganizationOperations, audit, CoordinatorDenied } =
+      await import("../coordinator/access.server");
+    try {
+      await requireOrganizationOperations(tx, userId);
+    } catch (error) {
+      if (error instanceof CoordinatorDenied)
+        throw new Error("Owner access or organization operations access required.");
+      throw error;
+    }
+    const [service] =
+      await tx`select id from club_services where id=${serviceId} and kind='lesson' and active for update`;
     if (!service) throw new Error("Choose an active lesson to assign its facility space.");
     await tx`insert into service_resources(service_id,lane_ids) values(${serviceId},${JSON.stringify([...new Set(laneIds)])}::jsonb) on conflict(service_id) do update set lane_ids=excluded.lane_ids`;
+    await audit(tx, userId, "organization.facility.assign", serviceId, "allowed");
     return { ok: true };
+  });
+}
+
+export async function operationalServiceResources(userId: string) {
+  const sql = await getSql();
+  return sql.transaction(async (tx) => {
+    const { requireOrganizationOperations } = await import("../coordinator/access.server");
+    await requireOrganizationOperations(tx, userId);
+    return tx<{
+      id: string;
+      name: string;
+      lane_ids: string[];
+    }>`select s.id,s.name,coalesce(r.lane_ids,'[]'::jsonb) as lane_ids from club_services s left join service_resources r on r.service_id=s.id where s.kind='lesson' and s.active order by s.sort_order,s.id`;
   });
 }
 
@@ -154,7 +179,13 @@ export async function lessonResources(serviceId: string, sql: Awaited<ReturnType
   const [row] = await sql<{
     lane_ids: unknown;
   }>`select lane_ids from service_resources where service_id=${serviceId}`;
-  if (!Array.isArray(row?.lane_ids) || !row.lane_ids.length || row.lane_ids.some((id) => typeof id !== "string" || !BOOKABLE_LANES.some((lane) => lane.id === id)))
+  if (
+    !Array.isArray(row?.lane_ids) ||
+    !row.lane_ids.length ||
+    row.lane_ids.some(
+      (id) => typeof id !== "string" || !BOOKABLE_LANES.some((lane) => lane.id === id),
+    )
+  )
     throw new Error(
       "This lesson is unavailable until a facility space is assigned. Choose another available service.",
     );
