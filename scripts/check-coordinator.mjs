@@ -203,7 +203,19 @@ try {
   );
 } finally {
   await browser?.close();
-  if (socket) await socket.stop();
+  if (socket) {
+    // Match the other authenticated walkthroughs: let pg pools release idle
+    // connections before closing the disposable database socket.
+    const deadline = Date.now() + 15000;
+    while (socket.getStats().activeConnections && Date.now() < deadline)
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    assert.equal(
+      socket.getStats().activeConnections,
+      0,
+      "Database clients did not drain during test cleanup",
+    );
+    await socket.stop();
+  }
   delete process.env.DATABASE_URL;
   await h.close();
 }

@@ -3,6 +3,7 @@ import { Button } from "../ui/button";
 import {
   capabilities,
   recommendedPreset,
+  programOperationsPreset,
   type AssignmentInput,
   type Capability,
   type Sport,
@@ -250,6 +251,21 @@ export function StaffRoleManagement() {
               ) : (
                 <>
                   <Button
+                    type="button"
+                    variant="outlineDark"
+                    onClick={() => setValue({ ...value, permissions: [...programOperationsPreset] })}
+                  >
+                    Select program operations — review before saving
+                  </Button>
+                  <p className="text-sm text-muted">
+                    Selects available recruiting, historical registrations, parent contacts, team
+                    messages, rosters, practices, cages, drafts, and nonfinancial reports for the
+                    chosen sport and teams. Transfers, cancellations, and publishing remain subject
+                    to owner review. Finances, private medical records, and account administration
+                    are excluded. Review the selections below, then save to apply them.
+                  </p>
+                  <Button
+                    type="button"
                     variant="outlineDark"
                     onClick={() => setValue({ ...value, permissions: [...recommendedPreset] })}
                   >

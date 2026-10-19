@@ -92,6 +92,16 @@ export const recommendedPreset: Capability[] = [
   "content.submit",
   "reports.read",
 ];
+// Explicitly reviewed operations only: future capabilities must not silently enter this preset.
+// Selecting a preset never saves grants or changes sport/team coverage.
+export const programOperationsPreset: Capability[] = [
+  ...recommendedPreset,
+  "rosters.transfer.request",
+  "events.cancel.request",
+  "cages.update",
+  "cages.release",
+  "activity.read",
+];
 export const rosterEditInput = z
   .object({
     teamId: id,
