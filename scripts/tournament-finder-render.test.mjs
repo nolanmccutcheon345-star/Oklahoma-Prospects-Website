@@ -33,6 +33,23 @@ const button = (host, name) =>
     (b) => b.textContent.trim().replace(/\s+/g, " ") === name,
   );
 
+test("the team's age remains selected even when the catalog has no matching age", async () => {
+  await withRendered(
+    entry,
+    "TournamentFinder",
+    { club: { ...club, teams: [{ ...team, age: "6U" }] }, teamId: team.id, onSave: async () => true },
+    {},
+    async ({ host }) => {
+      const age = [...host.querySelectorAll("label")]
+        .find((label) => label.textContent.startsWith("Age division"))
+        .querySelector("select");
+      assert.equal(age.value, "6U");
+      assert.equal(age.selectedOptions[0].textContent, "6U");
+      assert.match(host.textContent, /No tournaments match/);
+    },
+  );
+});
+
 test("coach finder shows truthful sources, accessible filters, real saves, and failures", async () => {
   const calls = [];
   let fail = false;

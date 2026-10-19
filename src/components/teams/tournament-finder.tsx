@@ -86,6 +86,7 @@ export function TournamentFinder({
       "16U",
       "17U",
       "18U",
+      ...(team?.age ? [team.age] : []),
       ...catalog.flatMap((e) => e.ages),
     ]),
   ].sort((a, b) => parseInt(a) - parseInt(b));

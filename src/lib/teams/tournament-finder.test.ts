@@ -239,3 +239,20 @@ test("scheduled catalog details remain locked server-side, including closed team
     /organizer link/,
   );
 });
+
+test("duplicate and blank catalog IDs cannot bypass scheduled-record protection", () => {
+  const club = sampleClub();
+  club.catalog = [event];
+  club.teams[0].tournamentIds = [event.id];
+  const identity = { email: "owner@example.invalid", familyId: "" };
+  for (const catalog of [
+    [event, { ...event, fee: event.fee + 1000 }],
+    [{ ...event, id: "" }],
+    [{ ...event, id: "   " }],
+  ]) {
+    const incoming = { ...club, catalog };
+    assert.throws(() => parseClubSave({ club: incoming, baseRev: club._rev }), /identifiers/);
+    assert.throws(() => mergeSave(club, incoming, "admin", identity), /identifiers/);
+  }
+  assert.equal(parseClubSave({ club, baseRev: club._rev }).club.catalog.length, 1);
+});

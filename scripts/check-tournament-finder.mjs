@@ -224,7 +224,7 @@ try {
     "Mobile layout overflow",
   );
   await finder.getByRole("button", { name: "Advanced filters", exact: false }).click();
-  await finder.getByLabel("Maximum drive miles", { exact: true }).selectOption("50");
+  await finder.getByRole("combobox", { name: "Maximum drive miles", exact: true }).selectOption("50");
   assert.equal(await finder.locator("[data-tournament]").count(), 1);
   await finder.getByRole("button", { name: "Reset filters", exact: true }).click();
   const local = finder.locator('[data-tournament="fixture-local"]');

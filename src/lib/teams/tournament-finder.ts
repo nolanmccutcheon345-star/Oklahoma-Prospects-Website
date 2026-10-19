@@ -54,11 +54,18 @@ export function parseTournamentSourceMetadata(input: unknown) {
     .parse(input);
 }
 
+export function assertTournamentCatalogIdentifiers(catalog: Pick<EventItem, "id">[]): void {
+  const ids = catalog.map((event) => event.id);
+  if (ids.some((id) => !id.trim()) || new Set(ids).size !== ids.length)
+    throw new Error("Tournament identifiers must be nonempty and unique.");
+}
+
 /** Do not rewrite historical dates, eligibility, or costs used by an existing team schedule. */
 export function assertTournamentCatalogEdits(
   stored: { catalog: EventItem[]; teams: Team[] },
   incoming: { catalog: EventItem[] },
 ): void {
+  assertTournamentCatalogIdentifiers(incoming.catalog);
   const referenced = new Set(stored.teams.flatMap((team) => team.tournamentIds));
   const protectedFields: (keyof EventItem)[] = [
     "id",

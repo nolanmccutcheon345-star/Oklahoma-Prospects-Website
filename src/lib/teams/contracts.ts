@@ -1,6 +1,6 @@
 import {z} from 'zod';
 import type {ClubRecord} from './types';
-import { tournamentMetadata, validTournamentSource } from './tournament-finder';
+import { assertTournamentCatalogIdentifiers, tournamentMetadata, validTournamentSource } from './tournament-finder';
 const id=z.string().max(150),text=z.string().max(5000),short=z.string().max(200);
 const money=z.number().finite().min(0).max(10000000),count=z.number().int().min(0).max(100000);
 const strings=z.array(short).max(200),numbers=z.record(short,z.number().finite());
@@ -47,6 +47,7 @@ const club=z.object({
 export function parseClubSave(input:{club:ClubRecord;baseRev:number}) {
  if(JSON.stringify(input).length>5000000)throw new Error('Club record is too large.');
  const parsed=z.object({club,baseRev:count}).strict().parse(input);
+ assertTournamentCatalogIdentifiers(parsed.club.catalog);
  const teamIds=parsed.club.teams.map(t=>t.id);
  if(teamIds.some(id=>!id.trim())||new Set(teamIds).size!==teamIds.length)throw new Error('Team identifiers must be nonempty and unique.');
  for(const t of parsed.club.teams){const staffIds=t.staff.map(s=>s.id);if(staffIds.some(id=>!id.trim())||new Set(staffIds).size!==staffIds.length)throw new Error('Staff identifiers must be nonempty and unique within a team.');}
