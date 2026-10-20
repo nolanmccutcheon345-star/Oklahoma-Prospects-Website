@@ -251,6 +251,24 @@ try {
     }
     const ownerCookie = await login("stevemccutcheon89@gmail.com");
     const orgCookie = await login("operations@example.invalid");
+    for (const [name, method, data] of [
+      ["getCoordinatorRecoveryHistory", "POST", {}],
+      ["getCoordinatorPrivacy", "GET"],
+      ["getCoordinatorArchiveStatus", "GET"],
+      ["getOwnerPlayerPublications", "GET"],
+      ["getOwnerCommunicationArchive", "POST", {}],
+    ]) {
+      const denied = await rpc(orgCookie, name, method, data);
+      assert.match(
+        denied.body,
+        /not authorized|CoordinatorDenied|ACCESS_DENIED/i,
+        `${name} owner gate`,
+      );
+      const allowed = await rpc(ownerCookie, name, method, data);
+      assert.equal(allowed.status, 200, `${name} owner read`);
+      assert.doesNotMatch(allowed.body, /CoordinatorDenied|ACCESS_DENIED|"name":"Error"/);
+      for (const marker of financialCanaries) assert.ok(!allowed.body.includes(marker));
+    }
     const ownerFinance = await rpc(ownerCookie, "getFinance");
     assert.match(
       ownerFinance.body,

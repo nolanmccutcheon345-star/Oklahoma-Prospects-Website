@@ -181,6 +181,7 @@ export async function approvals(sql: Sql, userId: string) {
       kind: string;
       target_id: string;
       proposal: {
+        display?: { name: string; number: string; photo: string };
         system?: "program";
         sessions?: { key: string; revision: number }[];
         version?: number;
@@ -214,6 +215,7 @@ export async function decideApproval(sql: Sql, userId: string, raw: z.infer<type
         team_id: string;
         target_id: string;
         proposal: {
+          display?: { name: string; number: string; photo: string };
           system?: "program";
           sessions?: { key: string; revision: number }[];
           version?: number;
@@ -225,8 +227,35 @@ export async function decideApproval(sql: Sql, userId: string, raw: z.infer<type
       if (!row || row.requester_id === userId) throw new CoordinatorDenied();
       if (row.status !== "pending" || row.revision !== input.revision)
         throw new Error("This request has already changed. Reload.");
+      if (row.kind === "communication") {
+        await (
+          await import("./communications.server")
+        ).decideTeamNotice(
+          tx,
+          userId,
+          row.requester_id,
+          row.target_id,
+          input.decision === "approved",
+          row.proposal,
+        );
+      }
       if (input.decision === "approved") {
-        if (row.kind === "program-change") {
+        if (row.kind === "communication") {
+          // Execution occurs through the current-authority transactional outbox.
+        } else if (row.kind === "roster-publication" || row.kind === "photo-publication") {
+          await (
+            await import("./player-publication.server")
+          ).approvePlayerPublication(
+            tx,
+            userId,
+            row.requester_id,
+            input.id,
+            row.kind === "roster-publication" ? "roster" : "photo",
+            row.team_id,
+            row.target_id,
+            row.proposal,
+          );
+        } else if (row.kind === "program-change") {
           await approveProgramEventChange(
             tx,
             userId,

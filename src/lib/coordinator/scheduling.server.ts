@@ -2,7 +2,15 @@ import type { Sql } from "../db";
 import { lockFinancialExecution } from "../finance/execution.server";
 import type { z } from "zod";
 import { practiceInput, scopeInput } from "./contracts";
-import { requireTeam, checkScope, secured, audit, CoordinatorDenied } from "./access.server";
+import {
+  requireTeam,
+  teamScope,
+  authority,
+  checkScope,
+  secured,
+  audit,
+  CoordinatorDenied,
+} from "./access.server";
 import { validateWindow } from "../scheduling";
 import { holdWindow } from "../commerce/store.server";
 export async function schedules(sql: Sql, userId: string, teamId: string) {
@@ -24,101 +32,143 @@ export async function schedules(sql: Sql, userId: string, teamId: string) {
 }
 export async function savePractice(sql: Sql, userId: string, raw: z.infer<typeof practiceInput>) {
   const input = practiceInput.parse(raw);
-  return secured(sql, userId, "practices.save", async (tx) => {
-    const team = await requireTeam(
-      tx,
-      userId,
-      input.revision ? "practices.update" : "practices.create",
-      input.teamId,
-    );
-    await tx`select id from club_state where id='oklahoma-prospects' for update`;
-    const window = validateWindow(input.date, input.time, input.duration);
-    const [old] = await tx<{
-      revision: number;
-      kind: string;
-      status: string;
-      team_id: string;
-    }>`select revision,payload->>'kind' as kind,payload->>'status' as status,team_id from team_activities where id=${input.id} for update`;
-    if ((old?.revision || 0) !== input.revision)
-      throw new Error("Practice changed. Reload before saving.");
-    if (old && (old.team_id !== team.id || old.kind !== "practice" || old.status === "cancelled"))
-      throw new CoordinatorDenied();
-    const [reserved] = await tx<{
-      booking_id: string;
-      order_id: string | null;
-      status: string;
-    }>`select cp.booking_id,b.order_id,b.status from coordinator_practice_bookings cp join booking_records b on b.id=cp.booking_id where cp.activity_id=${input.id} for update of cp,b`;
-    if (reserved?.order_id) throw new CoordinatorDenied();
-    if (reserved) {
+  return secured(
+    sql,
+    userId,
+    "practices.save",
+    (tx) => savePracticeInTransaction(tx, userId, input),
+    lockFinancialExecution,
+  );
+}
+// Internal executor; recovery callers must independently hold dedicated owner authority.
+export async function savePracticeInTransaction(
+  tx: Sql,
+  userId: string,
+  input: z.infer<typeof practiceInput>,
+  recovery = false,
+) {
+  if (recovery) await authority(tx, userId, "staff_approvals.review");
+  const team = recovery
+    ? await teamScope(tx, input.teamId)
+    : await requireTeam(
+        tx,
+        userId,
+        input.revision ? "practices.update" : "practices.create",
+        input.teamId,
+      );
+  await tx`select id from club_state where id='oklahoma-prospects' for update`;
+  const window = validateWindow(input.date, input.time, input.duration);
+  const [old] = await tx<{
+    revision: number;
+    kind: string;
+    status: string;
+    team_id: string;
+    payload: { title: string; date: string; startTime: string; endTime: string; location: string };
+  }>`select payload,revision,payload->>'kind' as kind,payload->>'status' as status,team_id from team_activities where id=${input.id} for update`;
+  if ((old?.revision || 0) !== input.revision)
+    throw new Error("Practice changed. Reload before saving.");
+  if (old && (old.team_id !== team.id || old.kind !== "practice" || old.status === "cancelled"))
+    throw new CoordinatorDenied();
+  const [reserved] = await tx<{
+    booking_id: string;
+    order_id: string | null;
+    status: string;
+  }>`select cp.booking_id,b.order_id,b.status from coordinator_practice_bookings cp join booking_records b on b.id=cp.booking_id where cp.activity_id=${input.id} for update of cp,b`;
+  const previousLanes = reserved
+    ? await tx<{
+        lane: string;
+      }>`select replace(r,'lane:','') lane from booking_records b cross join lateral jsonb_array_elements_text(b.resources) r where b.id=${reserved.booking_id} and r like 'lane:%' order by r`
+    : [];
+  const minutesOf = (s: string) => Number(s.slice(0, 2)) * 60 + Number(s.slice(3));
+  const before = old
+    ? {
+        id: input.id,
+        teamId: team.id,
+        title: old.payload.title,
+        date: old.payload.date,
+        time: old.payload.startTime,
+        duration: minutesOf(old.payload.endTime) - minutesOf(old.payload.startTime),
+        location: old.payload.location,
+        laneIds: previousLanes.map((r) => r.lane),
+      }
+    : null;
+  if (reserved?.order_id) throw new CoordinatorDenied();
+  if (reserved) {
+    if (!recovery)
       await requireTeam(
         tx,
         userId,
         input.laneIds.length ? "cages.update" : "cages.release",
         team.id,
       );
-      await tx`delete from booking_occupancy where booking_id=${reserved.booking_id}`;
-      await tx`update booking_records set status='cancelled' where id=${reserved.booking_id} and order_id is null`;
-    } else if (input.laneIds.length) await requireTeam(tx, userId, "cages.reserve", team.id);
-    const minutes =
-      Number(input.time.slice(0, 2)) * 60 + Number(input.time.slice(3)) + input.duration;
-    const endTime =
-      String(Math.floor(minutes / 60)).padStart(2, "0") +
-      ":" +
-      String(minutes % 60).padStart(2, "0");
-    const payload = {
-      id: input.id,
-      teamId: team.id,
+    await tx`delete from booking_occupancy where booking_id=${reserved.booking_id}`;
+    await tx`update booking_records set status='cancelled' where id=${reserved.booking_id} and order_id is null`;
+  } else if (input.laneIds.length && !recovery)
+    await requireTeam(tx, userId, "cages.reserve", team.id);
+  const minutes =
+    Number(input.time.slice(0, 2)) * 60 + Number(input.time.slice(3)) + input.duration;
+  const endTime =
+    String(Math.floor(minutes / 60)).padStart(2, "0") + ":" + String(minutes % 60).padStart(2, "0");
+  const payload = {
+    id: input.id,
+    teamId: team.id,
+    revision: input.revision + 1,
+    kind: "practice",
+    title: input.title,
+    date: input.date,
+    startTime: input.time,
+    endTime,
+    location: input.location,
+    status: "scheduled",
+    ourRuns: 0,
+    oppRuns: 0,
+    stats: [],
+  };
+  if (old)
+    await tx`update team_activities set payload=payload||${JSON.stringify(payload)}::jsonb,revision=revision+1,updated_by=${userId},updated_at=now() where id=${input.id}`;
+  else
+    await tx`insert into team_activities(id,team_id,payload,updated_by) values(${input.id},${team.id},${JSON.stringify(payload)}::jsonb,${userId})`;
+  if (input.laneIds.length) {
+    // The SAME occupancy table and unique cells used by paid checkout. A conflict rolls everything back.
+    const bookingId = await holdWindow(tx, {
+      orderId: null,
+      userId,
+      athleteId: null,
+      productId: "coordinator-practice:" + input.id,
+      start: window.start,
+      end: window.end,
+      resources: [...new Set(input.laneIds)].map((id) => "lane:" + id),
+    });
+    await tx`update booking_records set status='confirmed' where id=${bookingId}`;
+    await tx`insert into coordinator_practice_bookings(activity_id,booking_id) values(${input.id},${bookingId}) on conflict(activity_id) do update set booking_id=excluded.booking_id`;
+  } else if (reserved)
+    await tx`delete from coordinator_practice_bookings where activity_id=${input.id}`;
+  await syncPractice(tx, team.id, {
+    id: input.id,
+    date: input.date,
+    time: input.time,
+    where: input.location,
+    cageHours: input.laneIds.length ? input.duration / 60 : 0,
+    status: "on",
+  });
+  await audit(
+    tx,
+    userId,
+    "practices.save",
+    input.id,
+    "allowed",
+    {
       revision: input.revision + 1,
-      kind: "practice",
-      title: input.title,
-      date: input.date,
-      startTime: input.time,
-      endTime,
-      location: input.location,
-      status: "scheduled",
-      ourRuns: 0,
-      oppRuns: 0,
-      stats: [],
-    };
-    if (old)
-      await tx`update team_activities set payload=payload||${JSON.stringify(payload)}::jsonb,revision=revision+1,updated_by=${userId},updated_at=now() where id=${input.id}`;
-    else
-      await tx`insert into team_activities(id,team_id,payload,updated_by) values(${input.id},${team.id},${JSON.stringify(payload)}::jsonb,${userId})`;
-    if (input.laneIds.length) {
-      // The SAME occupancy table and unique cells used by paid checkout. A conflict rolls everything back.
-      const bookingId = await holdWindow(tx, {
-        orderId: null,
-        userId,
-        athleteId: null,
-        productId: "coordinator-practice:" + input.id,
-        start: window.start,
-        end: window.end,
-        resources: [...new Set(input.laneIds)].map((id) => "lane:" + id),
-      });
-      await tx`update booking_records set status='confirmed' where id=${bookingId}`;
-      await tx`insert into coordinator_practice_bookings(activity_id,booking_id) values(${input.id},${bookingId}) on conflict(activity_id) do update set booking_id=excluded.booking_id`;
-    } else if (reserved)
-      await tx`delete from coordinator_practice_bookings where activity_id=${input.id}`;
-    await syncPractice(tx, team.id, {
-      id: input.id,
       date: input.date,
       time: input.time,
-      where: input.location,
-      cageHours: input.laneIds.length ? input.duration / 60 : 0,
-      status: "on",
-    });
-    await audit(
-      tx,
-      userId,
-      "practices.save",
-      input.id,
-      "allowed",
-      { revision: input.revision + 1, date: input.date, time: input.time, laneIds: input.laneIds },
-      team.sport,
-      team.id,
-    );
-    return { ok: true };
-  }, lockFinancialExecution);
+      laneIds: input.laneIds,
+      before,
+      after: { ...input, revision: undefined },
+    },
+    team.sport,
+    team.id,
+  );
+  return { ok: true };
 }
 export async function cageOccupancy(
   sql: Sql,

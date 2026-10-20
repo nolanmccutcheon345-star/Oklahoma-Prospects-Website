@@ -373,7 +373,28 @@ export async function publicRecruiting(sql: Sql, id?: string) {
   const rows = await sql<
     Profile & { name: string }
   >`select r.*,a.name from recruiting_profiles r join club_athletes a on a.id=r.athlete_id where published=true and consent_by is not null and consent_version=${CONSENT_VERSION}`;
-  const selected = id ? rows.filter((p) => p.athlete_id === id) : rows;
+  const { currentPublicationGuardian, publicPlayerPhotoAllowed } =
+    await import("./coordinator/player-publication.server");
+  const selected = [];
+  for (const p of id ? rows.filter((p) => p.athlete_id === id) : rows) {
+    const [a] = await sql<{
+      household_id: string;
+    }>`select household_id from club_athletes where id=${p.athlete_id}`;
+    if (
+      !a?.household_id ||
+      !p.consent_name?.trim() ||
+      !p.consent_at ||
+      !(await currentPublicationGuardian(sql, a.household_id, { id: p.consent_by! }))
+    )
+      continue;
+    selected.push({
+      ...p,
+      payload: {
+        ...p.payload,
+        photo: (await publicPlayerPhotoAllowed(sql, p.athlete_id)) ? p.payload.photo : "",
+      },
+    });
+  }
   const { club, links } = await records(sql);
   const games = id
     ? (

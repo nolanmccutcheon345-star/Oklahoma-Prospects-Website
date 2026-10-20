@@ -28,6 +28,7 @@
     "test:guided:browser": "node --test scripts/guided-lesson-walkthrough.mjs"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.1154.0",
     "@electric-sql/pglite": "^0.5.4",
     "@hookform/resolvers": "^5.7.0",
     "@netlify/database": "^2.0.1",
@@ -107,6 +108,6 @@
     "tsx": "^4.23.13",
     "typescript": "^5.7.0",
     "typescript-eslint": "^8.56.1",
-    "vite": "^8.2.0"
+    "vite": "^8.3.4"
   }
 }

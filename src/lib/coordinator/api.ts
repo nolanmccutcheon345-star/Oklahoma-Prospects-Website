@@ -669,3 +669,233 @@ export const getPublicProgramContent = createServerFn({ method: "GET" })
       data,
     );
   });
+
+import {
+  noticeProposalInput,
+  noticeSendInput,
+  noticeHistoryInput,
+  noticeCancelInput,
+  messageReviewListInput,
+  messageReviewInput,
+} from "./communication-contracts";
+export const previewCoordinatorNotice = createServerFn({ method: "POST" })
+  .middleware([coordinatorAuthMiddleware])
+  .validator(noticeProposalInput)
+  .handler(async ({ context, data }) => {
+    const { getSql } = await import("../db");
+    return (await import("./communications.server")).previewTeamNotice(
+      await getSql(),
+      context.userId,
+      data,
+    );
+  });
+export const queueCoordinatorNotice = createServerFn({ method: "POST" })
+  .middleware([coordinatorAuthMiddleware])
+  .validator(noticeSendInput)
+  .handler(async ({ context, data }) => {
+    const { getSql } = await import("../db");
+    return (await import("./communications.server")).queueTeamNotice(
+      await getSql(),
+      context.userId,
+      data,
+    );
+  });
+export const getCoordinatorNoticeHistory = createServerFn({ method: "POST" })
+  .middleware([coordinatorAuthMiddleware])
+  .validator(noticeHistoryInput)
+  .handler(async ({ context, data }) => {
+    const { getSql } = await import("../db");
+    return (await import("./communications.server")).teamNoticeHistory(
+      await getSql(),
+      context.userId,
+      data,
+    );
+  });
+export const cancelCoordinatorNotice = createServerFn({ method: "POST" })
+  .middleware([coordinatorAuthMiddleware])
+  .validator(noticeCancelInput)
+  .handler(async ({ context, data }) => {
+    const { getSql } = await import("../db");
+    return (await import("./communications.server")).cancelTeamNotice(
+      await getSql(),
+      context.userId,
+      data,
+    );
+  });
+export const getReviewableTeamMessages = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
+  .validator(messageReviewListInput)
+  .handler(async ({ context, data }) => {
+    const { getSql } = await import("../db");
+    return (await import("./communications.server")).reviewableTeamMessages(
+      await getSql(),
+      context.userId,
+      data,
+    );
+  });
+export const reviewCoordinatorTeamMessage = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
+  .validator(messageReviewInput)
+  .handler(async ({ context, data }) => {
+    const { getSql } = await import("../db");
+    return (await import("./communications.server")).reviewTeamMessage(
+      await getSql(),
+      context.userId,
+      data,
+    );
+  });
+export const getCoordinatorNoticeTargets = createServerFn({ method: "POST" })
+  .middleware([coordinatorAuthMiddleware])
+  .validator(
+    z.object({ teamId: z.string().min(1).max(200), kind: z.enum(["practice", "event"]) }).strict(),
+  )
+  .handler(async ({ context, data }) => {
+    const { getSql } = await import("../db");
+    return (await import("./communications.server")).noticeTargets(
+      await getSql(),
+      context.userId,
+      data,
+    );
+  });
+
+export const getOwnerCommunicationArchive = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
+  .validator(z.object({ beforeId: z.number().int().positive().optional() }).strict())
+  .handler(async ({ context, data }) => {
+    const { getSql } = await import("../db");
+    return (await import("./communications.server")).ownerCommunicationArchive(
+      await getSql(),
+      context.userId,
+      data,
+    );
+  });
+
+import {
+  publicationCandidateInput,
+  publicationPreviewInput,
+  publicationRequestInput,
+  publicationWithdrawInput,
+} from "./player-publication-contracts";
+export const getPlayerPublicationCandidates = createServerFn({ method: "POST" })
+  .middleware([coordinatorAuthMiddleware])
+  .validator(publicationCandidateInput)
+  .handler(async ({ context, data }) => {
+    const { getSql } = await import("../db");
+    return (await import("./player-publication.server")).publicationCandidates(
+      await getSql(),
+      context.userId,
+      data,
+    );
+  });
+export const getPlayerPublicationPreview = createServerFn({ method: "POST" })
+  .middleware([coordinatorAuthMiddleware])
+  .validator(publicationPreviewInput)
+  .handler(async ({ context, data }) => {
+    const { getSql } = await import("../db");
+    return (await import("./player-publication.server")).previewPlayerPublication(
+      await getSql(),
+      context.userId,
+      data,
+    );
+  });
+export const submitPlayerPublication = createServerFn({ method: "POST" })
+  .middleware([coordinatorAuthMiddleware])
+  .validator(publicationRequestInput)
+  .handler(async ({ context, data }) => {
+    const { getSql } = await import("../db");
+    return (await import("./player-publication.server")).requestPlayerPublication(
+      await getSql(),
+      context.userId,
+      data,
+    );
+  });
+export const getOwnerPlayerPublications = createServerFn({ method: "GET" })
+  .middleware([authMiddleware])
+  .handler(async ({ context }) => {
+    const { getSql } = await import("../db");
+    return (await import("./player-publication.server")).ownerPlayerPublications(
+      await getSql(),
+      context.userId,
+    );
+  });
+export const withdrawOwnerPlayerPublication = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
+  .validator(publicationWithdrawInput)
+  .handler(async ({ context, data }) => {
+    const { getSql } = await import("../db");
+    return (await import("./player-publication.server")).withdrawPlayerPublication(
+      await getSql(),
+      context.userId,
+      data,
+    );
+  });
+
+import { recoveryPreviewInput, recoveryApplyInput } from "./recovery-contracts";
+export const getCoordinatorRecoveryHistory = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
+  .validator(z.object({ beforeId: z.number().int().positive().optional() }).strict())
+  .handler(async ({ context, data }) => {
+    const { getSql } = await import("../db");
+    return (await import("./recovery.server")).recoveryHistory(
+      await getSql(),
+      context.userId,
+      data.beforeId,
+    );
+  });
+export const getCoordinatorRecoveryPreview = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
+  .validator(recoveryPreviewInput)
+  .handler(async ({ context, data }) => {
+    const { getSql } = await import("../db");
+    return (await import("./recovery.server")).recoveryPreview(
+      await getSql(),
+      context.userId,
+      data,
+    );
+  });
+export const applyCoordinatorRecovery = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
+  .validator(recoveryApplyInput)
+  .handler(async ({ context, data }) => {
+    const { getSql } = await import("../db");
+    return (await import("./recovery.server")).applyRecovery(await getSql(), context.userId, data);
+  });
+
+import { privacyPolicyInput, privacyReviewInput } from "./privacy-contracts";
+export const getCoordinatorPrivacy = createServerFn({ method: "GET" })
+  .middleware([authMiddleware])
+  .handler(async ({ context }) => {
+    const { getSql } = await import("../db");
+    return (await import("./privacy.server")).privacyWorkspace(await getSql(), context.userId);
+  });
+export const saveCoordinatorPrivacyPolicy = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
+  .validator(privacyPolicyInput)
+  .handler(async ({ context, data }) => {
+    const { getSql } = await import("../db");
+    return (await import("./privacy.server")).savePrivacyPolicy(
+      await getSql(),
+      context.userId,
+      data,
+    );
+  });
+export const saveCoordinatorPrivacyReview = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
+  .validator(privacyReviewInput)
+  .handler(async ({ context, data }) => {
+    const { getSql } = await import("../db");
+    return (await import("./privacy.server")).recordPrivacyReview(
+      await getSql(),
+      context.userId,
+      data,
+    );
+  });
+export const getCoordinatorArchiveStatus = createServerFn({ method: "GET" })
+  .middleware([authMiddleware])
+  .handler(async ({ context }) => {
+    const { getSql } = await import("../db");
+    return (await import("./security-archive.server")).archiveStatus(
+      await getSql(),
+      context.userId,
+    );
+  });

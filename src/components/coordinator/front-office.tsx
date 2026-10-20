@@ -1,3 +1,5 @@
+import { PlayerPublicationRequest } from "./player-publication";
+import { ScheduledCommunications } from "./communications";
 import { ContentDrafts } from "./content-drafts";
 import { EligibleRosterAthletes, RoutinePlayerInformation } from "./roster-management";
 import { TryoutScheduling } from "./tryout-scheduling";
@@ -96,6 +98,8 @@ export function CoordinatorFrontOffice() {
       "Teams & Rosters",
       allowed("rosters.read") ||
         allowed("rosters.add") ||
+        allowed("rosters.publication.request") ||
+        allowed("photos.publication.request") ||
         allowed("teams.openings") ||
         allowed("teams.needs") ||
         allowed("teams.statistics"),
@@ -111,7 +115,9 @@ export function CoordinatorFrontOffice() {
     [
       "messages",
       "Communications",
-      allowed("communications.read") || allowed("communications.team.send"),
+      Object.keys(capabilities).some(
+        (p) => p.startsWith("communications.") && allowed(p as Capability),
+      ),
     ],
     [
       "drafts",
@@ -234,6 +240,7 @@ export function CoordinatorFrontOffice() {
                 sport={sport}
                 teamId={teamId}
                 allowed={allowed}
+                teams={home.targets.filter((t) => t.sport === sport)}
                 teamName={home.targets.find((t) => t.id === teamId)?.name || ""}
               />
             )}
@@ -249,12 +256,14 @@ function CoordinatorModule({
   teamId,
   allowed,
   teamName,
+  teams,
 }: {
   tab: string;
   sport: Sport;
   teamId: string;
   allowed: (p: Capability) => boolean;
   teamName: string;
+  teams: { id: string; name: string }[];
 }) {
   const [error, setError] = useState(""),
     [notice, setNotice] = useState(""),
@@ -466,39 +475,70 @@ function CoordinatorModule({
                         Edit Positions
                       </Button>
                     )}
-                    {allowed("communications.recruit.send") && r.email && (
-                      <Button
-                        variant="outlineDark"
-                        disabled={busy}
-                        onClick={() => {
-                          const subject = window.prompt("Email subject:");
-                          if (!subject) return;
-                          const body = window.prompt("Message to this guardian:");
-                          if (
-                            !body ||
-                            !window.confirm(
-                              `Send to ${r.parent || "guardian"} at ${r.email}?\n\n${subject}\n\n${body}`,
-                            )
-                          )
-                            return;
-                          void run(
-                            () =>
-                              api.sendCoordinatorEmail({
-                                data: {
-                                  id: crypto.randomUUID(),
-                                  requestId: r.id,
-                                  subject,
-                                  body,
-                                  confirmedEmail: r.email!,
-                                },
-                              }),
-                            "Email queued. Delivery is handled by the existing notification worker.",
-                          );
-                        }}
-                      >
-                        Email Guardian
-                      </Button>
-                    )}
+                    {r.email &&
+                      [
+                        {
+                          purpose: "recruiting" as const,
+                          permission: "communications.recruit.send" as Capability,
+                          label: "Email Guardian",
+                        },
+                        {
+                          purpose: "invitation" as const,
+                          permission: "recruiting.invite" as Capability,
+                          label: "Recruiting Invitation",
+                        },
+                        ...(r.kind === "team-inquiry"
+                          ? [
+                              {
+                                purpose: "inquiry" as const,
+                                permission: "communications.inquiry.reply" as Capability,
+                                label: "Reply to Inquiry",
+                              },
+                            ]
+                          : [
+                              {
+                                purpose: "tryout-reminder" as const,
+                                permission: "communications.tryout.remind" as Capability,
+                                label: "Tryout Reminder",
+                              },
+                            ]),
+                      ]
+                        .filter((action) => allowed(action.permission))
+                        .map((action) => (
+                          <Button
+                            key={action.purpose}
+                            variant="outlineDark"
+                            disabled={busy}
+                            onClick={() => {
+                              const subject = window.prompt("Email subject:");
+                              if (!subject) return;
+                              const body = window.prompt("Message to this guardian:");
+                              if (
+                                !body ||
+                                !window.confirm(
+                                  `Send to ${r.parent || "guardian"} at ${r.email}?\n\n${subject}\n\n${body}`,
+                                )
+                              )
+                                return;
+                              void run(
+                                () =>
+                                  api.sendCoordinatorEmail({
+                                    data: {
+                                      purpose: action.purpose,
+                                      id: crypto.randomUUID(),
+                                      requestId: r.id,
+                                      subject,
+                                      body,
+                                      confirmedEmail: r.email!,
+                                    },
+                                  }),
+                                "Email queued. Delivery is handled by the existing notification worker.",
+                              );
+                            }}
+                          >
+                            {action.label}
+                          </Button>
+                        ))}
                   </div>
                   <RecruitingWorkflow
                     key={r.id + ":" + r.work_revision}
@@ -563,6 +603,12 @@ function CoordinatorModule({
             <>
               <h2 className="text-2xl">{teamName} Roster</h2>
               {allowed("rosters.add") && <EligibleRosterAthletes teamId={teamId} onAdded={load} />}
+              {allowed("rosters.publication.request") && (
+                <PlayerPublicationRequest teamId={teamId} kind="roster" />
+              )}
+              {allowed("photos.publication.request") && (
+                <PlayerPublicationRequest teamId={teamId} kind="photo" />
+              )}
               {(allowed("teams.openings") ||
                 allowed("teams.needs") ||
                 allowed("teams.statistics")) && (
@@ -792,6 +838,16 @@ function CoordinatorModule({
           {tab === "messages" && (
             <>
               <h2 className="text-2xl">{teamName} Communications</h2>
+              <ScheduledCommunications
+                sport={sport}
+                teamId={teamId}
+                teams={teams}
+                allowed={allowed}
+              />
+              <p>
+                Historical messages appear only after an owner reviews their exact content for
+                operational visibility.
+              </p>
               {allowed("communications.team.send") && (
                 <form
                   className="grid gap-3"

@@ -579,6 +579,9 @@ test("account entry and complete historical pages retain current permissions and
     );
     await sql`insert into team_chat_messages(id,team_id,user_id,author,body,created_at) select gen_random_uuid(),'soft','owner','Coach','Historical team note','2020-01-01T00:00:00.123456Z'::timestamptz from generate_series(1,105)`;
     await sql`insert into team_chat_messages(id,team_id,user_id,author,body) values(gen_random_uuid(),'base','owner','Coach','PRIVATE-BASEBALL')`;
+    assert.equal((await teamCommunications(sql, "softball", { teamId: "soft" })).items.length, 0);
+    // Only synthetic operational history is explicitly classified; mixed legacy text remains hidden.
+    await sql`insert into coordinator_message_reviews(message_id,source_digest,operational,reviewer_id) select id,coordinator_message_digest(m),true,'owner' from team_chat_messages m where team_id='soft'`;
     const messages = await teamCommunications(sql, "softball", { teamId: "soft" });
     assert.equal(messages.items.length, 100);
     assert.ok(messages.nextCursor);
@@ -2783,6 +2786,819 @@ test("website content has independent read/type/edit grants and exact owner publ
     assert.deepEqual(await content.publicProgramContent(sql, "softball"), []);
     assert.equal((await content.ownerPublishedContent(sql, "owner"))[0].visible, false);
     await assert.rejects(content.publishCoordinatorDraft(sql, "owner", publish), /withdrawn/);
+  } finally {
+    await db.close();
+  }
+});
+
+test("communications require independent grants, confirmed current recipients, owner mass review and immutable archives", async () => {
+  const { db, sql, assign } = await fixture();
+  const c = await import("./communications.server");
+  try {
+    const input = {
+      id: randomUUID(),
+      sport: "softball" as const,
+      teamIds: ["soft"],
+      kind: "announcement" as const,
+      targetId: "",
+      body: "Synthetic operational update",
+      sendAt: new Date().toISOString(),
+      reason: "Routine program schedule notice",
+    };
+    await assert.rejects(c.previewTeamNotice(sql, "zero", input));
+    await assign(
+      "softball",
+      "softball",
+      ["communications.announcement.schedule", "communications.read"],
+      "teams",
+      ["soft"],
+    );
+    const preview = await c.previewTeamNotice(sql, "softball", input);
+    assert.equal(preview.teams[0].name, "Softball Test");
+    assert.doesNotMatch(JSON.stringify(preview), /@|PRIVATE/);
+    await assert.rejects(
+      c.queueTeamNotice(sql, "softball", {
+        ...input,
+        body: "changed after preview",
+        previewDigest: preview.previewDigest,
+        confirm: true,
+      }),
+    );
+    await c.queueTeamNotice(sql, "softball", {
+      ...input,
+      previewDigest: preview.previewDigest,
+      confirm: true,
+    });
+    await c.queueTeamNotice(sql, "softball", {
+      ...input,
+      previewDigest: preview.previewDigest,
+      confirm: true,
+    });
+    assert.deepEqual(await c.deliverTeamNotices(sql), { sent: 1, blocked: 0 });
+    assert.deepEqual(await c.deliverTeamNotices(sql), { sent: 0, blocked: 0 });
+    const read = await c.teamNoticeHistory(sql, "softball", { sport: "softball", teamId: "soft" });
+    assert.equal(read.items[0].body, input.body);
+    assert.equal(read.items[0].status, null);
+    await assign("softball", "softball", ["communications.delivery.read"], "teams", ["soft"]);
+    const delivery = await c.teamNoticeHistory(sql, "softball", {
+      sport: "softball",
+      teamId: "soft",
+    });
+    assert.equal(delivery.items[0].body, null);
+    assert.equal(delivery.items[0].status, "sent");
+    await assert.rejects(sql`update coordinator_communication_versions set body='tampered'`);
+    await assert.rejects(sql`delete from coordinator_communication_versions`);
+    await assign(
+      "softball",
+      "softball",
+      ["communications.announcement.schedule", "communications.read"],
+      "teams",
+      ["soft"],
+    );
+    const revoked = { ...input, id: randomUUID() };
+    const p = await c.previewTeamNotice(sql, "softball", revoked);
+    await c.queueTeamNotice(sql, "softball", {
+      ...revoked,
+      previewDigest: p.previewDigest,
+      confirm: true,
+    });
+    await assign("softball", "softball", ["communications.read"], "teams", ["soft"]);
+    assert.deepEqual(await c.deliverTeamNotices(sql), { sent: 0, blocked: 1 });
+    await assign("softball", "softball", ["communications.program.request", "communications.read"]);
+    const mass = { ...input, id: randomUUID(), kind: "program" as const };
+    const mp = await c.previewTeamNotice(sql, "softball", mass);
+    assert.equal(mp.requiresApproval, true);
+    await c.queueTeamNotice(sql, "softball", {
+      ...mass,
+      previewDigest: mp.previewDigest,
+      confirm: true,
+    });
+    assert.deepEqual(await c.deliverTeamNotices(sql), { sent: 0, blocked: 0 });
+    await assert.rejects(
+      decideApproval(sql, "softball", {
+        id: mass.id,
+        revision: 1,
+        decision: "approved",
+        confirm: true,
+        reason: "Self approval forbidden",
+      }),
+    );
+    await decideApproval(sql, "owner", {
+      id: mass.id,
+      revision: 1,
+      decision: "approved",
+      confirm: true,
+      reason: "Owner reviewed exact teams and notice",
+    });
+    assert.deepEqual(await c.deliverTeamNotices(sql), { sent: 1, blocked: 0 });
+    await assert.rejects(
+      c.previewTeamNotice(sql, "softball", { ...mass, id: randomUUID(), teamIds: ["base"] }),
+    );
+    const changed = { ...mass, id: randomUUID() };
+    const cp = await c.previewTeamNotice(sql, "softball", changed);
+    await c.queueTeamNotice(sql, "softball", {
+      ...changed,
+      previewDigest: cp.previewDigest,
+      confirm: true,
+    });
+    await sql`update "user" set "disabledAt"=now() where id='coach'`;
+    await assert.rejects(
+      decideApproval(sql, "owner", {
+        id: changed.id,
+        revision: 1,
+        decision: "approved",
+        confirm: true,
+        reason: "Recipients changed since preview",
+      }),
+      /Recipients/,
+    );
+    assert.equal(
+      (await sql`select status from coordinator_approvals where id=${changed.id}`)[0].status,
+      "pending",
+    );
+  } finally {
+    await db.close();
+  }
+});
+test("historical team communication visibility requires exact owner classification and current scope", async () => {
+  const { db, sql, assign } = await fixture();
+  const c = await import("./communications.server");
+  try {
+    await assign("softball", "softball", ["communications.read"], "teams", ["soft"]);
+    const id = randomUUID();
+    await sql`insert into team_chat_messages(id,team_id,user_id,author,body) values(${id},'soft','owner','Owner','Synthetic operational schedule')`;
+    assert.equal((await teamCommunications(sql, "softball", { teamId: "soft" })).items.length, 0);
+    const [message] = (await c.reviewableTeamMessages(sql, "owner", { teamId: "soft" })).items;
+    await assert.rejects(
+      c.reviewTeamMessage(sql, "softball", {
+        id,
+        sourceDigest: message.sourceDigest,
+        operational: true,
+        confirm: true,
+        reason: "Coordinator cannot classify historical text",
+      }),
+    );
+    await c.reviewTeamMessage(sql, "owner", {
+      id,
+      sourceDigest: message.sourceDigest,
+      operational: true,
+      confirm: true,
+      reason: "Reviewed operational text and authorized team",
+    });
+    assert.equal((await teamCommunications(sql, "softball", { teamId: "soft" })).items.length, 1);
+    await sql`update team_chat_messages set body='PRIVATE-FINANCE-CHANGED' where id=${id}`;
+    assert.equal((await teamCommunications(sql, "softball", { teamId: "soft" })).items.length, 0);
+    await assert.rejects(
+      c.reviewTeamMessage(sql, "owner", {
+        id,
+        sourceDigest: message.sourceDigest,
+        operational: true,
+        confirm: true,
+        reason: "Stale classification must fail",
+      }),
+      /changed/,
+    );
+  } finally {
+    await db.close();
+  }
+});
+test("inquiry, invitation and tryout reminder delivery each recheck their specific grant", async () => {
+  const { db, sql, assign } = await fixture();
+  try {
+    await sql`insert into club_requests(id,kind,payload) values('inquiry','team-inquiry','{"sport":"softball","preferredTeamId":"soft","email":"guardian@example.invalid"}'),('tryout-reminder','tryout','{"sport":"softball","preferredTeamId":"soft","email":"guardian@example.invalid"}')`;
+    const mail = {
+      id: randomUUID(),
+      requestId: "inquiry",
+      subject: "Synthetic inquiry reply",
+      body: "An operational response",
+      confirmedEmail: "guardian@example.invalid",
+      purpose: "inquiry" as const,
+    };
+    await assign(
+      "softball",
+      "softball",
+      ["communications.recruit.send", "contacts.read"],
+      "teams",
+      ["soft"],
+    );
+    await assert.rejects(sendRecruitingEmail(sql, "softball", mail));
+    await assign(
+      "softball",
+      "softball",
+      ["communications.inquiry.reply", "contacts.read"],
+      "teams",
+      ["soft"],
+    );
+    await sendRecruitingEmail(sql, "softball", mail);
+    assert.equal(
+      (
+        await sql`select coordinator_typed_notice_allowed('softball','inquiry','guardian@example.invalid','communications.inquiry.reply') allowed`
+      )[0].allowed,
+      true,
+    );
+    await assert.rejects(
+      sendRecruitingEmail(sql, "softball", {
+        ...mail,
+        id: randomUUID(),
+        requestId: "tryout-reminder",
+      }),
+    );
+    await assign("softball", "softball", ["recruiting.invite", "contacts.read"], "teams", ["soft"]);
+    assert.equal(
+      (
+        await sql`select coordinator_typed_notice_allowed('softball','inquiry','guardian@example.invalid','communications.inquiry.reply') allowed`
+      )[0].allowed,
+      false,
+    );
+    await sendRecruitingEmail(sql, "softball", {
+      ...mail,
+      id: randomUUID(),
+      purpose: "invitation",
+    });
+    await assert.rejects(
+      sendRecruitingEmail(sql, "softball", {
+        ...mail,
+        id: randomUUID(),
+        purpose: "tryout-reminder",
+        requestId: "tryout-reminder",
+      }),
+    );
+    await assign(
+      "softball",
+      "softball",
+      ["communications.tryout.remind", "contacts.read"],
+      "teams",
+      ["soft"],
+    );
+    await sendRecruitingEmail(sql, "softball", {
+      ...mail,
+      id: randomUUID(),
+      purpose: "tryout-reminder",
+      requestId: "tryout-reminder",
+    });
+    await sql`update club_requests set payload=payload||'{"email":"changed@example.invalid"}'::jsonb where id='tryout-reminder'`;
+    assert.equal(
+      (
+        await sql`select coordinator_typed_notice_allowed('softball','tryout-reminder','guardian@example.invalid','communications.tryout.remind') allowed`
+      )[0].allowed,
+      false,
+    );
+    assert.equal(
+      (
+        await sql`select count(*)::int n from coordinator_communication_versions where source='email'`
+      )[0].n,
+      3,
+    );
+  } finally {
+    await db.close();
+  }
+});
+
+test("player publication requires current guardian consent, exact owner approval and independent grants", async () => {
+  const { db, sql, assign } = await fixture();
+  const pub = await import("./player-publication.server");
+  const { ROSTER_CONSENT_TEXT, ROSTER_CONSENT_VERSION, hasPublicRosterConsent } =
+    await import("../roster-consent");
+  const { blankProfile, CONSENT_VERSION } = await import("../recruiting-contracts");
+  const { publicRecruiting } = await import("../recruiting.server");
+  try {
+    await assign("softball", "softball", ["rosters.publication.request"]);
+    await assign("zero", "softball");
+    await sql`insert into club_households(id,primary_email) values('publication-home','parent@example.invalid')`;
+    await sql`insert into household_members(household_id,user_id) values('publication-home','parent')`;
+    await sql`insert into club_athletes(id,name,household_id,household_email) values('publication-athlete','Synthetic Athlete','publication-home','parent@example.invalid')`;
+    await sql`insert into recruiting_roster_links(athlete_id,team_id,roster_id,linked_by) values('publication-athlete','soft','soft-player','owner')`;
+    const read = async () =>
+      (
+        await sql<{
+          payload: ClubRecord;
+        }>`select payload from club_state where id='oklahoma-prospects'`
+      )[0].payload;
+    const c = await read(),
+      p = c.teams[1].roster[0];
+    p.familyId = "publication-home";
+    p.rosterConsent = {
+      version: ROSTER_CONSENT_VERSION,
+      text: ROSTER_CONSENT_TEXT,
+      signedBy: "Synthetic Guardian",
+      signerEmail: "parent@example.invalid",
+      signedAt: new Date().toISOString(),
+    };
+    await sql`update club_state set payload=${JSON.stringify(c)}::jsonb where id='oklahoma-prospects'`;
+    await sql`insert into coordinator_publication_controls(kind,target_id,team_id) values('roster','soft-player','soft'),('photo','publication-athlete','soft')`;
+    const v = { teamId: "soft", playerId: "soft-player", kind: "roster" as const };
+    await assert.rejects(pub.previewPlayerPublication(sql, "zero", v));
+    await assert.rejects(
+      pub.previewPlayerPublication(sql, "softball", {
+        ...v,
+        teamId: "base",
+        playerId: "base-player",
+      }),
+    );
+    assert.equal(
+      hasPublicRosterConsent(
+        (await pub.filterPublicRoster(sql, c)).teams[1].roster[0].rosterConsent,
+      ),
+      false,
+    );
+    const preview = await pub.previewPlayerPublication(sql, "softball", v);
+    assert.equal(JSON.stringify(preview).includes("PRIVATE-MEDICAL"), false);
+    assert.equal(JSON.stringify(preview).includes("@"), false);
+    const request = {
+      ...v,
+      id: randomUUID(),
+      sourceDigest: preview.sourceDigest,
+      reason: "Owner reviews the consented roster identity",
+      confirm: true as const,
+    };
+    await pub.requestPlayerPublication(sql, "softball", request);
+    await pub.requestPlayerPublication(sql, "softball", request);
+    await assert.rejects(
+      decideApproval(sql, "softball", {
+        id: request.id,
+        revision: 1,
+        decision: "approved",
+        reason: "Cannot approve own publication",
+        confirm: true,
+      }),
+    );
+    await sql`create function reject_publication_audit() returns trigger language plpgsql as $$begin if new.action='approval.approved' then raise exception 'injected publication audit failure';end if;return new;end$$`;
+    await sql`create trigger reject_publication before insert on coordinator_audit for each row execute function reject_publication_audit()`;
+    await assert.rejects(
+      decideApproval(sql, "owner", {
+        id: request.id,
+        revision: 1,
+        decision: "approved",
+        reason: "Reviewed current guardian consent",
+        confirm: true,
+      }),
+      /injected/,
+    );
+    assert.equal((await pub.ownerPlayerPublications(sql, "owner"))[0].visible, false);
+    await sql`drop trigger reject_publication on coordinator_audit`;
+    await decideApproval(sql, "owner", {
+      id: request.id,
+      revision: 1,
+      decision: "approved",
+      reason: "Reviewed current guardian consent",
+      confirm: true,
+    });
+    assert.equal(
+      hasPublicRosterConsent(
+        (await pub.filterPublicRoster(sql, c)).teams[1].roster[0].rosterConsent,
+      ),
+      true,
+    );
+    p.number = "99";
+    await sql`update club_state set payload=${JSON.stringify(c)}::jsonb where id='oklahoma-prospects'`;
+    assert.equal(
+      hasPublicRosterConsent(
+        (await pub.filterPublicRoster(sql, c)).teams[1].roster[0].rosterConsent,
+      ),
+      false,
+    );
+    const current = await pub.previewPlayerPublication(sql, "softball", v),
+      id = randomUUID();
+    await pub.requestPlayerPublication(sql, "softball", {
+      ...request,
+      id,
+      sourceDigest: current.sourceDigest,
+    });
+    await sql`delete from household_members where user_id='parent'`;
+    await assert.rejects(
+      decideApproval(sql, "owner", {
+        id,
+        revision: 1,
+        decision: "approved",
+        reason: "Guardian relationship no longer valid",
+        confirm: true,
+      }),
+      /guardian/,
+    );
+    await sql`insert into household_members(household_id,user_id) values('publication-home','parent')`;
+    await sql`insert into recruiting_profiles(athlete_id,payload,published,consent_by,consent_name,consent_at,consent_version) values('publication-athlete',${JSON.stringify({ ...blankProfile, photo: "https://example.invalid/synthetic-photo.png" })}::jsonb,true,'parent','Synthetic Guardian',now(),${CONSENT_VERSION})`;
+    const photo = { ...v, kind: "photo" as const };
+    await assert.rejects(pub.previewPlayerPublication(sql, "softball", photo));
+    await assign("softball", "softball", ["photos.publication.request"]);
+    assert.equal((await publicRecruiting(sql, "publication-athlete"))[0].profile.photo, "");
+    const pp = await pub.previewPlayerPublication(sql, "softball", photo),
+      photoId = randomUUID();
+    await pub.requestPlayerPublication(sql, "softball", {
+      ...photo,
+      id: photoId,
+      sourceDigest: pp.sourceDigest,
+      reason: "Owner reviews the current consented photograph",
+      confirm: true,
+    });
+    await decideApproval(sql, "owner", {
+      id: photoId,
+      revision: 1,
+      decision: "approved",
+      reason: "Current guardian and exact photo approved",
+      confirm: true,
+    });
+    assert.equal(
+      (await publicRecruiting(sql, "publication-athlete"))[0].profile.photo,
+      "https://example.invalid/synthetic-photo.png",
+    );
+    await sql`update recruiting_profiles set payload=jsonb_set(payload,'{photo}','"https://example.invalid/replacement.png"'::jsonb),revision=revision+1 where athlete_id='publication-athlete'`;
+    assert.equal((await publicRecruiting(sql, "publication-athlete"))[0].profile.photo, "");
+    await sql`update "user" set "disabledAt"=now() where id='parent'`;
+    assert.deepEqual(await publicRecruiting(sql, "publication-athlete"), []);
+    await assert.rejects(sql`delete from coordinator_publication_versions`);
+    await assert.rejects(sql`truncate coordinator_publication_controls`);
+    const row = (await pub.ownerPlayerPublications(sql, "owner")).find((r) => r.kind === "photo")!;
+    await pub.withdrawPlayerPublication(sql, "owner", {
+      kind: "photo",
+      targetId: row.targetId,
+      revision: row.revision,
+      reason: "Withdraw the reviewed publication safely",
+      confirm: true,
+    });
+    assert.equal(
+      (await pub.ownerPlayerPublications(sql, "owner")).find((r) => r.kind === "photo")!.visible,
+      false,
+    );
+  } finally {
+    await db.close();
+  }
+});
+
+test("program family notices commit atomically, retain exact retries and stop after guardian or grant changes", async () => {
+  const { db, sql, assign } = await fixture();
+  const ops = await import("./program-events.server");
+  const owner = await import("./organization-events.server");
+  const delivery = await import("./program-notices.server");
+  try {
+    await sql`insert into pd_working_file(id,payload) values('club','{"coaches":[{"id":"notice-coach","name":"Synthetic","email":"coach@example.invalid","active":true}]}')`;
+    await sql`insert into club_households(id,primary_email) values('notice-family','parent@example.invalid')`;
+    await sql`insert into household_members(household_id,user_id) values('notice-family','parent')`;
+    await sql`insert into club_athletes(id,name,household_email,household_id,profile) values('notice-athlete','Synthetic athlete','parent@example.invalid','notice-family','{}')`;
+    await sql`insert into recruiting_roster_links(athlete_id,team_id,roster_id,linked_by) values('notice-athlete','soft','soft-player','owner')`;
+    await assign(
+      "zero",
+      "softball",
+      ["camps.create", "camps.update", "events.assign", "events.review.request"],
+      "teams",
+      ["soft"],
+    );
+    const eventId = randomUUID();
+    await ops.createProgramEvent(sql, "zero", {
+      requestId: eventId,
+      teamId: "soft",
+      type: "camp",
+      name: "Notice test camp",
+      description: "Synthetic event",
+      location: "Facility",
+      capacity: 10,
+      coachIds: ["notice-coach"],
+      reason: "Test actual event notices",
+    });
+    const session = await ops.addProgramSession(sql, "zero", {
+      eventId,
+      revision: 1,
+      date: "2099-01-13",
+      start: "16:00",
+      end: "17:00",
+      location: "Facility",
+      laneIds: [],
+      reason: "Test actual session",
+    });
+    await owner.saveOperationalEventSettings(sql, "owner", {
+      eventId,
+      revision: 2,
+      capacity: 10,
+      coachIds: ["notice-coach"],
+      publication: "open",
+      reason: "Owner approval for fixture",
+    });
+    const enrollment = {
+      eventId,
+      sessionKey: session.sessionKey,
+      sessionRevision: 1,
+      athleteId: "notice-athlete",
+      revision: 0,
+      action: "enroll" as const,
+      reason: "Enroll authorized athlete",
+    };
+    await sql`create function fail_notice_audit() returns trigger language plpgsql as $$begin if new.action='events.notifications.queued' then raise exception 'injected notice failure';end if;return new;end$$`;
+    await sql`create trigger fail_notice before insert on coordinator_audit for each row execute function fail_notice_audit()`;
+    await assert.rejects(
+      ops.saveProgramEnrollment(sql, "zero", enrollment),
+      /injected notice failure/,
+    );
+    assert.equal(
+      (
+        await sql`select count(*)::int n from operational_event_enrollments where event_id=${eventId}`
+      )[0].n,
+      0,
+    );
+    assert.equal((await sql`select count(*)::int n from coordinator_program_notices`)[0].n, 0);
+    await sql`drop trigger fail_notice on coordinator_audit`;
+    await ops.saveProgramEnrollment(sql, "zero", enrollment);
+    await sql.transaction((tx) =>
+      delivery.queueProgramEventNotices(
+        tx,
+        "zero",
+        eventId,
+        "events.assign",
+        "enrollment",
+        session.sessionKey,
+        "notice-athlete",
+      ),
+    );
+    assert.equal((await sql`select count(*)::int n from coordinator_program_notices`)[0].n, 1);
+    const env = {
+      SQUARE_DEPLOY_CONTEXT: "production",
+      TRYOUT_NOTIFICATIONS_ENABLED: "true",
+      RESEND_API_KEY: "synthetic",
+      RESEND_FROM_EMAIL: "test@example.invalid",
+    };
+    const attempts: { body: string; key: string }[] = [];
+    const send = (async (_url: unknown, init: RequestInit) => {
+      attempts.push({
+        body: String(init.body),
+        key: new Headers(init.headers).get("Idempotency-Key")!,
+      });
+      return Response.json(attempts.length === 1 ? {} : { id: "synthetic-provider-id" }, {
+        status: attempts.length === 1 ? 503 : 200,
+      });
+    }) as typeof fetch;
+    assert.equal((await delivery.deliverProgramEventNotices(sql, env, send)).failed, 1);
+    await sql`update coordinator_program_notices set next_attempt_at=now()`;
+    assert.equal(
+      (
+        await delivery.deliverProgramEventNotices(
+          sql,
+          { ...env, RESEND_FROM_EMAIL: "changed@example.invalid" },
+          send,
+        )
+      ).accepted,
+      1,
+    );
+    assert.deepEqual(attempts[1], attempts[0]);
+    assert.deepEqual(JSON.parse(attempts[0].body).to, ["parent@example.invalid"]);
+    assert.doesNotMatch(attempts[0].body, /PRIVATE|9999|98765|guardian@example/);
+    assert.equal((await delivery.deliverProgramEventNotices(sql, env, send)).accepted, 0);
+    await assert.rejects(sql`update coordinator_program_notices set body='tampered'`);
+    await assert.rejects(sql`delete from coordinator_communication_versions where source='event'`);
+    await ops.saveProgramEnrollment(sql, "zero", {
+      ...enrollment,
+      revision: 1,
+      action: "unenroll",
+    });
+    await sql`delete from household_members where user_id='parent'`;
+    await delivery.deliverProgramEventNotices(sql, env, send);
+    assert.equal(attempts.length, 2);
+    assert.equal(
+      (
+        await sql`select count(*)::int n from coordinator_program_notices where status='superseded'`
+      )[0].n,
+      1,
+    );
+    await sql`insert into household_members(household_id,user_id) values('notice-family','parent')`;
+    await ops.saveProgramEnrollment(sql, "zero", { ...enrollment, revision: 2, action: "enroll" });
+    await sql`update coordinator_assignments set permissions='{}',revision=revision+1 where user_id='zero'`;
+    await delivery.deliverProgramEventNotices(sql, env, send);
+    assert.equal(attempts.length, 2);
+    assert.equal(
+      (
+        await sql`select count(*)::int n from coordinator_program_notices where status='superseded'`
+      )[0].n,
+      2,
+    );
+  } finally {
+    await db.close();
+  }
+});
+
+test("owner recovery preserves newer edits, transaction history and paid occupancy", async () => {
+  const { db, sql, assign } = await fixture();
+  const recovery = await import("./recovery.server");
+  try {
+    await assign("softball", "softball", [
+      "rosters.number",
+      "practices.create",
+      "practices.update",
+      "cages.reserve",
+      "cages.update",
+    ]);
+    const [original] =
+      await sql`select payload->'teams'->1->'roster'->0->>'number' number from club_state`;
+    await editRoster(sql, "softball", {
+      teamId: "soft",
+      playerId: "soft-player",
+      revision: 1,
+      field: "number",
+      value: "88",
+    });
+    const history = await recovery.recoveryHistory(sql, "owner");
+    const id = history.items[0].id;
+    await assert.rejects(recovery.recoveryPreview(sql, "softball", { auditId: id }));
+    const p = await recovery.recoveryPreview(sql, "owner", { auditId: id });
+    assert.equal(p.current, "88");
+    assert.equal(p.restore, original.number);
+    const apply = {
+      auditId: id,
+      revision: p.revision,
+      sourceDigest: p.sourceDigest,
+      reason: "Restore accidental jersey change",
+      confirm: true as const,
+    };
+    await assert.rejects(recovery.applyRecovery(sql, "owner", { ...apply, revision: 0 }));
+    await sql`create function fail_recovery_audit() returns trigger language plpgsql as $$begin if new.action='staff.recovery.applied' then raise exception 'injected recovery failure';end if;return new;end$$`;
+    await sql`create trigger fail_recovery before insert on coordinator_audit for each row execute function fail_recovery_audit()`;
+    await assert.rejects(recovery.applyRecovery(sql, "owner", apply), /injected recovery/);
+    assert.equal(
+      (await sql`select payload->'teams'->1->'roster'->0->>'number' number from club_state`)[0]
+        .number,
+      "88",
+    );
+    await sql`drop trigger fail_recovery on coordinator_audit`;
+    await recovery.applyRecovery(sql, "owner", apply);
+    await assert.rejects(recovery.applyRecovery(sql, "owner", apply));
+    assert.equal(
+      (await sql`select payload->'teams'->1->'roster'->0->>'number' number from club_state`)[0]
+        .number,
+      original.number,
+    );
+    const rev = (await sql<{ rev: number }>`select rev from club_state`)[0].rev;
+    await editRoster(sql, "softball", {
+      teamId: "soft",
+      playerId: "soft-player",
+      revision: rev,
+      field: "number",
+      value: "77",
+    });
+    const latest = (await recovery.recoveryHistory(sql, "owner")).items[0].id;
+    await editRoster(sql, "softball", {
+      teamId: "soft",
+      playerId: "soft-player",
+      revision: rev + 1,
+      field: "number",
+      value: "66",
+    });
+    await assert.rejects(recovery.recoveryPreview(sql, "owner", { auditId: latest }), /newer/);
+    const practice = {
+      id: randomUUID(),
+      teamId: "soft",
+      revision: 0,
+      title: "Original practice",
+      date: "2099-01-14",
+      time: "16:00",
+      duration: 60,
+      location: "Facility",
+      laneIds: ["1"] as "1"[],
+    };
+    await savePractice(sql, "softball", practice);
+    await savePractice(sql, "softball", {
+      ...practice,
+      revision: 1,
+      title: "Accidental change",
+      time: "17:00",
+    });
+    const pid = (await recovery.recoveryHistory(sql, "owner")).items.find(
+      (r) => r.action === "practices.save",
+    )!.id;
+    const pp = await recovery.recoveryPreview(sql, "owner", { auditId: pid });
+    const pa = {
+      auditId: pid,
+      revision: pp.revision,
+      sourceDigest: pp.sourceDigest,
+      reason: "Restore original practice time",
+      confirm: true as const,
+    };
+    await sql`insert into commerce_orders(id,request_key,email,product_id,kind,snapshot,total_cents,status) values('recovery-paid','recovery-paid','private@example.invalid','fixture','cage','{}',1000,'paid')`;
+    await sql`insert into booking_records(id,order_id,product_id,starts_at,ends_at,resources,status) values('recovery-paid-booking','recovery-paid','fixture','2099-01-14T22:00:00Z','2099-01-14T23:00:00Z','["lane:1"]','confirmed')`;
+    await sql`insert into booking_occupancy(resource_id,slot_at,booking_id) values('lane:1','2099-01-14T22:00:00Z','recovery-paid-booking')`;
+    await assert.rejects(recovery.applyRecovery(sql, "owner", pa), /reserved|conflict/i);
+    assert.equal(
+      (await sql`select payload->>'startTime' time from team_activities where id=${practice.id}`)[0]
+        .time,
+      "17:00",
+    );
+    assert.equal(
+      (
+        await sql`select count(*)::int n from booking_occupancy where booking_id='recovery-paid-booking'`
+      )[0].n,
+      1,
+    );
+    // Remove only the disposable fixture's conflict; no application bypass.
+    await sql`delete from booking_occupancy where booking_id='recovery-paid-booking'`;
+    await recovery.applyRecovery(sql, "owner", pa);
+    assert.equal(
+      (await sql`select payload->>'startTime' time from team_activities where id=${practice.id}`)[0]
+        .time,
+      "16:00",
+    );
+    assert.equal(
+      (await sql`select status from commerce_orders where id='recovery-paid'`)[0].status,
+      "paid",
+    );
+    await assert.rejects(sql`delete from coordinator_recoveries`);
+  } finally {
+    await db.close();
+  }
+});
+
+test("protected archive requires verified immutable remote receipts and privacy policies require owner review", async () => {
+  const { db, sql } = await fixture();
+  const privacy = await import("./privacy.server");
+  const archive = await import("./security-archive.server");
+  try {
+    const policy = {
+      category: "audit" as const,
+      revision: 0,
+      purpose: "Investigate authorization and record changes",
+      retentionDays: 30,
+      legalBasis: "Synthetic owner-approved test retention basis",
+      confirm: true as const,
+    };
+    await assert.rejects(privacy.savePrivacyPolicy(sql, "fake", policy));
+    await privacy.savePrivacyPolicy(sql, "owner", policy);
+    await assert.rejects(privacy.savePrivacyPolicy(sql, "owner", policy), /changed/);
+    for (const category of ["recruiting", "communications", "operational", "publication"] as const)
+      await privacy.savePrivacyPolicy(sql, "owner", { ...policy, category });
+    const workspace = await privacy.privacyWorkspace(sql, "owner");
+    assert.equal(workspace.policies.length, 5);
+    const review = {
+      id: randomUUID(),
+      category: "audit" as const,
+      revision: 1,
+      evidence: "Reviewed test evidence and no hold applies to synthetic records",
+      confirm: true as const,
+    };
+    await privacy.recordPrivacyReview(sql, "owner", review);
+    await privacy.recordPrivacyReview(sql, "owner", review);
+    await assert.rejects(privacy.recordPrivacyReview(sql, "owner", { ...review, revision: 2 }));
+    assert.equal(
+      (await sql`select count(*)::int n from coordinator_privacy_reviews where id=${review.id}`)[0]
+        .n,
+      1,
+    );
+    const env = {
+      CONTEXT: "production",
+      SQUARE_DEPLOY_CONTEXT: "production",
+      COORDINATOR_ARCHIVE_BUCKET: "synthetic-private-bucket",
+      COORDINATOR_ARCHIVE_REGION: "us-east-1",
+      COORDINATOR_ARCHIVE_ACCESS_KEY_ID: "synthetic-key",
+      COORDINATOR_ARCHIVE_SECRET_ACCESS_KEY: "synthetic-secret",
+    };
+    assert.equal((await archive.archiveStaffActivity(sql, {})).configured, false);
+    assert.equal(
+      (await archive.archiveStaffActivity(sql, { ...env, CONTEXT: "deploy-preview" })).archived,
+      0,
+    );
+    let stored:
+        Parameters<import("./security-archive.server").ArchiveTransport["put"]>[0] | undefined,
+      allow = false;
+    const writes: string[] = [];
+    const remote: import("./security-archive.server").ArchiveTransport = {
+      put: async (v) => {
+        stored = v;
+        writes.push(v.body);
+      },
+      head: async () => ({
+        versionId: "synthetic-version",
+        mode: allow ? "COMPLIANCE" : "GOVERNANCE",
+        retainUntil: stored!.retainUntil,
+        digest: stored!.digest,
+      }),
+    };
+    await assert.rejects(archive.archiveStaffActivity(sql, env, remote), /verification failed/);
+    assert.equal((await sql`select count(*)::int n from coordinator_archive_receipts`)[0].n, 0);
+    allow = true;
+    assert.equal((await archive.archiveStaffActivity(sql, env, remote)).archived, 1);
+    assert.equal(writes[1], writes[0]);
+    assert.doesNotMatch(
+      writes[0],
+      /PRIVATE-MEDICAL|PRIVATE-PAYMENT|Synthetic owner-approved test retention|synthetic-secret|98765/,
+    );
+    // Startup history can span more than one bounded batch; drain it without losing members.
+    let remaining = 1;
+    for (let i = 0; i < 20 && remaining; i++)
+      remaining = (await archive.archiveStaffActivity(sql, env, remote)).archived;
+    assert.equal(remaining, 0);
+    assert.equal(
+      (
+        await sql`select count(*)::int n from coordinator_audit a where not exists(select 1 from coordinator_archive_members m where m.stream='coordinator' and m.event_id=a.id)`
+      )[0].n,
+      0,
+    );
+    await sql`insert into coordinator_audit(id,actor_id,action,result,correlation_id) overriding system value values(-1,'owner','late-committed-test','allowed',${randomUUID()})`;
+    assert.equal((await archive.archiveStaffActivity(sql, env, remote)).archived, 1);
+    assert.equal(
+      (
+        await sql`select count(*)::int n from coordinator_archive_members where stream='coordinator' and event_id=-1`
+      )[0].n,
+      1,
+    );
+    await assert.rejects(archive.archiveStatus(sql, "parent", env));
+    const status = await archive.archiveStatus(sql, "owner", env);
+    assert.ok(status.lastVerifiedAt);
+    assert.equal(status.pending, 0);
+    await assert.rejects(sql`update coordinator_archive_receipts set digest='tamper'`);
+    await assert.rejects(sql`truncate coordinator_privacy_reviews`);
   } finally {
     await db.close();
   }

@@ -56,7 +56,7 @@ export async function teamActivityWorkspace(sql: Sql, userId: string, teamId: st
     author: string;
     body: string;
     at: string;
-  }>`select id::text,author,body,created_at::text as at from (select * from team_chat_messages where team_id=${teamId} order by created_at desc limit 100) m order by created_at`;
+  }>`select id::text,author,body,created_at::text as at from (select m.* from team_chat_messages m where team_id=${teamId} and (not exists(select 1 from coordinator_notice_messages n where n.message_id=m.id) or exists(select 1 from coordinator_notice_messages n where n.message_id=m.id and ${userId}=any(n.recipient_ids)) or ${me.role === "admin"}) order by created_at desc limit 100) m order by created_at`;
   return {
     financialMode: mode,
     owner: me.role === "admin",

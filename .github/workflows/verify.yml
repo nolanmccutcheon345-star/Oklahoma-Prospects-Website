@@ -19,7 +19,9 @@ permissions:
 jobs:
   verify:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    # Run 39485829764 reached test 920 before the 20-minute job limit.
+    # Preserve every browser/regression gate and allow the expanded suite to finish.
+    timeout-minutes: 40
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4

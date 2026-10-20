@@ -1,3 +1,4 @@
+import { queueProgramEventNotices } from "./program-notices.server";
 import type { Sql } from "../db";
 import type { z } from "zod";
 import { secured, requireTeam, grants, permits, audit, CoordinatorDenied } from "./access.server";
@@ -298,6 +299,16 @@ export async function saveProgramEnrollment(
         throw new CoordinatorDenied();
       if (e.trainingEventId) throw Error("This protected enrollment requires owner review.");
       const result = await saveOperationalEventEnrollmentInTransaction(tx, userId, v);
+      if (v.action !== "check-in")
+        await queueProgramEventNotices(
+          tx,
+          userId,
+          e.id,
+          "events.assign",
+          "enrollment",
+          v.sessionKey,
+          v.athleteId,
+        );
       await audit(
         tx,
         userId,
@@ -374,6 +385,7 @@ export async function cancelProgramEventInTransaction(
     });
   }
   await tx`update operational_event_records set publication='archived',revision=revision+1,updated_by=${reviewerId},updated_at=now() where id=${e.id}`;
+  await queueProgramEventNotices(tx, reviewerId, e.id, "owner", "cancellation");
   await audit(
     tx,
     reviewerId,
@@ -540,6 +552,14 @@ export async function approveProgramEventChange(
     v.change.kind === "settings"
       ? await saveOperationalEventSettingsInTransaction(tx, reviewerId, v.change.value)
       : await moveProgramSessionInTransaction(tx, reviewerId, requesterId, v.change.value, true);
+  await queueProgramEventNotices(
+    tx,
+    reviewerId,
+    event.id,
+    "owner",
+    "change",
+    v.change.kind === "session" ? v.change.value.sessionKey : undefined,
+  );
   await audit(
     tx,
     reviewerId,

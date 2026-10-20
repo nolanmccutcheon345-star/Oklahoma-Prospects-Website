@@ -333,7 +333,7 @@ export async function teamCommunications(
   return secured(sql, userId, "communications.read", async (tx) => {
     await requireTeam(tx, userId, "communications.read", input.teamId);
     const rows = await tx.query<{ id: string; author: string; body: string; created_at: string }>(
-      `select id,author,body,to_char(created_at at time zone 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"') as created_at from team_chat_messages where team_id=$1 and ($2::timestamptz is null or (created_at,id::text)<($2::timestamptz,$3::text)) order by created_at desc,id desc limit 101`,
+      `select id,author,body,to_char(created_at at time zone 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"') as created_at from team_chat_messages m where team_id=$1 and (exists(select 1 from coordinator_notice_messages n where n.message_id=m.id and n.source_digest=coordinator_message_digest(m)) or exists(select 1 from coordinator_message_reviews r join owner_grants g on g.user_id=r.reviewer_id and g.revoked_at is null join staff_authorities a on a.email=g.email and a.capability='staff_approvals.review' join "user" u on u.id=g.user_id and lower(trim(u.email))=g.email and u."emailVerified" and u."disabledAt" is null where r.message_id=m.id and r.operational and r.source_digest=coordinator_message_digest(m))) and ($2::timestamptz is null or (created_at,id::text)<($2::timestamptz,$3::text)) order by created_at desc,id desc limit 101`,
       [input.teamId, input.before?.at || null, input.before?.id || ""],
     );
     const items = rows.slice(0, 100);
@@ -349,40 +349,31 @@ export async function teamCommunications(
 }
 export async function postTeamMessage(sql: Sql, userId: string, raw: z.infer<typeof messageInput>) {
   const input = messageInput.parse(raw);
-  return secured(sql, userId, "communications.team.send", async (tx) => {
-    const team = await requireTeam(tx, userId, "communications.team.send", input.teamId);
-    if (input.confirmedTeamId !== team.id) throw new CoordinatorDenied();
-    const [user] = await tx<{ name: string }>`select name from "user" where id=${userId}`;
-    // Existing authenticated team chat is the delivery surface; no addresses exposed to recipients.
-    await tx`insert into team_chat_messages(id,team_id,user_id,author,body) values(${input.id},${team.id},${userId},${user.name},${input.body})`;
-    await audit(
-      tx,
-      userId,
-      "communications.team.send",
-      input.id,
-      "allowed",
-      {},
-      team.sport,
-      team.id,
-    );
-    return { ok: true };
-  });
+  return (await import("./communications.server")).sendImmediateTeamMessage(sql, userId, input);
 }
+
 export async function sendRecruitingEmail(
   sql: Sql,
   userId: string,
   raw: z.infer<typeof emailInput>,
 ) {
   const input = emailInput.parse(raw);
-  return secured(sql, userId, "communications.recruit.send", async (tx) => {
-    const r = await requestFor(tx, userId, input.requestId, "communications.recruit.send");
+  const { emailPermission } = await import("./communication-contracts");
+  const permission = emailPermission(input.purpose);
+  return secured(sql, userId, permission, async (tx) => {
+    const r = await requestFor(tx, userId, input.requestId, permission);
+    if (
+      (input.purpose === "inquiry" && r.kind !== "team-inquiry") ||
+      (input.purpose === "tryout-reminder" && r.kind !== "tryout")
+    )
+      throw new CoordinatorDenied();
     await checkScope(tx, userId, "contacts.read", r.sport, r.team_id);
     const [row] = await tx<{
       email: string;
     }>`select lower(trim(payload->>'email')) as email from club_requests where id=${input.requestId}`;
     if (!row.email || row.email !== input.confirmedEmail.trim().toLowerCase())
       throw new Error("The guardian recipient changed. Review it again.");
-    await tx`insert into tryout_center_notices(id,request_id,email,subject,body,dedupe_key,category,coordinator_actor_id) values(${input.id},${input.requestId},${row.email},${input.subject},${input.body},${"coordinator:" + input.id},'coordinator-recruiting',${userId})`;
+    await tx`insert into tryout_center_notices(id,request_id,email,subject,body,dedupe_key,category,coordinator_actor_id,coordinator_permission) values(${input.id},${input.requestId},${row.email},${input.subject},${input.body},${"coordinator:" + input.id},'coordinator-recruiting',${userId},${permission})`;
     await tx`insert into tryout_center_activity(id,request_id,actor_id,kind,subject,body) values(${randomUUID()},${input.requestId},${userId},'email',${input.subject},${input.body})`;
     await audit(
       tx,

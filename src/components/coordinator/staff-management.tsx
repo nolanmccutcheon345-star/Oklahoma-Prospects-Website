@@ -1,3 +1,7 @@
+import { CoordinatorPrivacy } from "./privacy";
+import { CoordinatorRecovery } from "./recovery";
+import { OwnerPlayerPublications } from "./player-publication";
+import { TeamMessageReview, CommunicationArchive } from "./communications";
 import { PublishedContentManagement } from "./content-drafts";
 import { publishReviewedCoordinatorDraft } from "@/lib/coordinator/api";
 import { RosterEligibilityReview } from "./roster-management";
@@ -152,10 +156,14 @@ export function StaffRoleManagement() {
           ["roles", "Roles & Permissions"],
           ["invitations", "Coordinator Invitations"],
           ["approvals", "Approval Queue"],
+          ["player-publications", "Player Publications"],
           ["eligibility", "Roster Eligibility"],
           ["publications", "Published Updates"],
+          ["communications", "Communication Review"],
           ["activity", "Staff Activity & Audit Center"],
           ["reviews", "Access Reviews"],
+          ["recovery", "Recovery"],
+          ["privacy", "Privacy & Audit Protection"],
         ].map(([key, label]) => (
           <Button
             key={key}
@@ -180,6 +188,12 @@ export function StaffRoleManagement() {
         </p>
       )}
       {notice && <p role="status">{notice}</p>}
+      {tab === "communications" && (
+        <>
+          <TeamMessageReview teams={data.teams} />
+          <CommunicationArchive />
+        </>
+      )}
       {tab === "publications" && <PublishedContentManagement />}
       {tab === "eligibility" && <RosterEligibilityReview />}
       {tab === "invitations" && (
@@ -753,6 +767,9 @@ export function StaffRoleManagement() {
           )}
         </>
       )}
+      {tab === "privacy" && <CoordinatorPrivacy />}
+      {tab === "recovery" && <CoordinatorRecovery />}
+      {tab === "player-publications" && <OwnerPlayerPublications />}
       {tab === "approvals" && (
         <>
           {queue?.length === 0 && <p>No approval requests.</p>}
@@ -772,7 +789,7 @@ export function StaffRoleManagement() {
                 </>
               )}
               <p>Target: {a.target_id}</p>
-              {["tryout-change", "program-change"].includes(a.kind) && (
+              {["tryout-change", "program-change", "communication"].includes(a.kind) && (
                 <details>
                   <summary>Review proposed change</summary>
                   <pre className="whitespace-pre-wrap break-words text-sm">
@@ -781,6 +798,28 @@ export function StaffRoleManagement() {
                 </details>
               )}
               <p>Team: {a.team_id || "Authorized sport scope"}</p>
+              {["roster-publication", "photo-publication"].includes(a.kind) && (
+                <div className="rounded border p-3">
+                  <p>
+                    Review the exact player information for public display. Current guardian consent
+                    and the requesting coordinator’s scope are rechecked when approved.
+                  </p>
+                  <pre className="whitespace-pre-wrap break-words">
+                    {JSON.stringify(
+                      { name: a.proposal.display?.name, number: a.proposal.display?.number },
+                      null,
+                      2,
+                    )}
+                  </pre>
+                  {a.kind === "photo-publication" && a.proposal.display?.photo && (
+                    <img
+                      className="max-h-64 max-w-full object-contain"
+                      src={a.proposal.display.photo}
+                      alt="Player photo proposed for publication" referrerPolicy="no-referrer"
+                    />
+                  )}
+                </div>
+              )}
               {a.proposal.destinationTeamId && (
                 <p>Proposed destination: {a.proposal.destinationTeamId}</p>
               )}
@@ -791,17 +830,21 @@ export function StaffRoleManagement() {
                 </p>
               )}
               <p className="text-sm">
-                {a.kind === "transfer"
-                  ? "Approval executes this transfer atomically after rechecking current access, roster revision, eligibility and financial protections. A conflict leaves the request pending and changes no records."
-                  : a.kind === "program-change"
-                    ? "Approval applies the exact camp or clinic proposal after rechecking requester access, current revisions and shared reservations. Paid or conflicting bookings remain protected."
-                    : a.kind === "tryout-change"
-                      ? "Approval applies the exact requested tryout schedule and publication state, rechecks current access and shared reservations, and queues family notices atomically. Conflicts leave this request pending."
-                      : a.kind === "content"
-                        ? "Approval does not publish. After review, an authorized owner can publish general program information here. Player identities and photos require their separate consent workflow."
-                        : a.proposal.system === "program"
-                          ? "Approval archives this camp or clinic, cancels future sessions and releases unpaid reservations atomically. Protected or paid reservations remain blocked."
-                          : "Approval cancels the practice and releases its linked unpaid cage reservation atomically."}
+                {a.kind === "roster-publication" || a.kind === "photo-publication"
+                  ? "Approval permits only this exact consented identity or photo. Current guardian relationship, consent, source data and requester scope are rechecked. Withdrawal and later changes fail closed."
+                  : a.kind === "communication"
+                    ? "Approval queues the exact program notice for confirmed recipients. Dispatch rechecks permission and current recipients."
+                    : a.kind === "transfer"
+                      ? "Approval executes this transfer atomically after rechecking current access, roster revision, eligibility and financial protections. A conflict leaves the request pending and changes no records."
+                      : a.kind === "program-change"
+                        ? "Approval applies the exact camp or clinic proposal after rechecking requester access, current revisions and shared reservations. Paid or conflicting bookings remain protected."
+                        : a.kind === "tryout-change"
+                          ? "Approval applies the exact requested tryout schedule and publication state, rechecks current access and shared reservations, and queues family notices atomically. Conflicts leave this request pending."
+                          : a.kind === "content"
+                            ? "Approval does not publish. After review, an authorized owner can publish general program information here. Player identities and photos require their separate consent workflow."
+                            : a.proposal.system === "program"
+                              ? "Approval archives this camp or clinic, cancels future sessions and releases unpaid reservations atomically. Protected or paid reservations remain blocked."
+                              : "Approval cancels the practice and releases its linked unpaid cage reservation atomically."}
               </p>
               {a.kind === "content" && a.status === "approved" && (
                 <Button
