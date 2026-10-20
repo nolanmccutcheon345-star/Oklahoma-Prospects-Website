@@ -183,3 +183,9 @@ Validation: three focused server security suites and nine mounted UI/migration r
 - **Release maintenance:** Vite and follow-redirects dependency vulnerabilities corrected. Full CI retains all tests and expands its timeout to accommodate the suite; no gate is removed.
 
 Local targeted security, migration, mounted interface, authenticated transport, typecheck, production build, built SSR and lint checks pass. Dependency audit reports zero vulnerabilities. Full regression and exact-source CI are still being collected. No production migration, deployment, permission grant or account activation has been performed by this feature completion.
+
+## Full local regression and CI compatibility follow-up
+
+The complete local run exercised 1,297 tests: 1,296 passed and one source-contract assertion still expected the superseded untyped communication authorization function. The actual worker now checks the independently granted message purpose at both leasing and final dispatch. The assertion now verifies both typed checks; the entire affected communication regression file passes. No production code or authorization gate was weakened.
+
+The first new-source GitHub run stopped at npm installation because npm 10 required two optional peer lock entries omitted by the local npm version. The lockfile was regenerated with npm 10.9.9 and its clean-install validation passes. These are recorded failures and fixes, not a claim that the final GitHub run has already passed.

@@ -399,9 +399,15 @@ test("reviewed communication transports explicitly opt in and keep legacy middle
     await readFile("src/lib/coordinator/api.ts", "utf8"),
     /\.middleware\(\[authMiddleware\]\)/,
   );
-  assert.match(
-    await readFile("src/lib/tryout-center-delivery.server.ts", "utf8"),
-    /coordinator_notice_allowed\(coordinator_actor_id,request_id,email\)/,
+  const delivery = await readFile("src/lib/tryout-center-delivery.server.ts", "utf8");
+  assert.equal(
+    (
+      delivery.match(
+        /coordinator_typed_notice_allowed\(coordinator_actor_id,request_id,email,coordinator_permission\)/g,
+      ) || []
+    ).length,
+    2,
+    "Both the lease transaction and final dispatch must recheck the independently granted message purpose.",
   );
 });
 
