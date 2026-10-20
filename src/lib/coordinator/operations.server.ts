@@ -84,10 +84,14 @@ export async function roster(sql: Sql, userId: string, teamId: string) {
       id: string;
       name: string;
       number: string;
+      bats: string;
+      throws: string;
+      gradYear: string;
+      school: string;
       positions: string[];
       parents: { name: string; email: string; phone: string }[];
       revision: number;
-    }>`select p->>'id' as id,p->>'name' as name,p->>'number' as number,p->'positions' as positions,
+    }>`select p->>'id' as id,p->>'name' as name,p->>'number' as number,p->'positions' as positions,coalesce(p->>'bats','') bats,coalesce(p->>'throws','') throws,coalesce(p->>'gradYear','') "gradYear",coalesce(p->>'school','') school,
    case when ${contacts} then coalesce((select jsonb_agg(jsonb_build_object('name',guardian->>'name','email',guardian->>'email','phone',guardian->>'phone')) from jsonb_array_elements(coalesce(p->'parents','[]'::jsonb)) guardian),'[]'::jsonb) else '[]'::jsonb end as parents,c.rev as revision
    from club_state c cross join lateral jsonb_array_elements(c.payload->'teams') t cross join lateral jsonb_array_elements(t->'roster') p where c.id='oklahoma-prospects' and not c.demo and t->>'id'=${teamId} and coalesce(p->>'withdrawn','false')<>'true'`;
     await audit(

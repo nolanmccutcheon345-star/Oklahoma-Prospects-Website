@@ -89,6 +89,7 @@ async function fixture() {
     t.coachEmail = "coach@example.invalid";
     t.roster = t.roster.slice(0, 1);
     t.roster[0].id = i ? "soft-player" : "base-player";
+    t.roster[0].teamId = t.id;
     t.roster[0].withdrawn = false;
     t.roster[0].emergency.conditions = "PRIVATE-MEDICAL";
     t.roster[0].parents = [
@@ -2445,6 +2446,210 @@ test("program publication and schedule review enforce current scope, exact propo
       1,
     );
     assert.doesNotMatch(JSON.stringify(workspace), /9999|private@example/);
+  } finally {
+    await db.close();
+  }
+});
+
+test("eligible roster additions require current owner clearance and guardian identity; routine edits are narrowly granted", async () => {
+  const { db, sql, assign } = await fixture();
+  const ops = await import("./roster.server");
+  try {
+    await sql`insert into club_households(id,primary_email) values('eligible-home','parent@example.invalid')`;
+    await sql`insert into household_members(household_id,user_id) values('eligible-home','parent')`;
+    await sql`insert into club_athletes(id,user_id,household_id,household_email,name,profile) values('eligible-athlete','parent','eligible-home','parent@example.invalid','Synthetic Eligible Athlete','{"medical":"PRIVATE-MEDICAL","finance":"PRIVATE-PAYMENT"}')`;
+    const review = await ops.ownerRosterEligibility(sql, "owner", { search: "Eligible" });
+    const candidate = review.candidates.find((a) => a.id === "eligible-athlete")!;
+    assert.ok(candidate);
+    assert.doesNotMatch(JSON.stringify(review), /PRIVATE-MEDICAL|PRIVATE-PAYMENT|parent@example/);
+    const clearance = {
+      id: randomUUID(),
+      athleteId: candidate.id,
+      teamId: "soft",
+      guardianId: candidate.guardianId,
+      identityDigest: candidate.identityDigest,
+      clubRevision: review.clubRevision,
+      expiresAt: "2099-01-01T00:00:00Z",
+      reason: "Owner verified identity guardian and team eligibility",
+      confirmEligibility: true as const,
+    };
+    await assign("zero", "softball", ["rosters.add", "rosters.read"], "teams", ["soft"]);
+    await assert.rejects(ops.ownerRosterEligibility(sql, "zero", { search: "" }));
+    await assert.rejects(ops.clearRosterEligibility(sql, "zero", clearance));
+    await assert.rejects(
+      ops.clearRosterEligibility(sql, "owner", { ...clearance, guardianId: "coach" }),
+      /guardian/,
+    );
+    await assert.rejects(
+      ops.clearRosterEligibility(sql, "owner", { ...clearance, identityDigest: "0".repeat(64) }),
+      /changed/,
+    );
+    await ops.clearRosterEligibility(sql, "owner", clearance);
+    await ops.clearRosterEligibility(sql, "owner", clearance);
+    const eligible = await ops.eligibleRosterAthletes(sql, "zero", { teamId: "soft" });
+    assert.equal(eligible.items.length, 1);
+    assert.doesNotMatch(JSON.stringify(eligible), /parent@example|PRIVATE|guardianId|household/);
+    const add = {
+      id: clearance.id,
+      teamId: "soft",
+      revision: 1,
+      clubRevision: eligible.clubRevision,
+      confirm: true as const,
+    };
+    await assert.rejects(ops.addEligibleRosterAthlete(sql, "parent", add));
+    await assert.rejects(ops.addEligibleRosterAthlete(sql, "zero", { ...add, teamId: "base" }));
+    await assert.rejects(ops.addEligibleRosterAthlete(sql, "zero", add), /financial|protected/i);
+    const basis = await import("../finance/basis.server");
+    const preview = await basis.previewFinancialBasisInitialization(sql, "owner");
+    await basis.initializeFinancialBasisForOwner(sql, "owner", {
+      sourceClubRevision: preview.sourceClubRevision,
+      sourceDigest: preview.sourceDigest,
+      reason: "Synthetic roster financial isolation fixture",
+    });
+    await (await import("../finance/context.test-fixture")).applyFutureActiveSchemaForTest(sql);
+    const financial =
+      await sql`select to_jsonb(v) value from financial_basis_versions v order by version`;
+    await sql`update "user" set "emailVerified"=false where id='parent'`;
+    await assert.rejects(ops.addEligibleRosterAthlete(sql, "zero", add), /guardian/);
+    await sql`update "user" set "emailVerified"=true where id='parent'`;
+    await sql`update club_athletes set name='Changed identity' where id='eligible-athlete'`;
+    await assert.rejects(ops.addEligibleRosterAthlete(sql, "zero", add), /changed/);
+    await sql`update club_athletes set name='Synthetic Eligible Athlete' where id='eligible-athlete'`;
+    await sql`create function reject_roster_add_audit() returns trigger language plpgsql as $$begin if new.action='rosters.add' then raise exception 'injected audit failure';end if;return new;end$$`;
+    await sql`create trigger reject_roster_add before insert on coordinator_audit for each row execute function reject_roster_add_audit()`;
+    await assert.rejects(ops.addEligibleRosterAthlete(sql, "zero", add), /injected/);
+    assert.equal(
+      (await sql`select status from coordinator_roster_clearances where id=${clearance.id}`)[0]
+        .status,
+      "approved",
+    );
+    assert.equal(
+      (
+        await sql`select count(*)::int n from recruiting_roster_links where athlete_id='eligible-athlete'`
+      )[0].n,
+      0,
+    );
+    await sql`drop trigger reject_roster_add on coordinator_audit`;
+    const added = await ops.addEligibleRosterAthlete(sql, "zero", add);
+    assert.deepEqual(await ops.addEligibleRosterAthlete(sql, "zero", add), added);
+    const [state] = await sql<{
+      payload: ClubRecord;
+      rev: number;
+    }>`select payload,rev from club_state where id='oklahoma-prospects'`;
+    const player = state.payload.teams
+      .find((t) => t.id === "soft")!
+      .roster.find((p) => p.id === added.playerId)!;
+    assert.equal(player.familyId, "eligible-home");
+    assert.equal(player.publicProfile.enabled, false);
+    assert.equal(player.parents[0].email, "parent@example.invalid");
+    assert.equal(player.emergency.conditions, "");
+    assert.equal(
+      (
+        await sql`select count(*)::int n from recruiting_roster_links where athlete_id='eligible-athlete'`
+      )[0].n,
+      1,
+    );
+    assert.deepEqual(
+      await sql`select to_jsonb(v) value from financial_basis_versions v order by version`,
+      financial,
+    );
+    const edit = {
+      teamId: "soft",
+      playerId: added.playerId,
+      revision: state.rev,
+      bats: "L" as const,
+      throws: "R" as const,
+      gradYear: "2035",
+      school: "Synthetic school",
+    };
+    await assert.rejects(ops.saveRosterInformation(sql, "zero", edit));
+    await assign("zero", "softball", ["rosters.read", "rosters.information"], "teams", ["soft"]);
+    await assert.rejects(
+      ops.saveRosterInformation(sql, "zero", { ...edit, playerId: "base-player" }),
+    );
+    await assert.rejects(
+      ops.saveRosterInformation(sql, "zero", {
+        ...edit,
+        emergency: { conditions: "prohibited" },
+      } as typeof edit),
+    );
+    await ops.saveRosterInformation(sql, "zero", edit);
+    await assert.rejects(ops.saveRosterInformation(sql, "zero", edit), /changed/);
+    const projected = (await roster(sql, "zero", "soft")).find((p) => p.id === added.playerId)!;
+    assert.equal(projected.school, "Synthetic school");
+    assert.equal(projected.parents.length, 0);
+    assert.deepEqual(
+      await sql`select to_jsonb(v) value from financial_basis_versions v order by version`,
+      financial,
+    );
+  } finally {
+    await db.close();
+  }
+});
+
+test("roster eligibility withdrawal and expiry block existing sessions without altering athletes or granting roles", async () => {
+  const { db, sql, assign } = await fixture(),
+    ops = await import("./roster.server");
+  try {
+    await sql`insert into club_households(id,primary_email) values('review-home','parent@example.invalid')`;
+    await sql`insert into household_members(household_id,user_id) values('review-home','parent')`;
+    await sql`insert into club_athletes(id,name,user_id,household_id,household_email) values('review-child','Eligibility child','parent','review-home','parent@example.invalid')`;
+    const listing = await ops.ownerRosterEligibility(sql, "owner", { search: "Eligibility child" }),
+      candidate = listing.candidates[0];
+    const clearance = {
+      id: randomUUID(),
+      athleteId: candidate.id,
+      teamId: "soft",
+      guardianId: candidate.guardianId,
+      identityDigest: candidate.identityDigest,
+      clubRevision: listing.clubRevision,
+      expiresAt: "2099-01-01T00:00:00Z",
+      reason: "Owner reviewed the complete eligibility evidence",
+      confirmEligibility: true as const,
+    };
+    await ops.clearRosterEligibility(sql, "owner", clearance);
+    assert.equal((await sql`select count(*)::int n from coordinator_assignments`)[0].n, 0);
+    await assign("zero", "softball", ["rosters.add"], "teams", ["soft"]);
+    const add = {
+      id: clearance.id,
+      teamId: "soft",
+      revision: 1,
+      clubRevision: listing.clubRevision,
+      confirm: true as const,
+    };
+    await assert.rejects(
+      ops.revokeRosterEligibility(sql, "zero", {
+        id: clearance.id,
+        revision: 1,
+        reason: "Unauthorized eligibility change",
+      }),
+    );
+    await sql`update coordinator_roster_clearances set expires_at=now()-interval '1 hour' where id=${clearance.id}`;
+    assert.equal(
+      (await ops.eligibleRosterAthletes(sql, "zero", { teamId: "soft" })).items.length,
+      0,
+    );
+    await assert.rejects(ops.addEligibleRosterAthlete(sql, "zero", add), /expired/);
+    await sql`update coordinator_roster_clearances set expires_at='2099-01-01' where id=${clearance.id}`;
+    await sql`delete from staff_authorities where email='owner@example.invalid' and capability='staff_approvals.review'`;
+    await assert.rejects(ops.addEligibleRosterAthlete(sql, "zero", add), /not authorized/);
+    await sql`insert into staff_authorities values('owner@example.invalid','staff_approvals.review')`;
+    await ops.revokeRosterEligibility(sql, "owner", {
+      id: clearance.id,
+      revision: 1,
+      reason: "Eligibility approval has been withdrawn",
+    });
+    await assert.rejects(ops.addEligibleRosterAthlete(sql, "zero", add), /changed/);
+    assert.equal(
+      (await sql`select count(*)::int n from club_athletes where id='review-child'`)[0].n,
+      1,
+    );
+    assert.equal(
+      (
+        await sql`select count(*)::int n from recruiting_roster_links where athlete_id='review-child'`
+      )[0].n,
+      0,
+    );
   } finally {
     await db.close();
   }

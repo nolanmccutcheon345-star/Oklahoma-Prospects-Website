@@ -1,3 +1,4 @@
+import { EligibleRosterAthletes, RoutinePlayerInformation } from "./roster-management";
 import { TryoutScheduling } from "./tryout-scheduling";
 import { ProgramEvents } from "./program-events";
 import { TeamOperations } from "./team-operations";
@@ -93,6 +94,7 @@ export function CoordinatorFrontOffice() {
       "rosters",
       "Teams & Rosters",
       allowed("rosters.read") ||
+        allowed("rosters.add") ||
         allowed("teams.openings") ||
         allowed("teams.needs") ||
         allowed("teams.statistics"),
@@ -550,6 +552,7 @@ function CoordinatorModule({
           {tab === "rosters" && (
             <>
               <h2 className="text-2xl">{teamName} Roster</h2>
+              {allowed("rosters.add") && <EligibleRosterAthletes teamId={teamId} onAdded={load} />}
               {(allowed("teams.openings") ||
                 allowed("teams.needs") ||
                 allowed("teams.statistics")) && (
@@ -564,6 +567,14 @@ function CoordinatorModule({
                     #{p.number} {p.name}
                   </h3>
                   <p>{p.positions?.join(", ")}</p>
+                  {allowed("rosters.information") && (
+                    <RoutinePlayerInformation
+                      key={p.id + ":" + p.revision}
+                      teamId={teamId}
+                      player={p}
+                      onSaved={load}
+                    />
+                  )}
                   {p.parents.map((g, i) => (
                     <p key={i}>
                       {g.name} · {g.email} · {g.phone}

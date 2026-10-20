@@ -19,6 +19,8 @@ export const capabilities = {
   "recruiting.notes": "Add recruiting notes",
   "contacts.read": "View necessary guardian contact details",
   "rosters.read": "View team rosters",
+  "rosters.add": "Add owner-cleared eligible athletes to authorized rosters",
+  "rosters.information": "Update routine player information",
   "rosters.number": "Edit jersey numbers",
   "rosters.positions": "Edit player positions",
   "rosters.transfer.request": "Propose an athlete transfer for owner review",

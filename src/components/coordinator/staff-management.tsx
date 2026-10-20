@@ -1,3 +1,4 @@
+import { RosterEligibilityReview } from "./roster-management";
 import type { StaffActivityFilter } from "@/lib/coordinator/audit-contracts";
 import { getCoordinatorTransferRecovery, recoverCoordinatorTransfer } from "@/lib/coordinator/api";
 import { CoordinatorAccessReviews } from "./access-reviews";
@@ -149,6 +150,7 @@ export function StaffRoleManagement() {
           ["roles", "Roles & Permissions"],
           ["invitations", "Coordinator Invitations"],
           ["approvals", "Approval Queue"],
+          ["eligibility", "Roster Eligibility"],
           ["activity", "Staff Activity & Audit Center"],
           ["reviews", "Access Reviews"],
         ].map(([key, label]) => (
@@ -175,6 +177,7 @@ export function StaffRoleManagement() {
         </p>
       )}
       {notice && <p role="status">{notice}</p>}
+      {tab === "eligibility" && <RosterEligibilityReview />}
       {tab === "invitations" && (
         <div className="grid gap-4">
           <p>

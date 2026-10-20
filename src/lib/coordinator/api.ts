@@ -539,3 +539,78 @@ export const requestCoordinatorProgramReview = createServerFn({ method: "POST" }
       data,
     );
   });
+
+import {
+  rosterCandidateInput,
+  rosterClearanceInput,
+  rosterClearanceRevokeInput,
+  rosterEligibleInput,
+  rosterAdmissionInput,
+  rosterInformationInput,
+} from "./roster-contracts";
+export const getRosterEligibilityReview = createServerFn({ method: "POST" })
+  .middleware([coordinatorAuthMiddleware])
+  .validator(rosterCandidateInput)
+  .handler(async ({ context, data }) => {
+    const { getSql } = await import("../db");
+    return (await import("./roster.server")).ownerRosterEligibility(
+      await getSql(),
+      context.userId,
+      data,
+    );
+  });
+export const approveRosterEligibility = createServerFn({ method: "POST" })
+  .middleware([coordinatorAuthMiddleware])
+  .validator(rosterClearanceInput)
+  .handler(async ({ context, data }) => {
+    const { getSql } = await import("../db");
+    return (await import("./roster.server")).clearRosterEligibility(
+      await getSql(),
+      context.userId,
+      data,
+    );
+  });
+export const revokeRosterEligibility = createServerFn({ method: "POST" })
+  .middleware([coordinatorAuthMiddleware])
+  .validator(rosterClearanceRevokeInput)
+  .handler(async ({ context, data }) => {
+    const { getSql } = await import("../db");
+    return (await import("./roster.server")).revokeRosterEligibility(
+      await getSql(),
+      context.userId,
+      data,
+    );
+  });
+export const getEligibleCoordinatorAthletes = createServerFn({ method: "POST" })
+  .middleware([coordinatorAuthMiddleware])
+  .validator(rosterEligibleInput)
+  .handler(async ({ context, data }) => {
+    const { getSql } = await import("../db");
+    return (await import("./roster.server")).eligibleRosterAthletes(
+      await getSql(),
+      context.userId,
+      data,
+    );
+  });
+export const addEligibleCoordinatorAthlete = createServerFn({ method: "POST" })
+  .middleware([coordinatorAuthMiddleware])
+  .validator(rosterAdmissionInput)
+  .handler(async ({ context, data }) => {
+    const { getSql } = await import("../db");
+    return (await import("./roster.server")).addEligibleRosterAthlete(
+      await getSql(),
+      context.userId,
+      data,
+    );
+  });
+export const saveCoordinatorPlayerInformation = createServerFn({ method: "POST" })
+  .middleware([coordinatorAuthMiddleware])
+  .validator(rosterInformationInput)
+  .handler(async ({ context, data }) => {
+    const { getSql } = await import("../db");
+    return (await import("./roster.server")).saveRosterInformation(
+      await getSql(),
+      context.userId,
+      data,
+    );
+  });

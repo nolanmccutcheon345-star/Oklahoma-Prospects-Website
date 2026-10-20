@@ -538,88 +538,97 @@ export async function saveOrganizationPlayer(
   raw: z.infer<typeof organizationPlayerInput>,
 ) {
   return operate(sql, userId, "organization.player.save", async (tx) => {
-    const input = organizationPlayerInput.parse(raw),
-      { payload: club, rev } = await loadClub(tx, input.revision),
-      team = teamIn(club, input.teamId);
-    const roster = objects(team.roster),
-      old = roster.find((p) => p.id === input.playerId);
-    if (!old) {
-      newId(input.playerId);
-      if (!input.changes.name) throw new Error("A new player needs a name.");
-      if (objects(club.teams).some((t) => objects(t.roster).some((p) => p.id === input.playerId)))
-        throw changed();
-      // A new active roster member changes legacy funding denominators and can
-      // change existing fees/pay projections even without writing a money field.
-      if (await hasTeamFinancialLink(tx, team, club)) throw protectedWorkflow();
-    }
-    if (
-      input.changes.number &&
-      roster.some(
-        (p) =>
-          p.id !== input.playerId &&
-          !withdrawn(p.withdrawn) &&
-          string(p.number) === input.changes.number,
-      )
-    )
-      throw new Error("That jersey number is already assigned.");
-    if (
-      old &&
-      input.changes.parents &&
-      input.changes.parents.some(
-        (g, i) => email(g.email) !== email(objects(old.parents)[i]?.email),
-      ) &&
-      (await financialSourceModeInTransaction(tx)) !== "basis"
-    )
-      throw protectedWorkflow();
-    if (
-      old &&
-      input.changes.email !== undefined &&
-      email(input.changes.email) !== email(old.email) &&
-      (await financialSourceModeInTransaction(tx)) !== "basis"
-    )
-      throw protectedWorkflow();
-    if (
-      old &&
-      input.changes.withdrawn !== undefined &&
-      input.changes.withdrawn !== withdrawn(old.withdrawn) &&
-      (await hasTeamFinancialLink(tx, team, club))
-    )
-      throw protectedWorkflow();
-    if (old && input.changes.withdrawn === false && withdrawn(old.withdrawn))
-      await assertRosterAssignment(
-        tx,
-        team as unknown as Team,
-        old.roleType === "po" ? "po" : "full",
-        input.playerId,
-      );
-    const next: Json = { ...(old || blankPlayer(input.playerId, input.teamId)), ...input.changes };
-    if (old && input.changes.withdrawn === withdrawn(old.withdrawn)) next.withdrawn = old.withdrawn;
-    if (input.changes.docs) next.docs = { ...object(old?.docs), ...input.changes.docs };
-    if (input.changes.parents) {
-      const prior = objects(old?.parents);
-      if (
-        input.changes.parents.length < prior.length &&
-        (await financialSourceModeInTransaction(tx)) !== "basis"
-      )
-        throw new Error(
-          "Guardian rows cannot be removed here. Edit their name, relationship, or phone number instead.",
-        );
-      next.parents = input.changes.parents.map((p, i) => ({ ...prior[i], ...p }));
-    }
-    team.roster = old ? roster.map((p) => (p.id === input.playerId ? next : p)) : [...roster, next];
-    await writeClub(tx, club, rev);
-    await audit(
-      tx,
-      userId,
-      "organization.player.save",
-      input.playerId,
-      "allowed",
-      { fields: Object.keys(input.changes), revision: rev + 1 },
-      undefined,
-      input.teamId,
-    );
-    return { ok: true, revision: rev + 1 };
+    return savePlayerInTransaction(tx, userId, organizationPlayerInput.parse(raw));
   });
+}
+/** Internal executor. Callers must validate current authority and actual team/athlete identity. */
+export async function savePlayerInTransaction(
+  tx: Sql,
+  userId: string,
+  input: z.infer<typeof organizationPlayerInput>,
+  familyId?: string,
+) {
+  const { payload: club, rev } = await loadClub(tx, input.revision),
+    team = teamIn(club, input.teamId);
+  const roster = objects(team.roster),
+    old = roster.find((p) => p.id === input.playerId);
+  if (!old) {
+    newId(input.playerId);
+    if (!input.changes.name) throw new Error("A new player needs a name.");
+    if (objects(club.teams).some((t) => objects(t.roster).some((p) => p.id === input.playerId)))
+      throw changed();
+    // A new active roster member changes legacy funding denominators and can
+    // change existing fees/pay projections even without writing a money field.
+    if (await hasTeamFinancialLink(tx, team, club)) throw protectedWorkflow();
+  }
+  if (
+    input.changes.number &&
+    roster.some(
+      (p) =>
+        p.id !== input.playerId &&
+        !withdrawn(p.withdrawn) &&
+        string(p.number) === input.changes.number,
+    )
+  )
+    throw new Error("That jersey number is already assigned.");
+  if (
+    old &&
+    input.changes.parents &&
+    input.changes.parents.some(
+      (g, i) => email(g.email) !== email(objects(old.parents)[i]?.email),
+    ) &&
+    (await financialSourceModeInTransaction(tx)) !== "basis"
+  )
+    throw protectedWorkflow();
+  if (
+    old &&
+    input.changes.email !== undefined &&
+    email(input.changes.email) !== email(old.email) &&
+    (await financialSourceModeInTransaction(tx)) !== "basis"
+  )
+    throw protectedWorkflow();
+  if (
+    old &&
+    input.changes.withdrawn !== undefined &&
+    input.changes.withdrawn !== withdrawn(old.withdrawn) &&
+    (await hasTeamFinancialLink(tx, team, club))
+  )
+    throw protectedWorkflow();
+  if (old && input.changes.withdrawn === false && withdrawn(old.withdrawn))
+    await assertRosterAssignment(
+      tx,
+      team as unknown as Team,
+      old.roleType === "po" ? "po" : "full",
+      input.playerId,
+    );
+  const next: Json = { ...(old || blankPlayer(input.playerId, input.teamId)), ...input.changes };
+  if (!old && familyId) next.familyId = familyId;
+  if (old && input.changes.withdrawn === withdrawn(old.withdrawn)) next.withdrawn = old.withdrawn;
+  if (input.changes.docs) next.docs = { ...object(old?.docs), ...input.changes.docs };
+  if (input.changes.parents) {
+    const prior = objects(old?.parents);
+    if (
+      input.changes.parents.length < prior.length &&
+      (await financialSourceModeInTransaction(tx)) !== "basis"
+    )
+      throw new Error(
+        "Guardian rows cannot be removed here. Edit their name, relationship, or phone number instead.",
+      );
+    next.parents = input.changes.parents.map((p, i) => ({ ...prior[i], ...p }));
+  }
+  team.roster = old ? roster.map((p) => (p.id === input.playerId ? next : p)) : [...roster, next];
+  await writeClub(tx, club, rev);
+  await audit(
+    tx,
+    userId,
+    "organization.player.save",
+    input.playerId,
+    "allowed",
+    { fields: Object.keys(input.changes), revision: rev + 1 },
+    undefined,
+    input.teamId,
+  );
+  return { ok: true, revision: rev + 1 };
 }
 export async function saveOrganizationStaff(
   sql: Sql,
