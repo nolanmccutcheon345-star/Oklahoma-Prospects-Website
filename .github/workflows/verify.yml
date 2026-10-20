@@ -36,6 +36,8 @@ jobs:
           CONTEXT: dev
           SQUARE_LIVE_ENABLED: "false"
           SQUARE_ENVIRONMENT: sandbox
+      - name: Verify exact clean release identity
+        run: node scripts/check-reviewed-release.mjs
       - run: npm run verify:build
       - run: npx playwright install --with-deps chromium
       - name: Isolated coordinator permissions walkthrough

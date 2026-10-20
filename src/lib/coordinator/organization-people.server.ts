@@ -11,7 +11,7 @@ import {
   organizationPersonInput,
   type OrganizationPersonInput,
 } from "./organization-people-contracts";
-import { emptySharedProfile, type SharedProfile } from "../person-contracts";
+import { emptySharedProfile, publicSharedProfile, type SharedProfile } from "../person-contracts";
 import { availabilityInput } from "../coaching-contracts";
 import { coachAvailabilityFields } from "../coach-availability-form";
 import { newCoachId } from "../coach-id.server";
@@ -41,14 +41,26 @@ function displayProfile(value: Partial<SharedProfile> | null, name: string): Sha
 export async function organizationPeople(sql: Sql, actorId: string) {
   return secured(sql, actorId, "organization.people.read", async (tx) => {
     await requireOrganizationOperations(tx, actorId);
-    const people = await tx<{
+    const rows = await tx<{
       userId: string;
       name: string;
       loginEmail: string;
       accountDisabled: boolean;
       active: boolean;
       revision: number;
-    }>`select u.id as "userId",case when ((u."disabledAt" is null and coalesce(o.directory_active,true) and (pp.publish_coach or (pp.publish_instructor and pp.instructor))) or o.classified_profile_revision=pp.revision) then coalesce(nullif(pp.profile->>'name',''),u.name) else u.name end as name,lower(trim(u.email)) as "loginEmail",(u."disabledAt" is not null) as "accountDisabled",coalesce(o.directory_active,true) as active,coalesce(o.revision,0) as revision from "user" u left join operational_person_settings o on o.user_id=u.id left join person_profiles pp on pp.user_id=u.id order by u.name,u.id`;
+      classified: boolean;
+      candidate: Partial<SharedProfile> | null;
+    }>`
+      select u.id as "userId",u.name,lower(trim(u.email)) as "loginEmail",(u."disabledAt" is not null) as "accountDisabled",coalesce(o.directory_active,true) as active,coalesce(o.revision,0) as revision,coalesce(o.classified_profile_revision=pp.revision,false) as classified,
+      case when ((u."disabledAt" is null and coalesce(o.directory_active,true) and (pp.publish_coach or (pp.publish_instructor and pp.instructor))) or o.classified_profile_revision=pp.revision) then (select jsonb_object_agg(k,pp.profile->k) from unnest(${profileKeys}::text[]) k) else null end as candidate
+      from "user" u left join operational_person_settings o on o.user_id=u.id left join person_profiles pp on pp.user_id=u.id order by u.name,u.id`;
+    const people = rows.map(({ candidate, classified, ...row }) => ({
+      ...row,
+      name:
+        (classified && typeof candidate?.name === "string"
+          ? candidate.name
+          : publicSharedProfile(candidate)?.name) || row.name,
+    }));
     return { people };
   });
 }
@@ -71,7 +83,7 @@ async function personRecord(tx: Sql, actorId: string, userId: string) {
     publish_instructor: boolean;
   }>`select revision,instructor,publish_coach,publish_instructor from person_profiles where user_id=${userId}`;
   const restricted = await financiallyRestricted(tx, actorId);
-  const profileWithheld = Boolean(
+  let profileWithheld = Boolean(
     saved &&
     restricted &&
     (!(saved.publish_coach || (saved.publish_instructor && saved.instructor)) ||
@@ -84,6 +96,14 @@ async function personRecord(tx: Sql, actorId: string, userId: string) {
     : await tx<{
         profile: SharedProfile;
       }>`select coalesce((select jsonb_object_agg(k,profile->k) from unnest(${profileKeys}::text[]) k),'{}'::jsonb) as profile from person_profiles where user_id=${userId}`;
+  if (
+    saved &&
+    restricted &&
+    !profileWithheld &&
+    settings?.classified_profile_revision !== saved.revision &&
+    !publicSharedProfile(profileRow?.profile)
+  )
+    profileWithheld = true;
   const [pd] = await tx<{
     revision: number;
     coaches: Coach[];
@@ -210,6 +230,64 @@ export async function saveOrganizationPerson(
         (JSON.stringify(input.profile) !== JSON.stringify(current.profile) ||
           input.publishCoach !== current.publishCoach ||
           input.publishInstructor !== current.publishInstructor);
+      if (
+        !current.active &&
+        input.active &&
+        !current.accountDisabled &&
+        (await financiallyRestricted(tx, actorId))
+      ) {
+        // Restoring directory status must not turn hidden historical publication into a disclosure.
+        // Read booleans only; the actor never receives the withheld legacy text.
+        await tx`lock table coach_profiles,staff_directory,public_leadership in share mode`;
+        const [hiddenPublication] = await tx<{
+          directory: boolean;
+          directoryPublished: boolean;
+          legacy: boolean;
+          leadership: boolean;
+          teamNarrative: boolean;
+        }>`
+          select exists(select 1 from staff_directory d where (d.identity_user_id=${input.userId} or (d.identity_email is null and lower(trim(d.email))=${current.loginEmail})) and d.published and d.operational_bio_version is distinct from d.version) as directory,
+          exists(select 1 from staff_directory d where (d.identity_user_id=${input.userId} or (d.identity_email is null and lower(trim(d.email))=${current.loginEmail})) and d.published) as "directoryPublished",
+          exists(select 1 from coach_profiles where user_id=${input.userId} and published) as legacy,
+          exists(select 1 from public_leadership where user_id=${input.userId} and enabled and cardinality(titles)>0) as leadership,
+          exists(select 1 from club_state c cross join lateral jsonb_array_elements(coalesce(c.payload->'teams','[]'::jsonb)) t where c.id='oklahoma-prospects' and not c.demo and coalesce(t->>'closed','false')<>'true' and ((lower(trim(t->>'coachEmail'))=${current.loginEmail} and (coalesce(t->>'headCoachBio','')<>'' or coalesce(t->>'headCoachPhoto','')<>'')) or exists(select 1 from jsonb_array_elements(coalesce(t->'staff','[]'::jsonb)) s where lower(trim(s->>'email'))=${current.loginEmail} and (coalesce(s->>'bio','')<>'' or coalesce(s->>'photo','')<>'')))) as "teamNarrative"`;
+        const reviewedReplacement = Boolean(
+          input.profile && profileChanged && input.reviewedPublication,
+        );
+        const sharedWithheld =
+          current.profileRevision > 0 &&
+          current.profileWithheld &&
+          (current.publishCoach || current.publishInstructor || hiddenPublication.leadership);
+        const legacyWithheld =
+          current.profileRevision === 0 &&
+          !reviewedReplacement &&
+          (hiddenPublication.legacy || hiddenPublication.teamNarrative);
+        if (
+          current.publishCoach ||
+          current.publishInstructor ||
+          current.teams.length ||
+          hiddenPublication.directoryPublished ||
+          hiddenPublication.legacy ||
+          hiddenPublication.leadership ||
+          hiddenPublication.teamNarrative
+        ) {
+          const [target] = await tx<{
+            verified: boolean;
+            role: string;
+            staff: boolean;
+          }>`select u."emailVerified" as verified,coalesce(p.role,'parent') as role,(exists(select 1 from club_staff s where s.user_id=u.id or (s.user_id='' and lower(trim(s.email))=lower(trim(u.email)))) or exists(select 1 from owner_grants g where g.user_id=u.id and g.revoked_at is null) or exists(select 1 from organization_operational_access a where a.user_id=u.id and a.status='active')) as staff from "user" u left join profiles p on p.user_id=u.id where u.id=${input.userId}`;
+          if (
+            !target.verified ||
+            target.role === "player" ||
+            (!target.staff && !current.teams.length)
+          )
+            throw new Error("Publication requires an existing verified adult staff assignment.");
+        }
+        if (hiddenPublication.directory || sharedWithheld || legacyWithheld)
+          throw new Error(
+            "An owner must review hidden published content before reactivating this person.",
+          );
+      }
       if (input.profile && profileChanged) {
         const [target] = await tx<{
           role: string;

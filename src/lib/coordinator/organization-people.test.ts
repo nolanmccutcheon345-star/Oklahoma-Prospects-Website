@@ -80,8 +80,8 @@ async function fixture() {
   await sql`insert into club_staff_services(staff_id,service_id,profit_split) values('staff-coach','lesson',65)`;
   return { sql, file };
 }
-async function input(sql: Sql, id = "coach") {
-  const p = await organizationPerson(sql, "sara", id);
+async function input(sql: Sql, id = "coach", actor = "sara") {
+  const p = await organizationPerson(sql, actor, id);
   return organizationPersonInput.parse({
     userId: p.userId,
     revision: p.revision,
@@ -314,7 +314,8 @@ test("inactive current assignee survives unrelated follow-up and queued delivery
       RESEND_API_KEY: "synthetic-local-only",
       RESEND_FROM_EMAIL: "club@example.invalid",
       TRYOUT_NOTIFICATIONS_ENABLED: "true",
-      SQUARE_DEPLOY_CONTEXT:"dev",CONTEXT:"dev",
+      SQUARE_DEPLOY_CONTEXT: "dev",
+      CONTEXT: "dev",
       TRYOUT_EMAIL_TEST_RECIPIENTS: "coach@example.invalid",
     },
     async () => {
@@ -332,4 +333,114 @@ test("inactive current assignee survives unrelated follow-up and queued delivery
     ).length,
     0,
   );
+});
+
+async function inactiveShared(sql: Sql, classified = false, invalid = false) {
+  await sql`insert into person_profiles(user_id,profile,revision,instructor,publish_coach,publish_instructor) values('coach',${JSON.stringify({ ...emptySharedProfile("HIDDEN-PUBLIC-NAME"), bio: "HIDDEN-PUBLIC-BIO", sports: ["baseball"], photo: invalid ? "invalid-private-photo" : "" })}::jsonb,1,true,true,true)`;
+  await sql`insert into operational_person_settings(user_id,revision,coach_id,directory_active,classified_profile_revision,updated_by) values('coach',1,'coach-identity',false,${classified ? 1 : null},'owner')`;
+}
+test("restricted reactivation cannot publish withheld shared text; unrelated contact edits and owner reactivation remain supported", async () => {
+  const { sql } = await fixture();
+  await inactiveShared(sql);
+  let value = await input(sql);
+  assert.equal(value.profile, null);
+  await saveOrganizationPerson(sql, "sara", { ...value, phone: "9185550101" });
+  value = await input(sql);
+  await assert.rejects(
+    saveOrganizationPerson(sql, "sara", { ...value, active: true }),
+    /owner must review hidden/i,
+  );
+  assert.equal((await publicPeopleFor(sql)).length, 0);
+  assert.equal((await organizationPerson(sql, "sara", "coach")).profile, null);
+  await saveOrganizationPerson(sql, "owner", {
+    ...(await input(sql, "coach", "owner")),
+    active: true,
+  });
+  assert.ok((await publicPeopleFor(sql)).some((p) => p.bio === "HIDDEN-PUBLIC-BIO"));
+});
+test("exact classified profile permits restricted reactivation but stale classification and unverified target do not", async () => {
+  const { sql } = await fixture();
+  await inactiveShared(sql, true);
+  assert.equal((await publicPeopleFor(sql)).length, 0);
+  await saveOrganizationPerson(sql, "sara", { ...(await input(sql)), active: true });
+  assert.ok((await publicPeopleFor(sql)).some((p) => p.bio === "HIDDEN-PUBLIC-BIO"));
+  await saveOrganizationPerson(sql, "sara", { ...(await input(sql)), active: false });
+  await sql`update "user" set "emailVerified"=false where id='coach'`;
+  await assert.rejects(
+    saveOrganizationPerson(sql, "sara", { ...(await input(sql)), active: true }),
+    /verified adult/,
+  );
+  await sql`update "user" set "emailVerified"=true where id='coach'`;
+  await sql`update person_profiles set revision=2 where user_id='coach'`;
+  await assert.rejects(
+    saveOrganizationPerson(sql, "sara", { ...(await input(sql)), active: true }),
+    /owner must review hidden/i,
+  );
+});
+test("legacy published coach and directory fallback cannot be restored through status-only restricted save", async () => {
+  const { sql } = await fixture();
+  await sql`insert into operational_person_settings(user_id,revision,coach_id,directory_active,updated_by) values('coach',1,'coach-identity',false,'owner')`;
+  await sql`insert into coach_profiles(id,user_id,profile,published) values('legacy','coach','{"name":"Legacy","career":"HIDDEN-LEGACY-BIO"}'::jsonb,true)`;
+  const value = await input(sql);
+  assert.equal(value.profile?.bio, "");
+  assert.equal(value.publishCoach, false);
+  await assert.rejects(
+    saveOrganizationPerson(sql, "sara", { ...value, active: true }),
+    /owner must review hidden/i,
+  );
+  await sql`delete from coach_profiles`;
+  await sql`insert into staff_directory(id,name,title,program,email,bio,published) values('00000000-0000-4000-8000-000000000003','Coach','Coach','Baseball','coach@example.invalid','HIDDEN-DIRECTORY-BIO',true)`;
+  await assert.rejects(
+    saveOrganizationPerson(sql, "sara", { ...(await input(sql)), active: true }),
+    /owner must review hidden/i,
+  );
+  assert.equal((await publicPeopleFor(sql)).length, 0);
+});
+test("staff biographies use actual public account/activity predicate and preserve hidden text during contact updates", async () => {
+  const { sql } = await fixture();
+  await sql`insert into operational_person_settings(user_id,revision,coach_id,directory_active,updated_by) values('coach',1,'coach-identity',false,'owner')`;
+  await sql`insert into staff_directory(id,name,title,program,email,bio,published) values('00000000-0000-4000-8000-000000000004','Coach','Coach','Baseball','coach@example.invalid','HIDDEN-STAFF-BIO',true)`;
+  for (const disabled of [false, true]) {
+    if (disabled) {
+      await sql`update operational_person_settings set directory_active=true where user_id='coach'`;
+      await sql`update "user" set "disabledAt"=now() where id='coach'`;
+    }
+    const [row] = await listStaffDirectoryFor(sql, "sara");
+    assert.equal(row.bio, "");
+    assert.equal((row as typeof row & { bioWithheld: boolean }).bioWithheld, true);
+    const { bioWithheld: _, ...safe } = row as typeof row & { bioWithheld?: boolean };
+    const saved = await saveStaffListingFor(sql, "sara", { ...safe, phone: "9185550101" });
+    assert.equal(saved.bio, "");
+    assert.equal(saved.published, true);
+    assert.equal((await listStaffDirectoryFor(sql, "owner"))[0].bio, "HIDDEN-STAFF-BIO");
+    assert.equal((await publicPeopleFor(sql)).length, 0);
+  }
+});
+test("invalid public shared profile is withheld consistently; exact reviewed classification is separate from public visibility", async () => {
+  const { sql } = await fixture();
+  await inactiveShared(sql, false, true);
+  await sql`update operational_person_settings set directory_active=true where user_id='coach'`;
+  assert.equal((await publicPeopleFor(sql)).length, 0);
+  assert.equal((await organizationPerson(sql, "sara", "coach")).profile, null);
+  assert.ok(!JSON.stringify(await organizationPeople(sql, "sara")).includes("HIDDEN-PUBLIC-NAME"));
+  await sql`update operational_person_settings set classified_profile_revision=1 where user_id='coach'`;
+  assert.equal((await organizationPerson(sql, "sara", "coach")).profile?.bio, "HIDDEN-PUBLIC-BIO");
+  assert.ok(JSON.stringify(await organizationPeople(sql, "sara")).includes("HIDDEN-PUBLIC-NAME"));
+  assert.equal((await publicPeopleFor(sql)).length, 0);
+  await sql`update person_profiles set revision=2 where user_id='coach'`;
+  assert.equal((await organizationPerson(sql, "sara", "coach")).profile, null);
+});
+
+test("reviewed legacy directory reactivation still requires an existing verified adult assignment", async () => {
+  const { sql } = await fixture();
+  await sql`insert into operational_person_settings(user_id,revision,coach_id,directory_active,updated_by) values('coach',1,'coach-identity',false,'owner')`;
+  await sql`insert into staff_directory(id,name,title,program,email,bio,published,operational_bio_version) values('00000000-0000-4000-8000-000000000005','Coach','Coach','Baseball','coach@example.invalid','Reviewed directory biography',true,1)`;
+  await sql`update "user" set "emailVerified"=false where id='coach'`;
+  await assert.rejects(
+    saveOrganizationPerson(sql, "sara", { ...(await input(sql)), active: true }),
+    /verified adult/,
+  );
+  await sql`update "user" set "emailVerified"=true where id='coach'`;
+  await saveOrganizationPerson(sql, "sara", { ...(await input(sql)), active: true });
+  assert.ok((await publicPeopleFor(sql)).some((p) => p.bio === "Reviewed directory biography"));
 });

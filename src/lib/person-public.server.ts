@@ -9,7 +9,7 @@ import type { Product } from "./commerce/contracts";
 import { teamSeasons } from "./teams/seasons";
 import {
   emptySharedProfile,
-  sharedProfileInput,
+  publicSharedProfile,
   normEmail,
   type PublicPerson,
   type SharedProfile,
@@ -164,17 +164,14 @@ export async function publicPeopleFor(sql: Sql) {
   for (const s of shared) {
     const u = users.find((u) => u.id === s.user_id);
     if (!u) continue;
-    const c = get(u.email, s.profile.name);
-    if (!c) continue;
-    const publicFields = Object.fromEntries(
-      Object.keys(emptySharedProfile()).map((key) => [key, s.profile[key as keyof SharedProfile]]),
-    );
-    const parsed = sharedProfileInput.safeParse(publicFields);
-    if (!parsed.success) {
+    const profile = publicSharedProfile(s.profile);
+    if (!profile) {
       cards.delete(normEmail(u.email));
       continue;
     }
-    Object.assign(c, parsed.data);
+    const c = get(u.email, profile.name);
+    if (!c) continue;
+    Object.assign(c, profile);
     c.coach = s.publish_coach;
     const reviewed = settings.some(
       (o) => o.user_id === s.user_id && o.classified_profile_revision === s.revision,

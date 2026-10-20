@@ -391,3 +391,22 @@ test("unknown historical metric keys never enter operational DTOs even after cla
   assert.equal(content.withheld.metrics, 2);
   assert.ok(!JSON.stringify(content).includes("PRIVATE-UNKNOWN-NOTE"));
 });
+
+test("direct unsupported metric review is rejected after classification without changing any stored field", async () => {
+  const sql = await fixture();
+  const id = randomUUID();
+  await sql`insert into recruiting_metrics(id,athlete_id,metric,value,measured_on,status,submitted_by) values(${id},'athlete','PRIVATE-SALARY-KEY',987654,'2026-01-01','pending','guardian')`;
+  await classifyAll(sql);
+  const before = await sql`select * from recruiting_metrics where id=${id}`;
+  await assert.rejects(
+    reviewOrganizationRecruitingMetric(sql, "sara", {
+      id,
+      revision: 1,
+      approve: true,
+      method: "Forged review",
+      note: "Should not write",
+    }),
+    /authorized/,
+  );
+  assert.deepEqual(await sql`select * from recruiting_metrics where id=${id}`, before);
+});

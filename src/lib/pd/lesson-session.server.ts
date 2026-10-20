@@ -70,13 +70,25 @@ type Session = {
   operational_author_id: string | null;
   updated_by: string;
 };
+async function legacyLessonIdentity(sql: Sql, userId: string) {
+  // Reject the operational-only viewer before the legacy resolver can provision
+  // household bindings. Curriculum and presets are outside its bounded grant.
+  if (await operationalLessonViewer(sql, userId))
+    throw new Error("Existing instructor authority is required for this lesson operation.");
+  return resolveIdentity(sql, userId);
+}
 async function access(
   tx: Sql,
   me: Awaited<ReturnType<typeof resolveIdentity>> | OperationalLessonViewer,
   id: string,
   lock = false,
+  allowOperationalDraft = false,
 ) {
   const operationalOnly = me.role !== "admin" && me.role !== "coach" && !me.canInstruct;
+  // Only the guarded open/save entry points opt into operational drafts. A new
+  // legacy caller must not silently inherit access to private lesson history.
+  if (operationalOnly && !allowOperationalDraft)
+    throw new Error("Existing instructor authority is required for this lesson operation.");
   const grant = operationalOnly
     ? await operationalInstructionFor(tx, me.userId, "lesson-draft")
     : null;
@@ -186,7 +198,13 @@ export async function openLessonSessionFor(sql: Sql, userId: string, bookingId: 
     (await operationalLessonViewer(sql, userId)) ?? (await resolveIdentity(sql, userId));
   return sql.transaction(async (tx) => {
     await lockFinancialExecution(tx);
-    const { me, file, booking, operationalOnly } = await access(tx, identity, bookingId, true);
+    const { me, file, booking, operationalOnly } = await access(
+      tx,
+      identity,
+      bookingId,
+      true,
+      true,
+    );
     const [existing] =
       await tx<Session>`select * from guided_lesson_sessions where booking_id=${bookingId}`;
     if (existing) {
@@ -321,7 +339,7 @@ export async function reviewLegacyLesson(
   input: { bookingId: string; sport: LessonSport; discipline: string; reason: string },
 ) {
   const sql = await getSql(),
-    identity = await resolveIdentity(await getSql(), userId);
+    identity = await legacyLessonIdentity(sql, userId);
   return sql.transaction(async (tx) => {
     const { me, booking } = await access(tx, identity, input.bookingId, true);
     if (me.role !== "admin") throw new Error("Admin review required.");
@@ -383,6 +401,7 @@ export async function saveLessonSessionFor(
       tx,
       identity,
       input.bookingId,
+      true,
       true,
     );
     if (me.role === "operational-instructor" && input.complete)
@@ -586,7 +605,7 @@ export async function chooseLessonForUser(
   const { lessonChoiceInput, customizeLesson } = await import("./lesson-choices");
   const input = lessonChoiceInput.parse(raw),
     sql = await getSql(),
-    identity = await resolveIdentity(sql, userId);
+    identity = await legacyLessonIdentity(sql, userId);
   return sql.transaction(async (tx) => {
     const { booking } = await access(tx, identity, input.bookingId, true);
     const [s] =
@@ -609,7 +628,7 @@ export async function chooseLessonForUser(
 }
 export async function lessonPresetsForUser(userId: string, bookingId: string) {
   const sql = await getSql(),
-    me = await resolveIdentity(sql, userId),
+    me = await legacyLessonIdentity(sql, userId),
     { booking } = await access(sql, me, bookingId);
   const [s] =
     await sql<Session>`select * from guided_lesson_sessions where booking_id=${booking.id}`;
@@ -626,7 +645,7 @@ export async function reviewLessonPresetForUser(
   input: { id: string; status: "approved" | "retired"; reason: string },
 ) {
   const sql = await getSql(),
-    me = await resolveIdentity(sql, userId);
+    me = await legacyLessonIdentity(sql, userId);
   if (me.role !== "admin") throw new Error("Academy approval requires an admin.");
   return sql.transaction(async (tx) => {
     await tx`select set_config('app.actor_id',${userId},true)`;

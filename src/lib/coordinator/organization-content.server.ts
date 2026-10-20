@@ -538,8 +538,10 @@ export async function reviewOrganizationRecruitingMetric(
     const [old] = await tx<{
       revision: number;
       status: string;
-    }>`select revision,status from recruiting_metrics where id=${input.id} for update`;
+      metric: string;
+    }>`select revision,status,metric from recruiting_metrics where id=${input.id} for update`;
     if (!old || old.revision !== input.revision || old.status !== "pending") throw changed();
+    if (!Object.hasOwn(metricDefinitions, old.metric)) throw new CoordinatorDenied();
     if (
       !(await sources(tx, false, { kind: "recruiting-metric", id: input.id })).metrics[0]
         ?.classified

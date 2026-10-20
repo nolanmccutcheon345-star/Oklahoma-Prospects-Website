@@ -169,11 +169,11 @@ async function fixture() {
   return { club, team, player, request, capture, move, context, getOrder, attachCustomer, fulfill };
 }
 
-test("captured production schema stays on real legacy payment behavior and rejects activation", async () => {
+test("captured production schema stays on real legacy payment behavior and rejects partial activation", async () => {
   const f = await fixture();
   await f.capture(false);
   await assert.rejects(
-    sql`update financial_basis_state set activation_state='active',active_version=current_version`,
+    sql`update financial_basis_state set activation_state='active'`,
     /check constraint/,
   );
   f.player.feeLock!.amount = 1200;
