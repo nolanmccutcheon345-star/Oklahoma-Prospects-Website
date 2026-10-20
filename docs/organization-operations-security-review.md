@@ -14,6 +14,8 @@ All operational DTOs reconstruct explicit fields, including nested records. Fina
 
 Public catalog prices and other information already published to anonymous visitors remain public. This boundary protects private authenticated financial information; it cannot make public information invisible to one person.
 
+**Separate bearer-link limitation:** The existing anonymous fundraising receipt flow accepts a contribution UUID and can return receipt amounts/refund status/provider receipt links. A person who already possesses that private bearer link can sign out and use it; the application cannot identify Sara after sign-out. External Square receipt links are also outside this account permission boundary. The donor receipt flow is unchanged in this task. Restricted authenticated sessions are denied, and operational projections/exports/messages must not expose receipt UUIDs or URLs. This limitation is distinct from ordinary public catalog pricing.
+
 ## Implemented operational surfaces
 
 - Organization-wide team switching and strict team/player/staff/guardian-contact/checklist projections
@@ -27,6 +29,9 @@ Public catalog prices and other information already published to anonymous visit
 - Existing tryout event management and enrollment projections, preserving capacity/consent/notification safeguards
 - Staff public-directory listings; unpublished historical biographies withheld and preserved
 - Service facility lane assignment, without prices or compensation
+- Existing public service descriptions/display metadata and public camp/clinic copy with nonfinancial enrollment projections; protected names and financial/booking settings remain unchanged
+- Nonfinancial Tournament Finder filters, source provenance/distance editing and explicit CSV, without fee/travel fields or schedule attachment
+- Player development profile fields, structured metrics/history, new reviewed daily plans and curriculum reviews with sport, version, hold and pitching-rest checks; historical private narratives remain withheld
 - Game score and batting-stat updates through a separate operational saver, without schedule/budget recalculation
 - Roster, registration, schedule and evaluation CSV exports
 - Restricted accounts route from the account landing page to the operational workspace
@@ -37,8 +42,8 @@ These remain explicit gaps, not successful acceptance criteria:
 
 - Historical communication/note/narrative content and document files require classification or safe operational copies. Checklist flags alone are not full document access.
 - Financially coupled roster additions/transfers/withdrawals, guardian billing identities, compensated staff or lesson-instructor reassignments, season changes and fee-linked event changes require separation of operational identity from financial attribution.
-- Player development/curriculum administration, camps/clinics administration, broader service-catalog metadata, account lifecycle and global instructor-profile administration need reviewed operational APIs and UI integration.
-- Tournament Finder requires a nonfinancial projection; its current mixed payload includes entry/travel costs.
+- Broader development prescriptions, existing-plan management, clinical/narrative workflows, camps/clinics administration, service creation/archive/entitlement settings, account lifecycle and global instructor-profile administration need reviewed operational APIs and UI integration.
+- Tournament Finder schedule attachment and core catalog edits remain protected because they affect financial costs and deadlines; the new isolated Finder supports nonfinancial browsing/source metadata only.
 - Broad website/portal settings, consent-aware publishing and administrative approvals have not all been ported.
 - All current scoped coordinator workflows must be verified in the compiled browser walkthrough before switching Sara away from that workspace. Queued/provider-accepted email is not proof of delivery.
 

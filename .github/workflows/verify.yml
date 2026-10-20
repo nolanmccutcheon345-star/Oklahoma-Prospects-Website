@@ -40,6 +40,8 @@ jobs:
       - run: npx playwright install --with-deps chromium
       - name: Isolated coordinator permissions walkthrough
         run: node scripts/check-coordinator.mjs
+      - name: Nonfinancial tournament finder component walkthrough
+        run: node scripts/check-organization-tournaments-ui.mjs
       - name: Isolated tournament finder walkthrough
         run: node --import tsx scripts/check-tournament-finder.mjs
       - name: Authenticated isolated instructor walkthrough

@@ -4,6 +4,9 @@ import { UserButton } from "@/lib/auth/gates";
 import { getLessonAssignments } from "@/lib/commerce/lesson-assignment-api";
 import { StaffDirectoryDesk } from "@/components/staff/directory-desk";
 import { TryoutEventEditor } from "@/components/tryout-event-editor";
+import { OrganizationDevelopment } from "@/components/coordinator/organization-development";
+import { OrganizationCatalog } from "@/components/coordinator/organization-catalog";
+import { OrganizationTournamentFinder } from "@/components/coordinator/organization-tournaments";
 import { OrganizationGameResults } from "@/components/coordinator/organization-game-results";
 import { EVALUATION_SKILLS, RECOMMENDATIONS } from "@/lib/tryout-evaluation-contracts";
 import * as api from "@/lib/coordinator/organization-api";
@@ -40,6 +43,9 @@ const tabs = [
   ["registrations", "Registrations"],
   ["schedule", "Schedule"],
   ["results", "Game Results"],
+  ["tournaments", "Tournament Finder"],
+  ["catalog", "Services & Events"],
+  ["development", "Player Development"],
   ["cages", "Cage Availability"],
   ["evaluations", "Evaluations"],
   ["messages", "Team Messages"],
@@ -173,6 +179,9 @@ export function OrganizationOffice() {
     "resources",
     "reports",
     "results",
+    "tournaments",
+    "catalog",
+    "development",
   ].includes(tab);
   useEffect(() => {
     if (!dirty) return;
@@ -898,6 +907,9 @@ export function OrganizationOffice() {
                 }}
               />
             )}
+            {tab === "tournaments" && <OrganizationTournamentFinder onSaved={refresh} />}
+            {tab === "catalog" && <OrganizationCatalog onSaved={refresh} />}
+            {tab === "development" && <OrganizationDevelopment onSaved={refresh} />}
             {tab === "cages" && <CageAvailability />}
             {tab === "tryouts" && <TryoutEventEditor />}
             {tab === "lessons" && <OrganizationLessonOverview />}

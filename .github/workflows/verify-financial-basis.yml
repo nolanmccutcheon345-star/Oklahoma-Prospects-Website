@@ -1,0 +1,61 @@
+name: Verify dormant financial basis on PostgreSQL
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - ".github/workflows/verify-financial-basis.yml"
+      - "scripts/check-financial-basis-postgres.ts"
+      - "scripts/migration-plan.mjs"
+      - "migrations/**"
+      - "netlify/database/migrations/**"
+      - "src/lib/finance/**"
+      - "src/lib/teams/**"
+      - "src/lib/coordinator/**"
+      - "src/lib/commerce/**"
+      - "src/lib/db.ts"
+      - "package.json"
+      - "package-lock.json"
+      - "tsconfig.json"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  synthetic-postgres:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_DB: prospects_financial_basis_test
+          POSTGRES_USER: financial_basis_test
+          # A literal nonsecret, used only by this disposable job service.
+          POSTGRES_PASSWORD: synthetic-ci-only
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U financial_basis_test -d prospects_financial_basis_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Verify actual locks, CAS, rollback and inactive financial state
+        timeout-minutes: 3
+        run: timeout 150s node --import tsx scripts/check-financial-basis-postgres.ts
+        env:
+          CI: "true"
+          FINANCIAL_BASIS_POSTGRES_CI: isolated-synthetic
+          FINANCIAL_BASIS_TEST_DATABASE_URL: postgresql://financial_basis_test:synthetic-ci-only@127.0.0.1:5432/prospects_financial_basis_test
+          SQUARE_LIVE_ENABLED: "false"
+          SQUARE_ENVIRONMENT: sandbox

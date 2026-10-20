@@ -166,8 +166,30 @@ try {
     name: "Baseball organization test",
     sport: "baseball",
   });
+  club.catalog = [
+    {
+      id: "fixture-catalog",
+      name: "Synthetic operational tournament",
+      org: "Test organizer",
+      city: "Tulsa",
+      state: "OK",
+      start: "2099-05-10",
+      end: "2099-05-12",
+      sport: "softball",
+      type: "tournament",
+      ages: ["13U"],
+      levels: ["AA"],
+      fee: 91378426,
+      notes: financialCanaries[0],
+      sourceUrl: "",
+      distanceMiles: 12,
+    },
+  ];
   await sql`insert into club_state(id,payload,rev) values('oklahoma-prospects',${JSON.stringify(club)}::jsonb,1)`;
   await sql`insert into club_requests(id,kind,payload) values('fixture-registration','tryout',${JSON.stringify({ player: "Tryout Test Player", parent: "Synthetic Guardian", email: "family@example.invalid", phone: "555-0100", positions: "Pitcher", notes: "Synthetic test record", age: "13U", sport: "Baseball", season: "Spring 2099" })}::jsonb)`;
+  await sql`insert into club_athletes(id,name,household_email,profile) values('fixture-development','Synthetic operational athlete','family@example.invalid',${JSON.stringify({ sport: "softball", privateFinancial: financialCanaries[1] })}::jsonb)`;
+  await sql`insert into training_events(id,payload,updated_by) values('fixture-public-event',${JSON.stringify({ id: "fixture-public-event", revision: 1, name: "Synthetic operational camp", description: "Published camp description", type: "camp", sport: "Softball", status: "published", location: "Test facility", sessions: [{ date: "2099-06-01", start: "09:00", end: "12:00" }], priceCents: 91378426, policy: financialCanaries[0], receipt_url: financialCanaries[1] })}::jsonb,'fixture-owner')`;
+  await sql`insert into club_services(id,kind,name,price,purpose,detail,active) values('fixture-private-service','lesson',${financialCanaries[0]},91378426,${financialCanaries[1]},${financialCanaries[0]},false)`;
   await sql`update owner_grants set user_id='fixture-owner' where email='stevemccutcheon89@gmail.com'`;
   await sql`insert into organization_operational_access(user_id,status,updated_by) values('fixture-org','active','fixture-owner')`;
   await sql`insert into finance_audit(actor_id,record_id,action,reason) values('fixture-owner','fixture-finance','test',${financialCanaries[0]})`;
@@ -241,6 +263,17 @@ try {
     assert.match(workspace.body, /Prospects test team/);
     assert.match(workspace.body, /Baseball organization test/);
     for (const c of financialCanaries) assert.ok(!workspace.body.includes(c));
+    for (const [name, marker] of [
+      ["getOrganizationTournaments", "Synthetic operational tournament"],
+      ["getOrganizationCatalog", "Synthetic operational camp"],
+      ["getOrganizationDevelopment", "Synthetic operational athlete"],
+    ]) {
+      const result = await rpc(orgCookie, name);
+      assert.equal(result.status, 200, `${name} compiled read must succeed`);
+      assert.ok(result.body.includes(marker), `${name} must return operational fixture`);
+      for (const canary of financialCanaries) assert.ok(!result.body.includes(canary));
+      assert.ok(!result.body.includes("91378426"), `${name} leaked private financial amount`);
+    }
     for (const name of [
       "getFinance",
       "getMyFinance",
@@ -273,6 +306,9 @@ try {
     await sql`update organization_operational_access set status='suspended' where user_id='fixture-org'`;
     for (const [name, method, data] of [
       ["getOrganizationWorkspace", "GET"],
+      ["getOrganizationTournaments", "GET"],
+      ["getOrganizationCatalog", "GET"],
+      ["getOrganizationDevelopment", "GET"],
       ["saveOrganizationTeam", "POST", { ...edit, revision: row.rev }],
       ["getFinance", "GET"],
     ]) {
@@ -425,6 +461,29 @@ try {
       await org.page.getByLabel("Team workspace", { exact: true }).innerText(),
       /Prospects test team/,
     );
+    for (const [tab, heading, marker] of [
+      ["Tournament Finder", "Tournament Finder", "Synthetic operational tournament"],
+      ["Services & Events", "Services & Camps", "Synthetic operational camp"],
+      ["Player Development", "Player Development", "Synthetic operational athlete"],
+    ]) {
+      await org.page
+        .getByRole("navigation", { name: "Organization operations", exact: true })
+        .getByRole("button", { name: tab, exact: true })
+        .click();
+      await org.page.getByRole("heading", { name: heading, exact: true }).waitFor();
+      if (tab === "Tournament Finder") {
+        await org.page.getByLabel("Planning for", { exact: true }).selectOption("fixture-team");
+      }
+      if (tab === "Services & Events") {
+        await org.page
+          .getByRole("group", { name: "Catalog section", exact: true })
+          .getByRole("button", { name: "Camps & Clinics", exact: true })
+          .click();
+      }
+      await org.page.waitForFunction((text) => document.body.innerText.includes(text), marker);
+      for (const canary of financialCanaries)
+        assert.ok(!(await org.page.locator("body").innerText()).includes(canary));
+    }
     await org.page.goto(origin + "/account");
     await org.page.waitForURL(origin + "/coordinator");
     // Redirect completion does not mean the remounted client workspace is ready.
