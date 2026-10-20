@@ -76,7 +76,7 @@ test("late PR migrations append after deployed version 35 without changing ledge
   }
 });
 
-for (const baselineVersion of [66, 76])
+for (const baselineVersion of [66, 76, 79])
   test(`lifecycle migrations upgrade release ${baselineVersion} with original ledger/data preserved`, async () => {
     const source = new URL("../migrations/", import.meta.url);
     const entries = pendingMigrations(await readdir(source), []).sort((a, b) =>
@@ -114,6 +114,7 @@ for (const baselineVersion of [66, 76])
             "0077_financial_basis_activation.sql",
             "0072_operational_people.sql",
             "0074_operational_content.sql",
+            "0080_retire_blanket_delivery.sql",
           ],
         );
       for (const { name } of late) {
