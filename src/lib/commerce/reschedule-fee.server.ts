@@ -1,7 +1,8 @@
-import {YOUTH_PRODUCTS} from "../pricing";
-import {assertYouthAge} from "./assessment-gate.server";
+import { YOUTH_PRODUCTS } from "../pricing";
+import { assertYouthAge } from "./assessment-gate.server";
 import { randomUUID } from "node:crypto";
 import type { Sql } from "../db";
+import { lockFinancialExecution } from "../finance/execution.server";
 import type { Quote } from "./contracts";
 import { validateWindow } from "../scheduling";
 import { householdChangeMonth } from "./booking-change-policy.server";
@@ -43,23 +44,35 @@ export type MoveAvailability = (
   minutes: number,
   tx: Sql,
 ) => Promise<boolean>;
-export const currentMoveAvailability: MoveAvailability = async (b, date, time, minutes, tx) => {
-  if (!b.coach_id) {
-    const { checkCageBookingWindow } = await import("./booking-policy.server");
-    await checkCageBookingWindow([b.household_id!], date, tx);
-    return true;
-  }
-  const { readWorkingFile } = await import("../pd/desk-impl.server");
-  const { requireCoachService } = await import("./coach-services.server");
-  const { coachAvailable } = await import("./availability");
-  if (YOUTH_PRODUCTS.has(b.product_id)) {
-    const [player] = await tx<{birth_date:string|null}>`select a.birth_date::text as birth_date from club_athletes a join booking_records b on b.athlete_id=a.id where b.id=${b.id}`;
-    assertYouthAge(player?.birth_date,date);
-  }
-  const file = await readWorkingFile(tx);
-  await requireCoachService(tx, file.coaches, b.coach_id, b.product_id);
-  return coachAvailable(file.availability, b.coach_id, date, time, minutes);
-};
+const moveAvailability =
+  (operational: boolean): MoveAvailability =>
+  async (b, date, time, minutes, tx) => {
+    if (!b.coach_id) {
+      const { checkCageBookingWindow } = await import("./booking-policy.server");
+      await checkCageBookingWindow([b.household_id!], date, tx);
+      return true;
+    }
+    const { readWorkingFile } = await import("../pd/desk-impl.server");
+    const { requireCoachService } = await import("./coach-services.server");
+    const { coachAvailable } = await import("./availability");
+    if (YOUTH_PRODUCTS.has(b.product_id)) {
+      const [player] = await tx<{
+        birth_date: string | null;
+      }>`select a.birth_date::text as birth_date from club_athletes a join booking_records b on b.athlete_id=a.id where b.id=${b.id}`;
+      assertYouthAge(player?.birth_date, date);
+    }
+    const original = await readWorkingFile(tx);
+    const file = operational
+      ? await (
+          await import("../operational-person.server")
+        ).operationalCoachAvailability(tx, original.coaches, original.availability)
+      : original;
+    await requireCoachService(tx, file.coaches, b.coach_id, b.product_id, { operational });
+    return coachAvailable(file.availability, b.coach_id, date, time, minutes);
+  };
+
+export const currentMoveAvailability = moveAvailability(true);
+export const preparedMoveAvailability = moveAvailability(false);
 
 /** Recover an unfinished fee after reload without reading card tokens or making a payment. */
 export async function unfinishedRescheduleFee(
@@ -95,6 +108,7 @@ export async function prepareRescheduleFee(
   now?: Date,
 ) {
   return sql.transaction(async (tx) => {
+    await lockFinancialExecution(tx);
     const at = now || new Date();
     const { booking: b, order: original } = await lockedBooking(tx, id);
     familyAccess(b, me);
@@ -184,6 +198,7 @@ export async function validatePreparedRescheduleFee(
   at = new Date(),
   paid = false,
 ) {
+  await lockFinancialExecution(tx);
   const [fee] = await tx<FeeOrder>`select * from commerce_orders where id=${orderId}`;
   const m = fee?.snapshot.rescheduleFee;
   if (
@@ -218,9 +233,10 @@ export async function validatePreparedRescheduleFee(
 export async function completePaidReschedule(
   tx: Sql,
   fee: FeeOrder,
-  available = currentMoveAvailability,
+  available = preparedMoveAvailability,
   now?: Date,
 ) {
+  await lockFinancialExecution(tx);
   const at = now || new Date();
   await tx`savepoint paid_reschedule_move`;
   try {

@@ -14,7 +14,7 @@ test("season edit survives a database reload, preserves other teams and coach ph
     sql.transaction=work=>db.transaction(tx=>work(wrap(tx.query.bind(tx) as PGlite["query"])));return sql;
   }
   try {
-    await db.exec("create table club_state(id text primary key,payload jsonb,rev integer,demo boolean,updated_at timestamptz)");
+    await db.exec("create table financial_execution_gate(id text primary key); insert into financial_execution_gate values ('oklahoma-prospects'); create table club_state(id text primary key,payload jsonb,rev integer,demo boolean,updated_at timestamptz)");
     const sql=wrap(db.query.bind(db)),club=sampleClub();club._demo=false;
     const team=club.teams[0];team.headCoachPhoto="data:image/png;base64,YQ==";
     await sql`insert into club_state values('oklahoma-prospects',${JSON.stringify(club)}::jsonb,${club._rev},false,now())`;

@@ -1,6 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
-import { authMiddleware } from "../auth/middleware";
+import { authMiddleware, operationalAuthMiddleware } from "../auth/middleware";
 import {
   sports,
   id,
@@ -20,13 +20,13 @@ import {
   decisionInput,
 } from "./contracts";
 export const getCoordinatorEntry = createServerFn({ method: "GET" })
-  .middleware([authMiddleware])
+  .middleware([operationalAuthMiddleware])
   .handler(async ({ context }) => {
     const { getSql } = await import("../db");
     return (await import("./operations.server")).coordinatorEntry(await getSql(), context.userId);
   });
 export const getCoordinatorHome = createServerFn({ method: "GET" })
-  .middleware([authMiddleware])
+  .middleware([operationalAuthMiddleware])
   .handler(async ({ context }) => {
     const { getSql } = await import("../db");
     return (await import("./operations.server")).coordinatorHome(await getSql(), context.userId);

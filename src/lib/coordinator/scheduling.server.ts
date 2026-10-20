@@ -1,4 +1,5 @@
 import type { Sql } from "../db";
+import { lockFinancialExecution } from "../finance/execution.server";
 import type { z } from "zod";
 import { practiceInput, scopeInput } from "./contracts";
 import { requireTeam, checkScope, secured, audit, CoordinatorDenied } from "./access.server";
@@ -117,7 +118,7 @@ export async function savePractice(sql: Sql, userId: string, raw: z.infer<typeof
       team.id,
     );
     return { ok: true };
-  });
+  }, lockFinancialExecution);
 }
 export async function cageOccupancy(
   sql: Sql,

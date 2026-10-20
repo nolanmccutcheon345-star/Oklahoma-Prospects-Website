@@ -1,3 +1,5 @@
+import { MyFinance } from "@/components/finance/my-finance";
+import { money } from "@/components/teams/ui";
 import { pageHead } from "@/lib/seo";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
@@ -60,6 +62,9 @@ function CoachPage() {
         <p className="text-sm text-fg-soft">Loading coach desk…</p>
       </main>
     );
+  }
+  if (state.role !== "coach" && state.role !== "admin" && state.ok && (state.financial?.coachTeams.length || state.financial?.staff.length)) {
+    return <main id="main" className="mx-auto max-w-3xl px-5 py-10"><h1 className="text-4xl">Your coaching finances</h1><MyFinance />{state.financial.staff.map(s=><p key={s.teamId+s.id}>{s.name} · {s.teamName} · monthly {money(s.monthly)} · applied to fees {money(s.applyAmount)}</p>)}<p className="mt-4">No operational coaching assignment is currently linked to this account.</p></main>;
   }
   if (state.role !== "coach" && state.role !== "admin") {
     return (
@@ -131,6 +136,7 @@ function CoachPage() {
       </section>
       <CoachApp
         club={club}
+        financial={state.financial}
         onReload={async () => {
           const row = await getTeamsClub();
           setState(row);
@@ -143,6 +149,7 @@ function CoachPage() {
             setSaveError("");
             const saved = await saveTeamsClub({ data: { club: incoming, baseRev: incoming._rev } });
             setClub(saved.club);
+            setState({...state,financial:saved.financial});
             return true;
           } catch (err) {
             setSaveError(err instanceof Error ? err.message : "Save failed");

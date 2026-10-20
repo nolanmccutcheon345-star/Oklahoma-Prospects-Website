@@ -9,4 +9,12 @@ export const teamCheckoutSchema = z
   })
   .strict();
 export type TeamCheckout = z.infer<typeof teamCheckoutSchema>;
-export type TeamFeeSnapshot = { teamId: string; playerId: string; lockedAt: string; role: string };
+export type TeamFeeSnapshot = {
+  teamId: string;
+  playerId: string;
+  lockedAt: string;
+  role: string;
+  /** Server-written financial references. Historical orders retain their aliases. */
+  financialAgreementId?: string;
+  financialTeamSeasonId?: string;
+};

@@ -10,6 +10,7 @@ export type ClubRole = "player" | "parent" | "coach" | "admin";
 
 export type Profile = {
   canInstruct?:boolean;
+  canOperateInstruction?:boolean;
   canTeamCoach?:boolean;
   user_id: string;
   name: string;
@@ -28,7 +29,9 @@ export const getProfile = createServerFn({ method: "GET" })
   .handler(async ({ context }) => {
     const me = await clubIdentity(context.userId);
     const sql = await getSql();
-    const p=await readAccountProfile(sql, me);return p?{...p,canInstruct:me.canInstruct,canTeamCoach:me.canTeamCoach}:null;
+    const { hasOperationalInstruction } = await import("./operational-instruction.server");
+    const canOperateInstruction = await hasOperationalInstruction(sql, context.userId);
+    const p=await readAccountProfile(sql, me);return p?{...p,canInstruct:me.canInstruct,canOperateInstruction,canTeamCoach:me.canTeamCoach}:null;
   });
 
 export const saveProfile = createServerFn({ method: "POST" })

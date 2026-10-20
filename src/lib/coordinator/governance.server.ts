@@ -10,6 +10,8 @@ import {
   authority,
   audit,
   CoordinatorDenied,
+  financiallyRestricted,
+  requireOrganizationOperations,
 } from "./access.server";
 export async function saveDraft(sql: Sql, userId: string, raw: z.infer<typeof draftInput>) {
   const input = draftInput.parse(raw);
@@ -181,12 +183,26 @@ export async function decideApproval(sql: Sql, userId: string, raw: z.infer<type
           status: "cancelled",
         });
       } else if (row.kind === "content") {
-        await checkScope(tx, row.requester_id, "content.submit", row.sport, row.team_id);
+        const restricted = await financiallyRestricted(tx, row.requester_id);
+        if (restricted) {
+          // A suspended/removed organization account must never fall back to an
+          // earlier coordinator assignment when an owner reviews its submission.
+          await requireOrganizationOperations(tx, row.requester_id);
+        } else {
+          await checkScope(tx, row.requester_id, "content.submit", row.sport, row.team_id);
+        }
         const [d] = await tx<{
           revision: number;
-        }>`select revision from coordinator_drafts where id::text=${row.target_id} and status='submitted' for update`;
+          content_classification: string;
+          classified_revision: number | null;
+        }>`select revision,content_classification,classified_revision from coordinator_drafts where id::text=${row.target_id} and user_id=${row.requester_id} and sport=${row.sport} and team_id=${row.team_id} and status='submitted' for update`;
         if (!d || d.revision !== row.proposal.revision)
           throw new Error("The draft changed. Request a new review.");
+        if (
+          restricted &&
+          (d.content_classification !== "operational" || d.classified_revision !== d.revision)
+        )
+          throw new CoordinatorDenied();
         // Approval is editorial review only. Publication remains in the owner-controlled website workflow.
       } else {
         await requireTeam(tx, row.requester_id, "rosters.transfer.request", row.team_id);
@@ -206,7 +222,9 @@ export async function decideApproval(sql: Sql, userId: string, raw: z.infer<type
     }
     await tx`update coordinator_approvals set status=${input.decision},reviewer_id=${userId},decision_reason=${input.reason},decided_at=now(),revision=revision+1 where id=${input.id}`;
     if (row.kind === "content")
-      await tx`update coordinator_drafts set status=${input.decision},revision=revision+1 where id::text=${row.target_id}`;
+      // A status-only decision does not change the classified title/body. Preserve
+      // its binding only when the previous binding was still valid.
+      await tx`update coordinator_drafts set status=${input.decision},classified_revision=case when content_classification='operational' and classified_revision=revision then revision+1 else null end,revision=revision+1 where id::text=${row.target_id}`;
     await audit(
       tx,
       userId,

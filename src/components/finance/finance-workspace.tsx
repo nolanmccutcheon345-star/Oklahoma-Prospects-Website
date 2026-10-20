@@ -1,6 +1,7 @@
 import { useEffect, useState, type ReactNode } from "react";
+import { FinancialCutover } from "./financial-cutover";
 import { getFinance, changeFinance, syncFinanceSquare } from "@/lib/finance/api";
-import { today, total, type FinanceAction } from "@/lib/finance/contracts";
+import { today, total } from "@/lib/finance/contracts";
 import { formatMoney as money } from "@/lib/pricing";
 import { Button } from "../ui/button";
 type Field = {
@@ -110,6 +111,7 @@ const tabs = [
   "Square & Refunds",
   "Compensation Rules",
   "Audit",
+  "Operational Cutover",
 ] as const;
 export function FinanceWorkspace() {
   const [data, setData] = useState<Awaited<ReturnType<typeof getFinance>>>(),
@@ -140,7 +142,11 @@ export function FinanceWorkspace() {
   }
   async function save(a: any, reason = "Admin reviewed and saved this financial record") {
     if (!data) return;
-    await run(() => changeFinance({ data: { ...a, revision: data.revision, reason } }));
+    await run(() =>
+      changeFinance({
+        data: { ...a, revision: data.revision, basisVersion: data.basisVersion, reason },
+      }),
+    );
   }
   if (!data)
     return (
@@ -264,6 +270,46 @@ export function FinanceWorkspace() {
       >
         Refresh earned compensation & team payables
       </Button>
+      {Boolean(data.sources.pendingRecognition?.length) && (
+        <section
+          className="grid gap-3 rounded-xl border border-line p-4"
+          aria-label="Lessons awaiting financial recognition"
+        >
+          <h3 className="text-xl">Review Completed Lessons</h3>
+          <p>
+            Operational attendance does not accrue compensation. Review funding and recognize the
+            approved financial lesson separately.
+          </p>
+          {data.sources.pendingRecognition.map((lesson) => (
+            <div key={lesson.bookingId} className="flex flex-wrap items-center gap-3">
+              <span>
+                {data.sources.services.find((s) => s.id === lesson.serviceId)?.name ||
+                  lesson.serviceId}{" "}
+                · {lesson.due} · {lesson.bookingId}
+              </span>
+              <details className="w-full">
+                <summary>Review attendance evidence</summary>
+                <p>{lesson.recap}</p>
+                <p>
+                  {lesson.recordedBy} {lesson.recordedAt}
+                </p>
+              </details>
+              <Button
+                disabled={busy}
+                onClick={() =>
+                  save(
+                    { action: "recognizeLesson", bookingId: lesson.bookingId },
+                    "Owner reviewed completed attendance and current funding for financial recognition",
+                  )
+                }
+              >
+                Recognize approved compensation
+              </Button>
+            </div>
+          ))}
+        </section>
+      )}
+      {tab === "Operational Cutover" && <FinancialCutover />}
       {tab === "Cash Dashboard" && (
         <>
           <Amounts

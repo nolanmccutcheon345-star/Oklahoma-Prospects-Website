@@ -1,27 +1,40 @@
 import type { Sql } from "../db";
 import { createHash } from "node:crypto";
-import type { ClubRecord } from "../teams/types";
-import type { FeePlan } from "../teams/fee-contracts";
 import { calculateFees, membershipRecognition, project } from "../teams/fee-model";
 import { accrual, compensation, total, type Payable, type RecordRow } from "./contracts";
+import { loadFinancialLessonsInTransaction, type FinancialContext } from "./context.server";
 export const personId = (email: string) =>
   "person:" + createHash("sha256").update(email.trim().toLowerCase()).digest("hex").slice(0, 24);
-export async function sourceData(sql: Sql, date: string, records: RecordRow[]) {
+export async function sourceData(
+  sql: Sql,
+  date: string,
+  records: RecordRow[],
+  context: FinancialContext,
+) {
+  const attributionRecords = context.compensation
+    ? (context.compensation.payeesAndRules as unknown as RecordRow[])
+    : records;
   const [clubs, plans, earnings, invoices, payments, refunds, files, owners, services, masters] =
     await Promise.all([
-      sql<{ payload: ClubRecord }>`select payload from club_state where id='oklahoma-prospects'`,
-      sql<{ team_id: string; payload: FeePlan }>`select team_id,payload from team_fee_plans`,
-      sql<any>`select e.*,b.id as booking_id,b.coach_id,coalesce(e.gross_cents,case when coalesce((o.snapshot->>'recurring')::boolean,false) or o.snapshot->>'kind'='package' then round(coalesce((o.snapshot->>'regularCents')::numeric,o.total_cents)/greatest(1,coalesce((o.snapshot->>'credits')::numeric,1))) else o.total_cents end) as gross_cents,b.product_id,b.starts_at,b.ends_at,b.status as booking_status,o.status as order_status,o.id as order_id,o.household_id,o.payment_provider,o.snapshot,
+      Promise.resolve([{ payload: context.club }]),
+      Promise.resolve(context.feePlans),
+      sql<any>`select e.*,e.booking_id as earning_booking_id,b.id as booking_id,coalesce(e.coach_id,b.coach_id) as coach_id,b.coach_id as operational_coach_id,coalesce(e.gross_cents,case when coalesce((o.snapshot->>'recurring')::boolean,false) or o.snapshot->>'kind'='package' then round(coalesce((o.snapshot->>'regularCents')::numeric,o.total_cents)/greatest(1,coalesce((o.snapshot->>'credits')::numeric,1))) else o.total_cents end) as gross_cents,b.product_id,b.starts_at,b.ends_at,b.status as booking_status,o.status as order_status,o.id as order_id,o.household_id,o.payment_provider,o.snapshot,
    coalesce((select sum(p.amount_cents) from square_payments p where p.order_id=o.id and p.status='COMPLETED'),0) as received,
    coalesce((select sum(p.refunded_cents) from square_payments p where p.order_id=o.id),0)+coalesce((select sum(r.amount_cents) from commerce_refunds r where r.order_id=o.id and r.external_status='reconciled'),0) as refunded
-   from booking_records b left join contractor_earnings e on b.id=e.booking_id join commerce_orders o on o.id=b.order_id where ((b.status='completed' and coalesce(b.coach_id,'')<>'') or e.booking_id is not null) and (o.payment_provider<>'square' or o.payment_environment='production')`,
+   from booking_records b left join contractor_earnings e on b.id=e.booking_id join commerce_orders o on o.id=b.order_id where (${context.mode === "basis"} or b.status='completed' or e.booking_id is not null) and (o.payment_provider<>'square' or o.payment_environment='production')`,
       sql<any>`select i.*,coalesce(u.name,u.email,'Customer') as customer from billing_invoices i left join "user" u on u.id=i.user_id`,
       sql<any>`select p.id,p.order_id,p.amount_cents,p.refunded_cents,p.status,p.created_at,p.environment,o.email as customer,o.kind as category,o.product_id,o.snapshot from square_payments p join commerce_orders o on o.id=p.order_id`,
       sql<any>`select id,order_id,booking_id,square_payment_id,square_refund_id,amount_cents,status,reason,created_at,external_status from commerce_refunds r where exists(select 1 from commerce_orders o where o.id=r.order_id and (o.payment_provider<>'square' or o.payment_environment='production'))`,
-      sql<{ payload: any }>`select payload from pd_working_file where id='club'`,
-      sql<any>`select g.email,coalesce(u.name,g.email) as name from owner_grants g left join "user" u on u.id=g.user_id where g.revoked_at is null`,
+      context.compensation
+        ? Promise.resolve(context.compensation.development.map((payload) => ({ payload })))
+        : sql<{ payload: any }>`select payload from pd_working_file where id='club'`,
+      context.compensation
+        ? Promise.resolve(
+            context.compensation.ownerAssignments as unknown as { email: string; name: string }[],
+          )
+        : sql<any>`select g.email,coalesce(u.name,g.email) as name from owner_grants g left join "user" u on u.id=g.user_id where g.revoked_at is null order by g.email`,
       sql<any>`select id,name from club_services where active=true`,
-      sql<any>`select payload from team_budget_master where id='master'`,
+      Promise.resolve(context.budgetMaster.filter((row) => row.id === "master")),
     ]);
   const file =
     typeof files[0]?.payload === "string" ? JSON.parse(files[0].payload) : files[0]?.payload;
@@ -52,7 +65,7 @@ export async function sourceData(sql: Sql, date: string, records: RecordRow[]) {
   const addPerson = (email: string, name: string, role: string) => {
     if (!email) return "";
     const id =
-      records.find(
+      attributionRecords.find(
         (r) => r.kind === "payee" && r.payload.email?.toLowerCase() === email.trim().toLowerCase(),
       )?.id || personId(email);
     if (!payees.some((p) => p.id === id))
@@ -82,8 +95,94 @@ export async function sourceData(sql: Sql, date: string, records: RecordRow[]) {
       .filter((r) => !["completed", "rejected", "failed"].includes(r.status))
       .map((r) => r.order_id),
   );
-  for (const e of earnings) {
-    const c = file?.coaches?.find((c: any) => c.id === e.coach_id);
+  const lessonContexts = await loadFinancialLessonsInTransaction(
+    sql,
+    earnings.map((e) => e.booking_id),
+    context,
+  );
+  const recognized =
+    context.mode === "basis"
+      ? new Set(
+          (
+            await sql<{ booking_id: string }>`select booking_id from financial_lesson_recognitions`
+          ).map((r) => r.booking_id),
+        )
+      : new Set<string>();
+  const operationalCompletions =
+    context.mode === "basis"
+      ? new Map(
+          (
+            await sql<{
+              booking_id: string;
+              recap: string;
+              completed_by: string;
+              completed_at: Date;
+            }>`select booking_id,recap,completed_by,completed_at from operational_lesson_completions`
+          ).map((r) => [r.booking_id, r]),
+        )
+      : new Map<string, { recap: string; completed_by: string; completed_at: Date }>();
+  const pendingRecognition: {
+    bookingId: string;
+    serviceId: string;
+    due: string;
+    recap: string;
+    recordedBy: string;
+    recordedAt: string;
+  }[] = [];
+  for (const live of earnings) {
+    // Attendance and provider ledgers stay live; compensation identity and
+    // duration are the separately approved financial booking, never reassignment.
+    const lesson = lessonContexts.get(live.booking_id)!;
+    const binding = lesson.mode === "basis" ? lesson.booking : null;
+    if (!binding?.coach_id && !live.coach_id) continue;
+    if (context.mode === "basis" && (!binding || binding.order_id !== live.order_id)) {
+      warnings.push(
+        `Lesson ${live.booking_id}: financial compensation admission requires owner review.`,
+      );
+      continue;
+    }
+    const capturedEarning =
+      lesson.mode === "basis"
+        ? lesson.compensation.earnings.find((e) => e.booking_id === live.booking_id)
+        : undefined;
+    if (
+      context.mode === "basis" &&
+      binding?.status !== "completed" &&
+      !capturedEarning &&
+      !recognized.has(live.booking_id)
+    ) {
+      // Mutable operational attendance/status is not financial recognition.
+      // Existing earned rows captured at cutover remain recognized; later
+      // obligations require the immutable, authorized recognition record.
+      if (operationalCompletions.has(live.booking_id) || live.booking_status === "completed")
+        pendingRecognition.push({
+          bookingId: live.booking_id,
+          serviceId: String(binding?.product_id || live.product_id),
+          due: new Date(String(binding?.ends_at || live.ends_at)).toISOString().slice(0, 10),
+          recap:
+            operationalCompletions.get(live.booking_id)?.recap ||
+            "Review the original completed lesson evidence.",
+          recordedBy: operationalCompletions.get(live.booking_id)?.completed_by || "",
+          recordedAt: operationalCompletions.has(live.booking_id)
+            ? new Date(operationalCompletions.get(live.booking_id)!.completed_at).toISOString()
+            : "",
+        });
+      continue;
+    }
+    const e = binding
+      ? {
+          ...live,
+          coach_id: capturedEarning?.coach_id ?? binding.coach_id,
+          product_id: binding.product_id,
+          starts_at: binding.starts_at,
+          ends_at: binding.ends_at,
+          gross_cents: capturedEarning?.gross_cents ?? live.gross_cents,
+          amount_cents: capturedEarning?.amount_cents ?? live.amount_cents,
+        }
+      : live;
+    if (!e.coach_id) continue;
+    const lessonFile = lesson.mode === "basis" ? (lesson.compensation.development[0] as any) : file;
+    const c = lessonFile?.coaches?.find((c: any) => c.id === e.coach_id);
     if (!c?.email) {
       warnings.push(
         `Lesson ${e.booking_id}: link its instructor account before approving compensation.`,
@@ -91,7 +190,7 @@ export async function sourceData(sql: Sql, date: string, records: RecordRow[]) {
       continue;
     }
     const payeeId = addPerson(c.email, c.name || c.email, "Instructor");
-    const rule = records
+    const rule = attributionRecords
       .filter(
         (r) =>
           r.kind === "rule" &&
@@ -441,5 +540,6 @@ export async function sourceData(sql: Sql, date: string, records: RecordRow[]) {
     })(),
     refunds: refunds.map((r) => ({ ...r, created_at: new Date(r.created_at).toISOString() })),
     services,
+    pendingRecognition,
   };
 }

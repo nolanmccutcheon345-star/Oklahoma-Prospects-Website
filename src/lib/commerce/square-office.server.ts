@@ -12,6 +12,8 @@ import { processSquareEvent } from "./square-webhook.server";
 import { executeSquareRefund } from "./square-management.server";
 import { expireHolds, queueExpiredCheckoutRefunds } from "./store.server";
 import { rateLimit } from "./checkout.server";
+import { lockFinancialExecution } from "../finance/execution.server";
+import { financialPrincipalInTransaction } from "../finance/principal.server";
 export async function requirePaymentOwner(userId: string) {
   const me = await clubIdentity(userId);
   if (me.role !== "admin") throw new Error("Owner access required.");
@@ -107,6 +109,9 @@ export async function manualSquareRefund(
     c = squareConfig();
   const id = "manual:" + input.requestId;
   await sql.transaction(async (tx) => {
+    await lockFinancialExecution(tx);
+    if (!(await financialPrincipalInTransaction(tx, userId)).owner)
+      throw new Error("Owner access required.");
     const [payment] = await tx<{
       id: string;
       order_id: string;
@@ -221,8 +226,14 @@ async function reconcileSquareWork() {
       if (++scanned >= 200) break;
     }
   }
-  await sql.transaction((tx) => expireHolds(tx));
-  await queueExpiredCheckoutRefunds(sql, c.environment);
+  await sql.transaction(async (tx) => {
+    await lockFinancialExecution(tx);
+    await expireHolds(tx);
+  });
+  await sql.transaction(async (tx) => {
+    await lockFinancialExecution(tx);
+    await queueExpiredCheckoutRefunds(tx, c.environment);
+  });
   const pending = await sql<{
     id: string;
   }>`select id from commerce_orders where subscription_setup_status='pending' and status='paid' and payment_environment=${c.environment} limit 10`;

@@ -391,15 +391,17 @@ export function BookedGuidedLesson({
                 ) && <p>No previous development history recorded.</p>}
               </details>
             </section>
-            <details className="rounded-xl border bg-white p-3">
-              <summary className="flex min-h-11 cursor-pointer items-center font-semibold">
-                Development brief · programs and home practice
-              </summary>
-              <div className="mt-4">
-                <MyTraining athleteId={session.athlete_id} compact />
-              </div>
-            </details>
-            {!readonly && (
+            {!opened?.operationalOnly && (
+              <details className="rounded-xl border bg-white p-3">
+                <summary className="flex min-h-11 cursor-pointer items-center font-semibold">
+                  Development brief · programs and home practice
+                </summary>
+                <div className="mt-4">
+                  <MyTraining athleteId={session.athlete_id} compact />
+                </div>
+              </details>
+            )}
+            {!readonly && !opened?.operationalOnly && (
               <LessonChoices
                 bookingId={bookingId}
                 revision={session.revision}
@@ -690,8 +692,14 @@ export function BookedGuidedLesson({
               Time recorded: {doc.actualMinutes.reduce((a, b) => a + b, 0)} min · Template{" "}
               {template.version}
             </p>
-            <LessonRecruitingMetrics bookingId={bookingId} />
-            {!readonly && doc.stage === 7 && (
+            {!opened?.operationalOnly && <LessonRecruitingMetrics bookingId={bookingId} />}
+            {opened?.operationalOnly && (
+              <p role="status">
+                Save lesson plans and observations as a draft. An owner reviews published
+                completion, assessment eligibility, and any earnings separately.
+              </p>
+            )}
+            {!readonly && !opened?.operationalOnly && doc.stage === 7 && (
               <section
                 className="rounded-xl border bg-white p-4"
                 aria-label="Lesson completion checklist"
@@ -754,7 +762,8 @@ export function BookedGuidedLesson({
                     Next Step
                   </Button>
                 ) : (
-                  !readonly && (
+                  !readonly &&
+                  !opened?.operationalOnly && (
                     <Button
                       className="ml-auto min-w-0 flex-1 whitespace-normal sm:flex-none"
                       size="sm"

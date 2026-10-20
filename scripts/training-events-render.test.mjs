@@ -26,6 +26,17 @@ test("camp registration UI, calendar, and admin event editor use authoritative d
     priceCents: 4567,
     location: "Prospects",
     sessions: [{ date: "2030-06-01", start: "10:00", end: "12:00" }],
+    operationalSessions: [
+      {
+        originalDate: "2030-06-01",
+        date: "2030-06-03",
+        start: "10:00",
+        end: "12:00",
+        location: "Current facility",
+        status: "confirmed",
+      },
+    ],
+    additionalSessions: [],
     coachIds: ["coach"],
     coaches: [{ id: "coach", name: "Assigned Coach" }],
     capacity: 20,
@@ -37,12 +48,14 @@ test("camp registration UI, calendar, and admin event editor use authoritative d
     family: {
       players: [{ id: "player", name: "Linked Player", birthDate: "2018-06-03" }],
       registrations: [],
+      operationalEnrollments: [],
     },
     calls: [],
     saved: [],
   };
   globalThis.__eventsFixture = fixture;
   const mocks = {
+    "@/lib/coordinator/organization-events-api": `export const getPublicOperationalEvents=async()=>[{id:"unpriced",name:"Office enrolled camp",description:"Public office camp",sessions:[]}];`,
     "@tanstack/react-router": `import React from 'react';export const createFileRoute=()=>()=>({});export const Link=({children,to,...p})=>React.createElement('a',{href:to},children);`,
     "@/lib/auth/use-current-user": `export const useCurrentUser=()=>({id:'parent',displayName:'Parent',primaryEmail:'parent@example.invalid'});`,
     "@/components/commerce/square-card": `import React from 'react';export const SquareCard=({amountCents})=>React.createElement('p',null,'Secure payment '+amountCents);`,
@@ -86,6 +99,9 @@ test("camp registration UI, calendar, and admin event editor use authoritative d
     await act(async () => root.render(createElement(EventsPage)));
     assert.equal(host.querySelector('[aria-label="Training"]'), null);
     assert.match(host.textContent, /Summer Skills Clinic/);
+    assert.match(host.textContent, /Current facility/);
+    assert.match(host.textContent, /Office enrolled camp/);
+    assert.match(host.textContent, /Online registration is not available/);
     assert.match(host.textContent, /\$45.67/);
     await act(async () => button("Calendar").click());
     assert.ok(host.querySelector('[aria-label="Upcoming events calendar"]'));

@@ -2,8 +2,17 @@ import type { Sql } from "../db";
 import { loadBudgetMaster } from "../teams/budget-matrix.server";
 import { personId } from "./sources.server";
 import { accrual, type RecordRow } from "./contracts";
-export async function facilityPayables(sql: Sql, date: string, rs: RecordRow[]) {
-  const { value: m } = await loadBudgetMaster(sql);
+import type { FinancialContext } from "./context.server";
+export async function facilityPayables(
+  sql: Sql,
+  date: string,
+  rs: RecordRow[],
+  context: FinancialContext,
+) {
+  const { value: m } = await loadBudgetMaster(sql, context);
+  const attributionRecords = context.compensation
+    ? (context.compensation.payeesAndRules as unknown as RecordRow[])
+    : rs;
   if (!m.overheadReviewed)
     throw Error("Review actual facility and staffing costs in Master Defaults first.");
   const month = date.slice(0, 7),
@@ -42,15 +51,23 @@ export async function facilityPayables(sql: Sql, date: string, rs: RecordRow[]) 
   }
   for (const p of m.payroll || []) {
     if (!p.active || !p.monthly) continue;
-    const [user] = await sql<{
-      email: string;
-      name: string;
-    }>`select email,name from "user" where id=${p.userId}`;
+    const user = context.basis
+      ? context.basis.inputs.billing.accounts.find((account) => account.id === p.userId)
+      : (
+          await sql<{
+            email: string;
+            name: string;
+          }>`select email,name from "user" where id=${p.userId}`
+        )[0];
     if (!user) throw Error("A configured payroll person no longer has a linked account.");
     const payeeId =
-      rs.find(
+      context.basis?.inputs.billing.payrollAccess?.find(
+        (a) => a.userId === p.userId && month >= a.fromMonth,
+      )?.payeeId ||
+      attributionRecords.find(
         (r) => r.kind === "payee" && r.payload.email?.toLowerCase() === user.email.toLowerCase(),
-      )?.id || personId(user.email);
+      )?.id ||
+      personId(user.email);
     payees.push({
       id: payeeId,
       email: user.email.toLowerCase(),

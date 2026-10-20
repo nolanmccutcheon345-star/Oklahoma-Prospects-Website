@@ -5,10 +5,11 @@ import { getStaffDirectory, saveStaffDirectoryListing } from "@/lib/staff-direct
 import type { StaffListing } from "@/lib/staff-directory";
 
 const field = "mt-1 block min-h-11 w-full rounded-md border border-line bg-paper px-3 text-ink";
+type DirectoryRow = StaffListing & { bioWithheld?: boolean };
 export function StaffDirectoryDesk() {
   const router = useRouter();
-  const [rows, setRows] = useState<StaffListing[]>([]);
-  const [editing, setEditing] = useState<StaffListing | null>(null);
+  const [rows, setRows] = useState<DirectoryRow[]>([]);
+  const [editing, setEditing] = useState<DirectoryRow | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -34,7 +35,8 @@ export function StaffDirectoryDesk() {
     setError("");
     setNotice("");
     try {
-      const saved = await saveStaffDirectoryListing({ data: editing });
+      const { bioWithheld: _bioWithheld, ...listing } = editing;
+      const saved = await saveStaffDirectoryListing({ data: listing });
       setRows((current) =>
         [...current.filter((row) => row.id !== saved.id), saved].sort((a, b) =>
           a.name.localeCompare(b.name),
@@ -58,7 +60,8 @@ export function StaffDirectoryDesk() {
           <h3 className="text-2xl">Staff directory</h3>
           <p className="mt-2 text-muted">
             Titles, contact details and biographies for coordinators, recruiters and staff. Listings
-            appear on the Coaches page by default. Uncheck publication to hide a listing. Listings do not grant account access.
+            appear on the Coaches page by default. Uncheck publication to hide a listing. Listings
+            do not grant account access.
           </p>
         </div>
         <Button
@@ -155,6 +158,7 @@ export function StaffDirectoryDesk() {
             <label>
               Biography
               <textarea
+                disabled={editing.bioWithheld}
                 rows={4}
                 maxLength={3000}
                 className={field + " py-3"}
@@ -165,11 +169,19 @@ export function StaffDirectoryDesk() {
             <label className="flex min-h-11 items-center gap-3">
               <input
                 type="checkbox"
+                disabled={editing.bioWithheld}
                 checked={editing.published}
                 onChange={(e) => setEditing({ ...editing, published: e.target.checked })}
               />
-              Show on public Coaches & Staff page (on by default; public listing includes name, title, biography, email and phone)
+              Show on public Coaches & Staff page (on by default; public listing includes name,
+              title, biography, email and phone)
             </label>
+            {editing.bioWithheld && (
+              <p>
+                Unclassified draft biography is withheld; an owner must review it before
+                publication.
+              </p>
+            )}
             <div className="flex flex-wrap gap-3">
               <Button type="submit">{busy ? "Saving…" : "Save staff listing"}</Button>
               <Button type="button" variant="outlineDark" onClick={() => setEditing(null)}>

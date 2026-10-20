@@ -9,6 +9,9 @@ const count = z.number().int().min(0).max(10000);
 const lines = z.array(z.string().trim().max(500)).max(50);
 
 export const serviceInput = z.object({
+  operationalDraftRevision: z.number().int().positive().optional(),
+  operationalDraftConfirmed: z.literal(true).optional(),
+  basisVersion: z.number().int().positive().optional(),
   id: optionalId, kind: z.enum(["lesson", "package", "membership", "cage", "cage_plan", "fee", "team_plan"]),
   name: z.string().trim().min(1).max(120), discipline: text,
   price: z.number().finite().min(0).max(100000).multipleOf(0.01), minutes: count,
@@ -20,6 +23,7 @@ export const serviceInput = z.object({
 }).strict();
 
 export const staffInput = z.object({
+  basisVersion: z.number().int().positive().optional(),
   id: optionalId, name: z.string().trim().min(1).max(120),
   email: z.union([z.literal(""), z.string().trim().email().max(254)]),
   phone: z.string().trim().max(40), role, access_notes: text, active: z.boolean(),
@@ -33,4 +37,5 @@ export const accountInput = z.object({
   role, playerName: z.string().trim().max(120), password,
 }).strict();
 export const recordIdInput = z.object({ id }).strict();
+export const lessonTermIdInput = z.object({ id, basisVersion: z.number().int().positive().optional() }).strict();
 export const userIdInput = z.object({ userId: id }).strict();

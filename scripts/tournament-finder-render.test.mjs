@@ -27,6 +27,9 @@ const team = {
   tournamentIds: [],
 };
 const club = { teams: [team], catalog: [event], notifications: [], _rev: 1, _demo: false };
+const transportMocks = {
+  "@/lib/teams/store": `export const saveFinancialCatalogPrice=async({data})=>{globalThis.__catalogFinancialCalls?.push(data);if(globalThis.__catalogFinancialFailure)throw Error("Financial basis changed. Reload.");return {version:2,sourceClubRevision:2};};`,
+};
 const entry = "src/components/teams/tournament-finder.tsx";
 const button = (host, name) =>
   [...host.querySelectorAll("button")].find(
@@ -37,8 +40,12 @@ test("the team's age remains selected even when the catalog has no matching age"
   await withRendered(
     entry,
     "TournamentFinder",
-    { club: { ...club, teams: [{ ...team, age: "6U" }] }, teamId: team.id, onSave: async () => true },
-    {},
+    {
+      club: { ...club, teams: [{ ...team, age: "6U" }] },
+      teamId: team.id,
+      onSave: async () => true,
+    },
+    transportMocks,
     async ({ host }) => {
       const age = [...host.querySelectorAll("label")]
         .find((label) => label.textContent.startsWith("Age division"))
@@ -64,7 +71,7 @@ test("coach finder shows truthful sources, accessible filters, real saves, and f
         return !fail;
       },
     },
-    {},
+    transportMocks,
     async ({ host, act, change }) => {
       assert.match(host.textContent, /live nationwide feed is not connected/);
       assert.match(host.textContent, /Not source-checked/);
@@ -112,7 +119,7 @@ test("pending saves reject double clicks; source links reject script URLs", asyn
         });
       },
     },
-    {},
+    transportMocks,
     async ({ host, act }) => {
       assert.equal(host.querySelector('a[href^="javascript:"]'), null);
       assert.doesNotMatch(host.textContent, /Source checked by office/);
@@ -142,7 +149,7 @@ test("office can cancel, validate, and save a sourced manual record without veri
         return true;
       },
     },
-    {},
+    transportMocks,
     async ({ host, act, dom }) => {
       const previousFormData = globalThis.FormData;
       globalThis.FormData = dom.window.FormData;
@@ -180,4 +187,99 @@ test("office can cancel, validate, and save a sourced manual record without veri
       }
     },
   );
+});
+
+const financial = {
+  mode: "basis",
+  version: 7,
+  owner: true,
+  catalog: [{ id: event.id, name: event.name, fee: 725 }],
+  obligations: [],
+  coachTeams: [],
+  staff: [],
+};
+test("active finder does not present operational price placeholders as approved prices", async () => {
+  await withRendered(
+    entry,
+    "TournamentFinder",
+    {
+      club: { ...club, catalog: [{ ...event, fee: 0 }] },
+      financial: { ...financial, owner: false, catalog: [] },
+      onSave: async () => true,
+    },
+    transportMocks,
+    async ({ host, act }) => {
+      assert.match(host.textContent, /Confirm entry fee with organizer/);
+      assert.doesNotMatch(host.textContent, /\$0|Lowest entry fee|Review financial price/);
+      await act(async () => button(host, "Advanced filters +").click());
+      assert.doesNotMatch(host.textContent, /Maximum entry fee/);
+    },
+  );
+});
+test("active owner price confirmation is explicit, versioned, cancellable and reloadable after conflict", async () => {
+  globalThis.__catalogFinancialCalls = [];
+  globalThis.__catalogFinancialFailure = false;
+  let reloaded = 0,
+    saves = 0;
+  try {
+    await withRendered(
+      entry,
+      "TournamentFinder",
+      {
+        club: { ...club, catalog: [{ ...event, fee: 0 }] },
+        financial,
+        admin: true,
+        onReload: async () => {
+          reloaded++;
+        },
+        onSave: async () => {
+          saves++;
+          return true;
+        },
+      },
+      transportMocks,
+      async ({ host, act, dom }) => {
+        assert.match(host.textContent, /\$725/);
+        assert.doesNotMatch(host.textContent, /\$0/);
+        await act(async () => button(host, "Edit record").click());
+        assert.equal(host.querySelector('[name="fee"]'), null);
+        await act(async () => button(host, "Cancel").click());
+        await act(async () => button(host, "Review financial price").click());
+        await act(async () => button(host, "Cancel").click());
+        assert.equal(globalThis.__catalogFinancialCalls.length, 0);
+        await act(async () => button(host, "Review financial price").click());
+        const form = host.querySelector('[aria-label="Owner catalog financial price"]');
+        assert.equal(button(host, "Save financial catalog price").disabled, true);
+        await act(async () => {
+          const textarea = form.querySelector("textarea");
+          Object.getOwnPropertyDescriptor(
+            dom.window.HTMLTextAreaElement.prototype,
+            "value",
+          ).set.call(textarea, "Reviewed organizer price");
+          textarea.dispatchEvent(new dom.window.Event("input", { bubbles: true }));
+          form.querySelector('input[type="checkbox"]').click();
+        });
+        globalThis.__catalogFinancialFailure = true;
+        await act(async () =>
+          form.dispatchEvent(new dom.window.Event("submit", { bubbles: true, cancelable: true })),
+        );
+        assert.deepEqual(globalThis.__catalogFinancialCalls[0], {
+          expectedBasisVersion: 7,
+          sourceClubRevision: 1,
+          catalogId: event.id,
+          fee: 725,
+          confirmed: true,
+          reason: "Reviewed organizer price",
+        });
+        assert.match(host.querySelector('[role="alert"]').textContent, /Financial basis changed/);
+        await act(async () => button(host, "Refresh financial prices").click());
+        assert.equal(reloaded, 1);
+        assert.equal(host.querySelector("form"), null);
+        assert.equal(saves, 0);
+      },
+    );
+  } finally {
+    delete globalThis.__catalogFinancialCalls;
+    delete globalThis.__catalogFinancialFailure;
+  }
 });

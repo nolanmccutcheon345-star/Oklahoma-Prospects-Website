@@ -7,6 +7,20 @@ import type { ClubRecord, Player } from "./types";
 import { remainingTeamPaymentCents } from "./recorded-payment-policy";
 import { teamCheckoutSchema, type TeamCheckout } from "./payment-contracts";
 import { queueExpiredCheckoutRefunds } from "../commerce/store.server";
+import {
+  loadFinancialContextInTransaction,
+  loadFinancialProviderContextInTransaction,
+  lockFinancialExecution,
+  reconcileFinancialTeamPaymentInTransaction,
+} from "../finance/context.server";
+import { resolveFinancialAgreement } from "../finance/basis.server";
+import {
+  financialTeamFulfillmentDecision,
+  planFinancialTeamCheckout,
+  validateFinancialTeamPayment,
+  type FinancialTeamOrder,
+  type FinancialTeamPaymentAttempt,
+} from "./financial-payment-adapter.server";
 async function lockedPlayer(sql: Sql, teamId: string, playerId: string) {
   const [row] = await sql<{
     payload: ClubRecord;
@@ -35,6 +49,55 @@ export async function prepareTeamCheckout(
   const a = teamCheckoutSchema.parse(raw),
     me = await resolveIdentity(sql, userId);
   return sql.transaction(async (tx) => {
+    await lockFinancialExecution(tx);
+    const context = await loadFinancialContextInTransaction(tx, userId);
+    if (context.mode === "basis") {
+      const basis = context.basis!;
+      const { identity } = resolveFinancialAgreement(basis, a);
+      const aliases = basis.playerAliases.filter((alias) => alias.agreementId === identity.id);
+      // Include the request key globally, and every historical pair for this
+      // agreement. Current operational placement never limits payment recovery.
+      const orders = await tx<FinancialTeamOrder>`select * from commerce_orders o
+        where request_key=${a.requestId} or (kind='team-fee' and payment_environment=${environment}
+          and (snapshot->'teamFee'->>'financialAgreementId'=${identity.id}
+            or exists(select 1 from jsonb_to_recordset(${JSON.stringify(aliases)}::jsonb) as a("teamId" text,"playerId" text)
+              where a."teamId"=o.snapshot->'teamFee'->>'teamId' and a."playerId"=o.snapshot->'teamFee'->>'playerId')))
+        for update`;
+      const attempts =
+        await tx<FinancialTeamPaymentAttempt>`select order_id,status from square_payment_attempts where order_id=any(${orders.map((o) => o.id)}::text[]) and status in ('pending','unknown')`;
+      // The context checked these flags from current locked account rows. No
+      // client-supplied eligibility, role, email, or household claim is used.
+      const plan = planFinancialTeamCheckout(basis, {
+        request: a,
+        payer: {
+          userId: context.principal.userId,
+          emailVerified: true,
+          disabledAt: null,
+          financialRestricted: false,
+        },
+        environment,
+        orders,
+        attempts,
+        now: new Date(),
+      });
+      if (plan.action === "reuse")
+        return {
+          orderId: plan.order.id,
+          totalCents: plan.order.total_cents,
+          holdUntil: new Date(plan.order.hold_until).toISOString(),
+          name: context.principal.currentName,
+          email: context.principal.currentEmail,
+        };
+      const id = randomUUID();
+      await tx`insert into commerce_orders(id,request_key,user_id,email,athlete_id,product_id,kind,snapshot,total_cents,hold_until,payment_provider,payment_environment) values(${id},${a.requestId},${userId},${context.principal.currentEmail},null,${plan.quote.productId},'team-fee',${JSON.stringify(plan.quote)}::jsonb,${a.amount},${plan.holdUntil},'square',${environment})`;
+      return {
+        orderId: id,
+        totalCents: a.amount,
+        holdUntil: plan.holdUntil,
+        name: context.principal.currentName,
+        email: context.principal.currentEmail,
+      };
+    }
     const [prior] =
       await tx<SquareOrder>`select * from commerce_orders where request_key=${a.requestId} for update`;
     const { team, player } = await lockedPlayer(tx, a.teamId, a.playerId);
@@ -104,6 +167,17 @@ export async function prepareTeamCheckout(
   });
 }
 export async function validateTeamPayment(sql: Sql, order: SquareOrder) {
+  await lockFinancialExecution(sql);
+  const context = await loadFinancialContextInTransaction(sql, order.user_id);
+  if (context.mode === "basis") {
+    validateFinancialTeamPayment(context.basis!, order, {
+      userId: context.principal.userId,
+      emailVerified: true,
+      disabledAt: null,
+      financialRestricted: false,
+    });
+    return;
+  }
   const m = order.snapshot.teamFee;
   if (!m) throw Error("Team fee details are missing.");
   const { player, team } = await lockedPlayer(sql, m.teamId, m.playerId);
@@ -138,10 +212,13 @@ export async function validateTeamPayment(sql: Sql, order: SquareOrder) {
 }
 /** Transaction only. Keep gross/refunds in Square history; the roster ledger reflects net funds received. */
 export async function syncTeamPayment(sql: Sql, orderId: string) {
+  await lockFinancialExecution(sql);
   const [order] =
     await sql<SquareOrder>`select * from commerce_orders where id=${orderId} for update`;
   const m = order?.snapshot.teamFee;
   if (!m || !order.square_payment_id || order.payment_environment !== "production") return;
+  const reconciliation = await reconcileFinancialTeamPaymentInTransaction(sql, orderId);
+  if (reconciliation.mode === "basis") return;
   const { row, player } = await lockedPlayer(sql, m.teamId, m.playerId);
   const [payment] = await sql<{
     amount_cents: number;
@@ -178,8 +255,27 @@ export async function syncTeamPayment(sql: Sql, orderId: string) {
   await sql`insert into finance_audit(actor_id,record_id,action,reason,after_state) values(${order.user_id},${order.square_payment_id},'Square team payment reconciliation','Verified Square payment/refund and externally reconciled refund balance',${JSON.stringify({ teamId: m.teamId, playerId: m.playerId, gross: payment.amount_cents, refunded: payment.refunded_cents, external: external.amount, net })}::jsonb)`;
 }
 export async function fulfillTeamPayment(sql: Sql, order: SquareOrder, environment: string) {
+  await lockFinancialExecution(sql);
   const m = order.snapshot.teamFee;
   if (!m) throw Error("Team fee details are missing.");
+  const context = await loadFinancialProviderContextInTransaction(sql, order.id);
+  if (!context) throw Error("Verified Square team payment is unavailable.");
+  if (context.mode === "basis") {
+    // fulfillSquarePayment's original object predates its stored payment-ID and
+    // paid-at updates. Decide from the verified row just bound by the loader.
+    const [stored] =
+      await sql<SquareOrder>`select * from commerce_orders where id=${order.id} for update`;
+    if (stored.payment_environment !== environment) throw Error("Payment environment mismatch.");
+    const decision = financialTeamFulfillmentDecision(context.basis!, stored);
+    await sql`update commerce_orders set status=${decision.status},updated_at=now() where id=${order.id}`;
+    if (decision.queueRefund) {
+      await queueExpiredCheckoutRefunds(sql, environment, order.id);
+      return;
+    }
+    await syncTeamPayment(sql, order.id);
+    await sql`insert into payment_notifications(id,order_id,kind) values(${"receipt:" + order.id},${order.id},'receipt') on conflict do nothing`;
+    return;
+  }
   const { player } = await lockedPlayer(sql, m.teamId, m.playerId);
   if (
     player.feeLock?.lockedAt !== m.lockedAt ||

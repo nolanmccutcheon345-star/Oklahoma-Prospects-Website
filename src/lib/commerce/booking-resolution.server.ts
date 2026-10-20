@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import type { Sql } from "../db";
+import { lockFinancialExecution } from "../finance/execution.server";
 import {
   consumeHouseholdChange,
   householdChangeAvailable,
@@ -9,7 +10,12 @@ import { lessonRefundValue } from "./lesson-refund-value.server";
 import { summarizeRefunds, standaloneRefundFunding } from "./refund-funding.server";
 import { validateWindow } from "../scheduling";
 
-export type Identity = { canInstruct?:boolean; role: string; billingHouseholdIds: string[]; userId: string };
+export type Identity = {
+  canInstruct?: boolean;
+  role: string;
+  billingHouseholdIds: string[];
+  userId: string;
+};
 export type Booking = {
   id: string;
   order_id: string;
@@ -39,7 +45,10 @@ export async function lockedBooking(tx: Sql, id: string) {
   const [booking] = await tx<Booking>`select * from booking_records where id=${id} for update`;
   if (!order || !booking || booking.order_id !== order.id)
     throw new Error("Booking ownership changed.");
-  if(order.kind === "event") throw Error("Camp and clinic changes require Front Office review of the event policy. Contact the office.");
+  if (order.kind === "event")
+    throw Error(
+      "Camp and clinic changes require Front Office review of the event policy. Contact the office.",
+    );
   return { order, booking };
 }
 export function familyAccess(b: Booking, me: Identity) {
@@ -67,11 +76,15 @@ export async function saveClubBookingCancellation(
   now?: Date,
 ) {
   return sql.transaction(async (tx) => {
+    await lockFinancialExecution(tx);
     const { booking: b } = await lockedBooking(tx, id);
     const currentTime = now || new Date();
     if (
       me.role !== "admin" &&
-      ((me.role !== "coach" && !me.canInstruct) || initiator !== "coach" || !coachId || b.coach_id !== coachId)
+      ((me.role !== "coach" && !me.canInstruct) ||
+        initiator !== "coach" ||
+        !coachId ||
+        b.coach_id !== coachId)
     )
       throw new Error("Only the assigned coach or an administrator can cancel this session.");
     const [existing] = await tx<Resolution>`select * from club_requests where id=${clubKey(id)}`;
@@ -96,6 +109,7 @@ export async function saveClubBookingCancellation(
 
 export async function saveClubCancellationRefund(sql: Sql, id: string, me: Identity) {
   return sql.transaction(async (tx) => {
+    await lockFinancialExecution(tx);
     const { booking: b, order } = await lockedBooking(tx, id);
     familyAccess(b, me);
     const [choice] =
@@ -150,6 +164,7 @@ export async function bookingRescheduleQuoteInTransaction(
   me: Identity,
   now?: Date,
 ) {
+  await lockFinancialExecution(tx);
   const { booking: b, order } = await lockedBooking(tx, id);
   familyAccess(b, me);
   const at = now || new Date();
@@ -212,6 +227,7 @@ export async function applyBookingReschedule(
   now?: Date,
   paidFeeOrderId?: string,
 ) {
+  await lockFinancialExecution(tx);
   const { booking: b, order } = await lockedBooking(tx, id);
   const currentTime = now || new Date();
   familyAccess(b, me);
@@ -282,6 +298,8 @@ export async function applyBookingReschedule(
         );
     }
   await tx`update booking_records set status='confirmed',starts_at=${window.start.toISOString()},ends_at=${window.end.toISOString()} where id=${id}`;
+  // Explicit customer/owner financial rescheduling supersedes an older delivery overlay.
+  await tx`update operational_booking_changes set starts_at=null,ends_at=null,status=null,checked_in_at=null,revision=revision+1,updated_at=now() where booking_id=${id}`;
   await tx`insert into club_requests(id,user_id,kind,payload,status) values(${key},${me.userId},'booking-reschedule',${JSON.stringify({ bookingId: id, initiator: clubChange ? club!.payload.initiator : "parent", oldStart: new Date(b.starts_at).toISOString(), newStart: window.start.toISOString(), feeOrderId: paidFeeOrderId || null })}::jsonb,'completed')`;
   if (clubChange)
     await tx`update club_requests set status='completed',payload=payload || '{"choice":"reschedule"}'::jsonb where id=${club!.id}`;

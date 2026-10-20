@@ -1,3 +1,5 @@
+import { TeamFinancialManagement } from "./team-financial-management";
+import type { TeamFinancialView } from "@/lib/teams/financial-view";
 import { ACTIVE_SEASON } from "@/lib/active-season";
 import { RosterRoleSelect } from "@/components/teams/roster-role-select";
 import type { RosterRole } from "@/lib/teams/po-roster";
@@ -16,30 +18,35 @@ import { money } from "./ui";
 
 export function OfficeApp({
   club,
+  financial,
   onChange,
   onSave,
+  onReload,
   initialTab = "overview",
 }: {
   initialTab?: "teams" | "overview";
   club: ClubRecord;
+  financial?: TeamFinancialView | null;
   onChange: (club: ClubRecord) => void;
   onSave: (next?: ClubRecord) => Promise<boolean>;
+  onReload?: () => Promise<void>;
 }) {
   const [activeTab, setActiveTab] = useState<"teams" | "overview">(initialTab);
   const players = club.teams.flatMap((t) => t.roster.map((p) => ({ team: t, player: p })));
+  const billingPlayers=financial?financial.obligations.map(p=>({team:{id:p.teamId,name:p.teamName},player:{id:p.playerId,name:p.playerName,agreement:p.agreement,feeLock:p.feeLock,payments:p.payments,credits:p.credits,depositPaid:p.depositPaid}})):players;
   const attention = {
-    unsigned: players.filter((x) => !x.player.agreement.signedAt),
-    deposits: players.filter((x) => !x.player.depositPaid),
-    pastDue: players.filter(
-      (x) => balance(x.player, x.player.feeLock?.amount ?? 0) > 0 && x.player.depositPaid,
+    unsigned: billingPlayers.filter((x) => !x.player.agreement.signedAt),
+    deposits: billingPlayers.filter((x) => !x.player.depositPaid),
+    pastDue: billingPlayers.filter(
+      (x) => balance(x.player as import("@/lib/teams/types").Player, x.player.feeLock?.amount ?? 0) > 0 && x.player.depositPaid,
     ),
     paper: players.filter((x) => !docsComplete(x.player)),
     sizes: players.filter((x) => !x.player.order.submitted),
     thin: club.teams.filter((t) => fundingCount(t) < 10),
     noSched: club.teams.filter((t) => t.tournamentIds.length === 0),
   };
-  const revenue = players.reduce((s, x) => s + (x.player.feeLock?.amount ?? 0), 0);
-  const collected = players.reduce(
+  const revenue = billingPlayers.reduce((s, x) => s + (x.player.feeLock?.amount ?? 0), 0);
+  const collected = billingPlayers.reduce(
     (s, x) => s + x.player.payments.reduce((a, p) => a + p.amount, 0),
     0,
   );
@@ -54,8 +61,9 @@ export function OfficeApp({
         <section id="team-coach-assignments" aria-labelledby="team-coach-assignments-title" className="rounded-2xl border-2 border-maroon bg-paper p-5 scroll-mt-32">
           <h2 id="team-coach-assignments-title" className="text-2xl font-bold text-ink">Teams & coaches administration</h2>
           <p className="my-3 text-sm text-muted">Create baseball or softball teams, build coach profiles, and assign head or assistant coaches to teams.</p>
-          <RosterTools club={club} onChange={onChange} onSave={onSave} />
+          <RosterTools club={club} onChange={onChange} />
           <CoachManagement club={club} onSave={onSave} />
+          {financial?.owner&&onReload&&<TeamFinancialManagement club={club} financial={financial} onReload={onReload}/>}
         </section>
       ) : (
       <>
@@ -85,7 +93,7 @@ export function OfficeApp({
               <span>
                 {player.name} · {team.name}
               </span>
-              <span>{money(balance(player, player.feeLock?.amount ?? 0))}</span>
+              <span>{money(balance(player as import("@/lib/teams/types").Player, player.feeLock?.amount ?? 0))}</span>
             </li>
           ))}
         </ul>
@@ -103,14 +111,12 @@ export function OfficeApp({
       </Section>
 
       <Section title="Staff and contractor payouts">
-        {club.teams.flatMap((t) =>
-          t.staff.map((s) => (
+        {(financial ? financial.staff : club.teams.flatMap(t=>t.staff)).map((s) => (
             <p key={s.id} className="text-sm">
               {s.name} · {money(s.monthly)}/mo · contractor record {s.w9 ? "yes" : "NO"} · SafeSport{" "}
               {s.safeSport ? "yes" : "NO"}
             </p>
-          )),
-        )}
+          ))}
       </Section>
 
       <Section title="Tryouts">
@@ -304,11 +310,9 @@ function CoachManagement({ club, onSave }: {
 function RosterTools({
   club,
   onChange,
-  onSave,
 }: {
   club: ClubRecord;
   onChange: (club: ClubRecord) => void;
-  onSave: (next?: ClubRecord) => Promise<boolean>;
 }) {
   const [teamName, setTeamName] = useState("");
   const [age, setAge] = useState("13U");

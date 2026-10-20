@@ -1,3 +1,4 @@
+import { UserButton } from "@/lib/auth/gates";
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { Button } from "../ui/button";
 import * as api from "@/lib/coordinator/api";
@@ -8,6 +9,7 @@ import {
   type HistoryCursor,
 } from "@/lib/coordinator/contracts";
 import { TRYOUT_STATUSES } from "@/lib/tryout-center-contracts";
+import { OrganizationOffice } from "./organization-office";
 const field = "min-h-11 w-full rounded border border-line bg-white p-2 text-ink";
 const text = (f: FormData, key: string) => String(f.get(key) || "");
 export function CoordinatorFrontOffice() {
@@ -54,6 +56,17 @@ export function CoordinatorFrontOffice() {
     return (
       <main id="main" className="p-6" role="status">
         Loading coordinator access…
+      </main>
+    );
+  if (home.organizationOperations) return <OrganizationOffice />;
+  if (home.financialRestricted)
+    return (
+      <main id="main" className="p-6">
+        <h1>Coordinator Front Office</h1>
+        <p role="alert">
+          Your organization operations access is not active. Contact an owner to review your access.
+        </p>
+        <UserButton />
       </main>
     );
   const g = home.assignments.find((a) => a.sport === sport && a.status === "active");

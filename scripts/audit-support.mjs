@@ -56,6 +56,9 @@ export async function auditHarness() {
     export * from './src/lib/commerce/store.server';
     export * from './src/lib/commerce/checkout.server';
     export * from './src/lib/scheduling';
+    export * as financialBasis from './src/lib/finance/basis.server';
+    export * as financialContext from './src/lib/finance/context.server';
+    export * as financialContextFixture from './src/lib/finance/context.test-fixture';
   `,resolveDir:process.cwd(),loader:'ts'},outfile,bundle:true,platform:'node',format:'esm',packages:'external',plugins:[{name:'audit-boundaries',setup(b){
     b.onResolve({filter:/(^|\/)db$/},args=>args.path.startsWith('.')||args.path.startsWith('@/')?{path:'db',namespace:'audit'}:undefined);
     b.onResolve({filter:/email\.server$/},args=>args.importer.endsWith('/auth/server.ts')?{path:'email',namespace:'audit'}:undefined);

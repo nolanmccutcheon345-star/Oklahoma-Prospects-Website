@@ -1,3 +1,4 @@
+import type { TeamFinancialView } from "@/lib/teams/financial-view";
 import { TournamentFinder } from "./tournament-finder";
 import {MyFinance} from "@/components/finance/my-finance";
 import { RosterRoleSelect } from "@/components/teams/roster-role-select";
@@ -20,11 +21,13 @@ const FILTERS = ["all", "action", "unsigned", "sizes", "paperwork", "pitchers"] 
 
 export function CoachApp({
   club,
+  financial,
   onChange,
   onSave,
   onReload,
 }: {
   club: ClubRecord;
+  financial?: TeamFinancialView | null;
   onChange: (club: ClubRecord) => void;
   onSave: (next?: ClubRecord) => Promise<boolean>;
   onReload: () => Promise<void>;
@@ -36,22 +39,26 @@ export function CoachApp({
   const [rosterBusy,setRosterBusy]=useState(false);
   const team = club.teams.find((t) => t.id === teamId) ?? club.teams[0];
   if (!team) {
-    return <p>No teams assigned to this coach.</p>;
+    return <><MyFinance/><p>No teams assigned to this coach.</p>{financial?.staff.map(s=><p key={s.teamId+s.id}>{s.name} · {s.teamName} · monthly {money(s.monthly)} · applied to fees {money(s.applyAmount)}</p>)}</>;
   }
 
-  const spent = team.tournamentIds.reduce((sum, id) => {
+  const financialTeam=financial?.coachTeams.find(t=>t.teamId===team.id);
+  const signed=(p:Team["roster"][number])=>financial?Boolean(financialTeam?.readiness.find(r=>r.playerId===p.id)?.signed):Boolean(p.agreement.signedAt);
+  const depositPaid=(p:Team["roster"][number])=>financial?Boolean(financialTeam?.readiness.find(r=>r.playerId===p.id)?.depositPaid):p.depositPaid;
+  const isCleared=(p:Team["roster"][number])=>financial?signed(p)&&depositPaid(p)&&docsComplete(p):cleared(p);
+  const spent = financial ? financialTeam?.spent??0 : team.tournamentIds.reduce((sum, id) => {
     const ev = club.catalog.find((e) => e.id === id);
     return sum + (ev?.fee ?? 0);
   }, 0);
 
   const roster = team.roster.filter((p) => {
     if (q && !p.name.toLowerCase().includes(q.toLowerCase())) return false;
-    if (filter === "unsigned") return !p.agreement.signedAt;
+    if (filter === "unsigned") return !signed(p);
     if (filter === "sizes") return !p.order.submitted;
     if (filter === "paperwork") return !docsComplete(p);
     if (filter === "pitchers") return p.positions.includes("P");
     if (filter === "action")
-      return !cleared(p) || !p.order.submitted || !p.rsvp[team.tournamentIds[0] ?? ""];
+      return !isCleared(p) || !p.order.submitted || !p.rsvp[team.tournamentIds[0] ?? ""];
     return true;
   });
 
@@ -88,10 +95,10 @@ export function CoachApp({
         </Button>
       </div>
 
-      <Section title="Readiness" defaultOpen count={team.roster.filter((p) => !cleared(p)).length}>
+      <Section title="Readiness" defaultOpen count={team.roster.filter((p) => !isCleared(p)).length}>
         <ul className="grid gap-1 text-sm">
-          <li>Unsigned: {team.roster.filter((p) => !p.agreement.signedAt).length}</li>
-          <li>Deposits outstanding: {team.roster.filter((p) => !p.depositPaid).length}</li>
+          <li>Unsigned: {team.roster.filter((p) => !signed(p)).length}</li>
+          <li>Deposits outstanding: {team.roster.filter((p) => !depositPaid(p)).length}</li>
           <li>Sizes missing: {team.roster.filter((p) => !p.order.submitted).length}</li>
           <li>Paperwork missing: {team.roster.filter((p) => !docsComplete(p)).length}</li>
           <li>
@@ -101,10 +108,10 @@ export function CoachApp({
         </ul>
       </Section>
 
-      <TournamentFinder key={team.id} club={club} teamId={team.id} onSave={onSave} />
+      <TournamentFinder key={team.id} club={club} financial={financial} teamId={team.id} onSave={onSave} />
 
       <MyFinance/>
-      <TeamFeeWorkspace teamId={team.id}/>
+      {!financial||financialTeam?<TeamFeeWorkspace teamId={team.id}/>:<p className="text-sm">Financial setup is required before this team can offer fees.</p>}
       <TeamActivities key={team.id} teamId={team.id} onSaved={onReload}/>
 
       <Section title="Roster" count={roster.length} defaultOpen>
@@ -144,7 +151,7 @@ export function CoachApp({
                 <span>
                   <strong>#{p.number || "—"} {p.name}</strong>
                   <span className="block text-xs text-muted">
-                    {p.positions.join("/")} · {cleared(p) ? "Cleared" : "Not cleared"}
+                    {p.positions.join("/")} · {isCleared(p) ? "Cleared" : "Not cleared"}
                   </span>
                 </span>
                 <button type="button" disabled={rosterBusy} className="min-h-11 rounded border px-2 text-sm" onClick={async () => {
@@ -312,7 +319,7 @@ export function CoachApp({
       </Section>
 
       <Section title="Pay election">
-        {team.staff.map((s) => (
+        {(financial?financial.staff:team.staff).map((s) => (
           <div key={s.id} className="text-sm">
             <p>
               {s.name} · monthly {money(s.monthly)} · applied to fees {money(s.applyAmount)} · cash{" "}

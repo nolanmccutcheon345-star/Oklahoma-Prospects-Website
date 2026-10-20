@@ -99,11 +99,13 @@ export async function deliverPaymentNotifications(
               ends_at: Date;
               resources: string[];
               status: string;
-            }>`select starts_at,ends_at,resources,status from booking_records where order_id=${n.order_id} order by starts_at`
+            }>`select starts_at,ends_at,resources,status from operational_booking_schedule where order_id=${n.order_id} order by starts_at`
           : [];
       const details = bookingNoticeDetails(bookings);
       const confirmedBooking =
-        n.kind === "receipt" && bookings.length > 0 && bookings.every((b) => b.status === "confirmed");
+        n.kind === "receipt" &&
+        bookings.length > 0 &&
+        bookings.every((b) => b.status === "confirmed");
       const amount = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(
         n.total_cents / 100,
       );
@@ -143,8 +145,8 @@ export async function deliverPaymentNotifications(
                     : confirmedBooking
                       ? `Hello${n.customer_name ? " " + n.customer_name : ""}!\n\nThank you for booking with Prospects Sports Academy! We appreciate you choosing our facility and look forward to seeing you at your reserved time:\n\n${details}\n\nYour payment for ${n.title} is confirmed.\n\nLocation: 3804 S. Elm Pl., Suite A, Broken Arrow, OK 74011.\n\nView your booking and billing history at ${c.origin}/family. Receipt: ${n.receipt_url || c.origin + "/paid?order_id=" + n.order_id}\n\nSee you soon!\nThe Prospects Sports Academy Team`
                       : n.order_kind === "merchandise"
-                      ? `Your payment for ${n.title} is confirmed. Your items will be made after fulfillment review. View your order and shipping updates at ${c.origin}/merchandise (My shop orders). Receipt: ${n.receipt_url || c.origin + "/merchandise"}`
-                      : `Your payment for ${n.title} is confirmed.\n${details ? details + "\n" : ""}View your booking and billing history at ${c.origin}/family. Receipt: ${n.receipt_url || c.origin + "/paid?order_id=" + n.order_id}`,
+                        ? `Your payment for ${n.title} is confirmed. Your items will be made after fulfillment review. View your order and shipping updates at ${c.origin}/merchandise (My shop orders). Receipt: ${n.receipt_url || c.origin + "/merchandise"}`
+                        : `Your payment for ${n.title} is confirmed.\n${details ? details + "\n" : ""}View your booking and billing history at ${c.origin}/family. Receipt: ${n.receipt_url || c.origin + "/paid?order_id=" + n.order_id}`,
           }),
           signal: AbortSignal.timeout(10000),
         });

@@ -8,6 +8,7 @@ import { parentCancellationRefund, householdChangeAvailable } from "./booking-ch
 import { lessonRefundValue } from "./lesson-refund-value.server";
 import { standaloneRefundFunding, settleRefundBatch } from "./refund-funding.server";
 import { saveParentBookingCancellation } from "./family-cancellation.server";
+import { lockFinancialExecution } from "../finance/execution.server";
 
 export async function ownedSubscription(userId: string, id: string, ownerOnly = false) {
   const me = await clubIdentity(userId),
@@ -90,6 +91,7 @@ export async function updateSquareCard(
   if (input.purpose === "backup") {
     const display = JSON.stringify({ brand: card.cardBrand || "Card", last4: card.last4 || "" });
     await sql.transaction(async (tx) => {
+      await lockFinancialExecution(tx);
       await tx`select set_config('app.actor_id',${userId},true)`;
       await tx`insert into customer_payment_preferences(subscription_id,backup_card_id,backup_display,authorized_by,authorized_at,consent_text) values(${sub.id},${card.id},${display}::jsonb,${userId},now(),'Save a backup card with Square; activation requires a separate customer action.') on conflict(subscription_id) do update set backup_card_id=excluded.backup_card_id,backup_display=excluded.backup_display,authorized_by=excluded.authorized_by,authorized_at=now(),consent_text=excluded.consent_text,updated_at=now()`;
     });
@@ -100,6 +102,7 @@ export async function updateSquareCard(
     subscription: { version: current.version, cardId: card.id },
   });
   await sql.transaction(async (tx) => {
+    await lockFinancialExecution(tx);
     await tx`select set_config('app.actor_id',${userId},true)`;
     await tx`update commerce_orders set square_card_id=${card.id} where subscription_id=${sub.id}`;
     await tx`insert into customer_payment_preferences(subscription_id,primary_card_id,primary_display,authorized_by,authorized_at,consent_text) values(${sub.id},${card.id},${JSON.stringify({ brand: card.cardBrand || "Card", last4: card.last4 || "" })}::jsonb,${userId},now(),'Customer updated their primary renewal payment method') on conflict(subscription_id) do update set primary_card_id=excluded.primary_card_id,primary_display=excluded.primary_display,authorized_by=excluded.authorized_by,authorized_at=now(),consent_text=excluded.consent_text,updated_at=now()`;
@@ -257,6 +260,9 @@ export async function executeSquareRefund(id: string) {
   });
   if (!refund?.id)
     throw new Error("Refund confirmation pending. The cancelled booking remains cancelled.");
-  await sql`update commerce_refunds set square_refund_id=${refund.id},status=${refund.status?.toLowerCase() || "pending"} where id=${id}`;
+  await sql.transaction(async (tx) => {
+    await lockFinancialExecution(tx);
+    await tx`update commerce_refunds set square_refund_id=${refund.id},status=${refund.status?.toLowerCase() || "pending"} where id=${id}`;
+  });
   await syncSquareRefund(refund.id);
 }

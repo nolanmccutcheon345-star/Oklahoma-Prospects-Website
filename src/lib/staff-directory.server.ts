@@ -1,32 +1,84 @@
 import { getSql, type Sql } from "./db";
-import { resolveIdentity } from "./identity.server";
+import { requireOrganizationOperations, financiallyRestricted } from "./coordinator/access.server";
+import { lockFinancialExecution } from "./finance/execution.server";
 import { staffListingInput, type StaffListing, type PublicStaffListing } from "./staff-directory";
-
 async function requireOwner(sql: Sql, userId: string) {
-  const me = await resolveIdentity(sql, userId);
-  if (me.role !== "admin") throw new Error("Owner access required to manage staff listings.");
+  try {
+    await requireOrganizationOperations(sql, userId);
+  } catch {
+    throw new Error(
+      "Owner access required to manage staff listings, or an active organization operations grant.",
+    );
+  }
 }
+
+const listingJoins = `from staff_directory d left join "user" u on u.id=d.identity_user_id or (d.identity_email is null and lower(trim(u.email))=lower(trim(d.email))) left join operational_person_settings o on o.user_id=u.id`;
+const publiclyVisible = `d.published and u."disabledAt" is null and coalesce(o.directory_active,true)`;
+const withheld = `$1 and not (${publiclyVisible}) and d.operational_bio_version is distinct from d.version`;
+const listingFields = `d.id,d.name,d.title,d.program,d.email,d.phone,case when ${withheld} then '' else d.bio end as bio,d.published,d.version`;
 export async function publicStaffFor(sql: Sql) {
-  return sql<PublicStaffListing>`select id,name,title,program,email,phone,bio from staff_directory where published=true order by name`;
+  return sql.query<PublicStaffListing>(
+    `select d.id,d.name,d.title,d.program,d.email,d.phone,d.bio ${listingJoins} where ${publiclyVisible} order by d.name`,
+  );
 }
 export async function listStaffDirectoryFor(sql: Sql, userId: string) {
   await requireOwner(sql, userId);
-  return sql<StaffListing>`select id,name,title,program,email,phone,bio,published,version from staff_directory order by name`;
+  const restricted = await financiallyRestricted(sql, userId);
+  const rows = await sql.query<StaffListing & { bioWithheld: boolean }>(
+    `select ${listingFields},(${withheld}) as "bioWithheld" ${listingJoins} order by d.name`,
+    [restricted],
+  );
+  return rows.map(({ bioWithheld, ...row }) => (bioWithheld ? { ...row, bioWithheld } : row));
 }
 export async function saveStaffListingFor(sql: Sql, userId: string, raw: StaffListing) {
-  await requireOwner(sql, userId);
   const input = staffListingInput.parse(raw);
   try {
     return await sql.transaction(async (tx) => {
-      const [old] =
-        await tx<StaffListing>`select * from staff_directory where id=${input.id} for update`;
+      await lockFinancialExecution(tx);
+      await requireOwner(tx, userId);
+      const restricted = await financiallyRestricted(tx, userId);
+      const [old] = await tx.query<
+        StaffListing & {
+          identity_email: string | null;
+          identity_user_id: string | null;
+          operational_bio_version: number | null;
+          withheld: boolean;
+        }
+      >(
+        `select ${listingFields},d.identity_email,d.identity_user_id,d.operational_bio_version,(${withheld}) as withheld ${listingJoins} where d.id=$2 for update of d`,
+        [restricted, input.id],
+      );
       if ((old && old.version !== input.version) || (!old && input.version !== 0))
         throw new Error("This listing changed. Refresh the staff list before saving again.");
-      const saved = old
-        ? await tx<StaffListing>`update staff_directory set name=${input.name},title=${input.title},program=${input.program},email=${input.email},phone=${input.phone},bio=${input.bio},published=${input.published},version=version+1,updated_at=now() where id=${input.id} returning id,name,title,program,email,phone,bio,published,version`
-        : await tx<StaffListing>`insert into staff_directory(id,name,title,program,email,phone,bio,published) values(${input.id},${input.name},${input.title},${input.program},${input.email},${input.phone},${input.bio},${input.published}) returning id,name,title,program,email,phone,bio,published,version`;
-      await tx`insert into audit_events(actor_id,action,target_table,target_id,before_state,after_state) values(${userId},${old ? "UPDATE" : "INSERT"},'staff_directory',${input.id},${old ? JSON.stringify({ version: old.version, published: old.published }) : null}::jsonb,${JSON.stringify({ version: saved[0].version, published: saved[0].published })}::jsonb)`;
-      return saved[0];
+      if (old?.withheld && (input.bio || (!old.published && input.published)))
+        throw new Error(
+          "This unpublished biography must be reviewed by an owner before it can be edited or published.",
+        );
+      const identityEmail = old?.identity_email ?? old?.email ?? input.email;
+      const [account] =
+        old?.identity_email !== null && old?.identity_email !== undefined
+          ? []
+          : await tx<{
+              id: string;
+            }>`select id from "user" where lower(trim(email))=${identityEmail.trim().toLowerCase()}`;
+      const identityUser =
+        old?.identity_email !== null && old?.identity_email !== undefined
+          ? old.identity_user_id
+          : (account?.id ?? null);
+      const version = (old?.version || 0) + 1;
+      const classification =
+        restricted && !old?.withheld ? version : input.published ? version : null;
+      if (old)
+        await tx`update staff_directory set name=${input.name},title=${input.title},program=${input.program},email=${input.email},phone=${input.phone},bio=case when ${Boolean(old.withheld)} then bio else ${input.bio} end,published=${input.published},version=${version},identity_email=${identityEmail},identity_user_id=${identityUser},operational_bio_version=case when ${Boolean(old.withheld)} then operational_bio_version else ${classification} end,updated_at=now() where id=${input.id}`;
+      else
+        await tx`insert into staff_directory(id,name,title,program,email,phone,bio,published,identity_email,identity_user_id,operational_bio_version) values(${input.id},${input.name},${input.title},${input.program},${input.email},${input.phone},${input.bio},${input.published},${identityEmail},${identityUser},${classification})`;
+      await tx`insert into audit_events(actor_id,action,target_table,target_id,before_state,after_state) values(${userId},${old ? "UPDATE" : "INSERT"},'staff_directory',${input.id},${old ? JSON.stringify({ version: old.version, published: old.published }) : null}::jsonb,${JSON.stringify({ version, published: input.published })}::jsonb)`;
+      const [saved] = await tx.query<StaffListing & { bioWithheld: boolean }>(
+        `select ${listingFields},(${withheld}) as "bioWithheld" ${listingJoins} where d.id=$2`,
+        [restricted, input.id],
+      );
+      const { bioWithheld, ...row } = saved;
+      return bioWithheld ? { ...row, bioWithheld } : row;
     });
   } catch (error) {
     if ((error as { code?: string }).code === "23505")

@@ -1,3 +1,4 @@
+import { getPublicOperationalEvents } from "@/lib/coordinator/organization-events-api";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
 import { pageHead } from "@/lib/seo";
@@ -29,6 +30,9 @@ type Event = Awaited<ReturnType<typeof getTrainingEvents>>[number];
 export function EventsPage() {
   const user = useCurrentUser(),
     [events, setEvents] = useState<Event[]>(),
+    [operational, setOperational] = useState<
+      Awaited<ReturnType<typeof getPublicOperationalEvents>>
+    >([]),
     [error, setError] = useState(""),
     [family, setFamily] = useState<Awaited<ReturnType<typeof getEventFamily>>>(),
     [selected, setSelected] = useState<Event>(),
@@ -37,9 +41,12 @@ export function EventsPage() {
     [view, setView] = useState<"list" | "calendar">("list");
   useEffect(() => {
     let active = true;
-    getTrainingEvents()
-      .then((r) => {
-        if (active) setEvents(r);
+    Promise.all([getTrainingEvents(), getPublicOperationalEvents()])
+      .then(([r, o]) => {
+        if (active) {
+          setEvents(r);
+          setOperational(o);
+        }
       })
       .catch((e) => {
         if (active) setError(e.message);
@@ -67,18 +74,26 @@ export function EventsPage() {
   useEffect(() => {
     if (selected) registrationRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
   }, [selected?.id]);
-  const dates = new Set((events || []).flatMap((e) => e.sessions.map((s) => s.date)));
+  const schedule = (e: Event) => [...e.operationalSessions, ...e.additionalSessions];
+  const dates = new Set([
+    ...(events || []).flatMap((e) => schedule(e).map((s) => s.date)),
+    ...operational.flatMap((e) => e.sessions.map((s) => s.date)),
+  ]);
   const shown = (events || []).filter(
     (e) =>
       view === "list" ||
-      e.sessions.some((s) => s.date.startsWith(month) && (!day || s.date === day)),
+      schedule(e).some((s) => s.date.startsWith(month) && (!day || s.date === day)),
   );
   const first = new Date(month + "-01T12:00:00Z"),
     count = new Date(Date.UTC(first.getUTCFullYear(), first.getUTCMonth() + 1, 0)).getUTCDate();
   return (
     <main id="main" className="pb-10">
-      <PageHero eyebrow="Prospects Sports Academy" title="Camps & Clinics." compact
-        copy="Explore upcoming baseball and softball camps, clinics, and skills sessions. See dates, ages, pricing, and registration details." />
+      <PageHero
+        eyebrow="Prospects Sports Academy"
+        title="Camps & Clinics."
+        compact
+        copy="Explore upcoming baseball and softball camps, clinics, and skills sessions. See dates, ages, pricing, and registration details."
+      />
       <div className="mx-auto grid max-w-5xl gap-6 px-5 py-6">
         {error && (
           <p role="alert" className="text-maroon">
@@ -86,7 +101,10 @@ export function EventsPage() {
           </p>
         )}
         <div className="flex gap-2" aria-label="Event view">
-          <Button variant={view === "list" ? "maroon" : "outlineDark"} onClick={() => setView("list")}>
+          <Button
+            variant={view === "list" ? "maroon" : "outlineDark"}
+            onClick={() => setView("list")}
+          >
             Upcoming events
           </Button>
           <Button
@@ -174,16 +192,58 @@ export function EventsPage() {
                 <h2 className="text-3xl">{e.name}</h2>
                 <p className="whitespace-pre-wrap">{e.description}</p>
                 <dl className="grid grid-cols-2 gap-3 rounded-xl bg-paper-2 p-4 text-sm">
-                  <div><dt className="font-semibold">Ages</dt><dd>{campAgeLabel(e)}{e.minAge !== undefined || e.maxAge !== undefined ? " on the first camp day" : ""}</dd></div>
-                  <div><dt className="font-semibold">Location</dt><dd>{e.location}</dd></div>
-                  {e.pricingMode !== "days" && <div><dt className="font-semibold">Full camp</dt><dd>{formatMoney(e.priceCents)} per player</dd></div>}
-                  {e.pricingMode !== "package" && e.dayPriceCents !== undefined && <div><dt className="font-semibold">Individual day</dt><dd>{formatMoney(e.dayPriceCents)} per player</dd></div>}
+                  <div>
+                    <dt className="font-semibold">Ages</dt>
+                    <dd>
+                      {campAgeLabel(e)}
+                      {e.minAge !== undefined || e.maxAge !== undefined
+                        ? " on the first camp day"
+                        : ""}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="font-semibold">Location</dt>
+                    <dd>{e.location}</dd>
+                  </div>
+                  {e.pricingMode !== "days" && (
+                    <div>
+                      <dt className="font-semibold">Full camp</dt>
+                      <dd>{formatMoney(e.priceCents)} per player</dd>
+                    </div>
+                  )}
+                  {e.pricingMode !== "package" && e.dayPriceCents !== undefined && (
+                    <div>
+                      <dt className="font-semibold">Individual day</dt>
+                      <dd>{formatMoney(e.dayPriceCents)} per player</dd>
+                    </div>
+                  )}
                 </dl>
-                {e.sessions.length > 2 ? <details className="rounded-lg border p-3">
-                  <summary className="min-h-11 cursor-pointer font-semibold">{e.sessions.length} sessions · {e.sessions[0]?.date} to {e.sessions[e.sessions.length - 1]?.date} · View schedule</summary>
-                  <Sessions event={e}/>
-                </details> : <Sessions event={e}/>}
-                <p className="text-sm">Coaches: {e.coaches.map((c) => c.name).join(", ") || "Contact the office for coaching details"}</p>
+                {e.sessions.length > 2 ? (
+                  <details className="rounded-lg border p-3">
+                    <summary className="min-h-11 cursor-pointer font-semibold">
+                      {e.sessions.length} sessions · {e.sessions[0]?.date} to{" "}
+                      {e.sessions[e.sessions.length - 1]?.date} · View schedule
+                    </summary>
+                    <Sessions event={e} />
+                  </details>
+                ) : (
+                  <Sessions event={e} />
+                )}
+                {!!e.additionalSessions.length && (
+                  <div>
+                    <h3 className="font-semibold">Additional office-enrolled sessions</h3>
+                    <Sessions event={{ sessions: e.additionalSessions }} />
+                    <p className="text-sm">
+                      Contact Front Office to enroll. These sessions are separate from the camp
+                      purchase.
+                    </p>
+                  </div>
+                )}
+                <p className="text-sm">
+                  Coaches:{" "}
+                  {e.coaches.map((c) => c.name).join(", ") ||
+                    "Contact the office for coaching details"}
+                </p>
                 <Button
                   disabled={
                     e.status !== "published" ||
@@ -202,6 +262,23 @@ export function EventsPage() {
             ))}
           </div>
         )}
+        {operational
+          .filter(
+            (e) =>
+              view === "list" ||
+              e.sessions.some((s) => s.date.startsWith(month) && (!day || s.date === day)),
+          )
+          .map((e) => (
+            <article key={e.id} className="grid gap-3 rounded-2xl border bg-white p-5">
+              <h2 className="text-3xl">{e.name}</h2>
+              <p>{e.description}</p>
+              <Sessions event={{ sessions: e.sessions }} />
+              <p>
+                Contact Front Office for enrollment. Online registration is not available for this
+                event.
+              </p>
+            </article>
+          ))}
         {selected && (
           <section
             className="rounded-2xl border-2 border-maroon bg-white p-5"
@@ -230,6 +307,22 @@ export function EventsPage() {
             )}
           </section>
         )}
+        {!!family?.operationalEnrollments.length && (
+          <section className="grid gap-3" aria-label="Office-enrolled sessions">
+            <h2 className="text-3xl">Your office-enrolled sessions</h2>
+            {family.operationalEnrollments.map((r, i) => (
+              <article key={r.eventId + ":" + i} className="rounded-xl border bg-white p-4">
+                <h3 className="text-xl">{r.title}</h3>
+                <p>
+                  {r.player} ·{" "}
+                  {new Date(r.startsAt).toLocaleString("en-US", { timeZone: "America/Chicago" })} CT
+                  · {r.status}
+                </p>
+                <p>{r.location}</p>
+              </article>
+            ))}
+          </section>
+        )}
         {family && (
           <section className="grid gap-3">
             <h2 className="text-3xl">Your player registrations</h2>
@@ -242,8 +335,12 @@ export function EventsPage() {
                   <p>
                     {r.player} · {r.status}
                   </p>
-                  <Sessions event={r.event} />
-                  <p>{r.event.location}</p>
+                  <Sessions
+                    event={{
+                      sessions: r.event.sessions,
+                      operationalSessions: r.operationalSessions,
+                    }}
+                  />
                   <a
                     className="inline-flex min-h-11 items-center underline"
                     href={"/paid?order_id=" + encodeURIComponent(r.orderId)}
@@ -259,10 +356,17 @@ export function EventsPage() {
     </main>
   );
 }
-function Sessions({ event }: { event: { sessions: Event["sessions"] } }) {
+function Sessions({
+  event,
+}: {
+  event: {
+    sessions: (Event["sessions"][number] & { location?: string; status?: string })[];
+    operationalSessions?: Event["operationalSessions"];
+  };
+}) {
   return (
     <ul className="grid gap-1 text-sm">
-      {event.sessions.map((s, i) => (
+      {(event.operationalSessions || event.sessions).map((s, i) => (
         <li key={i}>
           {new Date(s.date + "T12:00:00Z").toLocaleDateString("en-US", {
             weekday: "short",
@@ -271,7 +375,9 @@ function Sessions({ event }: { event: { sessions: Event["sessions"] } }) {
             year: "numeric",
             timeZone: "UTC",
           })}{" "}
-          · {formatClockTime(s.start)}–{formatClockTime(s.end)} CT
+          · {formatClockTime(s.start)}–{formatClockTime(s.end)} CT{" "}
+          {s.location ? " · " + s.location : ""}
+          {s.status === "cancelled" ? " · Delivery cancelled" : ""}
         </li>
       ))}
     </ul>
@@ -380,9 +486,14 @@ function EventRegistration({
                   }}
                 />
                 <span>
-                  {date} ·{" "}
-                  {event.sessions
-                    .filter((s) => s.date === date)
+                  {event.operationalSessions
+                    .filter((s) => s.originalDate === date)
+                    .map((s) => s.date)
+                    .filter((d, i, a) => a.indexOf(d) === i)
+                    .join(", ")}{" "}
+                  ·{" "}
+                  {event.operationalSessions
+                    .filter((s) => s.originalDate === date)
                     .map((s) => formatClockTime(s.start) + "–" + formatClockTime(s.end) + " CT")
                     .join(", ")}
                   {unavailable ? " — unavailable" : ""}

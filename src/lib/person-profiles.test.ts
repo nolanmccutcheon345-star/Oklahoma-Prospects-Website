@@ -80,7 +80,7 @@ test("one account retains primary role, scoped assignments and shared publicatio
     // Approved service exists in the migrations/catalog seed.
     await sql`insert into club_services(id,kind,name,price,minutes,discipline) values('s2','lesson','Private Pitching 30',6300,30,'Pitching') on conflict(id) do nothing`;
     for (const actor of ["parent", "student", "coach"])
-      await assert.rejects(() => savePersonFor(sql, actor, input), /Owner access/);
+      await assert.rejects(() => savePersonFor(sql, actor, input), /owner access/i);
     await savePersonFor(sql, "owner", input);
     const identity = await resolveIdentity(sql, "student");
     assert.equal(identity.role, "player");

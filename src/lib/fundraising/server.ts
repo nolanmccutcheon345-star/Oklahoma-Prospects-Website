@@ -158,3 +158,19 @@ export function paymentReady() {
     return false;
   }
 }
+
+/** Public prices remain public, but a restricted authenticated account cannot use
+ * financial checkout/receipt routes that otherwise permit anonymous visitors. */
+export async function requireFinancialSessionAccess() {
+  const session = await getSessionUser();
+  if (!session) return;
+  const { requireUnrestrictedLegacyAccess, CoordinatorDenied } =
+    await import("../coordinator/access.server");
+  try {
+    await requireUnrestrictedLegacyAccess(await getSql(), session.id);
+  } catch (error) {
+    if (error instanceof CoordinatorDenied)
+      throw new AppError("Financial access is not authorized for this account.", 403);
+    throw error;
+  }
+}

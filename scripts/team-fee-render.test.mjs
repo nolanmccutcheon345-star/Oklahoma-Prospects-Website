@@ -7,7 +7,9 @@ import { build } from "esbuild";
 import { JSDOM } from "jsdom";
 import { seedMasterMatrix } from "../src/lib/teams/budget-matrix.ts";
 import { defaultBudget, project } from "../src/lib/teams/fee-model.ts";
-test("team fee UI saves admin drafts and offers only permitted coach controls", async () => {
+for (const basisVersion of [undefined, 7]) {
+test(`team fee UI saves admin drafts and offers only permitted coach controls (${basisVersion === undefined ? "legacy" : "basis"})`, async () => {
+  const version = basisVersion === undefined ? {} : { basisVersion };
   const dom = new JSDOM('<div id="root"></div>', { url: "https://fixture.invalid/office" });
   Object.assign(globalThis, {
     window: dom.window,
@@ -29,6 +31,7 @@ test("team fee UI saves admin drafts and offers only permitted coach controls", 
     history: [],
   };
   const team = {
+    ...version,
     id: "team",
     name: "Example team",
     closed: false,
@@ -71,11 +74,13 @@ test("team fee UI saves admin drafts and offers only permitted coach controls", 
   const fixture = { data: { admin: true, teams: [team], business: null }, saved: [] };
   globalThis.__feeFixture = fixture;
   globalThis.__matrixFixture = {
+    ...version,
     value: seedMasterMatrix(),
     revision: 1,
     people: [{ userId: "parent", name: "Example Parent", role: "parent" }],
   };
   const mocks = {
+    "@/lib/finance/identity-admission-api": `export const getFinancialIdentityAdmissionOptions=async()=>({mode:globalThis.__matrixFixture.basisVersion?'basis':'legacy',basisVersion:globalThis.__matrixFixture.basisVersion||null,accounts:[],instructors:[]});export const previewFinancialIdentityAdmission=async()=>{throw Error("Unexpected identity preview")};export const admitFinancialIdentity=async()=>{throw Error("Unexpected identity admission")};`,
     "@/lib/teams/payment-api": `export const startTeamCheckout=async()=>{throw Error("Unexpected checkout")};`,
     "@/lib/commerce/api": `export const submitSquarePayment=async()=>{throw Error("Unexpected payment")};`,
     "@/lib/auth/use-current-user": `export const useCurrentUserState=()=>({user:{id:"fixture"}});`,
@@ -165,6 +170,8 @@ test("team fee UI saves admin drafts and offers only permitted coach controls", 
     assert.equal(globalThis.__matrixSaved.value.rows.length, 120);
     assert.equal(globalThis.__matrixSaved.value.overheadRule.monthly, 50000);
     assert.equal(globalThis.__matrixSaved.value.payroll[0].userId, "parent");
+    assert.equal(Object.hasOwn(globalThis.__matrixSaved, "basisVersion"), basisVersion !== undefined);
+    assert.equal(globalThis.__matrixSaved.basisVersion, basisVersion);
     assert.match(host.textContent, /Master saved/);
     assert.match(host.textContent, /Season & private pricing assumptions/);
     assert.match(host.textContent, /FEE HEALTH · INCOMPLETE/);
@@ -182,6 +189,8 @@ test("team fee UI saves admin drafts and offers only permitted coach controls", 
     await act(async () => save.click());
     assert.equal(fixture.saved[0].action, "save");
     assert.equal(fixture.saved[0].budget.membershipMonthly, 20000);
+    assert.equal(Object.hasOwn(fixture.saved[0], "basisVersion"), basisVersion !== undefined);
+    assert.equal(fixture.saved[0].basisVersion, basisVersion);
     const poToggle = [...host.querySelectorAll("label")]
       .find((l) => l.textContent.includes("pitcher-only roster spots"))
       ?.querySelector("input");
@@ -227,16 +236,47 @@ test("team fee UI saves admin drafts and offers only permitted coach controls", 
     );
     await act(async () => submit.click());
     assert.deepEqual(fixture.saved.at(-1), {
+      ...version,
       teamId: "team",
       revision: 1,
       action: "propose",
       tournament: 0,
       uniformId: "uniform",
     });
+    if (basisVersion !== undefined) {
+      fixture.data = {
+        ...fixture.data,
+        teams: [{ ...fixture.data.teams[0], basisVersion: basisVersion + 1 }],
+      };
+      await act(async () => window.dispatchEvent(new CustomEvent("team-budget-updated")));
+      const refreshedSelect = [...host.querySelectorAll("select")].find((s) =>
+        s.parentElement.textContent.includes("Uniform package"),
+      );
+      assert.equal(refreshedSelect.value, "", "A new financial version resets the stale draft.");
+      await act(async () => {
+        refreshedSelect.value = "uniform";
+        refreshedSelect.dispatchEvent(new dom.window.Event("change", { bubbles: true }));
+      });
+      await act(async () => [...host.querySelectorAll("button")].find(
+        (b) => b.textContent === "Submit selections & calculate fee",
+      ).click());
+      assert.deepEqual(fixture.saved.at(-1), {
+        teamId: "team",
+        revision: 1,
+        basisVersion: basisVersion + 1,
+        action: "propose",
+        tournament: 0,
+        uniformId: "uniform",
+      });
+      assert.doesNotMatch(host.textContent, /Master budget defaults|private pricing assumptions|Projected distributable|Nolan ownership|Vendor cost/);
+    }
   } finally {
     await act(async () => root.unmount());
     dom.window.close();
     delete globalThis.__feeFixture;
+    delete globalThis.__matrixFixture;
+    delete globalThis.__matrixSaved;
     await rm(out, { force: true });
   }
 });
+}

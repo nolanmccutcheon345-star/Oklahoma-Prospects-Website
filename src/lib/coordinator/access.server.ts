@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import type { Sql } from "../db";
+import { lockFinancialExecution } from "../finance/execution.server";
 import { capabilities, type Capability, type Sport } from "./contracts";
 export class CoordinatorDenied extends Error {
   constructor() {
@@ -107,9 +108,16 @@ export async function secured<T>(
   userId: string,
   action: string,
   work: (tx: Sql) => Promise<T>,
+  beforeLocks?: typeof lockFinancialExecution,
 ) {
   try {
     return await sql.transaction(async (tx) => {
+      // Internal lock-order hook only. Request data cannot supply code, and no
+      // arbitrary callback may inspect domain data before account authorization.
+      if (beforeLocks) {
+        if (beforeLocks !== lockFinancialExecution) throw new Error("Invalid execution gate.");
+        await beforeLocks(tx);
+      }
       await verifiedAccount(tx, userId, true);
       await tx.query("select set_config('app.actor_id',$1,true)", [userId]);
       return work(tx);
@@ -129,4 +137,37 @@ export async function recordRejectedCoordinatorRequest(sql: Sql, userId: string)
   const [assigned] =
     await sql`select user_id from coordinator_assignments where user_id=${userId} and status<>'removed' limit 1`;
   if (assigned) await audit(sql, userId, "protected.request-rejected", "", "denied");
+}
+
+/** Financial isolation is sticky even when operational access is suspended/revoked.
+ * Removing operations must never accidentally re-enable household billing. */
+export async function financiallyRestricted(sql: Sql, userId: string) {
+  const [row] = await sql<{
+    financial_restricted: boolean;
+  }>`select financial_restricted from organization_operational_access where user_id=${userId}`;
+  return row?.financial_restricted === true;
+}
+export async function requireUnrestrictedLegacyAccess(sql: Sql, userId: string) {
+  if (await financiallyRestricted(sql, userId)) throw new CoordinatorDenied();
+}
+export async function hasOrganizationOperations(sql: Sql, userId: string) {
+  await verifiedAccount(sql, userId, true);
+  const [row] =
+    await sql`select user_id from organization_operational_access where user_id=${userId} and status='active' and financial_restricted=true for share`;
+  return Boolean(row);
+}
+export async function requireOrganizationOperations(sql: Sql, userId: string) {
+  const user = await verifiedAccount(sql, userId, true);
+  if (await hasOrganizationOperations(sql, userId)) return user;
+  if (await financiallyRestricted(sql, userId)) throw new CoordinatorDenied();
+  // Preserve the existing verified-owner first-login claim flow. Never invoke it
+  // for restricted accounts, including suspended accounts.
+  const claimed =
+    await sql`update owner_grants set user_id=${userId} where email=${user.email} and user_id is null and revoked_at is null returning email`;
+  if (claimed.length)
+    await sql`insert into profiles(user_id,name,email,role,family_id) values(${userId},${user.name},${user.email},'admin',${"fam-" + userId}) on conflict(user_id) do update set role='admin'`;
+  const [owner] =
+    await sql`select g.email from owner_grants g join profiles p on p.user_id=g.user_id where g.user_id=${userId} and g.email=${user.email} and g.revoked_at is null and p.role='admin' for share of g,p`;
+  if (!owner) throw new CoordinatorDenied();
+  return user;
 }

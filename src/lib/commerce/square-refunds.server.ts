@@ -1,5 +1,6 @@
 import type { Square } from "square";
 import type { Sql } from "../db";
+import { lockFinancialExecution } from "../finance/execution.server";
 
 export function paymentRefundedCents(payment: Square.Payment, amountCents: number) {
   const money = payment.refundedMoney;
@@ -20,6 +21,7 @@ export async function applySquareRefundBalance(
   payment: Square.Payment,
   config: { environment: string; locationId: string },
 ) {
+  await lockFinancialExecution(sql);
   const [reference] = await sql<{
     order_id: string;
   }>`select order_id from square_payments where id=${payment.id || ""}`;

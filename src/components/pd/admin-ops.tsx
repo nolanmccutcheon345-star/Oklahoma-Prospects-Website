@@ -1,18 +1,18 @@
+import { FinancialIdentityAdmission } from "@/components/finance/financial-identity-admission";
 import {PersonEditor} from "@/components/staff/person-editor";
 import { formatDollars } from "@/lib/pricing";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { ArmConfirm, pushUndo } from "@/components/pd/polish";
+import { ArmConfirm } from "@/components/pd/polish";
 import { CoachEducationProgress } from "@/components/pd/education";
 import { useDevelopment } from "@/lib/pd/context";
 import {
   SERVICE_KINDS,
   deleteAccount,
   deleteStaff,
-  getServices,
-  getAdminServices,
+  getAdminLessonTerms,
   listAccounts,
-  listStaff,
+
   saveAccount,
   saveService,
   saveStaff,
@@ -23,7 +23,8 @@ import {
   type ServiceKind,
 } from "@/lib/ops";
 import type { ClubRole } from "@/lib/club-data";
-import { cn } from "@/lib/utils";
+import { getOwnerServiceDrafts } from "@/lib/coordinator/organization-services-api";
+import type { OrganizationService } from "@/lib/coordinator/organization-services-contracts";
 
 const fieldClass =
   "mt-1.5 block min-h-11 w-full rounded-md border border-line bg-paper-2 px-3 text-ink";
@@ -58,9 +59,10 @@ function emptyService(kind: ServiceKind): ServiceInput {
   };
 }
 
-function fromRow(row: ClubService): ServiceInput {
+function fromRow(row: ClubService, basisVersion?: number): ServiceInput {
   return {
     id: row.id,
+    basisVersion,
     kind: row.kind,
     name: row.name,
     discipline: row.discipline,
@@ -137,6 +139,7 @@ function CheckField({
 }
 
 export function AdminServicesDesk() {
+  const [basisVersion, setBasisVersion] = useState<number>();
   const [loaded, setLoaded] = useState(false);
   const [rows, setRows] = useState<ClubService[]>([]);
   const [filter, setFilter] = useState<string>("all");
@@ -145,32 +148,73 @@ export function AdminServicesDesk() {
   const [editing, setEditing] = useState<ServiceInput | null>(null);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [drafts, setDrafts] = useState<OrganizationService[]>([]);
+  const [draftId, setDraftId] = useState("");
+  const [draftReviewed, setDraftReviewed] = useState(false);
+  const [draftPrice, setDraftPrice] = useState("");
+  const [financialTermsConfirmed, setFinancialTermsConfirmed] = useState(false);
+  const pending = useRef(false);
+  const generation = useRef(0);
+  const mounted = useRef(false);
   async function refresh() {
-    setRows(await getAdminServices());
-    setLoaded(true);
+    const request = ++generation.current;
+    try {
+      const [result, nextDrafts] = await Promise.all([getAdminLessonTerms(), getOwnerServiceDrafts()]);
+      if (!mounted.current || request !== generation.current) return;
+      setRows(result.services);
+      setBasisVersion(result.basisVersion);
+      setDrafts(nextDrafts);
+      setDraftReviewed(false);
+      setLoaded(true);
+    } catch (cause) {
+      if (mounted.current && request === generation.current) {
+        setRows([]);
+        setDrafts([]);
+        setLoaded(false);
+      }
+      throw cause;
+    }
   }
   useEffect(() => {
-    refresh().catch((e) => setError(e instanceof Error ? e.message : "Could not load services."));
+    mounted.current = true;
+    refresh().catch((e) => { if (mounted.current) setError(e instanceof Error ? e.message : "Could not load services."); });
+    return () => { mounted.current = false; };
   }, []);
+  const selectedDraft = drafts.find((draft) => draft.id === draftId) || drafts[0];
+  const adoptingDraft = editing?.operationalDraftRevision !== undefined;
+  function openEditor(input: ServiceInput) {
+    setEditing(input);
+    setDraftPrice("");
+    setFinancialTermsConfirmed(false);
+    setError("");
+  }
   const visible = rows.filter(
     (row) =>
       (filter === "all" || row.kind === filter) &&
       (!search || row.name.toLowerCase().includes(search.toLowerCase())) &&
       (state === "all" || row.active === (state === "active")),
   );
-  async function onSave(event: React.FormEvent) {
+  async function onSave(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!editing) return;
+    if (!editing || pending.current) return;
+    if (adoptingDraft && (!financialTermsConfirmed || !draftPrice.trim() || !Number.isFinite(Number(draftPrice)) || Number(draftPrice) <= 0)) {
+      setError("Enter a positive customer price and explicitly confirm the reviewed financial terms.");
+      return;
+    }
+    pending.current = true;
     setBusy(true);
     setError("");
     try {
-      await saveService({ data: editing });
+      await saveService({ data: adoptingDraft ? { ...editing, price: Number(draftPrice), operationalDraftConfirmed: true } : editing });
+      if (!mounted.current) return;
       setEditing(null);
       await refresh();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not save that service.");
+      if (mounted.current && adoptingDraft) setFinancialTermsConfirmed(false);
+      if (mounted.current) setError(err instanceof Error ? err.message : "Could not save that service.");
     } finally {
-      setBusy(false);
+      pending.current = false;
+      if (mounted.current) setBusy(false);
     }
   }
   return (
@@ -185,10 +229,29 @@ export function AdminServicesDesk() {
             Lessons, packages, memberships, cages. Changes show on Train, Book, and Pay.
           </p>
         </div>
-        <Button type="button" onClick={() => setEditing(emptyService("lesson"))}>
+        <Button type="button" disabled={busy || !loaded} onClick={() => openEditor({ ...emptyService("lesson"), basisVersion })}>
           Add service
         </Button>
       </div>
+      <section className="mt-4 grid gap-3 rounded-2xl border border-line p-4" aria-label="Owner service draft approval">
+        <h4 className="text-xl">Operational drafts awaiting approval</h4>
+        <p className="text-sm">These drafts have no approved financial terms and cannot be purchased. Review the metadata, enter a customer price, and approve the service here.</p>
+        <Button type="button" variant="outlineDark" disabled={busy} onClick={() => { setEditing(null); setDraftReviewed(false); setError(""); void refresh().catch((cause) => { if (mounted.current) setError(cause instanceof Error ? cause.message : "Could not reload services."); }); }}>Reload Services & Drafts</Button>
+        {!loaded ? <p role="status">{error ? "Draft review is unavailable until services reload successfully." : "Loading service drafts…"}</p> : !selectedDraft ? <p>No service drafts await owner approval.</p> : <>
+          <label className="grid gap-1 text-sm">Draft to review<select className="office-control" value={selectedDraft.id} disabled={busy || editing !== null} onChange={(event) => { setDraftId(event.target.value); setDraftReviewed(false); }}>
+            {drafts.map((draft) => <option key={draft.id} value={draft.id}>{draft.name} · {SERVICE_KINDS.find((kind) => kind.id === draft.kind)?.label || draft.kind}</option>)}
+          </select></label>
+          <p className="text-sm">{selectedDraft.discipline || "No discipline specified"} · Revision {selectedDraft.revision}</p>
+          <p className="text-sm">{selectedDraft.purpose || "No public summary."}</p>
+          <p className="text-sm whitespace-pre-wrap">{selectedDraft.detail || "No public description."}</p>
+          <p className="text-sm">Display order: {selectedDraft.sortOrder} · {selectedDraft.featured ? "Featured" : "Standard display"}</p>
+          <label className="flex min-h-11 items-center gap-2 text-sm"><input type="checkbox" checked={draftReviewed} disabled={busy || editing !== null} onChange={(event) => setDraftReviewed(event.target.checked)} />I reviewed this draft and want to set its owner-approved financial terms.</label>
+          <Button type="button" disabled={busy || editing !== null || !draftReviewed} onClick={() => {
+            if (!draftReviewed || !selectedDraft) return;
+            openEditor({ ...emptyService(selectedDraft.kind), id: selectedDraft.id, kind: selectedDraft.kind, name: selectedDraft.name, discipline: selectedDraft.discipline, purpose: selectedDraft.purpose, detail: selectedDraft.detail, featured: selectedDraft.featured, sort_order: selectedDraft.sortOrder, basisVersion, operationalDraftRevision: selectedDraft.revision, operationalDraftConfirmed: true, active: false });
+          }}>Review Pricing & Approve Draft</Button>
+        </>}
+      </section>
       <div className="my-4 grid gap-3 sm:grid-cols-3">
         <label className="grid gap-1 text-sm">
           Search services
@@ -231,8 +294,10 @@ export function AdminServicesDesk() {
       {editing ? (
         <form
           onSubmit={onSave}
+          onChange={(event) => { if (adoptingDraft && (event.target as HTMLFormElement).name !== "financialTermsConfirmed") setFinancialTermsConfirmed(false); }}
           className="mt-4 grid gap-3 rounded-2xl bg-paper-2 p-5 shadow-border"
         >
+          <fieldset disabled={busy} className="contents">
           <p className="text-xs font-semibold tracking-[0.16em] text-maroon uppercase">
             {editing.id ? `Edit ${editing.name}` : "New service"}
           </p>
@@ -240,6 +305,7 @@ export function AdminServicesDesk() {
             Type
             <select
               value={editing.kind}
+              disabled={adoptingDraft}
               onChange={(event) =>
                 setEditing({ ...editing, kind: event.target.value as ServiceKind })
               }
@@ -262,12 +328,12 @@ export function AdminServicesDesk() {
             />
           </label>
           <div className="grid grid-cols-2 gap-3">
-            <NumberField
+            {adoptingDraft ? <label className="text-sm font-semibold">Price ($)<input type="number" required min={0.01} max={100000} step={0.01} value={draftPrice} onChange={(event) => { setDraftPrice(event.target.value); setFinancialTermsConfirmed(false); }} className={fieldClass} /></label> : <NumberField
               label="Price ($)"
               step={0.01}
               value={editing.price}
               onChange={(price) => setEditing({ ...editing, price })}
-            />
+            />}
             <NumberField
               label="Minutes"
               value={editing.minutes}
@@ -287,15 +353,20 @@ export function AdminServicesDesk() {
             checked={editing.active}
             onChange={(active) => setEditing({ ...editing, active })}
           />
+          {adoptingDraft && <>
+            <p className="text-sm">Saving approves this draft's financial terms. Enable Active to publish it for new purchases. Saving inactive keeps it archived until a separate operational reactivation. Existing paid purchases keep their agreed terms.</p>
+            <label className="flex min-h-11 items-center gap-2 text-sm font-semibold"><input type="checkbox" name="financialTermsConfirmed" checked={financialTermsConfirmed} onChange={(event) => setFinancialTermsConfirmed(event.target.checked)} />I approve this service and its reviewed financial terms.</label>
+          </>}
           {error ? <p className="text-sm text-maroon">{error}</p> : null}
           <div className="flex gap-2">
-            <Button type="submit" disabled={busy}>
+            <Button type="submit" disabled={busy || (adoptingDraft && (!financialTermsConfirmed || !draftPrice.trim()))}>
               {busy ? "Saving…" : "Save"}
             </Button>
-            <Button type="button" variant="outlineDark" onClick={() => setEditing(null)}>
+            <Button type="button" variant="outlineDark" disabled={busy} onClick={() => { setEditing(null); setFinancialTermsConfirmed(false); setDraftReviewed(false); setError(""); }}>
               Cancel
             </Button>
           </div>
+          </fieldset>
         </form>
       ) : null}
       {!loaded && !error && <p role="status">Loading services…</p>}
@@ -330,7 +401,8 @@ export function AdminServicesDesk() {
                 type="button"
                 variant="outlineDark"
                 size="sm"
-                onClick={() => setEditing(fromRow(row))}
+                disabled={busy}
+                onClick={() => openEditor(fromRow(row, basisVersion))}
               >
                 Edit
               </Button>
@@ -348,14 +420,17 @@ export function AdminServicesDesk() {
                   size="sm"
                   disabled={busy}
                   onClick={async () => {
+                    if (pending.current) return;
+                    pending.current = true;
                     setBusy(true);
                     setError("");
                     try {
-                      await saveService({ data: { ...fromRow(row), active: !row.active } });
+                      await saveService({ data: { ...fromRow(row), active: !row.active, basisVersion } });
                       await refresh();
                     } catch (e) {
                       setError(e instanceof Error ? e.message : "Could not update service.");
                     } finally {
+                      pending.current = false;
                       setBusy(false);
                     }
                   }}
@@ -372,6 +447,8 @@ export function AdminServicesDesk() {
 }
 
 export function AdminStaffDesk() {
+  const [basisVersion, setBasisVersion] = useState<number>();
+  const [editingBasisVersion, setEditingBasisVersion] = useState<number>();
   const [services, setServices] = useState<ClubService[]>([]);
   const [offerings, setOfferings] = useState<{ serviceId: string; profitSplit: number }[]>([]);
   const [staff, setStaff] = useState<ClubStaff[]>([]);
@@ -391,9 +468,10 @@ export function AdminStaffDesk() {
   const [busy, setBusy] = useState(false);
   const { data } = useDevelopment();
   async function refresh() {
-    const [people, catalog] = await Promise.all([listStaff(), getServices()]);
-    setStaff(people);
-    setServices(catalog.filter((service) => service.kind === "lesson"));
+    const result = await getAdminLessonTerms();
+    setStaff(result.staff);
+    setBasisVersion(result.basisVersion);
+    setServices(result.services.filter((service) => service.kind === "lesson"));
   }
   useEffect(() => {
     refresh().catch(() => setError("Could not load coaches and services. Please reload."));
@@ -416,6 +494,7 @@ export function AdminStaffDesk() {
           active: form.active,
           createLogin: form.createLogin,
           offerings,
+          basisVersion: editingBasisVersion,
         },
       });
       setEditingId(null);
@@ -444,13 +523,14 @@ export function AdminStaffDesk() {
           <h3 className="text-2xl">Coach services</h3>
           <p className="mt-1 text-sm text-muted">
             Choose the assessments, lessons and video reviews each coach offers. Package and
-            membership sessions use these same assignments.
+            membership sessions use these same assignments. Saved shares apply to future bookings; booked lessons retain their approved instructor terms.
           </p>
         </div>
         <Button
           type="button"
           onClick={() => {
             setEditingId("new");
+            setEditingBasisVersion(basisVersion);
             setOfferings([]);
             setError("");
             setNotice("");
@@ -598,6 +678,7 @@ export function AdminStaffDesk() {
           </div>
         </form>
       ) : null}
+      <FinancialIdentityAdmission kind="instructor" onAdmitted={refresh} />
       <CoachEducationProgress
         coaches={staff.map((row) => ({ name: row.name, email: row.email, note: row.role }))}
       />
@@ -620,6 +701,7 @@ export function AdminStaffDesk() {
                 size="sm"
                 onClick={() => {
                   setEditingId(row.id);
+                  setEditingBasisVersion(basisVersion);
                   setOfferings(
                     row.offerings.map((offer) => ({
                       serviceId: offer.service_id,
@@ -646,7 +728,7 @@ export function AdminStaffDesk() {
                 label="Deactivate"
                 armedLabel="Tap again to deactivate"
                 onConfirm={async () => {
-                  await deleteStaff({ data: { id: row.id } });
+                  await deleteStaff({ data: { id: row.id, basisVersion } });
                   await refresh();
                 }}
               />

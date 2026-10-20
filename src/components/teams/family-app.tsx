@@ -1,3 +1,5 @@
+import type { TeamFinancialView } from "@/lib/teams/financial-view";
+import { FamilyFinancialRecords } from "./family-financial-records";
 import { SelectedTeamUniform } from "./uniform-photos";
 import {TeamActivities} from "./team-activities";
 import { useState } from "react";
@@ -39,6 +41,7 @@ const copy = {
 
 export function FamilyApp({
   club,
+  financial,
   familyId,
   familyIds,
   playerIds = [],
@@ -48,6 +51,7 @@ export function FamilyApp({
   onReload,
 }: {
   club: ClubRecord;
+  financial?: TeamFinancialView | null;
   familyId: string;
   familyIds?:string[];
   playerIds?:string[];
@@ -64,6 +68,8 @@ export function FamilyApp({
   const row = mine.find((m) => m.player.id === active) ?? mine[0];
   if (!row) {
     return (
+      <div className="grid gap-3">
+      {financial&&<FamilyFinancialRecords financial={financial} familyId={familyId}/>}
       <div className="rounded-2xl bg-paper-2 p-5 shadow-border">
         <h2 className="text-2xl">No player is linked to this login.</h2>
         <p className="mt-2 text-sm text-muted">
@@ -78,13 +84,14 @@ export function FamilyApp({
             <Link to="/contact">Contact</Link>
           </Button>
         </div>
-      </div>
+      </div></div>
     );
   }
   const { team, player } = row;
   const isPlayer=playerAccount||!(familyIds||[familyId]).includes(player.familyId);
-  const signed = player.feeLock?.amount ?? 0;
-  const due = balance(player, signed);
+  const financialPlayer=financial?.obligations.find(p=>p.playerId===player.id);
+  const signed = financial ? financialPlayer?.signed??0 : player.feeLock?.amount ?? 0;
+  const due = financial ? financialPlayer?.due??0 : balance(player, signed);
   const combined = mine.reduce((sum, m) => sum + balance(m.player, m.player.feeLock?.amount ?? 0), 0);
   const red = {
     balance: due > 0,
@@ -105,7 +112,8 @@ export function FamilyApp({
 
   return (
     <div className="grid gap-3">
-      {!isPlayer&&<TeamFeeWorkspace teamId={team.id}/>}
+      {financial&&<FamilyFinancialRecords financial={financial} familyId={familyId}/>}
+      {!financial&&!isPlayer&&<TeamFeeWorkspace teamId={team.id}/>}
       <TeamActivities key={team.id} teamId={team.id} onSaved={onReload}/>
       {mine.length > 1 ? (
         <div className="flex flex-wrap gap-2">
@@ -142,7 +150,7 @@ export function FamilyApp({
         ))}
       </div>
 
-      {!isPlayer ? (
+      {!financial && (!isPlayer ? (
         <Section title={t.pay} defaultOpen>
           <p className="font-display text-4xl">{money(due)}</p>
           <p className="text-sm text-muted">
@@ -170,9 +178,9 @@ export function FamilyApp({
         <p className="rounded-xl bg-paper-2 p-4 text-sm">
           Player view — no dollar figures. Ask a parent about fees.
         </p>
-      )}
+      ))}
 
-      <Section title={t.plan}>
+      {!financial&&<Section title={t.plan}>
         {player.planLock ? (
           <ul className="text-sm">
             {player.planLock.rows.map((r, index) => (
@@ -184,7 +192,7 @@ export function FamilyApp({
         ) : (
           <p>Plan locks when you sign.</p>
         )}
-      </Section>
+      </Section>}
 
       <Section title={t.docs}>
         <p>Document status is confirmed by the front office. Signed annual waivers are maintained in your account.</p>
@@ -255,12 +263,12 @@ export function FamilyApp({
         </ul>
       </Section>
 
-      <Section title={t.fund}>
+      {!financial&&<Section title={t.fund}>
         <p className="text-sm">
           Credits earned: {isPlayer ? "on file" : money(player.credits.reduce((s, c) => s + c.amount, 0))}
         </p>
         <p className="text-xs text-muted">Sponsorships reduce the balance, never the signed fee.</p>
-      </Section>
+      </Section>}
 
       <Section title={t.cage}>
         <p className="text-sm">

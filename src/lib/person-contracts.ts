@@ -29,6 +29,7 @@ export const personSaveInput = z
   .object({
     userId: z.string().min(1).max(200),
     revision: z.number().int().min(0),
+    basisVersion: z.number().int().positive().optional(),
     profile: sharedProfileInput,
     instructor: z.boolean(),
     publishCoach: z.boolean(),
@@ -87,3 +88,13 @@ export const emptySharedProfile = (name = ""): SharedProfile => ({
   welcome: "",
 });
 export const normEmail = (email: string) => email.trim().toLowerCase();
+
+/** The public staff card and operational public fallback must validate the same allowlisted shape. */
+export function publicSharedProfile(value: unknown): SharedProfile | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const fields = Object.fromEntries(
+    Object.keys(emptySharedProfile()).map((key) => [key, (value as Record<string, unknown>)[key]]),
+  );
+  const parsed = sharedProfileInput.safeParse(fields);
+  return parsed.success ? parsed.data : null;
+}

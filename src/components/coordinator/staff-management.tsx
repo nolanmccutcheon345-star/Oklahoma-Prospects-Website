@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { OrganizationAccess } from "./organization-access";
 import { Button } from "../ui/button";
 import {
   capabilities,
@@ -104,6 +105,7 @@ export function StaffRoleManagement() {
       aria-label="Staff Management"
     >
       <h2 className="text-2xl">Staff Management</h2>
+      <OrganizationAccess accounts={data.accounts} />
       <p>
         Role identity, operational permissions, team scope, and public titles are configured
         separately.
@@ -253,7 +255,9 @@ export function StaffRoleManagement() {
                   <Button
                     type="button"
                     variant="outlineDark"
-                    onClick={() => setValue({ ...value, permissions: [...programOperationsPreset] })}
+                    onClick={() =>
+                      setValue({ ...value, permissions: [...programOperationsPreset] })
+                    }
                   >
                     Select program operations — review before saving
                   </Button>

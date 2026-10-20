@@ -1,3 +1,4 @@
+import { requireFinancialSessionAccess } from "./server";
 import { validCheckoutUrl } from "./payment-validation";
 import {
   body,
@@ -21,6 +22,7 @@ export async function POST(req: Request) {
         "Online sponsorships are not open yet. Prospects is finishing the Square connection.",
         503,
       );
+    await requireFinancialSessionAccess();
     const cents = amount(b.amount, 500, 1000000);
     const donor = text(b.donor, 80);
     const email = text(b.email, 150);

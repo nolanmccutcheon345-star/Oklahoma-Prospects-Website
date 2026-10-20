@@ -1,9 +1,15 @@
 import type { Sql } from "../db";
-import { resolveIdentity } from "../identity.server";
+import {
+  withFinancialContext,
+  commitFinancialRecordsInTransaction,
+  financialReadSnapshotInTransaction,
+  type FinancialContext,
+} from "./context.server";
 import { sourceData } from "./sources.server";
 import { financeSummary } from "./model";
 import {
   financeAction,
+  day,
   today,
   total,
   type FinanceAction,
@@ -14,9 +20,7 @@ import {
   type BankTxn,
 } from "./contracts";
 export async function financeAdmin(sql: Sql, userId: string) {
-  const me = await resolveIdentity(sql, userId);
-  if (me.role !== "admin") throw Error("Financial administrator access required.");
-  return me;
+  return withFinancialContext(sql, userId, "owner", async (_tx, context) => context.principal);
 }
 export async function records(sql: Sql) {
   return sql<RecordRow>`select id,kind,payload from finance_records order by created_at,id`;
@@ -35,21 +39,34 @@ export async function write(
   await sql`insert into finance_audit(actor_id,record_id,action,reason,before_state,after_state) values(${actor},${id},${before ? "update" : "create"},${reason},${before ? JSON.stringify(before.payload) : null}::jsonb,${JSON.stringify(value)}::jsonb)`;
 }
 export async function financeWorkspace(sql: Sql, userId: string) {
-  await financeAdmin(sql, userId);
-  const rs = await records(sql),
-    [state] = await sql<{
+  return withFinancialContext(sql, userId, "owner", (tx, context) =>
+    financeWorkspaceInTransaction(tx, context, today()),
+  );
+}
+
+/** Internal owner-only read adapter. It does not refresh accruals or write. */
+export async function financeWorkspaceInTransaction(
+  tx: Sql,
+  issuedContext: FinancialContext,
+  asOf: string,
+) {
+  const context = await financialReadSnapshotInTransaction(tx, issuedContext, "owner");
+  day.parse(asOf);
+  const rs = await records(tx),
+    [state] = await tx<{
       revision: number;
       payload: Settings;
     }>`select revision,payload from finance_state where id='organization'`;
-  const sources = await sourceData(sql, today(), rs);
+  const sources = await sourceData(tx, asOf, rs, context);
   const audit =
-    await sql<any>`select actor_id,record_id,action,reason,before_state,after_state,created_at from finance_audit order by id desc limit 200`;
+    await tx<any>`select actor_id,record_id,action,reason,before_state,after_state,created_at from finance_audit order by id desc limit 200`;
   return {
     revision: state.revision,
+    ...(context.mode === "basis" ? { basisVersion: context.version! } : {}),
     settings: state.payload,
     records: rs,
     sources,
-    summary: financeSummary(rs, state.payload, sources, today()),
+    summary: financeSummary(rs, state.payload, sources, asOf),
     audit: audit.map((a) => ({ ...a, created_at: new Date(a.created_at).toISOString() })),
   };
 }
@@ -59,10 +76,47 @@ export async function mutateFinance(
   input: FinanceAction,
   provider?: { refund: (id: string) => Promise<any>; payment: (id: string) => Promise<any> },
 ) {
-  const me = await financeAdmin(sql, userId),
-    a = financeAction.parse(input),
+  const a = financeAction.parse(input),
     date = today();
-  return sql.transaction(async (tx) => {
+  // Provider reads happen outside all SQL locks. The owner and stored refund
+  // identities/balance are revalidated inside the committing transaction.
+  const observed =
+    a.action === "externalRefund"
+      ? await (async () => {
+          const expected = await withFinancialContext(sql, userId, "owner", async (tx) => {
+            const [refund] = await tx<any>`select * from commerce_refunds where id=${a.refundId}`;
+            if (
+              !refund ||
+              !["failed", "rejected"].includes(refund.status) ||
+              refund.external_status
+            )
+              throw Error(
+                "Only a definitively failed or rejected Square refund can use an external fallback.",
+              );
+            if (!refund.square_refund_id)
+              throw Error("Verify the failed Square refund ID before external reimbursement.");
+            const [payment] =
+              await tx<any>`select * from square_payments where id=${refund.square_payment_id}`;
+            if (!payment || payment.environment !== "production")
+              throw Error("Only actual production payments can be reimbursed externally.");
+            return { refund, payment };
+          });
+          const { squareClient } = await import("../commerce/square.server");
+          const client = provider ? null : squareClient();
+          const [refund, payment] = await Promise.all([
+            provider
+              ? provider.refund(expected.refund.square_refund_id)
+              : client!.refunds.get({ refundId: expected.refund.square_refund_id }),
+            provider
+              ? provider.payment(expected.payment.id)
+              : client!.payments.get({ paymentId: expected.payment.id }),
+          ]);
+          return { expected, refund: refund.refund, payment: payment.payment };
+        })()
+      : null;
+  return withFinancialContext(sql, userId, "owner", async (tx, context) => {
+    if (context.mode === "basis" && a.basisVersion !== context.version)
+      throw Error("Financial basis changed. Refresh before saving.");
     const [state] = await tx<{
       revision: number;
       payload: Settings;
@@ -79,10 +133,22 @@ export async function mutateFinance(
       await write(tx, userId, kind, id, value, a.reason);
       rs = rs.filter((r) => r.id !== id).concat({ id, kind, payload: value });
     };
-    const source = await sourceData(tx, date, rs);
-    if (a.action === "facility") {
+    const source = await sourceData(tx, date, rs, context);
+    if (a.action === "recognizeLesson") {
+      if (context.mode !== "basis")
+        throw Error("Independent financial recognition requires the reviewed financial cutover.");
+      const { recognizeFinancialLessonInTransaction } = await import("./compensation.server");
+      const result = await recognizeFinancialLessonInTransaction(
+        tx,
+        userId,
+        a.bookingId,
+        a.reason,
+        true,
+      );
+      if (!result.recognized) return { ok: true };
+    } else if (a.action === "facility") {
       const { facilityPayables } = await import("./facility.server");
-      const generated = await facilityPayables(tx, date, rs);
+      const generated = await facilityPayables(tx, date, rs, context);
       for (const p of generated.payees)
         if (!rs.some((r) => r.id === p.id)) await save("payee", p.id, p);
       for (const p of generated.payables) {
@@ -333,6 +399,7 @@ export async function mutateFinance(
         ...a,
         action: undefined,
         revision: undefined,
+        basisVersion: undefined,
         reason: undefined,
         state: "in progress",
       });
@@ -444,11 +511,16 @@ export async function mutateFinance(
         );
       if (!r.square_refund_id)
         throw Error("Verify the failed Square refund ID before external reimbursement.");
-      const { squareClient } = await import("../commerce/square.server");
-      const result = provider
-        ? await provider.refund(r.square_refund_id)
-        : await squareClient().refunds.get({ refundId: r.square_refund_id });
-      const refund = result.refund;
+      if (
+        !observed ||
+        observed.expected.refund.id !== r.id ||
+        observed.expected.refund.order_id !== r.order_id ||
+        observed.expected.refund.square_payment_id !== r.square_payment_id ||
+        observed.expected.refund.square_refund_id !== r.square_refund_id ||
+        observed.expected.refund.amount_cents !== r.amount_cents
+      )
+        throw Error("Refund changed while verifying Square. Refresh before saving.");
+      const refund = observed.refund;
       if (
         !refund ||
         refund.id !== r.square_refund_id ||
@@ -464,10 +536,12 @@ export async function mutateFinance(
         await tx<any>`select * from square_payments where id=${r.square_payment_id} for update`;
       if (!payment || payment.environment !== "production")
         throw Error("Only actual production payments can be reimbursed externally.");
-      const response = provider
-        ? await provider.payment(payment.id)
-        : await squareClient().payments.get({ paymentId: payment.id });
-      const current = response.payment;
+      if (
+        payment.order_id !== observed.expected.payment.order_id ||
+        payment.amount_cents !== observed.expected.payment.amount_cents
+      )
+        throw Error("Payment changed while verifying Square. Refresh before saving.");
+      const current = observed.payment;
       if (
         !current ||
         current.id !== payment.id ||
@@ -508,6 +582,15 @@ export async function mutateFinance(
         source: id,
       });
     }
+    if (
+      rs.some((r) => ["payee", "rule"].includes(r.kind)) &&
+      ["payee", "rule", "refresh", "facility"].includes(a.action)
+    )
+      await commitFinancialRecordsInTransaction(tx, context, {
+        expectedBasisVersion: a.basisVersion,
+        records: rs.filter((r) => ["payee", "rule"].includes(r.kind)),
+        reason: a.reason,
+      });
     await tx`update finance_state set revision=revision+1, payload=case when ${["settings", "distribution", "payment", "match", "paymentFailed"].includes(a.action)} then payload else jsonb_set(payload,'{reviewedThrough}','\"\"'::jsonb) end where id='organization'`;
     return { ok: true };
   });
