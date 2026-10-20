@@ -1,6 +1,18 @@
-# Financial context cutover: staged consumers, production captured-only
+# Financial preservation cutover: reviewed owner activation
 
-## Status and scope
+## Current release status (2026-10-20)
+
+The recovered release now includes additive `0077_financial_basis_activation.sql`, which permits only valid captured/null or active/current-version states and adds a deferred version foreign key. It performs no capture, binding backfill, activation or account grant. Missing/captured state still selects legacy behavior. The historical foundation notes below describe earlier checkpoints and their then-captured-only restrictions; those statements are superseded by this current section.
+
+True-owner Finance → Operational Cutover provides separate explicit capture, captured-source refresh and activation previews/actions. `previewFinancialBasisActivationForOwner` and `activateFinancialBasisForOwner` bind current owner, exact clean build release, source revision/digest, captured version/payload, provider-readiness evidence, Central comparison date, complete output digest and review digest. Unknown/ambiguous attempts, incoherent bindings, stale sources or inaccessible projections block activation. No environment flag can activate the database.
+
+Activation runs under the shared gate and owner checks. It applies only reviewed original lesson bindings, changes the pointer, compares complete fee/finance/compensation outputs at the same fixed date, and appends its audit in one transaction. Any mismatch or failed audit rolls back everything. Only the documented presentation basisVersion fields are omitted from comparison; nested stored fields with that name remain protected. Original paid/prepared orders, provider attempts, pins, payments and refunds are not rewritten.
+
+Owner Staff Management separately reviews an existing account for organization-wide operations. Its exact account/release/basis/revision receipt, explicit confirmation and reason are required; self and owner targets are denied, financial restriction is sticky, and authentication/base roles are unchanged. Activation does not grant Sara access. Deployment, capture/refresh, activation and the exact Sara grant require the applicable reviewed approvals; no such production action has occurred.
+
+Verification gates: exact clean source seal, full regression/build/SSR, compiled authenticated transport, browser workflows, independent privacy/security review, and real PostgreSQL source/provider/activation and account-grant/disable races. A green test of an earlier checkpoint is not final release acceptance. See `organization-parity-matrix.md` for supported operations and explicit limits.
+
+## Historical foundation checkpoint: status and scope
 
 Migration `0069_financial_basis.sql` remains unchanged: empty private foundation tables, no data backfill, account grant, owner-role change, or activation. Additive `0070_financial_context.sql` supplies the shared transaction gate, genuine provider provenance, original lesson bindings, separate financial recognition/operational observations, and versioned new-identity admission. Neither migration activates consumers. The Netlify mirrors must match the reviewed SQL byte-for-byte after wrapping.
 
