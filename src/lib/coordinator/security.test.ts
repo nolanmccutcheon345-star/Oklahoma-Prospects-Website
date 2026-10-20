@@ -753,3 +753,107 @@ test("invitations cannot restore existing assignments or bypass adult and indepe
     await db.close();
   }
 });
+
+test("owner access reviews attest exact revisions without granting access and remain immutable", async () => {
+  const { db, sql, assign } = await fixture();
+  try {
+    const { coordinatorAccessReviews, reviewCoordinatorAccess } = await import("./reviews.server");
+    const saved = await assign("zero", "softball");
+    const input = {
+      userId: "zero",
+      sport: "softball" as const,
+      revision: saved.revision,
+      period: "monthly" as const,
+      reason: "Reviewed assignment and activity",
+      confirmed: true as const,
+    };
+    const before = await sql`select * from coordinator_assignments order by user_id,sport`;
+    const roles = await sql`select * from profiles order by user_id`;
+    for (const actor of ["zero", "softball", "fake", "coach", "parent"]) {
+      await assert.rejects(coordinatorAccessReviews(sql, actor));
+      await assert.rejects(reviewCoordinatorAccess(sql, actor, input));
+    }
+    await assert.rejects(
+      reviewCoordinatorAccess(sql, "owner", { ...input, revision: 99 }),
+      /changed/,
+    );
+    await assert.rejects(
+      reviewCoordinatorAccess(sql, "owner", {
+        ...input,
+        permissions: ["recruiting.read"],
+      } as never),
+    );
+    let workspace = await coordinatorAccessReviews(sql, "owner");
+    assert.equal(workspace.assignments.length, 3);
+    assert.ok(workspace.assignments.every((row) => row.due));
+    await reviewCoordinatorAccess(sql, "owner", input);
+    workspace = await coordinatorAccessReviews(sql, "owner");
+    assert.equal(workspace.assignments.find((row) => row.period === "monthly")?.due, false);
+    assert.ok(
+      workspace.assignments.filter((row) => row.period !== "monthly").every((row) => row.due),
+    );
+    assert.deepEqual(workspace.history[0].details.snapshot.permissions, []);
+    assert.equal(workspace.history[0].details.revision, saved.revision);
+    assert.deepEqual(
+      await sql`select * from coordinator_assignments order by user_id,sport`,
+      before,
+    );
+    assert.deepEqual(await sql`select * from profiles order by user_id`, roles);
+    await assert.rejects(requireGrant(sql, "zero", "recruiting.read", "softball"));
+    await assert.rejects(
+      sql`update coordinator_audit set details='{}'::jsonb where action='staff.access-review'`,
+    );
+    await assert.rejects(sql`delete from coordinator_audit where action='staff.access-review'`);
+    await saveAssignment(sql, "owner", { ...saved, permissions: ["recruiting.read"] });
+    workspace = await coordinatorAccessReviews(sql, "owner");
+    assert.equal(workspace.assignments.find((row) => row.period === "monthly")?.due, true);
+    await assert.rejects(reviewCoordinatorAccess(sql, "owner", input), /changed/);
+    assert.deepEqual(workspace.history[0].details.snapshot.permissions, []);
+    await sql`insert into coordinator_audit(actor_id,action,target_id,result,details,correlation_id,sport,created_at) values('owner','staff.access-review','zero','allowed',${JSON.stringify({ period: "quarterly", revision: saved.revision + 1, reason: "Historical review", snapshot: {} })}::jsonb,${randomUUID()},'softball',now()-interval '91 days')`;
+    assert.equal(
+      (await coordinatorAccessReviews(sql, "owner")).assignments.find(
+        (row) => row.period === "quarterly",
+      )?.due,
+      true,
+    );
+    const { saveCoordinatorReviewPolicy } = await import("./reviews.server");
+    const { activityWorkspace } = await import("./admin.server");
+    const policy = {
+      ...(await coordinatorAccessReviews(sql, "owner")).policy,
+      quarterlyDays: 180,
+      denialThreshold: 100,
+    };
+    const permissionsBeforePolicy =
+      await sql`select * from coordinator_assignments order by user_id,sport`;
+    await assert.rejects(saveCoordinatorReviewPolicy(sql, "zero", policy));
+    await assert.rejects(saveCoordinatorReviewPolicy(sql, "fake", policy));
+    await assert.rejects(
+      saveCoordinatorReviewPolicy(sql, "owner", { ...policy, denialThreshold: 0 }),
+    );
+    await saveCoordinatorReviewPolicy(sql, "owner", policy);
+    await assert.rejects(saveCoordinatorReviewPolicy(sql, "owner", policy), /changed/);
+    const updated = await coordinatorAccessReviews(sql, "owner");
+    assert.equal(updated.assignments.find((row) => row.period === "quarterly")?.due, false);
+    assert.equal((await activityWorkspace(sql, "owner")).alerts.length, 0);
+    await saveCoordinatorReviewPolicy(sql, "owner", {
+      ...updated.policy,
+      denialThreshold: 1,
+      denialWindowHours: 48,
+    });
+    assert.ok(
+      (await activityWorkspace(sql, "owner")).alerts.some((row) => row.actor_id === "zero"),
+    );
+    assert.equal((await activityWorkspace(sql, "owner")).denialWindowHours, 48);
+    assert.deepEqual(
+      await sql`select * from coordinator_assignments order by user_id,sport`,
+      permissionsBeforePolicy,
+    );
+    await sql`delete from staff_authorities where email='owner@example.invalid' and capability='staff_roles.manage'`;
+    await assert.rejects(
+      reviewCoordinatorAccess(sql, "owner", { ...input, revision: saved.revision + 1 }),
+    );
+    await assert.rejects(coordinatorAccessReviews(sql, "owner"));
+  } finally {
+    await db.close();
+  }
+});

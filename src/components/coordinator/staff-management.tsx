@@ -1,3 +1,4 @@
+import { CoordinatorAccessReviews } from "./access-reviews";
 import { useEffect, useState } from "react";
 import { Button } from "../ui/button";
 import {
@@ -121,6 +122,7 @@ export function StaffRoleManagement() {
           ["invitations", "Coordinator Invitations"],
           ["approvals", "Approval Queue"],
           ["activity", "Staff Activity & Audit Center"],
+          ["reviews", "Access Reviews"],
         ].map(([key, label]) => (
           <Button
             key={key}
@@ -518,6 +520,7 @@ export function StaffRoleManagement() {
           )}
         </>
       )}
+      {tab === "reviews" && <CoordinatorAccessReviews />}
       {tab === "activity" && (
         <>
           <label className="grid gap-1">
@@ -547,8 +550,8 @@ export function StaffRoleManagement() {
           </Button>
           {activity?.alerts.map((a) => (
             <p role="status" key={a.actor_id}>
-              {a.denials} denied actions in 24 hours for {a.actor_id}. Review context before
-              treating this as an incident.
+              {a.denials} denied actions in {activity.denialWindowHours} hours for {a.actor_id}.
+              Review context before treating this as an incident.
             </p>
           ))}
           <div className="overflow-auto">

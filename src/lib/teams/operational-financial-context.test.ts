@@ -360,19 +360,19 @@ test("financial payment CAS and operational CAS cannot lose each other; current 
   );
 });
 
-test("real parent-role Sara operational APIs preserve complete team fee and finance outputs", async () => {
+test("retired parent-role blanket access is denied while owner operational APIs preserve financial outputs", async () => {
   const { sql, club, team, p } = await fixture();
-  await sql`insert into "user"(id,email,name,"emailVerified") values('sara','sara@example.invalid','Sara',true)`;
-  await sql`insert into profiles(user_id,name,email,role,family_id) values('sara','Sara','sara@example.invalid','parent','fam-sara')`;
-  await sql`insert into organization_operational_access(user_id,status,updated_by) values('sara','active','owner')`;
+  await sql`insert into "user"(id,email,name,"emailVerified") values('retired-staff','retired-staff@example.invalid','Retired Staff',true)`;
+  await sql`insert into profiles(user_id,name,email,role,family_id) values('retired-staff','Retired Staff','retired-staff@example.invalid','parent','fam-retired-staff')`;
+  await sql`insert into organization_operational_access(user_id,status,updated_by) values('retired-staff','active','owner')`;
   await capture(sql);
   await assert.rejects(
-    saveOrganizationTeam(sql, "sara", {
+    saveOrganizationTeam(sql, "retired-staff", {
       revision: 4,
       teamId: team.id,
       changes: { coachEmail: "other@example.invalid" },
     }),
-    /protected|owner|financial|workflow/i,
+    /not authorized/i,
   );
   await activate(sql);
   const before = {
@@ -383,11 +383,12 @@ test("real parent-role Sara operational APIs preserve complete team fee and fina
     finance: await financeWorkspace(sql, "owner"),
   };
   let revision = 4;
-  const advance = async (work: Promise<{ revision: number }>) => {
-    revision = (await work).revision;
+  const advance = async (work: (actor: string) => Promise<{ revision: number }>) => {
+    await assert.rejects(work("retired-staff"), /not authorized/);
+    revision = (await work("owner")).revision;
   };
-  await advance(
-    saveOrganizationTeam(sql, "sara", {
+  await advance((actor) =>
+    saveOrganizationTeam(sql, actor, {
       revision,
       teamId: team.id,
       changes: {
@@ -402,8 +403,8 @@ test("real parent-role Sara operational APIs preserve complete team fee and fina
   const newTeamId = randomUUID(),
     newPlayerId = randomUUID(),
     newStaffId = randomUUID();
-  await advance(
-    saveOrganizationTeam(sql, "sara", {
+  await advance((actor) =>
+    saveOrganizationTeam(sql, actor, {
       revision,
       teamId: newTeamId,
       changes: {
@@ -414,8 +415,8 @@ test("real parent-role Sara operational APIs preserve complete team fee and fina
       },
     }),
   );
-  await advance(
-    saveOrganizationPlayer(sql, "sara", {
+  await advance((actor) =>
+    saveOrganizationPlayer(sql, actor, {
       revision,
       teamId: team.id,
       playerId: newPlayerId,
@@ -425,8 +426,8 @@ test("real parent-role Sara operational APIs preserve complete team fee and fina
       },
     }),
   );
-  await advance(
-    saveOrganizationPlayer(sql, "sara", {
+  await advance((actor) =>
+    saveOrganizationPlayer(sql, actor, {
       revision,
       teamId: team.id,
       playerId: p.id,
@@ -443,8 +444,8 @@ test("real parent-role Sara operational APIs preserve complete team fee and fina
       },
     }),
   );
-  await advance(
-    saveOrganizationStaff(sql, "sara", {
+  await advance((actor) =>
+    saveOrganizationStaff(sql, actor, {
       revision,
       teamId: team.id,
       staffId: "own-staff",
@@ -455,8 +456,8 @@ test("real parent-role Sara operational APIs preserve complete team fee and fina
       },
     }),
   );
-  await advance(
-    saveOrganizationStaff(sql, "sara", {
+  await advance((actor) =>
+    saveOrganizationStaff(sql, actor, {
       revision,
       teamId: team.id,
       staffId: newStaffId,
@@ -467,30 +468,30 @@ test("real parent-role Sara operational APIs preserve complete team fee and fina
       },
     }),
   );
-  await advance(
-    moveOrganizationPlayer(sql, "sara", {
+  await advance((actor) =>
+    moveOrganizationPlayer(sql, actor, {
       revision,
       teamId: team.id,
       playerId: p.id,
       destinationTeamId: newTeamId,
     }),
   );
-  await advance(
-    saveOrganizationTeam(sql, "sara", {
+  await advance((actor) =>
+    saveOrganizationTeam(sql, actor, {
       revision,
       teamId: newTeamId,
       changes: { age: "Adult", sport: team.sport },
     }),
   );
-  await advance(
-    saveOrganizationPlayer(sql, "sara", {
+  await advance((actor) =>
+    saveOrganizationPlayer(sql, actor, {
       revision,
       teamId: newTeamId,
       playerId: p.id,
       changes: { withdrawn: true },
     }),
   );
-  await saveOrganizationActivity(sql, "sara", {
+  await saveOrganizationActivity(sql, "owner", {
     id: randomUUID(),
     revision: 0,
     teamId: team.id,
@@ -515,7 +516,8 @@ test("real parent-role Sara operational APIs preserve complete team fee and fina
     before,
     "complete financial DTOs, fees, receivables, wages, protections, distributions and audit stay identical",
   );
-  const view = await organizationWorkspace(sql, "sara");
+  await assert.rejects(organizationWorkspace(sql, "retired-staff"), /not authorized/);
+  const view = await organizationWorkspace(sql, "owner");
   assert.ok(view.teams.some((t) => t.id === newTeamId));
   assert.ok(
     view.teams.find((t) => t.id === newTeamId)!.roster.some((p2) => p2.id === p.id && p2.withdrawn),
@@ -539,12 +541,12 @@ test("real parent-role Sara operational APIs preserve complete team fee and fina
     after.desk!.obligations.some((p2) => p2.playerId === newPlayerId),
     false,
   );
-  await assert.rejects(financial(sql, "sara"));
-  await assert.rejects(feeWorkspace(sql, "sara"));
-  await assert.rejects(financeWorkspace(sql, "sara"));
-  await sql`update organization_operational_access set status='suspended' where user_id='sara'`;
-  await assert.rejects(organizationWorkspace(sql, "sara"));
-  await assert.rejects(financial(sql, "sara"));
+  await assert.rejects(financial(sql, "retired-staff"));
+  await assert.rejects(feeWorkspace(sql, "retired-staff"));
+  await assert.rejects(financeWorkspace(sql, "retired-staff"));
+  await sql`update organization_operational_access set status='suspended' where user_id='retired-staff'`;
+  await assert.rejects(organizationWorkspace(sql, "retired-staff"));
+  await assert.rejects(financial(sql, "retired-staff"));
   assert.equal(club.teams[0].id, team.id);
 });
 

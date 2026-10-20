@@ -1,3 +1,4 @@
+import { accessReviewInput, reviewPolicyInput } from "./review-contracts";
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { authMiddleware, operationalAuthMiddleware } from "../auth/middleware";
@@ -262,6 +263,39 @@ export const decideCoordinatorApproval = createServerFn({ method: "POST" })
   .handler(async ({ context, data }) => {
     const { getSql } = await import("../db");
     return (await import("./governance.server")).decideApproval(
+      await getSql(),
+      context.userId,
+      data,
+    );
+  });
+
+export const getCoordinatorAccessReviews = createServerFn({ method: "GET" })
+  .middleware([authMiddleware])
+  .handler(async ({ context }) => {
+    const { getSql } = await import("../db");
+    return (await import("./reviews.server")).coordinatorAccessReviews(
+      await getSql(),
+      context.userId,
+    );
+  });
+export const recordCoordinatorAccessReview = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
+  .validator(accessReviewInput)
+  .handler(async ({ context, data }) => {
+    const { getSql } = await import("../db");
+    return (await import("./reviews.server")).reviewCoordinatorAccess(
+      await getSql(),
+      context.userId,
+      data,
+    );
+  });
+
+export const saveCoordinatorAccessReviewPolicy = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
+  .validator(reviewPolicyInput)
+  .handler(async ({ context, data }) => {
+    const { getSql } = await import("../db");
+    return (await import("./reviews.server")).saveCoordinatorReviewPolicy(
       await getSql(),
       context.userId,
       data,

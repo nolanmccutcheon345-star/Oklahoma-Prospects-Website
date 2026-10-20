@@ -1,3 +1,4 @@
+import { reviewPolicyInTransaction } from "./reviews.server";
 import type { Sql } from "../db";
 import { assignmentInput, publicLeadershipInput, type AssignmentInput } from "./contracts";
 import { audit, authority, secured, teamScope, CoordinatorDenied } from "./access.server";
@@ -147,10 +148,11 @@ export async function activityWorkspace(
       details: string;
       created_at: Date;
     }>`select id,actor_id,action,sport,team_id,target_id,result,details::text as details,created_at from coordinator_audit where (${filter.actor || ""}='' or actor_id=${filter.actor || ""}) and (${filter.sport || ""}='' or sport=${filter.sport || ""}) and (${filter.teamId || ""}='' or team_id=${filter.teamId || ""}) and created_at>=coalesce(${filter.after || null}::timestamptz,now()-interval '90 days') order by id desc limit 500`;
+    const policy = await reviewPolicyInTransaction(tx);
     const alerts = await tx<{
       actor_id: string;
       denials: number;
-    }>`select actor_id,count(*)::int as denials from coordinator_audit where result='denied' and created_at>now()-interval '1 day' group by actor_id having count(*)>=5`;
-    return { events, alerts };
+    }>`select actor_id,count(*)::int as denials from coordinator_audit where result='denied' and created_at>now()-${policy.denialWindowHours}::int*interval '1 hour' group by actor_id having count(*)>=${policy.denialThreshold}`;
+    return { events, alerts, denialWindowHours: policy.denialWindowHours };
   });
 }
