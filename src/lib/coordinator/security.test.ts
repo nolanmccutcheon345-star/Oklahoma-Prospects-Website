@@ -431,6 +431,7 @@ test("shared occupancy conflict rollback, practice synchronization, approvals an
       "cages.update",
       "cages.release",
       "events.cancel.request",
+      "content.read",
       "content.draft",
       "content.update",
       "content.submit",
@@ -993,6 +994,7 @@ test("former blanket accounts require audited withdrawal before explicit scoped 
       "tryouts.read",
       "contacts.read",
       "communications.recruit.send",
+      "content.read",
       "content.draft",
       "content.update",
       "content.submit",
@@ -1016,6 +1018,7 @@ test("former blanket accounts require audited withdrawal before explicit scoped 
         "tryouts.read",
         "contacts.read",
         "communications.recruit.send",
+        "content.read",
         "content.draft",
         "content.update",
         "content.submit",
@@ -2650,6 +2653,136 @@ test("roster eligibility withdrawal and expiry block existing sessions without a
       )[0].n,
       0,
     );
+  } finally {
+    await db.close();
+  }
+});
+
+test("website content has independent read/type/edit grants and exact owner publication with immutable versions", async () => {
+  const { db, sql, assign } = await fixture();
+  const content = await import("./content-publication.server"),
+    gov = await import("./governance.server");
+  try {
+    await assign("zero", "softball", ["content.draft"], "teams", ["soft"]);
+    const id = randomUUID(),
+      draft = {
+        id,
+        revision: 0,
+        sport: "softball" as const,
+        teamId: "soft",
+        title: "Program update",
+        body: "A synthetic general program announcement.",
+        submit: false,
+      };
+    await saveDraft(sql, "zero", draft);
+    await assert.rejects(gov.drafts(sql, "zero", { sport: "softball", teamId: "soft" }));
+    await assert.rejects(
+      saveDraft(sql, "zero", { ...draft, id: randomUUID(), contentKind: "recruiting" }),
+    );
+    await assign("zero", "softball", ["content.read"], "teams", ["soft"]);
+    assert.equal((await gov.drafts(sql, "zero", { sport: "softball", teamId: "soft" })).length, 1);
+    await assert.rejects(
+      saveDraft(sql, "zero", { ...draft, revision: 1, title: "Read only cannot edit" }),
+    );
+    await assign(
+      "zero",
+      "softball",
+      ["content.read", "content.update", "content.submit", "content.recruiting.draft"],
+      "teams",
+      ["soft"],
+    );
+    await assert.rejects(
+      saveDraft(sql, "zero", { ...draft, revision: 1, contentKind: "recruiting" }),
+    );
+    await saveDraft(sql, "zero", { ...draft, revision: 1, submit: true });
+    assert.deepEqual(await content.publicProgramContent(sql, "softball"), []);
+    await decideApproval(sql, "owner", {
+      id,
+      revision: 1,
+      decision: "rejected",
+      reason: "Revise the general announcement",
+      confirm: true,
+    });
+    await saveDraft(sql, "zero", {
+      ...draft,
+      revision: 3,
+      body: "A corrected general program announcement.",
+      submit: true,
+    });
+    const [review] = await sql<{
+      revision: number;
+    }>`select revision from coordinator_approvals where id=${id}`;
+    assert.equal(review.revision, 3);
+    await decideApproval(sql, "owner", {
+      id,
+      revision: 3,
+      decision: "approved",
+      reason: "Reviewed general program content",
+      confirm: true,
+    });
+    const publish = {
+      draftId: id,
+      revision: 5,
+      approvalRevision: 4,
+      confirm: true as const,
+      generalProgramContentOnly: true as const,
+      reason: "Publish approved general program update",
+    };
+    await assert.rejects(content.publishCoordinatorDraft(sql, "zero", publish));
+    await assert.rejects(
+      content.publishCoordinatorDraft(sql, "owner", { ...publish, revision: 4 }),
+      /changed/,
+    );
+    await assert.rejects(
+      content.publishCoordinatorDraft(sql, "owner", {
+        ...publish,
+        generalProgramContentOnly: false,
+      } as unknown as typeof publish),
+    );
+    await assign("zero", "softball", ["content.read", "content.update"], "teams", ["soft"]);
+    await assert.rejects(content.publishCoordinatorDraft(sql, "owner", publish));
+    await assign(
+      "zero",
+      "softball",
+      ["content.read", "content.update", "content.submit"],
+      "teams",
+      ["soft"],
+    );
+    await sql`create function reject_publication_audit() returns trigger language plpgsql as $$begin if new.action='staff.content.publish' then raise exception 'injected publish audit failure';end if;return new;end$$`;
+    await sql`create trigger reject_publication before insert on coordinator_audit for each row execute function reject_publication_audit()`;
+    await assert.rejects(content.publishCoordinatorDraft(sql, "owner", publish), /injected/);
+    assert.deepEqual(await content.publicProgramContent(sql, "softball"), []);
+    await sql`drop trigger reject_publication on coordinator_audit`;
+    const published = await content.publishCoordinatorDraft(sql, "owner", publish);
+    assert.deepEqual(await content.publishCoordinatorDraft(sql, "owner", publish), published);
+    const rows = await content.publicProgramContent(sql, "softball");
+    assert.equal(rows.length, 1);
+    assert.equal(rows[0].body, "A corrected general program announcement.");
+    assert.deepEqual(Object.keys(rows[0]).sort(), ["body", "id", "kind", "publishedAt", "title"]);
+    assert.deepEqual(await content.publicProgramContent(sql, "baseball"), []);
+    await assert.rejects(
+      sql`update coordinator_public_posts set body='changed' where id=${published.id}`,
+      /immutable/,
+    );
+    await assert.rejects(
+      sql`delete from coordinator_public_posts where id=${published.id}`,
+      /cannot be deleted/,
+    );
+    const versions = await content.draftVersions(sql, "zero", { id });
+    assert.equal(versions.length, 5);
+    await assert.rejects(content.draftVersions(sql, "parent", { id }));
+    await assert.rejects(sql`delete from coordinator_draft_versions where draft_id=${id}`);
+    const withdraw = {
+      id: published.id,
+      revision: 1,
+      reason: "Withdraw incorrect publication while preserving history",
+      confirm: true as const,
+    };
+    await assert.rejects(content.withdrawCoordinatorPost(sql, "zero", withdraw));
+    await content.withdrawCoordinatorPost(sql, "owner", withdraw);
+    assert.deepEqual(await content.publicProgramContent(sql, "softball"), []);
+    assert.equal((await content.ownerPublishedContent(sql, "owner"))[0].visible, false);
+    await assert.rejects(content.publishCoordinatorDraft(sql, "owner", publish), /withdrawn/);
   } finally {
     await db.close();
   }

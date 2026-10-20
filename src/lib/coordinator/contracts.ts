@@ -41,6 +41,10 @@ export const capabilities = {
   "communications.read": "View authorized team communications",
   "communications.team.send": "Send a confirmed team message",
   "communications.recruit.send": "Send a confirmed individual recruiting email",
+  "content.read": "View authorized website content",
+  "content.recruiting.draft": "Draft recruiting announcements",
+  "content.tryout.draft": "Draft tryout descriptions",
+  "content.team.draft": "Draft team updates",
   "content.draft": "Create announcement drafts",
   "content.update": "Edit own announcement drafts",
   "content.submit": "Submit drafts for owner review",
@@ -208,6 +212,7 @@ export const draftInput = scopeInput
   .extend({
     id: z.string().uuid(),
     revision: z.number().int().nonnegative(),
+    contentKind: z.enum(["announcement", "recruiting", "tryout", "team"]).optional(),
     title: z.string().trim().min(1).max(140),
     body: z.string().trim().min(1).max(3000),
     submit: z.boolean(),

@@ -614,3 +614,58 @@ export const saveCoordinatorPlayerInformation = createServerFn({ method: "POST" 
       data,
     );
   });
+
+import { publishDraftInput, unpublishPostInput, contentVersionsInput } from "./content-contracts";
+export const publishReviewedCoordinatorDraft = createServerFn({ method: "POST" })
+  .middleware([coordinatorAuthMiddleware])
+  .validator(publishDraftInput)
+  .handler(async ({ context, data }) => {
+    const { getSql } = await import("../db");
+    return (await import("./content-publication.server")).publishCoordinatorDraft(
+      await getSql(),
+      context.userId,
+      data,
+    );
+  });
+export const withdrawPublishedCoordinatorPost = createServerFn({ method: "POST" })
+  .middleware([coordinatorAuthMiddleware])
+  .validator(unpublishPostInput)
+  .handler(async ({ context, data }) => {
+    const { getSql } = await import("../db");
+    return (await import("./content-publication.server")).withdrawCoordinatorPost(
+      await getSql(),
+      context.userId,
+      data,
+    );
+  });
+export const getCoordinatorDraftVersions = createServerFn({ method: "POST" })
+  .middleware([coordinatorAuthMiddleware])
+  .validator(contentVersionsInput)
+  .handler(async ({ context, data }) => {
+    const { getSql } = await import("../db");
+    return (await import("./content-publication.server")).draftVersions(
+      await getSql(),
+      context.userId,
+      data,
+    );
+  });
+export const getOwnerPublishedCoordinatorContent = createServerFn({ method: "POST" })
+  .middleware([coordinatorAuthMiddleware])
+  .handler(async ({ context }) => {
+    const { getSql } = await import("../db");
+    return (await import("./content-publication.server")).ownerPublishedContent(
+      await getSql(),
+      context.userId,
+    );
+  });
+export const getPublicProgramContent = createServerFn({ method: "GET" })
+  .validator(z.enum(["baseball", "softball"]))
+  .handler(async ({ data }) => {
+    const { setResponseHeader } = await import("@tanstack/react-start/server");
+    setResponseHeader("Cache-Control", "no-store");
+    const { getSql } = await import("../db");
+    return (await import("./content-publication.server")).publicProgramContent(
+      await getSql(),
+      data,
+    );
+  });

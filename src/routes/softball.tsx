@@ -1,3 +1,4 @@
+import { PublicProgramUpdates } from "@/components/public-program-updates";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { PageHero } from "@/components/page-hero";
 import { TryoutSchedule } from "@/components/tryout-schedule";
@@ -42,6 +43,7 @@ function SoftballPage() {
           </>
         }
       />
+      <PublicProgramUpdates sport="softball" />
       <section id="explore-teams" className="scroll-mt-24 bg-paper-2 px-5 py-10">
         <div className="mx-auto max-w-5xl">
           <h2 className="text-3xl">Explore our softball teams</h2>

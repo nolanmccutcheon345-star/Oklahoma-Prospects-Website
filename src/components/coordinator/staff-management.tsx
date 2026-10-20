@@ -1,3 +1,5 @@
+import { PublishedContentManagement } from "./content-drafts";
+import { publishReviewedCoordinatorDraft } from "@/lib/coordinator/api";
 import { RosterEligibilityReview } from "./roster-management";
 import type { StaffActivityFilter } from "@/lib/coordinator/audit-contracts";
 import { getCoordinatorTransferRecovery, recoverCoordinatorTransfer } from "@/lib/coordinator/api";
@@ -105,7 +107,7 @@ export function StaffRoleManagement() {
     setNotice("");
     setBusy(true);
     try {
-      await work();
+      if ((await work()) === false) return;
       setNotice(success);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not complete the action.");
@@ -151,6 +153,7 @@ export function StaffRoleManagement() {
           ["invitations", "Coordinator Invitations"],
           ["approvals", "Approval Queue"],
           ["eligibility", "Roster Eligibility"],
+          ["publications", "Published Updates"],
           ["activity", "Staff Activity & Audit Center"],
           ["reviews", "Access Reviews"],
         ].map(([key, label]) => (
@@ -177,6 +180,7 @@ export function StaffRoleManagement() {
         </p>
       )}
       {notice && <p role="status">{notice}</p>}
+      {tab === "publications" && <PublishedContentManagement />}
       {tab === "eligibility" && <RosterEligibilityReview />}
       {tab === "invitations" && (
         <div className="grid gap-4">
@@ -794,11 +798,42 @@ export function StaffRoleManagement() {
                     : a.kind === "tryout-change"
                       ? "Approval applies the exact requested tryout schedule and publication state, rechecks current access and shared reservations, and queues family notices atomically. Conflicts leave this request pending."
                       : a.kind === "content"
-                        ? "Approval does not publish. Use the owner content workflow after checking publication consent."
+                        ? "Approval does not publish. After review, an authorized owner can publish general program information here. Player identities and photos require their separate consent workflow."
                         : a.proposal.system === "program"
                           ? "Approval archives this camp or clinic, cancels future sessions and releases unpaid reservations atomically. Protected or paid reservations remain blocked."
                           : "Approval cancels the practice and releases its linked unpaid cage reservation atomically."}
               </p>
+              {a.kind === "content" && a.status === "approved" && (
+                <Button
+                  disabled={busy}
+                  onClick={() =>
+                    void run(async () => {
+                      if (
+                        !window.confirm(
+                          "Publish this approved general program update? Confirm it contains no identifying player details, athlete photographs, private family information, medical or financial data. Player publication requires its separate consent workflow.",
+                        )
+                      )
+                        return false;
+                      const reason = window.prompt(
+                        "Reason for publishing this reviewed program update (at least 10 characters):",
+                      );
+                      if (!reason) return false;
+                      await publishReviewedCoordinatorDraft({
+                        data: {
+                          draftId: a.target_id,
+                          revision: (a.proposal.revision || 0) + 1,
+                          approvalRevision: a.revision,
+                          confirm: true,
+                          generalProgramContentOnly: true,
+                          reason,
+                        },
+                      });
+                    }, "Publication action completed. Review Published Updates for current visibility.")
+                  }
+                >
+                  Publish Approved General Update
+                </Button>
+              )}
               {a.kind === "transfer" &&
                 a.status === "approved" &&
                 (a.proposal.recovered ? (

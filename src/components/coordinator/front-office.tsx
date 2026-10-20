@@ -1,3 +1,4 @@
+import { ContentDrafts } from "./content-drafts";
 import { EligibleRosterAthletes, RoutinePlayerInformation } from "./roster-management";
 import { TryoutScheduling } from "./tryout-scheduling";
 import { ProgramEvents } from "./program-events";
@@ -112,7 +113,11 @@ export function CoordinatorFrontOffice() {
       "Communications",
       allowed("communications.read") || allowed("communications.team.send"),
     ],
-    ["drafts", "Website Drafts", allowed("content.draft")],
+    [
+      "drafts",
+      "Website Content",
+      Object.keys(capabilities).some((p) => p.startsWith("content.") && allowed(p as Capability)),
+    ],
     [
       "reports",
       "Operational Reports",
@@ -207,6 +212,13 @@ export function CoordinatorFrontOffice() {
                 </ul>
                 {!g && <p>No active role for this sport.</p>}
               </section>
+            ) : current === "drafts" ? (
+              <ContentDrafts
+                key={sport + teamId + g?.revision}
+                sport={sport}
+                teamId={teamId}
+                allowed={allowed}
+              />
             ) : current === "tryout-schedule" ? (
               <TryoutScheduling
                 key={sport + teamId + g?.revision}
@@ -257,7 +269,6 @@ function CoordinatorModule({
   const [messages, setMessages] = useState<
     Awaited<ReturnType<typeof api.getCoordinatorMessages>>["items"]
   >([]);
-  const [drafts, setDrafts] = useState<Awaited<ReturnType<typeof api.getCoordinatorDrafts>>>([]);
   const [report, setReport] = useState<Awaited<ReturnType<typeof api.getCoordinatorReports>>>();
   const [activity, setActivity] = useState<Awaited<ReturnType<typeof api.getCoordinatorActivity>>>(
     [],
@@ -281,7 +292,6 @@ function CoordinatorModule({
       setMessages(page.items);
       setNextCursor(page.nextCursor);
     }
-    if (tab === "drafts") setDrafts(await api.getCoordinatorDrafts({ data: { sport, teamId } }));
     if (tab === "reports") setReport(await api.getCoordinatorReports({ data: { sport, teamId } }));
     if (tab === "activity")
       setActivity(await api.getCoordinatorActivity({ data: { sport, teamId } }));
@@ -869,59 +879,6 @@ function CoordinatorModule({
               </p>
             ))}
           </div>
-        </>
-      )}
-      {tab === "drafts" && (
-        <>
-          <h2 className="text-2xl">Website Drafts</h2>
-          <form
-            className="grid gap-3"
-            onSubmit={(e) =>
-              submit(e, (f) =>
-                api.saveCoordinatorDraft({
-                  data: {
-                    id: crypto.randomUUID(),
-                    revision: 0,
-                    sport,
-                    teamId,
-                    title: text(f, "title"),
-                    body: text(f, "body"),
-                    submit: f.has("submit"),
-                  },
-                }),
-              )
-            }
-          >
-            <label>
-              Title
-              <input className={field} name="title" required maxLength={140} />
-            </label>
-            <label>
-              Announcement
-              <textarea className={field} name="body" required rows={6} maxLength={3000} />
-            </label>
-            <p>
-              Do not include medical, financial, or private family details. Public player names and
-              photos require publication consent and owner review.
-            </p>
-            {allowed("content.submit") && (
-              <label className="flex min-h-11 items-center gap-2">
-                <input name="submit" type="checkbox" />
-                Submit for owner approval
-              </label>
-            )}
-            <Button type="submit" disabled={busy}>
-              Save Draft
-            </Button>
-          </form>
-          {drafts.map((d) => (
-            <article className="rounded border p-3" key={d.id}>
-              <strong>
-                {d.title} · {d.status}
-              </strong>
-              <p className="whitespace-pre-wrap">{d.body}</p>
-            </article>
-          ))}
         </>
       )}
       {tab === "reports" && report && (
