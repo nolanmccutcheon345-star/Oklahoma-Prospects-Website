@@ -121,6 +121,7 @@ for (const baselineVersion of [66, 76, 79])
             "0084_coordinator_granular_intake_reports.sql",
             "0085_coordinator_program_events.sql",
             "0086_coordinator_tryout_events.sql",
+            "0087_coordinator_audit_context.sql",
           ],
         );
       for (const { name } of late) {

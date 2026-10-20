@@ -1,3 +1,4 @@
+import type { StaffActivityFilter } from "@/lib/coordinator/audit-contracts";
 import { getCoordinatorTransferRecovery, recoverCoordinatorTransfer } from "@/lib/coordinator/api";
 import { CoordinatorAccessReviews } from "./access-reviews";
 import { useEffect, useState } from "react";
@@ -37,6 +38,31 @@ export function StaffRoleManagement() {
   const [activity, setActivity] = useState<Awaited<ReturnType<typeof getStaffActivity>>>();
   const [queue, setQueue] = useState<Awaited<ReturnType<typeof getCoordinatorApprovals>>>();
   const [actorFilter, setActorFilter] = useState("");
+  const [activityFilters, setActivityFilters] = useState({
+    sport: "",
+    teamId: "",
+    after: "",
+    before: "",
+    action: "",
+    targetId: "",
+    result: "",
+  });
+  async function loadActivity(beforeId?: number) {
+    const filters: StaffActivityFilter = {
+      actor: actorFilter,
+      ...(activityFilters.sport ? { sport: activityFilters.sport as Sport } : {}),
+      ...(activityFilters.result
+        ? { result: activityFilters.result as StaffActivityFilter["result"] }
+        : {}),
+      teamId: activityFilters.teamId,
+      action: activityFilters.action,
+      targetId: activityFilters.targetId,
+      ...(activityFilters.after ? { after: new Date(activityFilters.after).toISOString() } : {}),
+      ...(activityFilters.before ? { before: new Date(activityFilters.before).toISOString() } : {}),
+      ...(beforeId ? { beforeId } : {}),
+    };
+    setActivity(await getStaffActivity({ data: filters }));
+  }
   const [publicEnabled, setPublicEnabled] = useState(false),
     [publicTitles, setPublicTitles] = useState<("Baseball Coordinator" | "Softball Coordinator")[]>(
       [],
@@ -596,20 +622,69 @@ export function StaffRoleManagement() {
               ))}
             </select>
           </label>
-          <Button
-            onClick={() =>
-              void run(
-                async () => setActivity(await getStaffActivity({ data: { actor: actorFilter } })),
-                "",
-              )
-            }
-          >
+          <div className="grid gap-3 sm:grid-cols-2">
+            <label>
+              Sport
+              <select
+                className={field}
+                value={activityFilters.sport}
+                onChange={(e) => setActivityFilters({ ...activityFilters, sport: e.target.value })}
+              >
+                <option value="">All sports</option>
+                <option value="baseball">Baseball</option>
+                <option value="softball">Softball</option>
+              </select>
+            </label>
+            <label>
+              Result
+              <select
+                className={field}
+                value={activityFilters.result}
+                onChange={(e) => setActivityFilters({ ...activityFilters, result: e.target.value })}
+              >
+                <option value="">All results</option>
+                {["allowed", "denied", "conflict"].map((r) => (
+                  <option key={r}>{r}</option>
+                ))}
+              </select>
+            </label>
+            {(
+              [
+                ["teamId", "Team ID"],
+                ["targetId", "Affected record ID"],
+                ["action", "Exact action type"],
+                ["after", "From (local time)"],
+                ["before", "Through (local time)"],
+              ] as const
+            ).map(([key, label]) => (
+              <label key={key}>
+                {label}
+                <input
+                  className={field}
+                  type={key === "after" || key === "before" ? "datetime-local" : "text"}
+                  maxLength={200}
+                  value={activityFilters[key]}
+                  onChange={(e) =>
+                    setActivityFilters({ ...activityFilters, [key]: e.target.value })
+                  }
+                />
+              </label>
+            ))}
+          </div>
+          <Button disabled={busy} onClick={() => void run(() => loadActivity(), "")}>
             Filter Activity / Permission History
           </Button>
           {activity?.alerts.map((a) => (
             <p role="status" key={a.actor_id}>
               {a.denials} denied actions in {activity.denialWindowHours} hours for {a.actor_id}.
               Review context before treating this as an incident.
+            </p>
+          ))}
+          {activity?.riskAlerts.map((a) => (
+            <p role="status" key={a.id}>
+              {a.priority}: {a.code} — {a.observed_count} observations in {a.window_hours} hours
+              {a.actor_id ? ` for ${a.actor_id}` : ""}. Review the related activity; this is not a
+              confirmed incident.
             </p>
           ))}
           <div className="overflow-auto">
@@ -633,6 +708,14 @@ export function StaffRoleManagement() {
                     <td>
                       <details>
                         <summary className="min-h-11">Review</summary>
+                        <p>
+                          Sport: {e.sport || "Not recorded"} · Team: {e.team_id || "Not recorded"} ·
+                          Target: {e.target_id}
+                        </p>
+                        <p>Request: {e.correlation_id}</p>
+                        <pre className="max-w-sm whitespace-pre-wrap">
+                          {JSON.stringify(e.actor_roles, null, 2)}
+                        </pre>
                         <pre className="max-w-sm whitespace-pre-wrap">{e.details}</pre>
                       </details>
                     </td>
@@ -641,6 +724,26 @@ export function StaffRoleManagement() {
               </tbody>
             </table>
           </div>
+          {activity?.nextBeforeId && (
+            <Button
+              disabled={busy}
+              onClick={() => void run(() => loadActivity(activity.nextBeforeId!), "")}
+            >
+              Older matching activity
+            </Button>
+          )}
+          {activity && (
+            <details>
+              <summary>Other recorded staff activity (up to 200)</summary>
+              <p>Metadata only. Financial, medical and private narrative payloads are excluded.</p>
+              {activity.otherActivity.map((e) => (
+                <p key={e.id}>
+                  {new Date(e.created_at).toLocaleString()} · {e.actor_id} · {e.action} ·{" "}
+                  {e.target_table} · {e.target_id}
+                </p>
+              ))}
+            </details>
+          )}
         </>
       )}
       {tab === "approvals" && (

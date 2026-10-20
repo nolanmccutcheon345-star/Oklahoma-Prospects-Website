@@ -1,3 +1,4 @@
+import { staffActivityInput, type StaffActivityFilter } from "./audit-contracts";
 import { reviewPolicyInTransaction } from "./reviews.server";
 import type { Sql } from "../db";
 import { assignmentInput, publicLeadershipInput, type AssignmentInput } from "./contracts";
@@ -150,11 +151,8 @@ export async function saveLeadership(
     return { ok: true };
   });
 }
-export async function activityWorkspace(
-  sql: Sql,
-  userId: string,
-  filter: { actor?: string; sport?: string; teamId?: string; after?: string } = {},
-) {
+export async function activityWorkspace(sql: Sql, userId: string, raw: StaffActivityFilter = {}) {
+  const filter = staffActivityInput.parse(raw);
   return secured(sql, userId, "staff_activity.read", async (tx) => {
     await authority(tx, userId, "staff_activity.read");
     const events = await tx<{
@@ -166,13 +164,50 @@ export async function activityWorkspace(
       target_id: string;
       result: string;
       details: string;
+      actor_roles: {
+        role: string;
+        source?: string;
+        sport?: string;
+        status?: string;
+        coverage?: string;
+        teamIds?: string[];
+        revision?: number;
+      }[];
+      correlation_id: string;
       created_at: Date;
-    }>`select id,actor_id,action,sport,team_id,target_id,result,details::text as details,created_at from coordinator_audit where (${filter.actor || ""}='' or actor_id=${filter.actor || ""}) and (${filter.sport || ""}='' or sport=${filter.sport || ""}) and (${filter.teamId || ""}='' or team_id=${filter.teamId || ""}) and created_at>=coalesce(${filter.after || null}::timestamptz,now()-interval '90 days') order by id desc limit 500`;
+    }>`select id,actor_id,action,sport,team_id,target_id,result,details::text as details,actor_roles,correlation_id,created_at from coordinator_audit where (${filter.actor || ""}='' or actor_id=${filter.actor || ""}) and (${filter.sport || ""}='' or sport=${filter.sport || ""}) and (${filter.teamId || ""}='' or team_id=${filter.teamId || ""}) and created_at>=coalesce(${filter.after || null}::timestamptz,now()-interval '90 days') and (${filter.before || null}::timestamptz is null or created_at<=${filter.before || null}::timestamptz) and (${filter.action || ""}='' or action=${filter.action || ""}) and (${filter.targetId || ""}='' or target_id=${filter.targetId || ""}) and (${filter.result || ""}='' or result=${filter.result || ""}) and (${filter.beforeId || null}::bigint is null or id<${filter.beforeId || null}) order by id desc limit 501`;
     const policy = await reviewPolicyInTransaction(tx);
     const alerts = await tx<{
       actor_id: string;
       denials: number;
     }>`select actor_id,count(*)::int as denials from coordinator_audit where result='denied' and created_at>now()-${policy.denialWindowHours}::int*interval '1 hour' group by actor_id having count(*)>=${policy.denialThreshold}`;
-    return { events, alerts, denialWindowHours: policy.denialWindowHours };
+    const riskAlerts = await tx<{
+      id: string;
+      code: string;
+      priority: string;
+      actor_id: string;
+      observed_count: number;
+      window_hours: number;
+      created_at: Date;
+    }>`select id,code,priority,actor_id,observed_count,window_hours,created_at from coordinator_risk_alerts order by created_at desc,id limit 100`;
+    // Privileged activity from existing systems is metadata-only here. Domain audit
+    // payloads may contain finance or sensitive fields and are never copied into this DTO.
+    const otherActivity = await tx<{
+      id: number;
+      actor_id: string;
+      action: string;
+      target_table: string;
+      target_id: string;
+      correlation_id: string | null;
+      created_at: Date;
+    }>`select a.id,a.actor_id,a.action,a.target_table,a.target_id,a.correlation_id,a.created_at from audit_events a where a.target_table<>'coordinator_activity' and ${!filter.sport && !filter.teamId && !filter.result} and a.actor_id is not null and (${filter.actor || ""}='' or a.actor_id=${filter.actor || ""}) and (${filter.action || ""}='' or a.action=${filter.action || ""}) and (${filter.targetId || ""}='' or a.target_id=${filter.targetId || ""}) and a.created_at>=coalesce(${filter.after || null}::timestamptz,now()-interval '90 days') and (${filter.before || null}::timestamptz is null or a.created_at<=${filter.before || null}::timestamptz) order by a.id desc limit 200`;
+    return {
+      events: events.slice(0, 500),
+      nextBeforeId: events.length > 500 ? Number(events[499].id) : null,
+      otherActivity,
+      riskAlerts,
+      alerts,
+      denialWindowHours: policy.denialWindowHours,
+    };
   });
 }

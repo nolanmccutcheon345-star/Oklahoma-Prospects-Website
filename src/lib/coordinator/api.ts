@@ -1,3 +1,4 @@
+import { staffActivityInput } from "./audit-contracts";
 import { resetCoordinatorInput } from "./reset-contracts";
 import { accessReviewInput, reviewPolicyInput } from "./review-contracts";
 import { createServerFn } from "@tanstack/react-start";
@@ -100,16 +101,7 @@ export const savePublicLeadership = createServerFn({ method: "POST" })
   });
 export const getStaffActivity = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
-  .validator(
-    z
-      .object({
-        actor: z.string().optional(),
-        sport: z.enum(sports).optional(),
-        teamId: z.string().optional(),
-        after: z.iso.datetime().optional(),
-      })
-      .strict(),
-  )
+  .validator(staffActivityInput)
   .handler(async ({ context, data }) => {
     const { getSql } = await import("../db");
     return (await import("./admin.server")).activityWorkspace(await getSql(), context.userId, data);

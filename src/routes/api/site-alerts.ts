@@ -26,12 +26,16 @@ export const Route = createFileRoute("/api/site-alerts")({
           if (c.environment !== "production") return Response.json({ ok: true, skipped: true });
           const { runScheduledCoordinatorReviews } =
             await import("@/lib/coordinator/scheduled-reviews.server");
+          const { runCoordinatorRiskChecks } =
+            await import("@/lib/coordinator/risk-reviews.server");
+          const risks = await runCoordinatorRiskChecks(sql);
           const reviews = await runScheduledCoordinatorReviews(sql);
           if (!siteAlertsEnabled())
             return Response.json({
               ok: true,
               skipped: true,
               coordinatorReviewRuns: reviews.created,
+              coordinatorRiskAlerts: risks.created,
             });
           const summary = await recordRecoveryRun(sql, c.environment, "notifications", async () => {
             const payments = await sendPaymentNotifications();

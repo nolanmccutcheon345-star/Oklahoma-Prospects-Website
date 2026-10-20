@@ -2122,3 +2122,156 @@ test("scoped tryouts preserve shared occupancy and require exact owner-reviewed 
     await db.close();
   }
 });
+
+test("audit snapshots retain event-time roles and request correlation while owner filters minimize legacy activity", async () => {
+  const { db, sql, assign } = await fixture();
+  const { audit } = await import("./access.server");
+  const { activityWorkspace } = await import("./admin.server");
+  try {
+    await assign("zero", "softball", ["rosters.read"], "teams", ["soft"]);
+    await secured(sql, "zero", "synthetic.related", async (tx) => {
+      await audit(
+        tx,
+        "zero",
+        "synthetic.first",
+        "soft-player",
+        "allowed",
+        { before: { number: "1" }, after: { number: "2" } },
+        "softball",
+        "soft",
+      );
+      await audit(tx, "zero", "synthetic.second", "soft-player", "allowed", {}, "softball", "soft");
+    });
+    const rows = await sql<{
+      correlation_id: string;
+      actor_roles: { role: string; sport?: string; status?: string; teamIds?: string[] }[];
+    }>`select correlation_id,actor_roles from coordinator_audit where action in ('synthetic.first','synthetic.second') order by id`;
+    assert.equal(rows[0].correlation_id, rows[1].correlation_id);
+    const mirror = await sql<{
+      correlation_id: string;
+    }>`select correlation_id from audit_events where action='synthetic.first'`;
+    assert.equal(mirror[0].correlation_id, rows[0].correlation_id);
+    assert.equal(
+      rows[0].actor_roles.some(
+        (r) =>
+          r.role === "softball_coordinator" && r.status === "active" && r.teamIds?.[0] === "soft",
+      ),
+      true,
+    );
+    const [grant] = await sql<{
+      revision: number;
+    }>`select revision from coordinator_assignments where user_id='zero' and sport='softball'`;
+    await saveAssignment(sql, "owner", {
+      userId: "zero",
+      sport: "softball",
+      revision: grant.revision,
+      status: "suspended",
+      coverage: "teams",
+      teamIds: ["soft"],
+      permissions: [],
+      confirm: true,
+      independentRolesReviewed: true,
+    });
+    assert.deepEqual(
+      (await sql`select actor_roles from coordinator_audit where action='synthetic.first'`)[0]
+        .actor_roles,
+      rows[0].actor_roles,
+    );
+    await sql`insert into audit_events(actor_id,action,target_table,target_id,after_state) values('owner','UPDATE','club_athletes','synthetic-athlete','{"medical":"PRIVATE-MEDICAL","payment":"PRIVATE-PAYMENT","message":"PRIVATE-MESSAGE"}')`;
+    await assert.rejects(activityWorkspace(sql, "zero"));
+    await assert.rejects(activityWorkspace(sql, "fake"));
+    const filtered = await activityWorkspace(sql, "owner", {
+      actor: "zero",
+      sport: "softball",
+      teamId: "soft",
+      action: "synthetic.second",
+      targetId: "soft-player",
+      result: "allowed",
+    });
+    assert.equal(filtered.events.length, 1);
+    assert.equal(filtered.events[0].action, "synthetic.second");
+    assert.equal(filtered.otherActivity.length, 0);
+    assert.equal(
+      (
+        await activityWorkspace(sql, "owner", {
+          action: "synthetic.second",
+          before: "2000-01-01T00:00:00Z",
+        })
+      ).events.length,
+      0,
+    );
+    const all = await activityWorkspace(sql, "owner");
+    assert.equal(
+      all.otherActivity.some((r) => r.target_id === "synthetic-athlete"),
+      true,
+    );
+    assert.doesNotMatch(JSON.stringify(all.otherActivity), /PRIVATE|after_state|before_state/);
+    await assert.rejects(
+      sql`update coordinator_audit set actor_roles='[]' where action='synthetic.first'`,
+    );
+  } finally {
+    await db.close();
+  }
+});
+
+test("risk checks run before morning reports, use bounded owner settings and deduplicate transactional private alerts", async () => {
+  const { db, sql, assign } = await fixture();
+  const { runCoordinatorRiskChecks } = await import("./risk-reviews.server");
+  const { coordinatorAccessReviews, saveCoordinatorReviewPolicy } =
+    await import("./reviews.server");
+  try {
+    await assign("zero", "softball", ["rosters.number", "contacts.read"]);
+    const policy = (await coordinatorAccessReviews(sql, "owner")).policy;
+    await saveCoordinatorReviewPolicy(sql, "owner", {
+      ...policy,
+      rosterChangeThreshold: 2,
+      contactReadThreshold: 3,
+      riskWindowHours: 24,
+    });
+    for (const action of [
+      "rosters.number",
+      "rosters.positions",
+      "contacts.read",
+      "protected.request-rejected",
+    ])
+      await sql`insert into coordinator_audit(actor_id,action,result,details,correlation_id,created_at) values('zero',${action},${action.startsWith("protected") ? "denied" : "allowed"},'{"count":4}',${randomUUID()},'2030-04-05T12:00:00Z')`;
+    const now = new Date("2030-04-05T12:30:00Z"); // Before 8am Chicago; risk checks must still run.
+    await sql`create function fail_risk_outbox() returns trigger language plpgsql as $$begin if new.id like 'coordinator-risk:%' then raise exception 'injected risk delivery failure';end if;return new;end$$`;
+    await sql`create trigger risk_outbox_failure before insert on site_alert_deliveries for each row execute function fail_risk_outbox()`;
+    await assert.rejects(runCoordinatorRiskChecks(sql, now), /injected risk/);
+    assert.equal((await sql`select id from coordinator_risk_alerts`).length, 0);
+    await sql`drop trigger risk_outbox_failure on site_alert_deliveries`;
+    const first = await runCoordinatorRiskChecks(sql, now);
+    assert.equal(first.created, 3);
+    assert.equal((await runCoordinatorRiskChecks(sql, now)).created, 0);
+    const messages = await sql<{
+      recipient: string;
+      audience: string;
+      body: string;
+    }>`select recipient,audience,body from site_alert_deliveries where id like 'coordinator-risk:%'`;
+    assert.equal(
+      messages.every(
+        (m) => m.recipient === "owner@example.invalid" && m.audience === "coordinator-owners",
+      ),
+      true,
+    );
+    assert.doesNotMatch(JSON.stringify(messages), /zero|PRIVATE|555|household/);
+    await assert.rejects(sql`delete from coordinator_risk_alerts`);
+    await sql`alter table coordinator_audit disable trigger coordinator_audit_roles`;
+    assert.equal((await runCoordinatorRiskChecks(sql, now)).created, 1);
+    assert.equal(
+      (
+        await sql`select priority from coordinator_risk_alerts where code='audit-protection-missing'`
+      )[0].priority,
+      "critical",
+    );
+    await sql`alter table coordinator_audit enable trigger coordinator_audit_roles`;
+    await sql`update owner_grants set revoked_at=now() where user_id='owner'`;
+    assert.equal(
+      (await runCoordinatorRiskChecks(sql, new Date("2030-04-06T12:30:00Z"))).created,
+      0,
+    );
+  } finally {
+    await db.close();
+  }
+});

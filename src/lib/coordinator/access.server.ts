@@ -1,3 +1,4 @@
+import { withAuditActor, currentAuditCorrelation } from "../audit-context.server";
 import { randomUUID } from "node:crypto";
 import type { Sql } from "../db";
 import { lockFinancialExecution } from "../finance/execution.server";
@@ -109,10 +110,19 @@ export async function audit(
   sport?: Sport,
   teamId?: string,
 ) {
-  await sql`insert into coordinator_audit(actor_id,action,target_id,result,details,correlation_id,sport,team_id) values(${userId},${action},${targetId},${result},${JSON.stringify(details)}::jsonb,${randomUUID()},${sport || null},${teamId || null})`;
+  await sql`insert into coordinator_audit(actor_id,action,target_id,result,details,correlation_id,sport,team_id) values(${userId},${action},${targetId},${result},${JSON.stringify(details)}::jsonb,${currentAuditCorrelation() || randomUUID()},${sport || null},${teamId || null})`;
+}
+export async function secured<T>(
+  sql: Sql,
+  userId: string,
+  action: string,
+  work: (tx: Sql) => Promise<T>,
+  beforeLocks?: typeof lockFinancialExecution,
+) {
+  return withAuditActor(userId, () => securedWork(sql, userId, action, work, beforeLocks));
 }
 /** Grants are read and locked in the SAME transaction as data access. Revocation waits for in-flight work; the next request sees it. */
-export async function secured<T>(
+async function securedWork<T>(
   sql: Sql,
   userId: string,
   action: string,
@@ -129,6 +139,9 @@ export async function secured<T>(
       }
       await verifiedAccount(tx, userId, true);
       await tx.query("select set_config('app.actor_id',$1,true)", [userId]);
+      await tx.query("select set_config('app.correlation_id',$1,true)", [
+        currentAuditCorrelation() || randomUUID(),
+      ]);
       return work(tx);
     });
   } catch (error) {
