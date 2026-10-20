@@ -1,6 +1,9 @@
 import { approveTryoutChange } from "./tryout-scheduling.server";
 import { operationalEvent, allSessions } from "./organization-events.server";
-import { cancelProgramEventInTransaction } from "./program-events.server";
+import {
+  approveProgramEventChange,
+  cancelProgramEventInTransaction,
+} from "./program-events.server";
 import type { Sport } from "./contracts";
 import { lockFinancialExecution } from "../finance/execution.server";
 import { moveOwnerPlayerInTransaction } from "./organization.server";
@@ -196,7 +199,16 @@ export async function decideApproval(sql: Sql, userId: string, raw: z.infer<type
       if (row.status !== "pending" || row.revision !== input.revision)
         throw new Error("This request has already changed. Reload.");
       if (input.decision === "approved") {
-        if (row.kind === "tryout-change") {
+        if (row.kind === "program-change") {
+          await approveProgramEventChange(
+            tx,
+            userId,
+            row.requester_id,
+            row.team_id,
+            row.target_id,
+            row.proposal,
+          );
+        } else if (row.kind === "tryout-change") {
           await approveTryoutChange(
             tx,
             userId,

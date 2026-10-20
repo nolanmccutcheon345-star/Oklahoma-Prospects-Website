@@ -2275,3 +2275,177 @@ test("risk checks run before morning reports, use bounded owner settings and ded
     await db.close();
   }
 });
+
+test("program publication and schedule review enforce current scope, exact proposals, atomic cages and audit rollback", async () => {
+  const { db, sql, assign } = await fixture();
+  const ops = await import("./program-events.server");
+  try {
+    await sql`insert into pd_working_file(id,payload) values('club','{"coaches":[{"id":"event-coach","name":"Synthetic Instructor","email":"coach@example.invalid","active":true},{"id":"alternate","name":"Alternative Instructor","email":"instructor@example.invalid","active":true}]}')`;
+    const permissions: Capability[] = [
+      "events.read",
+      "camps.create",
+      "camps.update",
+      "cages.reserve",
+      "cages.update",
+      "cages.release",
+      "events.review.request",
+    ];
+    await assign("zero", "softball", permissions, "teams", ["soft"]);
+    const id = randomUUID();
+    await ops.createProgramEvent(sql, "zero", {
+      requestId: id,
+      teamId: "soft",
+      name: "Review camp",
+      description: "Synthetic skill development camp",
+      type: "camp",
+      location: "Facility",
+      capacity: 10,
+      coachIds: ["event-coach"],
+      reason: "Create scoped camp",
+    });
+    const session = await ops.addProgramSession(sql, "zero", {
+      eventId: id,
+      revision: 1,
+      date: "2099-01-12",
+      start: "16:00",
+      end: "17:00",
+      location: "Facility",
+      laneIds: ["2"],
+      reason: "Reserve initial camp session",
+    });
+    const approval = {
+      id: randomUUID(),
+      teamId: "soft",
+      eventId: id,
+      eventRevision: 2,
+      confirm: true as const,
+      change: {
+        kind: "settings" as const,
+        value: {
+          eventId: id,
+          revision: 2,
+          capacity: 10,
+          coachIds: ["alternate"],
+          publication: "open" as const,
+          reason: "Owner review of camp publication",
+        },
+      },
+    };
+    await assert.rejects(
+      ops.requestProgramEventReview(sql, "zero", { ...approval, teamId: "base" }),
+    );
+    await assert.rejects(ops.requestProgramEventReview(sql, "parent", approval));
+    await ops.requestProgramEventReview(sql, "zero", approval);
+    await ops.requestProgramEventReview(sql, "zero", approval);
+    await assert.rejects(
+      ops.requestProgramEventReview(sql, "zero", {
+        ...approval,
+        change: { ...approval.change, value: { ...approval.change.value, capacity: 11 } },
+      }),
+      /already used/,
+    );
+    const decide = (ref: string) =>
+      decideApproval(sql, "owner", {
+        id: ref,
+        revision: 1,
+        decision: "approved",
+        reason: "Owner reviewed exact proposal",
+        confirm: true,
+      });
+    assert.equal(
+      (await sql`select publication from operational_event_records where id=${id}`)[0].publication,
+      "draft",
+    );
+    await assign(
+      "zero",
+      "softball",
+      permissions.filter((p) => p !== "events.review.request"),
+      "teams",
+      ["soft"],
+    );
+    await assert.rejects(decide(approval.id));
+    await assign("zero", "softball", permissions, "teams", ["soft"]);
+    const cagesBefore =
+      await sql`select o.* from booking_occupancy o join coordinator_event_cages c on c.booking_id=o.booking_id where c.event_id=${id} order by slot_at`;
+    await decide(approval.id);
+    assert.equal(
+      (await sql`select publication from operational_event_records where id=${id}`)[0].publication,
+      "open",
+    );
+    assert.deepEqual(
+      await sql`select o.* from booking_occupancy o join coordinator_event_cages c on c.booking_id=o.booking_id where c.event_id=${id} order by slot_at`,
+      cagesBefore,
+      "Changing instructors must not replace cage occupancy",
+    );
+    assert.equal(
+      (
+        await sql`select count(*)::int n from booking_occupancy where booking_id=${"operational-event-staff:" + session.sessionKey} and resource_id='coach:alternate'`
+      )[0].n,
+      12,
+    );
+    const move = {
+      eventId: id,
+      sessionKey: session.sessionKey,
+      revision: 1,
+      action: "reschedule" as const,
+      date: "2099-01-12",
+      start: "17:00",
+      end: "18:00",
+      location: "Facility",
+      laneIds: ["1"] as "1"[],
+      reason: "Owner review of changed camp session",
+    };
+    await assert.rejects(ops.moveProgramSession(sql, "zero", move), /owner review/);
+    const change = {
+      id: randomUUID(),
+      teamId: "soft",
+      eventId: id,
+      eventRevision: 3,
+      confirm: true as const,
+      change: { kind: "session" as const, value: move },
+    };
+    await ops.requestProgramEventReview(sql, "zero", change);
+    await sql`insert into commerce_orders(id,request_key,email,product_id,kind,snapshot,total_cents,status) values('review-paid','review-paid','private@example.invalid','paid-cage','cage','{}',9999,'paid')`;
+    await sql`insert into booking_records(id,order_id,product_id,starts_at,ends_at,resources,status) values('review-protected','review-paid','paid-cage','2099-01-12T23:00:00Z','2099-01-13T00:00:00Z','["lane:1"]','confirmed')`;
+    await sql`insert into booking_occupancy(resource_id,slot_at,booking_id) values('lane:1','2099-01-12T23:00:00Z','review-protected')`;
+    const before =
+      await sql`select to_jsonb(o) value from booking_occupancy o order by resource_id,slot_at`;
+    await assert.rejects(decide(change.id), /reserved|conflict/i);
+    assert.deepEqual(
+      await sql`select to_jsonb(o) value from booking_occupancy o order by resource_id,slot_at`,
+      before,
+    );
+    assert.equal(
+      (await sql`select status from coordinator_approvals where id=${change.id}`)[0].status,
+      "pending",
+    );
+    const safe = {
+      ...change,
+      id: randomUUID(),
+      change: { ...change.change, value: { ...move, laneIds: ["3-4"] as "3-4"[] } },
+    };
+    await ops.requestProgramEventReview(sql, "zero", safe);
+    await sql`create function reject_program_review_audit() returns trigger language plpgsql as $$begin if new.action='events.program.change-approved' then raise exception 'injected audit failure';end if;return new;end$$`;
+    await sql`create trigger reject_program_review before insert on coordinator_audit for each row execute function reject_program_review_audit()`;
+    await assert.rejects(decide(safe.id), /injected/);
+    assert.deepEqual(
+      await sql`select to_jsonb(o) value from booking_occupancy o order by resource_id,slot_at`,
+      before,
+    );
+    await sql`drop trigger reject_program_review on coordinator_audit`;
+    await decide(safe.id);
+    const workspace = await ops.programEvents(sql, "zero", { teamId: "soft" });
+    assert.equal(workspace.items[0].sessions[0].start, "17:00");
+    assert.deepEqual(workspace.items[0].sessions[0].laneIds, ["3-4"]);
+    await assert.rejects(decide(change.id), /changed/);
+    assert.equal(
+      (
+        await sql`select count(*)::int n from booking_occupancy where booking_id='review-protected'`
+      )[0].n,
+      1,
+    );
+    assert.doesNotMatch(JSON.stringify(workspace), /9999|private@example/);
+  } finally {
+    await db.close();
+  }
+});

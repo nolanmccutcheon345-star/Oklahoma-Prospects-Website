@@ -75,8 +75,8 @@ export function ProgramEvents({
     <section className="grid gap-4 rounded-xl border bg-white p-5">
       <h2 className="text-2xl">Camps &amp; Clinics</h2>
       <p>
-        New events stay private drafts. An owner reviews and publishes them through the existing
-        event controls. Paid reservations and published-event changes require owner review.
+        New events stay private drafts. Submit publication and published schedule changes for owner
+        review. Paid reservations remain protected.
       </p>
       {error && <p role="alert">{error}</p>}
       {notice && <p role="status">{notice}</p>}
@@ -179,6 +179,67 @@ export function ProgramEvents({
                     </form>
                   </details>
                 )}
+                {edit && event.reviewable && allowed("events.review.request") && (
+                  <details>
+                    <summary className="min-h-11">Request publication or event changes</summary>
+                    <form
+                      className="grid gap-3"
+                      onSubmit={(e) =>
+                        submit(
+                          e,
+                          async (f) => {
+                            if (
+                              !window.confirm(
+                                "Submit these event details and publication state for owner approval?",
+                              )
+                            )
+                              return false;
+                            return api.requestCoordinatorProgramReview({
+                              data: {
+                                id: crypto.randomUUID(),
+                                teamId,
+                                eventId: event.id,
+                                eventRevision: event.revision,
+                                confirm: true,
+                                change: {
+                                  kind: "settings",
+                                  value: {
+                                    eventId: event.id,
+                                    revision: event.revision,
+                                    name: text(f, "name"),
+                                    description: text(f, "description"),
+                                    location: text(f, "location"),
+                                    capacity: Number(f.get("capacity")),
+                                    coachIds: f.getAll("coaches").map(String),
+                                    reason: text(f, "reason"),
+                                    publication: text(f, "publication") as "open" | "closed",
+                                  },
+                                },
+                              },
+                            });
+                          },
+                          "Review requested. Changes take effect only after owner approval.",
+                        )
+                      }
+                    >
+                      <EventFields event={event} coaches={data.coaches} />
+                      <label>
+                        Requested publication
+                        <select
+                          className={field}
+                          name="publication"
+                          defaultValue={event.publication === "closed" ? "closed" : "open"}
+                        >
+                          <option value="open">Open enrollment</option>
+                          <option value="closed">Close enrollment</option>
+                        </select>
+                      </label>
+                      <Button type="submit" disabled={busy}>
+                        Request Owner Review
+                      </Button>
+                    </form>
+                  </details>
+                )}
                 {allowed("events.cancel.request") && event.publication !== "archived" && (
                   <Button
                     disabled={busy}
@@ -218,44 +279,70 @@ export function ProgramEvents({
                     <p>
                       {session.location} · Cages {session.laneIds.join(", ") || "none reserved"}
                     </p>
-                    {edit && event.editable && session.status === "confirmed" && (
-                      <details>
-                        <summary className="min-h-11">Reschedule session and cages</summary>
-                        <form
-                          className="grid gap-3"
-                          onSubmit={(e) =>
-                            submit(e, (f) =>
-                              api.moveCoordinatorProgramSession({
-                                data: {
-                                  eventId: event.id,
-                                  sessionKey: session.sessionKey,
-                                  revision: session.revision,
-                                  action: "reschedule",
-                                  date: text(f, "date"),
-                                  start: text(f, "start"),
-                                  end: text(f, "end"),
-                                  location: text(f, "location"),
-                                  laneIds: f.getAll("lanes").map(String) as ProgramEventLaneIds,
-                                  reason: text(f, "reason"),
+                    {edit &&
+                      (event.editable || (event.reviewable && allowed("events.review.request"))) &&
+                      session.status === "confirmed" && (
+                        <details>
+                          <summary className="min-h-11">Reschedule session and cages</summary>
+                          <form
+                            className="grid gap-3"
+                            onSubmit={(e) =>
+                              submit(
+                                e,
+                                async (f) => {
+                                  const value = {
+                                    eventId: event.id,
+                                    sessionKey: session.sessionKey,
+                                    revision: session.revision,
+                                    action: "reschedule" as const,
+                                    date: text(f, "date"),
+                                    start: text(f, "start"),
+                                    end: text(f, "end"),
+                                    location: text(f, "location"),
+                                    laneIds: f.getAll("lanes").map(String) as ProgramEventLaneIds,
+                                    reason: text(f, "reason"),
+                                  };
+                                  if (event.editable)
+                                    return api.moveCoordinatorProgramSession({ data: value });
+                                  if (
+                                    !window.confirm(
+                                      "Request owner review of this session and its cage reservations?",
+                                    )
+                                  )
+                                    return false;
+                                  return api.requestCoordinatorProgramReview({
+                                    data: {
+                                      id: crypto.randomUUID(),
+                                      teamId,
+                                      eventId: event.id,
+                                      eventRevision: event.revision,
+                                      change: { kind: "session", value },
+                                      confirm: true,
+                                    },
+                                  });
                                 },
-                              }),
-                            )
-                          }
-                        >
-                          <SessionFields
-                            session={session}
-                            canReserve={
-                              session.laneIds.length
-                                ? allowed("cages.update") || allowed("cages.release")
-                                : allowed("cages.reserve")
+                                event.editable
+                                  ? "Session saved."
+                                  : "Schedule review requested. Reservations remain unchanged until approval.",
+                              )
                             }
-                          />
-                          <Button type="submit" disabled={busy}>
-                            Save Session and Cages
-                          </Button>
-                        </form>
-                      </details>
-                    )}
+                          >
+                            <SessionFields
+                              session={session}
+                              canReserve={
+                                session.laneIds.length
+                                  ? allowed("cages.update") || allowed("cages.release")
+                                  : allowed("cages.reserve")
+                              }
+                            />
+                            <Button type="submit" disabled={busy}>
+                              {event.editable
+                                ? "Save Session and Cages"
+                                : "Request Schedule Review"}
+                            </Button>
+                          </form>
+                        </details>
+                      )}
                     {(allowed("events.assign") || allowed("events.attendance")) &&
                       session.participants.map((p) => (
                         <div key={p.athleteId} className="flex flex-wrap items-center gap-2">

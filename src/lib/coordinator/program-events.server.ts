@@ -20,6 +20,7 @@ import {
   programEventSessionInput,
   programEventEnrollmentInput,
   programEventMoveInput,
+  programEventReviewInput,
 } from "./program-events-contracts";
 import { saveEventSessionInTransaction } from "./organization-bookings.server";
 import type { Capability } from "./contracts";
@@ -117,6 +118,7 @@ export async function programEvents(
         coachIds: e.coachIds,
         publication: e.publication,
         editable: e.trainingEventId === null && e.publication === "draft",
+        reviewable: e.trainingEventId === null && e.publication !== "archived",
         sessions,
       });
     }
@@ -323,61 +325,7 @@ export async function moveProgramSession(
     userId,
     "events.program.reschedule",
     async (tx) => {
-      const { event: e, team } = await eventFor(tx, userId, v.eventId, "update");
-      if (
-        e.trainingEventId ||
-        e.publication !== "draft" ||
-        (await tx`select id from commerce_orders where product_id=${e.id} limit 1`).length
-      )
-        throw Error("Published or protected session changes require owner review.");
-      const current = (await allSessions(tx, e)).find((s) => s.sessionKey === v.sessionKey);
-      if (!current || current.revision !== v.revision || current.status !== "confirmed")
-        throw Error("Session changed. Reload before saving.");
-      const [cage] = await tx<{
-        booking_id: string;
-        order_id: string | null;
-      }>`select c.booking_id,b.order_id from coordinator_event_cages c join booking_records b on b.id=c.booking_id where c.event_id=${e.id} and c.session_key=${v.sessionKey} for update of c,b`;
-      if (cage?.order_id) throw new CoordinatorDenied();
-      if (cage)
-        await requireTeam(tx, userId, v.laneIds.length ? "cages.update" : "cages.release", team.id);
-      else if (v.laneIds.length) await requireTeam(tx, userId, "cages.reserve", team.id);
-      if (cage) {
-        await tx`delete from booking_occupancy where booking_id=${cage.booking_id}`;
-        await tx`update booking_records set status='cancelled' where id=${cage.booking_id} and order_id is null`;
-        await tx`delete from coordinator_event_cages where event_id=${e.id} and session_key=${v.sessionKey}`;
-      }
-      const { laneIds, ...input } = v;
-      const result = await saveEventSessionInTransaction(tx, userId, input);
-      const next = (await allSessions(tx, e)).find((s) => s.sessionKey === v.sessionKey)!;
-      if (laneIds.length) {
-        const booking = await holdWindow(tx, {
-          orderId: null,
-          userId,
-          athleteId: null,
-          productId: "training-event:" + e.id,
-          start: new Date(next.startsAt),
-          end: new Date(next.endsAt),
-          resources: [...new Set(laneIds)].map((id) => "lane:" + id),
-        });
-        await tx`update booking_records set status='confirmed' where id=${booking}`;
-        await tx`insert into coordinator_event_cages(event_id,session_key,booking_id) values(${e.id},${v.sessionKey},${booking})`;
-      }
-      await audit(
-        tx,
-        userId,
-        "events.program.reschedule",
-        e.id,
-        "allowed",
-        {
-          sessionKey: v.sessionKey,
-          before: { start: current.startsAt, end: current.endsAt },
-          after: { start: next.startsAt, end: next.endsAt },
-          laneIds,
-        },
-        team.sport,
-        team.id,
-      );
-      return result;
+      return moveProgramSessionInTransaction(tx, userId, userId, v, false);
     },
     lockFinancialExecution,
   );
@@ -436,4 +384,171 @@ export async function cancelProgramEventInTransaction(
     team.sport,
     team.id,
   );
+}
+
+async function moveProgramSessionInTransaction(
+  tx: Sql,
+  actorId: string,
+  userId: string,
+  v: z.infer<typeof programEventMoveInput>,
+  reviewed: boolean,
+) {
+  const { event: e, team } = await eventFor(tx, userId, v.eventId, "update");
+  if (
+    e.trainingEventId ||
+    e.publication === "archived" ||
+    (!reviewed && e.publication !== "draft") ||
+    (await tx`select id from commerce_orders where product_id=${e.id} limit 1`).length
+  )
+    throw Error("Published or protected session changes require owner review.");
+  const current = (await allSessions(tx, e)).find((s) => s.sessionKey === v.sessionKey);
+  if (!current || current.revision !== v.revision || current.status !== "confirmed")
+    throw Error("Session changed. Reload before saving.");
+  const [cage] = await tx<{
+    booking_id: string;
+    order_id: string | null;
+  }>`select c.booking_id,b.order_id from coordinator_event_cages c join booking_records b on b.id=c.booking_id where c.event_id=${e.id} and c.session_key=${v.sessionKey} for update of c,b`;
+  if (cage?.order_id) throw new CoordinatorDenied();
+  if (cage)
+    await requireTeam(tx, userId, v.laneIds.length ? "cages.update" : "cages.release", team.id);
+  else if (v.laneIds.length) await requireTeam(tx, userId, "cages.reserve", team.id);
+  if (cage) {
+    await tx`delete from booking_occupancy where booking_id=${cage.booking_id}`;
+    await tx`update booking_records set status='cancelled' where id=${cage.booking_id} and order_id is null`;
+    await tx`delete from coordinator_event_cages where event_id=${e.id} and session_key=${v.sessionKey}`;
+  }
+  const { laneIds, ...input } = v;
+  const result = await saveEventSessionInTransaction(tx, actorId, input);
+  const next = (await allSessions(tx, e)).find((s) => s.sessionKey === v.sessionKey)!;
+  if (laneIds.length) {
+    const booking = await holdWindow(tx, {
+      orderId: null,
+      userId: actorId,
+      athleteId: null,
+      productId: "training-event:" + e.id,
+      start: new Date(next.startsAt),
+      end: new Date(next.endsAt),
+      resources: [...new Set(laneIds)].map((id) => "lane:" + id),
+    });
+    await tx`update booking_records set status='confirmed' where id=${booking}`;
+    await tx`insert into coordinator_event_cages(event_id,session_key,booking_id) values(${e.id},${v.sessionKey},${booking})`;
+  }
+  await audit(
+    tx,
+    actorId,
+    "events.program.reschedule",
+    e.id,
+    "allowed",
+    {
+      sessionKey: v.sessionKey,
+      before: { start: current.startsAt, end: current.endsAt },
+      after: { start: next.startsAt, end: next.endsAt },
+      laneIds,
+    },
+    team.sport,
+    team.id,
+  );
+  return result;
+}
+
+export async function requestProgramEventReview(
+  sql: Sql,
+  userId: string,
+  raw: z.infer<typeof programEventReviewInput>,
+) {
+  const v = programEventReviewInput.parse(raw);
+  return secured(sql, userId, "events.program.review-request", async (tx) => {
+    const { event, team } = await eventFor(tx, userId, v.eventId, "update");
+    await requireTeam(tx, userId, "events.review.request", team.id);
+    if (team.id !== v.teamId || v.change.value.eventId !== event.id) throw new CoordinatorDenied();
+    const proposal = { eventRevision: v.eventRevision, change: v.change };
+    const [prior] = await tx<{
+      same: boolean;
+    }>`select requester_id=${userId} and team_id=${team.id} and target_id=${event.id} and kind='program-change' and proposal=${JSON.stringify(proposal)}::jsonb as same from coordinator_approvals where id=${v.id}`;
+    if (prior) {
+      if (!prior.same) throw Error("This request reference was already used.");
+      return { ok: true };
+    }
+    await validateProgramReview(tx, event, v.eventRevision, v.change);
+    await tx`insert into coordinator_approvals(id,requester_id,sport,team_id,kind,target_id,proposal,reason) values(${v.id},${userId},${team.sport},${team.id},'program-change',${event.id},${JSON.stringify(proposal)}::jsonb,${v.change.value.reason})`;
+    await audit(
+      tx,
+      userId,
+      "events.program.review-request",
+      event.id,
+      "allowed",
+      { approvalId: v.id, kind: v.change.kind, revision: event.revision },
+      team.sport,
+      team.id,
+    );
+    return { ok: true };
+  });
+}
+async function validateProgramReview(
+  tx: Sql,
+  e: NonNullable<Awaited<ReturnType<typeof operationalEvent>>>,
+  revision: number,
+  change: z.infer<typeof programEventReviewInput>["change"],
+) {
+  if (
+    e.trainingEventId ||
+    e.publication === "archived" ||
+    (await tx`select id from commerce_orders where product_id=${e.id} limit 1`).length
+  )
+    throw new CoordinatorDenied();
+  if (e.revision !== revision || change.value.eventId !== e.id)
+    throw Error("The event changed. Request a fresh review.");
+  if (change.kind === "settings" && change.value.revision !== e.revision)
+    throw Error("The event changed. Request a fresh review.");
+  if (change.kind === "settings") {
+    const [over] =
+      await tx`select n.session_key from operational_event_enrollments n join operational_booking_schedule b on b.id=n.booking_id where n.event_id=${e.id} and n.status='active' and b.status in ('confirmed','completed') group by n.session_key having count(distinct n.athlete_id)>${change.value.capacity} limit 1`;
+    if (over)
+      throw Error("Capacity cannot be lower than existing enrollment. Review participants first.");
+  }
+  if (change.kind === "session") {
+    const session = (await allSessions(tx, e)).find(
+      (s) => s.sessionKey === change.value.sessionKey,
+    );
+    if (!session || session.revision !== change.value.revision || session.status !== "confirmed")
+      throw Error("The session changed. Request a fresh review.");
+  }
+}
+/** Called only within the owner-authorized approval transaction. No direct public endpoint. */
+export async function approveProgramEventChange(
+  tx: Sql,
+  reviewerId: string,
+  requesterId: string,
+  teamId: string,
+  eventId: string,
+  proposal: unknown,
+) {
+  const value = proposal as { eventRevision: unknown; change: unknown };
+  const v = programEventReviewInput.parse({
+    id: crypto.randomUUID(),
+    teamId,
+    eventId,
+    eventRevision: value?.eventRevision,
+    change: value?.change,
+    confirm: true,
+  });
+  const { event, team } = await eventFor(tx, requesterId, eventId, "update");
+  if (team.id !== teamId) throw new CoordinatorDenied();
+  await requireTeam(tx, requesterId, "events.review.request", team.id);
+  await validateProgramReview(tx, event, v.eventRevision, v.change);
+  const result =
+    v.change.kind === "settings"
+      ? await saveOperationalEventSettingsInTransaction(tx, reviewerId, v.change.value)
+      : await moveProgramSessionInTransaction(tx, reviewerId, requesterId, v.change.value, true);
+  await audit(
+    tx,
+    reviewerId,
+    "events.program.change-approved",
+    event.id,
+    "allowed",
+    { requestedBy: requesterId, kind: v.change.kind, beforeRevision: event.revision },
+    team.sport,
+    team.id,
+  );
+  return result;
 }

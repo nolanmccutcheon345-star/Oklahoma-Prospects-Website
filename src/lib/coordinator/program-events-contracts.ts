@@ -27,3 +27,24 @@ export const programEventMoveInput = organizationEventSessionOperationInput
   .strict();
 
 export type ProgramEventLaneIds = z.infer<typeof programEventSessionInput>["laneIds"];
+
+export const programEventReviewInput = z
+  .object({
+    id: z.string().uuid(),
+    teamId: id,
+    eventId: id,
+    eventRevision: z.number().int().positive(),
+    change: z.discriminatedUnion("kind", [
+      z
+        .object({
+          kind: z.literal("settings"),
+          value: operationalEventSettingsInput
+            .extend({ publication: z.enum(["open", "closed"]) })
+            .strict(),
+        })
+        .strict(),
+      z.object({ kind: z.literal("session"), value: programEventMoveInput }).strict(),
+    ]),
+    confirm: z.literal(true),
+  })
+  .strict();

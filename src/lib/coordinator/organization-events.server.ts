@@ -206,14 +206,9 @@ async function staffBooking(
   userId: string,
   resources: string[],
 ) {
-  const original = e.originalSessions.find(
-    (o) => operationalEventSessionKey(e.id, o) === s.sessionKey,
-  );
-  const [existing] = await tx<{
-    id: string;
-    athlete_id: null;
-  }>`select id,athlete_id from booking_records where order_id is null and product_id=${"training-event:" + e.id} and starts_at=${original ? chicagoInstant(original.date, original.start).toISOString() : s.startsAt} and ends_at=${original ? chicagoInstant(original.date, original.end).toISOString() : s.endsAt} order by id limit 1 for update`;
-  const id = existing?.id || "operational-event-staff:" + s.sessionKey;
+  const id = "operational-event-staff:" + s.sessionKey;
+  const [existing] =
+    await tx`select id from booking_records where id=${id} and order_id is null and athlete_id is null for update`;
   if (!existing)
     await tx`insert into booking_records(id,user_id,product_id,starts_at,ends_at,resources,status,participants_verified) values(${id},${userId},${"training-event:" + e.id},${s.startsAt},${s.endsAt},${JSON.stringify(resources)}::jsonb,'confirmed',true) on conflict(id) do nothing`;
   await replaceOperationalOccupancy(

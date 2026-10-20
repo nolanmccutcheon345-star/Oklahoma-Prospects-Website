@@ -50,7 +50,6 @@ export const revokeStaffCoordinatorInvitation = createServerFn({ method: "POST" 
     );
   });
 import {
-  sports,
   id,
   scopeInput,
   recruitingHistoryInput,
@@ -522,6 +521,19 @@ export const requestCoordinatorTryoutReview = createServerFn({ method: "POST" })
   .handler(async ({ context, data }) => {
     const { getSql } = await import("../db");
     return (await import("./tryout-scheduling.server")).requestTryoutReview(
+      await getSql(),
+      context.userId,
+      data,
+    );
+  });
+
+import { programEventReviewInput } from "./program-events-contracts";
+export const requestCoordinatorProgramReview = createServerFn({ method: "POST" })
+  .middleware([coordinatorAuthMiddleware])
+  .validator(programEventReviewInput)
+  .handler(async ({ data, context }) => {
+    const { getSql } = await import("../db");
+    return (await import("./program-events.server")).requestProgramEventReview(
       await getSql(),
       context.userId,
       data,

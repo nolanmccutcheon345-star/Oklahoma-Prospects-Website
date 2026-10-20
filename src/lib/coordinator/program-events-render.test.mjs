@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { withRendered } from "../../../scripts/render-component-support.mjs";
 const mocks = {
-  "@/lib/coordinator/api": `export const getCoordinatorProgramEvents=x=>globalThis.programFixture.read(x);export const createCoordinatorProgramEvent=x=>globalThis.programFixture.create(x);export const saveCoordinatorProgramEvent=()=>{throw Error('unexpected mutation')};export const addCoordinatorProgramSession=()=>{};export const moveCoordinatorProgramSession=()=>{};export const saveCoordinatorProgramEnrollment=()=>{};export const requestCoordinatorApproval=()=>{};`,
+  "@/lib/coordinator/api": `export const getCoordinatorProgramEvents=x=>globalThis.programFixture.read(x);export const createCoordinatorProgramEvent=x=>globalThis.programFixture.create(x);export const saveCoordinatorProgramEvent=()=>{throw Error('unexpected mutation')};export const addCoordinatorProgramSession=()=>{};export const moveCoordinatorProgramSession=()=>{};export const saveCoordinatorProgramEnrollment=()=>{};export const requestCoordinatorApproval=()=>{};export const requestCoordinatorProgramReview=x=>globalThis.programFixture.review(x);`,
 };
 const empty = {
   items: [],
@@ -93,6 +93,70 @@ test("event creation retains its retry identity after uncertain failure and neve
         assert.equal(calls[1].data.price, undefined);
         assert.equal(calls[1].data.sport, undefined);
         assert.match(host.textContent, /Private event draft created/);
+      },
+    );
+  } finally {
+    globalThis.FormData = previousForm;
+    delete globalThis.programFixture;
+  }
+});
+
+test("camp publication requires explicit confirmation and sends an exact scoped owner-review proposal", async () => {
+  const previousForm = globalThis.FormData,
+    calls = [];
+  const event = {
+    id: "10000000-0000-4000-8000-000000000001",
+    revision: 2,
+    name: "Review camp",
+    description: "Synthetic skills camp",
+    type: "camp",
+    location: "Facility",
+    capacity: 10,
+    coachIds: ["coach"],
+    publication: "draft",
+    editable: true,
+    reviewable: true,
+    sessions: [],
+  };
+  globalThis.programFixture = {
+    read: async () => ({ ...empty, items: [event] }),
+    review: async (v) => {
+      calls.push(v);
+      return { ok: true };
+    },
+  };
+  try {
+    await withRendered(
+      "src/components/coordinator/program-events.tsx",
+      "ProgramEvents",
+      {
+        teamId: "soft",
+        allowed: (p) => ["events.read", "camps.update", "events.review.request"].includes(p),
+      },
+      mocks,
+      async ({ host, act, dom }) => {
+        globalThis.FormData = dom.window.FormData;
+        let confirmed = false;
+        dom.window.confirm = () => confirmed;
+        const submit = async () => {
+          const button = [...host.querySelectorAll("button")].find(
+              (b) => b.textContent === "Request Owner Review",
+            ),
+            form = button.closest("form");
+          form.querySelector('[name="reason"]').value = "Review the proposed public camp";
+          await act(async () => button.click());
+        };
+        await submit();
+        assert.equal(calls.length, 0);
+        confirmed = true;
+        await submit();
+        assert.equal(calls.length, 1);
+        assert.equal(calls[0].data.teamId, "soft");
+        assert.equal(calls[0].data.eventRevision, 2);
+        assert.equal(calls[0].data.change.kind, "settings");
+        assert.equal(calls[0].data.change.value.publication, "open");
+        assert.equal(calls[0].data.confirm, true);
+        assert.match(host.textContent, /Changes take effect only after owner approval/);
       },
     );
   } finally {
