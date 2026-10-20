@@ -1641,3 +1641,270 @@ test("prospect, tryout, report and team-operation grants remain independent with
     await db.close();
   }
 });
+
+test("scoped camps and clinics reuse existing events, enrollment and shared cage occupancy atomically", async () => {
+  const { db, sql, assign } = await fixture();
+  const ops = await import("./program-events.server");
+  const ownerEvents = await import("./organization-events.server");
+  try {
+    await sql`insert into pd_working_file(id,payload) values('club','{"coaches":[{"id":"event-coach","name":"Synthetic Instructor","email":"coach@example.invalid","active":true}]}')`;
+    await sql`insert into club_athletes(id,name,household_email,user_id,profile) values('linked-athlete','Linked athlete','guardian@example.invalid','parent','{"medical":"PRIVATE-MEDICAL","fees":9999}'),('other-athlete','Other athlete','private@example.invalid','parent','{}')`;
+    await sql`insert into recruiting_roster_links(athlete_id,team_id,roster_id,linked_by) values('linked-athlete','soft','soft-player','owner')`;
+    const create = {
+      requestId: randomUUID(),
+      teamId: "soft",
+      name: "Synthetic camp",
+      description: "Scoped skill development camp",
+      type: "camp" as const,
+      location: "Facility",
+      capacity: 10,
+      coachIds: ["event-coach"],
+      reason: "Create authorized team program",
+    };
+    await assign("zero", "softball");
+    await assert.rejects(ops.createProgramEvent(sql, "zero", create));
+    await assign("zero", "softball", ["camps.create"], "teams", ["soft"]);
+    await assert.rejects(ops.createProgramEvent(sql, "zero", { ...create, teamId: "base" }));
+    await assert.rejects(ops.createProgramEvent(sql, "zero", { ...create, type: "clinic" }));
+    await ops.createProgramEvent(sql, "zero", create);
+    await ops.createProgramEvent(sql, "zero", create);
+    assert.equal(
+      (
+        await sql`select count(*)::int as n from operational_event_records where id=${create.requestId}`
+      )[0].n,
+      1,
+    );
+    assert.equal((await ops.programEvents(sql, "zero", { teamId: "soft" })).items.length, 0);
+    assert.equal(
+      (await ownerEvents.organizationEvents(sql, "owner")).events.some(
+        (e) => e.id === create.requestId,
+      ),
+      true,
+    );
+    assert.equal((await ownerEvents.publicOperationalEvents(sql)).length, 0);
+    const session = {
+      eventId: create.requestId,
+      revision: 1,
+      date: "2099-01-12",
+      start: "16:00",
+      end: "17:00",
+      location: "Facility",
+      laneIds: ["1"] as "1"[],
+      reason: "Reserve authorized camp session",
+    };
+    await assert.rejects(ops.addProgramSession(sql, "zero", session));
+    await assign(
+      "zero",
+      "softball",
+      [
+        "events.read",
+        "camps.update",
+        "cages.reserve",
+        "cages.update",
+        "cages.release",
+        "events.assign",
+        "events.attendance",
+      ],
+      "teams",
+      ["soft"],
+    );
+    const [paidOrder] =
+      await sql`insert into commerce_orders(id,request_key,email,product_id,kind,snapshot,total_cents,status) values('protected-event-order','protected-event-order','private@example.invalid','fixture-cage','cage','{}',9999,'paid') returning id`;
+    await sql`insert into booking_records(id,order_id,product_id,starts_at,ends_at,resources,status) values('protected-event-booking',${paidOrder.id},'fixture-cage','2099-01-12T22:00:00Z','2099-01-12T23:00:00Z','["lane:1"]','confirmed')`;
+    await sql`insert into booking_occupancy(resource_id,slot_at,booking_id) values('lane:1','2099-01-12T22:00:00Z','protected-event-booking')`;
+    const financialBefore =
+      await sql`select to_jsonb(o) as state from commerce_orders o order by id`;
+    await assert.rejects(ops.addProgramSession(sql, "zero", session), /reserved|conflict/i);
+    assert.equal(
+      (
+        await sql`select count(*)::int as n from operational_event_sessions where event_id=${create.requestId}`
+      )[0].n,
+      0,
+    );
+    assert.equal(
+      (await sql`select revision from operational_event_records where id=${create.requestId}`)[0]
+        .revision,
+      1,
+    );
+    const added = await ops.addProgramSession(sql, "zero", { ...session, laneIds: ["2"] });
+    let workspace = await ops.programEvents(sql, "zero", { teamId: "soft" });
+    assert.equal(workspace.items.length, 1);
+    assert.deepEqual(
+      workspace.athletes.map((a) => a.id),
+      ["linked-athlete"],
+    );
+    assert.doesNotMatch(JSON.stringify(workspace), /PRIVATE|9999|private@example|guardian@example/);
+    const current = workspace.items[0].sessions[0];
+    assert.deepEqual(current.laneIds, ["2"]);
+    const move = {
+      eventId: create.requestId,
+      sessionKey: added.sessionKey,
+      revision: 1,
+      action: "reschedule" as const,
+      date: session.date,
+      start: "16:00",
+      end: "17:00",
+      location: "Facility",
+      laneIds: ["1"] as "1"[],
+      reason: "Review conflicting cage change",
+    };
+    await assert.rejects(ops.moveProgramSession(sql, "zero", move), /reserved|conflict/i);
+    workspace = await ops.programEvents(sql, "zero", { teamId: "soft" });
+    assert.equal(workspace.items[0].sessions[0].revision, 1);
+    assert.deepEqual(workspace.items[0].sessions[0].laneIds, ["2"]);
+    await ops.moveProgramSession(sql, "zero", {
+      ...move,
+      laneIds: ["3-4"],
+      start: "17:00",
+      end: "18:00",
+    });
+    workspace = await ops.programEvents(sql, "zero", { teamId: "soft" });
+    assert.equal(workspace.items[0].sessions[0].revision, 2);
+    assert.deepEqual(workspace.items[0].sessions[0].laneIds, ["3-4"]);
+    const enrollment = {
+      eventId: create.requestId,
+      sessionKey: added.sessionKey,
+      sessionRevision: 2,
+      athleteId: "linked-athlete",
+      revision: 0,
+      action: "enroll" as const,
+      reason: "Confirm eligible roster participant",
+    };
+    await assert.rejects(ops.saveProgramEnrollment(sql, "zero", enrollment), /Open/);
+    await ownerEvents.saveOperationalEventSettings(sql, "owner", {
+      eventId: create.requestId,
+      revision: 2,
+      capacity: 10,
+      coachIds: ["event-coach"],
+      publication: "open",
+      reason: "Owner reviewed event publication",
+    });
+    await ops.saveProgramEnrollment(sql, "zero", enrollment);
+    await assert.rejects(
+      ops.saveProgramEnrollment(sql, "zero", { ...enrollment, athleteId: "other-athlete" }),
+    );
+    await assert.rejects(
+      ops.saveProgramEnrollment(sql, "zero", { ...enrollment, revision: 1, action: "check-in" }),
+      /waiver/i,
+    );
+    await sql`insert into club_waivers(id,user_id,athlete_id,version,signer_name,signed_at,consent_text) values('event-waiver','parent','linked-athlete','fixture','Synthetic guardian',now(),'Synthetic consent')`;
+    // Advance only the disposable delivery fixture to the check-in day.
+    const visitStart = new Date(Math.floor(Date.now() / 300000) * 300000),
+      visitEnd = new Date(+visitStart + 3600000);
+    await sql`update operational_booking_changes set starts_at=${visitStart.toISOString()},ends_at=${visitEnd.toISOString()} where booking_id=(select booking_id from operational_event_enrollments where event_id=${create.requestId} and athlete_id='linked-athlete')`;
+
+    await ops.saveProgramEnrollment(sql, "zero", {
+      ...enrollment,
+      revision: 1,
+      action: "check-in",
+    });
+    await assert.rejects(
+      ops.moveProgramSession(sql, "zero", { ...move, revision: 2 }),
+      /owner review/i,
+    );
+    await assign(
+      "zero",
+      "softball",
+      ["events.read", "camps.create", "camps.update", "cages.reserve", "events.cancel.request"],
+      "teams",
+      ["soft"],
+    );
+    const second = { ...create, requestId: randomUUID(), name: "Cancellation review camp" };
+    await ops.createProgramEvent(sql, "zero", second);
+    await ops.addProgramSession(sql, "zero", {
+      ...session,
+      eventId: second.requestId,
+      date: "2099-01-13",
+      laneIds: ["2"],
+    });
+    const approvalId = randomUUID();
+    await requestApproval(sql, "zero", {
+      id: approvalId,
+      kind: "cancel-event",
+      targetId: second.requestId,
+      teamId: "soft",
+      destinationTeamId: "",
+      reason: "Review a significant program cancellation",
+    });
+    assert.equal(
+      (await sql`select publication from operational_event_records where id=${second.requestId}`)[0]
+        .publication,
+      "draft",
+    );
+    await assert.rejects(
+      decideApproval(sql, "zero", {
+        id: approvalId,
+        revision: 1,
+        decision: "approved",
+        reason: "Cannot self approve",
+        confirm: true,
+      }),
+    );
+    await sql`create function fail_program_approval_audit() returns trigger language plpgsql as $$begin if new.action='approval.approved' then raise exception 'injected approval audit failure';end if;return new;end$$`;
+    await sql`create trigger fail_program_approval before insert on coordinator_audit for each row execute function fail_program_approval_audit()`;
+    await assert.rejects(
+      decideApproval(sql, "owner", {
+        id: approvalId,
+        revision: 1,
+        decision: "approved",
+        reason: "Owner reviewed cancellation",
+        confirm: true,
+      }),
+      /injected/,
+    );
+    assert.equal(
+      (await sql`select status from coordinator_approvals where id=${approvalId}`)[0].status,
+      "pending",
+    );
+    assert.equal(
+      (
+        await sql`select status from operational_event_sessions where event_id=${second.requestId}`
+      )[0].status,
+      "confirmed",
+    );
+    await sql`drop trigger fail_program_approval on coordinator_audit`;
+    await decideApproval(sql, "owner", {
+      id: approvalId,
+      revision: 1,
+      decision: "approved",
+      reason: "Owner reviewed cancellation",
+      confirm: true,
+    });
+    assert.equal(
+      (await sql`select publication from operational_event_records where id=${second.requestId}`)[0]
+        .publication,
+      "archived",
+    );
+    assert.equal(
+      (
+        await sql`select count(*)::int as n from booking_occupancy where booking_id in(select booking_id from coordinator_event_cages where event_id=${second.requestId})`
+      )[0].n,
+      0,
+    );
+    const [assignment] = await sql<{
+      revision: number;
+    }>`select revision from coordinator_assignments where user_id='zero' and sport='softball'`;
+    await saveAssignment(sql, "owner", {
+      userId: "zero",
+      sport: "softball",
+      revision: assignment.revision,
+      status: "suspended",
+      coverage: "teams",
+      teamIds: ["soft"],
+      permissions: [],
+      confirm: true,
+      independentRolesReviewed: true,
+    });
+    await assert.rejects(ops.programEvents(sql, "zero", { teamId: "soft" }));
+    assert.deepEqual(
+      await sql`select to_jsonb(o) as state from commerce_orders o order by id`,
+      financialBefore,
+    );
+    assert.equal(
+      (await sql`select status from booking_records where id='protected-event-booking'`)[0].status,
+      "confirmed",
+    );
+  } finally {
+    await db.close();
+  }
+});

@@ -421,3 +421,78 @@ export const saveCoordinatorTeamOperations = createServerFn({ method: "POST" })
       data,
     );
   });
+
+import {
+  programEventsInput,
+  programEventCreateInput,
+  programEventSettingsInput,
+  programEventSessionInput,
+  programEventMoveInput,
+  programEventEnrollmentInput,
+} from "./program-events-contracts";
+export const getCoordinatorProgramEvents = createServerFn({ method: "POST" })
+  .middleware([coordinatorAuthMiddleware])
+  .validator(programEventsInput)
+  .handler(async ({ context, data }) => {
+    const { getSql } = await import("../db");
+    return (await import("./program-events.server")).programEvents(
+      await getSql(),
+      context.userId,
+      data,
+    );
+  });
+export const createCoordinatorProgramEvent = createServerFn({ method: "POST" })
+  .middleware([coordinatorAuthMiddleware])
+  .validator(programEventCreateInput)
+  .handler(async ({ context, data }) => {
+    const { getSql } = await import("../db");
+    return (await import("./program-events.server")).createProgramEvent(
+      await getSql(),
+      context.userId,
+      data,
+    );
+  });
+export const saveCoordinatorProgramEvent = createServerFn({ method: "POST" })
+  .middleware([coordinatorAuthMiddleware])
+  .validator(programEventSettingsInput)
+  .handler(async ({ context, data }) => {
+    const { getSql } = await import("../db");
+    return (await import("./program-events.server")).saveProgramEvent(
+      await getSql(),
+      context.userId,
+      data,
+    );
+  });
+export const addCoordinatorProgramSession = createServerFn({ method: "POST" })
+  .middleware([coordinatorAuthMiddleware])
+  .validator(programEventSessionInput)
+  .handler(async ({ context, data }) => {
+    const { getSql } = await import("../db");
+    return (await import("./program-events.server")).addProgramSession(
+      await getSql(),
+      context.userId,
+      data,
+    );
+  });
+export const moveCoordinatorProgramSession = createServerFn({ method: "POST" })
+  .middleware([coordinatorAuthMiddleware])
+  .validator(programEventMoveInput)
+  .handler(async ({ context, data }) => {
+    const { getSql } = await import("../db");
+    return (await import("./program-events.server")).moveProgramSession(
+      await getSql(),
+      context.userId,
+      data,
+    );
+  });
+export const saveCoordinatorProgramEnrollment = createServerFn({ method: "POST" })
+  .middleware([coordinatorAuthMiddleware])
+  .validator(programEventEnrollmentInput)
+  .handler(async ({ context, data }) => {
+    const { getSql } = await import("../db");
+    return (await import("./program-events.server")).saveProgramEnrollment(
+      await getSql(),
+      context.userId,
+      data,
+    );
+  });

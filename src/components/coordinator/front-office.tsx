@@ -1,3 +1,4 @@
+import { ProgramEvents } from "./program-events";
 import { TeamOperations } from "./team-operations";
 import { RecruitingWorkflow } from "./recruiting-workflow";
 import { UserButton } from "@/lib/auth/gates";
@@ -96,6 +97,11 @@ export function CoordinatorFrontOffice() {
         allowed("teams.statistics"),
     ],
     ["events", "Practices & Events", allowed("events.read") || allowed("practices.create")],
+    [
+      "programs",
+      "Camps & Clinics",
+      allowed("events.read") || allowed("camps.create") || allowed("clinics.create"),
+    ],
     ["cages", "Cage Availability", allowed("cages.read")],
     [
       "messages",
@@ -197,6 +203,8 @@ export function CoordinatorFrontOffice() {
                 </ul>
                 {!g && <p>No active role for this sport.</p>}
               </section>
+            ) : current === "programs" ? (
+              <ProgramEvents key={sport + teamId + g?.revision} teamId={teamId} allowed={allowed} />
             ) : (
               <CoordinatorModule
                 key={sport + teamId + current + g?.revision}

@@ -212,105 +212,109 @@ export async function saveOrganizationEventSessionOperation(
     "organization.event-session.change",
     async (tx) => {
       await requireOrganizationOperations(tx, userId);
-      await tx`select id from operational_event_records where id=${input.eventId} for update`;
-      const event = await operationalEvent(tx, input.eventId);
-      if (!event) throw Error("Choose an existing operational event.");
-      const added = await tx<{
-        date: string;
-        start: string;
-        end: string;
-      }>`select original_date as date,original_start as start,original_end as end from operational_event_sessions where event_id=${event.id} and is_additional`;
-      const original = [...event.originalSessions, ...added].find(
-        (s) => operationalEventSessionKey(input.eventId, s) === input.sessionKey,
-      );
-      if (!original) throw Error("The original event session is unavailable.");
-      const [financial] =
-        await tx`select id from commerce_orders where kind='event' and product_id=${input.eventId} limit 1`;
-      if (financial) await independent(tx);
-      const sessions = await operationalEventSessions(
-          tx,
-          input.eventId,
-          event.originalSessions,
-          event.location,
-          { includeAdditional: true },
-        ),
-        current = sessions.find((s) => s.sessionKey === input.sessionKey)!;
-      if (current.revision !== input.revision)
-        throw Error("This event schedule changed. Reload before saving.");
-      let start = new Date(current.startsAt),
-        end = new Date(current.endsAt),
-        location = current.location;
-      const status = input.action === "cancel" ? "cancelled" : "confirmed";
-      if (start <= new Date()) throw Error("Only a future event session can be changed.");
-      if (input.action === "reschedule") {
-        if (!validDate(input.date!) || input.end! <= input.start!)
-          throw Error("Use a valid event date and time window.");
-        start = chicagoInstant(input.date!, input.start!);
-        end = chicagoInstant(input.date!, input.end!);
-        location = input.location!;
-        if (start <= new Date()) throw Error("Use a future event session.");
-      }
-      if (
-        status === "confirmed" &&
-        sessions.some(
-          (s) =>
-            s.sessionKey !== input.sessionKey &&
-            s.status === "confirmed" &&
-            +new Date(s.startsAt) < +end &&
-            +new Date(s.endsAt) > +start,
-        )
-      )
-        throw Error("Sessions in the same event cannot overlap.");
-      const rows =
-        await tx<Booking>`select b.id,b.order_id,b.household_id,b.product_id,b.coach_id,b.athlete_id,coalesce(o.resources,b.resources) as resources,b.starts_at,b.ends_at,b.status,coalesce(o.checked_in_at,b.checked_in_at) as checked_in_at,b.participant_count,b.participants_verified,coalesce(o.revision,0) as operational_revision from booking_records b left join operational_booking_changes o on o.booking_id=b.id where b.product_id=any(${[input.eventId, "training-event:" + input.eventId]}::text[]) and ((b.starts_at=${chicagoInstant(original.date, original.start).toISOString()} and b.ends_at=${chicagoInstant(original.date, original.end).toISOString()}) or b.id=${"operational-event-staff:" + input.sessionKey} or exists(select 1 from operational_event_enrollments n where n.booking_id=b.id and n.event_id=${input.eventId} and n.session_key=${input.sessionKey})) and b.status='confirmed' order by b.id for update of b`;
-      if (status === "confirmed") {
-        const pending = await tx<{
-          athlete_id: string;
-        }>`select distinct o.athlete_id from commerce_orders o cross join lateral jsonb_array_elements(coalesce(o.snapshot->'eventRegistration'->'sessions','[]'::jsonb)) s where o.kind='event' and o.product_id=${input.eventId} and ((o.status in ('pending','pending_fee') and o.hold_until>now()) or exists(select 1 from square_payment_attempts a where a.order_id=o.id and a.status in ('pending','unknown'))) and s->>'date'=${original.date} and s->>'start'=${original.start} and s->>'end'=${original.end}`;
-        const conflict =
-          await tx`select booking_id from booking_occupancy where resource_id=any(${pending.map((p) => "athlete:" + p.athlete_id)}::text[]) and slot_at>=${start.toISOString()} and slot_at<${end.toISOString()} and not(booking_id=any(${rows.map((b) => b.id)}::text[])) limit 1`;
-        if (conflict.length)
-          throw Error(
-            "A player with an existing checkout has a conflicting session. No schedule change was saved.",
-          );
-      }
-      if (
-        rows.some((b) => b.checked_in_at) ||
-        (
-          await tx`select booking_id from operational_booking_changes where booking_id=any(${rows.map((b) => b.id)}::text[]) and checked_in_at is not null`
-        ).length
-      )
-        throw Error(
-          "A participant has checked in. Resolve the active session with the instructor first.",
-        );
-      await tx`delete from booking_occupancy where booking_id=any(${rows.map((b) => b.id)}::text[])`;
-      for (const b of rows) {
-        const [withdrawn] =
-          await tx`select id from operational_event_enrollments where booking_id=${b.id} and status='cancelled'`;
-        const deliveryStatus = withdrawn ? "cancelled" : status;
-        await replaceOperationalOccupancy(tx, b, start, end, deliveryStatus === "cancelled");
-        await writeOverlay(tx, b, {
-          startsAt: start,
-          endsAt: end,
-          status: deliveryStatus,
-          checkedInAt: null,
-          reason: input.reason,
-          userId,
-          sourceKind: "event-session",
-          sourceKey: input.sessionKey,
-        });
-      }
-      await tx`insert into operational_event_sessions(event_id,session_key,original_date,original_start,original_end,starts_at,ends_at,location,status,revision,reason,updated_by) values(${input.eventId},${input.sessionKey},${original.date},${original.start},${original.end},${start.toISOString()},${end.toISOString()},${location},${status},${current.revision + 1},${input.reason},${userId}) on conflict(event_id,session_key) do update set starts_at=excluded.starts_at,ends_at=excluded.ends_at,location=excluded.location,status=excluded.status,revision=excluded.revision,reason=excluded.reason,updated_by=excluded.updated_by,updated_at=now()`;
-      await audit(
-        tx,
-        userId,
-        "organization.event-session." + input.action,
-        input.eventId,
-        "allowed",
-        { sessionKey: input.sessionKey, revision: current.revision + 1 },
-      );
-      return { ok: true, revision: current.revision + 1 };
+      return saveEventSessionInTransaction(tx, userId, input);
     },
     lockFinancialExecution,
   );
+}
+/** Internal executor: caller authorizes the actual event and any protected booking policy first. */
+export async function saveEventSessionInTransaction(
+  tx: Sql,
+  userId: string,
+  input: OrganizationEventSessionOperation,
+) {
+  await tx`select id from operational_event_records where id=${input.eventId} for update`;
+  const event = await operationalEvent(tx, input.eventId);
+  if (!event) throw Error("Choose an existing operational event.");
+  const added = await tx<{
+    date: string;
+    start: string;
+    end: string;
+  }>`select original_date as date,original_start as start,original_end as end from operational_event_sessions where event_id=${event.id} and is_additional`;
+  const original = [...event.originalSessions, ...added].find(
+    (s) => operationalEventSessionKey(input.eventId, s) === input.sessionKey,
+  );
+  if (!original) throw Error("The original event session is unavailable.");
+  const [financial] =
+    await tx`select id from commerce_orders where kind='event' and product_id=${input.eventId} limit 1`;
+  if (financial) await independent(tx);
+  const sessions = await operationalEventSessions(
+      tx,
+      input.eventId,
+      event.originalSessions,
+      event.location,
+      { includeAdditional: true },
+    ),
+    current = sessions.find((s) => s.sessionKey === input.sessionKey)!;
+  if (current.revision !== input.revision)
+    throw Error("This event schedule changed. Reload before saving.");
+  let start = new Date(current.startsAt),
+    end = new Date(current.endsAt),
+    location = current.location;
+  const status = input.action === "cancel" ? "cancelled" : "confirmed";
+  if (start <= new Date()) throw Error("Only a future event session can be changed.");
+  if (input.action === "reschedule") {
+    if (!validDate(input.date!) || input.end! <= input.start!)
+      throw Error("Use a valid event date and time window.");
+    start = chicagoInstant(input.date!, input.start!);
+    end = chicagoInstant(input.date!, input.end!);
+    location = input.location!;
+    if (start <= new Date()) throw Error("Use a future event session.");
+  }
+  if (
+    status === "confirmed" &&
+    sessions.some(
+      (s) =>
+        s.sessionKey !== input.sessionKey &&
+        s.status === "confirmed" &&
+        +new Date(s.startsAt) < +end &&
+        +new Date(s.endsAt) > +start,
+    )
+  )
+    throw Error("Sessions in the same event cannot overlap.");
+  const rows =
+    await tx<Booking>`select b.id,b.order_id,b.household_id,b.product_id,b.coach_id,b.athlete_id,coalesce(o.resources,b.resources) as resources,b.starts_at,b.ends_at,b.status,coalesce(o.checked_in_at,b.checked_in_at) as checked_in_at,b.participant_count,b.participants_verified,coalesce(o.revision,0) as operational_revision from booking_records b left join operational_booking_changes o on o.booking_id=b.id where b.product_id=any(${[input.eventId, "training-event:" + input.eventId]}::text[]) and ((b.starts_at=${chicagoInstant(original.date, original.start).toISOString()} and b.ends_at=${chicagoInstant(original.date, original.end).toISOString()}) or b.id=${"operational-event-staff:" + input.sessionKey} or exists(select 1 from operational_event_enrollments n where n.booking_id=b.id and n.event_id=${input.eventId} and n.session_key=${input.sessionKey})) and b.status='confirmed' order by b.id for update of b`;
+  if (status === "confirmed") {
+    const pending = await tx<{
+      athlete_id: string;
+    }>`select distinct o.athlete_id from commerce_orders o cross join lateral jsonb_array_elements(coalesce(o.snapshot->'eventRegistration'->'sessions','[]'::jsonb)) s where o.kind='event' and o.product_id=${input.eventId} and ((o.status in ('pending','pending_fee') and o.hold_until>now()) or exists(select 1 from square_payment_attempts a where a.order_id=o.id and a.status in ('pending','unknown'))) and s->>'date'=${original.date} and s->>'start'=${original.start} and s->>'end'=${original.end}`;
+    const conflict =
+      await tx`select booking_id from booking_occupancy where resource_id=any(${pending.map((p) => "athlete:" + p.athlete_id)}::text[]) and slot_at>=${start.toISOString()} and slot_at<${end.toISOString()} and not(booking_id=any(${rows.map((b) => b.id)}::text[])) limit 1`;
+    if (conflict.length)
+      throw Error(
+        "A player with an existing checkout has a conflicting session. No schedule change was saved.",
+      );
+  }
+  if (
+    rows.some((b) => b.checked_in_at) ||
+    (
+      await tx`select booking_id from operational_booking_changes where booking_id=any(${rows.map((b) => b.id)}::text[]) and checked_in_at is not null`
+    ).length
+  )
+    throw Error(
+      "A participant has checked in. Resolve the active session with the instructor first.",
+    );
+  await tx`delete from booking_occupancy where booking_id=any(${rows.map((b) => b.id)}::text[])`;
+  for (const b of rows) {
+    const [withdrawn] =
+      await tx`select id from operational_event_enrollments where booking_id=${b.id} and status='cancelled'`;
+    const deliveryStatus = withdrawn ? "cancelled" : status;
+    await replaceOperationalOccupancy(tx, b, start, end, deliveryStatus === "cancelled");
+    await writeOverlay(tx, b, {
+      startsAt: start,
+      endsAt: end,
+      status: deliveryStatus,
+      checkedInAt: null,
+      reason: input.reason,
+      userId,
+      sourceKind: "event-session",
+      sourceKey: input.sessionKey,
+    });
+  }
+  await tx`insert into operational_event_sessions(event_id,session_key,original_date,original_start,original_end,starts_at,ends_at,location,status,revision,reason,updated_by) values(${input.eventId},${input.sessionKey},${original.date},${original.start},${original.end},${start.toISOString()},${end.toISOString()},${location},${status},${current.revision + 1},${input.reason},${userId}) on conflict(event_id,session_key) do update set starts_at=excluded.starts_at,ends_at=excluded.ends_at,location=excluded.location,status=excluded.status,revision=excluded.revision,reason=excluded.reason,updated_by=excluded.updated_by,updated_at=now()`;
+  await audit(tx, userId, "organization.event-session." + input.action, input.eventId, "allowed", {
+    sessionKey: input.sessionKey,
+    revision: current.revision + 1,
+  });
+  return { ok: true, revision: current.revision + 1 };
 }

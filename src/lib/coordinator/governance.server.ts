@@ -1,3 +1,5 @@
+import { operationalEvent, allSessions } from "./organization-events.server";
+import { cancelProgramEventInTransaction } from "./program-events.server";
 import type { Sport } from "./contracts";
 import { lockFinancialExecution } from "../finance/execution.server";
 import { moveOwnerPlayerInTransaction } from "./organization.server";
@@ -92,6 +94,7 @@ export async function requestApproval(
       input.teamId,
     );
     let version = 0;
+    let programSessions: { key: string; revision: number }[] | undefined;
     if (input.kind === "transfer") {
       if (input.destinationTeamId === team.id)
         throw new Error("Choose a different destination team.");
@@ -107,10 +110,21 @@ export async function requestApproval(
       const [row] = await tx<{
         revision: number;
       }>`select revision from team_activities where id::text=${input.targetId} and team_id=${team.id} and payload->>'kind'='practice' and payload->>'status'='scheduled'`;
-      if (!row) throw new CoordinatorDenied();
-      version = row.revision;
+      if (row) version = row.revision;
+      else {
+        const [binding] =
+          await tx`select s.event_id from coordinator_event_scopes s where s.event_id=${input.targetId} and s.team_id=${team.id}`;
+        const event = binding ? await operationalEvent(tx, input.targetId) : null;
+        if (!event || event.sport.toLowerCase() !== team.sport || event.publication === "archived")
+          throw new CoordinatorDenied();
+        version = event.revision;
+        programSessions = (await allSessions(tx, event)).map((s) => ({
+          key: s.sessionKey,
+          revision: s.revision,
+        }));
+      }
     }
-    await tx`insert into coordinator_approvals(id,requester_id,sport,team_id,kind,target_id,proposal,reason) values(${input.id},${userId},${team.sport},${team.id},${input.kind},${input.targetId},${JSON.stringify({ version, destinationTeamId: input.destinationTeamId })}::jsonb,${input.reason})`;
+    await tx`insert into coordinator_approvals(id,requester_id,sport,team_id,kind,target_id,proposal,reason) values(${input.id},${userId},${team.sport},${team.id},${input.kind},${input.targetId},${JSON.stringify({ version, destinationTeamId: input.destinationTeamId, ...(programSessions ? { system: "program", sessions: programSessions } : {}) })}::jsonb,${input.reason})`;
     await audit(
       tx,
       userId,
@@ -136,6 +150,8 @@ export async function approvals(sql: Sql, userId: string) {
       kind: string;
       target_id: string;
       proposal: {
+        system?: "program";
+        sessions?: { key: string; revision: number }[];
         version?: number;
         revision?: number;
         destinationTeamId?: string;
@@ -167,6 +183,8 @@ export async function decideApproval(sql: Sql, userId: string, raw: z.infer<type
         team_id: string;
         target_id: string;
         proposal: {
+          system?: "program";
+          sessions?: { key: string; revision: number }[];
           version?: number;
           revision?: number;
           destinationTeamId?: string;
@@ -179,31 +197,43 @@ export async function decideApproval(sql: Sql, userId: string, raw: z.infer<type
       if (input.decision === "approved") {
         if (row.kind === "cancel-event") {
           await requireTeam(tx, row.requester_id, "events.cancel.request", row.team_id);
-          await tx`select id from club_state where id='oklahoma-prospects' for update`;
-          const [event] = await tx<{
-            revision: number;
-            payload: { date: string; startTime: string; location: string };
-          }>`select revision,payload from team_activities where id::text=${row.target_id} and team_id=${row.team_id} and payload->>'kind'='practice' for update`;
-          if (!event || event.revision !== row.proposal.version)
-            throw new Error("The event changed. Request a new review.");
-          const [booking] = await tx<{
-            booking_id: string;
-            order_id: string | null;
-          }>`select cp.booking_id,b.order_id from coordinator_practice_bookings cp join booking_records b on b.id=cp.booking_id where cp.activity_id::text=${row.target_id} for update of b`;
-          if (booking?.order_id) throw new CoordinatorDenied();
-          if (booking) {
-            await tx`delete from booking_occupancy where booking_id=${booking.booking_id}`;
-            await tx`update booking_records set status='cancelled' where id=${booking.booking_id}`;
+          if (row.proposal.system === "program") {
+            await cancelProgramEventInTransaction(
+              tx,
+              userId,
+              row.requester_id,
+              row.target_id,
+              row.team_id,
+              row.proposal.version || 0,
+              row.proposal.sessions || [],
+            );
+          } else {
+            await tx`select id from club_state where id='oklahoma-prospects' for update`;
+            const [event] = await tx<{
+              revision: number;
+              payload: { date: string; startTime: string; location: string };
+            }>`select revision,payload from team_activities where id::text=${row.target_id} and team_id=${row.team_id} and payload->>'kind'='practice' for update`;
+            if (!event || event.revision !== row.proposal.version)
+              throw new Error("The event changed. Request a new review.");
+            const [booking] = await tx<{
+              booking_id: string;
+              order_id: string | null;
+            }>`select cp.booking_id,b.order_id from coordinator_practice_bookings cp join booking_records b on b.id=cp.booking_id where cp.activity_id::text=${row.target_id} for update of b`;
+            if (booking?.order_id) throw new CoordinatorDenied();
+            if (booking) {
+              await tx`delete from booking_occupancy where booking_id=${booking.booking_id}`;
+              await tx`update booking_records set status='cancelled' where id=${booking.booking_id}`;
+            }
+            await tx`update team_activities set payload=jsonb_set(payload,'{status}','"cancelled"'::jsonb),revision=revision+1,updated_by=${userId},updated_at=now() where id::text=${row.target_id}`;
+            await syncPractice(tx, row.team_id, {
+              id: row.target_id,
+              date: event.payload.date,
+              time: event.payload.startTime,
+              where: event.payload.location,
+              cageHours: 0,
+              status: "cancelled",
+            });
           }
-          await tx`update team_activities set payload=jsonb_set(payload,'{status}','"cancelled"'::jsonb),revision=revision+1,updated_by=${userId},updated_at=now() where id::text=${row.target_id}`;
-          await syncPractice(tx, row.team_id, {
-            id: row.target_id,
-            date: event.payload.date,
-            time: event.payload.startTime,
-            where: event.payload.location,
-            cageHours: 0,
-            status: "cancelled",
-          });
         } else if (row.kind === "content") {
           const restricted = await financiallyRestricted(tx, row.requester_id);
           await checkScope(tx, row.requester_id, "content.submit", row.sport, row.team_id);

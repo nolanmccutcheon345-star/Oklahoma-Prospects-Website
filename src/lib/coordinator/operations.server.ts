@@ -456,6 +456,24 @@ export async function operationalReports(
       }>`select count(*)::int as events from team_activities a join club_state c on c.id='oklahoma-prospects' and not c.demo cross join lateral jsonb_array_elements(c.payload->'teams') t where t->>'id'=a.team_id and t->>'sport'=${input.sport} and coalesce(t->>'closed','false')<>'true' and (${input.teamId}='' or a.team_id=${input.teamId}) and coalesce(a.payload->>'status','')<>'cancelled'`;
       report.events = r.events;
     }
+    if (can("reports.events") || can("reports.attendance")) {
+      // Team-bound operational events only. Counts never include commerce or household data.
+      const [r] = await tx<{
+        programEvents: number;
+        participants: number;
+        checkedIn: number;
+      }>`select count(distinct e.id)::int as "programEvents",count(n.athlete_id) filter(where n.status='enrolled')::int as participants,count(n.athlete_id) filter(where n.status='enrolled' and b.checked_in_at is not null)::int as "checkedIn"
+      from coordinator_event_scopes s join operational_event_records e on e.id=s.event_id
+      join club_state c on c.id='oklahoma-prospects' and not c.demo cross join lateral jsonb_array_elements(c.payload->'teams') t
+      left join operational_event_enrollments n on n.event_id=e.id left join operational_booking_schedule b on b.id=n.booking_id
+      where t->>'id'=s.team_id and t->>'sport'=${input.sport} and lower(e.sport)=${input.sport}
+      and coalesce(t->>'closed','false')<>'true' and (${input.teamId}='' or s.team_id=${input.teamId})`;
+      if (can("reports.events")) {
+        report.programEvents = r.programEvents;
+        report.eventParticipants = r.participants;
+      }
+      if (can("reports.attendance")) report.eventCheckedIn = r.checkedIn;
+    }
     await audit(
       tx,
       userId,

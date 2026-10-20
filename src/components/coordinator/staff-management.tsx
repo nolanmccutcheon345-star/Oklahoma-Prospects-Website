@@ -662,12 +662,24 @@ export function StaffRoleManagement() {
                 </>
               )}
               <p>Target: {a.target_id}</p>
+              <p>Team: {a.team_id || "Authorized sport scope"}</p>
+              {a.proposal.destinationTeamId && (
+                <p>Proposed destination: {a.proposal.destinationTeamId}</p>
+              )}
+              {a.proposal.sessions && (
+                <p>
+                  Cancellation covers {a.proposal.sessions.length} recorded sessions. Changed
+                  sessions require a fresh review.
+                </p>
+              )}
               <p className="text-sm">
                 {a.kind === "transfer"
                   ? "Approval executes this transfer atomically after rechecking current access, roster revision, eligibility and financial protections. A conflict leaves the request pending and changes no records."
                   : a.kind === "content"
                     ? "Approval does not publish. Use the owner content workflow after checking publication consent."
-                    : "Approval cancels the practice and releases its linked unpaid cage reservation atomically."}
+                    : a.proposal.system === "program"
+                      ? "Approval archives this camp or clinic, cancels future sessions and releases unpaid reservations atomically. Protected or paid reservations remain blocked."
+                      : "Approval cancels the practice and releases its linked unpaid cage reservation atomically."}
               </p>
               {a.kind === "transfer" &&
                 a.status === "approved" &&
