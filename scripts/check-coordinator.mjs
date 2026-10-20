@@ -2,7 +2,7 @@
 // Never run with a database URL: synthetic users live only in this process.
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
-import { mkdir, readFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { resolve, extname } from "node:path";
 import { PGLiteSocketServer } from "@electric-sql/pglite-socket";
 import { auditHarness } from "./audit-support.mjs";
@@ -20,6 +20,7 @@ await mkdir(shots, { recursive: true });
 let browser, socket;
 let requestQueue = Promise.resolve();
 const traces = new WeakMap();
+const browserDiagnostics = [];
 const financialCanaries = ["PRIVATE-FINANCE-CANARY-9137", "PRIVATE-BILLING-CANARY-8426"];
 try {
   socket = new PGLiteSocketServer({ db: h.db, host: "127.0.0.1", port: 0, maxConnections: 20 });
@@ -305,6 +306,16 @@ try {
       page.setDefaultTimeout(20000);
       page.setDefaultNavigationTimeout(30000);
       page.on("pageerror", (e) => failures.push(e.message));
+      const recordDiagnostic = (kind, message) => {
+        browserDiagnostics.push({
+          actor: email.split("@")[0],
+          kind,
+          message: message.slice(0, 4000),
+        });
+        if (browserDiagnostics.length > 200) browserDiagnostics.shift();
+      };
+      page.on("console", (message) => recordDiagnostic(message.type(), message.text()));
+      page.on("pageerror", (error) => recordDiagnostic("pageerror", error.message));
       // The SSR form is visible before React hydrates. Wait for the client's
       // initial session request before filling the controlled login inputs.
       const sessionReady = page.waitForResponse((r) => r.url().includes("/api/auth/get-session"));
@@ -416,7 +427,16 @@ try {
     );
     await org.page.goto(origin + "/account");
     await org.page.waitForURL(origin + "/coordinator");
+    // Redirect completion does not mean the remounted client workspace is ready.
+    // The selector appears only after the authenticated workspace read completes.
+    await org.page.getByLabel("Team workspace", { exact: true }).waitFor();
+    await org.page.getByLabel("Team workspace", { exact: true }).selectOption("fixture-team");
+    assert.equal(
+      await org.page.getByLabel("Team workspace", { exact: true }).inputValue(),
+      "fixture-team",
+    );
     await org.page.getByRole("button", { name: "Teams", exact: true }).click();
+    await org.page.getByRole("heading", { name: "Team Administration", exact: true }).waitFor();
     const teamArticle = org.page
       .locator("article")
       .filter({ has: org.page.getByRole("heading", { name: "Prospects test team", exact: true }) });
@@ -559,6 +579,37 @@ try {
       "PASS: scoped coordinator regressions; organization-wide operations; actual owner financial transport replay denied; canary-free responses; protected fields preserved; account redirect; sticky active-session suspension; unchanged finance records.",
     );
   }
+} catch (error) {
+  // Only synthetic fixtures run here. Do not dump request headers, cookies,
+  // credentials, storage state, or full authenticated network responses.
+  const diagnostics = { error: String(error), console: browserDiagnostics, pages: [] };
+  for (const [index, page] of (
+    browser?.contexts().flatMap((context) => context.pages()) || []
+  ).entries()) {
+    const entry = { index, url: page.url() };
+    try {
+      entry.body = (await page.locator("body").innerText({ timeout: 3000 })).slice(0, 30000);
+    } catch (failure) {
+      entry.bodyError = String(failure);
+    }
+    try {
+      await page.screenshot({
+        path: `${shots}/failure-${index}.png`,
+        fullPage: true,
+        timeout: 5000,
+      });
+    } catch (failure) {
+      entry.screenshotError = String(failure);
+    }
+    diagnostics.pages.push(entry);
+  }
+  try {
+    await writeFile(`${shots}/failure-diagnostics.json`, JSON.stringify(diagnostics, null, 2));
+    console.error("Coordinator failure diagnostics:", JSON.stringify(diagnostics));
+  } catch (failure) {
+    console.error("Could not save coordinator failure diagnostics:", String(failure));
+  }
+  throw error;
 } finally {
   await requestQueue;
   // Assertions have completed. Ignore only route cancellation during teardown;
