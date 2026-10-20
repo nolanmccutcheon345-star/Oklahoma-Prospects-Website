@@ -57,6 +57,9 @@ async function fixture() {
   await sql`insert into owner_grants(email,user_id) values('steve@example.invalid','steve')`;
   await sql`insert into organization_operational_access(user_id,status,updated_by) values('sara','active','steve')`;
   const club = sampleClub();
+  // Explicit zero-cost fallback for tests exercising truly unlinked roster operations.
+  club.settings.membershipMonthly = 0;
+  club.settings.orgFeeFloor = 0;
   club._demo = false;
   club._rev = 1;
   club.teams = [
@@ -142,7 +145,11 @@ async function fixture() {
 const clubFor = async (sql: Sql) =>
   (
     await sql<{
-      payload: { teams: (Json & { roster: Json[]; staff: Json[] })[] };
+      payload: {
+        teams: (Json & { roster: Json[]; staff: Json[] })[];
+        settings: Json;
+        uniforms: Json[];
+      };
       rev: number;
     }>`select payload,rev from club_state where id='oklahoma-prospects'`
   )[0];
@@ -926,6 +933,77 @@ test("an uncommitted player cannot move when either team has a financially linke
         /protected roster workflow/,
       );
       assert.deepEqual(await clubFor(sql), state);
+    }
+  } finally {
+    await db.close();
+  }
+});
+
+test("unlocked roster operations preserve membership, fee-floor and uniform-derived quotes", async () => {
+  const { db, sql } = await fixture();
+  try {
+    const sourceId = randomUUID(),
+      destinationId = randomUUID(),
+      playerId = randomUUID();
+    await saveOrganizationTeam(sql, "sara", {
+      revision: 1,
+      teamId: sourceId,
+      changes: { name: "Zero-cost source", sport: "baseball", age: "12U" },
+    });
+    await saveOrganizationTeam(sql, "sara", {
+      revision: 2,
+      teamId: destinationId,
+      changes: { name: "Zero-cost destination", sport: "baseball", age: "12U" },
+    });
+    await saveOrganizationPlayer(sql, "sara", {
+      revision: 3,
+      teamId: sourceId,
+      playerId,
+      changes: { name: "Unsigned player" },
+    });
+    const baseline = await clubFor(sql);
+    for (const determinant of ["membership", "floor", "uniform", "invalid"] as const) {
+      const state = structuredClone(baseline);
+      if (determinant === "membership") state.payload.settings.membershipMonthly = 200;
+      if (determinant === "floor") state.payload.settings.orgFeeFloor = 300;
+      if (determinant === "uniform") {
+        const pack = state.payload.uniforms[0];
+        pack.price = 325;
+        state.payload.teams.find((t) => t.id === sourceId)!.uniformPackageId = pack.id;
+      }
+      if (determinant === "invalid") state.payload.settings.fundingPlayers = 0;
+      await sql`update club_state set payload=${JSON.stringify(state.payload)}::jsonb where id='oklahoma-prospects'`;
+      await assert.rejects(
+        () =>
+          saveOrganizationPlayer(sql, "sara", {
+            revision: state.rev,
+            teamId: sourceId,
+            playerId: randomUUID(),
+            changes: { name: "New player" },
+          }),
+        /protected workflow/,
+      );
+      await assert.rejects(
+        () =>
+          saveOrganizationPlayer(sql, "sara", {
+            revision: state.rev,
+            teamId: sourceId,
+            playerId,
+            changes: { withdrawn: true },
+          }),
+        /protected workflow/,
+      );
+      await assert.rejects(
+        () =>
+          moveOrganizationPlayer(sql, "sara", {
+            revision: state.rev,
+            teamId: sourceId,
+            playerId,
+            destinationTeamId: destinationId,
+          }),
+        /protected roster workflow/,
+      );
+      assert.deepEqual(await clubFor(sql), state, determinant);
     }
   } finally {
     await db.close();

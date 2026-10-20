@@ -24,7 +24,8 @@ import { holdWindow } from "../commerce/store.server";
 import { validateWindow, timeMinutes } from "../scheduling";
 import { centerStaff } from "../tryout-center.server";
 import { assertRosterAssignment } from "../teams/po-roster.server";
-import type { Team } from "../teams/types";
+import type { Team, Settings } from "../teams/types";
+import { priceComponents } from "../teams/pricing";
 
 type Json = Record<string, unknown>;
 const object = (value: unknown): Json =>
@@ -142,7 +143,23 @@ function playerHasCommitment(player: Json) {
     ),
   );
 }
-async function hasTeamFinancialLink(tx: Sql, team: Json) {
+async function hasTeamFinancialLink(tx: Sql, team: Json, club: Json) {
+  // Unlocked quotes still inherit club-wide dues, fee floors and uniform prices.
+  // Absence of a saved agreement is not evidence that roster edits are finance-neutral.
+  const uniform = objects(club.uniforms).find((u) => u.id === team.uniformPackageId);
+  try {
+    for (const role of ["full", "po"] as const) {
+      const quote = priceComponents(
+        team as unknown as Team,
+        object(club.settings) as unknown as Settings,
+        Number(uniform?.price || 0),
+        role,
+      );
+      if (!Number.isFinite(quote.published) || quote.published !== 0) return true;
+    }
+  } catch {
+    return true;
+  }
   const [plan] =
     await tx`select team_id from team_fee_plans where team_id=${string(team.id)} for share`;
   const [order] =
@@ -472,7 +489,7 @@ export async function saveOrganizationTeam(
             ? input.changes.closed !== withdrawn(old.closed)
             : string(input.changes[key as keyof typeof input.changes]) !== string(old[key])),
       ) &&
-      (await hasTeamFinancialLink(tx, old))
+      (await hasTeamFinancialLink(tx, old, club))
     )
       throw protectedWorkflow();
     preventSelfAssignment(account, old?.coachEmail, input.changes.coachEmail);
@@ -512,7 +529,7 @@ export async function saveOrganizationPlayer(
         throw changed();
       // A new active roster member changes legacy funding denominators and can
       // change existing fees/pay projections even without writing a money field.
-      if (await hasTeamFinancialLink(tx, team)) throw protectedWorkflow();
+      if (await hasTeamFinancialLink(tx, team, club)) throw protectedWorkflow();
     }
     if (
       input.changes.number &&
@@ -536,7 +553,7 @@ export async function saveOrganizationPlayer(
       old &&
       input.changes.withdrawn !== undefined &&
       input.changes.withdrawn !== withdrawn(old.withdrawn) &&
-      (await hasTeamFinancialLink(tx, team))
+      (await hasTeamFinancialLink(tx, team, club))
     )
       throw protectedWorkflow();
     if (old && input.changes.withdrawn === false && withdrawn(old.withdrawn))
@@ -596,7 +613,7 @@ export async function saveOrganizationStaff(
             Object.hasOwn(input.changes, key) &&
             string(input.changes[key as keyof typeof input.changes]) !== string(old[key]),
         )) &&
-      (await hasTeamFinancialLink(tx, team))
+      (await hasTeamFinancialLink(tx, team, club))
     )
       throw protectedWorkflow();
     const next: Json = {
@@ -686,8 +703,8 @@ export async function moveOrganizationPlayer(
         (key) => Array.isArray(player[key]) && (player[key] as unknown[]).length,
       ) ||
       teamTerms.some((key) => JSON.stringify(source[key]) !== JSON.stringify(destination[key])) ||
-      (await hasTeamFinancialLink(tx, source)) ||
-      (await hasTeamFinancialLink(tx, destination))
+      (await hasTeamFinancialLink(tx, source, club)) ||
+      (await hasTeamFinancialLink(tx, destination, club))
     )
       throw new Error(
         "This transfer requires the protected roster workflow. No records were changed.",

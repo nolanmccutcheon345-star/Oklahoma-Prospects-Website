@@ -435,7 +435,10 @@ try {
       await org.page.getByLabel("Team workspace", { exact: true }).inputValue(),
       "fixture-team",
     );
-    await org.page.getByRole("button", { name: "Teams", exact: true }).click();
+    await org.page
+      .getByRole("navigation", { name: "Organization operations", exact: true })
+      .getByRole("button", { name: "Teams", exact: true })
+      .click();
     await org.page.getByRole("heading", { name: "Team Administration", exact: true }).waitFor();
     const teamArticle = org.page
       .locator("article")
