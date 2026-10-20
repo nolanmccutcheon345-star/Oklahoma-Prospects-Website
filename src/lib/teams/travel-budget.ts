@@ -2,6 +2,7 @@ import type { ClubRecord } from "./types";
 import type { TeamActivity } from "./activity-contracts";
 import type { FeeBudget } from "./fee-model";
 import type { Sql } from "../db";
+import type { FinancialContext } from "../finance/context.server";
 export function seasonHotelNights(
   activities: TeamActivity[],
   budget: Pick<FeeBudget, "start" | "end">,
@@ -21,15 +22,20 @@ export async function withScheduledHotels(
   sql: Sql,
   teamId: string,
   budget: FeeBudget,
+  context?: FinancialContext,
 ): Promise<FeeBudget> {
-  const rows = await sql<{
-    payload: TeamActivity;
-  }>`select payload from team_activities where team_id=${teamId}`;
-  const [club] = budget.scheduleCostsAutomatic
-    ? await sql<{
-        payload: ClubRecord;
-      }>`select payload from club_state where id='oklahoma-prospects'`
-    : [];
+  const rows = context
+    ? context.activities.filter((row) => row.team_id === teamId)
+    : await sql<{
+        payload: TeamActivity;
+      }>`select payload from team_activities where team_id=${teamId}`;
+  const [club] = context
+    ? [{ payload: context.club }]
+    : budget.scheduleCostsAutomatic
+      ? await sql<{
+          payload: ClubRecord;
+        }>`select payload from club_state where id='oklahoma-prospects'`
+      : [];
   return {
     ...budget,
     tournament: budget.scheduleCostsAutomatic

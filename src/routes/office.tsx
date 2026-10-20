@@ -145,6 +145,7 @@ function OfficePage() {
                     role: "admin",
                     me: state.me,
                     club: row.club,
+                    financial: null,
                   });
                 } catch (err) {
                   setError(err instanceof Error ? err.message : "Could not initialize teams.");
@@ -168,6 +169,8 @@ function OfficePage() {
   return (
     <OfficeWorkspace
       club={club}
+      financial={state.financial}
+      onReload={async()=>{const row=await getTeamsClub();setState(row);if(row.ok)setClub(row.club);}}
       onChange={setClub}
       name={state.me.name}
       onSave={async (nextClub) => {
@@ -175,6 +178,7 @@ function OfficePage() {
         try {
           const saved = await saveTeamsClub({ data: { club: incoming, baseRev: incoming._rev } });
           setClub(saved.club);
+          setState({...state,financial:saved.financial});
           return true;
         } catch (err) {
           window.alert(err instanceof Error ? err.message : "Save failed");

@@ -199,7 +199,7 @@ export function TeamActivities({
                   onChange={(e) => setDraft({ ...draft, location: e.target.value })}
                 />
               </label>
-              {draft.kind !== "practice" && (
+              {draft.kind !== "practice" && data.financialMode !== "basis" && (
                 <label>
                   Entry / league fee for this event ($)
                   <input
@@ -217,6 +217,7 @@ export function TeamActivities({
                   </span>
                 </label>
               )}
+              {data.financialMode === "basis" && <p className="text-sm">Schedule changes here do not change financial commitments. Owners can review event costs in the financial workspace.</p>}
               {draft.kind !== "practice" && (
                 <fieldset className="grid gap-3 rounded-xl border p-3">
                   <legend>Travel & overnight stays</legend>

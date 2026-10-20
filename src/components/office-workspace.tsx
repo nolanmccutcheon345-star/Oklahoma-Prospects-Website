@@ -1,3 +1,4 @@
+import type { TeamFinancialView } from "@/lib/teams/financial-view";
 import { StaffRoleManagement } from './coordinator/staff-management';
 import { OperationsHealth } from "./operations-health";
 import {FinanceWorkspace} from "./finance/finance-workspace";
@@ -26,13 +27,17 @@ import type { ClubRecord } from "@/lib/teams/types";
 import { Button } from "./ui/button";
 export function OfficeWorkspace({
   club,
+  financial,
   onChange,
   onSave,
+  onReload,
   name,
 }: {
   club: ClubRecord;
+  financial?: TeamFinancialView | null;
   onChange: (c: ClubRecord) => void;
   onSave: (c?: ClubRecord) => Promise<boolean>;
+  onReload?: () => Promise<void>;
   name: string;
 }) {
   const { section = "dashboard", filter, person } = useSearch({ strict: false }) as {
@@ -146,14 +151,14 @@ export function OfficeWorkspace({
           </section>
         </div>
       )}
-      {section === "tournaments" && <TournamentFinder club={club} admin onSave={onSave} />}
+      {section === "tournaments" && <TournamentFinder club={club} financial={financial} onReload={onReload} admin onSave={onSave} />}
       {section === "events" && <EventOffice />}
       {section === "requests" && <OfficeRequests />}
       {section === "teams" && (
         <>
           <a href="/player-profiles" className="my-3 inline-flex min-h-11 items-center rounded bg-maroon px-4 text-white">Recruiting profiles & metric approvals</a>
           <TeamFeeWorkspace />
-          <OfficeApp club={club} onChange={onChange} onSave={onSave} initialTab="teams" />
+          <OfficeApp onReload={onReload} financial={financial} club={club} onChange={onChange} onSave={onSave} initialTab="teams" />
           <a
             className="my-4 inline-flex min-h-11 items-center underline"
             href="/account?desk=athletes"
@@ -270,7 +275,7 @@ export function OfficeWorkspace({
         <div className="grid gap-6">
           <TeamFeeWorkspace />
           <OfficeOperations view="reports" />
-          <OfficeApp club={club} onChange={onChange} onSave={onSave} />
+          <OfficeApp onReload={onReload} financial={financial} club={club} onChange={onChange} onSave={onSave} />
         </div>
       )}
     </FrontOfficeShell>

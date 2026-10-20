@@ -10,6 +10,7 @@ import { grantCredits, carryOneSession } from "./store.server";
 import { addCalendarMonth } from "./catalog";
 import { chicagoInstant } from "../scheduling";
 import { applySquareRefundBalance } from "./square-refunds.server";
+import { lockFinancialExecution } from "../finance/execution.server";
 
 type SquareSyncDependencies = {
   client: SquareClient;
@@ -44,9 +45,12 @@ export async function syncSquareSubscription(id: string, dependencies?: SquareSy
     s.actions?.find((a) => a.type === "RESUME");
   // Compare inside the update: another webhook may have saved a newer version
   // while this Square request was in flight. Same-version action refreshes are valid.
-  await sql`update club_subscriptions set status=${s.status.toLowerCase()},provider_version=${s.version.toString()},cancel_at_period_end=${Boolean(s.canceledDate || s.status === "CANCELED" || action?.type === "CANCEL")},scheduled_action=${action?.type || null},action_effective_date=${action?.effectiveDate || s.canceledDate || null},updated_at=now()
-    where id=${id} and payment_provider='square'
-      and (provider_version is null or provider_version<=${s.version.toString()}::bigint)`;
+  await sql.transaction(async (tx) => {
+    await lockFinancialExecution(tx);
+    await tx`update club_subscriptions set status=${s.status!.toLowerCase()},provider_version=${s.version!.toString()},cancel_at_period_end=${Boolean(s.canceledDate || s.status === "CANCELED" || action?.type === "CANCEL")},scheduled_action=${action?.type || null},action_effective_date=${action?.effectiveDate || s.canceledDate || null},updated_at=now()
+      where id=${id} and payment_provider='square'
+        and (provider_version is null or provider_version<=${s.version!.toString()}::bigint)`;
+  });
 }
 export async function syncSquareInvoice(
   id: string,
@@ -111,6 +115,7 @@ export async function syncSquareInvoice(
       throw new Error("Invoice payment amount or identity mismatch.");
   }
   await sql.transaction(async (tx) => {
+    await lockFinancialExecution(tx);
     await tx`select id from club_subscriptions where id=${invoice.subscriptionId!} for update`;
     const [previous] = await tx<{
       status: string;
@@ -174,6 +179,7 @@ export async function syncSquareRefund(id: string, dependencies?: SquareSyncDepe
   )
     throw new Error("Refund verification failed.");
   await sql.transaction(async (tx) => {
+    await lockFinancialExecution(tx);
     if (!(await applySquareRefundBalance(tx, p, c))) {
       const known =
         await tx`select id from commerce_orders where id=${p.referenceId || ""} and payment_provider='square' and payment_environment=${c.environment}`;

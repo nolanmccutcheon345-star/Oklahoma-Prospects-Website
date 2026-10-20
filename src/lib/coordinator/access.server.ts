@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import type { Sql } from "../db";
+import { lockFinancialExecution } from "../finance/execution.server";
 import { capabilities, type Capability, type Sport } from "./contracts";
 export class CoordinatorDenied extends Error {
   constructor() {
@@ -107,9 +108,16 @@ export async function secured<T>(
   userId: string,
   action: string,
   work: (tx: Sql) => Promise<T>,
+  beforeLocks?: typeof lockFinancialExecution,
 ) {
   try {
     return await sql.transaction(async (tx) => {
+      // Internal lock-order hook only. Request data cannot supply code, and no
+      // arbitrary callback may inspect domain data before account authorization.
+      if (beforeLocks) {
+        if (beforeLocks !== lockFinancialExecution) throw new Error("Invalid execution gate.");
+        await beforeLocks(tx);
+      }
       await verifiedAccount(tx, userId, true);
       await tx.query("select set_config('app.actor_id',$1,true)", [userId]);
       return work(tx);

@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import type { Sql } from "../db";
+import { lockFinancialExecution } from "../finance/execution.server";
 import {
   consumeHouseholdChange,
   householdChangeAvailable,
@@ -67,6 +68,7 @@ export async function saveClubBookingCancellation(
   now?: Date,
 ) {
   return sql.transaction(async (tx) => {
+    await lockFinancialExecution(tx);
     const { booking: b } = await lockedBooking(tx, id);
     const currentTime = now || new Date();
     if (
@@ -96,6 +98,7 @@ export async function saveClubBookingCancellation(
 
 export async function saveClubCancellationRefund(sql: Sql, id: string, me: Identity) {
   return sql.transaction(async (tx) => {
+    await lockFinancialExecution(tx);
     const { booking: b, order } = await lockedBooking(tx, id);
     familyAccess(b, me);
     const [choice] =
@@ -150,6 +153,7 @@ export async function bookingRescheduleQuoteInTransaction(
   me: Identity,
   now?: Date,
 ) {
+  await lockFinancialExecution(tx);
   const { booking: b, order } = await lockedBooking(tx, id);
   familyAccess(b, me);
   const at = now || new Date();
@@ -212,6 +216,7 @@ export async function applyBookingReschedule(
   now?: Date,
   paidFeeOrderId?: string,
 ) {
+  await lockFinancialExecution(tx);
   const { booking: b, order } = await lockedBooking(tx, id);
   const currentTime = now || new Date();
   familyAccess(b, me);

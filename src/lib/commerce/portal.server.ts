@@ -14,6 +14,7 @@ import { assertPaymentRequest } from "./square-payments.server";
 import { readWorkingFile } from "../pd/desk-impl.server";
 import {assignedCoachIdFor} from "./coach-access.server";
 import type { Quote } from "./contracts";
+import { recognizeFinancialLessonInTransaction } from "../finance/compensation.server";
 
 export async function familyBilling(userId: string, page = 0) {
   const me = await clubIdentity(userId);
@@ -233,24 +234,7 @@ export async function completeSessionInTransaction(tx: Awaited<ReturnType<typeof
         values (${"assessment:" + booking.id},${booking.athlete_id},${discipline},${userId},now(),${notes},${booking.id},${order?.snapshot.productId === "m5" ? "remote" : "in-person"})
         on conflict (id) do nothing`;
     }
-    const assignedCoach = file.coaches.find((c) => c.id === booking.coach_id);
-    const [configured] = await tx<{
-      profit_split: number;
-    }>`select offers.profit_split from club_staff_services offers join club_staff staff on staff.id=offers.staff_id where lower(staff.email)=${assignedCoach?.email.trim().toLowerCase() || ""} and offers.service_id=${booking.product_id} and staff.active=true`;
-    const split =
-      configured?.profit_split ??
-      file.coachPayouts.find(
-        (p) => p.coachId === booking.coach_id && p.serviceId === booking.product_id,
-      )?.splitPct;
-    // No invented split or transfer recipient. Earnings require an actual configured split.
-    if (order?.status === "paid" && split !== undefined) {
-      const gross =
-        order.snapshot.recurring || order.snapshot.kind === "package"
-          ? Math.round(order.snapshot.regularCents / Math.max(1, order.snapshot.credits))
-          : order.total_cents;
-      await tx`insert into contractor_earnings (booking_id,coach_id,gross_cents,split_pct,amount_cents,status)
-        values (${booking.id},${booking.coach_id},${gross},${split},${Math.round((gross * split) / 100)},'payable') on conflict (booking_id) do nothing`;
-    }
+    await recognizeFinancialLessonInTransaction(tx, userId, bookingId, "Authorized instructor completed the guided lesson");
     return { ok: true, assessmentCompleted: ASSESSMENT_PRODUCTS.has(booking.product_id) };
 
 }

@@ -104,8 +104,8 @@ test("finance permissions, duplicate protection, staged payment reconciliation a
       await sql`insert into profiles(user_id,email,name,role,family_id) values(${id},${id + "@example.invalid"},${id},${role},${"family-" + id})`;
     }
     await sql`insert into owner_grants(email,user_id) values('owner@example.invalid','owner')`;
-    await assert.rejects(() => financeWorkspace(sql, "parent"), /administrator/);
-    await assert.rejects(() => financeWorkspace(sql, "coach"), /administrator/);
+    await assert.rejects(() => financeWorkspace(sql, "parent"), /owner|administrator/);
+    await assert.rejects(() => financeWorkspace(sql, "coach"), /owner|administrator/);
     let rev = 0;
     const action = async (a: any) => {
       await mutateFinance(sql, "owner", {

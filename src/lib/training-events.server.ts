@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import type { Sql } from "./db";
+import { lockFinancialExecution } from "./finance/execution.server";
 import { resolveIdentity } from "./identity.server";
 import { commerceIdentityFor } from "./commerce/access.server";
 import { chicagoInstant } from "./scheduling";
@@ -169,6 +170,7 @@ export async function saveTrainingEvent(
   )
     throw Error("Published registration must start in the future.");
   return sql.transaction(async (tx) => {
+    await lockFinancialExecution(tx);
     const [prior] = await tx<{
       payload: TrainingEvent;
       revision: number;
@@ -333,6 +335,7 @@ export async function prepareEventCheckout(
   const input = eventCheckoutSchema.parse(raw),
     me = await authorizedPlayer(sql, userId, input.athleteId);
   return sql.transaction(async (tx) => {
+    await lockFinancialExecution(tx);
     const [prior] = await tx<
       SquareOrder & { request_key: string }
     >`select * from commerce_orders where request_key=${input.requestId} for update`;
@@ -433,6 +436,7 @@ export async function validateEventPayment(
     );
 }
 export async function fulfillEventPayment(sql: Sql, order: SquareOrder, environment: string) {
+  await lockFinancialExecution(sql);
   let ok = order.status === "pending" && +new Date(order.hold_until) > Date.now();
   if (ok) {
     try {

@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import type { Sql } from "./db";
+import { lockFinancialExecution } from "./finance/execution.server";
 import { centerAccessFor } from "./tryout-center-access.server";
 import {
   centerWorkInput,
@@ -296,6 +297,7 @@ export async function saveCenterAppointmentFor(
     coach = staff.find((s) => s.staffId === input.coachId);
   if (!coach) throw new Error("Choose an active coach with a verified account.");
   return sql.transaction(async (tx) => {
+    await lockFinancialExecution(tx);
     await tx.query("select set_config('app.actor_id',$1,true)", [userId]);
     const request = await requestFor(tx, input.requestId);
     const [done] = await tx<{

@@ -1,4 +1,5 @@
 import { requireCoachService } from "./coach-services.server";
+import { lockFinancialExecution } from "../finance/execution.server";
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
 import { getSql } from "../db";
@@ -108,6 +109,7 @@ export async function redeemCredit(userId: string, input: Input) {
   if (prior.length) return { ok: true };
   const { sql, grant, file, minutes, quantity, resources, me } = await context(userId, input);
   return sql.transaction(async (tx) => {
+    await lockFinancialExecution(tx);
     const key = `redeem:${input.requestId}`;
     const previous = await tx`select id from club_requests where id=${key} and user_id=${userId}`;
     if (previous.length) return { ok: true };

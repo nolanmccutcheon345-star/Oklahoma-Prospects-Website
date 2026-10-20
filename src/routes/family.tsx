@@ -90,12 +90,12 @@ function FamilyPage() {
 
   const familyOptions = Array.from(
     new Map(
-      club.teams.flatMap((team) =>
+      [...(state.financial?.owner?state.financial.obligations.map(p=>[p.familyId,`${p.playerName} · ${p.teamName}`] as const):[]),...club.teams.flatMap((team) =>
         team.roster.map((player) => [
           player.familyId,
           `${player.name} · ${team.name}`,
         ] as const),
-      ),
+      )],
     ).entries(),
   );
 
@@ -134,6 +134,7 @@ function FamilyPage() {
       <FamilyBilling />
       <FamilyApp
         club={club}
+        financial={state.financial}
         familyId={familyId || state.me.familyId}
         familyIds={state.role==='admin'?[familyId||state.me.familyId]:state.me.familyIds}
         playerIds={state.me.playerIds}
@@ -150,6 +151,7 @@ function FamilyPage() {
             setSaveError("");
             const savedClub = await saveFamilyTeamsClub({ data: { club, baseRev: club._rev } });
             setClub(savedClub.club);
+            setState({...state,financial:savedClub.financial});
             setSaved("Family record saved.");
           } catch (err) {
             setSaveError(err instanceof Error ? err.message : "Save failed");

@@ -69,6 +69,7 @@ export const feeAction = z.discriminatedUnion("action", [
       action: z.literal("applyDefaults"),
       teamId: id,
       revision: z.number().int(),
+      basisVersion: z.number().int().positive().optional(),
       key: z.string().max(100),
       confirmed: z.literal(true),
     })
@@ -78,6 +79,7 @@ export const feeAction = z.discriminatedUnion("action", [
       action: z.literal("playerRole"),
       teamId: id,
       revision: z.number().int(),
+      basisVersion: z.number().int().positive().optional(),
       playerId: id,
       role: z.enum(["full", "po"]),
     })
@@ -87,6 +89,7 @@ export const feeAction = z.discriminatedUnion("action", [
       action: z.literal("save"),
       teamId: id,
       revision: z.number().int(),
+      basisVersion: z.number().int().positive().optional(),
       budget: budgetSchema,
       uniforms: z
         .array(uniformSchema)
@@ -107,6 +110,7 @@ export const feeAction = z.discriminatedUnion("action", [
       action: z.literal("propose"),
       teamId: id,
       revision: z.number().int(),
+      basisVersion: z.number().int().positive().optional(),
       tournament: cents,
       uniformId: z.string().max(100),
     })
@@ -116,6 +120,7 @@ export const feeAction = z.discriminatedUnion("action", [
       action: z.enum(["publish", "close"]),
       teamId: id,
       revision: z.number().int(),
+      basisVersion: z.number().int().positive().optional(),
       confirmed: z.literal(true),
     })
     .strict(),
@@ -124,6 +129,7 @@ export const feeAction = z.discriminatedUnion("action", [
       action: z.literal("roster"),
       teamId: id,
       revision: z.number().int(),
+      basisVersion: z.number().int().positive().optional(),
       playerId: id,
       status: z.enum(["Invited", "Confirmed", "Roster Hold", "Removed"]),
       note: z.string().min(1).max(1000),
@@ -134,17 +140,25 @@ export const feeAction = z.discriminatedUnion("action", [
       action: z.literal("releaseUniform"),
       teamId: id,
       revision: z.number().int(),
+      basisVersion: z.number().int().positive().optional(),
       playerId: id,
     })
     .strict(),
   z
-    .object({ action: z.literal("lateFee"), teamId: id, revision: z.number().int(), playerId: id })
+    .object({
+      action: z.literal("lateFee"),
+      teamId: id,
+      revision: z.number().int(),
+      basisVersion: z.number().int().positive().optional(),
+      playerId: id,
+    })
     .strict(),
   z
     .object({
       action: z.literal("accept"),
       teamId: id,
       revision: z.number().int(),
+      basisVersion: z.number().int().positive().optional(),
       playerId: id,
       consent: z.literal(true),
       name: z.string().trim().min(3).max(150),
@@ -161,3 +175,34 @@ export const businessSchema = z
   })
   .strict();
 export type FeeBusiness = z.infer<typeof businessSchema>;
+
+const financialEventFields = {
+  teamId: id,
+  activityId: z.string().uuid(),
+  basisVersion: z.number().int().positive(),
+  date: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .refine((value) => {
+      const date = new Date(value + "T12:00:00Z");
+      return Number.isFinite(+date) && date.toISOString().slice(0, 10) === value;
+    }, "Choose a valid financial commitment date."),
+  status: z.enum(["scheduled", "live", "final", "cancelled"]),
+  entryFee: z.number().int().min(0).max(100000000),
+  travel: z.enum(["local", "travel"]),
+  overnightNights: z.number().int().min(0).max(30),
+  reason: z.string().trim().min(1).max(1000),
+};
+export const financialEventAmendment = z
+  .object({
+    ...financialEventFields,
+    revision: z.number().int().nonnegative(),
+  })
+  .strict();
+export const financialEventAdmission = z
+  .object({
+    ...financialEventFields,
+    sourceRevision: z.number().int().nonnegative(),
+    confirmed: z.literal(true),
+  })
+  .strict();

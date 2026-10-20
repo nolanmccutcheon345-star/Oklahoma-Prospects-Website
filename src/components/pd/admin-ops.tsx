@@ -2,17 +2,16 @@ import {PersonEditor} from "@/components/staff/person-editor";
 import { formatDollars } from "@/lib/pricing";
 import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { ArmConfirm, pushUndo } from "@/components/pd/polish";
+import { ArmConfirm } from "@/components/pd/polish";
 import { CoachEducationProgress } from "@/components/pd/education";
 import { useDevelopment } from "@/lib/pd/context";
 import {
   SERVICE_KINDS,
   deleteAccount,
   deleteStaff,
-  getServices,
-  getAdminServices,
+  getAdminLessonTerms,
   listAccounts,
-  listStaff,
+
   saveAccount,
   saveService,
   saveStaff,
@@ -23,7 +22,6 @@ import {
   type ServiceKind,
 } from "@/lib/ops";
 import type { ClubRole } from "@/lib/club-data";
-import { cn } from "@/lib/utils";
 
 const fieldClass =
   "mt-1.5 block min-h-11 w-full rounded-md border border-line bg-paper-2 px-3 text-ink";
@@ -58,9 +56,10 @@ function emptyService(kind: ServiceKind): ServiceInput {
   };
 }
 
-function fromRow(row: ClubService): ServiceInput {
+function fromRow(row: ClubService, basisVersion?: number): ServiceInput {
   return {
     id: row.id,
+    basisVersion,
     kind: row.kind,
     name: row.name,
     discipline: row.discipline,
@@ -137,6 +136,7 @@ function CheckField({
 }
 
 export function AdminServicesDesk() {
+  const [basisVersion, setBasisVersion] = useState<number>();
   const [loaded, setLoaded] = useState(false);
   const [rows, setRows] = useState<ClubService[]>([]);
   const [filter, setFilter] = useState<string>("all");
@@ -146,7 +146,9 @@ export function AdminServicesDesk() {
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   async function refresh() {
-    setRows(await getAdminServices());
+    const result = await getAdminLessonTerms();
+    setRows(result.services);
+    setBasisVersion(result.basisVersion);
     setLoaded(true);
   }
   useEffect(() => {
@@ -185,7 +187,7 @@ export function AdminServicesDesk() {
             Lessons, packages, memberships, cages. Changes show on Train, Book, and Pay.
           </p>
         </div>
-        <Button type="button" onClick={() => setEditing(emptyService("lesson"))}>
+        <Button type="button" onClick={() => setEditing({ ...emptyService("lesson"), basisVersion })}>
           Add service
         </Button>
       </div>
@@ -330,7 +332,7 @@ export function AdminServicesDesk() {
                 type="button"
                 variant="outlineDark"
                 size="sm"
-                onClick={() => setEditing(fromRow(row))}
+                onClick={() => setEditing(fromRow(row, basisVersion))}
               >
                 Edit
               </Button>
@@ -351,7 +353,7 @@ export function AdminServicesDesk() {
                     setBusy(true);
                     setError("");
                     try {
-                      await saveService({ data: { ...fromRow(row), active: !row.active } });
+                      await saveService({ data: { ...fromRow(row), active: !row.active, basisVersion } });
                       await refresh();
                     } catch (e) {
                       setError(e instanceof Error ? e.message : "Could not update service.");
@@ -372,6 +374,8 @@ export function AdminServicesDesk() {
 }
 
 export function AdminStaffDesk() {
+  const [basisVersion, setBasisVersion] = useState<number>();
+  const [editingBasisVersion, setEditingBasisVersion] = useState<number>();
   const [services, setServices] = useState<ClubService[]>([]);
   const [offerings, setOfferings] = useState<{ serviceId: string; profitSplit: number }[]>([]);
   const [staff, setStaff] = useState<ClubStaff[]>([]);
@@ -391,9 +395,10 @@ export function AdminStaffDesk() {
   const [busy, setBusy] = useState(false);
   const { data } = useDevelopment();
   async function refresh() {
-    const [people, catalog] = await Promise.all([listStaff(), getServices()]);
-    setStaff(people);
-    setServices(catalog.filter((service) => service.kind === "lesson"));
+    const result = await getAdminLessonTerms();
+    setStaff(result.staff);
+    setBasisVersion(result.basisVersion);
+    setServices(result.services.filter((service) => service.kind === "lesson"));
   }
   useEffect(() => {
     refresh().catch(() => setError("Could not load coaches and services. Please reload."));
@@ -416,6 +421,7 @@ export function AdminStaffDesk() {
           active: form.active,
           createLogin: form.createLogin,
           offerings,
+          basisVersion: editingBasisVersion,
         },
       });
       setEditingId(null);
@@ -444,13 +450,14 @@ export function AdminStaffDesk() {
           <h3 className="text-2xl">Coach services</h3>
           <p className="mt-1 text-sm text-muted">
             Choose the assessments, lessons and video reviews each coach offers. Package and
-            membership sessions use these same assignments.
+            membership sessions use these same assignments. Saved shares apply to future bookings; booked lessons retain their approved instructor terms.
           </p>
         </div>
         <Button
           type="button"
           onClick={() => {
             setEditingId("new");
+            setEditingBasisVersion(basisVersion);
             setOfferings([]);
             setError("");
             setNotice("");
@@ -620,6 +627,7 @@ export function AdminStaffDesk() {
                 size="sm"
                 onClick={() => {
                   setEditingId(row.id);
+                  setEditingBasisVersion(basisVersion);
                   setOfferings(
                     row.offerings.map((offer) => ({
                       serviceId: offer.service_id,
@@ -646,7 +654,7 @@ export function AdminStaffDesk() {
                 label="Deactivate"
                 armedLabel="Tap again to deactivate"
                 onConfirm={async () => {
-                  await deleteStaff({ data: { id: row.id } });
+                  await deleteStaff({ data: { id: row.id, basisVersion } });
                   await refresh();
                 }}
               />

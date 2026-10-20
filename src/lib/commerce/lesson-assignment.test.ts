@@ -289,6 +289,58 @@ test("owners can assign lessons while financially restricted operations cannot c
       /upcoming confirmed/,
     );
     assert.equal((await lessonAssignmentList("admin")).length, 0);
+    // Prospective active schema only: production migrations still prohibit activation.
+    await sql`update booking_records set status='confirmed' where id='lesson'`;
+    await sql`update organization_operational_access set status='active' where user_id='operations'`;
+    const { emptyClub } = await import("../teams/seed");
+    await sql`insert into club_state(id,payload,rev) values('oklahoma-prospects',${JSON.stringify(emptyClub())}::jsonb,1)`;
+    const { previewFinancialBasisInitialization, initializeFinancialBasisForOwner } =
+      await import("../finance/basis.server");
+    const preview = await previewFinancialBasisInitialization(sql, "admin");
+    await initializeFinancialBasisForOwner(sql, "admin", {
+      ...preview,
+      reason: "Synthetic assignment preservation",
+    });
+    await assert.rejects(
+      () =>
+        sql`update financial_basis_state set activation_state='active',active_version=current_version`,
+    );
+    await sql.query(
+      "alter table financial_basis_state drop constraint financial_basis_state_activation_state_check, drop constraint financial_basis_state_active_version_check",
+    );
+    await sql`update financial_basis_state set activation_state='active',active_version=current_version`;
+    const { financeWorkspace } = await import("../finance/store.server");
+    const financialBefore = await financeWorkspace(sql, "admin");
+    const basisBefore = await sql`select * from financial_basis_versions order by version`;
+    await assignLessonInstructor("operations", {
+      ...input,
+      expectedCoachId: "busy",
+      coachId: "available",
+    });
+    assert.equal(
+      (await sql`select coach_id from booking_records where id='lesson'`)[0].coach_id,
+      "available",
+    );
+    assert.deepEqual(await financeWorkspace(sql, "admin"), financialBefore);
+    assert.deepEqual(
+      await sql`select * from financial_basis_versions order by version`,
+      basisBefore,
+    );
+    assert.deepEqual(await sql`select * from commerce_orders`, money);
+    assert.deepEqual(await sql`select * from square_payments`, payments);
+    assert.deepEqual(await sql`select * from credit_grants order by id`, credits);
+    const { loadFinancialLessonInTransaction } = await import("../finance/context.server");
+    const frozen = await sql.transaction((tx) => loadFinancialLessonInTransaction(tx, "lesson"));
+    assert.equal(frozen.mode, "basis");
+    if (frozen.mode === "basis") assert.equal(frozen.booking?.coach_id, "busy");
+    await sql`update organization_operational_access set status='suspended' where user_id='operations'`;
+    await assert.rejects(() =>
+      assignLessonInstructor("operations", {
+        ...input,
+        expectedCoachId: "available",
+        coachId: "busy",
+      }),
+    );
   } finally {
     state.__pgSqlPromise__ = old;
     if (oldUrl === undefined) delete process.env.DATABASE_URL;

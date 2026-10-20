@@ -1,9 +1,11 @@
+import { financialPrincipalInTransaction } from "../finance/principal.server";
+import { lockFinancialExecution, financialSourceModeInTransaction } from "../finance/context.server";
 import { withScheduledHotels } from "./travel-budget";
 import type { FeePlan } from "./fee-contracts";
 import { randomUUID } from "node:crypto";
 import type { Sql } from "../db";
 import { resolveIdentity } from "../identity.server";
-import type { ClubRecord, Team } from "./types";
+import type { ClubRecord } from "./types";
 import { coachHoldsTeam } from "./privacy";
 import { teamSeasons } from "./seasons";
 import { canReadTeamStats } from "./public-view";
@@ -44,6 +46,7 @@ export async function teamActivityWorkspace(sql: Sql, userId: string, teamId: st
   const me = await resolveIdentity(sql, userId),
     { payload: club } = await load(sql),
     { t, manage } = access(club, teamId, me);
+  const mode=await sql.transaction(async tx=>{await lockFinancialExecution(tx); return financialSourceModeInTransaction(tx);});
   const rows = await sql<{
     payload: TeamActivity;
     revision: number;
@@ -55,6 +58,8 @@ export async function teamActivityWorkspace(sql: Sql, userId: string, teamId: st
     at: string;
   }>`select id::text,author,body,created_at::text as at from (select * from team_chat_messages where team_id=${teamId} order by created_at desc limit 100) m order by created_at`;
   return {
+    financialMode: mode,
+    owner: me.role === "admin",
     manage,
     teamName: t.name,
     seasons: teamSeasons(t),
@@ -62,7 +67,7 @@ export async function teamActivityWorkspace(sql: Sql, userId: string, teamId: st
     players: t.roster
       .filter((p) => !p.withdrawn)
       .map((p) => ({ id: p.id, name: p.name, number: p.number, stats: p.stats })),
-    activities: rows.map((r) => ({ ...r.payload, revision: r.revision })),
+    activities: rows.map((r) => ({ ...r.payload, revision: r.revision, ...(mode === "basis" ? {entryFee:0} : {}) })),
     messages,
   };
 }
@@ -70,6 +75,11 @@ export async function saveTeamActivity(sql: Sql, userId: string, raw: TeamActivi
   const input = activityInput.parse(raw),
     me = await resolveIdentity(sql, userId);
   return sql.transaction(async (tx) => {
+    await lockFinancialExecution(tx);
+    const principal=await financialPrincipalInTransaction(tx,userId);
+    if(me.role === "admin" && !principal.owner)throw new Error("Financial owner access required.");
+    const mode=await financialSourceModeInTransaction(tx);
+    if(mode === "basis" && input.entryFee) throw new Error("Use the financial workspace to change tournament costs.");
     const { payload: club, rev } = await load(tx, true),
       { t } = access(club, input.teamId, me, true),
       id = input.id || randomUUID();
@@ -143,6 +153,7 @@ export async function saveTeamActivity(sql: Sql, userId: string, raw: TeamActivi
       if (next.status !== "cancelled") t.tournamentIds.push(id);
     }
     await tx`insert into team_activities(id,team_id,payload,revision,updated_by) values(${id},${t.id},${JSON.stringify(next)}::jsonb,${next.revision},${userId}) on conflict(id) do update set payload=excluded.payload,revision=excluded.revision,updated_by=excluded.updated_by,updated_at=now()`;
+    if(mode === "legacy") {
     const [feeRow] = await tx<{
       payload: FeePlan;
       revision: number;
@@ -173,6 +184,7 @@ export async function saveTeamActivity(sql: Sql, userId: string, raw: TeamActivi
         await tx`update team_fee_plans set payload=${JSON.stringify(plan)}::jsonb,revision=${plan.revision},updated_at=now() where team_id=${t.id}`;
       }
     }
+    }
     club._rev = rev + 1;
     club._savedAt = new Date().toISOString();
     await tx`update club_state set payload=${JSON.stringify(club)}::jsonb,rev=${rev + 1},updated_at=now() where id='oklahoma-prospects'`;
@@ -188,6 +200,7 @@ export async function postTeamChat(
   const data = chatInput.parse(raw),
     me = await resolveIdentity(sql, userId);
   return sql.transaction(async (tx) => {
+    await lockFinancialExecution(tx);
     const { payload: club } = await load(tx, true);
     access(club, data.teamId, me);
     await tx`insert into team_chat_messages(id,team_id,user_id,author,body) values(${randomUUID()},${data.teamId},${userId},${me.name},${data.body})`;

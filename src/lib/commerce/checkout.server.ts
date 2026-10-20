@@ -1,4 +1,6 @@
 import { bookableCoaches, coachesWithAvailability, requireCoachService } from "./coach-services.server";
+import { lockFinancialExecution } from "../finance/execution.server";
+import { assertApprovedFinancialLessonInTransaction, type FinancialLessonAdmission } from "../finance/context.server";
 import { checkoutLessonService } from "./coach-services";
 import { createHash, randomUUID } from "node:crypto";
 import { getRequest } from "@tanstack/react-start/server";
@@ -197,6 +199,7 @@ export async function beginCheckout(input: CheckoutInput, verifiedUserId?: strin
     consent: input.consent,
   });
   return sql.transaction(async (tx) => {
+    await lockFinancialExecution(tx);
     await expireHolds(tx);
     await assertDiscountCurrent(tx, quote);
     const [existing] = await tx<{
@@ -233,6 +236,7 @@ export async function beginCheckout(input: CheckoutInput, verifiedUserId?: strin
         athleteCount: input.athleteCount,
       },
       consentAt: input.consent ? new Date().toISOString() : null,
+      financialLessonAdmission: undefined as FinancialLessonAdmission | undefined,
       bookingWindow: null as null | {
         start: string;
         end: string;
@@ -254,6 +258,12 @@ export async function beginCheckout(input: CheckoutInput, verifiedUserId?: strin
         coachId: input.coachId,
         participantCount: quote.kind === "cage" ? input.athleteCount : 1,
       };
+      if (quote.kind !== "cage") snapshot.financialLessonAdmission = (await assertApprovedFinancialLessonInTransaction(tx, {
+        coachId: input.coachId || null,
+        productId: (quote.assessment && quote.recurring) || quote.setupCents > 0
+          ? quote.discipline === "Hitting" ? "s9" : "s1" : quote.productId,
+        startsAt: window.start, endsAt: window.end,
+      })) || undefined;
       const occupied =
         await tx`select b.booking_id from booking_occupancy b join booking_records r on r.id=b.booking_id where r.status in ('confirmed','completed') and b.resource_id=any(${quote.resources}::text[]) and b.slot_at>=${window.start.toISOString()} and b.slot_at<${window.end.toISOString()} limit 1`;
       if (occupied.length)

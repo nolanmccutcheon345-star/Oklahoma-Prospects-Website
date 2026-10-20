@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { Button } from "../ui/button";
 import { UserButton } from "@/lib/auth/gates";
-import { getLessonAssignments } from "@/lib/commerce/lesson-assignment-api";
+import { LessonAssignments } from "@/components/commerce/lesson-assignments";
 import { StaffDirectoryDesk } from "@/components/staff/directory-desk";
 import { TryoutEventEditor } from "@/components/tryout-event-editor";
+import { OrganizationLessonCompletion } from "./organization-lesson-completion";
 import { OrganizationDevelopment } from "@/components/coordinator/organization-development";
 import { OrganizationCatalog } from "@/components/coordinator/organization-catalog";
 import { OrganizationTournamentFinder } from "@/components/coordinator/organization-tournaments";
@@ -912,7 +913,12 @@ export function OrganizationOffice() {
             {tab === "development" && <OrganizationDevelopment onSaved={refresh} />}
             {tab === "cages" && <CageAvailability />}
             {tab === "tryouts" && <TryoutEventEditor />}
-            {tab === "lessons" && <OrganizationLessonOverview />}
+            {tab === "lessons" && (
+              <>
+                <LessonAssignments />
+                <OrganizationLessonCompletion />
+              </>
+            )}
             {tab === "directory" && <StaffDirectoryDesk />}
             {tab === "resources" && <FacilityResources />}
             {tab === "reports" && <OperationalReports />}
@@ -2086,82 +2092,6 @@ function OrganizationActivity({
               </li>
             ))}
           </ul>
-        </>
-      )}
-    </section>
-  );
-}
-
-function OrganizationLessonOverview() {
-  const [lessons, setLessons] = useState<Awaited<ReturnType<typeof getLessonAssignments>>>();
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
-  const refresh = useCallback(async () => {
-    setLoading(true);
-    setError("");
-    try {
-      setLessons(await getLessonAssignments());
-    } catch (e) {
-      setLessons(undefined);
-      setError(e instanceof Error ? e.message : "Could not load lesson assignments.");
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-  useEffect(() => {
-    void refresh();
-  }, [refresh]);
-  return (
-    <section className={card} aria-label="Lesson instructor overview">
-      <h2 className="text-2xl">Lesson Instructor Overview</h2>
-      <p>
-        Review upcoming confirmed lessons and their current instructors. Instructor changes require
-        an owner while compensation is linked.
-      </p>
-      <Button
-        variant="outlineDark"
-        className="justify-self-start"
-        disabled={loading}
-        onClick={() => void refresh()}
-      >
-        Refresh Lessons
-      </Button>
-      {error && <p role="alert">{error}</p>}
-      {loading && <p role="status">Loading upcoming lessons…</p>}
-      {lessons && !loading && (
-        <>
-          {!lessons.length && <p>No upcoming confirmed lessons.</p>}
-          {lessons.map((lesson) => (
-            <article key={lesson.id} className="grid gap-2 rounded border border-line p-4">
-              <h3 className="text-xl">
-                {lesson.serviceName} · {lesson.playerName || "Player not listed"}
-              </h3>
-              <p>
-                {new Date(lesson.startsAt).toLocaleString("en-US", {
-                  timeZone: "America/Chicago",
-                  month: "short",
-                  day: "numeric",
-                  year: "numeric",
-                  hour: "numeric",
-                  minute: "2-digit",
-                })}
-                –
-                {new Date(lesson.endsAt).toLocaleTimeString("en-US", {
-                  timeZone: "America/Chicago",
-                  hour: "numeric",
-                  minute: "2-digit",
-                })}{" "}
-                Central
-              </p>
-              <p>Instructor: {lesson.coachName || "Needs owner assignment"}</p>
-              {lesson.customerEmail && (
-                <p className="break-words">Contact: {lesson.customerEmail}</p>
-              )}
-            </article>
-          ))}
-          {lessons.length === 200 && (
-            <p>Showing the next 200 confirmed lessons, with unassigned lessons first.</p>
-          )}
         </>
       )}
     </section>

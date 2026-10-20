@@ -1,8 +1,11 @@
 import { randomUUID } from "node:crypto";
 import type { Sql } from "../db";
 import type { Quote } from "./contracts";
+import { lockFinancialExecution } from "../finance/execution.server";
+import { assertApprovedFinancialLessonInTransaction, type FinancialLessonAdmission } from "../finance/context.server";
 
 export async function expireHolds(sql: Sql, now = new Date()) {
+  await lockFinancialExecution(sql);
   // Lock the same order rows used by fulfillment. Expiration must never release
   // occupancy underneath a webhook that has already committed payment.
   const expired = await sql<{ id: string }>`select id from commerce_orders
@@ -32,8 +35,13 @@ export async function holdWindow(
     participantCount?: number;
   },
 ) {
+  await lockFinancialExecution(sql);
   if (input.start >= input.end || !input.resources.length)
     throw new Error("Invalid booking window.");
+  if (input.orderId) await assertApprovedFinancialLessonInTransaction(sql, {
+    coachId: input.coachId || null, productId: input.productId,
+    startsAt: input.start, endsAt: input.end,
+  });
   const id = randomUUID();
   const resources = [
     ...new Set([...input.resources, ...(input.athleteId ? [`athlete:${input.athleteId}`] : [])]),
@@ -56,26 +64,40 @@ export async function holdWindow(
  * key prevents two successful payments from booking the same space.
  */
 export async function createPaidBooking(sql: Sql, input: Parameters<typeof holdWindow>[1]) {
-  const [paid] = await sql`select id from commerce_orders where id=${input.orderId} and status='paid' for update`;
+  await lockFinancialExecution(sql);
+  const [paid] = await sql<{ id: string; snapshot: { financialLessonAdmission?: FinancialLessonAdmission | null } }>`select id,snapshot from commerce_orders where id=${input.orderId} and status='paid' for update`;
   if (!paid) throw new Error("Successful payment is required before booking.");
   if (input.start >= input.end || input.start <= new Date() || !input.resources.length)
     return null;
+  const pin = paid.snapshot.financialLessonAdmission;
+  const originalAdmission = pin && pin.coachId === input.coachId && pin.productId === input.productId &&
+    +new Date(pin.startsAt) === +input.start && +new Date(pin.endsAt) === +input.end;
+  await assertApprovedFinancialLessonInTransaction(sql, {
+    coachId: input.coachId || null, productId: input.productId,
+    startsAt: input.start, endsAt: input.end,
+    basisVersion: originalAdmission ? pin.basisVersion : undefined,
+  });
   const id = randomUUID();
   const resources = [...new Set([...input.resources, ...(input.athleteId ? [`athlete:${input.athleteId}`] : [])])].sort();
+  // A prospective active booking INSERT also creates an immutable financial
+  // binding. Roll back the provisional booking AND binding on a slot conflict;
+  // deleting the booking would violate that binding's historical foreign key.
+  await sql.query("savepoint financial_paid_booking");
   await sql`insert into booking_records(id,order_id,user_id,athlete_id,coach_id,product_id,starts_at,ends_at,resources,participant_count,participants_verified,status,lesson_sport,lesson_config)
     values(${id},${input.orderId},${input.userId},${input.athleteId},${input.coachId || null},${input.productId},${input.start.toISOString()},${input.end.toISOString()},${JSON.stringify(resources)}::jsonb,${input.participantCount || 1},${Boolean(input.athleteId)},'confirmed',${input.lessonSport || null},${input.lessonConfig?JSON.stringify(input.lessonConfig):null}::jsonb)`;
   for (const resource of resources) {
     for (let ms = input.start.getTime(); ms < input.end.getTime(); ms += 300_000) {
       const inserted = await sql`insert into booking_occupancy(resource_id,slot_at,booking_id) values(${resource},${new Date(ms).toISOString()},${id}) on conflict do nothing returning booking_id`;
       if (!inserted.length) {
-        await sql`delete from booking_occupancy where booking_id=${id}`;
-        await sql`delete from booking_records where id=${id}`;
+        await sql.query("rollback to savepoint financial_paid_booking");
+        await sql.query("release savepoint financial_paid_booking");
         return null;
       }
     }
   }
   if (input.athleteId)
     await sql`insert into booking_participants(booking_id,athlete_id) values(${id},${input.athleteId})`;
+  await sql.query("release savepoint financial_paid_booking");
   return id;
 }
 

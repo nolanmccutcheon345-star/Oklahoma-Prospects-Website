@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import type { Sql } from "../db";
+import { lockFinancialExecution } from "../finance/execution.server";
 import { consumeHouseholdChange, parentCancellationRefund } from "./booking-change-policy.server";
 import { lessonRefundValue } from "./lesson-refund-value.server";
 import {
@@ -21,6 +22,7 @@ export async function saveParentBookingCancellation(
   if (identity.role === "player")
     throw new Error("A parent account is required to manage bookings.");
   return sql.transaction(async (tx) => {
+    await lockFinancialExecution(tx);
     // Consistent parent-order lock is shared with fulfillment and credit redemption.
     const [order] = await tx<{
       id: string;

@@ -1,4 +1,4 @@
-import {TeamPayment} from "./team-payment";
+import { TeamPayment } from "./team-payment";
 import { serviceMonths } from "@/lib/teams/season-months";
 import { feeHealth } from "@/lib/teams/fee-health";
 import { OverheadRuleEditor } from "./overhead-rule-editor";
@@ -11,13 +11,11 @@ import { UniformGallery, UniformPhotoEditor } from "./uniform-photos";
 import { useEffect, useState, type ReactNode } from "react";
 import { getFeeWorkspace, changeFeePlan, saveFeeBusiness } from "@/lib/teams/fee-api";
 import {
-  calculateFees,
   feeComposition,
   project,
   businessProjection,
   deadline,
   money,
-  installments,
   scheduleRows,
   type FeeBudget,
 } from "@/lib/teams/fee-model";
@@ -159,16 +157,18 @@ export function TeamFeeWorkspace({ teamId }: { teamId?: string }) {
           )}
           <TeamFundingNotice teamId={team.id} />
           <TeamPlan
-            key={team.id + ":" + team.revision}
+            key={team.id + ":" + team.revision + (team.basisVersion ? ":" + team.basisVersion : "")}
             team={team}
             refresh={load}
             notify={setNotice}
           />
           {data.admin && data.business && (
             <BusinessModel
+              key={data.business.basisVersion ? "basis:" + data.business.basisVersion : undefined}
               teams={data.teams}
               value={data.business.value}
               revision={data.business.revision}
+              basisVersion={data.business.basisVersion}
               refresh={load}
             />
           )}
@@ -251,7 +251,11 @@ function TeamPlan({
   } catch {
     // An incomplete draft has no valid preview; server validation still gates publication.
   }
-  const base = { teamId: team.id, revision: team.revision };
+  const base = {
+    teamId: team.id,
+    revision: team.revision,
+    ...(team.basisVersion === undefined ? {} : { basisVersion: team.basisVersion }),
+  };
   let preview: ReturnType<typeof project> | undefined;
   try {
     if (plan)
@@ -1372,6 +1376,9 @@ function TeamPlan({
                           data: {
                             teamId: team.id,
                             playerId: p.id,
+                            ...(team.basisVersion === undefined
+                              ? {}
+                              : { expectedBasisVersion: team.basisVersion }),
                             amount: Number(f.get("amount")),
                             method: String(f.get("method")),
                             label: String(f.get("reference")),
@@ -1420,11 +1427,20 @@ function TeamPlan({
                         className="office-control w-full"
                       />
                     </label>
-                    <Button type="submit" disabled={busy}>Record verified payment</Button>
+                    <Button type="submit" disabled={busy}>
+                      Record verified payment
+                    </Button>
                   </form>
                 </details>
               )}
-              {p.canPay && p.signed && p.balance>0 && <TeamPayment teamId={team.id} playerId={p.id} balance={p.balance} next={p.rows.find(r=>r.remaining>0)?.remaining||p.balance}/> }
+              {p.canPay && p.signed && p.balance > 0 && (
+                <TeamPayment
+                  teamId={team.id}
+                  playerId={p.id}
+                  balance={p.balance}
+                  next={p.rows.find((r) => r.remaining > 0)?.remaining || p.balance}
+                />
+              )}
               {p.acceptedPolicy && (
                 <details>
                   <summary>Accepted payment policy</summary>
@@ -1521,11 +1537,13 @@ function BusinessModel({
   teams,
   value,
   revision,
+  basisVersion,
   refresh,
 }: {
   teams: TeamView[];
   value: FeeBusiness;
   revision: number;
+  basisVersion?: number;
   refresh: () => Promise<void>;
 }) {
   const [v, setV] = useState(value),
@@ -1630,7 +1648,13 @@ function BusinessModel({
       <Button
         onClick={async () => {
           try {
-            await saveFeeBusiness({ data: { revision, value: v } });
+            await saveFeeBusiness({
+              data: {
+                revision,
+                ...(basisVersion === undefined ? {} : { basisVersion }),
+                value: v,
+              },
+            });
             await refresh();
             setError("Assumptions saved.");
           } catch (e) {

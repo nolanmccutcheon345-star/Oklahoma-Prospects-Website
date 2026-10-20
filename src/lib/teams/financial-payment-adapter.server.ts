@@ -1,7 +1,7 @@
 /**
- * DORMANT, internal-only payment cutover primitives. No route imports this module.
+ * Internal-only payment primitives selected by the stored financial context.
  * These pure functions neither authenticate a request nor verify a Square event.
- * A future guarded transaction must load the saved basis, current account flags,
+ * The guarded transaction must load the saved basis, current account flags,
  * complete relevant order/attempt set, and LIVE verified provider ledger itself.
  * Never accept any of those values (including eligibility flags) from a browser.
  * No provider calls, database writer, operational fallback, or activation here.
@@ -16,7 +16,7 @@ import {
 import { teamCheckoutSchema, type TeamCheckout, type TeamFeeSnapshot } from "./payment-contracts";
 import { remainingTeamPaymentCents } from "./recorded-payment-policy";
 
-/** Added only by the future server-side quote builder, never by checkout input. */
+/** Added only by the selected server-side quote builder, never by checkout input. */
 export type StableTeamFeeSnapshot = TeamFeeSnapshot & {
   financialAgreementId: string;
   financialTeamSeasonId: string;

@@ -1,3 +1,4 @@
+import { lockFinancialExecution } from "../finance/execution.server";
 import { randomUUID } from "node:crypto";
 import { getSql, type Sql } from "../db";
 import { resolveIdentity } from "../identity.server";
@@ -303,6 +304,7 @@ export async function saveLessonSession(
     sql = await getSql(),
     identity = await resolveIdentity(sql, userId);
   return sql.transaction(async (tx) => {
+    await lockFinancialExecution(tx);
     const { me, file, booking } = await access(tx, identity, input.bookingId, true);
     const [session] =
       await tx<Session>`select * from guided_lesson_sessions where booking_id=${booking.id} for update`;

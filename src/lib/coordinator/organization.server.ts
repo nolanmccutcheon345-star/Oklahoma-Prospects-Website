@@ -2,6 +2,8 @@
 import { randomUUID } from "node:crypto";
 import type { z } from "zod";
 import type { Sql } from "../db";
+import { lockFinancialExecution } from "../finance/execution.server";
+import { financialSourceModeInTransaction } from "../finance/context.server";
 import { audit, CoordinatorDenied, requireOrganizationOperations, secured } from "./access.server";
 import {
   organizationTeamInput,
@@ -144,6 +146,7 @@ function playerHasCommitment(player: Json) {
   );
 }
 async function hasTeamFinancialLink(tx: Sql, team: Json, club: Json) {
+  if ((await financialSourceModeInTransaction(tx)) === "basis") return false;
   // Unlocked quotes still inherit club-wide dues, fee floors and uniform prices.
   // Absence of a saved agreement is not evidence that roster edits are finance-neutral.
   const uniform = objects(club.uniforms).find((u) => u.id === team.uniformPackageId);
@@ -179,8 +182,20 @@ async function operate<T>(
   action: string,
   work: (tx: Sql, account: { id: string; email: string; name: string }) => Promise<T>,
 ) {
-  return secured(sql, userId, action, async (tx) =>
-    work(tx, await requireOrganizationOperations(tx, userId)),
+  return secured(
+    sql,
+    userId,
+    action,
+    async (tx) => work(tx, await requireOrganizationOperations(tx, userId)),
+    [
+      "organization.activity.save",
+      "organization.team.save",
+      "organization.player.save",
+      "organization.staff.save",
+      "organization.player.move",
+    ].includes(action)
+      ? lockFinancialExecution
+      : undefined,
   );
 }
 async function loadClub(tx: Sql, revision?: number | "lock") {
@@ -470,14 +485,16 @@ export async function saveOrganizationTeam(
       old &&
       input.changes.sport &&
       input.changes.sport !== old.sport &&
-      (objects(old.roster).length || objects(old.practices).length)
+      (objects(old.roster).length || objects(old.practices).length) &&
+      (await financialSourceModeInTransaction(tx)) !== "basis"
     )
       throw new Error("A populated team cannot change sports.");
     if (
       old &&
       input.changes.age !== undefined &&
       input.changes.age !== old.age &&
-      objects(old.roster).length
+      objects(old.roster).length &&
+      (await financialSourceModeInTransaction(tx)) !== "basis"
     )
       throw new Error("A populated team's age group must be reviewed through the roster workflow.");
     if (
@@ -544,10 +561,18 @@ export async function saveOrganizationPlayer(
     if (
       old &&
       input.changes.parents &&
-      input.changes.parents.some((g, i) => email(g.email) !== email(objects(old.parents)[i]?.email))
+      input.changes.parents.some(
+        (g, i) => email(g.email) !== email(objects(old.parents)[i]?.email),
+      ) &&
+      (await financialSourceModeInTransaction(tx)) !== "basis"
     )
       throw protectedWorkflow();
-    if (old && input.changes.email !== undefined && email(input.changes.email) !== email(old.email))
+    if (
+      old &&
+      input.changes.email !== undefined &&
+      email(input.changes.email) !== email(old.email) &&
+      (await financialSourceModeInTransaction(tx)) !== "basis"
+    )
       throw protectedWorkflow();
     if (
       old &&
@@ -568,7 +593,10 @@ export async function saveOrganizationPlayer(
     if (input.changes.docs) next.docs = { ...object(old?.docs), ...input.changes.docs };
     if (input.changes.parents) {
       const prior = objects(old?.parents);
-      if (input.changes.parents.length < prior.length)
+      if (
+        input.changes.parents.length < prior.length &&
+        (await financialSourceModeInTransaction(tx)) !== "basis"
+      )
         throw new Error(
           "Guardian rows cannot be removed here. Edit their name, relationship, or phone number instead.",
         );
@@ -664,8 +692,9 @@ export async function moveOrganizationPlayer(
       destination = teamIn(club, input.destinationTeamId);
     if (
       source.id === destination.id ||
-      source.sport !== destination.sport ||
-      string(source.age).trim().toLowerCase() !== string(destination.age).trim().toLowerCase()
+      ((await financialSourceModeInTransaction(tx)) !== "basis" &&
+        (source.sport !== destination.sport ||
+          string(source.age).trim().toLowerCase() !== string(destination.age).trim().toLowerCase()))
     )
       throw new Error("Choose a different active team in the same sport and age group.");
     const player = objects(source.roster).find((p) => p.id === input.playerId);
@@ -690,21 +719,22 @@ export async function moveOrganizationPlayer(
       "playerCageHoursPerWeek",
     ];
     if (
-      plan ||
-      checkout ||
-      player.feeLock ||
-      player.planLock ||
-      check(player.depositPaid) ||
-      check(player.uniformWaived) ||
-      string(object(player.agreement).signedAt) ||
-      player.coachChild ||
-      Number(player.cageOverage || 0) ||
-      financialArrays.some(
-        (key) => Array.isArray(player[key]) && (player[key] as unknown[]).length,
-      ) ||
-      teamTerms.some((key) => JSON.stringify(source[key]) !== JSON.stringify(destination[key])) ||
-      (await hasTeamFinancialLink(tx, source, club)) ||
-      (await hasTeamFinancialLink(tx, destination, club))
+      (await financialSourceModeInTransaction(tx)) !== "basis" &&
+      (plan ||
+        checkout ||
+        player.feeLock ||
+        player.planLock ||
+        check(player.depositPaid) ||
+        check(player.uniformWaived) ||
+        string(object(player.agreement).signedAt) ||
+        player.coachChild ||
+        Number(player.cageOverage || 0) ||
+        financialArrays.some(
+          (key) => Array.isArray(player[key]) && (player[key] as unknown[]).length,
+        ) ||
+        teamTerms.some((key) => JSON.stringify(source[key]) !== JSON.stringify(destination[key])) ||
+        (await hasTeamFinancialLink(tx, source, club)) ||
+        (await hasTeamFinancialLink(tx, destination, club)))
     )
       throw new Error(
         "This transfer requires the protected roster workflow. No records were changed.",
@@ -925,7 +955,9 @@ export async function saveOrganizationActivity(
     }>`select team_id,payload,revision from team_activities where id=${input.id} for update`;
     if ((old?.revision || 0) !== input.revision) throw changed();
     const prior = object(old?.payload);
-    if (input.kind !== "practice") {
+    // Only the future fully active financial basis can detach schedule edits from commitments.
+    // Captured/inactive production state retains the existing coupling guard.
+    if (input.kind !== "practice" && (await financialSourceModeInTransaction(tx)) !== "basis") {
       const [plan] =
         await tx`select team_id from team_fee_plans where team_id=${input.teamId} for share`;
       if (

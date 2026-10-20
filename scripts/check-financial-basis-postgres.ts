@@ -10,6 +10,12 @@ import { readdir, readFile } from "node:fs/promises";
 import { setTimeout as delay } from "node:timers/promises";
 import pg from "pg";
 import type { Sql } from "../src/lib/db";
+import {
+  withFinancialContext,
+  recordFinancialTeamPaymentInTransaction,
+} from "../src/lib/finance/context.server";
+import { applyFutureActiveSchemaForTest } from "../src/lib/finance/context.test-fixture";
+import { saveOrganizationTeam } from "../src/lib/coordinator/organization.server";
 import { pendingMigrations } from "./migration-plan.mjs";
 import {
   addFinancialPlayerAliasForOwner,
@@ -575,6 +581,119 @@ async function verifyPaymentRace(observer: pg.Client, first: pg.Client, second: 
   return saved;
 }
 
+/** Disposable prospective schema only, after proving production activation is forbidden. */
+async function verifyConsumerGate(observer: pg.Client, first: pg.Client, second: pg.Client) {
+  const sql = sqlFor(observer);
+  await applyFutureActiveSchemaForTest(sql);
+  await sql`update organization_operational_access set status='active' where user_id=${operations}`;
+  const baseline = await withFinancialContext(sql, owner, "owner", async (_tx, context) => ({
+    version: context.version!,
+    club: structuredClone(context.club),
+  }));
+  const [{ rev }] = await sql<{ rev: number }>`select rev from club_state where id=${basisId}`;
+  const locked = deferred(),
+    release = deferred();
+  let paused = false;
+  const blockedSql = sqlFor(first, async (query) => {
+    if (
+      !paused &&
+      query.startsWith("select id from financial_execution_gate") &&
+      query.endsWith("for update")
+    ) {
+      paused = true;
+      locked.resolve();
+      await release.promise;
+    }
+  });
+  const operation = saveOrganizationTeam(blockedSql, operations, {
+    revision: rev,
+    teamId: "synthetic-team",
+    changes: { name: "Synthetic operational rename" },
+  });
+  const operationResult = operation.then(
+    (value) => ({ value }),
+    (error) => ({ error }),
+  );
+  await locked.promise;
+  const financial = withFinancialContext(sqlFor(second), owner, "owner", async (tx, context) => {
+    // Operational rename must not alter the financial identity or the frozen club.
+    assert.deepEqual(context.club, baseline.club);
+    return recordFinancialTeamPaymentInTransaction(tx, context, {
+      teamId: "synthetic-team",
+      playerId: "synthetic-player",
+      amount: 10,
+      method: "Check",
+      label: "Synthetic consumer concurrency",
+      expectedBasisVersion: baseline.version,
+    });
+  });
+  const financialResult = financial.then(
+    (value) => ({ value }),
+    (error) => ({ error }),
+  );
+  try {
+    await waitForLock(observer, await pid(second), await pid(first));
+  } finally {
+    release.resolve();
+  }
+  const [op, money] = await Promise.all([operationResult, financialResult]);
+  if ("error" in op) throw op.error;
+  if ("error" in money) throw money.error;
+  assert.equal(money.value.version, baseline.version + 1);
+  const [{ payload }] = await sql<{
+    payload: ClubRecord;
+  }>`select payload from club_state where id=${basisId}`;
+  assert.equal(payload.teams[0].name, "Synthetic operational rename");
+  assert.equal(payload.teams[0].roster[0].payments.length, 0);
+  await assert.rejects(
+    withFinancialContext(sql, owner, "owner", (tx, context) =>
+      recordFinancialTeamPaymentInTransaction(tx, context, {
+        teamId: "synthetic-team",
+        playerId: "synthetic-player",
+        amount: 10,
+        method: "Check",
+        label: "Stale synthetic payment",
+        expectedBasisVersion: baseline.version,
+      }),
+    ),
+    /changed|refresh|version/i,
+  );
+  const current = await withFinancialContext(sql, owner, "owner", async (_tx, context) => ({
+    version: context.version,
+    club: structuredClone(context.club),
+  }));
+  await assert.rejects(
+    withFinancialContext(
+      sqlFor(observer, (query) => {
+        if (query.startsWith("insert into finance_audit"))
+          throw new Error("Synthetic audit failure");
+      }),
+      owner,
+      "owner",
+      (tx, context) =>
+        recordFinancialTeamPaymentInTransaction(tx, context, {
+          teamId: "synthetic-team",
+          playerId: "synthetic-player",
+          amount: 10,
+          method: "Check",
+          label: "Rollback synthetic payment",
+          expectedBasisVersion: current.version!,
+        }),
+    ),
+    /Synthetic audit failure/,
+  );
+  assert.deepEqual(
+    await withFinancialContext(sql, owner, "owner", async (_tx, context) => ({
+      version: context.version,
+      club: structuredClone(context.club),
+    })),
+    current,
+  );
+  console.log(
+    "PASS: real consumer execution gate serializes operations and finance; stale payments reject and failed audit rolls back basis and ledger.",
+  );
+}
+
 async function main() {
   const config = isolatedConfiguration(); // Reject unsafe inputs BEFORE any connection.
   const clients: pg.Client[] = [];
@@ -710,8 +829,9 @@ async function main() {
     console.log(
       "PASS: sticky operations restriction overrides even an owner grant; captured state cannot activate.",
     );
+    await verifyConsumerGate(observer, capture, insert);
     console.log(
-      "PASS: real PostgreSQL financial foundation verification complete (synthetic only; no live cutover/provider coverage).",
+      "PASS: real PostgreSQL financial foundation and prospective consumer verification complete (synthetic only; no live cutover/provider coverage).",
     );
   } finally {
     // Leave the populated fixture intact. The ephemeral CI service is discarded

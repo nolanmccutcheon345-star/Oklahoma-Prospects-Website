@@ -11,13 +11,15 @@ test("subscription sync preserves scheduled actions and rejects stale or mismatc
   try {
     for (const file of (await readdir("migrations")).filter((f) => f.endsWith(".sql")).sort())
       await db.exec(await readFile("migrations/" + file, "utf8"));
-    const sql = (async (parts: TemplateStringsArray, ...values: unknown[]) =>
-      (
-        await db.query(
-          parts.reduce((s, p, i) => s + (i ? `$${i}` : "") + p, ""),
-          values,
-        )
-      ).rows) as Sql;
+    const wrap = (query: PGlite["query"]): Sql => {
+      const result = (async (parts: TemplateStringsArray, ...values: unknown[]) =>
+        (await query(parts.reduce((s, p, i) => s + (i ? `$${i}` : "") + p, ""), values)).rows) as Sql;
+      result.query = (async (text: string, values: unknown[] = []) => (await query(text, values)).rows) as Sql["query"];
+      result.transaction = async () => { throw new Error("Nested transaction is not supported."); };
+      return result;
+    };
+    const sql = wrap(db.query.bind(db));
+    sql.transaction = (work) => db.transaction((tx) => work(wrap(tx.query.bind(tx) as PGlite["query"])));
     await sql`insert into commerce_orders(id,request_key,user_id,email,product_id,kind,snapshot,total_cents,status,payment_provider,payment_environment) values('order','order','parent','fixture@example.invalid','prospect','cage-plan','{}',7900,'paid','square','sandbox')`;
     await sql`insert into club_subscriptions(id,order_id,user_id,product_id,customer_id,status,amount_cents,payment_provider,provider_version) values('subscription','order','parent','prospect','customer','active',7900,'square',1)`;
     const config = { environment: "sandbox", locationId: "location" };

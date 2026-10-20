@@ -1,5 +1,7 @@
 import { getSql, type Sql } from "../db";
 import { z } from "zod";
+import { lockFinancialExecution } from "../finance/execution.server";
+import { loadFinancialLessonInTransaction } from "../finance/context.server";
 import {
   audit,
   CoordinatorDenied,
@@ -123,57 +125,67 @@ export async function lessonInstructorChoices(userId: string, id: string) {
 }
 export async function assignLessonInstructor(userId: string, raw: z.infer<typeof assignmentInput>) {
   const sql = await getSql();
-  return secured(sql, userId, "organization.lessons.assign", async (tx) => {
-    await requireOrganizationOperations(tx, userId);
-    const input = assignmentInput.parse(raw);
-    const [b] =
-      await tx<Lesson>`select b.id,b.product_id,b.coach_id,b.starts_at,b.ends_at,b.resources,b.status,b.checked_in_at from booking_records b join club_services s on s.id=b.product_id and s.kind='lesson' where b.id=${input.id} for update of b`;
-    if (!b || b.status !== "confirmed" || b.checked_in_at || new Date(b.starts_at) <= new Date())
-      throw new Error("Only upcoming confirmed lessons can be assigned.");
-    if (
-      b.coach_id !== input.expectedCoachId ||
-      new Date(b.starts_at).toISOString() !== input.startsAt ||
-      new Date(b.ends_at).toISOString() !== input.endsAt
-    )
-      throw new Error(
-        "This booking changed. Refresh and review it before assigning an instructor.",
-      );
-    if (await financiallyRestricted(tx, userId)) {
-      // Completion derives the compensation recipient and split from coach_id.
-      // Even null -> coach changes future pay. Until compensation identity is
-      // independently preserved, restricted users may only acknowledge a no-op.
-      if (b.coach_id !== input.coachId) {
-        const denied = new CoordinatorDenied();
-        denied.message =
-          "An owner must change this instructor because the assignment affects compensation.";
-        throw denied;
-      }
-      await audit(tx, userId, "organization.lessons.assign", b.id, "allowed", { unchanged: true });
-      return { ok: true };
-    }
-    if (!(await candidates(tx, b)).some((c) => c.id === input.coachId))
-      throw new Error(
-        "This instructor no longer offers this lesson or is unavailable for the full session. Refresh available instructors.",
-      );
-    const resource = "coach:" + input.coachId;
-    // Acquire the new instructor first. A unique occupancy conflict rolls back
-    // the entire transaction, preserving the old assignment and paid booking.
-    for (let ms = +new Date(b.starts_at); ms < +new Date(b.ends_at); ms += 300000) {
-      const inserted =
-        await tx`insert into booking_occupancy(resource_id,slot_at,booking_id) values(${resource},${new Date(ms).toISOString()},${b.id}) on conflict(resource_id,slot_at) do update set booking_id=excluded.booking_id where booking_occupancy.booking_id=excluded.booking_id returning booking_id`;
-      if (!inserted.length)
+  return secured(
+    sql,
+    userId,
+    "organization.lessons.assign",
+    async (tx) => {
+      await requireOrganizationOperations(tx, userId);
+      const input = assignmentInput.parse(raw);
+      const [b] =
+        await tx<Lesson>`select b.id,b.product_id,b.coach_id,b.starts_at,b.ends_at,b.resources,b.status,b.checked_in_at from booking_records b join club_services s on s.id=b.product_id and s.kind='lesson' where b.id=${input.id} for update of b`;
+      if (!b || b.status !== "confirmed" || b.checked_in_at || new Date(b.starts_at) <= new Date())
+        throw new Error("Only upcoming confirmed lessons can be assigned.");
+      if (
+        b.coach_id !== input.expectedCoachId ||
+        new Date(b.starts_at).toISOString() !== input.startsAt ||
+        new Date(b.ends_at).toISOString() !== input.endsAt
+      )
         throw new Error(
-          "This instructor was just booked. Refresh available instructors and choose another.",
+          "This booking changed. Refresh and review it before assigning an instructor.",
         );
-    }
-    await tx`delete from booking_occupancy where booking_id=${b.id} and resource_id like 'coach:%' and resource_id<>${resource}`;
-    const resources = [
-      ...new Set([...b.resources.filter((r) => !r.startsWith("coach:")), resource]),
-    ];
-    await tx`update booking_records set coach_id=${input.coachId},resources=${JSON.stringify(resources)}::jsonb where id=${b.id}`;
-    // Never touch commerce_orders, payment snapshots, credits, participants,
-    // lesson times, or facility/athlete occupancy during instructor assignment.
-    await audit(tx, userId, "organization.lessons.assign", b.id, "allowed");
-    return { ok: true };
-  });
+      if (await financiallyRestricted(tx, userId)) {
+        if (b.coach_id === input.coachId) {
+          await audit(tx, userId, "organization.lessons.assign", b.id, "allowed", {
+            unchanged: true,
+          });
+          return { ok: true };
+        }
+        const financial = await loadFinancialLessonInTransaction(tx, b.id);
+        if (financial.mode !== "basis" || !financial.booking) {
+          const denied = new CoordinatorDenied();
+          denied.message =
+            "An owner must change this instructor because the assignment affects compensation.";
+          throw denied;
+        }
+        // The saved financial binding keeps the original compensated instructor,
+        // service and duration. Only live operational occupancy changes below.
+      }
+      if (!(await candidates(tx, b)).some((c) => c.id === input.coachId))
+        throw new Error(
+          "This instructor no longer offers this lesson or is unavailable for the full session. Refresh available instructors.",
+        );
+      const resource = "coach:" + input.coachId;
+      // Acquire the new instructor first. A unique occupancy conflict rolls back
+      // the entire transaction, preserving the old assignment and paid booking.
+      for (let ms = +new Date(b.starts_at); ms < +new Date(b.ends_at); ms += 300000) {
+        const inserted =
+          await tx`insert into booking_occupancy(resource_id,slot_at,booking_id) values(${resource},${new Date(ms).toISOString()},${b.id}) on conflict(resource_id,slot_at) do update set booking_id=excluded.booking_id where booking_occupancy.booking_id=excluded.booking_id returning booking_id`;
+        if (!inserted.length)
+          throw new Error(
+            "This instructor was just booked. Refresh available instructors and choose another.",
+          );
+      }
+      await tx`delete from booking_occupancy where booking_id=${b.id} and resource_id like 'coach:%' and resource_id<>${resource}`;
+      const resources = [
+        ...new Set([...b.resources.filter((r) => !r.startsWith("coach:")), resource]),
+      ];
+      await tx`update booking_records set coach_id=${input.coachId},resources=${JSON.stringify(resources)}::jsonb where id=${b.id}`;
+      // Never touch commerce_orders, payment snapshots, credits, participants,
+      // lesson times, or facility/athlete occupancy during instructor assignment.
+      await audit(tx, userId, "organization.lessons.assign", b.id, "allowed");
+      return { ok: true };
+    },
+    lockFinancialExecution,
+  );
 }

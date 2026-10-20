@@ -2,6 +2,7 @@ import { chicagoInstant } from "../scheduling";
 import type { Sql } from "../db";
 import { squareClient, squareConfig } from "../commerce/square.server";
 import { financeAdmin, write } from "./store.server";
+import { withFinancialContext } from "./context.server";
 import { day, today } from "./contracts";
 /** Read-only at Square: a settlement is a transfer, never a second sale. */
 export async function syncSettlements(
@@ -101,7 +102,7 @@ export async function syncSettlements(
       },
     });
   }
-  await sql.transaction(async (tx) => {
+  await withFinancialContext(sql, userId, "owner", async (tx) => {
     await tx`select revision from finance_state where id='organization' for update`;
     for (const r of rows) {
       const [old] = await tx<any>`select payload from finance_records where id=${r.id}`;

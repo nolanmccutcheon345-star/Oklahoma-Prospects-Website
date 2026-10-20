@@ -2,6 +2,7 @@ import {YOUTH_PRODUCTS} from "../pricing";
 import {assertYouthAge} from "./assessment-gate.server";
 import { randomUUID } from "node:crypto";
 import type { Sql } from "../db";
+import { lockFinancialExecution } from "../finance/execution.server";
 import type { Quote } from "./contracts";
 import { validateWindow } from "../scheduling";
 import { householdChangeMonth } from "./booking-change-policy.server";
@@ -95,6 +96,7 @@ export async function prepareRescheduleFee(
   now?: Date,
 ) {
   return sql.transaction(async (tx) => {
+    await lockFinancialExecution(tx);
     const at = now || new Date();
     const { booking: b, order: original } = await lockedBooking(tx, id);
     familyAccess(b, me);
@@ -184,6 +186,7 @@ export async function validatePreparedRescheduleFee(
   at = new Date(),
   paid = false,
 ) {
+  await lockFinancialExecution(tx);
   const [fee] = await tx<FeeOrder>`select * from commerce_orders where id=${orderId}`;
   const m = fee?.snapshot.rescheduleFee;
   if (
@@ -221,6 +224,7 @@ export async function completePaidReschedule(
   available = currentMoveAvailability,
   now?: Date,
 ) {
+  await lockFinancialExecution(tx);
   const at = now || new Date();
   await tx`savepoint paid_reschedule_move`;
   try {

@@ -22,6 +22,8 @@ import {
   tournamentToday,
   type TournamentFilters,
 } from "@/lib/teams/tournament-finder";
+import type { TeamFinancialView } from "@/lib/teams/financial-view";
+import { saveFinancialCatalogPrice } from "@/lib/teams/store";
 import { money } from "./ui";
 
 const control =
@@ -51,11 +53,15 @@ export function TournamentFinder({
   club,
   teamId: fixedTeamId,
   admin = false,
+  financial,
+  onReload,
   onSave,
 }: {
   club: ClubRecord;
   teamId?: string;
   admin?: boolean;
+  financial?: TeamFinancialView | null;
+  onReload?: () => Promise<void>;
   onSave: (next?: ClubRecord) => Promise<boolean>;
 }) {
   const [selectedTeamId, setSelectedTeamId] = useState(fixedTeamId || club.teams[0]?.id || "");
@@ -68,7 +74,33 @@ export function TournamentFinder({
   const [editing, setEditing] = useState<EventItem | "new" | null>(null);
   const advancedId = useId();
   const [advanced, setAdvanced] = useState(false);
-  const results = filterTournaments(club.catalog, filters, team);
+  const [priceReview, setPriceReview] = useState<{
+    event: EventItem;
+    fee: number;
+    reason: string;
+    confirmed: boolean;
+    basisVersion: number;
+    sourceClubRevision: number;
+  } | null>(null);
+  const financialPrices = new Map(financial?.catalog.map((e) => [e.id, e.fee]));
+  const canSeePrices = !financial || financial.owner;
+  let results = filterTournaments(
+    club.catalog,
+    financial
+      ? { ...filters, maxFee: "", sort: filters.sort === "fee" ? "date" : filters.sort }
+      : filters,
+    team,
+  );
+  if (financial?.owner) {
+    if (filters.maxFee !== "")
+      results = results.filter(
+        (e) => financialPrices.has(e.id) && financialPrices.get(e.id)! <= Number(filters.maxFee),
+      );
+    if (filters.sort === "fee")
+      results.sort(
+        (a, b) => (financialPrices.get(a.id) ?? Infinity) - (financialPrices.get(b.id) ?? Infinity),
+      );
+  }
   const catalog = club.catalog.filter((e) => e.org !== "Team schedule");
   const states = [
     ...new Set(["OK", "TX", "AR", "KS", "MO", ...catalog.map((e) => e.state).filter(Boolean)]),
@@ -341,18 +373,20 @@ export function TournamentFinder({
                   ))}
                 </select>
               </Field>
-              <Field title="Maximum entry fee (USD)">
-                <input
-                  className={control}
-                  type="number"
-                  min="0"
-                  step="1"
-                  inputMode="decimal"
-                  placeholder="Any amount"
-                  value={filters.maxFee}
-                  onChange={(e) => set("maxFee", e.target.value)}
-                />
-              </Field>
+              {canSeePrices && (
+                <Field title="Maximum entry fee (USD)">
+                  <input
+                    className={control}
+                    type="number"
+                    min="0"
+                    step="1"
+                    inputMode="decimal"
+                    placeholder="Any amount"
+                    value={filters.maxFee}
+                    onChange={(e) => set("maxFee", e.target.value)}
+                  />
+                </Field>
+              )}
               <Field title="Maximum drive miles">
                 <select
                   className={control}
@@ -439,7 +473,7 @@ export function TournamentFinder({
               onChange={(e) => set("sort", e.target.value as TournamentFilters["sort"])}
             >
               <option value="date">Soonest first</option>
-              <option value="fee">Lowest entry fee</option>
+              {canSeePrices && <option value="fee">Lowest entry fee</option>}
               <option value="distance">Nearest recorded distance</option>
             </select>
           </Field>
@@ -510,8 +544,23 @@ export function TournamentFinder({
                     </span>
                   </p>
                   <p className="mt-4 text-lg font-semibold">
-                    {money(event.fee)}{" "}
-                    <span className="text-xs font-normal text-muted">recorded entry fee</span>
+                    {!financial ? (
+                      <>
+                        {money(event.fee)}{" "}
+                        <span className="text-xs font-normal text-muted">recorded entry fee</span>
+                      </>
+                    ) : financial.owner ? (
+                      financialPrices.has(event.id) ? (
+                        <>
+                          {money(financialPrices.get(event.id)!)}{" "}
+                          <span className="text-xs font-normal text-muted">approved entry fee</span>
+                        </>
+                      ) : (
+                        "Financial price review needed"
+                      )
+                    ) : (
+                      "Confirm entry fee with organizer"
+                    )}
                   </p>
                   {event.stayToPlay && (
                     <p className="mt-2 text-xs font-semibold text-maroon">
@@ -557,6 +606,25 @@ export function TournamentFinder({
                     >
                       {busy ? "Saving…" : on ? "Remove from schedule" : "Add to team schedule"}
                     </Button>
+                    {financial?.owner && onReload && (
+                      <Button
+                        variant="outlineDark"
+                        disabled={busy}
+                        onClick={() => {
+                          setPriceReview({
+                            event,
+                            fee: financialPrices.get(event.id) ?? 0,
+                            reason: "",
+                            confirmed: false,
+                            basisVersion: financial.version,
+                            sourceClubRevision: club._rev,
+                          });
+                          setError("");
+                        }}
+                      >
+                        Review financial price
+                      </Button>
+                    )}
                     {admin && (
                       <Button
                         variant="ghost"
@@ -596,12 +664,117 @@ export function TournamentFinder({
             </p>
           </div>
         )}
+        {financial?.owner && onReload && priceReview && (
+          <form
+            aria-label="Owner catalog financial price"
+            className="grid gap-3 rounded-xl border-2 border-maroon bg-paper p-4"
+            onSubmit={async (e) => {
+              e.preventDefault();
+              if (busy || !priceReview.confirmed) return;
+              setBusy(true);
+              setError("");
+              setNotice("");
+              try {
+                await saveFinancialCatalogPrice({
+                  data: {
+                    expectedBasisVersion: priceReview.basisVersion,
+                    sourceClubRevision: priceReview.sourceClubRevision,
+                    catalogId: priceReview.event.id,
+                    fee: priceReview.fee,
+                    reason: priceReview.reason,
+                    confirmed: true,
+                  },
+                });
+                setPriceReview(null);
+                await onReload();
+                setNotice("Financial catalog price saved.");
+              } catch (err) {
+                setError(err instanceof Error ? err.message : "Could not save financial price.");
+              } finally {
+                setBusy(false);
+              }
+            }}
+          >
+            <h3 className="text-xl">Review financial price: {priceReview.event.name}</h3>
+            <p>
+              {financialPrices.has(priceReview.event.id)
+                ? "This changes only the saved financial catalog price. Existing financial event details stay as recorded."
+                : `This adds this catalog event to financial records: ${priceReview.event.org}, ${priceReview.event.start} to ${priceReview.event.end}, ${priceReview.event.city}, ${priceReview.event.state}, ${priceReview.event.sport}, ages ${priceReview.event.ages.join(" / ")}.`}
+            </p>
+            <Field title="Approved catalog entry fee (USD)">
+              <input
+                className={control}
+                type="number"
+                min="0"
+                max="1000000000"
+                step="0.01"
+                required
+                value={priceReview.fee}
+                onChange={(e) => setPriceReview({ ...priceReview, fee: Number(e.target.value) })}
+              />
+            </Field>
+            <Field title="Reason">
+              <textarea
+                className={control}
+                maxLength={1000}
+                required
+                value={priceReview.reason}
+                onChange={(e) => setPriceReview({ ...priceReview, reason: e.target.value })}
+              />
+            </Field>
+            <label className="flex gap-2">
+              <input
+                type="checkbox"
+                required
+                checked={priceReview.confirmed}
+                onChange={(e) => setPriceReview({ ...priceReview, confirmed: e.target.checked })}
+              />
+              I approve this catalog price for financial and public catalog records.
+            </label>
+            <div className="flex flex-wrap gap-2">
+              <Button
+                type="submit"
+                disabled={busy || !priceReview.confirmed || !priceReview.reason.trim()}
+              >
+                Save financial catalog price
+              </Button>
+              <Button
+                type="button"
+                variant="outlineDark"
+                disabled={busy}
+                onClick={() => setPriceReview(null)}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="button"
+                variant="outlineDark"
+                disabled={busy}
+                onClick={async () => {
+                  setPriceReview(null);
+                  setBusy(true);
+                  try {
+                    await onReload();
+                  } catch (err) {
+                    setError(err instanceof Error ? err.message : "Could not refresh records.");
+                  } finally {
+                    setBusy(false);
+                  }
+                }}
+              >
+                Refresh financial prices
+              </Button>
+            </div>
+          </form>
+        )}
         {admin && editing && (
           <TournamentRecordForm
             key={typeof editing === "string" ? "new" : editing.id}
             event={editing === "new" ? undefined : editing}
             busy={busy}
+            operationalOnly={Boolean(financial)}
             locked={
+              !financial &&
               typeof editing !== "string" &&
               club.teams.some((t) => t.tournamentIds.includes(editing.id))
             }
@@ -654,12 +827,14 @@ function TournamentRecordForm({
   event,
   busy,
   locked = false,
+  operationalOnly = false,
   onCancel,
   onSubmit,
 }: {
   event?: EventItem;
   busy: boolean;
   locked?: boolean;
+  operationalOnly?: boolean;
   onCancel: () => void;
   onSubmit: (event: EventItem) => Promise<void>;
 }) {
@@ -706,7 +881,7 @@ function TournamentRecordForm({
                     .filter(Boolean),
                   sport: value("sport"),
                   type: value("type"),
-                  fee: Number(value("fee")),
+                  fee: operationalOnly ? 0 : Number(value("fee")),
                   stayToPlay: fd.has("stayToPlay"),
                   verifiedOn: event?.verifiedOn || "",
                   ...metadata,
@@ -730,6 +905,12 @@ function TournamentRecordForm({
         Copy details from the organizer. Only enter a source-check date after reviewing that page.
         No verification badge is assigned automatically.
       </p>
+      {operationalOnly && (
+        <p className="text-sm">
+          Catalog details and schedule changes are operational. Use the owner financial price review
+          to approve an entry fee.
+        </p>
+      )}
       {locked && (
         <p className="text-sm font-semibold text-maroon">
           This event is already on a team schedule. Dates, costs, and eligibility are locked to
@@ -819,18 +1000,20 @@ function TournamentRecordForm({
             defaultValue={event?.levels.join(", ")}
           />
         </Field>
-        <Field title="Entry fee (USD)">
-          <input
-            name="fee"
-            type="number"
-            min="0"
-            max="10000000"
-            step="0.01"
-            className={control}
-            required
-            defaultValue={event?.fee}
-          />
-        </Field>
+        {!operationalOnly && (
+          <Field title="Entry fee (USD)">
+            <input
+              name="fee"
+              type="number"
+              min="0"
+              max="10000000"
+              step="0.01"
+              className={control}
+              required
+              defaultValue={event?.fee}
+            />
+          </Field>
+        )}
         <label className="flex min-h-11 items-center gap-2 text-sm">
           <input name="stayToPlay" type="checkbox" defaultChecked={event?.stayToPlay} />{" "}
           Stay-to-play lodging required

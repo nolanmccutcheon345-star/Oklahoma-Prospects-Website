@@ -29,12 +29,32 @@ This is an implementation inventory, not an activation or acceptance receipt. St
 | Account lifecycle/portal settings | No permission editor or role escalation                                                                               | Safe lifecycle/settings operations still need separate authorization and field-level ports                           |
 | Documents/downloads               | Operational checklist flags only                                                                                      | Historical content must be classified or supplied as safe operational copies; no raw mixed file access               |
 
+## Prospective consumer integration checkpoint
+
+The coordinated consumer branch now has prospective-schema tests for team season/coaching edits, new teams/players/staff, guardian contact changes, cross-team moves/withdrawal, and fee-linked schedule edits while financial identities and complete owner/family/coach financial responses remain unchanged. These guarded operations still use legacy restrictions in the shipped captured-only schema. The same prospective path separates lesson instructor assignment from compensation and operational attendance from owner financial recognition. It adds explicit revision-checked owner financial admission/amendment commands rather than automatically creating obligations from new operational entities.
+
+This checkpoint is not activation and does not close the remaining booking/event lifecycle, account/profile lifecycle, historical-content classification or publication gaps in the matrix above. The matrix describes the inactive release behavior until the coordinated cutover is verified and authorized.
+
 ## Financial freeze dependencies
 
-The separately staged dormant financial basis captures original financial team/player identity, aliases, billing attribution and compensation inputs. It is database-constrained to captured/inactive state. Dormant payment helpers preserve original agreement identity and current provider-ledger values, but no active payment/fee/finance consumer uses them yet.
+The separately staged dormant financial basis captures original financial team/player identity, aliases, billing attribution and compensation inputs. It is database-constrained to captured/inactive state. The coordinated branch routes prospective active payment/fee/finance consumers through original financial identity and current provider-ledger values. Production activation remains structurally prohibited. Historical unbound pending/ambiguous lesson orders require a reviewed backfill or drain before any cutover.
 
 Required coordinated cutover: fee readers and mutations; all team payment/partial-refund/external-refund reconciliation; finance projections; owner/family/coach financial UI; whole-club financial saves; compensation attribution; explicit owner initialization of financial terms for new operational entities. Preserve all current operational coupling guards until complete, with real PostgreSQL concurrency and fixed-as-of financial-output comparisons.
 
 ## Access boundary caveats
 
 Sara's authenticated financial endpoints are denied, including household/self-finance paths. Published catalog pricing remains public. Separately, existing anonymous donor receipt bearer links and external Square receipt links remain usable by a person already possessing them after signing out. This task does not change donor receipt behavior; operational DTOs and exports must never reveal those tokens or links.
+
+## Finite remaining operational ports
+
+1. Booking and camp/clinic lifecycle: separate effective operational schedule, instructor, capacity, check-in and cancellation from original paid commitments, refund eligibility and compensation. Preserve stable purchased session identities and ordinary owner/customer workflows.
+2. Staff/account operations: operational contact/profile, directory status, availability and assignments with current authorization. Login email, recovery, permissions and financial principal identity remain owner-only to prevent account takeover. Public profile publishing must use existing consent and content controls.
+3. Documents and communications: team documents currently consist of four checklist flags; Player Development documents are metadata, not a stored-file download system. Port existing safe metadata and classification/review actions; do not invent file storage. Unclassified historic mixed narratives need explicit safe copies.
+4. Existing editorial/publication and recruiting/profile review: classify and project organization-wide operational drafts, apply existing consent/approval safeguards, and enable supported routine actions without an unnecessary owner approval step. No generic CMS or nonfinancial global settings editor exists in the mounted owner portal; finance-backed team settings stay owner-only.
+5. Verification and release: exact-source independent review, actual PostgreSQL writer/payment races, full browser and regression suites, then reviewed migration/backfill readiness and exact action-time authorization before deployment and Sara's persistent grant.
+
+### Additional cutover acceptance gates
+
+- A captured basis can become stale while legitimate legacy owner/provider writes continue. Final activation must use a reviewed current-source capture/refresh and parity check; merely marking an earlier capture active is unsafe.
+- Historical pending or ambiguous paid lesson orders need immutable compensation pins or an explicit reviewed drain/backfill before activation, preserving provider idempotency.
+- New standalone instructor accounts need explicit prospective self-pay identity admission, scoped to approved lessons/payees from a start version. Matching a historical payee email must never grant old financial access. Existing captured instructor access and new-team scoped admission are already preserved.

@@ -10,43 +10,65 @@ import {
 import type { Sql } from "../db";
 import type { Team } from "./types";
 import type { FeePlan } from "./fee-contracts";
-import { resolveIdentity } from "../identity.server";
-export async function loadBudgetMaster(sql: Sql) {
-  const [row] = await sql<{
-    payload: MasterMatrix;
-    revision: number;
-  }>`select payload,revision from team_budget_master where id='master'`;
+import {
+  withFinancialContext,
+  commitFinancialBudgetMasterInTransaction,
+  type FinancialContext,
+} from "../finance/context.server";
+export async function loadBudgetMaster(sql: Sql, context?: FinancialContext) {
+  const [row] = context
+    ? context.budgetMaster.filter((row) => row.id === "master")
+    : await sql<{
+        payload: MasterMatrix;
+        revision: number;
+      }>`select payload,revision from team_budget_master where id='master'`;
   if (!row) throw Error("Budget master is unavailable.");
   return { value: normalizePOMaster(masterSchema.parse(row.payload)), revision: row.revision };
 }
+async function budgetPeople(sql: Sql, context: FinancialContext) {
+  // Apply the same database collation to frozen names as the legacy profile
+  // query. Operational profile edits and new accounts cannot change this list.
+  return context.mode === "basis"
+    ? sql<{
+        userId: string;
+        name: string;
+        role: string;
+      }>`select id as "userId",coalesce("profileName",name) as name,role from jsonb_to_recordset(${JSON.stringify(context.basis!.inputs.billing.accounts)}::jsonb) as p(id text,name text,"profileName" text,role text) where role is not null order by 2,1`
+    : sql<{
+        userId: string;
+        name: string;
+        role: string;
+      }>`select user_id as "userId",name,role from profiles order by name,user_id`;
+}
 export async function getBudgetMaster(sql: Sql, userId: string) {
-  if ((await resolveIdentity(sql, userId)).role !== "admin") throw Error("Admin access required.");
-  const master = await loadBudgetMaster(sql);
-  const people = await sql<{
-    userId: string;
-    name: string;
-    role: string;
-  }>`select user_id as "userId",name,role from profiles order by name,user_id`;
-  return { ...master, people };
+  return withFinancialContext(sql, userId, "owner", async (tx, context) => {
+    const master = await loadBudgetMaster(tx, context);
+    const people = await budgetPeople(tx, context);
+    return {
+      ...master,
+      people,
+      ...(context.mode === "basis" ? { basisVersion: context.version! } : {}),
+    };
+  });
 }
 export async function saveBudgetMaster(
   sql: Sql,
   userId: string,
   revision: number,
   value: MasterMatrix,
+  basisVersion?: number,
 ) {
-  if ((await resolveIdentity(sql, userId)).role !== "admin") throw Error("Admin access required.");
   const data = masterSchema.parse(value);
-  await sql.transaction(async (tx) => {
+  await withFinancialContext(sql, userId, "owner", async (tx, context) => {
     if (data.payroll?.length) {
-      const people = await tx<{ user_id: string; name: string }>`select user_id,name from profiles`;
+      const people = await budgetPeople(tx, context);
       data.payroll = data.payroll.map((p) => {
-        const person = people.find((x) => x.user_id === p.userId);
+        const person = people.find((x) => x.userId === p.userId);
         if (!person) throw Error("Select an existing account for each payroll entry.");
         return { ...p, name: person.name };
       });
     }
-    const prior = await loadBudgetMaster(tx);
+    const prior = await loadBudgetMaster(tx, context);
     data.facilityCosts ||= initialFacilityCosts(data.monthlyOverhead);
     if (
       JSON.stringify([
@@ -58,14 +80,21 @@ export async function saveBudgetMaster(
     data.monthlyOverhead = facilityMonthly(data);
     if (!Number.isSafeInteger(data.monthlyOverhead) || data.monthlyOverhead > 1000000000)
       throw Error("Monthly overhead exceeds the supported total.");
-    const rows =
-      await tx`update team_budget_master set payload=${JSON.stringify(data)}::jsonb,revision=revision+1,updated_at=now() where id='master' and revision=${revision} returning revision`;
-    if (!rows.length) throw Error("The master changed. Reload before saving.");
-    await tx`insert into club_audit(user_id,action,detail) values(${userId},'budget-master','Updated new-team budget defaults')`;
+    await commitFinancialBudgetMasterInTransaction(tx, context, {
+      expectedRevision: revision,
+      expectedBasisVersion: basisVersion,
+      value: data,
+    });
   });
   return { saved: true };
 }
 export async function initializeTeamBudget(sql: Sql, team: Team) {
+  const [state] = await sql<{
+    activation_state: string;
+    active_version: number | null;
+  }>`select activation_state,active_version from financial_basis_state where id='oklahoma-prospects'`;
+  if (state && !(state.activation_state === "captured" && state.active_version === null))
+    throw Error("Financial seasons require explicit owner enrollment.");
   const master = await loadBudgetMaster(sql),
     row = matchMatrix(team, master.value);
   if (!row) return null;

@@ -164,10 +164,12 @@ export const settingsSchema = z
   .strict();
 export type Settings = z.infer<typeof settingsSchema>;
 const base = {
+  basisVersion: z.number().int().positive().optional(),
   revision: z.number().int().nonnegative(),
   reason: safeText.refine((s) => s.length >= 5, "Explain this financial change."),
 };
 export const financeAction = z.discriminatedUnion("action", [
+  z.object({ ...base, action: z.literal("recognizeLesson"), bookingId: id }).strict(),
   z.object({ ...base, action: z.literal("facility") }).strict(),
   z
     .object({

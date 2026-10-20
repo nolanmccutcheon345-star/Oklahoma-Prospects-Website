@@ -1,3 +1,7 @@
+import {
+  withFinancialContext,
+  commitFinancialLessonTermsInTransaction,
+} from "./finance/context.server";
 import { getSql, type Sql } from "./db";
 import { resolveIdentity } from "./identity.server";
 import { readWorkingFile, writeWorkingFile } from "./pd/desk-impl.server";
@@ -154,7 +158,8 @@ export async function personFor(sql: Sql, userId: string) {
     .filter((w) => w.available)
     .map((w) => ({ weekday: w.weekday, start: w.start, end: w.end }));
   const primaryRole =
-    (await sql<{ role: string }>`select role from profiles where user_id=${userId}`)[0]?.role || "parent";
+    (await sql<{ role: string }>`select role from profiles where user_id=${userId}`)[0]?.role ||
+    "parent";
   return {
     user: { id: user.id, name: user.name, email, disabled: Boolean(user.disabledAt) },
     primaryRole,
@@ -165,7 +170,8 @@ export async function personFor(sql: Sql, userId: string) {
       revision: saved?.revision || 0,
       profile: saved?.profile || draft,
       instructor: saved?.instructor ?? inferred,
-      publishCoach: saved?.publish_coach ?? (primaryRole === "coach" || assignments.length > 0 || inferred),
+      publishCoach:
+        saved?.publish_coach ?? (primaryRole === "coach" || assignments.length > 0 || inferred),
       publishInstructor: saved?.publish_instructor ?? Boolean(legacy?.published && inferred),
       teams: assignments,
       offerings: [...new Map(offerings.map((o) => [o.serviceId, o])).values()],
@@ -177,58 +183,61 @@ export async function personFor(sql: Sql, userId: string) {
   };
 }
 export async function person(viewerId: string, userId: string) {
-  const sql = await getSql();
-  await requirePeopleOwner(sql, viewerId);
-  const [record, club, services, households, file] = await Promise.all([
-    personFor(sql, userId),
-    clubFor(sql),
-    sql<{
-      id: string;
-      name: string;
-      minutes: number;
-      active: boolean;
-    }>`select id,name,minutes,active from club_services where kind='lesson' order by sort_order,id`,
-    sql<{
+  return withFinancialContext(await getSql(), viewerId, "owner", async (sql, financial) => {
+    const [record, club, services, households, file] = await Promise.all([
+      personFor(sql, userId),
+      clubFor(sql),
+      sql<{
+        id: string;
+        name: string;
+        minutes: number;
+        active: boolean;
+      }>`select id,name,minutes,active from club_services where kind='lesson' order by sort_order,id`,
+      sql<{
+        id: string;
+        primary_email: string;
+      }>`select id,primary_email from club_households order by primary_email`,
+      readWorkingFile(sql),
+    ]);
+    const teams = club?.club.teams.filter((t) => !t.closed) || [];
+    const existingHouseholds = await sql<{
       id: string;
       primary_email: string;
-    }>`select id,primary_email from club_households order by primary_email`,
-    readWorkingFile(sql),
-  ]);
-  const teams = club?.club.teams.filter((t) => !t.closed) || [];
-  const existingHouseholds = await sql<{
-    id: string;
-    primary_email: string;
-  }>`select h.id,h.primary_email from club_households h join household_members m on m.household_id=h.id where m.user_id=${userId}`;
-  return {
-    ...record,
-    options: {
-      teams: teams.map((t) => ({
-        id: t.id,
-        name: t.name,
-        seasons: teamSeasons(t),
-        headCoach: t.headCoach,
-      })),
-      services,
-      households,
-      players: [
-        ...new Map(
-          [
-            ...file.athletes.map((p) => ({ id: p.id, name: `${p.firstName} ${p.lastName}` })),
-            ...teams.flatMap((t) =>
-              t.roster.map((p) => ({ id: p.id, name: `${p.name} · ${t.name}` })),
-            ),
-          ].map((p) => [p.id, p]),
-        ).values(),
-      ],
-    },
-    existingHouseholds,
-  };
+    }>`select h.id,h.primary_email from club_households h join household_members m on m.household_id=h.id where m.user_id=${userId}`;
+    return {
+      ...record,
+      value: {
+        ...record.value,
+        ...(financial.mode === "basis" ? { basisVersion: financial.version! } : {}),
+      },
+      options: {
+        teams: teams.map((t) => ({
+          id: t.id,
+          name: t.name,
+          seasons: teamSeasons(t),
+          headCoach: t.headCoach,
+        })),
+        services,
+        households,
+        players: [
+          ...new Map(
+            [
+              ...file.athletes.map((p) => ({ id: p.id, name: `${p.firstName} ${p.lastName}` })),
+              ...teams.flatMap((t) =>
+                t.roster.map((p) => ({ id: p.id, name: `${p.name} · ${t.name}` })),
+              ),
+            ].map((p) => [p.id, p]),
+          ).values(),
+        ],
+      },
+      existingHouseholds,
+    };
+  });
 }
 export async function savePersonFor(sql: Sql, actorId: string, raw: PersonSave) {
-  await requirePeopleOwner(sql, actorId);
   const input = personSaveInput.parse(raw);
   availabilityInput.parse({ windows: input.windows });
-  return sql.transaction(async (tx) => {
+  return withFinancialContext(sql, actorId, "owner", async (tx, financial) => {
     const [user] = await tx<{
       id: string;
       email: string;
@@ -365,6 +374,11 @@ export async function savePersonFor(sql: Sql, actorId: string, raw: PersonSave) 
     for (const id of new Set(input.playerIds))
       await tx`insert into person_player_links(user_id,player_id) values(${user.id},${id})`;
     await tx`insert into person_profiles(user_id,revision,instructor,publish_coach,publish_instructor,profile) values(${user.id},${input.revision + 1},${input.instructor},${input.publishCoach},${input.publishInstructor},${JSON.stringify(input.profile)}::jsonb) on conflict(user_id) do update set revision=excluded.revision,instructor=excluded.instructor,publish_coach=excluded.publish_coach,publish_instructor=excluded.publish_instructor,profile=excluded.profile,updated_at=now()`;
+    await commitFinancialLessonTermsInTransaction(tx, financial, {
+      expectedBasisVersion: input.basisVersion,
+      command: { type: "staff", staffId, coachId },
+      reason: "Owner updated shared instructor terms for future bookings",
+    });
     return { ok: true, revision: input.revision + 1 };
   });
 }

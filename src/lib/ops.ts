@@ -1,7 +1,6 @@
 import type { PurchaseAvailability } from "./purchase-availability";
 import { publishedServices } from "./public-services";
 import { formatMoney, eligibility } from "./pricing";
-import { revokeStaffAccess } from './staff-access.server';
 import { createServerFn, createServerOnlyFn } from "@tanstack/react-start";
 import { authMiddleware } from "@/lib/auth/middleware";
 import {
@@ -12,7 +11,7 @@ import type { ClubRole } from "@/lib/club-data";
 import { getSql, type Sql } from "@/lib/db";
 import { isOwnerEmail } from "@/lib/owners";
 import { clubIdentity } from "./identity.server";
-import { accountInput, recordIdInput, serviceInput, staffInput, userIdInput } from "./ops-contracts";
+import { accountInput, lessonTermIdInput, serviceInput, staffInput, userIdInput } from "./ops-contracts";
 
 export type ServiceKind =
   | "lesson"
@@ -61,6 +60,7 @@ export type ClubService = {
 };
 
 export type ServiceInput = {
+  basisVersion?: number;
   id?: string;
   kind: ServiceKind;
   name: string;
@@ -109,6 +109,7 @@ export type ClubStaff = {
 };
 
 export type StaffInput = {
+  basisVersion?: number;
   id?: string;
   name: string;
   email: string;
@@ -316,18 +317,6 @@ function mapService(row: ServiceRow): ClubService {
   };
 }
 
-function extraJson(input: ServiceInput) {
-  return JSON.stringify({
-    unit: input.unit || "",
-    lanes: input.lanes || "",
-    period: input.period || "",
-    hourly: input.hourly || "",
-    bestFor: input.bestFor || "",
-    savings: input.savings || "",
-    perks: input.perks ?? [],
-  });
-}
-
 export function defaultCoachSplit(service: {
   kind: string;
   name: string;
@@ -441,87 +430,19 @@ export const loadPublicCatalog = createServerOnlyFn(async () => {
   return buildPublicCatalog(await loadServices(sql));
 });
 
+/** Owner catalog changes approve future lesson terms in the same transaction. */
 export const saveService = createServerFn({ method: "POST" })
-  .middleware([authMiddleware])
-  .validator(serviceInput)
+  .middleware([authMiddleware]).validator(serviceInput)
   .handler(async ({ context, data }) => {
-    await requireAdmin(context.userId);
-    const sql = await getSql();
-    const name = data.name.trim();
-    if (!name) throw new Error("Name is required.");
-    const kind = asKind(data.kind);
-    const prefix =
-      kind === "cage_plan" ? "plan" : kind === "cage" ? "cage" : kind === "membership" ? "m" : kind === "package" ? "p" : "s";
-    const id = data.id?.trim() || newId(prefix, name);
-    if (kind !== "fee" && data.price <= 0) throw new Error("Enter a customer price greater than zero.");
-    const [existing] = await sql<{kind:string}>`select kind from club_services where id=${id}`;
-    if (existing && existing.kind !== kind) throw new Error("An existing service’s category cannot be changed. Create a new service instead.");
-    const maxSort = await sql<{ n: number }>`
-      select coalesce(max(sort_order), 0)::int as n from club_services
-    `;
-    const sort = data.sort_order ?? asInt(maxSort[0]?.n) + 10;
-    await sql`
-      insert into club_services (
-        id, kind, name, discipline, price, minutes, purpose, entry, group_session,
-        requires_assessment, credits, remote, expires_days, hours, featured, detail,
-        includes_json, extra_json, active, sort_order, updated_at
-      ) values (
-        ${id},
-        ${kind},
-        ${name},
-        ${data.discipline.trim()},
-        ${Math.round(Number(data.price) * 100) / 100},
-        ${asInt(data.minutes)},
-        ${data.purpose.trim()},
-        ${Boolean(data.entry)},
-        ${Boolean(data.group_session)},
-        ${kind === "lesson" || kind === "package" ? eligibility(kind,id,false).locked : false},
-        ${asInt(data.credits)},
-        ${asInt(data.remote)},
-        ${asInt(data.expires_days)},
-        ${asInt(data.hours)},
-        ${Boolean(data.featured)},
-        ${data.detail.trim()},
-        ${JSON.stringify(data.includes ?? [])},
-        ${extraJson(data)},
-        ${data.active !== false},
-        ${sort},
-        now()
-      )
-      on conflict (id) do update set
-        kind = excluded.kind,
-        name = excluded.name,
-        discipline = excluded.discipline,
-        price = excluded.price,
-        minutes = excluded.minutes,
-        purpose = excluded.purpose,
-        entry = excluded.entry,
-        group_session = excluded.group_session,
-        requires_assessment = excluded.requires_assessment,
-        credits = excluded.credits,
-        remote = excluded.remote,
-        expires_days = excluded.expires_days,
-        hours = excluded.hours,
-        featured = excluded.featured,
-        detail = excluded.detail,
-        includes_json = excluded.includes_json,
-        extra_json = excluded.extra_json,
-        active = excluded.active,
-        sort_order = excluded.sort_order,
-        updated_at = now()
-    `;
-    return { id };
+    const { saveServiceFor } = await import("./ops-owner.server");
+    return saveServiceFor(await getSql(), context.userId, data);
   });
 
 export const deleteService = createServerFn({ method: "POST" })
-  .middleware([authMiddleware])
-  .validator(recordIdInput)
+  .middleware([authMiddleware]).validator(lessonTermIdInput)
   .handler(async ({ context, data }) => {
-    await requireAdmin(context.userId);
-    const sql = await getSql();
-    await sql`delete from club_staff_services where service_id = ${data.id}`;
-    await sql`delete from club_services where id = ${data.id}`;
-    return { ok: true as const };
+    const { deleteServiceFor } = await import("./ops-owner.server");
+    return deleteServiceFor(await getSql(), context.userId, data);
   });
 
 async function loadStaff(sql: Sql): Promise<ClubStaff[]> {
@@ -612,74 +533,33 @@ async function upsertProfile(input: {
 }
 
 export const saveStaff = createServerFn({ method: "POST" })
-  .middleware([authMiddleware])
-  .validator(staffInput)
+  .middleware([authMiddleware]).validator(staffInput)
   .handler(async ({ context, data }) => {
-    await requireAdmin(context.userId);
-    const sql = await getSql();
-    const name = data.name.trim();
-    if (!name) throw new Error("Coach name is required.");
-    const email = data.email.trim().toLowerCase();
-    const id = data.id?.trim() || newId("staff", name);
-    let userId = "";
-    if (email) {
-      const users = await sql<{ id: string }>`
-        select id from "user" where lower(email) = ${email}
-      `;
-      userId = users[0]?.id ?? "";
+    const { saveStaffFor } = await import("./ops-owner.server");
+    const result = await saveStaffFor(await getSql(), context.userId, data);
+    let invitation: string | undefined;
+    if (data.createLogin) {
+      if (!data.email) throw new Error("Email is required for an invitation.");
+      const { issueInvitation } = await import("./invitations.server");
+      invitation = (await issueInvitation(context.userId, data.email, data.role || "coach")).message;
     }
-    if(data.role==='admin'&&!await isOwnerEmail(email))throw new Error('Only approved owners may have admin access.');
-    let invitation:string|undefined;
-    if(data.createLogin){
-      if(!email)throw new Error('Email is required for an invitation.');
-      const {issueInvitation}=await import('./invitations.server');
-      invitation=(await issueInvitation(context.userId,email,data.role||'coach')).message;
-    }
-    await sql.transaction(async tx => {
-    const [saved] = await tx<{ user_id: string; email: string }>`
-      insert into club_staff (id, user_id, name, email, phone, role, access_notes, active)
-      values (
-        ${id},
-        ${userId},
-        ${name},
-        ${email},
-        ${data.phone.trim()},
-        ${asStaffRole(data.role || "coach")},
-        ${data.access_notes.trim()},
-        ${data.active !== false}
-      )
-      on conflict (id) do update set
-        user_id = case when excluded.user_id = '' then club_staff.user_id else excluded.user_id end,
-        name = excluded.name,
-        email = excluded.email,
-        phone = excluded.phone,
-        role = excluded.role,
-        access_notes = excluded.access_notes,
-        active = excluded.active
-      returning user_id, email
-    `;
-    if (data.offerings) {
-      const { replaceCoachServices } = await import("./commerce/coach-services.server");
-      await replaceCoachServices(tx, id, data.offerings);
-      // This explicit admin assignment also enables the shared instructor assignment.
-      if (data.offerings.length && saved?.user_id) await tx`update person_profiles set instructor=true,revision=revision+1,updated_at=now() where user_id=${saved.user_id}`;
-    }
-      if (data.active === false && saved) await revokeStaffAccess(tx, saved);
-    });
-    return { id, invitation };
+    return { ...result, invitation };
   });
 
 export const deleteStaff = createServerFn({ method: "POST" })
-  .middleware([authMiddleware])
-  .validator(recordIdInput)
+  .middleware([authMiddleware]).validator(lessonTermIdInput)
   .handler(async ({ context, data }) => {
-    await requireAdmin(context.userId);
-    const sql = await getSql();
-    await sql.transaction(async tx=>{
-      const [staff]=await tx<{user_id:string;email:string}>`update club_staff set active=false where id=${data.id} returning user_id,email`;
-      if(staff)await revokeStaffAccess(tx,staff);
-    });
-    return { ok: true as const };
+    const { deleteStaffFor } = await import("./ops-owner.server");
+    return deleteStaffFor(await getSql(), context.userId, data);
+  });
+
+export const getAdminLessonTerms = createServerFn({ method: "GET" })
+  .middleware([authMiddleware]).handler(async ({ context }) => {
+    const { withFinancialContext } = await import("./finance/context.server");
+    return withFinancialContext(await getSql(), context.userId, "owner", async (tx, financial) => ({
+      services: await loadServices(tx), staff: await loadStaff(tx),
+      ...(financial.mode === "basis" ? { basisVersion: financial.version! } : {}),
+    }));
   });
 
 export const listAccounts = createServerFn({ method: "GET" })

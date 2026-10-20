@@ -29,6 +29,7 @@ export const personSaveInput = z
   .object({
     userId: z.string().min(1).max(200),
     revision: z.number().int().min(0),
+    basisVersion: z.number().int().positive().optional(),
     profile: sharedProfileInput,
     instructor: z.boolean(),
     publishCoach: z.boolean(),

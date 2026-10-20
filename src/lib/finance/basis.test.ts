@@ -567,21 +567,42 @@ test("initialization failure is atomic and duplicate/malformed source identity f
   for (const table of tables) assert.equal((await f.sql.query(`select * from ${table}`)).length, 0);
 });
 
-test("dormant financial modules have no production consumer import or route, and migration has no backfill", async () => {
-  // This exact, closed set may share pure helpers. None may be reachable from
-  // an application route or other production module before reviewed cutover.
-  const dormantModules = new Set([
+test("only reviewed internal financial consumers import the basis; production migration cannot activate", async () => {
+  // Consumers are now DB-selected. This closed server-only inventory prevents
+  // raw snapshot use by routes/UI and does not authorize activation.
+  const reviewedModules = new Set([
     "lib/finance/basis.server.ts",
+    "lib/finance/context.server.ts",
+    "lib/finance/principal.server.ts",
     "lib/teams/financial-payment-adapter.server.ts",
+    "lib/teams/fee.server.ts",
+    "lib/teams/payment.server.ts",
+    "lib/teams/store.ts",
+    "lib/finance/sources.server.ts",
+    "lib/finance/facility.server.ts",
+    "lib/finance/self.server.ts",
   ]);
   for (const file of await readdir("src", { recursive: true })) {
-    if (!/\.(tsx?|mjs)$/.test(file) || dormantModules.has(file) || /\.test\./.test(file)) continue;
+    if (!/\.(tsx?|mjs)$/.test(file) || /\.test(?:[.-])/.test(file)) continue;
+    const source = await readFile("src/" + file, "utf8");
     assert.doesNotMatch(
-      await readFile("src/" + file, "utf8"),
+      source,
+      /(?:from\s*["'][^"']*context\.test-fixture|import\s*\(["'][^"']*context\.test-fixture)/,
+      file,
+    );
+    if (reviewedModules.has(file)) continue;
+    assert.doesNotMatch(
+      source,
       /(?:from\s*["'][^"']*(?:basis|financial-payment-adapter)\.server|import\s*\(["'][^"']*(?:basis|financial-payment-adapter)\.server)/,
       file,
     );
   }
+  const staged = await readFile("migrations/0070_financial_context.sql", "utf8");
+  assert.doesNotMatch(
+    staged,
+    /drop\s+constraint\s+financial_basis_state_(?:activation_state|active_version)_check/i,
+  );
+  assert.doesNotMatch(staged, /update\s+financial_basis_state\s+set\s+activation_state/i);
   const migration = await readFile("migrations/0069_financial_basis.sql", "utf8");
   assert.doesNotMatch(migration, /\bINSERT\s+INTO\b/i);
   assert.doesNotMatch(

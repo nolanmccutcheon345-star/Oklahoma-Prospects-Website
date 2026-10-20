@@ -12,6 +12,7 @@ import type { Sql } from "../db";
 import type { ClubRecord, Team, Player } from "../teams/types";
 import type { FeePlan } from "../teams/fee-contracts";
 import type { TeamActivity } from "../teams/activity-contracts";
+import { lockFinancialExecution } from "./execution.server";
 
 const BASIS_ID = "oklahoma-prospects";
 type Json = null | boolean | number | string | Json[] | { [key: string]: Json };
@@ -24,7 +25,16 @@ export type FinancialInputs = {
   budgetMaster: SourceRow[];
   activities: { id: string; team_id: string; revision: number; payload: TeamActivity }[];
   billing: {
-    accounts: { id: string; email: string; name: string; role: string | null }[];
+    accounts: {
+      id: string;
+      email: string;
+      name: string;
+      role: string | null;
+      profileName?: string | null;
+      admittedAgreementIds?: string[];
+      admittedTeamIds?: string[];
+    }[];
+    agreementGuardians?: { agreementId: string; userId: string; householdId: string }[];
     households: { id: string; primary_email: string }[];
     members: { household_id: string; user_id: string }[];
     guardians: { household_id: string; user_id: string }[];
@@ -32,6 +42,7 @@ export type FinancialInputs = {
   };
   compensation: {
     development: { coaches: Json; coachPayouts: Json }[];
+    services?: SourceRow[];
     staff: SourceRow[];
     staffServices: SourceRow[];
     bookings: SourceRow[];
@@ -48,8 +59,8 @@ export type FinancialPlayerAgreement = {
 };
 export type FinancialBasis = {
   version: number;
-  activationState: "captured";
-  activeVersion: null;
+  activationState: "captured" | "active";
+  activeVersion: number | null;
   sourceClubRevision: number;
   sourceDigest: string;
   inputs: FinancialInputs;
@@ -87,6 +98,8 @@ function canonical(value: unknown): string {
 function digest(value: unknown) {
   return createHash("sha256").update(canonical(value)).digest("hex");
 }
+/** Shared canonical digest; array order remains significant. Pure, no authority. */
+export const financialBasisDigest = digest;
 function reasonFor(reason: string) {
   const result = reason.trim();
   if (!result || result.length > 1000) throw new Error("Provide a financial change reason.");
@@ -119,7 +132,7 @@ async function requireBasisOwner(tx: Sql, userId: string) {
 async function captureInputs(tx: Sql) {
   await tx.query(`lock table club_state,team_fee_plans,team_fee_business,team_budget_master,
     team_activities,"user",profiles,club_households,household_members,person_guardian_links,
-    person_player_links,pd_working_file,club_staff,club_staff_services,booking_records,
+    person_player_links,pd_working_file,club_services,club_staff,club_staff_services,booking_records,
     contractor_earnings,finance_records,owner_grants in share mode`);
   const [club] = await tx<{
     payload: ClubRecord;
@@ -139,7 +152,7 @@ async function captureInputs(tx: Sql) {
       // Authentication secrets and account eligibility are not copied. Current
       // verified/disabled/restricted status MUST be checked at every future use.
       accounts:
-        await tx`select u.id,u.email,u.name,p.role from "user" u left join profiles p on p.user_id=u.id order by u.id`,
+        await tx`select u.id,u.email,u.name,p.name as "profileName",p.role from "user" u left join profiles p on p.user_id=u.id order by u.id`,
       households: await tx`select id,primary_email from club_households order by id`,
       members:
         await tx`select household_id,user_id from household_members order by household_id,user_id`,
@@ -149,6 +162,9 @@ async function captureInputs(tx: Sql) {
         await tx`select player_id,user_id from person_player_links order by player_id,user_id`,
     },
     compensation: {
+      services: (
+        await tx<{ value: SourceRow }>`select to_jsonb(s) as value from club_services s order by id`
+      ).map((r) => r.value),
       development:
         await tx`select payload::jsonb->'coaches' as coaches,payload::jsonb->'coachPayouts' as "coachPayouts" from pd_working_file where id='club'`,
       staff: (
@@ -198,6 +214,7 @@ function validateClubIdentities(club: ClubRecord) {
 /** Preview returns only a review token/counts; no data is initialized. */
 export async function previewFinancialBasisInitialization(sql: Sql, userId: string) {
   return sql.transaction(async (tx) => {
+    await lockFinancialExecution(tx);
     await requireBasisOwner(tx, userId);
     const [existing] = await tx`select id from financial_basis_state where id=${BASIS_ID}`;
     if (existing)
@@ -222,6 +239,7 @@ export async function initializeFinancialBasisForOwner(
 ): Promise<FinancialBasisReceipt> {
   const reason = reasonFor(command.reason);
   return sql.transaction(async (tx) => {
+    await lockFinancialExecution(tx);
     await requireBasisOwner(tx, userId);
     // Serializes initialization even while the singleton row does not exist.
     await tx.query("lock table financial_basis_state in share row exclusive mode");
@@ -288,9 +306,9 @@ async function readBasis(tx: Sql, lock = false): Promise<FinancialBasis | null> 
     sourceDigest: state.source_digest,
     inputs: version.payload,
     teams:
-      await tx`select id,original_team_id as "originalTeamId" from financial_team_seasons where basis_id=${BASIS_ID} order by original_team_id`,
+      await tx`select id,original_team_id as "originalTeamId" from financial_team_seasons where basis_id=${BASIS_ID} and created_version<=${state.current_version} order by original_team_id`,
     agreements:
-      await tx`select id,team_season_id as "teamSeasonId",original_player_id as "originalPlayerId" from financial_player_agreements where basis_id=${BASIS_ID} order by id`,
+      await tx`select id,team_season_id as "teamSeasonId",original_player_id as "originalPlayerId" from financial_player_agreements where basis_id=${BASIS_ID} and created_version<=${state.current_version} order by id`,
     teamAliases:
       await tx`select legacy_team_id as "teamId",team_season_id as "teamSeasonId" from financial_team_aliases where basis_id=${BASIS_ID} and created_version<=${state.current_version} order by legacy_team_id`,
     playerAliases:
@@ -301,6 +319,7 @@ async function readBasis(tx: Sql, lock = false): Promise<FinancialBasis | null> 
 /** Full private snapshot for INTERNAL financial consumers after owner auth only. */
 export async function readFinancialBasisForOwner(sql: Sql, userId: string) {
   return sql.transaction(async (tx) => {
+    await lockFinancialExecution(tx);
     await requireBasisOwner(tx, userId);
     return readBasis(tx);
   });
@@ -351,7 +370,13 @@ export function hasFrozenFinancialGuardian(
   const { player } = resolveFinancialAgreement(basis, { agreementId });
   const billing = basis.inputs.billing;
   const account = billing.accounts.find((a) => a.id === userId);
-  if (!account) return false;
+  if (
+    !account ||
+    (account.admittedAgreementIds && !account.admittedAgreementIds.includes(agreementId))
+  )
+    return false;
+  if (billing.agreementGuardians?.some((g) => g.agreementId === agreementId && g.userId === userId))
+    return true;
   const norm = (v: string) => v.trim().toLowerCase();
   const guardianHome = billing.guardians.some(
     (g) => g.user_id === userId && g.household_id === player.familyId,
@@ -385,6 +410,7 @@ export async function updateFinancialBasisForOwner(
   assertVersion(command.expectedVersion);
   const reason = reasonFor(command.reason);
   return sql.transaction(async (tx) => {
+    await lockFinancialExecution(tx);
     await requireBasisOwner(tx, userId);
     const basis = await readBasis(tx, true);
     if (!basis) throw new Error("Financial basis is not initialized.");
@@ -436,6 +462,7 @@ export async function addFinancialPlayerAliasForOwner(
   if (!command.teamId.trim() || !command.playerId.trim())
     throw new Error("Complete legacy player alias required.");
   return sql.transaction(async (tx) => {
+    await lockFinancialExecution(tx);
     await requireBasisOwner(tx, userId);
     const basis = await readBasis(tx, true);
     if (!basis || basis.version !== command.expectedVersion)

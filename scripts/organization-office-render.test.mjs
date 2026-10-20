@@ -264,7 +264,9 @@ test("organization operations keeps explicit team scope, posts only confirmed me
       "export const getOperationalServiceResources=async()=>[]; export const setServiceResources=async()=>({ok:true});",
     "@/lib/auth/gates": "export const UserButton=()=>null;",
     "@/lib/commerce/lesson-assignment-api":
-      "export const getLessonAssignments=async()=>[{id:'synthetic-lesson',serviceName:'Synthetic lesson',playerName:'Synthetic Lesson Player',customerEmail:'lesson-guardian@example.invalid',coachId:'synthetic-coach',coachName:'Synthetic Instructor',startsAt:'2030-02-04T23:00:00Z',endsAt:'2030-02-05T00:00:00Z'}]; export const saveLessonInstructor=async()=>{throw new Error('Lesson writes must never be used by the restricted UI');};",
+      "export const getLessonAssignments=async()=>[{id:'synthetic-lesson',serviceName:'Synthetic lesson',playerName:'Synthetic Lesson Player',customerEmail:'lesson-guardian@example.invalid',coachId:'synthetic-coach',coachName:'Synthetic Instructor',startsAt:'2030-02-04T23:00:00Z',endsAt:'2030-02-05T00:00:00Z'}]; export const getLessonInstructors=async()=>{throw new Error('Operational assignment is unavailable until financial cutover');}; export const saveLessonInstructor=async()=>{throw new Error('No assignment may be posted after denied choices');};",
+    "@/lib/pd/operational-lesson-api":
+      "export const getOperationalLessonCompletions=async()=>({canRecord:false,lessons:[]}); export const saveOperationalLessonCompletion=async()=>{throw new Error('Inactive completion must not post');};",
     "@/components/staff/directory-desk": "export const StaffDirectoryDesk=()=>null;",
     "@/components/tryout-event-editor": "export const TryoutEventEditor=()=>null;",
     "@/components/coordinator/organization-game-results":
@@ -481,22 +483,17 @@ test("organization operations keeps explicit team scope, posts only confirmed me
     await select("Program", "softball");
     await select("Team workspace", "softball-team");
     await click("Lessons");
-    assert.match(host.textContent, /Lesson Instructor Overview/);
+    assert.match(host.textContent, /Lesson instructor assignments/);
+    const lessonSection = host.querySelector('[aria-label="Lesson instructor assignments"]');
+    await act(async () => lessonSection.querySelector('input[type="checkbox"]').click());
+    assert.match(lessonSection.textContent, /Synthetic Instructor/);
+    await click("Change instructor");
     assert.match(
-      host.textContent,
-      /Instructor changes require an owner while compensation is linked/,
-    );
-    assert.match(host.textContent, /Synthetic Instructor/);
-    const lessonSection = host.querySelector('[aria-label="Lesson instructor overview"]');
-    assert.equal(lessonSection.querySelectorAll("form,input,select,textarea").length, 0);
-    assert.deepEqual(
-      [...lessonSection.querySelectorAll("button")].map((button) => button.textContent),
-      ["Refresh Lessons"],
-    );
-    assert.doesNotMatch(
       lessonSection.textContent,
-      /Find available instructors|Change instructor|Save assignment/,
+      /Operational assignment is unavailable until financial cutover/,
     );
+    assert.equal(lessonSection.querySelectorAll("form,select,textarea").length, 0);
+    assert.doesNotMatch(lessonSection.textContent, /Save assignment/);
     await click("Game Results");
     assert.match(host.textContent, /Game Results & Statistics/);
     assert.equal(control("Program"), undefined);

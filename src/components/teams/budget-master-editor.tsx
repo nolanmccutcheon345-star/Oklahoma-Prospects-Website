@@ -337,7 +337,13 @@ export function BudgetMasterEditor({ teams }: { teams: Teams }) {
             setError("");
             setNotice("");
             try {
-              await saveBudgetMaster({ data: { revision: data.revision, value: m } });
+              await saveBudgetMaster({
+                data: {
+                  revision: data.revision,
+                  ...(data.basisVersion === undefined ? {} : { basisVersion: data.basisVersion }),
+                  value: m,
+                },
+              });
               setData(await getBudgetMaster());
               window.dispatchEvent(new CustomEvent("budget-master-updated"));
               window.dispatchEvent(new CustomEvent("team-budget-updated"));
