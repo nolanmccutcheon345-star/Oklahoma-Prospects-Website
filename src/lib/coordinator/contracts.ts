@@ -4,7 +4,9 @@ export const sports = ["baseball", "softball"] as const;
 export type Sport = (typeof sports)[number];
 // This allowlist is the complete grantable surface. Never accept wildcards or arbitrary strings.
 export const capabilities = {
-  "recruiting.read": "View prospects and tryout registrations",
+  "recruiting.read": "View recruiting prospects",
+  "tryouts.read": "View tryout registrations",
+  "tryouts.status": "Update tryout registration status",
   "recruiting.create": "Add recruiting prospects",
   "recruiting.update": "Edit routine recruiting information",
   "recruiting.status": "Update recruiting follow-up status",
@@ -31,7 +33,16 @@ export const capabilities = {
   "content.draft": "Create announcement drafts",
   "content.update": "Edit own announcement drafts",
   "content.submit": "Submit drafts for owner review",
-  "reports.read": "View nonfinancial roster and recruiting counts",
+  "reports.read": "View roster counts",
+  "reports.recruiting": "View recruiting activity statistics",
+  "reports.tryouts": "View tryout participation counts",
+  "reports.openings": "View team opening counts",
+  "reports.attendance": "View attendance counts",
+  "reports.events": "View nonfinancial event participation counts",
+  "reports.followups": "View outstanding recruiting follow-up counts",
+  "teams.openings": "Manage team roster openings",
+  "teams.needs": "Update team recruiting needs",
+  "teams.statistics": "View authorized team statistics",
   "activity.read": "View own coordinator activity",
 } as const;
 export type Capability = keyof typeof capabilities;

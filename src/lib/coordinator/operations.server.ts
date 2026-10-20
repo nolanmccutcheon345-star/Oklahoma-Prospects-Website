@@ -125,6 +125,14 @@ export async function editRoster(sql: Sql, userId: string, raw: z.infer<typeof r
     }>`select c.rev,(tt.ordinality-1)::int as ti,(pp.ordinality-1)::int as pi,pp.p->${input.field} as old from club_state c cross join lateral jsonb_array_elements(c.payload->'teams') with ordinality tt(t,ordinality) cross join lateral jsonb_array_elements(tt.t->'roster') with ordinality pp(p,ordinality) where c.id='oklahoma-prospects' and not c.demo and tt.t->>'id'=${input.teamId} and pp.p->>'id'=${input.playerId} and coalesce(pp.p->>'withdrawn','false')<>'true' for update of c`;
     if (!row) throw new CoordinatorDenied();
     if (row.rev !== input.revision) throw new Error("The roster changed. Reload before saving.");
+    if (
+      input.field === "number" &&
+      input.value &&
+      (
+        await tx`select 1 from club_state c cross join lateral jsonb_array_elements(c.payload->'teams') t cross join lateral jsonb_array_elements(t->'roster') p where c.id='oklahoma-prospects' and t->>'id'=${input.teamId} and p->>'id'<>${input.playerId} and coalesce(p->>'withdrawn','false')<>'true' and p->>'number'=${input.value}`
+      ).length
+    )
+      throw new Error("That jersey number is already assigned.");
     const path = ["teams", String(row.ti), "roster", String(row.pi), input.field];
     await tx`update club_state set payload=jsonb_set(payload,${path}::text[],${JSON.stringify(input.value)}::jsonb),rev=rev+1,updated_at=now() where id='oklahoma-prospects'`;
     await audit(
@@ -176,7 +184,11 @@ export async function recruiting(
 ) {
   const input = recruitingHistoryInput.parse(raw);
   return secured(sql, userId, "recruiting.read", async (tx) => {
-    await checkScope(tx, userId, "recruiting.read", input.sport, input.teamId);
+    const current = await grants(tx, userId, true);
+    const readPermission = permits(current, "recruiting.read", input.sport, input.teamId)
+      ? "recruiting.read"
+      : "tryouts.read";
+    await checkScope(tx, userId, readPermission, input.sport, input.teamId);
     const contacts = permits(
       await grants(tx, userId, true),
       "contacts.read",
@@ -184,7 +196,7 @@ export async function recruiting(
       input.teamId,
     );
     const rows = await tx.query<RequestRow>(
-      `select ${requestFields("$4::boolean")} from club_requests r left join office_request_work w on w.request_id=r.id where r.kind in ('tryout','team-inquiry') and lower(r.payload->>'sport')=$1 and ($2='' or r.payload->>'preferredTeamId'=$2) and exists(select 1 from coordinator_assignments g where g.user_id=$3 and g.status='active' and 'recruiting.read'=any(g.permissions) and ${requestScope}) and ${classifiedRequest} and ($5::timestamptz is null or (r.created_at,r.id)<($5::timestamptz,$6::text)) order by r.created_at desc,r.id desc limit 101`,
+      `select ${requestFields("$4::boolean")} from club_requests r left join office_request_work w on w.request_id=r.id where r.kind in ('tryout','team-inquiry') and lower(r.payload->>'sport')=$1 and ($2='' or r.payload->>'preferredTeamId'=$2) and exists(select 1 from coordinator_assignments g where g.user_id=$3 and g.status='active' and (case r.kind when 'tryout' then 'tryouts.read' else 'recruiting.read' end)=any(g.permissions) and ${requestScope}) and ${classifiedRequest} and ($5::timestamptz is null or (r.created_at,r.id)<($5::timestamptz,$6::text)) order by r.created_at desc,r.id desc limit 101`,
       [
         input.sport,
         input.teamId,
@@ -225,7 +237,13 @@ export async function requestFor(
     kind: string;
   }>`select lower(payload->>'sport') as sport,coalesce(payload->>'preferredTeamId','') as team_id,coordinator_revision as revision,kind from club_requests where id=${id} and kind in ('tryout','team-inquiry') for update`;
   if (!r || !["baseball", "softball"].includes(r.sport)) throw new CoordinatorDenied();
-  await checkScope(tx, userId, permission, r.sport, r.team_id);
+  const required =
+    r.kind === "tryout" && permission === "recruiting.read"
+      ? "tryouts.read"
+      : r.kind === "tryout" && permission === "recruiting.status"
+        ? "tryouts.status"
+        : permission;
+  await checkScope(tx, userId, required, r.sport, r.team_id);
   return r;
 }
 export async function createProspect(sql: Sql, userId: string, raw: z.infer<typeof prospectInput>) {
@@ -382,19 +400,73 @@ export async function operationalReports(
 ) {
   const input = scopeInput.parse(raw);
   return secured(sql, userId, "reports.read", async (tx) => {
-    await checkScope(tx, userId, "reports.read", input.sport, input.teamId);
-    const [counts] = await tx<{
-      teams: number;
-      players: number;
-    }>`select count(distinct t->>'id')::int as teams,count(p)::int as players from club_state c cross join lateral jsonb_array_elements(c.payload->'teams') t left join lateral jsonb_array_elements(t->'roster') p on coalesce(p->>'withdrawn','false')<>'true' where c.id='oklahoma-prospects' and not c.demo and coalesce(t->>'closed','false')<>'true' and t->>'sport'=${input.sport} and (${input.teamId}='' or t->>'id'=${input.teamId})`;
-    const [intake] = await tx.query<{
-      registrations: number;
-      followups: number;
-    }>(
-      `select count(*)::int as registrations,count(*) filter(where w.follow_up in ('new','follow-up-needed') or w.follow_up is null)::int as followups from club_requests r left join office_request_work w on w.request_id=r.id where r.kind in ('tryout','team-inquiry') and lower(r.payload->>'sport')=$1 and ($2='' or r.payload->>'preferredTeamId'=$2) and ${classifiedRequest}`,
-      [input.sport, input.teamId],
+    const current = await grants(tx, userId, true);
+    const can = (p: import("./contracts").Capability) =>
+      permits(current, p, input.sport, input.teamId);
+    const enabled = (
+      [
+        "reports.read",
+        "reports.recruiting",
+        "reports.tryouts",
+        "reports.openings",
+        "reports.attendance",
+        "reports.events",
+        "reports.followups",
+      ] as const
+    ).filter(can);
+    if (!enabled.length) throw new CoordinatorDenied();
+    await checkScope(tx, userId, enabled[0], input.sport, input.teamId);
+    const report: Record<string, number> = {};
+    if (can("reports.read")) {
+      const [counts] = await tx<{
+        teams: number;
+        players: number;
+      }>`select count(distinct t->>'id')::int as teams,count(p)::int as players from club_state c cross join lateral jsonb_array_elements(c.payload->'teams') t left join lateral jsonb_array_elements(t->'roster') p on coalesce(p->>'withdrawn','false')<>'true' where c.id='oklahoma-prospects' and not c.demo and coalesce(t->>'closed','false')<>'true' and t->>'sport'=${input.sport} and (${input.teamId}='' or t->>'id'=${input.teamId})`;
+      Object.assign(report, counts);
+    }
+    if (
+      can("reports.recruiting") ||
+      can("reports.tryouts") ||
+      can("reports.followups") ||
+      can("reports.attendance")
+    ) {
+      const [counts] = await tx.query<{
+        prospects: number;
+        registrations: number;
+        followups: number;
+        attended: number;
+      }>(
+        `select count(*) filter(where r.kind='team-inquiry')::int as prospects,count(*) filter(where r.kind='tryout')::int as registrations,count(*) filter(where w.follow_up in ('new','follow-up-needed') or w.follow_up is null)::int as followups,count(*) filter(where r.kind='tryout' and w.follow_up='attended')::int as attended from club_requests r left join office_request_work w on w.request_id=r.id where r.kind in ('tryout','team-inquiry') and lower(r.payload->>'sport')=$1 and ($2='' or r.payload->>'preferredTeamId'=$2) and ${classifiedRequest}`,
+        [input.sport, input.teamId],
+      );
+      if (can("reports.recruiting")) report.prospects = counts.prospects;
+      if (can("reports.tryouts")) report.registrations = counts.registrations;
+      if (can("reports.followups")) report.followups = counts.followups;
+      if (can("reports.attendance")) report.attended = counts.attended;
+    }
+    if (can("reports.openings")) {
+      const [r] = await tx<{
+        openings: number;
+      }>`select coalesce(sum(o.openings),0)::int as openings from coordinator_team_operations o join club_state c on c.id='oklahoma-prospects' and not c.demo cross join lateral jsonb_array_elements(c.payload->'teams') t where t->>'id'=o.team_id and t->>'sport'=${input.sport} and coalesce(t->>'closed','false')<>'true' and (${input.teamId}='' or o.team_id=${input.teamId})`;
+      report.openings = r.openings;
+    }
+    if (can("reports.events")) {
+      const [r] = await tx<{
+        events: number;
+      }>`select count(*)::int as events from team_activities a join club_state c on c.id='oklahoma-prospects' and not c.demo cross join lateral jsonb_array_elements(c.payload->'teams') t where t->>'id'=a.team_id and t->>'sport'=${input.sport} and coalesce(t->>'closed','false')<>'true' and (${input.teamId}='' or a.team_id=${input.teamId}) and coalesce(a.payload->>'status','')<>'cancelled'`;
+      report.events = r.events;
+    }
+    await audit(
+      tx,
+      userId,
+      "reports.read",
+      "",
+      "allowed",
+      { metrics: Object.keys(report) },
+      input.sport,
+      input.teamId,
     );
-    return { ...counts, ...intake };
+    return report;
   });
 }
 export async function ownActivity(sql: Sql, userId: string, raw: z.infer<typeof scopeInput>) {

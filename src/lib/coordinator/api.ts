@@ -397,3 +397,27 @@ export const recoverCoordinatorTransfer = createServerFn({ method: "POST" })
       data,
     );
   });
+
+import { teamOperationsInput } from "./team-operations-contracts";
+export const getCoordinatorTeamOperations = createServerFn({ method: "POST" })
+  .middleware([coordinatorAuthMiddleware])
+  .validator(id)
+  .handler(async ({ context, data }) => {
+    const { getSql } = await import("../db");
+    return (await import("./team-operations.server")).teamOperations(
+      await getSql(),
+      context.userId,
+      data,
+    );
+  });
+export const saveCoordinatorTeamOperations = createServerFn({ method: "POST" })
+  .middleware([coordinatorAuthMiddleware])
+  .validator(teamOperationsInput)
+  .handler(async ({ context, data }) => {
+    const { getSql } = await import("../db");
+    return (await import("./team-operations.server")).saveTeamOperations(
+      await getSql(),
+      context.userId,
+      data,
+    );
+  });

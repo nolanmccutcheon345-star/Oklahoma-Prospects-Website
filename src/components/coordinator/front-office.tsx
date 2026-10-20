@@ -1,3 +1,4 @@
+import { TeamOperations } from "./team-operations";
 import { RecruitingWorkflow } from "./recruiting-workflow";
 import { UserButton } from "@/lib/auth/gates";
 import { useCallback, useEffect, useState, type FormEvent } from "react";
@@ -81,8 +82,19 @@ export function CoordinatorFrontOffice() {
   const enabled = home.assignments.some((a) => a.status === "active" && a.permissions.length);
   const tabs = [
     ["overview", "Overview", true],
-    ["recruiting", "Recruiting", allowed("recruiting.read") || allowed("recruiting.create")],
-    ["rosters", "Teams & Rosters", allowed("rosters.read")],
+    [
+      "recruiting",
+      "Recruiting",
+      allowed("recruiting.read") || allowed("tryouts.read") || allowed("recruiting.create"),
+    ],
+    [
+      "rosters",
+      "Teams & Rosters",
+      allowed("rosters.read") ||
+        allowed("teams.openings") ||
+        allowed("teams.needs") ||
+        allowed("teams.statistics"),
+    ],
     ["events", "Practices & Events", allowed("events.read") || allowed("practices.create")],
     ["cages", "Cage Availability", allowed("cages.read")],
     [
@@ -91,7 +103,11 @@ export function CoordinatorFrontOffice() {
       allowed("communications.read") || allowed("communications.team.send"),
     ],
     ["drafts", "Website Drafts", allowed("content.draft")],
-    ["reports", "Operational Reports", allowed("reports.read")],
+    [
+      "reports",
+      "Operational Reports",
+      Object.keys(capabilities).some((p) => p.startsWith("reports.") && allowed(p as Capability)),
+    ],
     ["activity", "My Activity", allowed("activity.read")],
   ] as const;
   const current = tabs.find((t) => t[0] === tab && t[2]) ? tab : "overview";
@@ -233,12 +249,13 @@ function CoordinatorModule({
   const [nextCursor, setNextCursor] = useState<HistoryCursor | null>(null);
   const [loaded, setLoaded] = useState(false);
   const load = useCallback(async () => {
-    if (tab === "recruiting" && allowed("recruiting.read")) {
+    if (tab === "recruiting" && (allowed("recruiting.read") || allowed("tryouts.read"))) {
       const page = await api.getCoordinatorRecruiting({ data: { sport, teamId, before } });
       setRecruits(page.items);
       setNextCursor(page.nextCursor);
     }
-    if (tab === "rosters" && teamId) setRoster(await api.getCoordinatorRoster({ data: teamId }));
+    if (tab === "rosters" && teamId && allowed("rosters.read"))
+      setRoster(await api.getCoordinatorRoster({ data: teamId }));
     if (tab === "events" && teamId && allowed("events.read"))
       setSchedule(await api.getCoordinatorSchedule({ data: teamId }));
     if (tab === "messages" && teamId && allowed("communications.read")) {
@@ -326,9 +343,9 @@ function CoordinatorModule({
           {tab === "recruiting" && (
             <>
               <h2 className="text-2xl">Recruiting & Tryout Registrations</h2>
-              {loaded && allowed("recruiting.read") && !recruits.length && (
-                <p>No registrations in this scope.</p>
-              )}
+              {loaded &&
+                (allowed("recruiting.read") || allowed("tryouts.read")) &&
+                !recruits.length && <p>No registrations in this scope.</p>}
               {recruits.map((r) => (
                 <article className="grid gap-2 rounded border p-4" key={r.id}>
                   <h3 className="text-xl">
@@ -343,7 +360,7 @@ function CoordinatorModule({
                     </p>
                   )}
                   <div className="flex flex-wrap gap-2">
-                    {allowed("recruiting.status") && (
+                    {allowed(r.kind === "tryout" ? "tryouts.status" : "recruiting.status") && (
                       <label>
                         Status
                         <select
@@ -517,7 +534,14 @@ function CoordinatorModule({
           {tab === "rosters" && (
             <>
               <h2 className="text-2xl">{teamName} Roster</h2>
-              {!roster.length && loaded && <p>No active roster players.</p>}
+              {(allowed("teams.openings") ||
+                allowed("teams.needs") ||
+                allowed("teams.statistics")) && (
+                <TeamOperations teamId={teamId} allowed={allowed} />
+              )}
+              {allowed("rosters.read") && !roster.length && loaded && (
+                <p>No active roster players.</p>
+              )}
               {roster.map((p) => (
                 <article key={p.id} className="grid gap-2 rounded border p-4">
                   <h3 className="text-xl">

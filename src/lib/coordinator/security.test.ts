@@ -296,6 +296,8 @@ test("team-only recruiting, strict editing, messages, reports, public title inde
         "communications.recruit.send",
         "communications.team.send",
         "reports.read",
+        "reports.recruiting",
+        "reports.followups",
       ],
       "teams",
       ["soft"],
@@ -396,7 +398,7 @@ test("team-only recruiting, strict editing, messages, reports, public title inde
     );
     assert.deepEqual(
       await operationalReports(sql, "softball", { sport: "softball", teamId: "soft" }),
-      { teams: 1, players: 1, registrations: 1, followups: 0 },
+      { teams: 1, players: 1, prospects: 1, followups: 0 },
     );
     await assign("zero", "softball");
     await saveLeadership(sql, "owner", {
@@ -548,7 +550,7 @@ test("account entry and complete historical pages retain current permissions and
     const grant = await assign(
       "softball",
       "softball",
-      ["recruiting.read", "communications.read"],
+      ["tryouts.read", "communications.read"],
       "teams",
       ["soft"],
     );
@@ -607,7 +609,12 @@ test("account entry and complete historical pages retain current permissions and
 test("sport-wide intake and reports reject forged or orphaned team classifications", async () => {
   const { db, sql, assign } = await fixture();
   try {
-    await assign("softball", "softball", ["recruiting.read", "contacts.read", "reports.read"]);
+    await assign("softball", "softball", [
+      "tryouts.read",
+      "contacts.read",
+      "reports.tryouts",
+      "reports.followups",
+    ]);
     await sql`insert into club_requests(id,kind,payload) values
       ('valid','tryout','{"sport":"softball","preferredTeamId":"soft","player":"Allowed"}'),
       ('unassigned','tryout','{"sport":"softball","player":"Unassigned"}'),
@@ -982,6 +989,7 @@ test("former blanket accounts require audited withdrawal before explicit scoped 
   try {
     await assign("zero", "softball", [
       "recruiting.read",
+      "tryouts.read",
       "contacts.read",
       "communications.recruit.send",
       "content.draft",
@@ -1004,6 +1012,7 @@ test("former blanket accounts require audited withdrawal before explicit scoped 
       teamIds: ["soft"],
       permissions: [
         "recruiting.read",
+        "tryouts.read",
         "contacts.read",
         "communications.recruit.send",
         "content.draft",
@@ -1118,11 +1127,9 @@ test("follow-up assignment, tryout attendance and delivery history use independe
       );
       await assert.rejects(recruitingDelivery(sql, actor, input.requestId));
     }
-    await assign("softball", "softball", ["recruiting.read"], "teams", ["soft"]);
+    await assign("softball", "softball", ["tryouts.read"], "teams", ["soft"]);
     await assign("baseball", "baseball", ["recruiting.read"]);
-    await assign("zero", "softball", ["recruiting.read", "recruiting.followups"], "teams", [
-      "soft",
-    ]);
+    await assign("zero", "softball", ["tryouts.read", "recruiting.followups"], "teams", ["soft"]);
     const workspace = await followupWorkspace(sql, "zero", input.requestId);
     assert.deepEqual(workspace.assignees.map((a) => a.id).sort(), ["owner", "softball", "zero"]);
     assert.doesNotMatch(JSON.stringify(workspace), /@|PRIVATE-MEDICAL|PRIVATE-PAYMENT/);
@@ -1139,7 +1146,7 @@ test("follow-up assignment, tryout attendance and delivery history use independe
         status: "attended",
       }),
     );
-    await assign("zero", "softball", ["recruiting.read", "recruiting.status"]);
+    await assign("zero", "softball", ["tryouts.read", "tryouts.status"]);
     await assert.rejects(
       editRequest(sql, "zero", {
         action: "status",
@@ -1150,6 +1157,7 @@ test("follow-up assignment, tryout attendance and delivery history use independe
     );
     await assign("zero", "softball", [
       "recruiting.read",
+      "tryouts.read",
       "tryouts.attendance",
       "communications.delivery.read",
     ]);
@@ -1498,6 +1506,137 @@ test("scheduled reviews are idempotent, owner-scoped, append-only, minimized and
       0,
     );
     await assert.rejects(scheduledCoordinatorReviews(sql, "owner"));
+  } finally {
+    await db.close();
+  }
+});
+
+test("prospect, tryout, report and team-operation grants remain independent with no silent expansion", async () => {
+  const { db, sql, assign } = await fixture();
+  const { teamOperations, saveTeamOperations } = await import("./team-operations.server");
+  try {
+    await sql`insert into club_requests(id,kind,payload) values('granular-prospect','team-inquiry','{"sport":"softball","preferredTeamId":"soft","player":"Prospect","email":"PRIVATE-CONTACT"}'),('granular-tryout','tryout','{"sport":"softball","preferredTeamId":"soft","player":"Tryout"}'),('granular-other','tryout','{"sport":"baseball","preferredTeamId":"base","player":"OTHER-SPORT"}')`;
+    await assign(
+      "zero",
+      "softball",
+      ["recruiting.read", "recruiting.status", "reports.read"],
+      "teams",
+      ["soft"],
+    );
+    assert.deepEqual(
+      (await recruiting(sql, "zero", { sport: "softball", teamId: "soft" })).items.map((r) => r.id),
+      ["granular-prospect"],
+    );
+    await assert.rejects(
+      editRequest(sql, "zero", {
+        action: "status",
+        id: "granular-tryout",
+        revision: 0,
+        status: "contacted",
+      }),
+    );
+    assert.deepEqual(await operationalReports(sql, "zero", { sport: "softball", teamId: "soft" }), {
+      teams: 1,
+      players: 1,
+    });
+    await assign(
+      "zero",
+      "softball",
+      ["tryouts.read", "tryouts.status", "reports.tryouts"],
+      "teams",
+      ["soft"],
+    );
+    assert.deepEqual(
+      (await recruiting(sql, "zero", { sport: "softball", teamId: "soft" })).items.map((r) => r.id),
+      ["granular-tryout"],
+    );
+    await assert.rejects(
+      editRequest(sql, "zero", {
+        action: "status",
+        id: "granular-prospect",
+        revision: 0,
+        status: "contacted",
+      }),
+    );
+    await editRequest(sql, "zero", {
+      action: "status",
+      id: "granular-tryout",
+      revision: 0,
+      status: "contacted",
+    });
+    assert.deepEqual(await operationalReports(sql, "zero", { sport: "softball", teamId: "soft" }), {
+      registrations: 1,
+    });
+    await assert.rejects(operationalReports(sql, "zero", { sport: "baseball", teamId: "base" }));
+    await assert.rejects(operationalReports(sql, "zero", { sport: "softball", teamId: "" }));
+    await assert.rejects(teamOperations(sql, "zero", "soft"));
+    await assign("zero", "softball", ["teams.openings"], "teams", ["soft"]);
+    assert.deepEqual(await teamOperations(sql, "zero", "soft"), { revision: 0, openings: 0 });
+    await saveTeamOperations(sql, "zero", {
+      teamId: "soft",
+      revision: 0,
+      field: "openings",
+      value: 3,
+    });
+    await assert.rejects(
+      saveTeamOperations(sql, "zero", {
+        teamId: "soft",
+        revision: 1,
+        field: "needs",
+        value: "Pitchers",
+      }),
+    );
+    await assert.rejects(
+      saveTeamOperations(sql, "zero", { teamId: "soft", revision: 0, field: "openings", value: 4 }),
+      /changed/,
+    );
+    await assert.rejects(teamOperations(sql, "zero", "base"));
+    await assign("zero", "softball", ["teams.needs", "reports.openings"], "teams", ["soft"]);
+    assert.deepEqual(await teamOperations(sql, "zero", "soft"), { revision: 1, needs: "" });
+    await saveTeamOperations(sql, "zero", {
+      teamId: "soft",
+      revision: 1,
+      field: "needs",
+      value: "Pitchers and catchers",
+    });
+    assert.deepEqual(await operationalReports(sql, "zero", { sport: "softball", teamId: "soft" }), {
+      openings: 3,
+    });
+    assert.equal(
+      (await sql`select openings from coordinator_team_operations where team_id='soft'`)[0]
+        .openings,
+      3,
+    );
+    assert.doesNotMatch(
+      JSON.stringify(await teamOperations(sql, "zero", "soft")),
+      /PRIVATE|payments|guardian|openings/,
+    );
+    const previous = await sql`select payload from club_state`;
+    await assign("zero", "softball", ["rosters.number"], "teams", ["soft"]);
+    const [p] = await sql<{
+      number: string;
+    }>`select payload->'teams'->1->'roster'->0->>'number' as number from club_state`;
+    await sql`update club_state set payload=jsonb_set(payload,'{teams,1,roster}',(payload->'teams'->1->'roster')||jsonb_build_array(jsonb_build_object('id','second-player','number','88'))) where id='oklahoma-prospects'`;
+    await assert.rejects(
+      editRoster(sql, "zero", {
+        teamId: "soft",
+        playerId: "soft-player",
+        revision: 1,
+        field: "number",
+        value: "88",
+      }),
+      /already assigned/,
+    );
+    assert.equal(
+      (await sql`select payload->'teams'->1->'roster'->0->>'number' as number from club_state`)[0]
+        .number,
+      p.number,
+    );
+    assert.equal(
+      (await sql<{ team: { id: string } }>`select payload->'teams'->0 as team from club_state`)[0]
+        .team.id,
+      (previous[0].payload as { teams: { id: string }[] }).teams[0].id,
+    );
   } finally {
     await db.close();
   }

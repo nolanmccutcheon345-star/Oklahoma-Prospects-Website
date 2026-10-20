@@ -194,7 +194,7 @@ try {
   await sql`insert into organization_operational_access(user_id,status,updated_by) values('fixture-org','active','fixture-owner')`;
   await sql`insert into finance_audit(actor_id,record_id,action,reason) values('fixture-owner','fixture-finance','test',${financialCanaries[0]})`;
   await sql`insert into club_requests(id,kind,payload) values('fixture-billing','refund-review',${JSON.stringify({ note: financialCanaries[1], amount: 91378426 })}::jsonb)`;
-  await sql`insert into coordinator_assignments(user_id,sport,coverage,permissions,updated_by) values('fixture-zero','softball','sport','{}','fixture-owner'),('fixture-coach','softball','sport',array['recruiting.read','rosters.read'],'fixture-owner')`;
+  await sql`insert into coordinator_assignments(user_id,sport,coverage,permissions,updated_by) values('fixture-zero','softball','sport','{}','fixture-owner'),('fixture-coach','softball','sport',array['tryouts.read','rosters.read'],'fixture-owner')`;
   await sql`update club_requests set payload=payload||'{"sport":"Softball","preferredTeamId":"fixture-team"}'::jsonb where id='fixture-registration'`;
   if (process.env.COORDINATOR_TRANSPORT_ONLY === "true") {
     // Real compiled HTTP authentication/server-function transport without a UI.
@@ -411,7 +411,7 @@ try {
       ...assignment,
       revision: 1,
       teamIds: ["fixture-team"],
-      permissions: ["recruiting.read"],
+      permissions: ["tryouts.read"],
     });
     assert.doesNotMatch(granted.body, /CoordinatorDenied|ACCESS_DENIED|"name":"Error"/);
     const scoped = await rpc(orgCookie, "getCoordinatorRecruiting", "POST", scope);
@@ -766,9 +766,9 @@ try {
     await owner.page.getByLabel("Coverage", { exact: true }).selectOption("sport");
     await owner.page
       .locator("summary")
-      .filter({ hasText: /^recruiting \(/i })
+      .filter({ hasText: /^tryouts \(/i })
       .click();
-    await owner.page.getByLabel("View prospects and tryout registrations", { exact: true }).check();
+    await owner.page.getByLabel("View tryout registrations", { exact: true }).check();
     await owner.page.getByRole("button", { name: "Save Permissions", exact: true }).click();
     await owner.page
       .getByText("Permissions saved. Server access has been updated.", { exact: true })
@@ -780,7 +780,7 @@ try {
       (
         await sql`select permissions from coordinator_assignments where user_id='fixture-org' and sport='softball'`
       )[0].permissions,
-      ["recruiting.read"],
+      ["tryouts.read"],
     );
     const afterTransition = await replay(privilegedReads[0]);
     assert.match(afterTransition.body, /not authorized|CoordinatorDenied|ACCESS_DENIED/i);

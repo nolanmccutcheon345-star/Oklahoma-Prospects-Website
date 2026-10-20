@@ -19,7 +19,7 @@ export async function deliverCenterNotifications(sql: Sql, env: Env, send: typeo
   const scopedStaff = await sql<{
     id: string;
     email: string;
-  }>`select distinct u.id,lower(trim(u.email)) as email from "user" u join coordinator_assignments g on g.user_id=u.id where u."emailVerified"=true and u."disabledAt" is null and g.status='active' and 'recruiting.read'=any(g.permissions)`;
+  }>`select distinct u.id,lower(trim(u.email)) as email from "user" u join coordinator_assignments g on g.user_id=u.id where u."emailVerified"=true and u."disabledAt" is null and g.status='active' and g.permissions && array['recruiting.read','tryouts.read']::text[]`;
   const staff = [...existingStaff, ...scopedStaff];
   const due = await sql<{
     request_id: string;
