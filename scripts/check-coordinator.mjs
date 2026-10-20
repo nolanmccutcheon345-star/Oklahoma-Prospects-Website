@@ -480,7 +480,8 @@ try {
           .getByRole("button", { name: "Camps & Clinics", exact: true })
           .click();
       }
-      await org.page.waitForFunction((text) => document.body.innerText.includes(text), marker);
+      // CSS uppercases visible headings; inspect DOM text without presentation transforms.
+      await org.page.waitForFunction((text) => document.body.textContent.includes(text), marker);
       for (const canary of financialCanaries)
         assert.ok(!(await org.page.locator("body").innerText()).includes(canary));
     }
