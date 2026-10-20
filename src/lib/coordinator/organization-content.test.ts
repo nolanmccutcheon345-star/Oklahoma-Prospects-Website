@@ -48,13 +48,15 @@ async function fixture(mode = "legacy") {
     ["owner", "admin"],
     ["sara", "parent"],
     ["other", "parent"],
+    ["editor", "admin"],
+    ["editor2", "admin"],
     ["guardian", "parent"],
     ["fake", "admin"],
   ]) {
     await sql`insert into "user"(id,name,email,"emailVerified") values(${id},${id},${id + "@example.invalid"},true)`;
     await sql`insert into profiles(user_id,name,email,role,family_id) values(${id},${id},${id + "@example.invalid"},${role},${id})`;
   }
-  await sql`insert into owner_grants(user_id,email) values('owner','owner@example.invalid')`;
+  await sql`insert into owner_grants(user_id,email) values('owner','owner@example.invalid'),('editor','editor@example.invalid'),('editor2','editor2@example.invalid')`;
   await sql`insert into organization_operational_access(user_id,status,updated_by) values('sara','active','owner'),('other','active','owner')`;
   const club = sampleClub();
   club._demo = false;
@@ -134,7 +136,7 @@ test("unclassified historical narratives remain withheld; owner review is projec
   const sql = await fixture();
   const id = randomUUID();
   await sql`insert into coordinator_drafts(id,user_id,sport,title,body) values(${id},'owner','baseball','PRIVATE-DRAFT','PRIVATE-DRAFT-BODY')`;
-  const hidden = await organizationContent(sql, "sara");
+  const hidden = await organizationContent(sql, "owner");
   assert.equal(hidden.profiles[0].profile, null);
   assert.equal(hidden.metrics[0].detail, null);
   assert.deepEqual(hidden.withheld, { drafts: 1, profiles: 1, metrics: 1, documents: 2 });
@@ -164,12 +166,12 @@ test("unclassified historical narratives remain withheld; owner review is projec
   );
   await classifyAll(sql);
   assert.equal(
-    (await organizationContent(sql, "sara")).profiles[0].profile?.bio,
+    (await organizationContent(sql, "owner")).profiles[0].profile?.bio,
     "PRIVATE-PROFILE",
   );
   await sql`update recruiting_profiles set revision=revision+1 where athlete_id='athlete'`;
   await sql`update coordinator_drafts set revision=revision+1 where id=${id}`;
-  const stale = await organizationContent(sql, "sara");
+  const stale = await organizationContent(sql, "owner");
   assert.equal(stale.profiles[0].profile, null);
   assert.equal(stale.drafts.length, 0);
 });
@@ -185,11 +187,11 @@ test("editorial drafts are organization-wide, independently reviewed, revision c
     body: "Practice schedule details",
     submit: false,
   };
-  await saveOrganizationEditorialDraft(sql, "sara", draft);
-  await saveOrganizationEditorialDraft(sql, "other", { ...draft, revision: 1, submit: true });
-  const row = (await organizationContent(sql, "sara")).drafts[0];
-  assert.equal(row.authorId, "sara");
-  assert.equal(row.lastEditorId, "other");
+  await saveOrganizationEditorialDraft(sql, "editor", draft);
+  await saveOrganizationEditorialDraft(sql, "editor2", { ...draft, revision: 1, submit: true });
+  const row = (await organizationContent(sql, "owner")).drafts[0];
+  assert.equal(row.authorId, "editor");
+  assert.equal(row.lastEditorId, "editor2");
   const decision = {
     id,
     revision: 2,
@@ -197,17 +199,17 @@ test("editorial drafts are organization-wide, independently reviewed, revision c
     decision: "approved" as const,
     reason: "Reviewed operational announcement",
   };
-  await assert.rejects(decideOrganizationEditorialDraft(sql, "sara", decision));
-  await assert.rejects(decideOrganizationEditorialDraft(sql, "other", decision));
+  await assert.rejects(decideOrganizationEditorialDraft(sql, "editor", decision));
+  await assert.rejects(decideOrganizationEditorialDraft(sql, "editor2", decision));
   await assert.rejects(
     saveOrganizationEditorialDraft(sql, "owner", { ...draft, revision: 2 }),
     /authorized/,
   );
   await decideOrganizationEditorialDraft(sql, "owner", decision);
-  assert.equal((await organizationContent(sql, "sara")).drafts[0].status, "approved");
+  assert.equal((await organizationContent(sql, "owner")).drafts[0].status, "approved");
   await assert.rejects(decideOrganizationEditorialDraft(sql, "owner", decision), /changed/);
-  await saveOrganizationEditorialDraft(sql, "other", { ...draft, revision: 3, submit: true });
-  await sql`update organization_operational_access set status='suspended' where user_id='other'`;
+  await saveOrganizationEditorialDraft(sql, "editor2", { ...draft, revision: 3, submit: true });
+  await sql`update owner_grants set revoked_at=now() where user_id='editor2'`;
   await assert.rejects(
     decideOrganizationEditorialDraft(sql, "owner", {
       ...decision,
@@ -225,12 +227,12 @@ for (const mode of ["legacy", "captured", "basis"])
     const [pdBefore] = await sql<{
       payload: Record<string, unknown>;
     }>`select payload::jsonb as payload from pd_working_file where id='club'`;
-    await saveOrganizationRecruitingProfile(sql, "sara", {
+    await saveOrganizationRecruitingProfile(sql, "owner", {
       athleteId: "athlete",
       revision: 1,
       profile: { ...blankProfile, bio: "Operational biography" },
     });
-    await saveOrganizationRecruitingMetric(sql, "sara", {
+    await saveOrganizationRecruitingMetric(sql, "owner", {
       id: metricId,
       athleteId: "athlete",
       revision: 1,
@@ -240,15 +242,15 @@ for (const mode of ["legacy", "captured", "basis"])
       evidence: "",
       request: true,
     });
-    await reviewOrganizationRecruitingMetric(sql, "sara", {
+    await reviewOrganizationRecruitingMetric(sql, "owner", {
       id: metricId,
       revision: 2,
       approve: true,
       method: "Measured in person",
       note: "Verified operational measurement",
     });
-    const doc = (await organizationContent(sql, "sara")).documents.find((d) => d.id === "doc")!;
-    await saveOrganizationDocumentMetadata(sql, "sara", { ...doc, name: "Updated metadata" });
+    const doc = (await organizationContent(sql, "owner")).documents.find((d) => d.id === "doc")!;
+    await saveOrganizationDocumentMetadata(sql, "owner", { ...doc, name: "Updated metadata" });
     assert.deepEqual(await invariants(sql), before);
     const [after] = await sql<{
       payload: Record<string, unknown>;
@@ -270,7 +272,7 @@ for (const mode of ["legacy", "captured", "basis"])
       "HIDDEN",
     );
     await assert.rejects(
-      saveOrganizationDocumentMetadata(sql, "sara", { ...doc, name: "Stale edit" }),
+      saveOrganizationDocumentMetadata(sql, "owner", { ...doc, name: "Stale edit" }),
       /changed/,
     );
   });
@@ -278,7 +280,7 @@ test("current public consent allows only actually published valid profile fields
   const sql = await fixture();
   await sql`update recruiting_profiles set published=true,consent_by='guardian',consent_name='Guardian',consent_version=${CONSENT_VERSION},consent_at=now() where athlete_id='athlete'`;
   await sql`update recruiting_metrics set status='verified',method='Public verification method',review_note='PRIVATE-REVIEW' where id=${metricId}`;
-  let content = await organizationContent(sql, "sara");
+  let content = await organizationContent(sql, "owner");
   assert.equal(
     content.profiles[0].profile,
     null,
@@ -290,24 +292,24 @@ test("current public consent allows only actually published valid profile fields
     (await organizationContentReview(sql, "owner")).some((s) => s.kind === "recruiting-metric"),
   );
   await sql`update recruiting_profiles set payload=payload-'privateFinancial' where athlete_id='athlete'`;
-  content = await organizationContent(sql, "sara");
+  content = await organizationContent(sql, "owner");
   assert.equal(content.profiles[0].profile?.bio, "PRIVATE-PROFILE");
   const before = await invariants(sql);
-  await saveOrganizationRecruitingProfile(sql, "sara", {
+  await saveOrganizationRecruitingProfile(sql, "owner", {
     athleteId: "athlete",
     revision: 1,
     profile: { ...blankProfile, bio: "Reviewed bio" },
   });
   assert.deepEqual(await invariants(sql), before);
   await assert.rejects(
-    saveOrganizationRecruitingProfile(sql, "sara", {
+    saveOrganizationRecruitingProfile(sql, "owner", {
       athleteId: "athlete",
       revision: 2,
       profile: blankProfile,
       publish: true,
     } as never),
   );
-  await saveOrganizationRecruitingProfile(sql, "sara", {
+  await saveOrganizationRecruitingProfile(sql, "owner", {
     athleteId: "other-athlete",
     revision: 0,
     profile: blankProfile,
@@ -324,12 +326,12 @@ test("current public consent allows only actually published valid profile fields
 test("metadata rejects forged storage/athlete IDs, duplicate row IDs, stale classification and rolls back failed writes", async () => {
   const sql = await fixture();
   await classifyAll(sql);
-  const doc = (await organizationContent(sql, "sara")).documents[0];
+  const doc = (await organizationContent(sql, "owner")).documents[0];
   await assert.rejects(
-    saveOrganizationDocumentMetadata(sql, "sara", { ...doc, storageKey: "forged" } as never),
+    saveOrganizationDocumentMetadata(sql, "owner", { ...doc, storageKey: "forged" } as never),
   );
   await assert.rejects(
-    saveOrganizationDocumentMetadata(sql, "sara", { ...doc, athleteId: "other-athlete" }),
+    saveOrganizationDocumentMetadata(sql, "owner", { ...doc, athleteId: "other-athlete" }),
     /changed/,
   );
   const [before] = await sql<{
@@ -340,7 +342,7 @@ test("metadata rejects forged storage/athlete IDs, duplicate row IDs, stale clas
     `create function deny_content_write() returns trigger language plpgsql as $$begin raise exception 'synthetic rollback';end$$;create trigger deny_content before update on operational_content_classifications for each row execute function deny_content_write();`,
   );
   await assert.rejects(
-    saveOrganizationDocumentMetadata(sql, "sara", { ...doc, name: "Rejected atomic patch" }),
+    saveOrganizationDocumentMetadata(sql, "owner", { ...doc, name: "Rejected atomic patch" }),
     /rollback/,
   );
   assert.deepEqual(
@@ -350,12 +352,54 @@ test("metadata rejects forged storage/athlete IDs, duplicate row IDs, stale clas
   await db.exec("drop trigger deny_content on operational_content_classifications");
   await sql`update pd_working_file set payload=jsonb_set(payload::jsonb,'{documents}',(payload::jsonb->'documents')||jsonb_build_array(payload::jsonb->'documents'->0)),revision=revision+1 where id='club'`;
   await assert.rejects(
-    saveOrganizationDocumentMetadata(sql, "sara", { ...doc, sourceRevision: 2 }),
+    saveOrganizationDocumentMetadata(sql, "owner", { ...doc, sourceRevision: 2 }),
   );
 });
 test("fake, removed, disabled and unverified actors cannot read or mutate operational content", async () => {
   const sql = await fixture();
-  for (const actor of ["fake", "guardian"]) await assert.rejects(organizationContent(sql, actor));
+  for (const actor of ["fake", "guardian", "sara", "other"])
+    await assert.rejects(organizationContent(sql, actor));
+  const draft = {
+    id: randomUUID(),
+    sport: "softball" as const,
+    teamId: "",
+    revision: 0,
+    title: "Denied",
+    body: "Denied",
+    submit: true,
+  };
+  for (const status of ["active", "suspended", "removed"]) {
+    await sql`update organization_operational_access set status=${status} where user_id='sara'`;
+    await assert.rejects(saveOrganizationEditorialDraft(sql, "sara", draft));
+    await assert.rejects(
+      saveOrganizationRecruitingProfile(sql, "sara", {
+        athleteId: "athlete",
+        revision: 1,
+        profile: blankProfile,
+      }),
+    );
+    await assert.rejects(
+      saveOrganizationRecruitingMetric(sql, "sara", {
+        id: metricId,
+        athleteId: "athlete",
+        revision: 1,
+        metric: "exitVelocity",
+        value: 75,
+        measuredOn: "2026-01-02",
+        evidence: "",
+        request: true,
+      }),
+    );
+    await assert.rejects(
+      reviewOrganizationRecruitingMetric(sql, "sara", {
+        id: metricId,
+        revision: 1,
+        approve: true,
+        method: "Denied",
+        note: "Denied",
+      }),
+    );
+  }
   await sql`update "user" set "emailVerified"=false where id='sara'`;
   await assert.rejects(organizationContent(sql, "sara"));
   await sql`update "user" set "emailVerified"=true,"disabledAt"=now() where id='sara'`;
@@ -369,7 +413,7 @@ test("unknown historical metric keys never enter operational DTOs even after cla
   const sql = await fixture();
   const unknownId = randomUUID();
   await sql`insert into recruiting_metrics(id,athlete_id,metric,value,measured_on,evidence,status,submitted_by,review_note) values(${unknownId},'athlete','PRIVATE-SALARY-KEY',987654,'2026-01-01','https://example.invalid/private-unknown','verified','guardian','PRIVATE-UNKNOWN-NOTE')`;
-  let content = await organizationContent(sql, "sara");
+  let content = await organizationContent(sql, "owner");
   assert.equal(content.metrics.length, 1);
   assert.equal(content.metrics[0].metric, "exitVelocity");
   assert.equal(content.metrics[0].value, 70);
@@ -386,7 +430,7 @@ test("unknown historical metric keys never enter operational DTOs even after cla
     confirmed: true,
     reason: "Synthetic owner review of unsupported measurement",
   });
-  content = await organizationContent(sql, "sara");
+  content = await organizationContent(sql, "owner");
   assert.equal(content.metrics.length, 1);
   assert.equal(content.withheld.metrics, 2);
   assert.ok(!JSON.stringify(content).includes("PRIVATE-UNKNOWN-NOTE"));
@@ -399,7 +443,7 @@ test("direct unsupported metric review is rejected after classification without 
   await classifyAll(sql);
   const before = await sql`select * from recruiting_metrics where id=${id}`;
   await assert.rejects(
-    reviewOrganizationRecruitingMetric(sql, "sara", {
+    reviewOrganizationRecruitingMetric(sql, "owner", {
       id,
       revision: 1,
       approve: true,

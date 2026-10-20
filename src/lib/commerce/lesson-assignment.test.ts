@@ -96,7 +96,9 @@ test("owners can assign lessons while financially restricted operations cannot c
       await assert.rejects(() => assignLessonInstructor(role, input), /access|Player/i);
     }
     assert.equal((await lessonAssignmentList("admin"))[0].coachId, null);
-    const operationalRows = await lessonAssignmentList("operations");
+    await assert.rejects(() => lessonAssignmentList("operations"));
+    await assert.rejects(() => lessonInstructorChoices("operations", "lesson"));
+    const operationalRows = await lessonAssignmentList("admin");
     assert.deepEqual(operationalRows, await lessonAssignmentList("admin"));
     assert.deepEqual(
       Object.keys(operationalRows[0]).sort(),
@@ -116,7 +118,7 @@ test("owners can assign lessons while financially restricted operations cannot c
       /total_cents|receipt|snapshot|profit_split|10400|square-paid/,
     );
     assert.deepEqual(
-      await lessonInstructorChoices("operations", "lesson"),
+      await lessonInstructorChoices("admin", "lesson"),
       await lessonInstructorChoices("admin", "lesson"),
     );
     for (const extra of [
@@ -135,7 +137,7 @@ test("owners can assign lessons while financially restricted operations cannot c
     );
     assert.deepEqual((await sql`select * from booking_records where id='lesson'`)[0], before);
     // An initial instructor assignment also determines the future payee.
-    await assert.rejects(() => assignLessonInstructor("operations", input), /owner.*compensation/i);
+    await assert.rejects(() => assignLessonInstructor("operations", input), /authorized|access/i);
     assert.deepEqual((await sql`select * from booking_records where id='lesson'`)[0], before);
     assert.deepEqual(
       await sql`select * from booking_occupancy where booking_id='lesson' order by resource_id,slot_at`,
@@ -199,7 +201,7 @@ test("owners can assign lessons while financially restricted operations cannot c
           expectedCoachId: "available",
           coachId: "busy",
         }),
-      /owner.*compensation/i,
+      /authorized|access/i,
     );
     assert.deepEqual(
       (await sql`select * from booking_records where id='lesson'`)[0],
@@ -215,7 +217,14 @@ test("owners can assign lessons while financially restricted operations cannot c
       ).length >= 2,
     );
     // A matching retry is genuinely idempotent: no booking or occupancy writes.
-    await assignLessonInstructor("operations", {
+    await assert.rejects(() =>
+      assignLessonInstructor("operations", {
+        ...input,
+        expectedCoachId: "available",
+        coachId: "available",
+      }),
+    );
+    await assignLessonInstructor("admin", {
       ...input,
       expectedCoachId: "available",
       coachId: "available",
@@ -265,10 +274,11 @@ test("owners can assign lessons while financially restricted operations cannot c
       (await sql`select user_id from owner_grants where user_id='operations'`).length,
       0,
     );
-    assert.ok(
+    assert.equal(
       (
         await sql`select id from coordinator_audit where actor_id='operations' and action='organization.lessons.assign' and result='allowed'`
       ).length,
+      0,
     );
     for (const status of ["suspended", "removed"]) {
       await sql`update organization_operational_access set status=${status} where user_id='operations'`;
@@ -307,7 +317,14 @@ test("owners can assign lessons while financially restricted operations cannot c
     const { financeWorkspace } = await import("../finance/store.server");
     const financialBefore = await financeWorkspace(sql, "admin");
     const basisBefore = await sql`select * from financial_basis_versions order by version`;
-    await assignLessonInstructor("operations", {
+    await assert.rejects(() =>
+      assignLessonInstructor("operations", {
+        ...input,
+        expectedCoachId: "busy",
+        coachId: "available",
+      }),
+    );
+    await assignLessonInstructor("admin", {
       ...input,
       expectedCoachId: "busy",
       coachId: "available",
