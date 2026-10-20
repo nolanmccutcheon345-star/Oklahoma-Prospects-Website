@@ -1,3 +1,5 @@
+// @ts-expect-error JS build helper alongside TS Vite config
+import { reviewedReleaseIdentity } from "./scripts/reviewed-release.mjs";
 import { readdirSync } from "node:fs";
 import { join } from "node:path";
 import type { Plugin } from "vite";
@@ -167,7 +169,7 @@ function deployPlugins(command: "build" | "serve", isPreview: boolean | undefine
 // `0.0.0.0:8080` is the live-preview contract — don't change host/port.
 // The dev server starts once `src/router.tsx` and `src/routes/` exist — see
 // AGENTS.md § "First scaffold".
-export default defineConfig(({ command, isPreview }) => ({
+export default defineConfig(({ command, isPreview, mode }) => ({
   server: {
     host: "0.0.0.0",
     port: 8080,
@@ -179,12 +181,21 @@ export default defineConfig(({ command, isPreview }) => ({
     strictPort: true,
   },
   define: {
+    "process.env.APP_BUILD_SOURCE_COMMIT": JSON.stringify(
+      reviewedReleaseIdentity({ command, mode }).commit,
+    ),
+    "process.env.APP_BUILD_SOURCE_DIRTY": JSON.stringify(
+      String(reviewedReleaseIdentity({ command, mode }).dirty),
+    ),
     "process.env.SQUARE_DEPLOY_CONTEXT": JSON.stringify(process.env.CONTEXT || "development"),
     // Non-secret owner release directive must reach Functions too; netlify.toml
     // variables otherwise exist only during the build. Runtime credentials and
     // SQUARE_LIVE_ENABLED remain outside the bundle and can still disable payment.
     "process.env.SQUARE_OWNER_FULL_CATALOG_LAUNCH": JSON.stringify(
-      process.env.CONTEXT === 'production' && process.env.SQUARE_OWNER_FULL_CATALOG_LAUNCH === 'true' ? 'true' : 'false',
+      process.env.CONTEXT === "production" &&
+        process.env.SQUARE_OWNER_FULL_CATALOG_LAUNCH === "true"
+        ? "true"
+        : "false",
     ),
     // Grok's preview OAuth client does not accept Netlify callback addresses.
     // Opt in only after a broker client is registered for this deployment.

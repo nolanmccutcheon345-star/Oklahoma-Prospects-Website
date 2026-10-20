@@ -581,6 +581,7 @@ test("only reviewed internal financial consumers import the basis; production mi
     "lib/finance/sources.server.ts",
     "lib/finance/facility.server.ts",
     "lib/finance/self.server.ts",
+    "lib/coordinator/organization-access.server.ts",
   ]);
   for (const file of await readdir("src", { recursive: true })) {
     if (!/\.(tsx?|mjs)$/.test(file) || /\.test(?:[.-])/.test(file)) continue;

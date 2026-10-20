@@ -13,6 +13,6 @@ const migrations = await Promise.all((await readdir('migrations')).filter(f=>f.e
   name, sha256:createHash('sha256').update(await readFile('migrations/'+name)).digest('hex'),
 })));
 await writeFile('public/release.json', JSON.stringify({
-  commit, dirty:Boolean(git(['diff','--stat','HEAD'])), builtAt:new Date().toISOString(), migrations,
+  commit, dirty:Boolean(git(['status','--porcelain','--untracked-files=all'])), builtAt:new Date().toISOString(), migrations,
 },null,2)+'\n');
 console.log(`Release ${commit.slice(0,12)}: ${migrations.length} migration checksums recorded; no database changed.`);
