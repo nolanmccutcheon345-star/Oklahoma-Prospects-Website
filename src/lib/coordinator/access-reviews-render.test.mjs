@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { withRendered } from "../../../scripts/render-component-support.mjs";
 const mocks = {
-  "@/lib/coordinator/api": `export const getCoordinatorAccessReviews=()=>globalThis.accessReviewUi.load(); export const recordCoordinatorAccessReview=({data})=>globalThis.accessReviewUi.save(data); export const saveCoordinatorAccessReviewPolicy=({data})=>globalThis.accessReviewUi.policy(data);`,
+  "@/lib/coordinator/api": `export const getScheduledCoordinatorReviews=async()=>[]; export const getCoordinatorAccessReviews=()=>globalThis.accessReviewUi.load(); export const recordCoordinatorAccessReview=({data})=>globalThis.accessReviewUi.save(data); export const saveCoordinatorAccessReviewPolicy=({data})=>globalThis.accessReviewUi.policy(data);`,
 };
 const initial = () => ({
   assignments: [

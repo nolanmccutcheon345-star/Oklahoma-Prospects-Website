@@ -379,6 +379,65 @@ try {
       pinnedBefore,
     );
     assert.equal((await rpc(ownerCookie, "getFinance")).body, activeFinanceBefore.body);
+    // Exercise the former-blanket transition through actual authenticated HTTP,
+    // including the transport gate (domain-only tests cannot catch this boundary).
+    const reset = await rpc(ownerCookie, "resetStaffCoordinatorAccess", "POST", {
+      userId: "fixture-org",
+      assignments: [],
+      legacyRevision: 1,
+      reason: "Owner reviewed withdrawal before explicit scoped access",
+      confirmed: true,
+    });
+    assert.doesNotMatch(reset.body, /CoordinatorDenied|ACCESS_DENIED|"name":"Error"/);
+    const assignment = {
+      userId: "fixture-org",
+      sport: "softball",
+      revision: 0,
+      status: "active",
+      coverage: "teams",
+      teamIds: [],
+      permissions: [],
+      confirm: true,
+      independentRolesReviewed: true,
+    };
+    const assigned = await rpc(ownerCookie, "saveStaffRole", "POST", assignment);
+    assert.doesNotMatch(assigned.body, /CoordinatorDenied|ACCESS_DENIED|"name":"Error"/);
+    const scope = { sport: "softball", teamId: "fixture-team" };
+    assert.match(
+      (await rpc(orgCookie, "getCoordinatorRecruiting", "POST", scope)).body,
+      /not authorized/i,
+    );
+    const granted = await rpc(ownerCookie, "saveStaffRole", "POST", {
+      ...assignment,
+      revision: 1,
+      teamIds: ["fixture-team"],
+      permissions: ["recruiting.read"],
+    });
+    assert.doesNotMatch(granted.body, /CoordinatorDenied|ACCESS_DENIED|"name":"Error"/);
+    const scoped = await rpc(orgCookie, "getCoordinatorRecruiting", "POST", scope);
+    assert.match(scoped.body, /Tryout Test Player/);
+    assert.doesNotMatch(scoped.body, /family@example.invalid|555-0100/);
+    assert.match(
+      (
+        await rpc(orgCookie, "getCoordinatorRecruiting", "POST", {
+          sport: "baseball",
+          teamId: "fixture-baseball",
+        })
+      ).body,
+      /not authorized/i,
+    );
+    for (const name of ["getFinance", "getFamilyBilling", "getStaffRoles"])
+      assert.match((await rpc(orgCookie, name)).body, /not authorized/i);
+    const revoked = await rpc(ownerCookie, "saveStaffRole", "POST", {
+      ...assignment,
+      revision: 2,
+      status: "suspended",
+    });
+    assert.doesNotMatch(revoked.body, /CoordinatorDenied|ACCESS_DENIED|"name":"Error"/);
+    assert.match(
+      (await rpc(orgCookie, "getCoordinatorRecruiting", "POST", scope)).body,
+      /not authorized/i,
+    );
     await sql`update organization_operational_access set status='suspended' where user_id='fixture-org'`;
     for (const [name, method, data] of [
       ["getOrganizationWorkspace", "GET"],

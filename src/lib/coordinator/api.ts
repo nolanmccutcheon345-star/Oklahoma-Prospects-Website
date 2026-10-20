@@ -2,8 +2,21 @@ import { resetCoordinatorInput } from "./reset-contracts";
 import { accessReviewInput, reviewPolicyInput } from "./review-contracts";
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
-import { authMiddleware, operationalAuthMiddleware } from "../auth/middleware";
+import {
+  authMiddleware,
+  operationalAuthMiddleware,
+  coordinatorAuthMiddleware,
+} from "../auth/middleware";
 import { coordinatorInvitationInput } from "./invitation-contracts";
+export const getScheduledCoordinatorReviews = createServerFn({ method: "GET" })
+  .middleware([authMiddleware])
+  .handler(async ({ context }) => {
+    const { getSql } = await import("../db");
+    return (await import("./scheduled-reviews.server")).scheduledCoordinatorReviews(
+      await getSql(),
+      context.userId,
+    );
+  });
 export const inviteStaffCoordinator = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
   .validator(coordinatorInvitationInput)
@@ -102,7 +115,7 @@ export const getStaffActivity = createServerFn({ method: "POST" })
     return (await import("./admin.server")).activityWorkspace(await getSql(), context.userId, data);
   });
 export const getCoordinatorTeams = createServerFn({ method: "POST" })
-  .middleware([authMiddleware])
+  .middleware([coordinatorAuthMiddleware])
   .validator(z.enum(["rosters.read", "events.read", "communications.read", "reports.read"]))
   .handler(async ({ context, data }) => {
     const { getSql } = await import("../db");
@@ -113,28 +126,28 @@ export const getCoordinatorTeams = createServerFn({ method: "POST" })
     );
   });
 export const getCoordinatorRoster = createServerFn({ method: "POST" })
-  .middleware([authMiddleware])
+  .middleware([coordinatorAuthMiddleware])
   .validator(id)
   .handler(async ({ context, data }) => {
     const { getSql } = await import("../db");
     return (await import("./operations.server")).roster(await getSql(), context.userId, data);
   });
 export const saveCoordinatorRoster = createServerFn({ method: "POST" })
-  .middleware([authMiddleware])
+  .middleware([coordinatorAuthMiddleware])
   .validator(rosterEditInput)
   .handler(async ({ context, data }) => {
     const { getSql } = await import("../db");
     return (await import("./operations.server")).editRoster(await getSql(), context.userId, data);
   });
 export const getCoordinatorRecruiting = createServerFn({ method: "POST" })
-  .middleware([authMiddleware])
+  .middleware([coordinatorAuthMiddleware])
   .validator(recruitingHistoryInput)
   .handler(async ({ context, data }) => {
     const { getSql } = await import("../db");
     return (await import("./operations.server")).recruiting(await getSql(), context.userId, data);
   });
 export const addCoordinatorProspect = createServerFn({ method: "POST" })
-  .middleware([authMiddleware])
+  .middleware([coordinatorAuthMiddleware])
   .validator(prospectInput)
   .handler(async ({ context, data }) => {
     const { getSql } = await import("../db");
@@ -145,14 +158,14 @@ export const addCoordinatorProspect = createServerFn({ method: "POST" })
     );
   });
 export const editCoordinatorRequest = createServerFn({ method: "POST" })
-  .middleware([authMiddleware])
+  .middleware([coordinatorAuthMiddleware])
   .validator(requestEditInput)
   .handler(async ({ context, data }) => {
     const { getSql } = await import("../db");
     return (await import("./operations.server")).editRequest(await getSql(), context.userId, data);
   });
 export const getCoordinatorMessages = createServerFn({ method: "POST" })
-  .middleware([authMiddleware])
+  .middleware([coordinatorAuthMiddleware])
   .validator(messageHistoryInput)
   .handler(async ({ context, data }) => {
     const { getSql } = await import("../db");
@@ -163,7 +176,7 @@ export const getCoordinatorMessages = createServerFn({ method: "POST" })
     );
   });
 export const sendCoordinatorMessage = createServerFn({ method: "POST" })
-  .middleware([authMiddleware])
+  .middleware([coordinatorAuthMiddleware])
   .validator(messageInput)
   .handler(async ({ context, data }) => {
     const { getSql } = await import("../db");
@@ -174,7 +187,7 @@ export const sendCoordinatorMessage = createServerFn({ method: "POST" })
     );
   });
 export const sendCoordinatorEmail = createServerFn({ method: "POST" })
-  .middleware([authMiddleware])
+  .middleware([coordinatorAuthMiddleware])
   .validator(emailInput)
   .handler(async ({ context, data }) => {
     const { getSql } = await import("../db");
@@ -185,7 +198,7 @@ export const sendCoordinatorEmail = createServerFn({ method: "POST" })
     );
   });
 export const getCoordinatorReports = createServerFn({ method: "POST" })
-  .middleware([authMiddleware])
+  .middleware([coordinatorAuthMiddleware])
   .validator(scopeInput)
   .handler(async ({ context, data }) => {
     const { getSql } = await import("../db");
@@ -196,28 +209,28 @@ export const getCoordinatorReports = createServerFn({ method: "POST" })
     );
   });
 export const getCoordinatorActivity = createServerFn({ method: "POST" })
-  .middleware([authMiddleware])
+  .middleware([coordinatorAuthMiddleware])
   .validator(scopeInput)
   .handler(async ({ context, data }) => {
     const { getSql } = await import("../db");
     return (await import("./operations.server")).ownActivity(await getSql(), context.userId, data);
   });
 export const getCoordinatorSchedule = createServerFn({ method: "POST" })
-  .middleware([authMiddleware])
+  .middleware([coordinatorAuthMiddleware])
   .validator(id)
   .handler(async ({ context, data }) => {
     const { getSql } = await import("../db");
     return (await import("./scheduling.server")).schedules(await getSql(), context.userId, data);
   });
 export const saveCoordinatorPractice = createServerFn({ method: "POST" })
-  .middleware([authMiddleware])
+  .middleware([coordinatorAuthMiddleware])
   .validator(practiceInput)
   .handler(async ({ context, data }) => {
     const { getSql } = await import("../db");
     return (await import("./scheduling.server")).savePractice(await getSql(), context.userId, data);
   });
 export const getCoordinatorCages = createServerFn({ method: "POST" })
-  .middleware([authMiddleware])
+  .middleware([coordinatorAuthMiddleware])
   .validator(scopeInput.extend({ date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/) }).strict())
   .handler(async ({ context, data }) => {
     const { getSql } = await import("../db");
@@ -228,21 +241,21 @@ export const getCoordinatorCages = createServerFn({ method: "POST" })
     );
   });
 export const saveCoordinatorDraft = createServerFn({ method: "POST" })
-  .middleware([authMiddleware])
+  .middleware([coordinatorAuthMiddleware])
   .validator(draftInput)
   .handler(async ({ context, data }) => {
     const { getSql } = await import("../db");
     return (await import("./governance.server")).saveDraft(await getSql(), context.userId, data);
   });
 export const getCoordinatorDrafts = createServerFn({ method: "POST" })
-  .middleware([authMiddleware])
+  .middleware([coordinatorAuthMiddleware])
   .validator(scopeInput)
   .handler(async ({ context, data }) => {
     const { getSql } = await import("../db");
     return (await import("./governance.server")).drafts(await getSql(), context.userId, data);
   });
 export const requestCoordinatorApproval = createServerFn({ method: "POST" })
-  .middleware([authMiddleware])
+  .middleware([coordinatorAuthMiddleware])
   .validator(approvalInput)
   .handler(async ({ context, data }) => {
     const { getSql } = await import("../db");
@@ -317,7 +330,7 @@ export const resetStaffCoordinatorAccess = createServerFn({ method: "POST" })
 
 import { followupInput, attendanceInput } from "./recruiting-workflow-contracts";
 export const getCoordinatorFollowup = createServerFn({ method: "POST" })
-  .middleware([authMiddleware])
+  .middleware([coordinatorAuthMiddleware])
   .validator(id)
   .handler(async ({ context, data }) => {
     const { getSql } = await import("../db");
@@ -328,7 +341,7 @@ export const getCoordinatorFollowup = createServerFn({ method: "POST" })
     );
   });
 export const saveCoordinatorFollowup = createServerFn({ method: "POST" })
-  .middleware([authMiddleware])
+  .middleware([coordinatorAuthMiddleware])
   .validator(followupInput)
   .handler(async ({ context, data }) => {
     const { getSql } = await import("../db");
@@ -339,7 +352,7 @@ export const saveCoordinatorFollowup = createServerFn({ method: "POST" })
     );
   });
 export const saveCoordinatorTryoutAttendance = createServerFn({ method: "POST" })
-  .middleware([authMiddleware])
+  .middleware([coordinatorAuthMiddleware])
   .validator(attendanceInput)
   .handler(async ({ context, data }) => {
     const { getSql } = await import("../db");
@@ -350,7 +363,7 @@ export const saveCoordinatorTryoutAttendance = createServerFn({ method: "POST" }
     );
   });
 export const getCoordinatorRecruitingDelivery = createServerFn({ method: "POST" })
-  .middleware([authMiddleware])
+  .middleware([coordinatorAuthMiddleware])
   .validator(id)
   .handler(async ({ context, data }) => {
     const { getSql } = await import("../db");

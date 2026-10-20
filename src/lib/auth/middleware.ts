@@ -68,3 +68,16 @@ export const authMiddleware = createMiddleware({ type: "function" })
     return next();
   });
 export const operationalAuthMiddleware = verifiedSessionMiddleware;
+
+/** Explicit transport for reviewed sport/team-scoped coordinator functions.
+ * The domain handler must still authorize its exact capability and record in
+ * the data transaction. This never opens legacy mixed-data or owner routes. */
+export const coordinatorAuthMiddleware = createMiddleware({ type: "function" })
+  .middleware([verifiedSessionMiddleware])
+  .server(async ({ next, context }) => {
+    const { getSql } = await import("../db");
+    const { grants, CoordinatorDenied } = await import("../coordinator/access.server");
+    const current = await grants(await getSql(), context.userId);
+    if (!current.some((g) => g.status === "active")) throw new CoordinatorDenied();
+    return next();
+  });

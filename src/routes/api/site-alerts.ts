@@ -23,8 +23,16 @@ export const Route = createFileRoute("/api/site-alerts")({
             await import("@/lib/commerce/recovery-health.server");
           const sql = await getSql(),
             c = squareConfig();
-          if (!siteAlertsEnabled() || c.environment !== "production")
-            return Response.json({ ok: true, skipped: true });
+          if (c.environment !== "production") return Response.json({ ok: true, skipped: true });
+          const { runScheduledCoordinatorReviews } =
+            await import("@/lib/coordinator/scheduled-reviews.server");
+          const reviews = await runScheduledCoordinatorReviews(sql);
+          if (!siteAlertsEnabled())
+            return Response.json({
+              ok: true,
+              skipped: true,
+              coordinatorReviewRuns: reviews.created,
+            });
           const summary = await recordRecoveryRun(sql, c.environment, "notifications", async () => {
             const payments = await sendPaymentNotifications();
             const alerts = await flushSiteAlerts();

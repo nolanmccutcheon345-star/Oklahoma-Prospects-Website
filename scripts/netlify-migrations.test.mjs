@@ -117,6 +117,7 @@ for (const baselineVersion of [66, 76, 79])
             "0080_retire_blanket_delivery.sql",
             "0081_coordinator_scoped_transition.sql",
             "0082_coordinator_recruiting_workflow.sql",
+            "0083_coordinator_review_runs.sql",
           ],
         );
       for (const { name } of late) {

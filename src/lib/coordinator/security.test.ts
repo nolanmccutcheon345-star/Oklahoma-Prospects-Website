@@ -36,6 +36,10 @@ import { savePractice, schedules, cageOccupancy } from "./scheduling.server";
 import { saveDraft, requestApproval, decideApproval } from "./governance.server";
 import { publicPeopleFor } from "../person-public.server";
 import { registrationRowsFor } from "../registrations.server";
+import {
+  runScheduledCoordinatorReviews,
+  scheduledCoordinatorReviews,
+} from "./scheduled-reviews.server";
 import { frontOfficeFor } from "../front-office.server";
 async function fixture() {
   const db = new PGlite();
@@ -1379,6 +1383,121 @@ test("owner-approved transfers execute atomically with current scope and can be 
       )[0].n,
       1,
     );
+  } finally {
+    await db.close();
+  }
+});
+
+test("scheduled reviews are idempotent, owner-scoped, append-only, minimized and transactional with their outbox", async () => {
+  const { db, sql, assign } = await fixture();
+  try {
+    await assign("softball", "softball", ["rosters.read"], "teams", ["soft"]);
+    const grantsBefore = await sql`select * from coordinator_assignments order by user_id,sport`;
+    const now = new Date("2030-04-04T14:00:00Z");
+    assert.equal(
+      (await runScheduledCoordinatorReviews(sql, new Date("2030-04-04T10:00:00Z"))).created,
+      0,
+    );
+    assert.equal((await runScheduledCoordinatorReviews(sql, now)).created, 4);
+    assert.equal((await runScheduledCoordinatorReviews(sql, now)).created, 0);
+    const rows = await scheduledCoordinatorReviews(sql, "owner");
+    assert.equal(rows.length, 4);
+    assert.equal(
+      rows.find((r) => r.cadence === "weekly")!.period_end.toISOString(),
+      "2030-04-01T05:00:00.000Z",
+    );
+    assert.equal(
+      rows.find((r) => r.cadence === "monthly")!.period_start.toISOString(),
+      "2030-03-01T06:00:00.000Z",
+    );
+    assert.equal(
+      rows.find((r) => r.cadence === "quarterly")!.period_start.toISOString(),
+      "2030-01-01T06:00:00.000Z",
+    );
+    assert.ok(rows.every((r) => r.findings.length === 0));
+    assert.doesNotMatch(JSON.stringify(rows), /@|PRIVATE-MEDICAL|PRIVATE-PAYMENT|Guardian/);
+    assert.deepEqual(
+      await sql`select * from coordinator_assignments order by user_id,sport`,
+      grantsBefore,
+    );
+    for (const actor of ["softball", "baseball", "zero", "parent", "coach", "fake"])
+      await assert.rejects(scheduledCoordinatorReviews(sql, actor));
+    assert.equal(
+      (await sql`select * from site_alert_deliveries where audience='coordinator-owners'`).length,
+      4,
+    );
+    assert.deepEqual(
+      (
+        await sql`select distinct recipient from site_alert_deliveries where audience='coordinator-owners'`
+      ).map((r) => r.recipient),
+      ["owner@example.invalid"],
+    );
+    await assert.rejects(sql`update coordinator_review_runs set findings='[]'::jsonb`);
+    await assert.rejects(sql`delete from coordinator_review_runs`);
+    await assert.rejects(sql`truncate coordinator_review_runs`);
+    // An invalid scope and disabled account are findings, never auto-repaired grants.
+    await sql`update coordinator_assignments set team_ids=array['base'] where user_id='softball'`;
+    await sql`update "user" set "disabledAt"=now() where id='softball'`;
+    await sql`alter table coordinator_audit disable trigger immutable_audit`;
+    assert.equal(
+      (await runScheduledCoordinatorReviews(sql, new Date("2030-04-05T14:00:00Z"))).created,
+      1,
+    );
+    const findingRows = await scheduledCoordinatorReviews(sql, "owner");
+    assert.deepEqual(
+      findingRows
+        .find((r) => r.id === "daily:2030-04-05")!
+        .findings.map((f) => f.code)
+        .sort(),
+      ["audit-protection-missing", "inactive-account-retained-grants", "invalid-team-scope"],
+    );
+    await sql`alter table coordinator_audit enable trigger immutable_audit`;
+    // A failed outbox insert must not consume the daily review receipt.
+    await sql.query(
+      "create function synthetic_review_failure() returns trigger language plpgsql as $$ begin raise exception 'Synthetic outbox failure'; end $$",
+    );
+    await sql.query(
+      "create trigger synthetic_review_failure before insert on site_alert_deliveries for each row execute function synthetic_review_failure()",
+    );
+    await assert.rejects(
+      runScheduledCoordinatorReviews(sql, new Date("2030-04-06T14:00:00Z")),
+      /Synthetic outbox failure/,
+    );
+    assert.equal(
+      (await sql`select id from coordinator_review_runs where id='daily:2030-04-06'`).length,
+      0,
+    );
+    await sql.query("drop trigger synthetic_review_failure on site_alert_deliveries");
+    assert.equal(
+      (await runScheduledCoordinatorReviews(sql, new Date("2030-04-06T14:00:00Z"))).created,
+      1,
+    );
+    await sql`delete from staff_authorities where email='owner@example.invalid' and capability='staff_activity.read'`;
+    await sql`delete from site_alert_events`;
+    let sends = 0;
+    const { deliverSiteAlerts } = await import("../site-alerts.server");
+    await deliverSiteAlerts(
+      sql,
+      {
+        key: "synthetic",
+        from: "staff@example.invalid",
+        origin: "https://example.invalid",
+        production: true,
+        now: new Date("2030-04-06T10:00:00Z"),
+      },
+      (async () => {
+        sends++;
+        return Response.json({ id: "synthetic" });
+      }) as typeof fetch,
+    );
+    assert.equal(sends, 0, "revoked review authority blocks all queued review email");
+    assert.equal(
+      (
+        await sql`select id from site_alert_deliveries where audience='coordinator-owners' and status<>'revoked'`
+      ).length,
+      0,
+    );
+    await assert.rejects(scheduledCoordinatorReviews(sql, "owner"));
   } finally {
     await db.close();
   }

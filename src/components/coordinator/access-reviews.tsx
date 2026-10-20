@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { ScheduledCoordinatorReviews } from "./scheduled-reviews";
 import { Button } from "../ui/button";
 import { capabilities } from "@/lib/coordinator/contracts";
 import { reviewPeriods } from "@/lib/coordinator/review-contracts";
@@ -42,6 +43,7 @@ export function CoordinatorAccessReviews() {
   return (
     <section aria-label="Coordinator access reviews" className="grid gap-4">
       <h3 className="text-xl">Access Reviews</h3>
+      <ScheduledCoordinatorReviews />
       <p>
         Review weekly activity, monthly permissions, and quarterly role coverage. A permission
         change makes the saved review out of date. Recording a review does not grant, renew, or
