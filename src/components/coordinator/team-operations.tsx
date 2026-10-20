@@ -91,7 +91,9 @@ export function TeamOperations({
                   defaultValue={data.openings}
                 />
               </label>
-              <Button disabled={busy}>Save Roster Openings</Button>
+              <Button type="submit" disabled={busy}>
+                Save Roster Openings
+              </Button>
             </form>
           )}
           {allowed("teams.needs") && data.needs !== undefined && (
@@ -128,7 +130,9 @@ export function TeamOperations({
                 Record positions and program needs. Keep medical, financial and private family
                 information out of these notes.
               </p>
-              <Button disabled={busy}>Save Recruiting Needs</Button>
+              <Button type="submit" disabled={busy}>
+                Save Recruiting Needs
+              </Button>
             </form>
           )}
           {allowed("teams.statistics") && data.record && (

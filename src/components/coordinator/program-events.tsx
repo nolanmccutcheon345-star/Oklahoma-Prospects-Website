@@ -127,7 +127,9 @@ export function ProgramEvents({
                   </select>
                 </label>
                 <EventFields coaches={data.coaches} />
-                <Button disabled={busy}>Create Private Event Draft</Button>
+                <Button type="submit" disabled={busy}>
+                  Create Private Event Draft
+                </Button>
               </form>
             </details>
           )}
@@ -171,7 +173,9 @@ export function ProgramEvents({
                       }
                     >
                       <EventFields event={event} coaches={data.coaches} />
-                      <Button disabled={busy}>Save Event Draft</Button>
+                      <Button type="submit" disabled={busy}>
+                        Save Event Draft
+                      </Button>
                     </form>
                   </details>
                 )}
@@ -246,7 +250,9 @@ export function ProgramEvents({
                                 : allowed("cages.reserve")
                             }
                           />
-                          <Button disabled={busy}>Save Session and Cages</Button>
+                          <Button type="submit" disabled={busy}>
+                            Save Session and Cages
+                          </Button>
                         </form>
                       </details>
                     )}
@@ -362,7 +368,9 @@ export function ProgramEvents({
                             Only current team members with an owner-reviewed athlete identity link
                             appear.
                           </p>
-                          <Button disabled={busy}>Review Athlete Assignment</Button>
+                          <Button type="submit" disabled={busy}>
+                            Review Athlete Assignment
+                          </Button>
                         </form>
                       )}
                   </div>
@@ -390,7 +398,9 @@ export function ProgramEvents({
                       }
                     >
                       <SessionFields canReserve={allowed("cages.reserve")} />
-                      <Button disabled={busy}>Add Session and Cages</Button>
+                      <Button type="submit" disabled={busy}>
+                        Add Session and Cages
+                      </Button>
                     </form>
                   </details>
                 )}

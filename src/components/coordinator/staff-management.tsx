@@ -662,6 +662,14 @@ export function StaffRoleManagement() {
                 </>
               )}
               <p>Target: {a.target_id}</p>
+              {a.kind === "tryout-change" && (
+                <details>
+                  <summary>Review proposed schedule</summary>
+                  <pre className="whitespace-pre-wrap break-words text-sm">
+                    {JSON.stringify(a.proposal, null, 2)}
+                  </pre>
+                </details>
+              )}
               <p>Team: {a.team_id || "Authorized sport scope"}</p>
               {a.proposal.destinationTeamId && (
                 <p>Proposed destination: {a.proposal.destinationTeamId}</p>
@@ -675,11 +683,13 @@ export function StaffRoleManagement() {
               <p className="text-sm">
                 {a.kind === "transfer"
                   ? "Approval executes this transfer atomically after rechecking current access, roster revision, eligibility and financial protections. A conflict leaves the request pending and changes no records."
-                  : a.kind === "content"
-                    ? "Approval does not publish. Use the owner content workflow after checking publication consent."
-                    : a.proposal.system === "program"
-                      ? "Approval archives this camp or clinic, cancels future sessions and releases unpaid reservations atomically. Protected or paid reservations remain blocked."
-                      : "Approval cancels the practice and releases its linked unpaid cage reservation atomically."}
+                  : a.kind === "tryout-change"
+                    ? "Approval applies the exact requested tryout schedule and publication state, rechecks current access and shared reservations, and queues family notices atomically. Conflicts leave this request pending."
+                    : a.kind === "content"
+                      ? "Approval does not publish. Use the owner content workflow after checking publication consent."
+                      : a.proposal.system === "program"
+                        ? "Approval archives this camp or clinic, cancels future sessions and releases unpaid reservations atomically. Protected or paid reservations remain blocked."
+                        : "Approval cancels the practice and releases its linked unpaid cage reservation atomically."}
               </p>
               {a.kind === "transfer" &&
                 a.status === "approved" &&

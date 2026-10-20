@@ -496,3 +496,42 @@ export const saveCoordinatorProgramEnrollment = createServerFn({ method: "POST" 
       data,
     );
   });
+
+import {
+  scopedTryoutListInput,
+  scopedTryoutSaveInput,
+  scopedTryoutReviewInput,
+} from "./tryout-scheduling-contracts";
+export const getCoordinatorTryoutSchedule = createServerFn({ method: "POST" })
+  .middleware([coordinatorAuthMiddleware])
+  .validator(scopedTryoutListInput)
+  .handler(async ({ context, data }) => {
+    const { getSql } = await import("../db");
+    return (await import("./tryout-scheduling.server")).scopedTryouts(
+      await getSql(),
+      context.userId,
+      data,
+    );
+  });
+export const saveCoordinatorTryout = createServerFn({ method: "POST" })
+  .middleware([coordinatorAuthMiddleware])
+  .validator(scopedTryoutSaveInput)
+  .handler(async ({ context, data }) => {
+    const { getSql } = await import("../db");
+    return (await import("./tryout-scheduling.server")).saveScopedTryout(
+      await getSql(),
+      context.userId,
+      data,
+    );
+  });
+export const requestCoordinatorTryoutReview = createServerFn({ method: "POST" })
+  .middleware([coordinatorAuthMiddleware])
+  .validator(scopedTryoutReviewInput)
+  .handler(async ({ context, data }) => {
+    const { getSql } = await import("../db");
+    return (await import("./tryout-scheduling.server")).requestTryoutReview(
+      await getSql(),
+      context.userId,
+      data,
+    );
+  });

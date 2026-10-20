@@ -1,3 +1,4 @@
+import { TryoutScheduling } from "./tryout-scheduling";
 import { ProgramEvents } from "./program-events";
 import { TeamOperations } from "./team-operations";
 import { RecruitingWorkflow } from "./recruiting-workflow";
@@ -102,6 +103,7 @@ export function CoordinatorFrontOffice() {
       "Camps & Clinics",
       allowed("events.read") || allowed("camps.create") || allowed("clinics.create"),
     ],
+    ["tryout-schedule", "Tryout Schedule", allowed("events.read") || allowed("tryouts.create")],
     ["cages", "Cage Availability", allowed("cages.read")],
     [
       "messages",
@@ -203,6 +205,12 @@ export function CoordinatorFrontOffice() {
                 </ul>
                 {!g && <p>No active role for this sport.</p>}
               </section>
+            ) : current === "tryout-schedule" ? (
+              <TryoutScheduling
+                key={sport + teamId + g?.revision}
+                teamId={teamId}
+                allowed={allowed}
+              />
             ) : current === "programs" ? (
               <ProgramEvents key={sport + teamId + g?.revision} teamId={teamId} allowed={allowed} />
             ) : (

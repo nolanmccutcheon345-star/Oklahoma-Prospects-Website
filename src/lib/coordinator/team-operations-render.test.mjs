@@ -26,9 +26,7 @@ test("team operations renders only allowed fields and submits exact reviewed rev
         assert.ok(host.querySelector('[name="openings"]'));
         assert.equal(host.querySelector('[name="needs"]'), null);
         await act(async () => {
-          host
-            .querySelector("form")
-            .dispatchEvent(new window.Event("submit", { bubbles: true, cancelable: true }));
+          host.querySelector('form button[type="submit"]').click();
         });
         assert.deepEqual(calls, [
           { data: { teamId: "synthetic-soft", revision: 1, field: "openings", value: 2 } },

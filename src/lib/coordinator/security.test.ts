@@ -1908,3 +1908,217 @@ test("scoped camps and clinics reuse existing events, enrollment and shared cage
     await db.close();
   }
 });
+
+test("scoped tryouts preserve shared occupancy and require exact owner-reviewed publication with current grants", async () => {
+  const { db, sql, assign } = await fixture();
+  const ops = await import("./tryout-scheduling.server");
+  try {
+    await sql`insert into club_staff(id,user_id,name,email,role,active) values('tryout-coach','coach','Synthetic coach','coach@example.invalid','coach',true)`;
+    const caps: Capability[] = [
+      "events.read",
+      "tryouts.create",
+      "tryouts.update",
+      "events.review.request",
+      "events.cancel.request",
+      "cages.reserve",
+      "cages.update",
+      "cages.release",
+    ];
+    const v = {
+      id: randomUUID(),
+      revision: 0,
+      teamId: "soft",
+      season: "Spring 2099",
+      ageGroups: ["13U"],
+      date: "2099-01-12",
+      startTime: "16:00",
+      endTime: "17:00",
+      location: "Facility",
+      capacity: 20,
+      coachId: "tryout-coach",
+      laneIds: ["1"] as "1"[],
+      reason: "Authorized program tryout",
+    };
+    await assign("zero", "softball");
+    await assert.rejects(ops.saveScopedTryout(sql, "zero", v));
+    await assign("zero", "softball", caps, "teams", ["soft"]);
+    await assert.rejects(ops.saveScopedTryout(sql, "zero", { ...v, teamId: "base" }));
+    await ops.saveScopedTryout(sql, "zero", v);
+    await ops.saveScopedTryout(sql, "zero", v);
+    assert.equal((await sql`select id from tryout_events where id=${v.id}`).length, 1);
+    let view = await ops.scopedTryouts(sql, "zero", { teamId: "soft" });
+    assert.equal(view.items[0].status, "draft");
+    assert.doesNotMatch(JSON.stringify(view), /@|medical|total_cents|household/);
+    await assign("baseball", "baseball", caps);
+    await assert.rejects(ops.scopedTryouts(sql, "baseball", { teamId: "soft" }));
+    const current = { ...v, revision: 1 };
+    const review = {
+      id: randomUUID(),
+      change: current,
+      status: "published" as const,
+      confirm: true as const,
+    };
+    await ops.requestTryoutReview(sql, "zero", review);
+    await ops.requestTryoutReview(sql, "zero", review);
+    assert.equal((await sql`select status from tryout_events where id=${v.id}`)[0].status, "draft");
+    await assert.rejects(
+      decideApproval(sql, "zero", {
+        id: review.id,
+        revision: 1,
+        decision: "approved",
+        reason: "Unauthorized self approval",
+        confirm: true,
+      }),
+    );
+    // A previously unscoped applicant must not auto-enroll into this team-bound event.
+    await sql`insert into club_requests(id,kind,payload) values('unscoped-applicant','tryout','{"sport":"Softball","season":"Spring 2099","age":"13U","player":"Unrelated applicant","email":"private@example.invalid","autoEnroll":true}')`;
+    await decideApproval(sql, "owner", {
+      id: review.id,
+      revision: 1,
+      decision: "approved",
+      reason: "Reviewed exact event publication",
+      confirm: true,
+    });
+    assert.equal(
+      (await sql`select status from tryout_events where id=${v.id}`)[0].status,
+      "published",
+    );
+    assert.equal((await sql`select id from tryout_enrollments where event_id=${v.id}`).length, 0);
+    await assert.rejects(
+      ops.saveScopedTryout(sql, "zero", { ...current, revision: 2 }),
+      /owner review/,
+    );
+    const protectedOrder = "protected-tryout-order";
+    await sql`insert into commerce_orders(id,request_key,email,product_id,kind,snapshot,total_cents,status) values(${protectedOrder},${protectedOrder},'private@example.invalid','fixture-cage','cage','{}',9999,'paid')`;
+    await sql`insert into booking_records(id,order_id,product_id,starts_at,ends_at,resources,status) values('protected-tryout-booking',${protectedOrder},'fixture-cage','2099-01-12T23:00:00Z','2099-01-13T00:00:00Z','["lane:1"]','confirmed')`;
+    await sql`insert into booking_occupancy(resource_id,slot_at,booking_id) values('lane:1','2099-01-12T23:00:00Z','protected-tryout-booking')`;
+    const finances = await sql`select to_jsonb(o) as state from commerce_orders o order by id`;
+    const move = {
+      id: randomUUID(),
+      change: { ...v, revision: 2, startTime: "17:00", endTime: "18:00" },
+      status: "published" as const,
+      confirm: true as const,
+    };
+    await ops.requestTryoutReview(sql, "zero", move);
+    const before = await sql`select * from booking_occupancy order by resource_id,slot_at`;
+    await assert.rejects(
+      decideApproval(sql, "owner", {
+        id: move.id,
+        revision: 1,
+        decision: "approved",
+        reason: "Check protected occupancy",
+        confirm: true,
+      }),
+      /reserved|conflict/,
+    );
+    assert.deepEqual(
+      await sql`select * from booking_occupancy order by resource_id,slot_at`,
+      before,
+    );
+    assert.equal(
+      (await sql`select status from coordinator_approvals where id=${move.id}`)[0].status,
+      "pending",
+    );
+    const enrolledId = randomUUID();
+    await sql`insert into club_requests(id,kind,payload) values('scoped-applicant','tryout','{"sport":"Softball","season":"Spring 2099","age":"13U","player":"Scoped applicant","email":"family@example.invalid","preferredTeamId":"soft"}')`;
+    await sql`insert into tryout_enrollments(id,event_id,request_id,applicant_key,status) values(${enrolledId},${v.id},'scoped-applicant','scoped-key','enrolled')`;
+    const valid = {
+      ...move,
+      id: randomUUID(),
+      change: { ...move.change, laneIds: ["2"] as ("1" | "2")[] },
+    };
+    await ops.requestTryoutReview(sql, "zero", valid);
+    // Revocation between request and execution prevents any side effect.
+    await assign("zero", "softball", ["events.read"], "teams", ["soft"]);
+    await assert.rejects(
+      decideApproval(sql, "owner", {
+        id: valid.id,
+        revision: 1,
+        decision: "approved",
+        reason: "Check current permission revocation",
+        confirm: true,
+      }),
+    );
+    await assign("zero", "softball", caps, "teams", ["soft"]);
+    await sql`create function fail_tryout_approval_audit() returns trigger language plpgsql as $$begin if new.action='approval.approved' then raise exception 'injected tryout audit failure';end if;return new;end$$`;
+    await sql`create trigger fail_tryout_approval before insert on coordinator_audit for each row execute function fail_tryout_approval_audit()`;
+    await assert.rejects(
+      decideApproval(sql, "owner", {
+        id: valid.id,
+        revision: 1,
+        decision: "approved",
+        reason: "Check atomic notice rollback",
+        confirm: true,
+      }),
+      /injected tryout/,
+    );
+    assert.equal(
+      (await sql`select id from tryout_notification_outbox where enrollment_id=${enrolledId}`)
+        .length,
+      0,
+    );
+    assert.equal((await sql`select revision from tryout_events where id=${v.id}`)[0].revision, 2);
+    await sql`drop trigger fail_tryout_approval on coordinator_audit`;
+    await decideApproval(sql, "owner", {
+      id: valid.id,
+      revision: 1,
+      decision: "approved",
+      reason: "Move to available cage",
+      confirm: true,
+    });
+    assert.equal(
+      (
+        await sql`select kind from tryout_notification_outbox where enrollment_id=${enrolledId} and status='pending'`
+      )[0].kind,
+      "updated",
+    );
+
+    view = await ops.scopedTryouts(sql, "zero", { teamId: "soft" });
+    assert.deepEqual(view.items[0].laneIds, ["2"]);
+    assert.equal(view.items[0].revision, 3);
+    assert.equal(
+      (
+        await sql`select booking_id from booking_occupancy where resource_id='lane:1' and slot_at='2099-01-12T22:00:00Z'`
+      ).length,
+      0,
+    );
+    await assert.rejects(
+      decideApproval(sql, "owner", {
+        id: move.id,
+        revision: 1,
+        decision: "approved",
+        reason: "Stale schedule must reject",
+        confirm: true,
+      }),
+      /changed/,
+    );
+    const cancel = {
+      id: randomUUID(),
+      change: { ...valid.change, revision: 3 },
+      status: "cancelled" as const,
+      confirm: true as const,
+    };
+    await ops.requestTryoutReview(sql, "zero", cancel);
+    await decideApproval(sql, "owner", {
+      id: cancel.id,
+      revision: 1,
+      decision: "approved",
+      reason: "Cancel approved program tryout",
+      confirm: true,
+    });
+    assert.equal(
+      (await sql`select status from tryout_events where id=${v.id}`)[0].status,
+      "cancelled",
+    );
+    assert.equal(
+      (await sql`select event_id from tryout_event_reservations where event_id=${v.id}`).length,
+      0,
+    );
+    assert.deepEqual(
+      await sql`select to_jsonb(o) as state from commerce_orders o order by id`,
+      finances,
+    );
+  } finally {
+    await db.close();
+  }
+});

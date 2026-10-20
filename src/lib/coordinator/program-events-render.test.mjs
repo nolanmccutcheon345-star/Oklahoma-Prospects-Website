@@ -79,9 +79,7 @@ test("event creation retains its retry identity after uncertain failure and neve
           }))
             form.querySelector(`[name="${key}"]`).value = value;
           form.querySelector('[name="coaches"]').checked = true;
-          await act(async () =>
-            form.dispatchEvent(new dom.window.Event("submit", { bubbles: true, cancelable: true })),
-          );
+          await act(async () => form.querySelector('button[type="submit"]').click());
         };
         await submit();
         assert.match(host.querySelector('[role="alert"]').textContent, /Uncertain/);

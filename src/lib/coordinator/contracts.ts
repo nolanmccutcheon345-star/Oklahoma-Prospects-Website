@@ -6,6 +6,9 @@ export type Sport = (typeof sports)[number];
 export const capabilities = {
   "recruiting.read": "View recruiting prospects",
   "tryouts.read": "View tryout registrations",
+  "tryouts.create": "Create scoped tryout drafts",
+  "tryouts.update": "Edit scoped tryouts",
+  "events.review.request": "Request event publication or protected schedule review",
   "tryouts.status": "Update tryout registration status",
   "recruiting.create": "Add recruiting prospects",
   "recruiting.update": "Edit routine recruiting information",
