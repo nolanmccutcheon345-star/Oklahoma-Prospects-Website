@@ -1,4 +1,5 @@
 import { useEffect, useState, type ReactNode } from "react";
+import { FinancialCutover } from "./financial-cutover";
 import { getFinance, changeFinance, syncFinanceSquare } from "@/lib/finance/api";
 import { today, total } from "@/lib/finance/contracts";
 import { formatMoney as money } from "@/lib/pricing";
@@ -110,6 +111,7 @@ const tabs = [
   "Square & Refunds",
   "Compensation Rules",
   "Audit",
+  "Operational Cutover",
 ] as const;
 export function FinanceWorkspace() {
   const [data, setData] = useState<Awaited<ReturnType<typeof getFinance>>>(),
@@ -307,6 +309,7 @@ export function FinanceWorkspace() {
           ))}
         </section>
       )}
+      {tab === "Operational Cutover" && <FinancialCutover />}
       {tab === "Cash Dashboard" && (
         <>
           <Amounts

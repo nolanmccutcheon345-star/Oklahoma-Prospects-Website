@@ -360,7 +360,29 @@ test("own activity is actor-scoped and returns only allowlisted summary fields",
 
 test("reviewed communication transports explicitly opt in and keep legacy middleware unchanged", async () => {
   const api = await readFile("src/lib/coordinator/organization-communications-api.ts", "utf8");
-  assert.equal((api.match(/\.middleware\(\[operationalAuthMiddleware\]\)/g) || []).length, 4);
+  const names = [
+    "sendOrganizationRecruitingEmail",
+    "getOrganizationDrafts",
+    "saveOrganizationDraft",
+    "getOrganizationOwnActivity",
+    "getOrganizationContent",
+    "getOrganizationContentReview",
+    "classifyOrganizationContent",
+    "saveOrganizationEditorialDraft",
+    "decideOrganizationEditorialDraft",
+    "saveOrganizationRecruitingProfile",
+    "saveOrganizationRecruitingMetric",
+    "reviewOrganizationRecruitingMetric",
+    "saveOrganizationDocumentMetadata",
+  ];
+  assert.deepEqual(
+    [...api.matchAll(/export const (\w+) = createServerFn/g)].map((match) => match[1]).sort(),
+    names.sort(),
+  );
+  assert.equal(
+    (api.match(/\.middleware\(\[operationalAuthMiddleware\]\)/g) || []).length,
+    names.length,
+  );
   assert.match(
     await readFile("src/lib/coordinator/api.ts", "utf8"),
     /\.middleware\(\[authMiddleware\]\)/,

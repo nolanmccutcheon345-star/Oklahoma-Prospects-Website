@@ -1,3 +1,4 @@
+import { FinancialIdentityAdmission } from "@/components/finance/financial-identity-admission";
 import { facilityMonthly, initialFacilityCosts } from "@/lib/teams/facility-overhead";
 import { OverheadRuleEditor } from "./overhead-rule-editor";
 import { useEffect, useState } from "react";
@@ -246,6 +247,17 @@ export function BudgetMasterEditor({ teams }: { teams: Teams }) {
             ),
           )}
         </div>
+        <FinancialIdentityAdmission
+          kind="payroll"
+          onAdmitted={async () => {
+            const latest = await getBudgetMaster();
+            setData((current) =>
+              current
+                ? { ...current, people: latest.people, basisVersion: latest.basisVersion }
+                : latest,
+            );
+          }}
+        />
         <label className="grid gap-1">
           Add person to staffing budget
           <select

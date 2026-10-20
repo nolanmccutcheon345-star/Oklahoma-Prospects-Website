@@ -1,3 +1,4 @@
+import { operationalCoachAvailability } from "../operational-person.server";
 import { getSql, type Sql } from "../db";
 import { z } from "zod";
 import { lockFinancialExecution } from "../finance/execution.server";
@@ -45,7 +46,11 @@ async function assignmentRoster(sql: Sql) {
     await sql<Availability>`select a->>'id' as id,a->>'coachId' as "coachId",a->>'weekday' as weekday,a->>'window' as window
     from pd_working_file f cross join lateral jsonb_array_elements(case when jsonb_typeof(f.payload::jsonb->'availability')='array' then f.payload::jsonb->'availability' else '[]'::jsonb end) a
     where f.id='club' and jsonb_typeof(a->'id')='string' and jsonb_typeof(a->'coachId')='string' and jsonb_typeof(a->'weekday')='string' and jsonb_typeof(a->'window')='string'`;
-  return { coaches: coaches.map((c) => ({ ...c, specialties: [] })), availability };
+  return operationalCoachAvailability(
+    sql,
+    coaches.map((c) => ({ ...c, specialties: [] })),
+    availability,
+  );
 }
 function windowFor(b: Lesson) {
   const parts = new Intl.DateTimeFormat("en-CA", {
@@ -89,7 +94,7 @@ export async function lessonAssignmentList(userId: string) {
         player_name: string | null;
         customer_email: string | null;
       }
-    >`select b.id,b.coach_id,b.starts_at,b.ends_at,s.name as service_name,a.name as player_name,o.email as customer_email from booking_records b join club_services s on s.id=b.product_id and s.kind='lesson' left join club_athletes a on a.id=b.athlete_id left join commerce_orders o on o.id=b.order_id where b.status='confirmed' and b.starts_at>now() and b.checked_in_at is null order by (b.coach_id is not null),b.starts_at,b.id limit 200`;
+    >`select b.id,b.coach_id,b.starts_at,b.ends_at,s.name as service_name,a.name as player_name,o.email as customer_email from operational_booking_schedule b join club_services s on s.id=b.product_id and s.kind='lesson' left join club_athletes a on a.id=b.athlete_id left join commerce_orders o on o.id=b.order_id where b.status='confirmed' and b.starts_at>now() and b.checked_in_at is null order by (b.coach_id is not null),b.starts_at,b.id limit 200`;
     const file = await assignmentRoster(tx);
     return rows.map((b) => ({
       id: b.id,
@@ -110,7 +115,7 @@ export async function lessonInstructorChoices(userId: string, id: string) {
   return secured(sql, userId, "organization.lessons.instructors", async (tx) => {
     await requireOrganizationOperations(tx, userId);
     const [b] =
-      await tx<Lesson>`select b.id,b.product_id,b.coach_id,b.starts_at,b.ends_at,b.resources,b.status,b.checked_in_at from booking_records b join club_services s on s.id=b.product_id and s.kind='lesson' where b.id=${id} and b.status='confirmed' and b.starts_at>now() and b.checked_in_at is null`;
+      await tx<Lesson>`select b.id,b.product_id,b.coach_id,b.starts_at,b.ends_at,b.resources,b.status,b.checked_in_at from operational_booking_schedule b join club_services s on s.id=b.product_id and s.kind='lesson' where b.id=${id} and b.status='confirmed' and b.starts_at>now() and b.checked_in_at is null`;
     if (!b)
       throw new Error(
         "This lesson is no longer available for assignment. Refresh the bookings list.",
@@ -132,8 +137,9 @@ export async function assignLessonInstructor(userId: string, raw: z.infer<typeof
     async (tx) => {
       await requireOrganizationOperations(tx, userId);
       const input = assignmentInput.parse(raw);
+      await tx`select id from booking_records where id=${input.id} for update`;
       const [b] =
-        await tx<Lesson>`select b.id,b.product_id,b.coach_id,b.starts_at,b.ends_at,b.resources,b.status,b.checked_in_at from booking_records b join club_services s on s.id=b.product_id and s.kind='lesson' where b.id=${input.id} for update of b`;
+        await tx<Lesson>`select b.id,b.product_id,b.coach_id,b.starts_at,b.ends_at,b.resources,b.status,b.checked_in_at from operational_booking_schedule b join club_services s on s.id=b.product_id and s.kind='lesson' where b.id=${input.id}`;
       if (!b || b.status !== "confirmed" || b.checked_in_at || new Date(b.starts_at) <= new Date())
         throw new Error("Only upcoming confirmed lessons can be assigned.");
       if (
@@ -181,6 +187,7 @@ export async function assignLessonInstructor(userId: string, raw: z.infer<typeof
         ...new Set([...b.resources.filter((r) => !r.startsWith("coach:")), resource]),
       ];
       await tx`update booking_records set coach_id=${input.coachId},resources=${JSON.stringify(resources)}::jsonb where id=${b.id}`;
+      await tx`update operational_booking_changes set resources=${JSON.stringify(resources)}::jsonb,revision=revision+1,updated_at=now() where booking_id=${b.id} and resources is not null`;
       // Never touch commerce_orders, payment snapshots, credits, participants,
       // lesson times, or facility/athlete occupancy during instructor assignment.
       await audit(tx, userId, "organization.lessons.assign", b.id, "allowed");

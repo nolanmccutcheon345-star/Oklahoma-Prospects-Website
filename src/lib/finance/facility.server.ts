@@ -61,9 +61,13 @@ export async function facilityPayables(
         )[0];
     if (!user) throw Error("A configured payroll person no longer has a linked account.");
     const payeeId =
+      context.basis?.inputs.billing.payrollAccess?.find(
+        (a) => a.userId === p.userId && month >= a.fromMonth,
+      )?.payeeId ||
       attributionRecords.find(
         (r) => r.kind === "payee" && r.payload.email?.toLowerCase() === user.email.toLowerCase(),
-      )?.id || personId(user.email);
+      )?.id ||
+      personId(user.email);
     payees.push({
       id: payeeId,
       email: user.email.toLowerCase(),

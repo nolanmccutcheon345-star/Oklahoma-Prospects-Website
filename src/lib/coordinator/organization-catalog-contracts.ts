@@ -45,7 +45,13 @@ export type OrganizationCatalogService = OrganizationServiceMetadataInput & {
   discipline: string;
   nameEditable: boolean;
 };
-export type OrganizationCatalogSession = { date: string; start: string; end: string };
+export type OrganizationCatalogSession = {
+  date: string;
+  start: string;
+  end: string;
+  location?: string;
+  status?: string;
+};
 export type OrganizationCatalogEvent = OrganizationTrainingEventMetadataInput & {
   type: string;
   sport: "Baseball" | "Softball" | "Both";

@@ -8,7 +8,7 @@ import { loadVerifiedAssessmentIds } from './assessment-gate.server';
 export async function withCommerceRecords(sql: Sql, data: DevelopmentData): Promise<DevelopmentData> {
   const [athletes, bookings, credits] = await Promise.all([
     sql<{id:string;user_id:string|null;household_email:string;name:string;birth_date:string|null;coach_ids:string[];profile:Partial<Athlete>}>`select id,user_id,household_email,name,birth_date::text as birth_date,coach_ids,profile from club_athletes`,
-    sql<{id:string;athlete_id:string;coach_id:string;product_id:string;starts_at:Date;status:string;total_cents:number}>`select b.id,b.athlete_id,b.coach_id,b.product_id,b.starts_at,b.status,coalesce(o.total_cents,0) as total_cents from booking_records b left join commerce_orders o on o.id=b.order_id where b.athlete_id is not null`,
+    sql<{id:string;athlete_id:string;coach_id:string;product_id:string;starts_at:Date;status:string;total_cents:number}>`select b.id,b.athlete_id,b.coach_id,b.product_id,b.starts_at,b.status,coalesce(o.total_cents,0) as total_cents from operational_booking_schedule b left join commerce_orders o on o.id=b.order_id where b.athlete_id is not null`,
     sql<{athlete_id:string;remaining:number}>`select athlete_id,sum(remaining)::integer as remaining from credit_grants where kind='lesson' and expires_at>now() and starts_at<=now() group by athlete_id`,
   ]);
   const catalog = await sql<{id:string;kind:string;name:string;price:number;minutes:number;credits:number;detail:string}>`select id,kind,name,price,minutes,credits,detail from club_services where active=true`;

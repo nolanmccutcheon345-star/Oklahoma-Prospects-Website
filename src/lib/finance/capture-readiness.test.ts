@@ -381,7 +381,7 @@ test("readiness detects paid-unfulfilled, review, partial payment, unknown terms
     "lesson_terms_unavailable",
     "lesson_order_missing",
     "applied_reviewed_bindings_required",
-    "captured_schema_inactive",
+    "explicit_activation_required",
   ])
     assert.ok(
       preview.blockers.some((b) => b.code === code),

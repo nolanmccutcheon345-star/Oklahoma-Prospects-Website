@@ -9,6 +9,7 @@ import { defaultBudget } from "./fee-model";
 import { feeAction, type FeePlan } from "./fee-contracts";
 import {
   feeWorkspace,
+  feeWorkspaceInTransaction,
   mutateFeePlan,
   setFeeBusiness,
   teamUniform,
@@ -816,4 +817,80 @@ test("Sara schedule edits stay financially inert; explicit owner event amendment
   }>`select payload from team_activities where id=${newId}`;
   assert.equal(newLive.payload.date, "2027-06-01");
   assert.equal(newLive.payload.entryFee, undefined);
+});
+
+test("transaction fee reads equal public projections and keep every nested date fixed", async (t) => {
+  const { sql } = await fixture();
+  const asOf = "2027-02-01";
+  await sql`update team_fee_plans set payload=jsonb_set(jsonb_set(payload,'{budget,secondDue}','""'::jsonb),'{players,published-0}',${JSON.stringify({ status: "Invited", note: "", membershipAllocation: 9000, serviceStart: "2027-01-01", serviceEnd: "2027-03-31" })}::jsonb) where team_id='published'`;
+  t.mock.timers.enable({ apis: ["Date"], now: new Date(asOf + "T12:00:00Z") });
+  for (const mode of ["legacy", "captured", "basis"] as const) {
+    if (mode === "captured") await capture(sql);
+    if (mode === "basis") await activateFixture(sql);
+    for (const userId of ["owner", "coach", "parent", "athlete", "stranger"]) {
+      t.mock.timers.setTime(new Date(asOf + "T12:00:00Z").valueOf());
+      const expected = await feeWorkspace(sql, userId);
+      const snapshot = await saved(sql);
+      await withFinancialContext(sql, userId, "read", async (tx, context) => {
+        const originalContext = structuredClone(context);
+        assert.deepEqual(await feeWorkspaceInTransaction(tx, context, asOf), expected);
+        t.mock.timers.setTime(new Date("2027-04-01T12:00:00Z").valueOf());
+        assert.deepEqual(
+          await feeWorkspaceInTransaction(tx, context, asOf),
+          expected,
+          mode + ": preview schedules, payment status, membership recognition and health use asOf",
+        );
+        assert.deepEqual(
+          context,
+          originalContext,
+          "Read normalization never mutates its issued context",
+        );
+      });
+      assert.deepEqual(
+        await saved(sql),
+        snapshot,
+        "Read normalization never writes financial inputs",
+      );
+      if (userId === "owner")
+        assert.notDeepEqual(
+          await feeWorkspace(sql, userId),
+          expected,
+          "Fixture exercises date-sensitive values",
+        );
+    }
+  }
+});
+
+test("transaction fee reads require issued contexts and ignore caller-mutated authority and inputs", async () => {
+  const { sql } = await fixture();
+  const asOf = "2027-02-01";
+  for (const basis of [false, true]) {
+    if (basis) {
+      await capture(sql);
+      await activateFixture(sql);
+    }
+    await withFinancialContext(sql, "parent", "read", async (tx, context) => {
+      const expected = await feeWorkspaceInTransaction(tx, context, asOf);
+      await assert.rejects(
+        () => feeWorkspaceInTransaction(tx, structuredClone(context), asOf),
+        /context from this transaction/,
+      );
+      await assert.rejects(
+        () => feeWorkspaceInTransaction(sql, context, asOf),
+        /context from this transaction/,
+      );
+      context.principal.role = "admin";
+      context.principal.owner = true;
+      context.club.teams = [];
+      context.feePlans = [];
+      assert.deepEqual(await feeWorkspaceInTransaction(tx, context, asOf), expected);
+      await assert.rejects(
+        () => feeWorkspaceInTransaction(tx, context, "2027-02-30"),
+        /valid date/,
+      );
+      await tx`update "user" set "disabledAt"=now() where id='parent'`;
+      await assert.rejects(() => feeWorkspaceInTransaction(tx, context, asOf), /access/);
+      await tx`update "user" set "disabledAt"=null where id='parent'`;
+    });
+  }
 });

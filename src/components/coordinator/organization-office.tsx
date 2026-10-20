@@ -4,6 +4,8 @@ import { UserButton } from "@/lib/auth/gates";
 import { LessonAssignments } from "@/components/commerce/lesson-assignments";
 import { OrganizationPeople } from "./organization-people";
 import { OrganizationEvents } from "./organization-events";
+import { OrganizationBookings } from "./organization-bookings";
+import { OrganizationContent } from "./organization-content";
 import { TryoutEventEditor } from "@/components/tryout-event-editor";
 import { OrganizationLessonCompletion } from "./organization-lesson-completion";
 import { OrganizationDevelopment } from "@/components/coordinator/organization-development";
@@ -52,6 +54,7 @@ const tabs = [
   ["evaluations", "Evaluations"],
   ["messages", "Team Messages"],
   ["drafts", "Website Drafts"],
+  ["content", "Content & Recruiting"],
   ["activity", "My Activity"],
   ["tryouts", "Tryout Events"],
   ["lessons", "Lessons"],
@@ -186,6 +189,7 @@ export function OrganizationOffice() {
     "tournaments",
     "catalog",
     "development",
+    "content",
   ].includes(tab);
   useEffect(() => {
     if (!dirty) return;
@@ -923,7 +927,13 @@ export function OrganizationOffice() {
               </>
             )}
             {tab === "directory" && <OrganizationPeople />}
-            {tab === "bookings" && <OrganizationEvents />}
+            {tab === "content" && <OrganizationContent />}
+            {tab === "bookings" && (
+              <>
+                <OrganizationBookings />
+                <OrganizationEvents />
+              </>
+            )}
             {tab === "resources" && <FacilityResources />}
             {tab === "reports" && <OperationalReports />}
           </>

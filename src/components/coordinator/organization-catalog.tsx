@@ -56,6 +56,8 @@ function EventForm({
           {event.sessions.map((session, index) => (
             <li key={index}>
               {session.date} · {session.start}–{session.end} Central Time
+              {session.location ? " · " + session.location : ""}
+              {session.status === "cancelled" ? " · Cancelled" : ""}
             </li>
           ))}
         </ul>
@@ -296,6 +298,8 @@ export function OrganizationCatalog({ onSaved }: { onSaved?: () => void | Promis
                           {row.sessions.map((session, index) => (
                             <li key={index}>
                               {session.date} · {session.start}–{session.end} Central Time
+                              {session.location ? " · " + session.location : ""}
+                              {session.status === "cancelled" ? " · Cancelled" : ""}
                             </li>
                           ))}
                         </ul>
@@ -311,8 +315,8 @@ export function OrganizationCatalog({ onSaved }: { onSaved?: () => void | Promis
         </>
       )}
       <p className="text-sm text-muted-foreground">
-        New service drafts require owner review before purchase. Archiving preserves existing
-        paid bookings and prepared purchases.
+        New service drafts require owner review before purchase. Archiving preserves existing paid
+        bookings and prepared purchases.
       </p>
     </section>
   );

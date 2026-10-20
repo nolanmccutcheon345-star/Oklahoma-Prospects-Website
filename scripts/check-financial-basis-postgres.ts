@@ -15,6 +15,11 @@ import {
   recordFinancialTeamPaymentInTransaction,
 } from "../src/lib/finance/context.server";
 import { applyFutureActiveSchemaForTest } from "../src/lib/finance/context.test-fixture";
+import {
+  previewOrganizationAccess,
+  applyOrganizationAccess,
+} from "../src/lib/coordinator/organization-access.server";
+import { CoordinatorDenied, hasOrganizationOperations } from "../src/lib/coordinator/access.server";
 import { saveOrganizationTeam } from "../src/lib/coordinator/organization.server";
 import { pendingMigrations } from "./migration-plan.mjs";
 import {
@@ -581,7 +586,7 @@ async function verifyPaymentRace(observer: pg.Client, first: pg.Client, second: 
   return saved;
 }
 
-/** Disposable prospective schema only, after proving production activation is forbidden. */
+/** Disposable active fixture only, after proving capture stays inactive and partial markers fail. */
 async function verifyConsumerGate(observer: pg.Client, first: pg.Client, second: pg.Client) {
   const sql = sqlFor(observer);
   await applyFutureActiveSchemaForTest(sql);
@@ -591,6 +596,9 @@ async function verifyConsumerGate(observer: pg.Client, first: pg.Client, second:
     club: structuredClone(context.club),
   }));
   const [{ rev }] = await sql<{ rev: number }>`select rev from club_state where id=${basisId}`;
+  // Never queue PID queries behind the blocked consumer query.
+  const firstPid = await pid(first),
+    secondPid = await pid(second);
   const locked = deferred(),
     release = deferred();
   let paused = false;
@@ -632,7 +640,7 @@ async function verifyConsumerGate(observer: pg.Client, first: pg.Client, second:
     (error) => ({ error }),
   );
   try {
-    await waitForLock(observer, await pid(second), await pid(first));
+    await waitForLock(observer, secondPid, firstPid);
   } finally {
     release.resolve();
   }
@@ -694,8 +702,151 @@ async function verifyConsumerGate(observer: pg.Client, first: pg.Client, second:
   );
 }
 
+/** Exact-account review must serialize with disabling that same existing account.
+ * Reconstructed from the retained race contract; all changes stay in this fixture. */
+async function verifyAccessGrantDisableRaces(
+  observer: pg.Client,
+  granting: pg.Client,
+  disabling: pg.Client,
+) {
+  const sql = sqlFor(observer);
+  const grantPid = await pid(granting),
+    disablePid = await pid(disabling);
+  const financialSnapshot = async () =>
+    Promise.all(
+      financialTables.map((table) =>
+        sql.query(`select to_jsonb(t) as row from ${table} t order by to_jsonb(t)::text`),
+      ),
+    );
+  const grantRows = () =>
+    sql`select user_id,status,financial_restricted,revision,updated_by from organization_operational_access where user_id=${parent}`;
+  const grantAudits = () =>
+    sql`select actor_id,action,target_id,result from coordinator_audit where action='organization.access.grant' and target_id=${parent} order by id`;
+  const command = async () => {
+    const review = await previewOrganizationAccess(sql, owner, { userId: parent });
+    assert.equal(review.ready, true, review.blockers.join(" "));
+    assert.equal(review.userId, parent);
+    assert.equal(review.revision, 0);
+    assert.equal(review.currentStatus, "not granted");
+    assert.ok(review.basisVersion);
+    return {
+      userId: parent,
+      reviewDigest: review.reviewDigest,
+      expectedRelease: review.release,
+      expectedBasisVersion: review.basisVersion,
+      expectedRevision: review.revision,
+      confirmed: true as const,
+      reason: "Reviewed exact synthetic account grant",
+    };
+  };
+  const before = await financialSnapshot();
+  assert.deepEqual(await grantRows(), []);
+  assert.deepEqual(await grantAudits(), []);
+
+  const firstReview = await command();
+  await disabling.query("begin");
+  await disabling.query('update "user" set "disabledAt"=$2 where id=$1', [parent, now]);
+  const deniedGrant = Promise.allSettled([
+    applyOrganizationAccess(sqlFor(granting), owner, firstReview),
+  ]);
+  let disableCommitted = false;
+  try {
+    await waitForLock(observer, grantPid, disablePid);
+    await disabling.query("commit");
+    disableCommitted = true;
+  } finally {
+    if (!disableCommitted) await disabling.query("rollback");
+  }
+  const [denied] = await deniedGrant;
+  assert.equal(denied.status, "rejected");
+  if (denied.status === "rejected") assert.match(String(denied.reason), /enabled and provisioned/);
+  assert.deepEqual(await grantRows(), []);
+  assert.deepEqual(await grantAudits(), []);
+  await assert.rejects(hasOrganizationOperations(sql, parent), CoordinatorDenied);
+  assert.deepEqual(await financialSnapshot(), before);
+  console.log(
+    "PASS: disable-first account row lock blocks exact-account grant; committed disable rejects it with no grant or audit.",
+  );
+
+  // Restore only this known synthetic account for the opposite ordering.
+  await sql`update "user" set "disabledAt"=null where id=${parent}`;
+  const secondReview = await command();
+  const reached = deferred(),
+    release = deferred();
+  let paused = false;
+  const granted = Promise.allSettled([
+    applyOrganizationAccess(
+      sqlFor(granting, async (query) => {
+        if (
+          !paused &&
+          query.startsWith('select id,name,email,"emailverified","disabledat" from "user"') &&
+          query.endsWith("for share")
+        ) {
+          paused = true;
+          reached.resolve();
+          await release.promise;
+        }
+      }),
+      owner,
+      secondReview,
+    ),
+  ]);
+  await Promise.race([
+    reached.promise,
+    granted.then(() => assert.fail("Grant failed before target-account row-lock checkpoint.")),
+  ]);
+  const disabled = Promise.allSettled([
+    (async () => {
+      await disabling.query("begin");
+      try {
+        await disabling.query('update "user" set "disabledAt"=$2 where id=$1', [parent, now]);
+        await disabling.query("commit");
+      } catch (error) {
+        await disabling.query("rollback");
+        throw error;
+      }
+    })(),
+  ]);
+  try {
+    await waitForLock(observer, disablePid, grantPid);
+  } finally {
+    release.resolve();
+  }
+  const [grantResult] = await granted,
+    [disableResult] = await disabled;
+  assert.equal(grantResult.status, "fulfilled");
+  if (grantResult.status === "fulfilled")
+    assert.deepEqual(grantResult.value, { ok: true, userId: parent, revision: 1 });
+  assert.equal(disableResult.status, "fulfilled");
+  assert.deepEqual(await grantRows(), [
+    {
+      user_id: parent,
+      status: "active",
+      financial_restricted: true,
+      revision: 1,
+      updated_by: owner,
+    },
+  ]);
+  assert.deepEqual(await grantAudits(), [
+    {
+      actor_id: owner,
+      action: "organization.access.grant",
+      target_id: parent,
+      result: "allowed",
+    },
+  ]);
+  // A persisted grant cannot override the next request's current account check.
+  await assert.rejects(hasOrganizationOperations(sql, parent), CoordinatorDenied);
+  assert.deepEqual(await financialSnapshot(), before);
+  console.log(
+    "PASS: grant-first target FOR SHARE blocks disable until grant/audit commit; the next disabled-account request is denied and the financial basis is unchanged.",
+  );
+}
+
 async function main() {
   const config = isolatedConfiguration(); // Reject unsafe inputs BEFORE any connection.
+  process.env.APP_BUILD_SOURCE_COMMIT = "a".repeat(40);
+  process.env.APP_BUILD_SOURCE_DIRTY = "false";
   const clients: pg.Client[] = [];
   try {
     const observer = new pg.Client({
@@ -827,9 +978,10 @@ async function main() {
     assert.deepEqual(await readFinancialBasisForOwner(sql, owner), saved);
     assert.deepEqual(await financialCounts(sql), beforeAlias);
     console.log(
-      "PASS: sticky operations restriction overrides even an owner grant; captured state cannot activate.",
+      "PASS: sticky operations restriction overrides even an owner grant; incomplete activation markers fail.",
     );
     await verifyConsumerGate(observer, capture, insert);
+    await verifyAccessGrantDisableRaces(observer, capture, insert);
     console.log(
       "PASS: real PostgreSQL financial foundation and prospective consumer verification complete (synthetic only; no live cutover/provider coverage).",
     );

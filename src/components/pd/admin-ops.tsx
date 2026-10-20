@@ -1,3 +1,4 @@
+import { FinancialIdentityAdmission } from "@/components/finance/financial-identity-admission";
 import {PersonEditor} from "@/components/staff/person-editor";
 import { formatDollars } from "@/lib/pricing";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -677,6 +678,7 @@ export function AdminStaffDesk() {
           </div>
         </form>
       ) : null}
+      <FinancialIdentityAdmission kind="instructor" onAdmitted={refresh} />
       <CoachEducationProgress
         coaches={staff.map((row) => ({ name: row.name, email: row.email, note: row.role }))}
       />

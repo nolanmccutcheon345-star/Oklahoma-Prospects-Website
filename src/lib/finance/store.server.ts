@@ -1,9 +1,15 @@
 import type { Sql } from "../db";
-import { withFinancialContext, commitFinancialRecordsInTransaction } from "./context.server";
+import {
+  withFinancialContext,
+  commitFinancialRecordsInTransaction,
+  financialReadSnapshotInTransaction,
+  type FinancialContext,
+} from "./context.server";
 import { sourceData } from "./sources.server";
 import { financeSummary } from "./model";
 import {
   financeAction,
+  day,
   today,
   total,
   type FinanceAction,
@@ -33,25 +39,36 @@ export async function write(
   await sql`insert into finance_audit(actor_id,record_id,action,reason,before_state,after_state) values(${actor},${id},${before ? "update" : "create"},${reason},${before ? JSON.stringify(before.payload) : null}::jsonb,${JSON.stringify(value)}::jsonb)`;
 }
 export async function financeWorkspace(sql: Sql, userId: string) {
-  return withFinancialContext(sql, userId, "owner", async (tx, context) => {
-    const rs = await records(tx),
-      [state] = await tx<{
-        revision: number;
-        payload: Settings;
-      }>`select revision,payload from finance_state where id='organization'`;
-    const sources = await sourceData(tx, today(), rs, context);
-    const audit =
-      await tx<any>`select actor_id,record_id,action,reason,before_state,after_state,created_at from finance_audit order by id desc limit 200`;
-    return {
-      revision: state.revision,
-      ...(context.mode === "basis" ? { basisVersion: context.version! } : {}),
-      settings: state.payload,
-      records: rs,
-      sources,
-      summary: financeSummary(rs, state.payload, sources, today()),
-      audit: audit.map((a) => ({ ...a, created_at: new Date(a.created_at).toISOString() })),
-    };
-  });
+  return withFinancialContext(sql, userId, "owner", (tx, context) =>
+    financeWorkspaceInTransaction(tx, context, today()),
+  );
+}
+
+/** Internal owner-only read adapter. It does not refresh accruals or write. */
+export async function financeWorkspaceInTransaction(
+  tx: Sql,
+  issuedContext: FinancialContext,
+  asOf: string,
+) {
+  const context = await financialReadSnapshotInTransaction(tx, issuedContext, "owner");
+  day.parse(asOf);
+  const rs = await records(tx),
+    [state] = await tx<{
+      revision: number;
+      payload: Settings;
+    }>`select revision,payload from finance_state where id='organization'`;
+  const sources = await sourceData(tx, asOf, rs, context);
+  const audit =
+    await tx<any>`select actor_id,record_id,action,reason,before_state,after_state,created_at from finance_audit order by id desc limit 200`;
+  return {
+    revision: state.revision,
+    ...(context.mode === "basis" ? { basisVersion: context.version! } : {}),
+    settings: state.payload,
+    records: rs,
+    sources,
+    summary: financeSummary(rs, state.payload, sources, asOf),
+    audit: audit.map((a) => ({ ...a, created_at: new Date(a.created_at).toISOString() })),
+  };
 }
 export async function mutateFinance(
   sql: Sql,

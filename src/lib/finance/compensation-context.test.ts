@@ -12,7 +12,12 @@ import {
 } from "./basis.server";
 import { sourceData } from "./sources.server";
 import { facilityPayables } from "./facility.server";
-import { financeWorkspace, mutateFinance, records } from "./store.server";
+import {
+  financeWorkspace,
+  financeWorkspaceInTransaction,
+  mutateFinance,
+  records,
+} from "./store.server";
 import { myFinance, myPreference } from "./self.server";
 import { resolveIdentity } from "../identity.server";
 import { completeSessionInTransaction } from "../commerce/portal.server";
@@ -703,4 +708,84 @@ test("existing owner service/staff/person writers approve only future terms with
     (await projection(sql)).sources.candidates.find((p) => p.id === "lesson:lesson"),
     original,
   );
+});
+
+test("transaction finance reads match public projections at a fixed asOf without accrual writes", async (t) => {
+  const { sql, transactionDepth } = await fixture();
+  t.mock.timers.enable({ apis: ["Date"], now: new Date(asOf + "T12:00:00Z") });
+  for (const mode of ["legacy", "captured", "basis"] as const) {
+    if (mode === "captured") {
+      const preview = await previewFinancialBasisInitialization(sql, "owner");
+      await initializeFinancialBasisForOwner(sql, "owner", {
+        ...preview,
+        reason: "Fixed date adapter fixture",
+      });
+    }
+    if (mode === "basis") {
+      await sql.query(
+        "alter table financial_basis_state drop constraint financial_basis_state_activation_state_check, drop constraint financial_basis_state_active_version_check",
+      );
+      await sql`update financial_basis_state set activation_state='active',active_version=current_version`;
+    }
+    t.mock.timers.setTime(new Date(asOf + "T12:00:00Z").valueOf());
+    const expected = await financeWorkspace(sql, "owner");
+    const before = await records(sql);
+    const beforeEarnings = await sql`select * from contractor_earnings order by booking_id`;
+    await withFinancialContext(sql, "owner", "owner", async (tx, context) => {
+      const original = structuredClone(context);
+      assert.equal(transactionDepth(), 1);
+      assert.deepEqual(await financeWorkspaceInTransaction(tx, context, asOf), expected);
+      t.mock.timers.setTime(new Date("2026-11-02T12:00:00Z").valueOf());
+      assert.deepEqual(await financeWorkspaceInTransaction(tx, context, asOf), expected);
+      assert.deepEqual(context, original);
+      assert.deepEqual(await records(tx), before);
+      assert.deepEqual(
+        await tx`select * from contractor_earnings order by booking_id`,
+        beforeEarnings,
+      );
+      context.principal.owner = false;
+      context.club.teams = [];
+      context.feePlans = [];
+      assert.deepEqual(
+        await financeWorkspaceInTransaction(tx, context, asOf),
+        expected,
+        "Projection uses the issued original source",
+      );
+      assert.equal(transactionDepth(), 1);
+    });
+    assert.notDeepEqual(
+      await financeWorkspace(sql, "owner"),
+      expected,
+      mode + " fixture exercises date-sensitive accruals",
+    );
+  }
+});
+
+test("transaction finance reads cannot elevate read-only or forged contexts", async () => {
+  const { sql } = await fixture();
+  for (const basis of [false, true]) {
+    if (basis) await activateFutureSchema(sql);
+    await withFinancialContext(sql, "owner", "owner", async (tx, context) => {
+      await assert.rejects(
+        () => financeWorkspaceInTransaction(tx, structuredClone(context), asOf),
+        /context from this transaction/,
+      );
+      await assert.rejects(
+        () => financeWorkspaceInTransaction(sql, context, asOf),
+        /context from this transaction/,
+      );
+      await assert.rejects(
+        () => financeWorkspaceInTransaction(tx, context, "2026-02-30"),
+        /valid date/,
+      );
+      await tx`update owner_grants set revoked_at=now() where user_id='owner'`;
+      await assert.rejects(() => financeWorkspaceInTransaction(tx, context, asOf), /owner access/);
+      await tx`update owner_grants set revoked_at=null where user_id='owner'`;
+    });
+    await withFinancialContext(sql, "coach", "read", async (tx, context) => {
+      context.principal.owner = true;
+      context.principal.role = "admin";
+      await assert.rejects(() => financeWorkspaceInTransaction(tx, context, asOf), /owner access/);
+    });
+  }
 });

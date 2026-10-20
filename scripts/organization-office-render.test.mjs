@@ -269,6 +269,8 @@ test("organization operations keeps explicit team scope, posts only confirmed me
       "export const getOperationalLessonCompletions=async()=>({canRecord:false,lessons:[]}); export const saveOperationalLessonCompletion=async()=>{throw new Error('Inactive completion must not post');};",
     "./organization-people": "export const OrganizationPeople=()=>null;",
     "./organization-events": "export const OrganizationEvents=()=>null;",
+    "./organization-bookings": "export const OrganizationBookings=()=>null;",
+    "./organization-content": "export const OrganizationContent=()=>null;",
     "@/components/tryout-event-editor": "export const TryoutEventEditor=()=>null;",
     "@/components/coordinator/organization-game-results":
       "import {createElement} from 'react'; export const OrganizationGameResults=({onSaved})=>createElement('section',{'aria-label':'Game results'},createElement('h2',null,'Game Results & Statistics'),createElement('button',{onClick:onSaved},'Save Synthetic Game'));",

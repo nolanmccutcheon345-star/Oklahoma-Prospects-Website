@@ -80,3 +80,49 @@ export const financialAdmissionSchema = z
     reason: z.string().trim().min(1).max(1000),
   })
   .strict();
+
+/** Exact new self-finance identity. Historical selections require separate owner review. */
+export const financialSelfAdmissionSelection = z
+  .object({
+    kind: z.enum(["instructor", "payroll"]),
+    userId: z.string().trim().min(1).max(150),
+    coachId: z.string().trim().max(150).default(""),
+    payeeId: z.string().trim().min(1).max(200),
+    fromMonth: z
+      .string()
+      .regex(/^\d{4}-(0[1-9]|1[0-2])$/)
+      .optional(),
+    bookingIds: z.array(z.string().min(1).max(150)).max(1000).default([]),
+    orderIds: z.array(z.string().min(1).max(150)).max(1000).default([]),
+  })
+  .strict()
+  .superRefine((v, c) => {
+    if (v.kind === "instructor" && !v.coachId)
+      c.addIssue({
+        code: "custom",
+        message: "Choose an approved instructor identity.",
+        path: ["coachId"],
+      });
+    if (
+      v.kind === "payroll" &&
+      (!v.fromMonth || v.coachId || v.bookingIds.length || v.orderIds.length)
+    )
+      c.addIssue({
+        code: "custom",
+        message: "Payroll admission requires a month and no lesson selections.",
+      });
+    if (
+      new Set(v.bookingIds).size !== v.bookingIds.length ||
+      new Set(v.orderIds).size !== v.orderIds.length
+    )
+      c.addIssue({ code: "custom", message: "Choose each lesson and order once." });
+  });
+export const financialSelfAdmissionCommand = z
+  .object({
+    selection: financialSelfAdmissionSelection,
+    expectedBasisVersion: z.number().int().positive(),
+    reviewDigest: z.string().regex(/^[a-f0-9]{64}$/),
+    confirmed: z.literal(true),
+    reason: z.string().trim().min(5).max(1000),
+  })
+  .strict();

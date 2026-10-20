@@ -9,6 +9,8 @@ import { seasonHotelNights, seasonEntryCosts, withScheduledHotels } from "./trav
 import type { Sql } from "../db";
 import {
   withFinancialContext,
+  financialReadSnapshotInTransaction,
+  type FinancialContext,
   commitFinancialFeePlanInTransaction,
   commitFinancialFeeBusinessInTransaction,
   commitFinancialActivityInTransaction,
@@ -18,6 +20,7 @@ import {
 } from "../finance/context.server";
 import { resolveFinancialTeam, resolveFinancialAgreement } from "../finance/basis.server";
 import type { FinancialPrincipal } from "../finance/principal.server";
+import { day } from "../finance/contracts";
 import type { TeamActivity } from "./activity-contracts";
 import type { Team, Player } from "./types";
 import {
@@ -90,7 +93,7 @@ function paid(p: Player) {
 function credit(p: Player) {
   return Math.round(sum((p.credits || []).map((x) => x.amount)) * 100);
 }
-function playerView(t: Team, p: Player, plan: FeePlan) {
+function playerView(t: Team, p: Player, plan: FeePlan, asOf = today()) {
   const offer =
     p.roleType === "po" && !p.feeLock && !offersPO(plan.budget, t.sport)
       ? undefined
@@ -118,14 +121,8 @@ function playerView(t: Team, p: Player, plan: FeePlan) {
     !p.feeLock &&
     !agreedBudget.paymentSchedule &&
     !agreedBudget.secondDue &&
-    today() <= offer.finalDue
-      ? scheduleRows(
-          agreedBudget,
-          total,
-          p.roleType === "po" ? "po" : "full",
-          offer.finalDue,
-          today(),
-        )
+    asOf <= offer.finalDue
+      ? scheduleRows(agreedBudget, total, p.roleType === "po" ? "po" : "full", offer.finalDue, asOf)
       : offer?.schedules?.[p.roleType === "po" ? "po" : "full"];
   const rows = p.planLock?.rows,
     accepted = p.agreement.signedAt?.slice(0, 10) || "",
@@ -154,7 +151,7 @@ function playerView(t: Team, p: Player, plan: FeePlan) {
       accepted,
       second,
       final,
-      today(),
+      asOf,
       policy,
       status,
       rows?.length
@@ -173,197 +170,209 @@ function playerView(t: Team, p: Player, plan: FeePlan) {
   };
 }
 export async function feeWorkspace(sql: Sql, userId: string) {
-  return withFinancialContext(sql, userId, "read", async (tx, context) => {
-    if (!context.clubExists) throw Error("Team records are unavailable.");
-    const me = context.principal,
-      club = context.club;
-    // All presentation normalization stays detached from the authoritative basis.
-    const rows = structuredClone(context.feePlans),
-      activities = context.activities;
-    const canGuard = (player: Player) =>
-      context.mode === "basis"
-        ? isFinancialGuardian(context, player.teamId, player.id)
-        : guardian(player, me);
-    const canCoach = (team: Team) => isFinancialCoach(context, team);
-    for (const row of rows)
-      if (row.payload.status !== "closed")
-        row.payload.budget = {
-          ...row.payload.budget,
-          tournament: row.payload.budget.scheduleCostsAutomatic
-            ? seasonEntryCosts(
-                activities.filter((a) => a.team_id === row.team_id).map((a) => a.payload),
-                row.payload.budget,
-                club.catalog,
-                club.teams.find((t) => t.id === row.team_id)?.tournamentIds || [],
-              )
-            : row.payload.budget.tournament,
-          hotelNightly: row.payload.budget.hotelNightly || 0,
-          hotelNights: seasonHotelNights(
-            activities.filter((a) => a.team_id === row.team_id).map((a) => a.payload),
-            row.payload.budget,
-          ),
-        };
-    const overheadMaster = (await loadBudgetMaster(tx, context)).value;
-    const admin = me.role === "admin";
-    const teams = club.teams
-      .filter((t) => admin || canCoach(t) || t.roster.some((p) => canGuard(p)))
-      .map((t) => {
-        const row = rows.find((r) => r.team_id === t.id),
-          p = row ? { ...row.payload, revision: row.revision } : initial(t),
-          coach = canCoach(t);
-        if (p.published && !p.publishedBudget) p.publishedBudget = structuredClone(p.budget);
-        if (p.status !== "closed")
-          p.budget = teamSeasonOverhead(
-            pendingGas(linkedPODraft(p.budget, overheadMaster, t)),
-            overheadMaster,
+  return withFinancialContext(sql, userId, "read", (tx, context) =>
+    feeWorkspaceInTransaction(tx, context, today()),
+  );
+}
+
+/** Internal read adapter for callers already inside the financial transaction.
+ * The supplied context must have been issued for this exact transaction. */
+export async function feeWorkspaceInTransaction(
+  tx: Sql,
+  issuedContext: FinancialContext,
+  asOf: string,
+) {
+  const context = await financialReadSnapshotInTransaction(tx, issuedContext, "read");
+  day.parse(asOf);
+  if (!context.clubExists) throw Error("Team records are unavailable.");
+  const me = context.principal,
+    club = context.club;
+  // All presentation normalization stays detached from the authoritative basis.
+  const rows = structuredClone(context.feePlans),
+    activities = context.activities;
+  const canGuard = (player: Player) =>
+    context.mode === "basis"
+      ? isFinancialGuardian(context, player.teamId, player.id)
+      : guardian(player, me);
+  const canCoach = (team: Team) => isFinancialCoach(context, team);
+  for (const row of rows)
+    if (row.payload.status !== "closed")
+      row.payload.budget = {
+        ...row.payload.budget,
+        tournament: row.payload.budget.scheduleCostsAutomatic
+          ? seasonEntryCosts(
+              activities.filter((a) => a.team_id === row.team_id).map((a) => a.payload),
+              row.payload.budget,
+              club.catalog,
+              club.teams.find((t) => t.id === row.team_id)?.tournamentIds || [],
+            )
+          : row.payload.budget.tournament,
+        hotelNightly: row.payload.budget.hotelNightly || 0,
+        hotelNights: seasonHotelNights(
+          activities.filter((a) => a.team_id === row.team_id).map((a) => a.payload),
+          row.payload.budget,
+        ),
+      };
+  const overheadMaster = (await loadBudgetMaster(tx, context)).value;
+  const admin = me.role === "admin";
+  const teams = club.teams
+    .filter((t) => admin || canCoach(t) || t.roster.some((p) => canGuard(p)))
+    .map((t) => {
+      const row = rows.find((r) => r.team_id === t.id),
+        p = row ? { ...row.payload, revision: row.revision } : initial(t),
+        coach = canCoach(t);
+      if (p.published && !p.publishedBudget) p.publishedBudget = structuredClone(p.budget);
+      if (p.status !== "closed")
+        p.budget = teamSeasonOverhead(
+          pendingGas(linkedPODraft(p.budget, overheadMaster, t)),
+          overheadMaster,
+        );
+      const players = t.roster
+        .filter((x) => admin || coach || canGuard(x))
+        .map((x) => ({
+          ...playerView(t, x, p, asOf),
+          canPay: guardian(x, me),
+          canAccept:
+            canGuard(x) &&
+            (x.roleType !== "po" ||
+              (offersPO(p.budget, t.sport) && offersPO(p.publishedBudget || p.budget, t.sport))),
+        }));
+      const events = club.catalog
+        .filter((e) => t.tournamentIds.includes(e.id))
+        .map((e) => ({ id: e.id, name: e.name, start: e.start }));
+      const active = t.roster.filter(
+        (x) =>
+          p.players[x.id]?.status === "Roster Hold" ||
+          (!x.withdrawn && p.players[x.id]?.status !== "Removed"),
+      );
+      const forecast = project(
+        p.budget,
+        active.filter((x) => x.roleType === "full").length,
+        active.filter((x) => x.roleType === "po").length,
+        p.expenses,
+        p.status === "closed",
+      );
+      const totalCollected = sum(t.roster.map(paid)),
+        totalCredits = sum(t.roster.map(credit)),
+        expensesPaid = sum(p.expenses.filter((e) => e.paid).map((e) => e.cents)),
+        expensesUnpaid = sum(p.expenses.filter((e) => !e.paid).map((e) => e.cents));
+      const recognition = Object.values(p.players).reduce(
+        (r, x) => {
+          if (!x.serviceStart || !x.serviceEnd) return r;
+          const a = membershipRecognition(
+            x.membershipAllocation || 0,
+            x.serviceStart,
+            x.serviceEnd,
+            asOf,
           );
-        const players = t.roster
-          .filter((x) => admin || coach || canGuard(x))
-          .map((x) => ({
-            ...playerView(t, x, p),
-            canPay: guardian(x, me),
-            canAccept:
-              canGuard(x) &&
-              (x.roleType !== "po" ||
-                (offersPO(p.budget, t.sport) && offersPO(p.publishedBudget || p.budget, t.sport))),
-          }));
-        const events = club.catalog
-          .filter((e) => t.tournamentIds.includes(e.id))
-          .map((e) => ({ id: e.id, name: e.name, start: e.start }));
-        const active = t.roster.filter(
-          (x) =>
-            p.players[x.id]?.status === "Roster Hold" ||
-            (!x.withdrawn && p.players[x.id]?.status !== "Removed"),
-        );
-        const forecast = project(
-          p.budget,
-          active.filter((x) => x.roleType === "full").length,
-          active.filter((x) => x.roleType === "po").length,
-          p.expenses,
-          p.status === "closed",
-        );
-        const totalCollected = sum(t.roster.map(paid)),
-          totalCredits = sum(t.roster.map(credit)),
-          expensesPaid = sum(p.expenses.filter((e) => e.paid).map((e) => e.cents)),
-          expensesUnpaid = sum(p.expenses.filter((e) => !e.paid).map((e) => e.cents));
-        const recognition = Object.values(p.players).reduce(
-          (r, x) => {
-            if (!x.serviceStart || !x.serviceEnd) return r;
-            const a = membershipRecognition(
-              x.membershipAllocation || 0,
-              x.serviceStart,
-              x.serviceEnd,
-              today(),
-            );
-            return { earned: r.earned + a.earned, deferred: r.deferred + a.deferred };
-          },
-          { earned: 0, deferred: 0 },
-        );
-        const realized =
-          totalCollected -
-          expensesPaid -
-          expensesUnpaid -
-          p.budget.overhead -
-          p.budget.reserve -
-          recognition.deferred;
-        const actualDistributable =
-          p.status === "closed" && expensesUnpaid === 0 ? Math.max(0, realized) : 0;
-        const contingencyFunded = Math.min(
-          forecast.reserve,
-          sum(
-            t.roster.map((x) => {
-              const allocation = p.players[x.id]?.contingencyAllocation || 0;
-              const total = Math.round((x.feeLock?.amount || 0) * 100);
-              return total ? Math.floor(allocation * Math.min(1, paid(x) / total)) : 0;
-            }),
-          ),
-        );
-        return {
-          id: t.id,
-          poEnabled: offersPO(p.budget, t.sport),
-          seasonLabel: t.seasonLabel,
-          name: t.name,
-          closed: t.closed,
-          access: admin ? ("admin" as const) : coach ? ("coach" as const) : ("family" as const),
-          revision: p.revision,
-          ...(context.mode === "basis" ? { basisVersion: context.version! } : {}),
-          status: p.status,
-          publication: p.published || null,
-          players,
-          events,
-          choices:
-            admin || coach
-              ? {
-                  poRosterLimit: offersPO(p.budget, t.sport)
-                    ? (p.budget.poRosterLimit ?? poRosterLimit(t.age))
-                    : 0,
-                  hotelNightly: p.budget.hotelNightly || 0,
-                  hotelNights: p.budget.hotelNights || 0,
-                  tournament: p.budget.tournament,
-                  uniformId: p.budget.uniformId,
-                  canTournament: p.budget.coachTournament && !p.budget.scheduleCostsAutomatic,
-                  canUniform: p.budget.coachUniform,
-                  uniforms: p.uniforms
-                    .filter((u) => u.active)
-                    .map((u) => ({
-                      id: u.id,
-                      name: u.name,
-                      items: u.items,
-                      price: u.price,
-                      photos: u.photos || [],
-                    })),
-                  full: calculateFees(p.budget).full,
-                  po: offersPO(p.budget, t.sport) ? calculateFees(p.budget).po : 0,
-                }
-              : null,
-          private: admin
+          return { earned: r.earned + a.earned, deferred: r.deferred + a.deferred };
+        },
+        { earned: 0, deferred: 0 },
+      );
+      const realized =
+        totalCollected -
+        expensesPaid -
+        expensesUnpaid -
+        p.budget.overhead -
+        p.budget.reserve -
+        recognition.deferred;
+      const actualDistributable =
+        p.status === "closed" && expensesUnpaid === 0 ? Math.max(0, realized) : 0;
+      const contingencyFunded = Math.min(
+        forecast.reserve,
+        sum(
+          t.roster.map((x) => {
+            const allocation = p.players[x.id]?.contingencyAllocation || 0;
+            const total = Math.round((x.feeLock?.amount || 0) * 100);
+            return total ? Math.floor(allocation * Math.min(1, paid(x) / total)) : 0;
+          }),
+        ),
+      );
+      return {
+        id: t.id,
+        poEnabled: offersPO(p.budget, t.sport),
+        seasonLabel: t.seasonLabel,
+        name: t.name,
+        closed: t.closed,
+        access: admin ? ("admin" as const) : coach ? ("coach" as const) : ("family" as const),
+        revision: p.revision,
+        ...(context.mode === "basis" ? { basisVersion: context.version! } : {}),
+        status: p.status,
+        publication: p.published || null,
+        players,
+        events,
+        choices:
+          admin || coach
             ? {
-                plan: p,
-                feeHealth: feeHealth(p.budget, {
-                  key: p.defaults?.key,
-                  seasonLabel: t.seasonLabel,
-                  overheadReviewed: overheadMaster.overheadReviewed,
-                  finalDue: deadline(p.budget, events),
-                  today: today(),
-                }),
-                forecast,
-                actual: {
-                  totalCollected,
-                  totalCredits,
-                  expensesPaid,
-                  expensesUnpaid,
-                  ...recognition,
-                  actualDistributable,
-                  contingencyFunded,
-                  fundedContingencyRemaining: Math.max(0, contingencyFunded - forecast.used),
-                  nolan: Math.floor((actualDistributable * p.budget.nolanBps) / 10000),
-                  steve:
-                    actualDistributable -
-                    Math.floor((actualDistributable * p.budget.nolanBps) / 10000),
-                },
+                poRosterLimit: offersPO(p.budget, t.sport)
+                  ? (p.budget.poRosterLimit ?? poRosterLimit(t.age))
+                  : 0,
+                hotelNightly: p.budget.hotelNightly || 0,
+                hotelNights: p.budget.hotelNights || 0,
+                tournament: p.budget.tournament,
+                uniformId: p.budget.uniformId,
+                canTournament: p.budget.coachTournament && !p.budget.scheduleCostsAutomatic,
+                canUniform: p.budget.coachUniform,
+                uniforms: p.uniforms
+                  .filter((u) => u.active)
+                  .map((u) => ({
+                    id: u.id,
+                    name: u.name,
+                    items: u.items,
+                    price: u.price,
+                    photos: u.photos || [],
+                  })),
+                full: calculateFees(p.budget).full,
+                po: offersPO(p.budget, t.sport) ? calculateFees(p.budget).po : 0,
               }
             : null,
-        };
-      });
-    const business = admin ? context.feeBusiness.find((row) => row.id === "business") : undefined;
-    return {
-      admin,
-      teams,
-      business: admin
-        ? {
-            revision: business?.revision || 0,
-            ...(context.mode === "basis" ? { basisVersion: context.version! } : {}),
-            value: business?.payload || {
-              overhead: 0,
-              reserve: 0,
-              nolanBps: 5000,
-              period: "",
-              teamIds: [],
-            },
-          }
-        : null,
-    };
-  });
+        private: admin
+          ? {
+              plan: p,
+              feeHealth: feeHealth(p.budget, {
+                key: p.defaults?.key,
+                seasonLabel: t.seasonLabel,
+                overheadReviewed: overheadMaster.overheadReviewed,
+                finalDue: deadline(p.budget, events),
+                today: asOf,
+              }),
+              forecast,
+              actual: {
+                totalCollected,
+                totalCredits,
+                expensesPaid,
+                expensesUnpaid,
+                ...recognition,
+                actualDistributable,
+                contingencyFunded,
+                fundedContingencyRemaining: Math.max(0, contingencyFunded - forecast.used),
+                nolan: Math.floor((actualDistributable * p.budget.nolanBps) / 10000),
+                steve:
+                  actualDistributable -
+                  Math.floor((actualDistributable * p.budget.nolanBps) / 10000),
+              },
+            }
+          : null,
+      };
+    });
+  const business = admin ? context.feeBusiness.find((row) => row.id === "business") : undefined;
+  return {
+    admin,
+    teams,
+    business: admin
+      ? {
+          revision: business?.revision || 0,
+          ...(context.mode === "basis" ? { basisVersion: context.version! } : {}),
+          value: business?.payload || {
+            overhead: 0,
+            reserve: 0,
+            nolanBps: 5000,
+            period: "",
+            teamIds: [],
+          },
+        }
+      : null,
+  };
 }
 export async function mutateFeePlan(sql: Sql, userId: string, raw: z.infer<typeof feeAction>) {
   const request = feeAction.parse(raw);

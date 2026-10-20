@@ -80,6 +80,7 @@ test(`team fee UI saves admin drafts and offers only permitted coach controls ($
     people: [{ userId: "parent", name: "Example Parent", role: "parent" }],
   };
   const mocks = {
+    "@/lib/finance/identity-admission-api": `export const getFinancialIdentityAdmissionOptions=async()=>({mode:globalThis.__matrixFixture.basisVersion?'basis':'legacy',basisVersion:globalThis.__matrixFixture.basisVersion||null,accounts:[],instructors:[]});export const previewFinancialIdentityAdmission=async()=>{throw Error("Unexpected identity preview")};export const admitFinancialIdentity=async()=>{throw Error("Unexpected identity admission")};`,
     "@/lib/teams/payment-api": `export const startTeamCheckout=async()=>{throw Error("Unexpected checkout")};`,
     "@/lib/commerce/api": `export const submitSquarePayment=async()=>{throw Error("Unexpected payment")};`,
     "@/lib/auth/use-current-user": `export const useCurrentUserState=()=>({user:{id:"fixture"}});`,

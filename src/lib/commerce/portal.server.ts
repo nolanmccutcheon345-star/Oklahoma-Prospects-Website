@@ -1,5 +1,6 @@
-import {clubIdentity as staffIdentity} from "../identity.server";
-import {z} from "zod";
+import { lockFinancialExecution } from "../finance/execution.server";
+import { clubIdentity as staffIdentity } from "../identity.server";
+import { z } from "zod";
 import { randomUUID } from "node:crypto";
 import { getSql, type Sql } from "../db";
 import { commerceIdentity as clubIdentity, assertCommerceRole } from "./access.server";
@@ -12,7 +13,7 @@ import {
 import { rateLimit } from "./checkout.server";
 import { assertPaymentRequest } from "./square-payments.server";
 import { readWorkingFile } from "../pd/desk-impl.server";
-import {assignedCoachIdFor} from "./coach-access.server";
+import { assignedCoachIdFor } from "./coach-access.server";
 import type { Quote } from "./contracts";
 import { recognizeFinancialLessonInTransaction } from "../finance/compensation.server";
 
@@ -48,7 +49,9 @@ export async function readFamilyBilling(
         participant_count: number;
         completion_recap: string | null;
         checked_in_at: Date | null;
-      }>`select id,order_id,product_id,starts_at,ends_at,status,participant_count,completion_recap,checked_in_at from booking_records where household_id = any(${me.billingHouseholdIds}::text[]) order by starts_at desc,id desc limit 50 offset ${page * 50}`,
+        financial_status: string;
+        financial_checked_in_at: Date | null;
+      }>`select b.id,b.order_id,b.product_id,b.starts_at,b.ends_at,b.status,b.participant_count,b.completion_recap,b.checked_in_at,original.status as financial_status,original.checked_in_at as financial_checked_in_at from operational_booking_schedule b join booking_records original on original.id=b.id where b.household_id = any(${me.billingHouseholdIds}::text[]) order by b.starts_at desc,b.id desc limit 50 offset ${page * 50}`,
       sql<{
         id: string;
         product_id: string;
@@ -165,14 +168,16 @@ export async function checkIn(userId: string, bookingId: string) {
   const me = await clubIdentity(userId);
   const sql = await getSql();
   return sql.transaction(async (tx) => {
+    await lockFinancialExecution(tx);
+    await tx`select id from booking_records where id=${bookingId} for update`;
     const [row] = await tx<{
       id: string;
       participant_count: number;
       participants_verified: boolean;
       starts_at: Date;
       ends_at: Date;
-    }>`select id,participant_count,participants_verified,starts_at,ends_at from booking_records
-      where id=${bookingId} and (household_id=any(${me.billingHouseholdIds}::text[]) or ${me.role === "admin"}) and status='confirmed' for update`;
+    }>`select id,participant_count,participants_verified,starts_at,ends_at from operational_booking_schedule
+      where id=${bookingId} and (household_id=any(${me.billingHouseholdIds}::text[]) or ${me.role === "admin"}) and status='confirmed'`;
     if (!row) throw new Error("Only your paid bookings can be checked in.");
     const { enforceVisitWaivers } = await import("./waivers.server");
     await enforceVisitWaivers(tx, row);
@@ -183,9 +188,10 @@ export async function checkIn(userId: string, bookingId: string) {
 
 export async function coachBookings(userId: string) {
   const me = await staffIdentity(userId);
-  if (me.role !== "admin" && me.role !== "coach" && !me.canInstruct) throw new Error("Coach access required.");
+  if (me.role !== "admin" && me.role !== "coach" && !me.canInstruct)
+    throw new Error("Coach access required.");
   const file = await readWorkingFile();
-  const coachId = assignedCoachIdFor(me,file);
+  const coachId = assignedCoachIdFor(me, file);
   const sql = await getSql();
   return sql<{
     id: string;
@@ -197,44 +203,61 @@ export async function coachBookings(userId: string) {
     status: string;
   }>`
     select b.id,b.athlete_id,a.name as athlete_name,b.product_id,b.starts_at,b.ends_at,b.status
-    from booking_records b join club_athletes a on a.id = b.athlete_id
+    from operational_booking_schedule b join club_athletes a on a.id = b.athlete_id
     where (b.coach_id = ${coachId} or ${me.role === "admin"}) and b.status in ('confirmed','completed') order by b.starts_at desc limit 200`;
 }
-export const sessionCompletionInput=z.object({id:z.string().trim().min(1).max(150),notes:z.string().trim().min(5).max(5000)}).strict();
+export const sessionCompletionInput = z
+  .object({ id: z.string().trim().min(1).max(150), notes: z.string().trim().min(5).max(5000) })
+  .strict();
 export async function completeSession(userId: string, bookingId: string, notes: string) {
-  sessionCompletionInput.parse({id:bookingId,notes});
+  sessionCompletionInput.parse({ id: bookingId, notes });
   const me = await staffIdentity(userId);
-  if (me.role !== "coach" && me.role !== "admin" && !me.canInstruct) throw new Error("Coach access required.");
-  throw new Error("Open the booked guided lesson and use Publish & Complete Session to save attendance, tracking and the recap together.");
+  if (me.role !== "coach" && me.role !== "admin" && !me.canInstruct)
+    throw new Error("Coach access required.");
+  throw new Error(
+    "Open the booked guided lesson and use Publish & Complete Session to save attendance, tracking and the recap together.",
+  );
 }
-export async function completeSessionInTransaction(tx: Awaited<ReturnType<typeof getSql>>, me: Awaited<ReturnType<typeof staffIdentity>>, file: Awaited<ReturnType<typeof readWorkingFile>>, bookingId: string, notes: string, discipline: string) {
-  const userId=me.userId;
-  const coachId=assignedCoachIdFor(me,file);
+export async function completeSessionInTransaction(
+  tx: Awaited<ReturnType<typeof getSql>>,
+  me: Awaited<ReturnType<typeof staffIdentity>>,
+  file: Awaited<ReturnType<typeof readWorkingFile>>,
+  bookingId: string,
+  notes: string,
+  discipline: string,
+) {
+  const userId = me.userId;
+  const coachId = assignedCoachIdFor(me, file);
 
-    const [booking] = await tx<{
-      id: string;
-      athlete_id: string;
-      coach_id: string;
-      product_id: string;
-      order_id: string;
-      ends_at: Date;
-    }>`
+  const [booking] = await tx<{
+    id: string;
+    athlete_id: string;
+    coach_id: string;
+    product_id: string;
+    order_id: string;
+    ends_at: Date;
+  }>`
       update booking_records set status = 'completed', completed_at = coalesce(completed_at,now()), completion_recap=coalesce(completion_recap,${notes}), completed_by=coalesce(completed_by,${userId})
       where id = ${bookingId} and (coach_id = ${coachId} or ${me.role === "admin"}) and status in ('confirmed','completed') and ends_at <= now() returning *`;
-    if (!booking)
-      throw new Error("Only an assigned coach can complete a confirmed session after it ends.");
-    const [order] = await tx<{
-      snapshot: Quote;
-      total_cents: number;
-      status: string;
-    }>`select snapshot,total_cents,status from commerce_orders where id = ${booking.order_id} for update`;
-    if (!order || order.status !== "paid") throw new Error("A verified paid order is required before completing this session.");
-    if (ASSESSMENT_PRODUCTS.has(booking.product_id)) {
-      await tx`insert into athlete_assessments (id,athlete_id,discipline,coach_user_id,completed_at,notes,booking_id,delivery)
+  if (!booking)
+    throw new Error("Only an assigned coach can complete a confirmed session after it ends.");
+  const [order] = await tx<{
+    snapshot: Quote;
+    total_cents: number;
+    status: string;
+  }>`select snapshot,total_cents,status from commerce_orders where id = ${booking.order_id} for update`;
+  if (!order || order.status !== "paid")
+    throw new Error("A verified paid order is required before completing this session.");
+  if (ASSESSMENT_PRODUCTS.has(booking.product_id)) {
+    await tx`insert into athlete_assessments (id,athlete_id,discipline,coach_user_id,completed_at,notes,booking_id,delivery)
         values (${"assessment:" + booking.id},${booking.athlete_id},${discipline},${userId},now(),${notes},${booking.id},${order?.snapshot.productId === "m5" ? "remote" : "in-person"})
         on conflict (id) do nothing`;
-    }
-    await recognizeFinancialLessonInTransaction(tx, userId, bookingId, "Authorized instructor completed the guided lesson");
-    return { ok: true, assessmentCompleted: ASSESSMENT_PRODUCTS.has(booking.product_id) };
-
+  }
+  await recognizeFinancialLessonInTransaction(
+    tx,
+    userId,
+    bookingId,
+    "Authorized instructor completed the guided lesson",
+  );
+  return { ok: true, assessmentCompleted: ASSESSMENT_PRODUCTS.has(booking.product_id) };
 }

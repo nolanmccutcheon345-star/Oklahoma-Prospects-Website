@@ -1,6 +1,6 @@
 /**
- * DORMANT SERVER-ONLY foundation. No route, background backfill, or production
- * consumer imports this module. Its full snapshot is private financial data:
+ * SERVER-ONLY financial basis and separate explicit owner commands.
+ * Migrations never activate or grant access. Its full snapshot is private financial data:
  * never return it from an operational API or merge it into an organization DTO.
  *
  * Initialization and captured-only refresh are explicit owner-reviewed commands.
@@ -13,6 +13,7 @@ import type { ClubRecord, Team, Player } from "../teams/types";
 import type { FeePlan } from "../teams/fee-contracts";
 import type { TeamActivity } from "../teams/activity-contracts";
 import { lockFinancialExecution } from "./execution.server";
+import { financialBasisActivationInput } from "./activation-contracts";
 
 const BASIS_ID = "oklahoma-prospects";
 type Json = null | boolean | number | string | Json[] | { [key: string]: Json };
@@ -929,7 +930,7 @@ async function cutoverPlan(
       "Existing unbound lessons still fall back to immutable version 1. Activation requires separately reviewed, applied bindings to the intended captured version; this dry run applies nothing.",
     );
   add(
-    "captured_schema_inactive",
+    "explicit_activation_required",
     "Production remains captured/null. This report cannot activate consumers or relax schema constraints.",
   );
   return { readyForActivation: false as const, blockers, bindingPlan, untouchedQuoteIds };
@@ -945,7 +946,7 @@ async function captureRefreshReview(tx: Sql, basis: FinancialBasis) {
   const refreshBlockers = plan.blockers.filter(
     (b) =>
       ![
-        "captured_schema_inactive",
+        "explicit_activation_required",
         "applied_reviewed_bindings_required",
         "lesson_order_missing",
         "lesson_terms_unavailable",
@@ -1141,5 +1142,352 @@ export async function previewFinancialBasisCutoverReadinessForOwner(sql: Sql, us
       }),
       ...plan,
     };
+  });
+}
+
+function activationRelease() {
+  const release = process.env.APP_BUILD_SOURCE_COMMIT || "";
+  return {
+    release,
+    clean: /^[a-f0-9]{40}$/.test(release) && process.env.APP_BUILD_SOURCE_DIRTY === "false",
+  };
+}
+function sameActivationInstant(a: Json | undefined, b: Json | undefined) {
+  return (
+    typeof a === "string" &&
+    typeof b === "string" &&
+    Number.isFinite(+new Date(a)) &&
+    +new Date(a) === +new Date(b)
+  );
+}
+async function activationVersionInputs(tx: Sql, version: Json | undefined, current: number) {
+  if (
+    typeof version !== "number" ||
+    !Number.isSafeInteger(version) ||
+    version < 1 ||
+    version > current
+  )
+    throw Error("Invalid immutable version");
+  const [saved] = await tx<{
+    payload: FinancialInputs;
+    payload_digest: string;
+  }>`select payload,payload_digest from financial_basis_versions where basis_id=${BASIS_ID} and version=${version}`;
+  if (!saved || digest(saved.payload) !== saved.payload_digest)
+    throw Error("Invalid immutable payload");
+  return saved.payload;
+}
+async function existingBindingBlockers(tx: Sql, basis: FinancialBasis, evidence: CutoverEvidence) {
+  const blockers: FinancialCutoverBlocker[] = [];
+  for (const binding of evidence.bindings) {
+    await tx.query("savepoint financial_activation_binding_check");
+    try {
+      const original = objectValue(binding.original_booking);
+      const booking = evidence.bookings.find((b) => b.id === binding.booking_id);
+      const order = evidence.orders.find((o) => o.id === binding.order_id);
+      if (
+        binding.basis_id !== BASIS_ID ||
+        !original ||
+        !booking ||
+        !order ||
+        binding.order_id !== booking.order_id ||
+        original.id !== booking.id ||
+        original.order_id !== booking.order_id ||
+        ["user_id", "athlete_id", "coach_id", "product_id"].some(
+          (key) => (original[key] ?? null) !== (booking[key] ?? null),
+        ) ||
+        !sameActivationInstant(original.starts_at, booking.starts_at) ||
+        !sameActivationInstant(original.ends_at, booking.ends_at)
+      )
+        throw Error("Original binding identity changed");
+      const inputs = await activationVersionInputs(tx, binding.basis_version, basis.version);
+      const [approved] = await tx<{
+        terms: SourceRow;
+      }>`select approved_financial_lesson_terms(${JSON.stringify(inputs)}::jsonb,${original.coach_id},${original.product_id},${original.ends_at}::timestamptz) as terms`;
+      if (!approved?.terms || digest(approved.terms) !== digest(binding.approved_terms))
+        throw Error("Original terms changed");
+      const pin = objectValue(order.snapshot.financialLessonAdmission);
+      // A package may fund later appointments; only an exact original appointment
+      // pin can constrain this booking's saved version.
+      if (
+        pin &&
+        pin.coachId === original.coach_id &&
+        pin.productId === original.product_id &&
+        sameActivationInstant(pin.startsAt, original.starts_at) &&
+        sameActivationInstant(pin.endsAt, original.ends_at) &&
+        pin.basisVersion !== binding.basis_version
+      )
+        throw Error("Pinned version changed");
+      if (
+        evidence.recognitions.some(
+          (r) =>
+            r.booking_id === binding.booking_id &&
+            (r.basis_id !== binding.basis_id || r.basis_version !== binding.basis_version),
+        )
+      )
+        throw Error("Recognition version changed");
+      await tx.query("release savepoint financial_activation_binding_check");
+    } catch {
+      await tx.query("rollback to savepoint financial_activation_binding_check");
+      await tx.query("release savepoint financial_activation_binding_check");
+      blockers.push({
+        code: "inconsistent_existing_binding",
+        bookingId: String(binding.booking_id),
+        detail:
+          "An existing immutable binding does not match its original booking, approved terms or recognition. Activation never replaces it.",
+      });
+    }
+  }
+  return blockers;
+}
+async function activationOrderBlockers(tx: Sql, basis: FinancialBasis, evidence: CutoverEvidence) {
+  const blockers: FinancialCutoverBlocker[] = [];
+  for (const order of evidence.orders) {
+    const window = objectValue(order.snapshot.bookingWindow);
+    const lesson =
+      ["lesson", "package", "membership"].includes(order.kind) ||
+      Boolean(window && !["cage", "cage-plan"].includes(order.kind));
+    const rawPin = order.snapshot.financialLessonAdmission;
+    if (
+      lesson &&
+      order.status === "pending" &&
+      rawPin == null &&
+      evidence.attempts.some((a) => a.order_id === order.id)
+    )
+      blockers.push({
+        code: "unpinned_attempted_order",
+        orderId: order.id,
+        detail:
+          "This pending quote already had a provider attempt, including a decline. Resolve it separately; activation cannot assign a new pin.",
+      });
+    if (rawPin == null) continue;
+    await tx.query("savepoint financial_activation_pin_check");
+    try {
+      const pin = objectValue(rawPin);
+      const product =
+        (order.snapshot.assessment && order.snapshot.recurring) ||
+        Number(order.snapshot.setupCents) > 0
+          ? order.snapshot.discipline === "Hitting"
+            ? "s9"
+            : "s1"
+          : order.snapshot.productId;
+      if (
+        !pin ||
+        !window ||
+        pin.coachId !== window.coachId ||
+        pin.productId !== product ||
+        !sameActivationInstant(pin.startsAt, window.start) ||
+        !sameActivationInstant(pin.endsAt, window.end) ||
+        +new Date(String(pin.endsAt)) <= +new Date(String(pin.startsAt))
+      )
+        throw Error("Pin identity mismatch");
+      const inputs = await activationVersionInputs(tx, pin.basisVersion, basis.version);
+      const [approved] = await tx<{
+        terms: SourceRow;
+      }>`select approved_financial_lesson_terms(${JSON.stringify(inputs)}::jsonb,${pin.coachId},${pin.productId},${pin.endsAt}::timestamptz) as terms`;
+      if (!approved?.terms) throw Error("Pin terms unavailable");
+      await tx.query("release savepoint financial_activation_pin_check");
+    } catch {
+      await tx.query("rollback to savepoint financial_activation_pin_check");
+      await tx.query("release savepoint financial_activation_pin_check");
+      blockers.push({
+        code: "inconsistent_existing_order_pin",
+        orderId: order.id,
+        detail:
+          "An immutable order pin does not match its original appointment or saved approved version. Activation never replaces it.",
+      });
+    }
+  }
+  return blockers;
+}
+/** Compare complete serialized outputs except documented presentation metadata. */
+function comparableActivationOutputs(value: {
+  fees: { teams: Array<{ basisVersion?: number }>; business: { basisVersion?: number } | null };
+  finance: { basisVersion?: number };
+  facility: unknown;
+}): unknown {
+  const serialized = JSON.parse(JSON.stringify(value)) as typeof value;
+  // Identically named fields inside stored records/history/audit remain compared.
+  delete serialized.finance.basisVersion;
+  for (const team of serialized.fees.teams) delete team.basisVersion;
+  if (serialized.fees.business) delete serialized.fees.business.basisVersion;
+  return serialized;
+}
+async function activationOutputs(tx: Sql, userId: string, asOf: string) {
+  const { loadFinancialContextInTransaction } = await import("./context.server");
+  const { feeWorkspaceInTransaction } = await import("../teams/fee.server");
+  const { financeWorkspaceInTransaction, records } = await import("./store.server");
+  const { facilityPayables } = await import("./facility.server");
+  const context = await loadFinancialContextInTransaction(tx, userId, "owner");
+  return comparableActivationOutputs({
+    fees: await feeWorkspaceInTransaction(tx, context, asOf),
+    finance: await financeWorkspaceInTransaction(tx, context, asOf),
+    facility: await facilityPayables(tx, asOf, await records(tx), context),
+  });
+}
+async function captureActivationReview(tx: Sql, userId: string, basis: FinancialBasis) {
+  const captured = await captureInputs(tx);
+  assertRefreshIdentities(basis, captured.inputs);
+  const evidence = await captureCutoverEvidence(tx);
+  await tx.query(
+    "lock table finance_state,billing_invoices,commerce_policy,operational_lesson_completions in share mode",
+  );
+  const plan = await cutoverPlan(tx, basis, basis.inputs, basis.version, evidence);
+  const blockers = plan.blockers.filter(
+    (b) => !["explicit_activation_required", "applied_reviewed_bindings_required"].includes(b.code),
+  );
+  if (captured.sourceDigest !== digest(basis.inputs))
+    blockers.push({
+      code: "source_changed_since_capture",
+      detail:
+        "Financial source inputs changed since this captured version. Review a separate explicit refresh before activation.",
+    });
+  const build = activationRelease();
+  if (!build.clean)
+    blockers.push({
+      code: "unidentified_release",
+      detail:
+        "Activation requires a clean, identified release matching the reviewed source commit.",
+    });
+  const [schema] = await tx<{
+    ready: boolean;
+  }>`select exists(select 1 from pg_constraint where conrelid='financial_basis_state'::regclass and conname='financial_basis_active_version' and contype='f') as ready`;
+  if (!schema?.ready)
+    blockers.push({
+      code: "activation_schema_unavailable",
+      detail: "The reviewed activation schema migration is not installed.",
+    });
+  blockers.push(
+    ...(await existingBindingBlockers(tx, basis, evidence)),
+    ...(await activationOrderBlockers(tx, basis, evidence)),
+  );
+  const asOf = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Chicago",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date());
+  let outputDigest = digest({ unavailable: true });
+  await tx.query("savepoint financial_activation_output_review");
+  try {
+    outputDigest = digest(await activationOutputs(tx, userId, asOf));
+    await tx.query("release savepoint financial_activation_output_review");
+  } catch {
+    await tx.query("rollback to savepoint financial_activation_output_review");
+    await tx.query("release savepoint financial_activation_output_review");
+    blockers.push({
+      code: "financial_projection_unavailable",
+      detail:
+        "The complete current fee, finance or compensation projection could not be verified. Resolve it before activation.",
+    });
+  }
+  const readinessDigest = digest(evidence),
+    payloadDigest = digest(basis.inputs);
+  const reviewDigest = digest({
+    asOf,
+    outputDigest,
+    userId,
+    release: build.release,
+    clean: build.clean,
+    schemaReady: schema?.ready === true,
+    expectedVersion: basis.version,
+    payloadDigest,
+    originalSourceDigest: basis.sourceDigest,
+    identities: {
+      teams: basis.teams,
+      agreements: basis.agreements,
+      teamAliases: basis.teamAliases,
+      playerAliases: basis.playerAliases,
+    },
+    sourceClubRevision: captured.sourceClubRevision,
+    sourceDigest: captured.sourceDigest,
+    readinessDigest,
+    bindingPlan: plan.bindingPlan,
+    untouchedQuoteIds: plan.untouchedQuoteIds,
+    blockers,
+  });
+  return {
+    expectedVersion: basis.version,
+    expectedRelease: build.release,
+    asOf,
+    outputDigest,
+    sourceClubRevision: captured.sourceClubRevision,
+    sourceDigest: captured.sourceDigest,
+    payloadDigest,
+    readinessDigest,
+    reviewDigest,
+    readyForActivation: blockers.length === 0,
+    blockers,
+    bindingPlan: plan.bindingPlan,
+    untouchedQuoteIds: plan.untouchedQuoteIds,
+  };
+}
+/** Owner-private review; never writes a pin, binding, financial source or grant. */
+export async function previewFinancialBasisActivationForOwner(sql: Sql, userId: string) {
+  return sql.transaction(async (tx) => {
+    await lockFinancialExecution(tx);
+    await requireBasisOwner(tx, userId);
+    const basis = await readBasis(tx);
+    if (!basis) throw Error("Financial basis is not initialized.");
+    return captureActivationReview(tx, userId, basis);
+  });
+}
+/** Explicit exact-review activation only; no provider I/O or changed obligations. */
+export async function activateFinancialBasisForOwner(sql: Sql, userId: string, raw: unknown) {
+  const command = financialBasisActivationInput.parse(raw);
+  return sql.transaction(async (tx) => {
+    await lockFinancialExecution(tx);
+    await requireBasisOwner(tx, userId);
+    const basis = await readBasis(tx, true);
+    if (!basis || basis.version !== command.expectedVersion)
+      throw Error("Financial basis changed. Review activation again.");
+    const review = await captureActivationReview(tx, userId, basis);
+    if (
+      command.asOf !== review.asOf ||
+      command.outputDigest !== review.outputDigest ||
+      command.expectedRelease !== review.expectedRelease ||
+      command.sourceClubRevision !== review.sourceClubRevision ||
+      command.sourceDigest !== review.sourceDigest ||
+      command.readinessDigest !== review.readinessDigest ||
+      command.reviewDigest !== review.reviewDigest
+    )
+      throw Error("Release, source or financial readiness changed. Review activation again.");
+    if (!review.readyForActivation)
+      throw Error(
+        "Financial activation is blocked. Resolve the reviewed source, attribution or provider blockers first.",
+      );
+    for (const binding of review.bindingPlan)
+      await tx`insert into financial_lesson_bindings(booking_id,basis_id,basis_version,order_id,original_booking,approved_terms)
+        values(${binding.bookingId},${BASIS_ID},${binding.basisVersion},${binding.orderId},${JSON.stringify(binding.originalBooking)}::jsonb,${JSON.stringify(binding.approvedTerms)}::jsonb)`;
+    const changed =
+      await tx`update financial_basis_state set activation_state='active',active_version=current_version
+      where id=${BASIS_ID} and current_version=${command.expectedVersion} and activation_state='captured' and active_version is null returning id`;
+    if (changed.length !== 1) throw Error("Financial basis changed. Review activation again.");
+    if (digest(await activationOutputs(tx, userId, review.asOf)) !== review.outputDigest)
+      throw Error(
+        "Financial outputs differ after the proposed activation. All activation changes were rolled back; review the financial projections.",
+      );
+    const receipt = {
+      asOf: review.asOf,
+      outputDigest: review.outputDigest,
+      version: basis.version,
+      activationState: "active" as const,
+      activeVersion: basis.version,
+      release: review.expectedRelease,
+      payloadDigest: review.payloadDigest,
+      sourceClubRevision: review.sourceClubRevision,
+      sourceDigest: review.sourceDigest,
+      readinessDigest: review.readinessDigest,
+      reviewDigest: review.reviewDigest,
+      bindingPlanDigest: digest(review.bindingPlan),
+      appliedBookingIds: review.bindingPlan.map((b) => b.bookingId),
+      untouchedQuoteIds: review.untouchedQuoteIds,
+    };
+    const [audit] = await tx<{
+      id: string;
+    }>`insert into finance_audit(actor_id,record_id,action,reason,before_state,after_state)
+      values(${userId},${BASIS_ID},'Activate reviewed financial basis',${command.reason},
+        ${JSON.stringify({ version: basis.version, activationState: "captured", activeVersion: null, payloadDigest: review.payloadDigest })}::jsonb,
+        ${JSON.stringify(receipt)}::jsonb) returning id::text`;
+    return { ...receipt, auditId: audit.id };
   });
 }

@@ -275,6 +275,23 @@ try {
       assert.ok(!result.body.includes("91378426"), `${name} leaked private financial amount`);
     }
     for (const name of [
+      "getOrganizationPeople",
+      "getOrganizationBookings",
+      "getOrganizationEvents",
+      "getOrganizationServices",
+      "getOrganizationContent",
+    ]) {
+      const result = await rpc(orgCookie, name);
+      assert.equal(result.status, 200, `${name} compiled read must succeed`);
+      assert.doesNotMatch(result.body, /CoordinatorDenied|ACCESS_DENIED|"name":"Error"/);
+      for (const canary of financialCanaries) assert.ok(!result.body.includes(canary));
+      assert.ok(!result.body.includes("91378426"), `${name} leaked a financial amount`);
+    }
+    const grantPreview = await rpc(orgCookie, "getOrganizationAccessPreview", "POST", {
+      userId: "fixture-org",
+    });
+    assert.match(grantPreview.body, /not authorized|CoordinatorDenied|ACCESS_DENIED/i);
+    for (const name of [
       "getFinance",
       "getMyFinance",
       "getProfile",
@@ -303,12 +320,51 @@ try {
     assert.equal(row.payload.teams[0].name, edit.changes.name);
     for (const key of ["orgFee", "coachMonthly", "eventBudget", "otherCosts", "notes"])
       assert.deepEqual(row.payload.teams[0][key], club.teams[0][key]);
+    const captured = await h.api.financialBasis.previewFinancialBasisInitialization(
+      sql,
+      "fixture-owner",
+    );
+    await h.api.financialBasis.initializeFinancialBasisForOwner(sql, "fixture-owner", {
+      ...captured,
+      reason: "Synthetic operational financial preservation",
+    });
+    await h.api.financialContextFixture.applyFutureActiveSchemaForTest(sql);
+    const pinnedBefore = await h.api.financialContext.withFinancialContext(
+      sql,
+      "fixture-owner",
+      "owner",
+      async (_tx, context) => structuredClone(context.basis),
+    );
+    const activeFinanceBefore = await rpc(ownerCookie, "getFinance");
+    const activeEdit = await rpc(orgCookie, "saveOrganizationTeam", "POST", {
+      revision: row.rev,
+      teamId: "fixture-team",
+      changes: { seasonEnd: "2099-12-31", coachEmail: "operational-coach@example.invalid" },
+    });
+    assert.doesNotMatch(activeEdit.body, /not authorized|CoordinatorDenied|Error/);
+    assert.deepEqual(
+      await h.api.financialContext.withFinancialContext(
+        sql,
+        "fixture-owner",
+        "owner",
+        async (_tx, context) => structuredClone(context.basis),
+      ),
+      pinnedBefore,
+    );
+    assert.equal((await rpc(ownerCookie, "getFinance")).body, activeFinanceBefore.body);
     await sql`update organization_operational_access set status='suspended' where user_id='fixture-org'`;
     for (const [name, method, data] of [
       ["getOrganizationWorkspace", "GET"],
       ["getOrganizationTournaments", "GET"],
       ["getOrganizationCatalog", "GET"],
       ["getOrganizationDevelopment", "GET"],
+      ...[
+        "getOrganizationPeople",
+        "getOrganizationBookings",
+        "getOrganizationEvents",
+        "getOrganizationServices",
+        "getOrganizationContent",
+      ].map((name) => [name, "GET"]),
       ["saveOrganizationTeam", "POST", { ...edit, revision: row.rev }],
       ["getFinance", "GET"],
     ]) {
@@ -482,6 +538,21 @@ try {
       }
       // CSS uppercases visible headings; inspect DOM text without presentation transforms.
       await org.page.waitForFunction((text) => document.body.textContent.includes(text), marker);
+      for (const canary of financialCanaries)
+        assert.ok(!(await org.page.locator("body").innerText()).includes(canary));
+    }
+    for (const [tab, region] of [
+      ["Bookings & Camps", "Operational booking schedule"],
+      ["Staff Directory", "Organization people"],
+      ["Content & Recruiting", "Organization content"],
+    ]) {
+      await org.page
+        .getByRole("navigation", { name: "Organization operations", exact: true })
+        .getByRole("button", { name: tab, exact: true })
+        .click();
+      await org.page.getByRole("region", { name: region, exact: true }).waitFor();
+      await org.page.waitForLoadState("networkidle");
+      assert.equal(await org.page.getByRole("alert").count(), 0, `${tab} must load without errors`);
       for (const canary of financialCanaries)
         assert.ok(!(await org.page.locator("body").innerText()).includes(canary));
     }

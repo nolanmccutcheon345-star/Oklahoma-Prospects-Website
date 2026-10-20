@@ -223,6 +223,27 @@ function internal(tx: Sql, context: FinancialReadContext): InternalContext {
     throw new Error("A financial context from this transaction is required.");
   return value;
 }
+/** Internal projection access: use the transaction-issued source, never caller
+ * mutations to its detached view, and recheck current authenticated authority. */
+export async function financialReadSnapshotInTransaction(
+  tx: Sql,
+  context: FinancialContext,
+  intent: Intent,
+): Promise<FinancialContext> {
+  const saved = internal(tx, context);
+  if (!saved.userId) throw new Error("Authenticated financial read required.");
+  const principal = await financialPrincipalInTransaction(
+    tx,
+    saved.userId,
+    saved.initial.basis?.inputs.billing,
+  );
+  if (intent === "owner" && !principal.owner)
+    throw new Error("Admin financial owner access required.");
+  const snapshot = { ...clone(saved.initial), principal };
+  issued.set(snapshot, { ...saved, initial: clone(saved.initial) });
+  return snapshot;
+}
+
 async function humanBaseline(tx: Sql, context: FinancialContext, expectedBasisVersion?: number) {
   const saved = internal(tx, context);
   if (!saved.userId) throw new Error("Authenticated financial command required.");
@@ -1533,4 +1554,201 @@ export async function commitFinancialLessonTermsInTransaction(
   const version = await appendHuman(tx, initial.basis, inputs, principal, "owner", why);
   await tx`insert into finance_audit(actor_id,record_id,action,reason,after_state) values(${principal.userId},${command.type === "service" ? command.serviceId : command.staffId},'Approved future lesson terms',${why},${JSON.stringify({ command, version })}::jsonb)`;
   return { version };
+}
+
+/** Purpose-specific owner admission; no arbitrary snapshot writer is exported. */
+export async function previewFinancialSelfAdmissionInTransaction(
+  tx: Sql,
+  context: FinancialContext,
+  raw: unknown,
+) {
+  const { financialSelfAdmissionSelection } = await import("./context-contracts");
+  const selection = financialSelfAdmissionSelection.parse(raw);
+  const { initial, principal } = await humanBaseline(tx, context, context.version || undefined);
+  if (!principal.owner) throw Error("Admin financial owner access required.");
+  if (!initial.basis)
+    throw Error("Explicit financial identity admission is available after financial cutover.");
+  const current = await financialPrincipalInTransaction(tx, selection.userId);
+  const [account] = await tx<{
+    id: string;
+    email: string;
+    name: string;
+    profileName: string;
+    role: string;
+  }>`select u.id,lower(trim(u.email)) as email,u.name,p.name as "profileName",p.role from "user" u left join profiles p on p.user_id=u.id where u.id=${selection.userId} for share of u`;
+  if (!account || current.currentEmail !== account.email)
+    throw Error("The verified target account changed.");
+  const inputs = initial.basis.inputs;
+  const payee = inputs.compensation.payeesAndRules.find(
+    (r) => r.kind === "payee" && r.id === selection.payeeId,
+  );
+  let payload = payee?.payload as Record<string, unknown> | undefined;
+  if (!payload) {
+    const { personId } = await import("./sources.server");
+    const configured = inputs.compensation.payeesAndRules.some(
+      (r) =>
+        r.kind === "payee" &&
+        String((r.payload as Record<string, unknown>).email || "")
+          .trim()
+          .toLowerCase() === current.currentEmail,
+    );
+    if (!configured && selection.payeeId === personId(current.currentEmail))
+      payload = {
+        id: selection.payeeId,
+        name: account.profileName || account.name,
+        email: current.currentEmail,
+        active: true,
+      };
+  }
+  if (!payload || payload.active === false)
+    throw Error("Choose an approved active financial payee.");
+  const email = String(payload.email || "")
+    .trim()
+    .toLowerCase();
+  if (!email || email !== current.currentEmail)
+    throw Error("Review the exact account and approved payee identity.");
+  let coach: { id: string; email: string; name: string } | null = null;
+  const bookings: Record<string, unknown>[] = [],
+    orders: Record<string, unknown>[] = [];
+  if (selection.kind === "instructor") {
+    for (const development of inputs.compensation.development) {
+      if (Array.isArray(development.coaches))
+        for (const c of development.coaches) {
+          if (
+            c &&
+            typeof c === "object" &&
+            !Array.isArray(c) &&
+            c.id === selection.coachId &&
+            c.active !== false
+          )
+            coach = {
+              id: String(c.id),
+              email: String(c.email || "")
+                .trim()
+                .toLowerCase(),
+              name: String(c.name || ""),
+            };
+        }
+    }
+    if (!coach) {
+      const staff = inputs.compensation.staff.find(
+        (s) =>
+          s.active === true &&
+          newCoachId(
+            String(s.email || "")
+              .trim()
+              .toLowerCase(),
+          ) === selection.coachId,
+      );
+      if (staff)
+        coach = {
+          id: selection.coachId,
+          email: String(staff.email || "")
+            .trim()
+            .toLowerCase(),
+          name: String(staff.name || ""),
+        };
+    }
+    if (!coach || coach.email !== email)
+      throw Error("Choose the approved instructor and matching financial payee.");
+    const contexts = await loadFinancialLessonsInTransaction(tx, selection.bookingIds, context);
+    for (const id of selection.bookingIds) {
+      const lesson = contexts.get(id)!;
+      if (lesson.mode !== "basis" || !lesson.booking)
+        throw Error("A selected lesson has no immutable financial attribution.");
+      const earning = lesson.compensation.earnings.find((e) => e.booking_id === id);
+      if (String(earning?.coach_id || lesson.booking.coach_id || "") !== coach.id)
+        throw Error("A selected lesson belongs to a different financial instructor.");
+      bookings.push({
+        id,
+        version: lesson.version,
+        booking: lesson.booking,
+        earning: earning || null,
+      });
+    }
+    for (const id of selection.orderIds) {
+      const [order] = await tx<{
+        id: string;
+        status: string;
+        snapshot: Record<string, unknown>;
+      }>`select id,status,snapshot from commerce_orders where id=${id} for share`;
+      const pin = order?.snapshot.financialLessonAdmission as FinancialLessonAdmission | undefined;
+      if (
+        !order ||
+        !["pending", "payment_review", "paid"].includes(order.status) ||
+        !pin ||
+        pin.coachId !== coach.id
+      )
+        throw Error("A selected pending order lacks the original approved instructor pin.");
+      if ((await tx`select id from booking_records where order_id=${id}`).length)
+        throw Error("Select the existing lesson instead of its fulfilled order.");
+      orders.push(order);
+    }
+  }
+  const review = {
+    selection,
+    account,
+    payee: payload,
+    coach,
+    bookings,
+    orders,
+    basisVersion: initial.basis.version,
+  };
+  return { ...review, reviewDigest: financialBasisDigest(review) };
+}
+export async function admitFinancialSelfIdentityInTransaction(
+  tx: Sql,
+  context: FinancialContext,
+  raw: unknown,
+) {
+  const { financialSelfAdmissionCommand } = await import("./context-contracts");
+  const request = financialSelfAdmissionCommand.parse(raw);
+  const { initial, principal } = await humanBaseline(tx, context, request.expectedBasisVersion);
+  if (!principal.owner || !initial.basis)
+    throw Error("Admin financial owner access and active financial basis required.");
+  const review = await previewFinancialSelfAdmissionInTransaction(tx, context, request.selection);
+  if (review.reviewDigest !== request.reviewDigest)
+    throw Error(
+      "Financial identity review changed. Review the account and original selections again.",
+    );
+  const inputs = clone(initial.basis.inputs),
+    version = initial.basis.version + 1;
+  if (!inputs.billing.accounts.some((a) => a.id === review.account.id))
+    inputs.billing.accounts.push({
+      ...review.account,
+      admittedAgreementIds: [],
+      admittedTeamIds: [],
+    });
+  const id = randomUUID();
+  if (request.selection.kind === "instructor") {
+    inputs.billing.instructorAccess ||= [];
+    if (
+      inputs.billing.instructorAccess.some(
+        (a) => a.userId === review.account.id && a.coachId === request.selection.coachId,
+      )
+    )
+      throw Error("This financial instructor identity is already admitted.");
+    inputs.billing.instructorAccess.push({
+      id,
+      userId: review.account.id,
+      coachId: request.selection.coachId,
+      payeeId: request.selection.payeeId,
+      fromVersion: version,
+      bookingIds: [...request.selection.bookingIds],
+      orderIds: [...request.selection.orderIds],
+    });
+  } else {
+    inputs.billing.payrollAccess ||= [];
+    if (inputs.billing.payrollAccess.some((a) => a.userId === review.account.id))
+      throw Error("This payroll identity is already admitted.");
+    inputs.billing.payrollAccess.push({
+      id,
+      userId: review.account.id,
+      payeeId: request.selection.payeeId,
+      fromMonth: request.selection.fromMonth!,
+    });
+  }
+  await appendHuman(tx, initial.basis, inputs, principal, "owner", request.reason);
+  await tx`insert into finance_audit(actor_id,record_id,action,reason,after_state) values(${principal.userId},${id},'Financial self identity admission',${request.reason},${JSON.stringify({ selection: request.selection, version, reviewDigest: review.reviewDigest })}::jsonb)`;
+  return { id, version };
 }

@@ -1,3 +1,4 @@
+import { operationalEventSessions } from "../commerce/operational-schedule.server";
 /** Existing public catalog metadata only. Never hydrate commercial payloads to redact them. */
 import type { Sql } from "../db";
 import { audit, CoordinatorDenied, requireOrganizationOperations, secured } from "./access.server";
@@ -58,7 +59,7 @@ export async function organizationCatalog(sql: Sql, userId: string): Promise<Org
           'date',to_char(b.starts_at at time zone 'America/Chicago','YYYY-MM-DD'),
           'start',to_char(b.starts_at at time zone 'America/Chicago','HH24:MI'),
           'end',to_char(b.ends_at at time zone 'America/Chicago','HH24:MI')) order by b.starts_at,b.id)
-          from booking_records b where b.order_id=r.order_id and b.athlete_id=r.athlete_id and b.product_id=r.event_id
+          from operational_booking_schedule b where b.order_id=r.order_id and b.athlete_id=r.athlete_id and b.product_id=r.event_id
           and b.status in ('confirmed','completed')),'[]'::jsonb) as sessions
       from training_event_registrations r join club_athletes a on a.id=r.athlete_id join training_events e on e.id=r.event_id
       where ${publicEvent}
@@ -68,7 +69,21 @@ export async function organizationCatalog(sql: Sql, userId: string): Promise<Org
         ...service,
         nameEditable: serviceNameEditable(service.kind),
       })),
-      events,
+      events: await Promise.all(
+        events.map(async (e) => ({
+          ...e,
+          sessions: (
+            await operationalEventSessions(tx, e.id, e.sessions, e.location, {
+              includeAdditional: true,
+            })
+          ).map((s) => ({
+            date: s.date,
+            start: s.start,
+            end: s.end,
+            ...(s.revision > 0 ? { location: s.location, status: s.status } : {}),
+          })),
+        })),
+      ),
       registrations,
     };
   });

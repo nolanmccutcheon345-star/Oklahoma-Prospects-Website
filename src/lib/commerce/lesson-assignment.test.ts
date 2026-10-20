@@ -289,7 +289,7 @@ test("owners can assign lessons while financially restricted operations cannot c
       /upcoming confirmed/,
     );
     assert.equal((await lessonAssignmentList("admin")).length, 0);
-    // Prospective active schema only: production migrations still prohibit activation.
+    // Test-only activation bypasses the separately reviewed owner command.
     await sql`update booking_records set status='confirmed' where id='lesson'`;
     await sql`update organization_operational_access set status='active' where user_id='operations'`;
     const { emptyClub } = await import("../teams/seed");
@@ -301,14 +301,9 @@ test("owners can assign lessons while financially restricted operations cannot c
       ...preview,
       reason: "Synthetic assignment preservation",
     });
-    await assert.rejects(
-      () =>
-        sql`update financial_basis_state set activation_state='active',active_version=current_version`,
-    );
-    await sql.query(
-      "alter table financial_basis_state drop constraint financial_basis_state_activation_state_check, drop constraint financial_basis_state_active_version_check",
-    );
-    await sql`update financial_basis_state set activation_state='active',active_version=current_version`;
+    await assert.rejects(() => sql`update financial_basis_state set activation_state='active'`);
+    const { applyFutureActiveSchemaForTest } = await import("../finance/context.test-fixture");
+    await applyFutureActiveSchemaForTest(sql);
     const { financeWorkspace } = await import("../finance/store.server");
     const financialBefore = await financeWorkspace(sql, "admin");
     const basisBefore = await sql`select * from financial_basis_versions order by version`;

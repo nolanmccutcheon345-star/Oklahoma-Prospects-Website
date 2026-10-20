@@ -1,4 +1,12 @@
 import { randomUUID } from "node:crypto";
+import { operationalEvent } from "./coordinator/organization-events.server";
+import {
+  operationalEventSessions,
+  operationalEventSessionKey,
+  operationalEventSeatUsage,
+  publicOperationalSession,
+  localSession,
+} from "./commerce/operational-schedule.server";
 import type { Sql } from "./db";
 import { lockFinancialExecution } from "./finance/execution.server";
 import { resolveIdentity } from "./identity.server";
@@ -21,6 +29,7 @@ import {
 } from "./commerce/store.server";
 
 export type EventSnapshot = {
+  sessionKeys?: string[];
   minAge?: number;
   maxAge?: number;
   ageAsOf?: string;
@@ -77,55 +86,92 @@ export async function listTrainingEvents(sql: Sql) {
   const events = await sql<{
     payload: TrainingEvent;
     revision: number;
-  }>`select payload,revision from training_events where payload->>'status' in ('published','closed') order by updated_at desc`;
+  }>`select e.payload,e.revision from training_events e where e.payload->>'status' in ('published','closed') and not exists(select 1 from operational_event_records r where r.id=e.id and r.publication='archived') order by e.updated_at desc`;
   const coaches = await eventCoaches(sql);
   const registrations = await sql<{
     event_id: string;
     snapshot: Quote & { eventRegistration: EventSnapshot };
   }>`select r.event_id,o.snapshot from training_event_registrations r join commerce_orders o on o.id=r.order_id where r.status='confirmed'`;
-  return events
-    .map((r) => {
+  const projected = await Promise.all(
+    events.map(async (r) => {
+      const e = await operationalEvent(sql, r.payload.id);
+      const sessions = await operationalEventSessions(
+        sql,
+        r.payload.id,
+        r.payload.sessions,
+        r.payload.location,
+      );
+      const all = await operationalEventSessions(
+        sql,
+        r.payload.id,
+        r.payload.sessions,
+        r.payload.location,
+        { includeAdditional: true },
+      );
+      const usage = await operationalEventSeatUsage(sql, r.payload.id);
+      const capacity = e?.capacity ?? r.payload.capacity;
       const availability = [...new Set(r.payload.sessions.map((s) => s.date))]
         .sort()
-        .map((date) => ({
-          date,
-          remainingSeats: Math.max(
-            0,
-            r.payload.capacity -
-              registrations.filter(
-                (x) =>
-                  x.event_id === r.payload.id &&
-                  x.snapshot.eventRegistration.sessions.some((s) => s.date === date),
-              ).length,
-          ),
-          open:
-            windows({ sessions: r.payload.sessions.filter((s) => s.date === date) })[0].start >
-            new Date(),
-        }));
-      const packageOpen = availability.every((d) => d.open && d.remainingSeats > 0);
-      const mode = r.payload.pricingMode || "package";
+        .map((date) => {
+          const selected = sessions.filter((s) => s.originalDate === date);
+          return {
+            date,
+            remainingSeats: Math.max(
+              0,
+              capacity -
+                registrations.filter(
+                  (x) =>
+                    x.event_id === r.payload.id &&
+                    x.snapshot.eventRegistration.sessions.some((s) => s.date === date),
+                ).length +
+                usage.withdrawn.filter((x) => x.date === date).length -
+                Math.max(
+                  0,
+                  ...selected.map(
+                    (s) => usage.manual.find((x) => x.sessionKey === s.sessionKey)?.count || 0,
+                  ),
+                ),
+            ),
+            open:
+              windows({ sessions: r.payload.sessions.filter((s) => s.date === date) })[0].start >
+                new Date() &&
+              selected.every((s) => s.status === "confirmed" && new Date(s.startsAt) > new Date()),
+          };
+        });
+      const packageOpen = availability.every((d) => d.open && d.remainingSeats > 0),
+        mode = r.payload.pricingMode || "package";
       return {
         ...r.payload,
+        capacity,
         revision: r.revision,
         availability,
         packageOpen,
+        operationalSessions: sessions.map(publicOperationalSession),
+        additionalSessions: all
+          .filter((s) => !sessions.some((o) => o.sessionKey === s.sessionKey))
+          .map(publicOperationalSession),
         remainingSeats:
           mode === "package"
             ? Math.min(...availability.map((d) => d.remainingSeats))
             : Math.max(0, ...availability.filter((d) => d.open).map((d) => d.remainingSeats)),
         registrationOpen:
           r.payload.status === "published" &&
+          (!e || e.publication === "open") &&
           (mode === "package"
             ? packageOpen
             : availability.some((d) => d.open && d.remainingSeats > 0)),
         coaches: coaches
-          .filter((c) => r.payload.coachIds.includes(c.id))
+          .filter((c) => (e?.coachIds || r.payload.coachIds).includes(c.id))
           .map(({ id, name }) => ({ id, name })),
       };
-    })
+    }),
+  );
+  // Only originally public upcoming copy is eligible. Operational dates cannot publish historical/private copy.
+  return projected
     .filter((e) => windows(e).some((w) => w.end > new Date()))
     .sort((a, b) => +windows(a)[0].start - +windows(b)[0].start);
 }
+
 export async function eventOffice(sql: Sql, userId: string) {
   await owner(sql, userId);
   const [events, registrations, coaches] = await Promise.all([
@@ -252,18 +298,89 @@ export async function eventFamily(sql: Sql, userId: string) {
       snapshot: Quote & { eventRegistration: EventSnapshot };
     }>`select r.id,a.name,o.snapshot->>'title' as title,r.status,r.order_id,o.snapshot from training_event_registrations r join club_athletes a on a.id=r.athlete_id join commerce_orders o on o.id=r.order_id where o.household_id=any(${me.billingHouseholdIds}::text[]) order by r.created_at desc`,
   ]);
+  const manual = await sql<{
+    event_id: string;
+    name: string;
+    starts_at: Date;
+    ends_at: Date;
+    status: string;
+    session_key: string;
+    checked_in_at: Date | null;
+  }>`select n.event_id,a.name,b.starts_at,b.ends_at,b.status,n.session_key,b.checked_in_at from operational_event_enrollments n join operational_booking_schedule b on b.id=n.booking_id join club_athletes a on a.id=n.athlete_id where a.household_id=any(${me.billingHouseholdIds}::text[]) and b.order_id is null order by b.starts_at`;
   return {
     players,
-    registrations: registrations.map((r) => ({
-      id: r.id,
-      player: r.name,
-      title: r.title,
-      status: r.status,
-      orderId: r.order_id,
-      event: r.snapshot.eventRegistration,
-    })),
+    registrations: await Promise.all(
+      registrations.map(async (r) => {
+        const snapshot = r.snapshot.eventRegistration;
+        const delivery = await operationalEventSessions(
+          sql,
+          snapshot.id,
+          snapshot.sessions,
+          snapshot.location,
+        );
+        const bookings = await sql<{
+          original_start: Date;
+          original_end: Date;
+          starts_at: Date;
+          ends_at: Date;
+          status: string;
+        }>`select original.starts_at as original_start,original.ends_at as original_end,b.starts_at,b.ends_at,b.status from operational_booking_schedule b join booking_records original on original.id=b.id where b.order_id=${r.order_id}`;
+        return {
+          id: r.id,
+          player: r.name,
+          title: r.title,
+          status: r.status,
+          orderId: r.order_id,
+          event: snapshot,
+          operationalSessions: delivery.map((s) => {
+            const tuple = snapshot.sessions.find(
+              (t) => operationalEventSessionKey(snapshot.id, t) === s.sessionKey,
+            )!;
+            const b = bookings.find(
+              (b) =>
+                +new Date(b.original_start) === +chicagoInstant(tuple.date, tuple.start) &&
+                +new Date(b.original_end) === +chicagoInstant(tuple.date, tuple.end),
+            );
+            return publicOperationalSession(
+              b
+                ? {
+                    ...s,
+                    ...localSession(b.starts_at, b.ends_at),
+                    startsAt: new Date(b.starts_at).toISOString(),
+                    endsAt: new Date(b.ends_at).toISOString(),
+                    status: b.status === "cancelled" ? "cancelled" : s.status,
+                  }
+                : s,
+            );
+          }),
+        };
+      }),
+    ),
+    operationalEnrollments: await Promise.all(
+      manual.map(async (r) => {
+        const e = await operationalEvent(sql, r.event_id);
+        const session =
+          e &&
+          (
+            await operationalEventSessions(sql, e.id, e.originalSessions, e.location, {
+              includeAdditional: true,
+            })
+          ).find((s) => s.sessionKey === r.session_key);
+        return {
+          eventId: r.event_id,
+          title: e?.name || "Event session",
+          player: r.name,
+          startsAt: new Date(r.starts_at).toISOString(),
+          endsAt: new Date(r.ends_at).toISOString(),
+          status: r.status,
+          checkedInAt: r.checked_in_at ? new Date(r.checked_in_at).toISOString() : null,
+          location: session?.location || "Location withheld",
+        };
+      }),
+    ),
   };
 }
+
 async function authorizedPlayer(sql: Sql, userId: string, athleteId: string) {
   const me = await commerceIdentityFor(sql, userId);
   const [player] =
@@ -294,14 +411,15 @@ async function eventAvailable(
   if (windows(purchase)[0].start <= new Date())
     throw Error("Registration is closed for the selected camp days.");
   const active = await sql<{
+    order_id: string;
     athlete_id: string;
     sessions: TrainingEvent["sessions"];
-  }>`select r.athlete_id,o.snapshot->'eventRegistration'->'sessions' as sessions from training_event_registrations r join commerce_orders o on o.id=r.order_id where r.event_id=${id} and r.status='confirmed'`;
+  }>`select r.order_id,r.athlete_id,o.snapshot->'eventRegistration'->'sessions' as sessions from training_event_registrations r join commerce_orders o on o.id=r.order_id where r.event_id=${id} and r.status='confirmed'`;
   const pending = checkPending
     ? await sql<{
         athlete_id: string;
         sessions: TrainingEvent["sessions"];
-      }>`select athlete_id,snapshot->'eventRegistration'->'sessions' as sessions from commerce_orders where kind='event' and product_id=${id} and id<>${orderId} and status='pending' and hold_until>now()`
+      }>`select athlete_id,snapshot->'eventRegistration'->'sessions' as sessions from commerce_orders where kind='event' and product_id=${id} and id<>${orderId} and (status='pending' and hold_until>now() or exists(select 1 from square_payment_attempts a where a.order_id=commerce_orders.id and a.status in ('pending','unknown')))`
     : [];
   const overlaps = (r: { sessions: TrainingEvent["sessions"] }) =>
     r.sessions.some((s) => purchase.dates.includes(s.date));
@@ -311,17 +429,48 @@ async function eventAvailable(
     throw Error(
       "Checkout already exists for this player and a selected day. Complete it or wait ten minutes.",
     );
+  const delivery = await operationalEventSessions(sql, id, purchase.sessions, row.payload.location);
+  const operational = await operationalEvent(sql, id);
+  const operationalUsage = await operationalEventSeatUsage(sql, id);
+  const usage = !orderId ? operationalUsage : null;
+  const acceptedOperationalReservation =
+    !!orderId &&
+    ((operational?.revision || 0) > 0 ||
+      delivery.some((s) => s.revision > 0) ||
+      operationalUsage.withdrawn.length > 0 ||
+      operationalUsage.manual.length > 0);
+  if (!orderId && operational && operational.publication !== "open")
+    throw Error("Registration is closed for this event.");
   if (
-    purchase.dates.some(
-      (d) =>
-        [...active, ...pending].filter((r) => r.sessions.some((s) => s.date === d)).length >=
-        row.payload.capacity,
-    )
+    !acceptedOperationalReservation &&
+    purchase.dates.some((d) => {
+      const paid = active.filter(
+        (r) =>
+          r.sessions.some((s) => s.date === d) &&
+          !usage?.withdrawn.some((w) => w.orderId === r.order_id && w.date === d),
+      ).length;
+      const reserved = pending.filter((r) => r.sessions.some((s) => s.date === d)).length;
+      const manual = Math.max(
+        0,
+        ...delivery
+          .filter((s) => s.originalDate === d)
+          .map((s) => usage?.manual.find((m) => m.sessionKey === s.sessionKey)?.count || 0),
+      );
+      return (
+        paid + reserved + manual >=
+        (!orderId ? (operational?.capacity ?? row.payload.capacity) : row.payload.capacity)
+      );
+    })
   )
     throw Error("This event is full on a selected day.");
-  for (const w of windows(purchase)) {
+  for (const session of delivery) {
+    // Prepared order financial eligibility remains tied to its original tuple. Operational
+    // changes only select delivery at fulfillment and cannot reject an accepted charge.
+    if (orderId && session.revision > 0) continue;
+    if (!orderId && (session.status !== "confirmed" || new Date(session.startsAt) <= new Date()))
+      throw Error("Registration is closed for a selected camp day.");
     const occupied =
-      await sql`select booking_id from booking_occupancy where resource_id=${"athlete:" + athleteId} and slot_at>=${w.start.toISOString()} and slot_at<${w.end.toISOString()} limit 1`;
+      await sql`select booking_id from booking_occupancy where resource_id=${"athlete:" + athleteId} and slot_at>=${session.startsAt} and slot_at<${session.endsAt} limit 1`;
     if (occupied.length) throw Error("This player has another booking during a selected camp day.");
   }
   return { ...row.payload, revision: row.revision, purchase };
@@ -401,6 +550,7 @@ export async function prepareEventCheckout(
         option: e.purchase.option,
         dates: e.purchase.dates,
         sessions: e.purchase.sessions,
+        sessionKeys: e.purchase.sessions.map((s) => operationalEventSessionKey(e.id, s)),
         location: e.location,
         policy: e.policy,
       },
@@ -457,7 +607,18 @@ export async function fulfillEventPayment(sql: Sql, order: SquareOrder, environm
   }
   if (ok) {
     await sql`update commerce_orders set status='paid',updated_at=now() where id=${order.id}`;
-    for (const w of windows(order.snapshot.eventRegistration!)) {
+    const snapshot = order.snapshot.eventRegistration!;
+    const delivery = await operationalEventSessions(
+      sql,
+      snapshot.id,
+      snapshot.sessions,
+      snapshot.location,
+    );
+    for (const session of snapshot.sessions) {
+      const w = {
+        start: chicagoInstant(session.date, session.start),
+        end: chicagoInstant(session.date, session.end),
+      };
       const id = await createPaidBooking(sql, {
         orderId: order.id,
         userId: order.user_id,
@@ -466,6 +627,9 @@ export async function fulfillEventPayment(sql: Sql, order: SquareOrder, environm
         start: w.start,
         end: w.end,
         resources: ["athlete:" + order.athlete_id],
+        operationalSession: delivery.find(
+          (s) => s.sessionKey === operationalEventSessionKey(snapshot.id, session),
+        ),
       });
       if (!id) {
         ok = false;

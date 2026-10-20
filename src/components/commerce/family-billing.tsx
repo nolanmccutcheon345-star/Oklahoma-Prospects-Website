@@ -167,10 +167,10 @@ export function FamilyBilling({ bookingsOnly = false }: { bookingsOnly?: boolean
                 View event details
               </a>
             </p>
-          ) : b.status === "confirmed" ? (
+          ) : b.financial_status === "confirmed" ? (
             <div className="mt-3 flex flex-wrap gap-3">
               <Button
-                disabled={busy || Boolean(b.checked_in_at)}
+                disabled={busy || b.status !== "confirmed" || Boolean(b.checked_in_at)}
                 onClick={() => {
                   void action(() => checkInBooking({ data: { id: b.id } }), "Check-in saved.");
                 }}
@@ -190,8 +190,8 @@ export function FamilyBilling({ bookingsOnly = false }: { bookingsOnly?: boolean
               </Button>
             </div>
           ) : null}
-          {b.status === "confirmed" &&
-          !b.checked_in_at &&
+          {b.financial_status === "confirmed" &&
+          !b.financial_checked_in_at &&
           data.orders.find((o) => o.id === b.order_id)?.snapshot.kind !== "event" ? (
             <RescheduleBooking id={b.id} onSaved={load} />
           ) : null}

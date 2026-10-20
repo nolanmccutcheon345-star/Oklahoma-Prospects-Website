@@ -1,3 +1,4 @@
+import { assertFinancialInstructorRecognition } from "./identity-scope.server";
 import type { Sql } from "../db";
 import {
   loadFinancialContextInTransaction,
@@ -19,10 +20,12 @@ export async function recognizeFinancialLessonInTransaction(
     userId,
     ownerCommand ? "owner" : "read",
   );
-  const financial = (await loadFinancialLessonsInTransaction(tx, [bookingId], context)).get(bookingId)!;
+  const financial = (await loadFinancialLessonsInTransaction(tx, [bookingId], context)).get(
+    bookingId,
+  )!;
   const [booking] = await tx<any>`select * from booking_records where id=${bookingId} for update`;
   if (!booking) throw Error("Lesson booking not found.");
-  if (!context.principal.owner) {
+  if (!assertFinancialInstructorRecognition(context, financial, bookingId)) {
     // Preserve the existing assigned-instructor path, with current verified,
     // enabled and financially-unrestricted security rechecked in this tx.
     const [assigned] = await tx`select c->>'id' as id from pd_working_file f

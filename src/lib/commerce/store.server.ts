@@ -1,8 +1,12 @@
 import { randomUUID } from "node:crypto";
 import type { Sql } from "../db";
 import type { Quote } from "./contracts";
+import type { OperationalEventSession } from "./operational-schedule.server";
 import { lockFinancialExecution } from "../finance/execution.server";
-import { assertApprovedFinancialLessonInTransaction, type FinancialLessonAdmission } from "../finance/context.server";
+import {
+  assertApprovedFinancialLessonInTransaction,
+  type FinancialLessonAdmission,
+} from "../finance/context.server";
 
 export async function expireHolds(sql: Sql, now = new Date()) {
   await lockFinancialExecution(sql);
@@ -26,22 +30,27 @@ export async function holdWindow(
     userId: string | null;
     athleteId: string | null;
     coachId?: string;
-    lessonSport?: "baseball"|"softball";
-    lessonConfig?: Record<string,unknown>;
+    lessonSport?: "baseball" | "softball";
+    lessonConfig?: Record<string, unknown>;
     productId: string;
     start: Date;
     end: Date;
     resources: string[];
     participantCount?: number;
+    /** Server-resolved delivery overlay; financial booking inputs remain original. */
+    operationalSession?: OperationalEventSession;
   },
 ) {
   await lockFinancialExecution(sql);
   if (input.start >= input.end || !input.resources.length)
     throw new Error("Invalid booking window.");
-  if (input.orderId) await assertApprovedFinancialLessonInTransaction(sql, {
-    coachId: input.coachId || null, productId: input.productId,
-    startsAt: input.start, endsAt: input.end,
-  });
+  if (input.orderId)
+    await assertApprovedFinancialLessonInTransaction(sql, {
+      coachId: input.coachId || null,
+      productId: input.productId,
+      startsAt: input.start,
+      endsAt: input.end,
+    });
   const id = randomUUID();
   const resources = [
     ...new Set([...input.resources, ...(input.athleteId ? [`athlete:${input.athleteId}`] : [])]),
@@ -65,29 +74,51 @@ export async function holdWindow(
  */
 export async function createPaidBooking(sql: Sql, input: Parameters<typeof holdWindow>[1]) {
   await lockFinancialExecution(sql);
-  const [paid] = await sql<{ id: string; snapshot: { financialLessonAdmission?: FinancialLessonAdmission | null } }>`select id,snapshot from commerce_orders where id=${input.orderId} and status='paid' for update`;
+  const [paid] = await sql<{
+    id: string;
+    snapshot: { financialLessonAdmission?: FinancialLessonAdmission | null };
+  }>`select id,snapshot from commerce_orders where id=${input.orderId} and status='paid' for update`;
   if (!paid) throw new Error("Successful payment is required before booking.");
-  if (input.start >= input.end || input.start <= new Date() || !input.resources.length)
+  const delivery = input.operationalSession;
+  const occupancyStart = delivery ? new Date(delivery.startsAt) : input.start;
+  const occupancyEnd = delivery ? new Date(delivery.endsAt) : input.end;
+  const cancelled = delivery?.status === "cancelled";
+  if (
+    input.start >= input.end ||
+    (!cancelled && occupancyStart <= new Date()) ||
+    !input.resources.length
+  )
     return null;
   const pin = paid.snapshot.financialLessonAdmission;
-  const originalAdmission = pin && pin.coachId === input.coachId && pin.productId === input.productId &&
-    +new Date(pin.startsAt) === +input.start && +new Date(pin.endsAt) === +input.end;
+  const originalAdmission =
+    pin &&
+    pin.coachId === input.coachId &&
+    pin.productId === input.productId &&
+    +new Date(pin.startsAt) === +input.start &&
+    +new Date(pin.endsAt) === +input.end;
   await assertApprovedFinancialLessonInTransaction(sql, {
-    coachId: input.coachId || null, productId: input.productId,
-    startsAt: input.start, endsAt: input.end,
+    coachId: input.coachId || null,
+    productId: input.productId,
+    startsAt: input.start,
+    endsAt: input.end,
     basisVersion: originalAdmission ? pin.basisVersion : undefined,
   });
   const id = randomUUID();
-  const resources = [...new Set([...input.resources, ...(input.athleteId ? [`athlete:${input.athleteId}`] : [])])].sort();
+  const resources = [
+    ...new Set([...input.resources, ...(input.athleteId ? [`athlete:${input.athleteId}`] : [])]),
+  ].sort();
   // A prospective active booking INSERT also creates an immutable financial
   // binding. Roll back the provisional booking AND binding on a slot conflict;
   // deleting the booking would violate that binding's historical foreign key.
   await sql.query("savepoint financial_paid_booking");
   await sql`insert into booking_records(id,order_id,user_id,athlete_id,coach_id,product_id,starts_at,ends_at,resources,participant_count,participants_verified,status,lesson_sport,lesson_config)
-    values(${id},${input.orderId},${input.userId},${input.athleteId},${input.coachId || null},${input.productId},${input.start.toISOString()},${input.end.toISOString()},${JSON.stringify(resources)}::jsonb,${input.participantCount || 1},${Boolean(input.athleteId)},'confirmed',${input.lessonSport || null},${input.lessonConfig?JSON.stringify(input.lessonConfig):null}::jsonb)`;
-  for (const resource of resources) {
-    for (let ms = input.start.getTime(); ms < input.end.getTime(); ms += 300_000) {
-      const inserted = await sql`insert into booking_occupancy(resource_id,slot_at,booking_id) values(${resource},${new Date(ms).toISOString()},${id}) on conflict do nothing returning booking_id`;
+    values(${id},${input.orderId},${input.userId},${input.athleteId},${input.coachId || null},${input.productId},${input.start.toISOString()},${input.end.toISOString()},${JSON.stringify(resources)}::jsonb,${input.participantCount || 1},${Boolean(input.athleteId)},'confirmed',${input.lessonSport || null},${input.lessonConfig ? JSON.stringify(input.lessonConfig) : null}::jsonb)`;
+  if (delivery && delivery.revision > 0)
+    await sql`insert into operational_booking_changes(booking_id,revision,starts_at,ends_at,status,reason,updated_by,source_kind,source_key) values(${id},1,${delivery.startsAt},${delivery.endsAt},${delivery.status},${delivery.reason},${delivery.updatedBy},'event-session',${delivery.sessionKey})`;
+  for (const resource of cancelled ? [] : resources) {
+    for (let ms = occupancyStart.getTime(); ms < occupancyEnd.getTime(); ms += 300_000) {
+      const inserted =
+        await sql`insert into booking_occupancy(resource_id,slot_at,booking_id) values(${resource},${new Date(ms).toISOString()},${id}) on conflict do nothing returning booking_id`;
       if (!inserted.length) {
         await sql.query("rollback to savepoint financial_paid_booking");
         await sql.query("release savepoint financial_paid_booking");
@@ -122,7 +153,11 @@ export async function grantCredits(
       : [
           {
             kind: "lesson",
-            quantity: Math.max(0, q.credits - (input.initialBooking && (!q.assessment || q.initialBookingUsesCredit) ? 1 : 0)),
+            quantity: Math.max(
+              0,
+              q.credits -
+                (input.initialBooking && (!q.assessment || q.initialBookingUsesCredit) ? 1 : 0),
+            ),
             minutes: q.sessionMinutes,
           },
           { kind: "remote-review", quantity: q.remote, minutes: 20 },
@@ -156,15 +191,16 @@ export async function carryOneSession(
       and kind in ('lesson','remote-review','film-review') and rollover = false and remaining > 0 and expires_at = ${start.toISOString()}
     order by case when kind=${kind} then 0 else 1 end,expires_at desc,id limit 1 for update`;
   if (!old) return;
-  const rows =
-    await sql<{id:string}>`insert into credit_grants (id,user_id,athlete_id,order_id,subscription_id,source_key,kind,minutes,quantity,remaining,starts_at,expires_at,rollover,payment_id)
+  const rows = await sql<{
+    id: string;
+  }>`insert into credit_grants (id,user_id,athlete_id,order_id,subscription_id,source_key,kind,minutes,quantity,remaining,starts_at,expires_at,rollover,payment_id)
     values (${randomUUID()},${old.user_id},${old.athlete_id},${old.order_id},${subscriptionId},${`roll:${subscriptionId}:${kind}:${start.toISOString()}`},
       ${old.kind},${old.minutes},1,1,${start.toISOString()},${end.toISOString()},true,${old.payment_id}) on conflict (source_key) do nothing returning id`;
   if (rows.length) {
     // Retain the original funding denominator; a one-credit rollover is not
     // worth an entire month's payment. Do not infer provenance for old rows.
     await sql`insert into commerce_policy(id,value,updated_by)
-      values(${"credit-funding:" + rows[0].id},${JSON.stringify({sourceGrantId:old.id})}::jsonb,${old.user_id || "system"}) on conflict(id) do nothing`;
+      values(${"credit-funding:" + rows[0].id},${JSON.stringify({ sourceGrantId: old.id })}::jsonb,${old.user_id || "system"}) on conflict(id) do nothing`;
     await sql`update credit_grants set remaining = remaining - 1 where id = ${old.id}`;
   }
 }

@@ -139,10 +139,10 @@ async function lessonOrder(sql: Sql, id: string) {
   await sql`insert into commerce_orders(id,request_key,user_id,email,product_id,kind,snapshot,total_cents,status,hold_until,payment_provider,payment_environment) values(${id},${id},'parent','parent@example.invalid','s3','lesson','{"kind":"lesson"}'::jsonb,10000,'paid','2027-01-01','square','production')`;
 }
 
-test("production schema remains captured-only; selector never treats capture as activation", async () => {
+test("captured initialization stays inactive; selector never treats capture as activation", async () => {
   const f = await fixture();
   await assert.rejects(
-    f.sql`update financial_basis_state set activation_state='active',active_version=1`,
+    f.sql`update financial_basis_state set activation_state='active',active_version=2`,
     /check constraint/,
   );
   f.club.teams[0].name = "Current operational name";

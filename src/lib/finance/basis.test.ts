@@ -491,7 +491,7 @@ test("legacy transfer aliases are explicit, append-only and resolve original agr
   );
 });
 
-test("captured versions cannot activate any consumer through either repository or schema", async () => {
+test("captured versions stay inactive and partial activation markers are rejected", async () => {
   const f = await fixture();
   const { basis, receipt } = await initialize(f.sql);
   assert.equal(basis.activationState, "captured");
@@ -567,7 +567,7 @@ test("initialization failure is atomic and duplicate/malformed source identity f
   for (const table of tables) assert.equal((await f.sql.query(`select * from ${table}`)).length, 0);
 });
 
-test("only reviewed internal financial consumers import the basis; production migration cannot activate", async () => {
+test("only reviewed internal financial consumers import the basis; migrations do not activate", async () => {
   // Consumers are now DB-selected. This closed server-only inventory prevents
   // raw snapshot use by routes/UI and does not authorize activation.
   const reviewedModules = new Set([
@@ -582,6 +582,8 @@ test("only reviewed internal financial consumers import the basis; production mi
     "lib/finance/facility.server.ts",
     "lib/finance/self.server.ts",
     "lib/coordinator/organization-access.server.ts",
+    "lib/finance/cutover-api.ts",
+    "lib/finance/identity-admission.server.ts",
   ]);
   for (const file of await readdir("src", { recursive: true })) {
     if (!/\.(tsx?|mjs)$/.test(file) || /\.test(?:[.-])/.test(file)) continue;

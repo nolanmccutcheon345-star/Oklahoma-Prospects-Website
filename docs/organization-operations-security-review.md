@@ -71,3 +71,7 @@ This requires additive migrations, backfill validation against current records, 
 - Test financial canaries through real server-function requests and direct routes, not only menu visibility.
 - Test both sports, future teams, self/owner privilege changes, stale writes, disabled/unverified/suspended identity, financial side effects and Steve regression.
 - Only then activate the account-specific grant and invalidate old sessions. Confirm the deployed commit and live release receipt; use read-only account inspection afterward.
+
+## Recovery release inventory (2026-10-20)
+
+The earlier sections record the initial staged boundary and its then-missing ports; they are not the current lifecycle acceptance checklist. See `organization-parity-matrix.md` for the recovered implementation inventory, explicit product limits and pending exact-source release checks. Lifecycle booking/events, People/instructor onboarding, Services, classified editorial/recruiting/document metadata, financial identity admission, captured refresh and reviewed activation have since been implemented in the recovery tree. Some source was reconstructed after an executor reset, so historical full-suite results cannot certify this tree. Production access remains unchanged.

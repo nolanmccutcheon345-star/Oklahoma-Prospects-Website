@@ -137,7 +137,7 @@ export async function operationalEventSeatUsage(sql: Sql, eventId: string) {
   const withdrawn = await sql<{
     orderId: string;
     date: string;
-  }>`select b.order_id as "orderId",to_char(b.starts_at at time zone 'America/Chicago','YYYY-MM-DD') as date from booking_records b join operational_booking_changes o on o.booking_id=b.id where b.product_id=${eventId} and b.order_id is not null and o.status='cancelled'`;
+  }>`select b.order_id as "orderId",to_char(b.starts_at at time zone 'America/Chicago','YYYY-MM-DD') as date from booking_records b left join operational_booking_changes o on o.booking_id=b.id where b.product_id=${eventId} and b.order_id is not null and b.status in ('confirmed','completed') group by b.order_id,to_char(b.starts_at at time zone 'America/Chicago','YYYY-MM-DD') having bool_and(coalesce(o.status='cancelled',false))`;
   const manual = await sql<{
     sessionKey: string;
     count: number;
