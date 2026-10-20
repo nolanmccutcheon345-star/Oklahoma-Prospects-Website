@@ -1,6 +1,6 @@
 import {PersonEditor} from "@/components/staff/person-editor";
 import { formatDollars } from "@/lib/pricing";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { ArmConfirm } from "@/components/pd/polish";
 import { CoachEducationProgress } from "@/components/pd/education";
@@ -22,6 +22,8 @@ import {
   type ServiceKind,
 } from "@/lib/ops";
 import type { ClubRole } from "@/lib/club-data";
+import { getOwnerServiceDrafts } from "@/lib/coordinator/organization-services-api";
+import type { OrganizationService } from "@/lib/coordinator/organization-services-contracts";
 
 const fieldClass =
   "mt-1.5 block min-h-11 w-full rounded-md border border-line bg-paper-2 px-3 text-ink";
@@ -145,34 +147,73 @@ export function AdminServicesDesk() {
   const [editing, setEditing] = useState<ServiceInput | null>(null);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [drafts, setDrafts] = useState<OrganizationService[]>([]);
+  const [draftId, setDraftId] = useState("");
+  const [draftReviewed, setDraftReviewed] = useState(false);
+  const [draftPrice, setDraftPrice] = useState("");
+  const [financialTermsConfirmed, setFinancialTermsConfirmed] = useState(false);
+  const pending = useRef(false);
+  const generation = useRef(0);
+  const mounted = useRef(false);
   async function refresh() {
-    const result = await getAdminLessonTerms();
-    setRows(result.services);
-    setBasisVersion(result.basisVersion);
-    setLoaded(true);
+    const request = ++generation.current;
+    try {
+      const [result, nextDrafts] = await Promise.all([getAdminLessonTerms(), getOwnerServiceDrafts()]);
+      if (!mounted.current || request !== generation.current) return;
+      setRows(result.services);
+      setBasisVersion(result.basisVersion);
+      setDrafts(nextDrafts);
+      setDraftReviewed(false);
+      setLoaded(true);
+    } catch (cause) {
+      if (mounted.current && request === generation.current) {
+        setRows([]);
+        setDrafts([]);
+        setLoaded(false);
+      }
+      throw cause;
+    }
   }
   useEffect(() => {
-    refresh().catch((e) => setError(e instanceof Error ? e.message : "Could not load services."));
+    mounted.current = true;
+    refresh().catch((e) => { if (mounted.current) setError(e instanceof Error ? e.message : "Could not load services."); });
+    return () => { mounted.current = false; };
   }, []);
+  const selectedDraft = drafts.find((draft) => draft.id === draftId) || drafts[0];
+  const adoptingDraft = editing?.operationalDraftRevision !== undefined;
+  function openEditor(input: ServiceInput) {
+    setEditing(input);
+    setDraftPrice("");
+    setFinancialTermsConfirmed(false);
+    setError("");
+  }
   const visible = rows.filter(
     (row) =>
       (filter === "all" || row.kind === filter) &&
       (!search || row.name.toLowerCase().includes(search.toLowerCase())) &&
       (state === "all" || row.active === (state === "active")),
   );
-  async function onSave(event: React.FormEvent) {
+  async function onSave(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!editing) return;
+    if (!editing || pending.current) return;
+    if (adoptingDraft && (!financialTermsConfirmed || !draftPrice.trim() || !Number.isFinite(Number(draftPrice)) || Number(draftPrice) <= 0)) {
+      setError("Enter a positive customer price and explicitly confirm the reviewed financial terms.");
+      return;
+    }
+    pending.current = true;
     setBusy(true);
     setError("");
     try {
-      await saveService({ data: editing });
+      await saveService({ data: adoptingDraft ? { ...editing, price: Number(draftPrice), operationalDraftConfirmed: true } : editing });
+      if (!mounted.current) return;
       setEditing(null);
       await refresh();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not save that service.");
+      if (mounted.current && adoptingDraft) setFinancialTermsConfirmed(false);
+      if (mounted.current) setError(err instanceof Error ? err.message : "Could not save that service.");
     } finally {
-      setBusy(false);
+      pending.current = false;
+      if (mounted.current) setBusy(false);
     }
   }
   return (
@@ -187,10 +228,29 @@ export function AdminServicesDesk() {
             Lessons, packages, memberships, cages. Changes show on Train, Book, and Pay.
           </p>
         </div>
-        <Button type="button" onClick={() => setEditing({ ...emptyService("lesson"), basisVersion })}>
+        <Button type="button" disabled={busy || !loaded} onClick={() => openEditor({ ...emptyService("lesson"), basisVersion })}>
           Add service
         </Button>
       </div>
+      <section className="mt-4 grid gap-3 rounded-2xl border border-line p-4" aria-label="Owner service draft approval">
+        <h4 className="text-xl">Operational drafts awaiting approval</h4>
+        <p className="text-sm">These drafts have no approved financial terms and cannot be purchased. Review the metadata, enter a customer price, and approve the service here.</p>
+        <Button type="button" variant="outlineDark" disabled={busy} onClick={() => { setEditing(null); setDraftReviewed(false); setError(""); void refresh().catch((cause) => { if (mounted.current) setError(cause instanceof Error ? cause.message : "Could not reload services."); }); }}>Reload Services & Drafts</Button>
+        {!loaded ? <p role="status">{error ? "Draft review is unavailable until services reload successfully." : "Loading service drafts…"}</p> : !selectedDraft ? <p>No service drafts await owner approval.</p> : <>
+          <label className="grid gap-1 text-sm">Draft to review<select className="office-control" value={selectedDraft.id} disabled={busy || editing !== null} onChange={(event) => { setDraftId(event.target.value); setDraftReviewed(false); }}>
+            {drafts.map((draft) => <option key={draft.id} value={draft.id}>{draft.name} · {SERVICE_KINDS.find((kind) => kind.id === draft.kind)?.label || draft.kind}</option>)}
+          </select></label>
+          <p className="text-sm">{selectedDraft.discipline || "No discipline specified"} · Revision {selectedDraft.revision}</p>
+          <p className="text-sm">{selectedDraft.purpose || "No public summary."}</p>
+          <p className="text-sm whitespace-pre-wrap">{selectedDraft.detail || "No public description."}</p>
+          <p className="text-sm">Display order: {selectedDraft.sortOrder} · {selectedDraft.featured ? "Featured" : "Standard display"}</p>
+          <label className="flex min-h-11 items-center gap-2 text-sm"><input type="checkbox" checked={draftReviewed} disabled={busy || editing !== null} onChange={(event) => setDraftReviewed(event.target.checked)} />I reviewed this draft and want to set its owner-approved financial terms.</label>
+          <Button type="button" disabled={busy || editing !== null || !draftReviewed} onClick={() => {
+            if (!draftReviewed || !selectedDraft) return;
+            openEditor({ ...emptyService(selectedDraft.kind), id: selectedDraft.id, kind: selectedDraft.kind, name: selectedDraft.name, discipline: selectedDraft.discipline, purpose: selectedDraft.purpose, detail: selectedDraft.detail, featured: selectedDraft.featured, sort_order: selectedDraft.sortOrder, basisVersion, operationalDraftRevision: selectedDraft.revision, operationalDraftConfirmed: true, active: false });
+          }}>Review Pricing & Approve Draft</Button>
+        </>}
+      </section>
       <div className="my-4 grid gap-3 sm:grid-cols-3">
         <label className="grid gap-1 text-sm">
           Search services
@@ -233,8 +293,10 @@ export function AdminServicesDesk() {
       {editing ? (
         <form
           onSubmit={onSave}
+          onChange={(event) => { if (adoptingDraft && (event.target as HTMLFormElement).name !== "financialTermsConfirmed") setFinancialTermsConfirmed(false); }}
           className="mt-4 grid gap-3 rounded-2xl bg-paper-2 p-5 shadow-border"
         >
+          <fieldset disabled={busy} className="contents">
           <p className="text-xs font-semibold tracking-[0.16em] text-maroon uppercase">
             {editing.id ? `Edit ${editing.name}` : "New service"}
           </p>
@@ -242,6 +304,7 @@ export function AdminServicesDesk() {
             Type
             <select
               value={editing.kind}
+              disabled={adoptingDraft}
               onChange={(event) =>
                 setEditing({ ...editing, kind: event.target.value as ServiceKind })
               }
@@ -264,12 +327,12 @@ export function AdminServicesDesk() {
             />
           </label>
           <div className="grid grid-cols-2 gap-3">
-            <NumberField
+            {adoptingDraft ? <label className="text-sm font-semibold">Price ($)<input type="number" required min={0.01} max={100000} step={0.01} value={draftPrice} onChange={(event) => { setDraftPrice(event.target.value); setFinancialTermsConfirmed(false); }} className={fieldClass} /></label> : <NumberField
               label="Price ($)"
               step={0.01}
               value={editing.price}
               onChange={(price) => setEditing({ ...editing, price })}
-            />
+            />}
             <NumberField
               label="Minutes"
               value={editing.minutes}
@@ -289,15 +352,20 @@ export function AdminServicesDesk() {
             checked={editing.active}
             onChange={(active) => setEditing({ ...editing, active })}
           />
+          {adoptingDraft && <>
+            <p className="text-sm">Saving approves this draft's financial terms. Enable Active to publish it for new purchases. Saving inactive keeps it archived until a separate operational reactivation. Existing paid purchases keep their agreed terms.</p>
+            <label className="flex min-h-11 items-center gap-2 text-sm font-semibold"><input type="checkbox" name="financialTermsConfirmed" checked={financialTermsConfirmed} onChange={(event) => setFinancialTermsConfirmed(event.target.checked)} />I approve this service and its reviewed financial terms.</label>
+          </>}
           {error ? <p className="text-sm text-maroon">{error}</p> : null}
           <div className="flex gap-2">
-            <Button type="submit" disabled={busy}>
+            <Button type="submit" disabled={busy || (adoptingDraft && (!financialTermsConfirmed || !draftPrice.trim()))}>
               {busy ? "Saving…" : "Save"}
             </Button>
-            <Button type="button" variant="outlineDark" onClick={() => setEditing(null)}>
+            <Button type="button" variant="outlineDark" disabled={busy} onClick={() => { setEditing(null); setFinancialTermsConfirmed(false); setDraftReviewed(false); setError(""); }}>
               Cancel
             </Button>
           </div>
+          </fieldset>
         </form>
       ) : null}
       {!loaded && !error && <p role="status">Loading services…</p>}
@@ -332,7 +400,8 @@ export function AdminServicesDesk() {
                 type="button"
                 variant="outlineDark"
                 size="sm"
-                onClick={() => setEditing(fromRow(row, basisVersion))}
+                disabled={busy}
+                onClick={() => openEditor(fromRow(row, basisVersion))}
               >
                 Edit
               </Button>
@@ -350,6 +419,8 @@ export function AdminServicesDesk() {
                   size="sm"
                   disabled={busy}
                   onClick={async () => {
+                    if (pending.current) return;
+                    pending.current = true;
                     setBusy(true);
                     setError("");
                     try {
@@ -358,6 +429,7 @@ export function AdminServicesDesk() {
                     } catch (e) {
                       setError(e instanceof Error ? e.message : "Could not update service.");
                     } finally {
+                      pending.current = false;
                       setBusy(false);
                     }
                   }}

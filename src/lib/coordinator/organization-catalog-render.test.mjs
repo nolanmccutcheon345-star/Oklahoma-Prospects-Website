@@ -3,6 +3,12 @@ import assert from "node:assert/strict";
 import { withRendered } from "../../../scripts/render-component-support.mjs";
 
 const mock = {
+  "@/lib/coordinator/organization-services-api": `
+    export const getOrganizationServices = async () => (await globalThis.catalogUi.load()).services;
+    export const saveOrganizationService = ({data}) => globalThis.catalogUi.service(data);
+    export const createOrganizationServiceDraft = () => { throw new Error("Unexpected draft creation"); };
+    export const setOrganizationServiceStatus = () => { throw new Error("Unexpected status change"); };
+  `,
   "@/lib/coordinator/organization-catalog-api": `
     export const getOrganizationCatalog = () => globalThis.catalogUi.load();
     export const saveOrganizationServiceMetadata = ({data}) => globalThis.catalogUi.service(data);
@@ -12,6 +18,9 @@ const mock = {
 const service = {
   id: "lesson",
   revision: 4,
+  sourceRevision: 4,
+  status: "active",
+  financialApprovalRequired: false,
   kind: "lesson",
   name: "Private lesson",
   discipline: "Pitching",
@@ -106,6 +115,7 @@ test("catalog forms save only allowlisted public fields, block repeated submissi
   try {
     await render(
       async ({ host, act, dom, change }) => {
+        await act(async () => button(host, "Edit Service Details").click());
         assert.equal(control(host, "Service name").readOnly, true);
         assert.match(host.textContent, /owner review to change/);
         assert.doesNotMatch(host.innerHTML, /priceCents|total_cents|order_id|profit_split/);
@@ -125,13 +135,14 @@ test("catalog forms save only allowlisted public fields, block repeated submissi
         assert.equal(button(host, "Camps & Clinics").disabled, true);
         assert.deepEqual(
           Object.keys(services[0]).sort(),
-          ["id", "revision", "name", "purpose", "detail", "sortOrder", "featured"].sort(),
+          ["id", "revision", "sourceRevision", "name", "purpose", "detail", "sortOrder", "featured"].sort(),
         );
         assert.equal(services[0].purpose, "Updated public training summary");
         await act(async () => completeService());
-        assert.match(host.textContent, /Published service details saved/);
+        assert.match(host.textContent, /Service details saved/);
         assert.equal(callbacks, 1);
-        await change(control(host, "Published service"), "membership");
+        await change(control(host, "Service"), "membership");
+        await act(async () => button(host, "Edit Service Details").click());
         assert.equal(control(host, "Service name").readOnly, false);
         await act(async () => button(host, "Camps & Clinics").click());
         assert.match(host.textContent, /Synthetic Baseball Player/);
@@ -179,7 +190,7 @@ test("catalog forms save only allowlisted public fields, block repeated submissi
 
 test("catalog loading, empty states, failed saves, revocation and retry do not retain private data", async () => {
   const workspace = fixture();
-  let resolveLoad,
+  let resolveLoad = [],
     failLoad = false,
     defer = true,
     empty = false;
@@ -187,7 +198,7 @@ test("catalog loading, empty states, failed saves, revocation and retry do not r
     load: () => {
       if (defer)
         return new Promise((resolve) => {
-          resolveLoad = resolve;
+          resolveLoad.push(resolve);
         });
       if (failLoad) return Promise.reject(new Error("Access removed. Reload your account."));
       return Promise.resolve(
@@ -203,12 +214,13 @@ test("catalog loading, empty states, failed saves, revocation and retry do not r
   };
   try {
     await render(async ({ host, act, dom }) => {
-      assert.match(host.textContent, /Loading catalog/);
+      assert.match(host.textContent, /Loading (catalog|services)/);
       assert.equal(host.querySelector("form"), null);
       await act(async () => {
         defer = false;
-        resolveLoad(structuredClone(workspace));
+        for (const resolve of resolveLoad) resolve(structuredClone(workspace));
       });
+      await act(async () => button(host, "Edit Service Details").click());
       assert.equal(control(host, "Service name").value, "Private lesson");
       await textInput(
         act,
@@ -225,14 +237,15 @@ test("catalog loading, empty states, failed saves, revocation and retry do not r
       assert.equal(control(host, "Public summary").value, "Unsaved copy remains after conflict");
       assert.equal(button(host, "Save Service Details").disabled, false);
       failLoad = true;
-      await act(async () => button(host, "Reload Catalog").click());
+      await act(async () => button(host, "Reload Services").click());
       assert.match(host.textContent, /Access removed/);
       assert.equal(host.querySelector("form"), null);
       assert.doesNotMatch(host.textContent, /Private lesson|Synthetic.*Player/);
       failLoad = false;
       empty = true;
+      await act(async () => button(host, "Reload Services").click());
+      assert.match(host.textContent, /No services yet/);
       await act(async () => button(host, "Reload Catalog").click());
-      assert.match(host.textContent, /No published services/);
       await act(async () => button(host, "Camps & Clinics").click());
       assert.match(host.textContent, /No published camps or clinics/);
       empty = false;
@@ -252,18 +265,18 @@ test("catalog loading, empty states, failed saves, revocation and retry do not r
 });
 
 test("catalog ignores a read that finishes after its workspace is unmounted", async () => {
-  let resolveLoad;
+  let resolveLoad = [];
   globalThis.catalogUi = {
     load: () =>
       new Promise((resolve) => {
-        resolveLoad = resolve;
+        resolveLoad.push(resolve);
       }),
   };
   try {
     await render(async ({ host }) => {
-      assert.match(host.textContent, /Loading catalog/);
+      assert.match(host.textContent, /Loading (catalog|services)/);
     });
-    resolveLoad(fixture());
+    for (const resolve of resolveLoad) resolve(fixture());
     await new Promise((resolve) => setTimeout(resolve, 0));
   } finally {
     delete globalThis.catalogUi;

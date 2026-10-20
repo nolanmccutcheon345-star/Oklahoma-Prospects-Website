@@ -51,7 +51,7 @@ const pick = (p: Record<string, unknown>) =>
   Object.fromEntries(
     fields.flatMap((k) => (typeof p[k] === "string" ? [[k, p[k] as string]] : [])),
   );
-export async function centerStaff(sql: Sql) {
+export async function centerStaff(sql: Sql, options: { includeInactive?: boolean } = {}) {
   return sql<{
     id: string;
     staffId: string;
@@ -60,6 +60,7 @@ export async function centerStaff(sql: Sql) {
   }>`select distinct u.id,coalesce(s.id,'') as "staffId",u.name,lower(trim(u.email)) as email from "user" u
  left join club_staff s on s.active=true and is_tryout_staff(u.id,u.email) and lower(trim(s.email))=lower(trim(u.email)) and (s.user_id='' or s.user_id=u.id)
  where u."disabledAt" is null and u."emailVerified"=true
+ and (${options.includeInactive === true} or not exists(select 1 from operational_person_settings o where o.user_id=u.id and not o.directory_active))
  and (s.id is not null or exists(select 1 from owner_grants g where g.user_id=u.id and g.email=lower(trim(u.email)) and g.revoked_at is null)
  or exists(select 1 from registration_readers r where r.user_id=u.id and r.email=lower(trim(u.email)) and r.active and r.can_manage_tryouts)) order by u.name`;
 }
@@ -184,7 +185,7 @@ export async function centerDetailFor(sql: Sql, userId: string, id: string) {
 export async function saveCenterWorkFor(sql: Sql, userId: string, raw: CenterWorkInput) {
   const input = centerWorkInput.parse(raw);
   await centerAccessFor(sql, userId);
-  const staff = await centerStaff(sql);
+  const staff = await centerStaff(sql, { includeInactive: true });
   if (input.assignee && !staff.some((s) => s.id === input.assignee))
     throw new Error("Choose an active approved staff account.");
   const [state] = await sql<{
@@ -193,6 +194,7 @@ export async function saveCenterWorkFor(sql: Sql, userId: string, raw: CenterWor
   if (input.teamId && !state?.payload.teams.some((t) => t.id === input.teamId && !t.closed))
     throw new Error("Choose an active team.");
   return sql.transaction(async (tx) => {
+    await lockFinancialExecution(tx);
     await tx.query("select set_config('app.actor_id',$1,true)", [userId]);
     const request = await requestFor(tx, input.id);
     if (request.status === "accepted" && input.status !== "accepted" && input.status !== "closed")
@@ -209,9 +211,17 @@ export async function saveCenterWorkFor(sql: Sql, userId: string, raw: CenterWor
     }
     const [work] = await tx<{
       revision: number;
-    }>`select revision from office_request_work where request_id=${input.id} for update`;
+      assignee_id: string | null;
+    }>`select revision,assignee_id from office_request_work where request_id=${input.id} for update`;
     if ((work?.revision ?? 0) !== input.revision)
       throw new Error("Another coach updated this registration. Refresh before saving.");
+    if (
+      input.assignee &&
+      !(await centerStaff(tx, { includeInactive: input.assignee === work?.assignee_id })).some(
+        (s) => s.id === input.assignee,
+      )
+    )
+      throw new Error("Choose an active approved staff account.");
     await tx`insert into office_request_work(request_id,assignee_id,follow_up,team_id,follow_up_date) values(${input.id},${input.assignee || null},${input.status},${input.teamId},${input.followUpDate || null}::date) on conflict(request_id) do update set assignee_id=excluded.assignee_id,follow_up=excluded.follow_up,team_id=excluded.team_id,follow_up_date=excluded.follow_up_date,revision=office_request_work.revision+1,updated_at=now()`;
     await tx`insert into tryout_center_activity(id,request_id,actor_id,kind,action_payload,body) values(${input.actionId},${input.id},${userId},'workflow',${JSON.stringify(input)}::jsonb,${"Status: " + input.status + "; assigned: " + (staff.find((s) => s.id === input.assignee)?.name || "Unassigned") + (input.note ? "\n" + input.note : "")})`;
     const recipient = staff.find((s) => s.id === input.assignee);
@@ -230,8 +240,9 @@ export async function saveCenterWorkFor(sql: Sql, userId: string, raw: CenterWor
 export async function saveCenterMessageFor(sql: Sql, userId: string, raw: CenterMessageInput) {
   const input = centerMessageInput.parse(raw),
     me = await centerAccessFor(sql, userId);
-  const staff = await centerStaff(sql);
+  const staff = await centerStaff(sql, { includeInactive: true });
   return sql.transaction(async (tx) => {
+    await lockFinancialExecution(tx);
     await tx.query("select set_config('app.actor_id',$1,true)", [userId]);
     const r = await requestFor(tx, input.id);
     const [done] = await tx<{
@@ -293,7 +304,7 @@ export async function saveCenterAppointmentFor(
 ) {
   const input = centerAppointmentInput.parse(raw);
   await centerAccessFor(sql, userId);
-  const staff = await centerStaff(sql),
+  const staff = await centerStaff(sql, { includeInactive: true }),
     coach = staff.find((s) => s.staffId === input.coachId);
   if (!coach) throw new Error("Choose an active coach with a verified account.");
   return sql.transaction(async (tx) => {
@@ -313,6 +324,7 @@ export async function saveCenterAppointmentFor(
     const [old] = await tx<{
       revision: number;
       request_id: string;
+      coach_id: string;
       booking_id: string | null;
       event_id: string | null;
       status: string;
@@ -321,6 +333,11 @@ export async function saveCenterAppointmentFor(
       throw new Error("Appointment belongs to another registration.");
     if ((old?.revision ?? 0) !== input.revision)
       throw new Error("Appointment changed. Refresh before saving.");
+    if (
+      old?.coach_id !== input.coachId &&
+      !(await centerStaff(tx)).some((s) => s.staffId === input.coachId)
+    )
+      throw new Error("Choose an active coach with a verified account.");
     // Group confirmations join the existing event/enrollment system. Individual appointments reserve the same occupancy cells as rentals and lessons.
     let start = chicagoInstant(input.date, input.time),
       end = new Date(start.getTime() + input.duration * 60000),

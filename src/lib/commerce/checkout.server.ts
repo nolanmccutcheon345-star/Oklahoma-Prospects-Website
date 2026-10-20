@@ -1,3 +1,4 @@
+import { availableOperationalServices, assertOperationalServiceForNewPurchase } from "../coordinator/organization-services.server";
 import { bookableCoaches, coachesWithAvailability, requireCoachService } from "./coach-services.server";
 import { lockFinancialExecution } from "../finance/execution.server";
 import { assertApprovedFinancialLessonInTransaction, type FinancialLessonAdmission } from "../finance/context.server";
@@ -48,9 +49,10 @@ export async function checkoutContext(verifiedUserId?: string) {
   // A failed status lookup is an empty set: every athlete is not assessed.
   const done = session ? await householdAssessmentIds(sql, me!.billingHouseholdIds) : new Set<string>();
   // Parent-scoped desk data omits staff schedules; use the full file only on the server.
-  const publicProducts = approvedProducts(products);
+  const publicProducts = approvedProducts(await availableOperationalServices(sql,products));
   const bookingFile = session ? await readWorkingFile() : file;
-  const coaches = await bookableCoaches(sql, bookingFile.coaches);
+  const availableProductIds=new Set(publicProducts.map(p=>p.id));
+  const coaches = (await bookableCoaches(sql, bookingFile.coaches)).map(c=>({...c,serviceIds:c.serviceIds.filter(id=>availableProductIds.has(id))})).filter(c=>c.serviceIds.length);
   // Guest callers receive only coach names/specialties and the public catalog.
   return {
     athleteScopeRole: me?.role === "admin" ? "admin" : me?.canInstruct || me?.canTeamCoach ? "coach" : me?.role || "parent",
@@ -81,9 +83,9 @@ export async function quoteForRequest(
   if (!session) throw new Error("Sign in to your verified account before checkout.");
   const me = await clubIdentity(session.id);
   const sql = await getSql();
-  const products = approvedProducts(
+  const products = approvedProducts(await availableOperationalServices(sql,
     await sql<Product>`select id,kind,name,price,minutes,credits,remote,expires_days,hours,discipline,active from club_services where active = true or id = 'assessment-setup'`,
-  );
+  ));
   const product = products.find((p) => p.id === input.productId);
   if (!product) throw new Error("This product is unavailable.");
   const file = await readWorkingFile();
@@ -132,6 +134,7 @@ export async function quoteForRequest(
     );
   if (quote.needsSlot && quote.kind !== "cage") {
     const spaceProduct = checkoutLessonService(quote);
+    await assertOperationalServiceForNewPurchase(sql,spaceProduct);
     const [savedService] = await sql<import('./contracts').Product & {lesson_version:number}>`select * from club_services where id=${spaceProduct} and kind='lesson'`;
     const [playerSport] = await sql<{profile:{sport?:string;sports?:string[]}}>`select profile from club_athletes where id=${athleteId}`;
     const sport = input.sport || ((playerSport?.profile?.sports?.length || 0)<=1 ? playerSport?.profile?.sport : undefined);
@@ -223,6 +226,8 @@ export async function beginCheckout(input: CheckoutInput, verifiedUserId?: strin
         recurring: quote.recurring,
       };
     }
+    await assertOperationalServiceForNewPurchase(tx,quote.productId);
+    if(quote.needsSlot && quote.kind!=="cage")await assertOperationalServiceForNewPurchase(tx,checkoutLessonService(quote));
     const id = randomUUID(),
       holdUntil = new Date(Date.now() + 10 * 60_000);
     const snapshot = {

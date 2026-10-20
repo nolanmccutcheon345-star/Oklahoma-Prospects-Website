@@ -1,147 +1,21 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import { Button } from "../ui/button";
+import { OrganizationServices } from "./organization-services";
 import { eventTypes } from "@/lib/training-events-contracts";
 import {
   getOrganizationCatalog,
-  saveOrganizationServiceMetadata,
   saveOrganizationTrainingEventMetadata,
 } from "@/lib/coordinator/organization-catalog-api";
 import {
-  organizationServiceMetadataInput,
   organizationTrainingEventMetadataInput,
   type OrganizationCatalog,
   type OrganizationCatalogEvent,
-  type OrganizationCatalogService,
-  type OrganizationServiceMetadataInput,
   type OrganizationTrainingEventMetadataInput,
 } from "@/lib/coordinator/organization-catalog-contracts";
 
 const field = "min-h-11 w-full min-w-0 rounded border border-line bg-white p-2 text-ink";
 const message = (error: unknown) =>
   error instanceof Error ? error.message : "Unable to complete the request. Please try again.";
-const categories = {
-  lesson: "Lesson",
-  package: "Lesson package",
-  membership: "Lesson membership",
-  cage: "Cage rental",
-  cage_plan: "Cage membership",
-  fee: "Service fee",
-  team_plan: "Team plan",
-};
-
-function ServiceForm({
-  service,
-  busy,
-  onSave,
-}: {
-  service: OrganizationCatalogService;
-  busy: boolean;
-  onSave: (input: OrganizationServiceMetadataInput) => Promise<void>;
-}) {
-  const [input, setInput] = useState<OrganizationServiceMetadataInput>(() => ({
-    id: service.id,
-    revision: service.revision,
-    name: service.name,
-    purpose: service.purpose,
-    detail: service.detail,
-    featured: service.featured,
-    sortOrder: service.sortOrder,
-  }));
-  const [error, setError] = useState("");
-  async function submit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (busy) return;
-    const parsed = organizationServiceMetadataInput.safeParse(input);
-    if (!parsed.success) {
-      setError(parsed.error.issues[0]?.message || "Check the service details.");
-      return;
-    }
-    setError("");
-    await onSave(parsed.data);
-  }
-  return (
-    <form onSubmit={(event) => void submit(event)}>
-      <fieldset disabled={busy} className="grid min-w-0 gap-4">
-        <legend className="mb-3 text-lg font-semibold">Edit published service details</legend>
-        <p className="text-sm">
-          {categories[service.kind]}
-          {service.discipline ? ` · ${service.discipline}` : ""}
-        </p>
-        <label className="grid gap-1">
-          Service name
-          <input
-            className={field}
-            required
-            maxLength={120}
-            value={input.name}
-            readOnly={!service.nameEditable}
-            onChange={(event) => setInput({ ...input, name: event.target.value })}
-          />
-        </label>
-        {!service.nameEditable && (
-          <p className="text-sm text-muted-foreground">
-            This service name needs owner review to change. Public descriptions and display settings
-            can be edited below.
-          </p>
-        )}
-        <label className="grid gap-1">
-          Public summary
-          <textarea
-            className={field}
-            rows={3}
-            maxLength={2000}
-            value={input.purpose}
-            onChange={(event) => setInput({ ...input, purpose: event.target.value })}
-          />
-        </label>
-        <label className="grid gap-1">
-          Public description
-          <textarea
-            className={field}
-            rows={4}
-            maxLength={2000}
-            value={input.detail}
-            onChange={(event) => setInput({ ...input, detail: event.target.value })}
-          />
-        </label>
-        <label className="grid gap-1">
-          Display order
-          <input
-            className={field}
-            type="number"
-            required
-            min={0}
-            max={10000}
-            step={1}
-            value={input.sortOrder}
-            onChange={(event) => setInput({ ...input, sortOrder: event.target.valueAsNumber })}
-          />
-        </label>
-        <label className="flex min-h-11 items-center gap-2">
-          <input
-            type="checkbox"
-            checked={input.featured}
-            onChange={(event) => setInput({ ...input, featured: event.target.checked })}
-          />
-          Featured display
-        </label>
-        <p className="text-sm text-muted-foreground">
-          Saving updates the existing public catalog copy immediately. Keep descriptions consistent
-          with the service currently offered.
-        </p>
-        {error && (
-          <p role="alert" className="text-red-700">
-            {error}
-          </p>
-        )}
-        <Button type="submit" className="justify-self-start">
-          {busy ? "Saving…" : "Save Service Details"}
-        </Button>
-      </fieldset>
-    </form>
-  );
-}
-
 function EventForm({
   event,
   busy,
@@ -227,7 +101,6 @@ function EventForm({
 export function OrganizationCatalog({ onSaved }: { onSaved?: () => void | Promise<void> }) {
   const [workspace, setWorkspace] = useState<OrganizationCatalog | null>(null);
   const [tab, setTab] = useState<"services" | "events">("services");
-  const [serviceId, setServiceId] = useState("");
   const [eventId, setEventId] = useState("");
   const [sport, setSport] = useState("all");
   const [loading, setLoading] = useState(true);
@@ -280,7 +153,6 @@ export function OrganizationCatalog({ onSaved }: { onSaved?: () => void | Promis
       if (mounted.current) setSaving(false);
     }
   }
-  const service = workspace?.services.find((row) => row.id === serviceId) || workspace?.services[0];
   const events =
     workspace?.events.filter(
       (row) => sport === "all" || row.sport === sport || row.sport === "Both",
@@ -307,7 +179,7 @@ export function OrganizationCatalog({ onSaved }: { onSaved?: () => void | Promis
         </Button>
       </div>
       <p className="text-sm text-muted-foreground">
-        Edit published service and event descriptions and review existing event rosters.
+        Manage service drafts and descriptions, and review event details and rosters.
       </p>
       <div className="flex flex-wrap gap-2" role="group" aria-label="Catalog section">
         <Button
@@ -347,48 +219,11 @@ export function OrganizationCatalog({ onSaved }: { onSaved?: () => void | Promis
           {error}
         </p>
       )}
-      {loading ? (
+      {tab === "services" ? (
+        <OrganizationServices onSaved={onSaved} onBusyChange={setSaving} />
+      ) : loading ? (
         <p role="status">Loading catalog…</p>
-      ) : !workspace ? null : tab === "services" ? (
-        <>
-          {!service ? (
-            <p>No published services are available.</p>
-          ) : (
-            <>
-              <label className="grid gap-1">
-                Published service
-                <select
-                  className={field}
-                  value={service.id}
-                  disabled={saving}
-                  onChange={(change) => {
-                    setServiceId(change.target.value);
-                    setError("");
-                    setSuccess("");
-                  }}
-                >
-                  {workspace.services.map((row) => (
-                    <option key={row.id} value={row.id}>
-                      {row.name} · {categories[row.kind]}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <ServiceForm
-                key={`${service.id}:${service.revision}`}
-                service={service}
-                busy={saving}
-                onSave={(input) =>
-                  save(
-                    () => saveOrganizationServiceMetadata({ data: input }),
-                    "Published service details saved.",
-                  )
-                }
-              />
-            </>
-          )}
-        </>
-      ) : (
+      ) : !workspace ? null : (
         <>
           <label className="grid gap-1">
             Sport
@@ -476,8 +311,8 @@ export function OrganizationCatalog({ onSaved }: { onSaved?: () => void | Promis
         </>
       )}
       <p className="text-sm text-muted-foreground">
-        Drafts, past events and unpublished records require owner review. New events, schedule
-        changes, registration changes and check-in are not available in this workspace.
+        New service drafts require owner review before purchase. Archiving preserves existing
+        paid bookings and prepared purchases.
       </p>
     </section>
   );

@@ -267,7 +267,8 @@ test("organization operations keeps explicit team scope, posts only confirmed me
       "export const getLessonAssignments=async()=>[{id:'synthetic-lesson',serviceName:'Synthetic lesson',playerName:'Synthetic Lesson Player',customerEmail:'lesson-guardian@example.invalid',coachId:'synthetic-coach',coachName:'Synthetic Instructor',startsAt:'2030-02-04T23:00:00Z',endsAt:'2030-02-05T00:00:00Z'}]; export const getLessonInstructors=async()=>{throw new Error('Operational assignment is unavailable until financial cutover');}; export const saveLessonInstructor=async()=>{throw new Error('No assignment may be posted after denied choices');};",
     "@/lib/pd/operational-lesson-api":
       "export const getOperationalLessonCompletions=async()=>({canRecord:false,lessons:[]}); export const saveOperationalLessonCompletion=async()=>{throw new Error('Inactive completion must not post');};",
-    "@/components/staff/directory-desk": "export const StaffDirectoryDesk=()=>null;",
+    "./organization-people": "export const OrganizationPeople=()=>null;",
+    "./organization-events": "export const OrganizationEvents=()=>null;",
     "@/components/tryout-event-editor": "export const TryoutEventEditor=()=>null;",
     "@/components/coordinator/organization-game-results":
       "import {createElement} from 'react'; export const OrganizationGameResults=({onSaved})=>createElement('section',{'aria-label':'Game results'},createElement('h2',null,'Game Results & Statistics'),createElement('button',{onClick:onSaved},'Save Synthetic Game'));",

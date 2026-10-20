@@ -248,13 +248,17 @@ const ratingProjection = (payload: Json) => {
     coachability: score("coachability"),
   };
 };
-async function assignableStaff(tx: Sql) {
-  const staff = (await centerStaff(tx)).map((s) => ({ id: s.id, name: s.name, email: s.email }));
+async function assignableStaff(tx: Sql, options: { includeInactive?: boolean } = {}) {
+  const staff = (await centerStaff(tx, options)).map((s) => ({
+    id: s.id,
+    name: s.name,
+    email: s.email,
+  }));
   const operations = await tx<{
     id: string;
     name: string;
     email: string;
-  }>`select u.id,u.name,lower(trim(u.email)) as email from organization_operational_access a join "user" u on u.id=a.user_id where a.status='active' and a.financial_restricted and u."emailVerified" and u."disabledAt" is null`;
+  }>`select u.id,u.name,lower(trim(u.email)) as email from organization_operational_access a join "user" u on u.id=a.user_id where a.status='active' and a.financial_restricted and u."emailVerified" and u."disabledAt" is null and (${options.includeInactive === true} or not exists(select 1 from operational_person_settings o where o.user_id=u.id and not o.directory_active))`;
   return [...staff, ...operations.filter((s) => !staff.some((p) => p.id === s.id))].sort((a, b) =>
     a.name.localeCompare(b.name),
   );
@@ -787,7 +791,8 @@ export async function saveOrganizationRegistration(
     if ((old?.revision || 0) !== input.revision) throw changed();
     const [work] = await tx<{
       revision: number;
-    }>`select revision from office_request_work where request_id=${input.id} for update`;
+      assignee_id: string | null;
+    }>`select revision,assignee_id from office_request_work where request_id=${input.id} for update`;
     if ((work?.revision || 0) !== input.workRevision) throw changed();
     if (
       !old &&
@@ -844,7 +849,11 @@ export async function saveOrganizationRegistration(
       throw new Error("This player is already rostered. Manage their roster separately.");
     if (
       input.workflow?.assigneeId &&
-      !(await assignableStaff(tx)).some((s) => s.id === input.workflow?.assigneeId)
+      !(
+        await assignableStaff(tx, {
+          includeInactive: input.workflow.assigneeId === work?.assignee_id,
+        })
+      ).some((s) => s.id === input.workflow?.assigneeId)
     )
       throw new Error("Choose an active approved staff account.");
     if (old)

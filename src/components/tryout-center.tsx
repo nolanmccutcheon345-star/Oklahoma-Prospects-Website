@@ -300,7 +300,8 @@ export function TryoutCenter() {
                     <p className="mt-2 text-sm">Guardian: {r.payload.parent || "Not provided"}</p>
                     <p className="text-sm">
                       Coach:{" "}
-                      {data.staff.find((s) => s.id === w(r.id)?.assignee_id)?.name || "Unassigned"}
+                      {data.staff.find((s) => s.id === w(r.id)?.assignee_id)?.name ||
+                        (w(r.id)?.assignee_id ? "Assigned coach (inactive)" : "Unassigned")}
                     </p>
                     {w(r.id)?.follow_up_date && (
                       <p className="text-sm">
@@ -464,6 +465,13 @@ function RegistrationDetail({
             onChange={(e) => setForm({ ...form, assignee: e.target.value })}
           >
             <option value="">Unassigned</option>
+            {form.assignee &&
+              form.assignee === saved?.assignee_id &&
+              !data.staff.some((s) => s.id === form.assignee) && (
+                <option value={form.assignee} disabled>
+                  Assigned coach (inactive)
+                </option>
+              )}
             {data.staff.map((s) => (
               <option key={s.id + s.staffId} value={s.id}>
                 {s.name}
@@ -743,6 +751,13 @@ function Appointment({
             onChange={(e) => setForm({ ...form, coachId: e.target.value })}
           >
             <option value="">Choose coach</option>
+            {form.coachId &&
+              form.coachId === old?.coach_id &&
+              !data.staff.some((s) => s.staffId === form.coachId) && (
+                <option value={form.coachId} disabled>
+                  Assigned coach (inactive)
+                </option>
+              )}
             {data.staff
               .filter((s) => s.staffId)
               .map((s) => (

@@ -3,9 +3,9 @@
  * consumer imports this module. Its full snapshot is private financial data:
  * never return it from an operational API or merge it into an organization DTO.
  *
- * Initialization is an explicit, owner-authorized command. Subsequent commands
- * start from the saved version; they NEVER reread operational metadata. Provider
- * and household adapters still require a separate reviewed cutover.
+ * Initialization and captured-only refresh are explicit owner-reviewed commands.
+ * Ordinary financial amendments start from saved versions, never live metadata.
+ * A refresh receipt is not activation; provider/household cutover stays separate.
  */
 import { createHash, randomUUID } from "node:crypto";
 import type { Sql } from "../db";
@@ -35,6 +35,16 @@ export type FinancialInputs = {
       admittedTeamIds?: string[];
     }[];
     agreementGuardians?: { agreementId: string; userId: string; householdId: string }[];
+    instructorAccess?: {
+      id: string;
+      userId: string;
+      coachId: string;
+      payeeId: string;
+      fromVersion: number;
+      bookingIds: string[];
+      orderIds: string[];
+    }[];
+    payrollAccess?: { id: string; userId: string; payeeId: string; fromMonth: string }[];
     households: { id: string; primary_email: string }[];
     members: { household_id: string; user_id: string }[];
     guardians: { household_id: string; user_id: string }[];
@@ -488,6 +498,648 @@ export async function addFinancialPlayerAliasForOwner(
       sourceClubRevision: basis.sourceClubRevision,
       sourceDigest: basis.sourceDigest,
       payloadDigest,
+    };
+  });
+}
+
+export type FinancialCutoverBlocker = {
+  code: string;
+  orderId?: string;
+  bookingId?: string;
+  attemptId?: string;
+  detail: string;
+};
+export type FinancialLessonBindingProposal = {
+  bookingId: string;
+  orderId: string;
+  basisId: string;
+  basisVersion: number;
+  originalBooking: SourceRow;
+  approvedTerms: SourceRow;
+};
+export type FinancialSourceChange = {
+  /** RFC 6901 JSON pointer. Arrays are reviewed whole to retain meaningful order. */
+  path: string;
+  beforePresent: boolean;
+  afterPresent: boolean;
+  before?: unknown;
+  after?: unknown;
+};
+function financialSourceChanges(
+  before: unknown,
+  after: unknown,
+  path = "",
+): FinancialSourceChange[] {
+  if (digest(before) === digest(after)) return [];
+  if (
+    before &&
+    after &&
+    typeof before === "object" &&
+    typeof after === "object" &&
+    !Array.isArray(before) &&
+    !Array.isArray(after)
+  ) {
+    const previous = before as Record<string, unknown>;
+    const current = after as Record<string, unknown>;
+    return [...new Set([...Object.keys(previous), ...Object.keys(current)])]
+      .sort()
+      .flatMap((key) => {
+        const at = path + "/" + key.replace(/~/g, "~0").replace(/\//g, "~1");
+        const beforePresent = Object.hasOwn(previous, key);
+        const afterPresent = Object.hasOwn(current, key);
+        return beforePresent && afterPresent
+          ? financialSourceChanges(previous[key], current[key], at)
+          : [
+              {
+                path: at,
+                beforePresent,
+                afterPresent,
+                ...(beforePresent ? { before: previous[key] } : {}),
+                ...(afterPresent ? { after: current[key] } : {}),
+              },
+            ];
+      });
+  }
+  return [{ path, beforePresent: true, afterPresent: true, before, after }];
+}
+type CutoverEvidence = {
+  orders: {
+    id: string;
+    user_id: string | null;
+    athlete_id: string | null;
+    product_id: string;
+    total_cents: number;
+    currency: string;
+    hold_until: string | null;
+    kind: string;
+    status: string;
+    snapshot: SourceRow;
+    payment_provider: string;
+    payment_environment: string | null;
+    paid_at: string | null;
+    square_payment_id: string | null;
+    square_fee_payment_id: string | null;
+    payment_intent_id: string | null;
+    checkout_session_id: string | null;
+    subscription_setup_status: string | null;
+  }[];
+  attempts: { id: string; order_id: string; status: string; payment_id: string | null }[];
+  payments: SourceRow[];
+  bookings: SourceRow[];
+  bindings: SourceRow[];
+  recognitions: SourceRow[];
+  grants: SourceRow[];
+  uses: SourceRow[];
+  refunds: SourceRow[];
+  versions: { version: number; payload_digest: string; audited_refresh: boolean }[];
+};
+
+/** The caller owns the gate and owner check. No provider/network work occurs here.
+ * Table locks cover inserts and independent payment/fulfillment changes, not just
+ * the club revision. Secrets (attempt token_hash/card/customer data) are omitted. */
+async function captureCutoverEvidence(tx: Sql): Promise<CutoverEvidence> {
+  await tx.query(`lock table commerce_orders,square_payment_attempts,square_payments,
+    booking_records,financial_lesson_bindings,financial_lesson_recognitions,
+    credit_grants,credit_uses,commerce_refunds,finance_audit,financial_basis_versions in share mode`);
+  return {
+    orders: await tx`select id,user_id,athlete_id,product_id,total_cents,currency,hold_until::text,
+      kind,status,snapshot,payment_provider,payment_environment,
+      paid_at::text,square_payment_id,square_fee_payment_id,payment_intent_id,
+      checkout_session_id,subscription_setup_status from commerce_orders order by id`,
+    attempts:
+      await tx`select id,order_id,status,payment_id from square_payment_attempts order by id`,
+    payments:
+      await tx`select id,order_id,status,environment,purpose,amount_cents,refunded_cents from square_payments order by id`,
+    bookings: await tx`select id,order_id,user_id,athlete_id,coach_id,product_id,
+      starts_at::text,ends_at::text,status,completed_at::text,lesson_config from booking_records order by id`,
+    bindings:
+      await tx`select booking_id,basis_id,basis_version,order_id,original_booking,approved_terms from financial_lesson_bindings order by booking_id`,
+    recognitions:
+      await tx`select booking_id,basis_id,basis_version,recognized_by,recognized_at::text,actor_kind,reason from financial_lesson_recognitions order by booking_id`,
+    grants:
+      await tx`select id,user_id,athlete_id,order_id,payment_id,subscription_id,kind,quantity,remaining,starts_at::text,expires_at::text from credit_grants order by id`,
+    uses: await tx`select id,grant_id,booking_id,quantity,reversed_at::text,restored_quantity from credit_uses order by id`,
+    refunds:
+      await tx`select id,order_id,booking_id,amount_cents,status,square_payment_id,square_refund_id,external_status from commerce_refunds order by id`,
+    versions: await tx`select v.version,v.payload_digest,exists(
+      select 1 from finance_audit a where a.record_id=v.basis_id
+        and a.action='Captured financial basis refresh' and a.actor_id=v.changed_by
+        and a.after_state->>'version'=v.version::text
+        and a.after_state->>'payloadDigest'=v.payload_digest
+        and a.after_state->>'activationState'='captured'
+        and a.after_state->'activeVersion'='null'::jsonb
+        and a.after_state->>'refreshedSourceDigest'=v.payload_digest
+      ) as audited_refresh from financial_basis_versions v
+      where v.basis_id=${BASIS_ID} order by v.version`,
+  };
+}
+function objectValue(value: Json | undefined): SourceRow | null {
+  return value && typeof value === "object" && !Array.isArray(value) ? value : null;
+}
+function sourceIdentityMap(club: ClubRecord) {
+  return club.teams
+    .map((team) => ({
+      teamId: team.id,
+      players: team.roster.map((player) => player.id).sort(),
+    }))
+    .sort((a, b) => (a.teamId < b.teamId ? -1 : a.teamId > b.teamId ? 1 : 0));
+}
+function assertRefreshIdentities(basis: FinancialBasis, inputs: FinancialInputs) {
+  const expected = basis.teams
+    .map((team) => ({
+      teamId: team.originalTeamId,
+      players: basis.agreements
+        .filter((a) => a.teamSeasonId === team.id)
+        .map((a) => a.originalPlayerId)
+        .sort(),
+    }))
+    .sort((a, b) => (a.teamId < b.teamId ? -1 : a.teamId > b.teamId ? 1 : 0));
+  if (
+    digest(sourceIdentityMap(inputs.club)) !== digest(expected) ||
+    digest(sourceIdentityMap(basis.inputs.club)) !== digest(expected)
+  )
+    throw new Error(
+      "Financial team/player identity map changed. New, removed, or moved identities require separate reviewed admission; refresh cannot reenroll them.",
+    );
+  if (
+    basis.teams.some(
+      (team) =>
+        !basis.teamAliases.some(
+          (alias) => alias.teamId === team.originalTeamId && alias.teamSeasonId === team.id,
+        ),
+    ) ||
+    basis.agreements.some(
+      (agreement) =>
+        !basis.playerAliases.some(
+          (alias) =>
+            alias.playerId === agreement.originalPlayerId &&
+            alias.agreementId === agreement.id &&
+            alias.teamId ===
+              basis.teams.find((team) => team.id === agreement.teamSeasonId)?.originalTeamId,
+        ),
+    )
+  )
+    throw new Error("Original financial identity aliases are inconsistent.");
+}
+
+async function cutoverPlan(
+  tx: Sql,
+  basis: FinancialBasis,
+  inputs: FinancialInputs,
+  basisVersion: number,
+  evidence: CutoverEvidence,
+) {
+  const blockers: FinancialCutoverBlocker[] = [];
+  const bindingPlan: FinancialLessonBindingProposal[] = [];
+  const untouchedQuoteIds: string[] = [];
+  const add = (
+    code: string,
+    detail: string,
+    ids: Omit<FinancialCutoverBlocker, "code" | "detail"> = {},
+  ) => blockers.push({ code, detail, ...ids });
+  for (const attempt of evidence.attempts) {
+    if (!["completed", "declined"].includes(attempt.status))
+      add(
+        "in_flight_charge",
+        "Reconcile this pending or unknown provider outcome outside the financial transaction; never rewrite its pin.",
+        { orderId: attempt.order_id, attemptId: attempt.id },
+      );
+    else if (
+      attempt.status === "completed" &&
+      !evidence.payments.some(
+        (p) =>
+          p.id === attempt.payment_id &&
+          p.order_id === attempt.order_id &&
+          p.status === "COMPLETED",
+      )
+    )
+      add("unreconciled_charge", "A completed attempt lacks its matching reconciled payment.", {
+        orderId: attempt.order_id,
+        attemptId: attempt.id,
+      });
+  }
+  for (const payment of evidence.payments) {
+    if (!["COMPLETED", "FAILED", "CANCELED"].includes(String(payment.status)))
+      add("unreconciled_charge", "A stored payment still has an unresolved provider outcome.", {
+        orderId: String(payment.order_id),
+      });
+  }
+  for (const refund of evidence.refunds) {
+    if (["pending", "PENDING", "unknown"].includes(String(refund.status)))
+      add("pending_refund", "Resolve the pending refund before cutover review.", {
+        orderId: String(refund.order_id),
+      });
+  }
+  for (const order of evidence.orders) {
+    if (order.kind === "team-fee") {
+      const fee = objectValue(order.snapshot.teamFee);
+      try {
+        if (
+          order.snapshot.kind !== "team-fee" ||
+          !fee ||
+          typeof fee.teamId !== "string" ||
+          typeof fee.playerId !== "string" ||
+          basis.playerAliases.filter(
+            (alias) => alias.teamId === fee.teamId && alias.playerId === fee.playerId,
+          ).length !== 1
+        )
+          throw new Error("Missing original team/player pair");
+        const { identity } = resolveFinancialAgreement(basis, {
+          teamId: fee.teamId,
+          playerId: fee.playerId,
+        });
+        if (
+          (fee.financialAgreementId !== undefined || fee.financialTeamSeasonId !== undefined) &&
+          (fee.financialAgreementId !== identity.id ||
+            fee.financialTeamSeasonId !== identity.teamSeasonId)
+        )
+          throw new Error("Conflicting stable financial identity");
+      } catch {
+        add(
+          "unresolved_team_fee_identity",
+          "The stored snapshot.teamFee teamId/playerId pair or stable IDs do not resolve to the original financial agreement. Review the historical transfer/alias explicitly; do not reassign it to the current roster.",
+          { orderId: order.id },
+        );
+      }
+    }
+    const bookings = evidence.bookings.filter((b) => b.order_id === order.id);
+    const window = objectValue(order.snapshot.bookingWindow);
+    const lesson =
+      ["lesson", "package", "membership"].includes(order.kind) ||
+      (Boolean(window) && order.kind !== "cage" && order.kind !== "cage-plan") ||
+      bookings.some((b) => Boolean(b.coach_id) || Boolean(b.lesson_config));
+    const attempts = evidence.attempts.filter((a) => a.order_id === order.id);
+    const payments = evidence.payments.filter((p) => p.order_id === order.id);
+    if (!lesson) continue;
+    if (order.status === "payment_review")
+      add("payment_review", "Resolve the paid lesson order under payment review before cutover.", {
+        orderId: order.id,
+      });
+    if (order.status === "pending_fee" || order.subscription_setup_status === "pending")
+      add(
+        "incomplete_payment_setup",
+        "Resolve partially paid or pending subscription setup before cutover.",
+        { orderId: order.id },
+      );
+    const paid =
+      order.status === "paid" ||
+      Boolean(order.paid_at) ||
+      payments.some((p) => p.status === "COMPLETED");
+    const final = ["refunded", "cancelled", "canceled"].includes(order.status);
+    if (paid && !final) {
+      if (
+        order.payment_provider === "square" &&
+        !payments.some(
+          (payment) =>
+            payment.id === order.square_payment_id &&
+            payment.status === "COMPLETED" &&
+            payment.environment === order.payment_environment,
+        )
+      )
+        add(
+          "unreconciled_paid_order",
+          "The paid Square order lacks its matching reconciled completed base payment.",
+          { orderId: order.id },
+        );
+      const expectedProduct =
+        (order.snapshot.assessment && order.snapshot.recurring) ||
+        Number(order.snapshot.setupCents) > 0
+          ? order.snapshot.discipline === "Hitting"
+            ? "s9"
+            : "s1"
+          : order.snapshot.productId;
+      const fulfilledBooking = bookings.some(
+        (b) =>
+          ["confirmed", "completed"].includes(String(b.status)) &&
+          (!window ||
+            (b.coach_id === (window.coachId || null) &&
+              b.product_id === expectedProduct &&
+              +new Date(String(b.starts_at)) === +new Date(String(window.start)) &&
+              +new Date(String(b.ends_at)) === +new Date(String(window.end)))),
+      );
+      const needsCredits = Number(order.snapshot.credits) > 0;
+      const fulfilledCredits = evidence.grants.some(
+        (g) => g.order_id === order.id && g.kind === "lesson" && Number(g.quantity) > 0,
+      );
+      if (
+        order.status !== "paid" ||
+        ((window || order.kind === "lesson") && !fulfilledBooking) ||
+        (needsCredits && !fulfilledCredits) ||
+        (!window && !needsCredits && !fulfilledBooking)
+      )
+        add(
+          "paid_unfulfilled_lesson",
+          "Paid lesson fulfillment is absent or ambiguous; reconcile its original outcome before cutover.",
+          { orderId: order.id },
+        );
+    }
+    // Only truly untouched quotes can acquire current terms immediately before a
+    // future charge. Existing pins and even declined attempts are not rewritten.
+    if (
+      order.status === "pending" &&
+      !order.snapshot.financialLessonAdmission &&
+      !attempts.length &&
+      !payments.length &&
+      !order.paid_at &&
+      !order.square_payment_id &&
+      !order.square_fee_payment_id &&
+      !order.payment_intent_id &&
+      !order.checkout_session_id
+    )
+      untouchedQuoteIds.push(order.id);
+    else if (
+      ["pending", "expired"].includes(order.status) &&
+      !paid &&
+      (order.payment_intent_id || order.checkout_session_id)
+    )
+      add(
+        "legacy_provider_checkout",
+        "Reconcile this existing provider checkout before assigning any new financial terms.",
+        { orderId: order.id },
+      );
+  }
+  for (const booking of evidence.bookings) {
+    const isLesson =
+      Boolean(booking.coach_id) ||
+      Boolean(booking.lesson_config) ||
+      inputs.compensation.services?.some(
+        (service) => service.id === booking.product_id && service.kind === "lesson",
+      );
+    if (!isLesson || evidence.bindings.some((b) => b.booking_id === booking.id)) continue;
+    const bookingId = String(booking.id);
+    const originalOrder = evidence.orders.find((o) => o.id === booking.order_id);
+    if (!booking.order_id || !originalOrder) {
+      add(
+        "lesson_order_missing",
+        "This historical lesson needs an explicit reviewed attribution protocol because the binding schema requires its original order.",
+        { bookingId },
+      );
+      continue;
+    }
+    if (
+      originalOrder.snapshot.financialLessonAdmission != null ||
+      evidence.recognitions.some((recognition) => recognition.booking_id === booking.id)
+    ) {
+      add(
+        "preserve_original_lesson_attribution",
+        "This unbound lesson already has a pinned order or financial recognition. Its original version needs a separate preservation review; no replacement binding is proposed.",
+        { bookingId, orderId: originalOrder.id },
+      );
+      continue;
+    }
+    // A failed approved-terms query must not poison the outer read transaction.
+    await tx.query("savepoint financial_cutover_terms_preview");
+    try {
+      const [row] = await tx<{
+        terms: SourceRow;
+      }>`select approved_financial_lesson_terms(${JSON.stringify(inputs)}::jsonb,${booking.coach_id},${booking.product_id},${booking.ends_at}::timestamptz) as terms`;
+      if (!row?.terms) throw new Error("Missing approved terms");
+      const { lesson_config: _lessonConfig, ...originalBooking } = booking;
+      bindingPlan.push({
+        bookingId,
+        orderId: String(booking.order_id),
+        basisId: BASIS_ID,
+        basisVersion,
+        originalBooking,
+        approvedTerms: row.terms,
+      });
+      await tx.query("release savepoint financial_cutover_terms_preview");
+    } catch {
+      await tx.query("rollback to savepoint financial_cutover_terms_preview");
+      await tx.query("release savepoint financial_cutover_terms_preview");
+      add(
+        "lesson_terms_unavailable",
+        "Original instructor/service compensation is missing or ambiguous; owner review is required without fabricating terms.",
+        { bookingId, orderId: String(booking.order_id) },
+      );
+    }
+  }
+  if (
+    bindingPlan.length ||
+    blockers.some((b) =>
+      [
+        "lesson_order_missing",
+        "lesson_terms_unavailable",
+        "preserve_original_lesson_attribution",
+      ].includes(b.code),
+    )
+  )
+    add(
+      "applied_reviewed_bindings_required",
+      "Existing unbound lessons still fall back to immutable version 1. Activation requires separately reviewed, applied bindings to the intended captured version; this dry run applies nothing.",
+    );
+  add(
+    "captured_schema_inactive",
+    "Production remains captured/null. This report cannot activate consumers or relax schema constraints.",
+  );
+  return { readyForActivation: false as const, blockers, bindingPlan, untouchedQuoteIds };
+}
+
+async function captureRefreshReview(tx: Sql, basis: FinancialBasis) {
+  const captured = await captureInputs(tx);
+  assertRefreshIdentities(basis, captured.inputs);
+  const evidence = await captureCutoverEvidence(tx);
+  const sourceChanges = financialSourceChanges(basis.inputs, captured.inputs);
+  const readinessDigest = digest(evidence);
+  const plan = await cutoverPlan(tx, basis, captured.inputs, basis.version + 1, evidence);
+  const refreshBlockers = plan.blockers.filter(
+    (b) =>
+      ![
+        "captured_schema_inactive",
+        "applied_reviewed_bindings_required",
+        "lesson_order_missing",
+        "lesson_terms_unavailable",
+      ].includes(b.code),
+  );
+  if (evidence.versions.some((version) => version.version > 1 && !version.audited_refresh))
+    refreshBlockers.push({
+      code: "saved_financial_amendment",
+      detail:
+        "An existing version contains a financial amendment or alias admission, rather than an audited captured refresh. Preserve and review those changes separately; raw refresh cannot overwrite them.",
+    });
+  for (const binding of evidence.bindings)
+    refreshBlockers.push({
+      code: "existing_lesson_binding",
+      bookingId: String(binding.booking_id),
+      detail: "Refresh cannot replace already-bound immutable lesson attribution.",
+    });
+  for (const recognition of evidence.recognitions)
+    refreshBlockers.push({
+      code: "existing_lesson_recognition",
+      bookingId: String(recognition.booking_id),
+      detail: "Refresh cannot replace already-recognized immutable lesson attribution.",
+    });
+  for (const order of evidence.orders.filter((o) => o.snapshot.financialLessonAdmission != null))
+    refreshBlockers.push({
+      code: "existing_order_pin",
+      orderId: order.id,
+      detail:
+        "Refresh cannot replace an existing immutable order admission pin, including an uncharged quote.",
+    });
+  const billing = basis.inputs.billing;
+  if (
+    billing.agreementGuardians?.length ||
+    billing.instructorAccess?.length ||
+    billing.payrollAccess?.length ||
+    billing.accounts.some(
+      (a) => a.admittedAgreementIds !== undefined || a.admittedTeamIds !== undefined,
+    )
+  )
+    refreshBlockers.push({
+      code: "scoped_financial_admission",
+      detail:
+        "Existing explicit financial access admissions require a separately reviewed preservation protocol; refresh cannot silently discard them.",
+    });
+  const reviewDigest = digest({
+    expectedVersion: basis.version,
+    priorPayloadDigest: digest(basis.inputs),
+    originalSourceDigest: basis.sourceDigest,
+    identities: {
+      teams: basis.teams,
+      agreements: basis.agreements,
+      teamAliases: basis.teamAliases,
+      playerAliases: basis.playerAliases,
+    },
+    sourceClubRevision: captured.sourceClubRevision,
+    sourceDigest: captured.sourceDigest,
+    sourceChanges,
+    readinessDigest,
+    bindingPlan: plan.bindingPlan,
+    refreshBlockers,
+  });
+  return {
+    captured,
+    review: {
+      expectedVersion: basis.version,
+      proposedVersion: basis.version + 1,
+      sourceClubRevision: captured.sourceClubRevision,
+      sourceDigest: captured.sourceDigest,
+      // Complete owner-private differential; never truncate this confirmation
+      // material or place it in an operational route/projection.
+      sourceChanges,
+      readinessDigest,
+      reviewDigest,
+      refreshAllowed: refreshBlockers.length === 0,
+      refreshBlockers,
+      ...plan,
+    },
+  };
+}
+
+/** Explicit owner-private exact differential; no writes, binding or charge. */
+export async function previewFinancialBasisRefresh(sql: Sql, userId: string) {
+  return sql.transaction(async (tx) => {
+    await lockFinancialExecution(tx);
+    await requireBasisOwner(tx, userId);
+    const basis = await readBasis(tx);
+    if (!basis) throw new Error("Financial basis is not initialized.");
+    return (await captureRefreshReview(tx, basis)).review;
+  });
+}
+
+/** Captured-only resnapshot, never an activation or binding backfill. Original
+ * source provenance and all identities/versions remain immutable. The audit is
+ * the append-only provenance for THIS recapture, not a rewritten initialization. */
+export async function refreshFinancialBasisForOwner(
+  sql: Sql,
+  userId: string,
+  command: {
+    expectedVersion: number;
+    sourceClubRevision: number;
+    sourceDigest: string;
+    readinessDigest: string;
+    reviewDigest: string;
+    reason: string;
+  },
+) {
+  assertVersion(command.expectedVersion);
+  const reason = reasonFor(command.reason);
+  return sql.transaction(async (tx) => {
+    await lockFinancialExecution(tx);
+    await requireBasisOwner(tx, userId);
+    const basis = await readBasis(tx, true);
+    if (!basis || basis.version !== command.expectedVersion)
+      throw new Error("Financial basis changed. Review a fresh captured refresh preview.");
+    const { captured, review } = await captureRefreshReview(tx, basis);
+    if (
+      command.sourceClubRevision !== review.sourceClubRevision ||
+      command.sourceDigest !== review.sourceDigest
+    )
+      throw new Error("Financial source inputs changed. Review a fresh captured refresh preview.");
+    if (
+      command.readinessDigest !== review.readinessDigest ||
+      command.reviewDigest !== review.reviewDigest
+    )
+      throw new Error(
+        "Financial cutover readiness changed. Review a fresh captured refresh preview.",
+      );
+    if (!review.refreshAllowed)
+      throw new Error(
+        "Financial captured refresh is blocked. Resolve the reviewed attribution/provider blockers first.",
+      );
+    const version = review.proposedVersion;
+    await tx`insert into financial_basis_versions(basis_id,version,payload,payload_digest,changed_by,reason)
+      values(${BASIS_ID},${version},${JSON.stringify(captured.inputs)}::jsonb,${captured.sourceDigest},${userId},${reason})`;
+    const changed = await tx`update financial_basis_state set current_version=${version}
+      where id=${BASIS_ID} and current_version=${command.expectedVersion}
+        and activation_state='captured' and active_version is null returning id`;
+    if (changed.length !== 1)
+      throw new Error("Financial basis changed. Review a fresh captured refresh preview.");
+    const receipt = {
+      version,
+      activationState: "captured" as const,
+      activeVersion: null,
+      sourceClubRevision: basis.sourceClubRevision,
+      sourceDigest: basis.sourceDigest,
+      payloadDigest: captured.sourceDigest,
+      refreshedSourceClubRevision: captured.sourceClubRevision,
+      refreshedSourceDigest: captured.sourceDigest,
+      sourceChangesDigest: digest(review.sourceChanges),
+      readinessDigest: review.readinessDigest,
+      reviewDigest: review.reviewDigest,
+    };
+    const [audit] = await tx<{
+      id: string;
+    }>`insert into finance_audit(actor_id,record_id,action,reason,before_state,after_state)
+      values(${userId},${BASIS_ID},'Captured financial basis refresh',${reason},
+        ${JSON.stringify({ version: basis.version, payloadDigest: digest(basis.inputs) })}::jsonb,
+        ${JSON.stringify(receipt)}::jsonb) returning id::text`;
+    return { ...receipt, auditId: audit.id };
+  });
+}
+
+/** Re-review after refresh. Pins/bindings/ledgers and provider state are never
+ * written. A source drift blocker requires another explicit owner refresh. */
+export async function previewFinancialBasisCutoverReadinessForOwner(sql: Sql, userId: string) {
+  return sql.transaction(async (tx) => {
+    await lockFinancialExecution(tx);
+    await requireBasisOwner(tx, userId);
+    const basis = await readBasis(tx);
+    if (!basis) throw new Error("Financial basis is not initialized.");
+    const captured = await captureInputs(tx);
+    assertRefreshIdentities(basis, captured.inputs);
+    const evidence = await captureCutoverEvidence(tx);
+    const plan = await cutoverPlan(tx, basis, basis.inputs, basis.version, evidence);
+    if (captured.sourceDigest !== digest(basis.inputs))
+      plan.blockers.push({
+        code: "source_changed_since_capture",
+        detail:
+          "Operational source inputs changed since the selected captured version; review a fresh explicit refresh before cutover.",
+      });
+    const readinessDigest = digest(evidence);
+    return {
+      basisVersion: basis.version,
+      sourceClubRevision: captured.sourceClubRevision,
+      sourceDigest: captured.sourceDigest,
+      readinessDigest,
+      reviewDigest: digest({
+        basisVersion: basis.version,
+        payloadDigest: digest(basis.inputs),
+        sourceDigest: captured.sourceDigest,
+        readinessDigest,
+        bindingPlan: plan.bindingPlan,
+      }),
+      ...plan,
     };
   });
 }

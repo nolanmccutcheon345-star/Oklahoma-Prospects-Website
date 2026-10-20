@@ -2,7 +2,8 @@ import { useCallback, useEffect, useRef, useState, type FormEvent, type ReactNod
 import { Button } from "../ui/button";
 import { UserButton } from "@/lib/auth/gates";
 import { LessonAssignments } from "@/components/commerce/lesson-assignments";
-import { StaffDirectoryDesk } from "@/components/staff/directory-desk";
+import { OrganizationPeople } from "./organization-people";
+import { OrganizationEvents } from "./organization-events";
 import { TryoutEventEditor } from "@/components/tryout-event-editor";
 import { OrganizationLessonCompletion } from "./organization-lesson-completion";
 import { OrganizationDevelopment } from "@/components/coordinator/organization-development";
@@ -54,6 +55,7 @@ const tabs = [
   ["activity", "My Activity"],
   ["tryouts", "Tryout Events"],
   ["lessons", "Lessons"],
+  ["bookings", "Bookings & Camps"],
   ["directory", "Staff Directory"],
   ["resources", "Facility Resources"],
   ["reports", "Reports"],
@@ -175,6 +177,7 @@ export function OrganizationOffice() {
   const scoped = ![
     "tryouts",
     "lessons",
+    "bookings",
     "directory",
     "cages",
     "resources",
@@ -919,7 +922,8 @@ export function OrganizationOffice() {
                 <OrganizationLessonCompletion />
               </>
             )}
-            {tab === "directory" && <StaffDirectoryDesk />}
+            {tab === "directory" && <OrganizationPeople />}
+            {tab === "bookings" && <OrganizationEvents />}
             {tab === "resources" && <FacilityResources />}
             {tab === "reports" && <OperationalReports />}
           </>
@@ -1360,6 +1364,10 @@ function RegistrationForm({
         </Select>
         <Select name="assigneeId" label="Assigned staff" initial={r?.workflow.assigneeId}>
           <option value="">Unassigned</option>
+          {r?.workflow.assigneeId &&
+            !workspace.staff.some((s) => s.id === r.workflow.assigneeId) && (
+              <option value={r.workflow.assigneeId}>Current inactive assignee (preserved)</option>
+            )}
           {workspace.staff.map((s) => (
             <option key={s.id} value={s.id}>
               {s.name} ({s.email})
