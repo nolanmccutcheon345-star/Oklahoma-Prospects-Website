@@ -11,6 +11,7 @@ import {
 } from "@/lib/coordinator/contracts";
 import {
   getStaffRoles,
+  resetStaffCoordinatorAccess,
   saveStaffRole,
   getStaffActivity,
   getCoordinatorApprovals,
@@ -246,6 +247,60 @@ export function StaffRoleManagement() {
           </p>
           {value && (
             <>
+              <details className="rounded border border-line p-3">
+                <summary>Withdraw all coordinator access</summary>
+                <p>
+                  This suspends both sport assignments, clears all coordinator permissions and team
+                  scopes, retires any old organization-wide grant, rejects pending approval requests
+                  and cancels unsent coordinator notices. Financial restrictions and the base
+                  account remain unchanged. Messages already accepted by an email provider cannot be
+                  recalled.
+                </p>
+                <form
+                  className="grid gap-2"
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    const reason = String(new FormData(e.currentTarget).get("resetReason") || "");
+                    if (
+                      !window.confirm(
+                        "Withdraw all coordinator access for this person in both sports?",
+                      )
+                    )
+                      return;
+                    void run(async () => {
+                      await resetStaffCoordinatorAccess({
+                        data: {
+                          userId: value.userId,
+                          assignments: data.assignments
+                            .filter((a) => a.user_id === value.userId)
+                            .map((a) => ({ sport: a.sport, revision: a.revision })),
+                          legacyRevision:
+                            data.retiredAccess?.find((a) => a.user_id === value.userId)?.revision ||
+                            0,
+                          reason,
+                          confirmed: true,
+                        },
+                      });
+                      const updated = await load();
+                      choose(value.userId, value.sport, updated);
+                    }, "Coordinator access withdrawn. No operational permissions remain; financial restrictions are unchanged.");
+                  }}
+                >
+                  <label className="grid gap-1">
+                    Reason for withdrawing access
+                    <textarea
+                      name="resetReason"
+                      required
+                      minLength={10}
+                      maxLength={500}
+                      className={field}
+                    />
+                  </label>
+                  <Button type="submit" disabled={busy}>
+                    Withdraw all coordinator access
+                  </Button>
+                </form>
+              </details>
               <label className="grid gap-1">
                 Role / sport
                 <select

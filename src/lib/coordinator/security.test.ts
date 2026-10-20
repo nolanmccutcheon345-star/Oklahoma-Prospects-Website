@@ -857,3 +857,113 @@ test("owner access reviews attest exact revisions without granting access and re
     await db.close();
   }
 });
+
+test("owner access reset clears both sports atomically while preserving financial isolation and rejecting stale reviews", async () => {
+  const { resetCoordinatorAccess } = await import("./reset.server");
+  const { financiallyRestricted } = await import("./access.server");
+  const { db, sql, assign } = await fixture();
+  try {
+    await assign("zero", "baseball", ["rosters.read"]);
+    await assign("zero", "softball", ["recruiting.read", "contacts.read"]);
+    await sql`insert into organization_operational_access(user_id,status,updated_by) values('zero','active','owner')`;
+    const roles = await sql`select * from profiles order by user_id`;
+    const before =
+      await sql`select * from coordinator_assignments where user_id='zero' order by sport`;
+    const input = {
+      userId: "zero",
+      assignments: [
+        { sport: "baseball" as const, revision: 2 },
+        { sport: "softball" as const, revision: 2 },
+      ],
+      legacyRevision: 1,
+      reason: "Owner reviewed withdrawal of both sport assignments",
+      confirmed: true as const,
+    };
+    for (const actor of ["zero", "fake", "parent", "coach"])
+      await assert.rejects(resetCoordinatorAccess(sql, actor, input));
+    await assert.rejects(
+      resetCoordinatorAccess(sql, "owner", {
+        ...input,
+        assignments: input.assignments.slice(0, 1),
+      }),
+      /changed/,
+    );
+    await assert.rejects(
+      resetCoordinatorAccess(sql, "owner", { ...input, legacyRevision: 2 }),
+      /changed/,
+    );
+    assert.deepEqual(
+      await sql`select * from coordinator_assignments where user_id='zero' order by sport`,
+      before,
+    );
+    const requestId = randomUUID();
+    await sql`insert into club_requests(id,kind,payload) values(${requestId},'tryout','{"sport":"softball"}')`;
+    for (const status of ["pending", "processing", "review", "sent"])
+      await sql`insert into tryout_center_notices(id,request_id,email,subject,body,dedupe_key,coordinator_actor_id,status) values(${status},${requestId},'synthetic@example.invalid','Subject','Body',${status},'zero',${status})`;
+    const approvalId = randomUUID();
+    await sql`insert into coordinator_approvals(id,requester_id,sport,kind,target_id,proposal,reason) values(${approvalId},'zero','softball','content','draft','{}','Synthetic pending request')`;
+    // A failed audit must roll back every permission and pending-work change.
+    await sql`create function reject_reset_fixture() returns trigger language plpgsql as $$ begin if new.action='staff.access-reset' and new.result='allowed' then raise exception 'synthetic audit failure'; end if; return new; end $$`;
+    await sql`create trigger reject_reset_fixture before insert on coordinator_audit for each row execute function reject_reset_fixture()`;
+    await assert.rejects(resetCoordinatorAccess(sql, "owner", input), /synthetic audit failure/);
+    assert.deepEqual(
+      await sql`select * from coordinator_assignments where user_id='zero' order by sport`,
+      before,
+    );
+    assert.equal(
+      (await sql`select status from tryout_center_notices where id='pending'`)[0].status,
+      "pending",
+    );
+    await sql`drop trigger reject_reset_fixture on coordinator_audit`;
+    await resetCoordinatorAccess(sql, "owner", input);
+    const after = await sql<{
+      status: string;
+      permissions: string[];
+      team_ids: string[];
+      revision: number;
+    }>`select * from coordinator_assignments where user_id='zero' order by sport`;
+    assert.ok(
+      after.every(
+        (r) =>
+          r.status === "suspended" &&
+          r.permissions.length === 0 &&
+          r.team_ids.length === 0 &&
+          r.revision === 3,
+      ),
+    );
+    assert.equal(await financiallyRestricted(sql, "zero"), true);
+    assert.equal(
+      (await sql`select status from organization_operational_access where user_id='zero'`)[0]
+        .status,
+      "removed",
+    );
+    assert.equal(
+      (await sql`select status from coordinator_approvals where id=${approvalId}`)[0].status,
+      "rejected",
+    );
+    assert.equal(
+      (await sql`select status from tryout_center_notices where id='sent'`)[0].status,
+      "sent",
+    );
+    assert.equal(
+      (await sql`select count(*)::int as n from tryout_center_notices where status='superseded'`)[0]
+        .n,
+      3,
+    );
+    assert.deepEqual(await sql`select * from profiles order by user_id`, roles);
+    await assert.rejects(requireGrant(sql, "zero", "rosters.read", "baseball", "base"));
+    await assert.rejects(resetCoordinatorAccess(sql, "owner", input), /changed/);
+    await sql`insert into owner_grants(email,user_id) values('parent@example.invalid','parent')`;
+    await assert.rejects(
+      resetCoordinatorAccess(sql, "owner", {
+        ...input,
+        userId: "parent",
+        assignments: [],
+        legacyRevision: 0,
+      }),
+      /Owner access/,
+    );
+  } finally {
+    await db.close();
+  }
+});

@@ -1,3 +1,4 @@
+import { resetCoordinatorInput } from "./reset-contracts";
 import { accessReviewInput, reviewPolicyInput } from "./review-contracts";
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
@@ -296,6 +297,18 @@ export const saveCoordinatorAccessReviewPolicy = createServerFn({ method: "POST"
   .handler(async ({ context, data }) => {
     const { getSql } = await import("../db");
     return (await import("./reviews.server")).saveCoordinatorReviewPolicy(
+      await getSql(),
+      context.userId,
+      data,
+    );
+  });
+
+export const resetStaffCoordinatorAccess = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
+  .validator(resetCoordinatorInput)
+  .handler(async ({ context, data }) => {
+    const { getSql } = await import("../db");
+    return (await import("./reset.server")).resetCoordinatorAccess(
       await getSql(),
       context.userId,
       data,

@@ -28,7 +28,12 @@ export async function staffWorkspace(sql: Sql, userId: string) {
       display_order: number;
       revision: number;
     }>`select user_id,enabled,titles,display_order,revision from public_leadership`;
-    return { accounts, assignments, teams, leadership };
+    const retiredAccess = await tx<{
+      user_id: string;
+      revision: number;
+      status: string;
+    }>`select user_id,revision,status from organization_operational_access order by user_id`;
+    return { accounts, assignments, teams, leadership, retiredAccess };
   });
 }
 export async function saveAssignment(sql: Sql, actor: string, raw: AssignmentInput) {
