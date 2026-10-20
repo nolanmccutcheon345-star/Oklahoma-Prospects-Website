@@ -1,6 +1,38 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { authMiddleware, operationalAuthMiddleware } from "../auth/middleware";
+import { coordinatorInvitationInput } from "./invitation-contracts";
+export const inviteStaffCoordinator = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
+  .validator(coordinatorInvitationInput)
+  .handler(async ({ context, data }) => {
+    const { getSql } = await import("../db");
+    return (await import("./invitations.server")).inviteCoordinator(
+      await getSql(),
+      context.userId,
+      data,
+    );
+  });
+export const getCoordinatorInvitations = createServerFn({ method: "GET" })
+  .middleware([authMiddleware])
+  .handler(async ({ context }) => {
+    const { getSql } = await import("../db");
+    return (await import("./invitations.server")).coordinatorInvitations(
+      await getSql(),
+      context.userId,
+    );
+  });
+export const revokeStaffCoordinatorInvitation = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
+  .validator(z.object({ id: z.string().uuid() }).strict())
+  .handler(async ({ context, data }) => {
+    const { getSql } = await import("../db");
+    return (await import("./invitations.server")).revokeCoordinatorInvitation(
+      await getSql(),
+      context.userId,
+      data.id,
+    );
+  });
 import {
   sports,
   id,

@@ -640,3 +640,116 @@ test("retired organization grants cannot bypass granular coordinator permissions
     await db.close();
   }
 });
+
+test("coordinator invitations require dedicated authority and accept with zero grants without changing base roles", async () => {
+  const { inviteCoordinator, acceptCoordinatorInvitation, coordinatorInvitations } =
+    await import("./invitations.server");
+  const { db, sql } = await fixture();
+  try {
+    for (const actor of ["fake", "coach", "parent", "softball"])
+      await assert.rejects(
+        inviteCoordinator(sql, actor, { email: "zero@example.invalid", sport: "softball" }),
+      );
+    await assert.rejects(
+      inviteCoordinator(sql, "owner", { email: "owner@example.invalid", sport: "softball" }),
+    );
+    await assert.rejects(
+      inviteCoordinator(sql, "owner", {
+        email: "zero@example.invalid",
+        sport: "softball",
+        permissions: ["recruiting.read"],
+      } as never),
+    );
+    const before = await sql`select * from profiles where user_id='zero'`;
+    const invite = await inviteCoordinator(sql, "owner", {
+      email: " ZERO@example.invalid ",
+      sport: "softball",
+    });
+    assert.equal((await coordinatorInvitations(sql, "owner")).length, 1);
+    await assert.rejects(coordinatorInvitations(sql, "fake"));
+    await assert.rejects(acceptCoordinatorInvitation(sql, "parent", invite.id));
+    await sql`update "user" set "emailVerified"=false where id='zero'`;
+    await assert.rejects(acceptCoordinatorInvitation(sql, "zero", invite.id));
+    await sql`update "user" set "emailVerified"=true where id='zero'`;
+    await acceptCoordinatorInvitation(sql, "zero", invite.id);
+    assert.deepEqual(await sql`select * from profiles where user_id='zero'`, before);
+    const [grant] =
+      await sql`select permissions,team_ids,coverage,status,role from coordinator_assignments where user_id='zero'`;
+    assert.deepEqual(grant, {
+      permissions: [],
+      team_ids: [],
+      coverage: "teams",
+      status: "active",
+      role: "softball_coordinator",
+    });
+    for (const capability of permissionKeys)
+      await assert.rejects(requireGrant(sql, "zero", capability, "softball", "soft"));
+    assert.equal((await coordinatorHome(sql, "zero")).targets.length, 0);
+    await assert.rejects(acceptCoordinatorInvitation(sql, "zero", invite.id));
+    assert.equal((await coordinatorInvitations(sql, "owner")).length, 0);
+    const [audit] =
+      await sql`select count(*)::int as n from coordinator_audit where action='staff.invitation.accept' and result='allowed'`;
+    assert.equal(audit.n, 1);
+  } finally {
+    await db.close();
+  }
+});
+
+test("invitation expiry, replacement, revocation and revoked owner authority fail closed", async () => {
+  const { inviteCoordinator, acceptCoordinatorInvitation, revokeCoordinatorInvitation } =
+    await import("./invitations.server");
+  const { db, sql } = await fixture();
+  try {
+    const first = await inviteCoordinator(sql, "owner", {
+      email: "zero@example.invalid",
+      sport: "softball",
+    });
+    const replacement = await inviteCoordinator(sql, "owner", {
+      email: "zero@example.invalid",
+      sport: "softball",
+    });
+    await assert.rejects(acceptCoordinatorInvitation(sql, "zero", first.id));
+    await assert.rejects(revokeCoordinatorInvitation(sql, "fake", replacement.id));
+    await revokeCoordinatorInvitation(sql, "owner", replacement.id);
+    await assert.rejects(acceptCoordinatorInvitation(sql, "zero", replacement.id));
+    const expired = await inviteCoordinator(sql, "owner", {
+      email: "zero@example.invalid",
+      sport: "softball",
+    });
+    await sql`update club_invites set expires_at=now()-interval '1 second' where id=${expired.id}`;
+    await assert.rejects(acceptCoordinatorInvitation(sql, "zero", expired.id));
+    const revokedOwner = await inviteCoordinator(sql, "owner", {
+      email: "zero@example.invalid",
+      sport: "softball",
+    });
+    await sql`delete from staff_authorities where email='owner@example.invalid' and capability='staff_roles.manage'`;
+    await assert.rejects(acceptCoordinatorInvitation(sql, "zero", revokedOwner.id));
+    assert.equal((await sql`select * from coordinator_assignments where user_id='zero'`).length, 0);
+  } finally {
+    await db.close();
+  }
+});
+
+test("invitations cannot restore existing assignments or bypass adult and independent-role review", async () => {
+  const { inviteCoordinator, acceptCoordinatorInvitation } = await import("./invitations.server");
+  const { db, sql, assign } = await fixture();
+  try {
+    await assign("zero", "softball");
+    await sql`update coordinator_assignments set status='removed' where user_id='zero'`;
+    const before = await sql`select * from coordinator_assignments where user_id='zero'`;
+    for (const target of ["zero", "coach", "instructor", "parent", "legacy"]) {
+      if (target === "parent") await sql`update profiles set role='player' where user_id='parent'`;
+      if (target === "legacy")
+        await sql`insert into registration_readers(user_id,email,active,granted_by) values('legacy','legacy@example.invalid',true,'owner')`;
+      const invite = await inviteCoordinator(sql, "owner", {
+        email: target + "@example.invalid",
+        sport: "softball",
+      });
+      await assert.rejects(acceptCoordinatorInvitation(sql, target, invite.id));
+    }
+    assert.deepEqual(await sql`select * from coordinator_assignments where user_id='zero'`, before);
+    assert.equal((await sql`select * from coordinator_assignments`).length, 1);
+  } finally {
+    await db.close();
+  }
+});

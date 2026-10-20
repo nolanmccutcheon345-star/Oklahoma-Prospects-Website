@@ -43,11 +43,11 @@ async function fixture() {
   return { db, sql };
 }
 
-test("org operations are independent of owner identity; all legacy data access fails closed", async () => {
+test("retired organization grants confer no operations; verified owner access remains intact", async () => {
   const { db, sql } = await fixture();
   try {
-    assert.equal(await hasOrganizationOperations(sql, "sara"), true);
-    assert.equal((await requireOrganizationOperations(sql, "sara")).id, "sara");
+    assert.equal(await hasOrganizationOperations(sql, "sara"), false);
+    await assert.rejects(() => requireOrganizationOperations(sql, "sara"));
     for (const id of ["other", "fake"])
       await assert.rejects(() => requireOrganizationOperations(sql, id));
     await requireOrganizationOperations(sql, "steve");
@@ -122,7 +122,7 @@ test("legacy and alternate financial transports enforce deny while reviewed org 
   );
 });
 
-test("directory hides unpublished mixed biographies and preserves them on operational metadata edits", async () => {
+test("retired organization grants cannot read or modify staff profiles; owner access remains", async () => {
   const { db, sql } = await fixture();
   try {
     const { saveStaffListingFor, listStaffDirectoryFor } =
@@ -140,24 +140,21 @@ test("directory hides unpublished mixed biographies and preserves them on operat
       published: false,
     };
     await saveStaffListingFor(sql, "steve", initial);
-    const [row] = await listStaffDirectoryFor(sql, "sara");
-    assert.equal(row.bio, "");
-    assert.doesNotMatch(JSON.stringify(row), /PRIVATE|56789/);
-    const saved = await saveStaffListingFor(sql, "sara", {
-      ...initial,
+    await assert.rejects(() => listStaffDirectoryFor(sql, "sara"));
+    for (const edit of [
+      { ...initial, version: 1, bio: "", title: "Team coordinator" },
+      { ...initial, version: 1, published: true },
+      { ...initial, version: 1, bio: "Overwrite" },
+    ])
+      await assert.rejects(() => saveStaffListingFor(sql, "sara", edit));
+    const [stored] =
+      await sql`select bio,title,published,version from staff_directory where id=${id}`;
+    assert.deepEqual(stored, {
+      bio: initial.bio,
+      title: initial.title,
+      published: false,
       version: 1,
-      bio: "",
-      title: "Team coordinator",
     });
-    assert.equal(saved.bio, "");
-    const [stored] = await sql`select bio from staff_directory where id=${id}`;
-    assert.equal(stored.bio, initial.bio);
-    await assert.rejects(() =>
-      saveStaffListingFor(sql, "sara", { ...initial, version: 2, bio: "", published: true }),
-    );
-    await assert.rejects(() =>
-      saveStaffListingFor(sql, "sara", { ...initial, version: 2, bio: "Overwrite" }),
-    );
     assert.equal((await listStaffDirectoryFor(sql, "steve"))[0].bio, initial.bio);
   } finally {
     await db.close();

@@ -19,7 +19,13 @@ import {
   previewOrganizationAccess,
   applyOrganizationAccess,
 } from "../src/lib/coordinator/organization-access.server";
-import { CoordinatorDenied, hasOrganizationOperations } from "../src/lib/coordinator/access.server";
+import { saveAssignment } from "../src/lib/coordinator/admin.server";
+import type { AssignmentInput } from "../src/lib/coordinator/contracts";
+import {
+  CoordinatorDenied,
+  requireGrant,
+  hasOrganizationOperations,
+} from "../src/lib/coordinator/access.server";
 import { saveOrganizationTeam } from "../src/lib/coordinator/organization.server";
 import { pendingMigrations } from "./migration-plan.mjs";
 import {
@@ -613,7 +619,7 @@ async function verifyConsumerGate(observer: pg.Client, first: pg.Client, second:
       await release.promise;
     }
   });
-  const operation = saveOrganizationTeam(blockedSql, operations, {
+  const operation = saveOrganizationTeam(blockedSql, owner, {
     revision: rev,
     teamId: "synthetic-team",
     changes: { name: "Synthetic operational rename" },
@@ -718,37 +724,53 @@ async function verifyAccessGrantDisableRaces(
         sql.query(`select to_jsonb(t) as row from ${table} t order by to_jsonb(t)::text`),
       ),
     );
-  const grantRows = () =>
-    sql`select user_id,status,financial_restricted,revision,updated_by from organization_operational_access where user_id=${parent}`;
-  const grantAudits = () =>
-    sql`select actor_id,action,target_id,result from coordinator_audit where action='organization.access.grant' and target_id=${parent} order by id`;
-  const command = async () => {
-    const review = await previewOrganizationAccess(sql, owner, { userId: parent });
-    assert.equal(review.ready, true, review.blockers.join(" "));
-    assert.equal(review.userId, parent);
-    assert.equal(review.revision, 0);
-    assert.equal(review.currentStatus, "not granted");
-    assert.ok(review.basisVersion);
-    return {
-      userId: parent,
-      reviewDigest: review.reviewDigest,
-      expectedRelease: review.release,
-      expectedBasisVersion: review.basisVersion,
-      expectedRevision: review.revision,
-      confirmed: true as const,
-      reason: "Reviewed exact synthetic account grant",
-    };
+  await sql`insert into staff_authorities(email,capability) values(${owner + "@example.invalid"},'staff_roles.manage') on conflict do nothing`;
+  const zero: AssignmentInput = {
+    userId: parent,
+    sport: "baseball",
+    revision: 0,
+    status: "active",
+    coverage: "sport",
+    teamIds: [],
+    permissions: [],
+    confirm: true,
+    independentRolesReviewed: false,
   };
+  await saveAssignment(sql, owner, zero);
+  const grantRows = () =>
+    sql`select permissions,revision from coordinator_assignments where user_id=${parent} and sport='baseball'`;
+  const grantAudits = () =>
+    sql`select actor_id,action,target_id,result from coordinator_audit where action='staff_roles.manage' and target_id=${parent} and result='allowed' order by id`;
+  const command = async (): Promise<AssignmentInput> => ({
+    ...zero,
+    revision: 1,
+    permissions: ["recruiting.read"],
+  });
+  // The former blanket-grant transport stays denied even with clean active finance.
+  const retired = await previewOrganizationAccess(sql, owner, { userId: parent });
+  assert.equal(retired.ready, false);
+  await assert.rejects(
+    applyOrganizationAccess(sql, owner, {
+      userId: parent,
+      reviewDigest: retired.reviewDigest,
+      expectedRelease: retired.release,
+      expectedBasisVersion: retired.basisVersion!,
+      expectedRevision: retired.revision,
+      confirmed: true,
+      reason: "Synthetic retirement regression",
+    }),
+    /retired/,
+  );
+  const initialGrants = await grantRows(),
+    initialAudits = await grantAudits();
   const before = await financialSnapshot();
-  assert.deepEqual(await grantRows(), []);
-  assert.deepEqual(await grantAudits(), []);
+  assert.deepEqual(await grantRows(), initialGrants);
+  assert.deepEqual(await grantAudits(), initialAudits);
 
   const firstReview = await command();
   await disabling.query("begin");
   await disabling.query('update "user" set "disabledAt"=$2 where id=$1', [parent, now]);
-  const deniedGrant = Promise.allSettled([
-    applyOrganizationAccess(sqlFor(granting), owner, firstReview),
-  ]);
+  const deniedGrant = Promise.allSettled([saveAssignment(sqlFor(granting), owner, firstReview)]);
   let disableCommitted = false;
   try {
     await waitForLock(observer, grantPid, disablePid);
@@ -759,10 +781,10 @@ async function verifyAccessGrantDisableRaces(
   }
   const [denied] = await deniedGrant;
   assert.equal(denied.status, "rejected");
-  if (denied.status === "rejected") assert.match(String(denied.reason), /enabled and provisioned/);
-  assert.deepEqual(await grantRows(), []);
-  assert.deepEqual(await grantAudits(), []);
-  await assert.rejects(hasOrganizationOperations(sql, parent), CoordinatorDenied);
+  if (denied.status === "rejected") assert.match(String(denied.reason), /active, verified adult/);
+  assert.deepEqual(await grantRows(), initialGrants);
+  assert.deepEqual(await grantAudits(), initialAudits);
+  await assert.rejects(requireGrant(sql, parent, "recruiting.read", "baseball"), CoordinatorDenied);
   assert.deepEqual(await financialSnapshot(), before);
   console.log(
     "PASS: disable-first account row lock blocks exact-account grant; committed disable rejects it with no grant or audit.",
@@ -775,12 +797,12 @@ async function verifyAccessGrantDisableRaces(
     release = deferred();
   let paused = false;
   const granted = Promise.allSettled([
-    applyOrganizationAccess(
+    saveAssignment(
       sqlFor(granting, async (query) => {
         if (
           !paused &&
-          query.startsWith('select id,name,email,"emailverified","disabledat" from "user"') &&
-          query.endsWith("for share")
+          query.startsWith("select lower(trim(u.email))") &&
+          query.endsWith("for update of u")
         ) {
           paused = true;
           reached.resolve();
@@ -815,31 +837,15 @@ async function verifyAccessGrantDisableRaces(
   const [grantResult] = await granted,
     [disableResult] = await disabled;
   assert.equal(grantResult.status, "fulfilled");
-  if (grantResult.status === "fulfilled")
-    assert.deepEqual(grantResult.value, { ok: true, userId: parent, revision: 1 });
+  if (grantResult.status === "fulfilled") assert.deepEqual(grantResult.value, { ok: true });
   assert.equal(disableResult.status, "fulfilled");
-  assert.deepEqual(await grantRows(), [
-    {
-      user_id: parent,
-      status: "active",
-      financial_restricted: true,
-      revision: 1,
-      updated_by: owner,
-    },
-  ]);
-  assert.deepEqual(await grantAudits(), [
-    {
-      actor_id: owner,
-      action: "organization.access.grant",
-      target_id: parent,
-      result: "allowed",
-    },
-  ]);
+  assert.deepEqual(await grantRows(), [{ permissions: ["recruiting.read"], revision: 2 }]);
+  assert.equal((await grantAudits()).length, initialAudits.length + 1);
   // A persisted grant cannot override the next request's current account check.
-  await assert.rejects(hasOrganizationOperations(sql, parent), CoordinatorDenied);
+  await assert.rejects(requireGrant(sql, parent, "recruiting.read", "baseball"), CoordinatorDenied);
   assert.deepEqual(await financialSnapshot(), before);
   console.log(
-    "PASS: grant-first target FOR SHARE blocks disable until grant/audit commit; the next disabled-account request is denied and the financial basis is unchanged.",
+    "PASS: grant-first target FOR UPDATE blocks disable until scoped grant/audit commit; the next disabled-account request is denied and the financial basis is unchanged.",
   );
 }
 

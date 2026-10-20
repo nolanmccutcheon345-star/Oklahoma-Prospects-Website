@@ -15,6 +15,9 @@ import {
   getCoordinatorApprovals,
   decideCoordinatorApproval,
   savePublicLeadership,
+  inviteStaffCoordinator,
+  getCoordinatorInvitations,
+  revokeStaffCoordinatorInvitation,
 } from "@/lib/coordinator/api";
 const field = "min-h-11 rounded border border-line bg-white p-2 text-ink";
 export function StaffRoleManagement() {
@@ -24,6 +27,10 @@ export function StaffRoleManagement() {
     [notice, setNotice] = useState(""),
     [busy, setBusy] = useState(false);
   const [tab, setTab] = useState("roles");
+  const [inviteEmail, setInviteEmail] = useState("");
+  const [inviteSport, setInviteSport] = useState<Sport>("softball");
+  const [invitations, setInvitations] =
+    useState<Awaited<ReturnType<typeof getCoordinatorInvitations>>>();
   const [activity, setActivity] = useState<Awaited<ReturnType<typeof getStaffActivity>>>();
   const [queue, setQueue] = useState<Awaited<ReturnType<typeof getCoordinatorApprovals>>>();
   const [actorFilter, setActorFilter] = useState("");
@@ -111,6 +118,7 @@ export function StaffRoleManagement() {
       <div className="flex flex-wrap gap-2">
         {[
           ["roles", "Roles & Permissions"],
+          ["invitations", "Coordinator Invitations"],
           ["approvals", "Approval Queue"],
           ["activity", "Staff Activity & Audit Center"],
         ].map(([key, label]) => (
@@ -119,6 +127,8 @@ export function StaffRoleManagement() {
             variant={tab === key ? "primary" : "outlineDark"}
             onClick={() => {
               setTab(key);
+              if (key === "invitations")
+                void run(async () => setInvitations(await getCoordinatorInvitations()), "");
               if (key === "approvals")
                 void run(async () => setQueue(await getCoordinatorApprovals()), "");
               if (key === "activity")
@@ -135,6 +145,81 @@ export function StaffRoleManagement() {
         </p>
       )}
       {notice && <p role="status">{notice}</p>}
+      {tab === "invitations" && (
+        <div className="grid gap-4">
+          <p>
+            Invitations expire after seven days. Acceptance adds only the coordinator role, with
+            zero permissions and no team access. Review scope and permissions separately after
+            acceptance. Existing staff with independent roles require review in Roles & Permissions.
+          </p>
+          <form
+            className="grid gap-3"
+            onSubmit={(event) => {
+              event.preventDefault();
+              void run(async () => {
+                await inviteStaffCoordinator({ data: { email: inviteEmail, sport: inviteSport } });
+                setInvitations(await getCoordinatorInvitations());
+                setInviteEmail("");
+              }, "Invitation saved. Ask the recipient to sign in with the invited verified email and open /invitations. No email has been sent and no operational permissions have been granted.");
+            }}
+          >
+            <label className="grid gap-1">
+              Invitation email
+              <input
+                type="email"
+                required
+                maxLength={254}
+                className={field}
+                value={inviteEmail}
+                onChange={(e) => setInviteEmail(e.target.value)}
+              />
+            </label>
+            <label className="grid gap-1">
+              Invited coordinator role
+              <select
+                className={field}
+                value={inviteSport}
+                onChange={(e) => setInviteSport(e.target.value as Sport)}
+              >
+                <option value="softball">Softball Coordinator</option>
+                <option value="baseball">Baseball Coordinator</option>
+              </select>
+            </label>
+            <Button disabled={busy} type="submit">
+              Create zero-permission invitation
+            </Button>
+          </form>
+          {!invitations ? (
+            <p role="status">Loading invitations…</p>
+          ) : !invitations.length ? (
+            <p>No pending coordinator invitations.</p>
+          ) : (
+            invitations.map((invite) => (
+              <article key={invite.id} className="rounded border border-line p-3">
+                <p>
+                  {invite.email} ·{" "}
+                  {invite.role === "softball_coordinator"
+                    ? "Softball Coordinator"
+                    : "Baseball Coordinator"}
+                </p>
+                <p>Expires {new Date(invite.expires_at).toLocaleDateString()}</p>
+                <Button
+                  disabled={busy}
+                  variant="outlineDark"
+                  onClick={() =>
+                    void run(async () => {
+                      await revokeStaffCoordinatorInvitation({ data: { id: invite.id } });
+                      setInvitations(await getCoordinatorInvitations());
+                    }, "Invitation revoked.")
+                  }
+                >
+                  Revoke invitation
+                </Button>
+              </article>
+            ))
+          )}
+        </div>
+      )}
       {tab === "roles" && (
         <>
           <label className="grid gap-1">

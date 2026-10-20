@@ -259,7 +259,28 @@ try {
     );
     const financeBefore =
       await sql`select (select jsonb_agg(to_jsonb(f)) from finance_records f) as records,(select jsonb_agg(to_jsonb(f)) from finance_state f) as state,(select jsonb_agg(to_jsonb(f)) from finance_audit f) as audit`;
-    const workspace = await rpc(orgCookie, "getOrganizationWorkspace");
+    for (const name of [
+      "getOrganizationWorkspace",
+      "getOrganizationTournaments",
+      "getOrganizationCatalog",
+      "getOrganizationDevelopment",
+      "getOrganizationPeople",
+      "getOrganizationBookings",
+      "getOrganizationEvents",
+      "getOrganizationServices",
+      "getOrganizationContent",
+    ]) {
+      const denied = await rpc(orgCookie, name);
+      assert.match(denied.body, /not authorized|CoordinatorDenied|ACCESS_DENIED/i);
+      for (const marker of [
+        ...financialCanaries,
+        "Prospects test team",
+        "Synthetic operational athlete",
+      ])
+        assert.ok(!denied.body.includes(marker));
+    }
+    // The retained owner workflows still work; retired blanket grants never do.
+    const workspace = await rpc(ownerCookie, "getOrganizationWorkspace");
     assert.match(workspace.body, /Prospects test team/);
     assert.match(workspace.body, /Baseball organization test/);
     for (const c of financialCanaries) assert.ok(!workspace.body.includes(c));
@@ -268,7 +289,7 @@ try {
       ["getOrganizationCatalog", "Synthetic operational camp"],
       ["getOrganizationDevelopment", "Synthetic operational athlete"],
     ]) {
-      const result = await rpc(orgCookie, name);
+      const result = await rpc(ownerCookie, name);
       assert.equal(result.status, 200, `${name} compiled read must succeed`);
       assert.ok(result.body.includes(marker), `${name} must return operational fixture`);
       for (const canary of financialCanaries) assert.ok(!result.body.includes(canary));
@@ -281,16 +302,20 @@ try {
       "getOrganizationServices",
       "getOrganizationContent",
     ]) {
-      const result = await rpc(orgCookie, name);
+      const result = await rpc(ownerCookie, name);
       assert.equal(result.status, 200, `${name} compiled read must succeed`);
       assert.doesNotMatch(result.body, /CoordinatorDenied|ACCESS_DENIED|"name":"Error"/);
       for (const canary of financialCanaries) assert.ok(!result.body.includes(canary));
       assert.ok(!result.body.includes("91378426"), `${name} leaked a financial amount`);
     }
-    const grantPreview = await rpc(orgCookie, "getOrganizationAccessPreview", "POST", {
-      userId: "fixture-org",
-    });
-    assert.match(grantPreview.body, /not authorized|CoordinatorDenied|ACCESS_DENIED/i);
+    // The retired grant editor is no longer a client entry point. If the
+    // compiler retains its transport, it must still reject non-owner calls.
+    if (ids.has("getOrganizationAccessPreview")) {
+      const grantPreview = await rpc(orgCookie, "getOrganizationAccessPreview", "POST", {
+        userId: "fixture-org",
+      });
+      assert.match(grantPreview.body, /not authorized|CoordinatorDenied|ACCESS_DENIED/i);
+    }
     for (const name of [
       "getFinance",
       "getMyFinance",
@@ -314,7 +339,9 @@ try {
       teamId: "fixture-team",
       changes: { name: "Organization edited team" },
     };
-    const saved = await rpc(orgCookie, "saveOrganizationTeam", "POST", edit);
+    const deniedEdit = await rpc(orgCookie, "saveOrganizationTeam", "POST", edit);
+    assert.match(deniedEdit.body, /not authorized|CoordinatorDenied|ACCESS_DENIED/i);
+    const saved = await rpc(ownerCookie, "saveOrganizationTeam", "POST", edit);
     assert.doesNotMatch(saved.body, /not authorized|CoordinatorDenied|Error/);
     const [row] = await sql`select payload,rev from club_state where id='oklahoma-prospects'`;
     assert.equal(row.payload.teams[0].name, edit.changes.name);
@@ -336,7 +363,7 @@ try {
       async (_tx, context) => structuredClone(context.basis),
     );
     const activeFinanceBefore = await rpc(ownerCookie, "getFinance");
-    const activeEdit = await rpc(orgCookie, "saveOrganizationTeam", "POST", {
+    const activeEdit = await rpc(ownerCookie, "saveOrganizationTeam", "POST", {
       revision: row.rev,
       teamId: "fixture-team",
       changes: { seasonEnd: "2099-12-31", coachEmail: "operational-coach@example.invalid" },
@@ -380,7 +407,7 @@ try {
       financeBefore,
     );
     console.log(
-      "PASS TRANSPORT ONLY: real compiled login, owner finance baseline, operational two-sport projection/write, legacy/payment financial read/write denial, unchanged financial state, same-session suspension. UI NOT TESTED.",
+      "PASS TRANSPORT ONLY: real compiled login, owner finance baseline, owner two-sport projection/write, retired blanket-access denial, legacy/payment financial read/write denial, unchanged financial state, same-session suspension. UI NOT TESTED.",
     );
   } else {
     browser = await chromium.launch({
@@ -485,6 +512,30 @@ try {
     await coordinator.page.goto(origin + "/office?section=staff");
     await coordinator.page.getByText("Front office is for club owners.", { exact: true }).waitFor();
 
+    // The ordinary parent accepts a generic invitation. This must not promote
+    // their base role or grant even a single operational capability.
+    await owner.page.getByRole("button", { name: "Coordinator Invitations", exact: true }).click();
+    await owner.page.getByLabel("Invitation email", { exact: true }).fill("parent@example.invalid");
+    await owner.page
+      .getByRole("button", { name: "Create zero-permission invitation", exact: true })
+      .click();
+    await owner.page.getByText(/Invitation saved. Ask the recipient/).waitFor();
+    await parent.page.goto(origin + "/invitations");
+    await parent.page
+      .getByRole("heading", { name: "Softball Coordinator invitation", exact: true })
+      .waitFor();
+    await parent.page.getByRole("button", { name: "Accept invitation", exact: true }).click();
+    await parent.page.getByText(/Invitation accepted. Open your account/).waitFor();
+    await parent.page.goto(origin + "/coordinator");
+    await parent.page.getByText("No operational modules enabled", { exact: true }).waitFor();
+    const [invitedGrant] =
+      await sql`select permissions,team_ids from coordinator_assignments where user_id='fixture-parent' and sport='softball'`;
+    assert.deepEqual(invitedGrant, { permissions: [], team_ids: [] });
+    assert.equal(
+      (await sql`select role from profiles where user_id='fixture-parent'`)[0].role,
+      "parent",
+    );
+
     // Capture real, successfully authorized owner read requests, then replay the
     // exact compiled server-function transport with a restricted user's cookies.
     // This avoids relying on hidden buttons or guessed server-function hashes.
@@ -507,92 +558,23 @@ try {
     const financeBefore =
       await sql`select (select jsonb_agg(to_jsonb(f)) from finance_records f) as records,(select jsonb_agg(to_jsonb(f)) from finance_state f) as state,(select jsonb_agg(to_jsonb(f)) from finance_audit f) as audit`;
     const org = await signedIn("operations@example.invalid");
-    await org.page.getByRole("heading", { name: "Organization Operations", exact: true }).waitFor();
-    await org.page.getByLabel("Team workspace", { exact: true }).waitFor();
-    assert.match(
-      await org.page.getByLabel("Team workspace", { exact: true }).innerText(),
-      /Baseball organization test/,
-    );
-    assert.match(
-      await org.page.getByLabel("Team workspace", { exact: true }).innerText(),
-      /Prospects test team/,
-    );
-    for (const [tab, heading, marker] of [
-      ["Tournament Finder", "Tournament Finder", "Synthetic operational tournament"],
-      ["Services & Events", "Services & Camps", "Synthetic operational camp"],
-      ["Player Development", "Player Development", "Synthetic operational athlete"],
-    ]) {
-      await org.page
-        .getByRole("navigation", { name: "Organization operations", exact: true })
-        .getByRole("button", { name: tab, exact: true })
-        .click();
-      await org.page.getByRole("heading", { name: heading, exact: true }).waitFor();
-      if (tab === "Tournament Finder") {
-        await org.page.getByLabel("Planning for", { exact: true }).selectOption("fixture-team");
-      }
-      if (tab === "Services & Events") {
-        await org.page
-          .getByRole("group", { name: "Catalog section", exact: true })
-          .getByRole("button", { name: "Camps & Clinics", exact: true })
-          .click();
-      }
-      // CSS uppercases visible headings; inspect DOM text without presentation transforms.
-      await org.page.waitForFunction((text) => document.body.textContent.includes(text), marker);
-      for (const canary of financialCanaries)
-        assert.ok(!(await org.page.locator("body").innerText()).includes(canary));
-    }
-    for (const [tab, region] of [
-      ["Bookings & Camps", "Operational booking schedule"],
-      ["Staff Directory", "Organization people"],
-      ["Content & Recruiting", "Organization content"],
-    ]) {
-      await org.page
-        .getByRole("navigation", { name: "Organization operations", exact: true })
-        .getByRole("button", { name: tab, exact: true })
-        .click();
-      await org.page.getByRole("region", { name: region, exact: true }).waitFor();
-      await org.page.waitForLoadState("networkidle");
-      assert.equal(await org.page.getByRole("alert").count(), 0, `${tab} must load without errors`);
-      for (const canary of financialCanaries)
-        assert.ok(!(await org.page.locator("body").innerText()).includes(canary));
-    }
+    // A persisted blanket grant is inert after retirement, even in an authenticated session.
+    const retiredMessage =
+      "Your organization operations access is not active. Contact an owner to review your access.";
+    await org.page.getByText(retiredMessage, { exact: true }).waitFor();
+    assert.equal(await org.page.getByLabel("Team workspace", { exact: true }).count(), 0);
+    for (const marker of [
+      "Baseball organization test",
+      "Prospects test team",
+      ...financialCanaries,
+    ])
+      assert.ok(!(await org.page.locator("body").innerText()).includes(marker));
     await org.page.goto(origin + "/account");
     await org.page.waitForURL(origin + "/coordinator");
-    // Redirect completion does not mean the remounted client workspace is ready.
-    // The selector appears only after the authenticated workspace read completes.
-    await org.page.getByLabel("Team workspace", { exact: true }).waitFor();
-    await org.page.getByLabel("Team workspace", { exact: true }).selectOption("fixture-team");
-    assert.equal(
-      await org.page.getByLabel("Team workspace", { exact: true }).inputValue(),
-      "fixture-team",
-    );
-    await org.page
-      .getByRole("navigation", { name: "Organization operations", exact: true })
-      .getByRole("button", { name: "Teams", exact: true })
-      .click();
-    await org.page.getByRole("heading", { name: "Team Administration", exact: true }).waitFor();
-    const teamArticle = org.page
-      .locator("article")
-      .filter({ has: org.page.getByRole("heading", { name: "Prospects test team", exact: true }) });
-    await teamArticle.getByText("Edit Prospects test team", { exact: true }).click();
-    await teamArticle.getByLabel("Team name", { exact: true }).fill("Organization edited team");
-    await teamArticle.getByRole("button", { name: "Save Team", exact: true }).click();
-    await org.page.getByText("Team changes saved.", { exact: true }).waitFor();
-    const [changed] = await sql`select payload from club_state where id='oklahoma-prospects'`;
-    const changedTeam = changed.payload.teams.find((t) => t.id === "fixture-team");
-    assert.equal(changedTeam.name, "Organization edited team");
-    for (const key of ["orgFee", "coachMonthly", "eventBudget", "otherCosts", "notes"])
-      assert.deepEqual(
-        changedTeam[key],
-        club.teams[0][key],
-        `Operational team edit changed protected ${key}`,
-      );
-    const successfulEdit = traces
-      .get(org.context)
-      .find((t) => t.method === "POST" && t.body?.includes("Organization edited team"));
-    assert.ok(
-      successfulEdit,
-      "Capture an actual successful operational mutation for suspension replay",
+    await org.page.getByText(retiredMessage, { exact: true }).waitFor();
+    assert.deepEqual(
+      (await sql`select payload from club_state where id='oklahoma-prospects'`)[0].payload.teams,
+      club.teams,
     );
     const replay = async (request) =>
       org.page.evaluate(async ({ url, method, headers, body }) => {
@@ -684,8 +666,7 @@ try {
       }
     }
     await org.page.goto(origin + "/coordinator");
-    await org.page.getByRole("heading", { name: "Organization Operations", exact: true }).waitFor();
-    await org.page.getByLabel("Team workspace", { exact: true }).waitFor();
+    await org.page.getByText(retiredMessage, { exact: true }).waitFor();
     await org.page.screenshot({ path: shots + "/organization-mobile.png", fullPage: true });
     for (const trace of traces.get(org.context))
       for (const marker of financialCanaries)
@@ -697,8 +678,6 @@ try {
     // Keep the same valid session: suspension must deny the very next mutation,
     // and removal of operations must never restore household financial access.
     await sql`update organization_operational_access set status='suspended',revision=revision+1 where user_id='fixture-org'`;
-    const suspendedMutation = await replay(successfulEdit);
-    assert.match(suspendedMutation.body, /not authorized|CoordinatorDenied|ACCESS_DENIED/i);
     const stillDenied = await replay(privilegedReads[0]);
     assert.match(stillDenied.body, /not authorized|CoordinatorDenied|ACCESS_DENIED/i);
     const [restricted] =
@@ -710,7 +689,7 @@ try {
     );
     assert.equal(failures.length, 0, failures.join("\n"));
     console.log(
-      "PASS: scoped coordinator regressions; organization-wide operations; actual owner financial transport replay denied; canary-free responses; protected fields preserved; account redirect; sticky active-session suspension; unchanged finance records.",
+      "PASS: scoped coordinator regressions; persisted blanket grants denied; actual owner financial transport replay denied; canary-free responses; protected fields preserved; account redirect; sticky active-session suspension; unchanged finance records.",
     );
   }
 } catch (error) {

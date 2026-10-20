@@ -206,7 +206,7 @@ function assertNoFinance(value: unknown) {
 test("organization operational workspace is explicitly projected, cross-sport, and revocable", async () => {
   const { db, sql } = await fixture();
   try {
-    const view = await organizationWorkspace(sql, "sara");
+    const view = await organizationWorkspace(sql, "steve");
     assert.equal(view.teams.length, 3);
     assert.equal(view.teams[2].sport, "softball");
     assert.equal(view.teams[0].roster[0].parents[0].email, "guardian@example.invalid");
@@ -314,7 +314,7 @@ test("operational CRUD preserves mixed records and enforces revisions, audit, an
   try {
     const before = await clubFor(sql),
       original = before.payload.teams[0];
-    await saveOrganizationPlayer(sql, "sara", {
+    await saveOrganizationPlayer(sql, "steve", {
       revision: 1,
       teamId: "base",
       playerId: "base-player",
@@ -350,7 +350,7 @@ test("operational CRUD preserves mixed records and enforces revisions, audit, an
     assert.equal((player.docs as Json).invoice, CANARY);
     await assert.rejects(
       () =>
-        saveOrganizationPlayer(sql, "sara", {
+        saveOrganizationPlayer(sql, "steve", {
           revision: 1,
           teamId: "base",
           playerId: "base-player",
@@ -360,7 +360,7 @@ test("operational CRUD preserves mixed records and enforces revisions, audit, an
     );
     await assert.rejects(
       () =>
-        saveOrganizationPlayer(sql, "sara", {
+        saveOrganizationPlayer(sql, "steve", {
           revision: 2,
           teamId: "base",
           playerId: "base-player",
@@ -368,7 +368,7 @@ test("operational CRUD preserves mixed records and enforces revisions, audit, an
         }),
       /Guardian rows/,
     );
-    await saveOrganizationStaff(sql, "sara", {
+    await saveOrganizationStaff(sql, "steve", {
       revision: 2,
       teamId: "base",
       staffId: "base-staff",
@@ -378,7 +378,7 @@ test("operational CRUD preserves mixed records and enforces revisions, audit, an
     assert.equal(current.payload.teams[0].staff[0].monthly, AMOUNT);
     assert.equal(current.payload.teams[0].staff[0].financeFuture, CANARY);
     await assert.rejects(() =>
-      saveOrganizationStaff(sql, "sara", {
+      saveOrganizationStaff(sql, "steve", {
         revision: 3,
         teamId: "base",
         staffId: "base-staff",
@@ -386,13 +386,13 @@ test("operational CRUD preserves mixed records and enforces revisions, audit, an
       }),
     );
     await assert.rejects(() =>
-      saveOrganizationTeam(sql, "sara", {
+      saveOrganizationTeam(sql, "steve", {
         revision: 3,
         teamId: "base",
         changes: { coachEmail: "sara@example.invalid" },
       }),
     );
-    await saveOrganizationTeam(sql, "sara", {
+    await saveOrganizationTeam(sql, "steve", {
       revision: 3,
       teamId: "soft",
       changes: { name: "Updated softball" },
@@ -401,15 +401,21 @@ test("operational CRUD preserves mixed records and enforces revisions, audit, an
     assert.equal(current.payload.teams[2].name, "Updated softball");
     for (const key of ["orgFee", "coachMonthly", "eventBudget", "otherCosts"])
       assert.deepEqual(current.payload.teams[0][key], original[key]);
-    assertNoFinance(await organizationWorkspace(sql, "sara"));
+    assertNoFinance(await organizationWorkspace(sql, "steve"));
     const audit = await sql<{
       action: string;
       result: string;
       details: unknown;
-    }>`select action,result,details from coordinator_audit where actor_id='sara'`;
+    }>`select action,result,details from coordinator_audit where actor_id='steve'`;
     assert.ok(audit.some((r) => r.action === "organization.player.save" && r.result === "allowed"));
     assert.ok(audit.some((r) => r.result === "conflict"));
-    assert.ok(audit.some((r) => r.result === "denied"));
+    await assert.rejects(() => organizationWorkspace(sql, "sara"));
+    assert.equal(
+      (
+        await sql`select count(*)::int as n from coordinator_audit where actor_id='sara' and result='denied'`
+      )[0].n,
+      1,
+    );
     assert.ok(!JSON.stringify(audit).includes(CANARY));
   } finally {
     await db.close();
@@ -423,17 +429,17 @@ test("new operational records and safe team transfers work without modifying sto
       b = randomUUID(),
       playerId = randomUUID(),
       staffId = randomUUID();
-    await saveOrganizationTeam(sql, "sara", {
+    await saveOrganizationTeam(sql, "steve", {
       revision: 1,
       teamId: a,
       changes: { name: "New A", sport: "baseball", age: "12U" },
     });
-    await saveOrganizationTeam(sql, "sara", {
+    await saveOrganizationTeam(sql, "steve", {
       revision: 2,
       teamId: b,
       changes: { name: "New B", sport: "baseball", age: "12U" },
     });
-    await saveOrganizationPlayer(sql, "sara", {
+    await saveOrganizationPlayer(sql, "steve", {
       revision: 3,
       teamId: a,
       playerId,
@@ -442,7 +448,7 @@ test("new operational records and safe team transfers work without modifying sto
         parents: [{ name: "Guardian", rel: "guardian", email: "test@example.invalid", phone: "" }],
       },
     });
-    await saveOrganizationStaff(sql, "sara", {
+    await saveOrganizationStaff(sql, "steve", {
       revision: 4,
       teamId: b,
       staffId,
@@ -450,7 +456,7 @@ test("new operational records and safe team transfers work without modifying sto
     });
     const before = await clubFor(sql),
       p = before.payload.teams.find((t) => t.id === a)!.roster[0];
-    await moveOrganizationPlayer(sql, "sara", {
+    await moveOrganizationPlayer(sql, "steve", {
       revision: 5,
       teamId: a,
       playerId,
@@ -461,7 +467,7 @@ test("new operational records and safe team transfers work without modifying sto
     assert.deepEqual(after.payload.teams.find((t) => t.id === b)!.roster[0], { ...p, teamId: b });
     await assert.rejects(
       () =>
-        moveOrganizationPlayer(sql, "sara", {
+        moveOrganizationPlayer(sql, "steve", {
           revision: 6,
           teamId: "base",
           playerId: "base-player",
@@ -478,7 +484,7 @@ test("new operational records and safe team transfers work without modifying sto
 test("registrations, evaluations, and schedules support safe mutations without exposing or overwriting mixed payloads", async () => {
   const { db, sql, evaluationId, activityId } = await fixture();
   try {
-    await saveOrganizationRegistration(sql, "sara", {
+    await saveOrganizationRegistration(sql, "steve", {
       id: "request",
       revision: 0,
       workRevision: 0,
@@ -497,7 +503,7 @@ test("registrations, evaluations, and schedules support safe mutations without e
     assert.equal(request.payload.futureFinancialField, CANARY);
     await assert.rejects(
       () =>
-        saveOrganizationRegistration(sql, "sara", {
+        saveOrganizationRegistration(sql, "steve", {
           id: "request",
           revision: 0,
           workRevision: 0,
@@ -505,7 +511,7 @@ test("registrations, evaluations, and schedules support safe mutations without e
         }),
       /changed/,
     );
-    await saveOrganizationRegistration(sql, "sara", {
+    await saveOrganizationRegistration(sql, "steve", {
       id: randomUUID(),
       revision: 0,
       workRevision: 0,
@@ -519,7 +525,7 @@ test("registrations, evaluations, and schedules support safe mutations without e
         preferredTeamId: "soft",
       },
     });
-    await saveOrganizationEvaluation(sql, "sara", {
+    await saveOrganizationEvaluation(sql, "steve", {
       id: evaluationId,
       revision: 1,
       registrationId: "request",
@@ -532,7 +538,7 @@ test("registrations, evaluations, and schedules support safe mutations without e
       recommendation: "invite",
       ratings,
     });
-    await reviewOrganizationEvaluation(sql, "sara", { id: evaluationId, revision: 2 });
+    await reviewOrganizationEvaluation(sql, "steve", { id: evaluationId, revision: 2 });
     const [evaluation] = await sql<{
       payload: Json;
       evaluator_id: string;
@@ -543,7 +549,7 @@ test("registrations, evaluations, and schedules support safe mutations without e
     assert.equal(evaluation.evaluator_id, "coach");
     await assert.rejects(
       () =>
-        saveOrganizationActivity(sql, "sara", {
+        saveOrganizationActivity(sql, "steve", {
           id: activityId,
           revision: 1,
           teamId: "base",
@@ -558,7 +564,7 @@ test("registrations, evaluations, and schedules support safe mutations without e
         }),
       /protected workflow/,
     );
-    await saveOrganizationActivity(sql, "sara", {
+    await saveOrganizationActivity(sql, "steve", {
       id: randomUUID(),
       revision: 0,
       teamId: "base",
@@ -576,7 +582,7 @@ test("registrations, evaluations, and schedules support safe mutations without e
     }>`select payload from team_activities where id=${activityId}`;
     assert.equal(activity.payload.entryFee, AMOUNT);
     assert.equal(activity.payload.invoice, CANARY);
-    assertNoFinance(await organizationWorkspace(sql, "sara"));
+    assertNoFinance(await organizationWorkspace(sql, "steve"));
   } finally {
     await db.close();
   }
@@ -600,40 +606,40 @@ test("cage reservations use shared occupancy, conflict rolls back, cancellation 
       status: "scheduled" as const,
       laneIds: ["1" as const],
     };
-    await saveOrganizationActivity(sql, "sara", data);
-    const occupied = await organizationOccupancy(sql, "sara", data.date);
+    await saveOrganizationActivity(sql, "steve", data);
+    const occupied = await organizationOccupancy(sql, "steve", data.date);
     assert.equal(occupied.length, 12);
     assert.deepEqual(Object.keys(occupied[0]).sort(), ["at", "resourceId"]);
     await assert.rejects(
-      () => saveOrganizationActivity(sql, "sara", { ...data, id: second, teamId: "soft" }),
+      () => saveOrganizationActivity(sql, "steve", { ...data, id: second, teamId: "soft" }),
       /reserved/,
     );
     assert.equal((await sql`select id from team_activities where id=${second}`).length, 0);
-    await saveOrganizationActivity(sql, "sara", { ...data, revision: 1, status: "cancelled" });
-    assert.equal((await organizationOccupancy(sql, "sara", data.date)).length, 0);
+    await saveOrganizationActivity(sql, "steve", { ...data, revision: 1, status: "cancelled" });
+    assert.equal((await organizationOccupancy(sql, "steve", data.date)).length, 0);
     const message = {
       id: randomUUID(),
       teamId: "soft",
       confirmedTeamId: "soft",
       body: "Practice starts at four.",
     };
-    await sendOrganizationMessage(sql, "sara", message);
-    await sendOrganizationMessage(sql, "sara", message);
+    await sendOrganizationMessage(sql, "steve", message);
+    await sendOrganizationMessage(sql, "steve", message);
     assert.equal((await sql`select id from team_chat_messages where id=${message.id}`).length, 1);
     await assert.rejects(
-      () => sendOrganizationMessage(sql, "sara", { ...message, body: "Different text" }),
+      () => sendOrganizationMessage(sql, "steve", { ...message, body: "Different text" }),
       /changed/,
     );
     await assert.rejects(
       () =>
-        sendOrganizationMessage(sql, "sara", {
+        sendOrganizationMessage(sql, "steve", {
           ...message,
           id: randomUUID(),
           confirmedTeamId: "base",
         }),
       /Confirm/,
     );
-    assertNoFinance(await organizationWorkspace(sql, "sara"));
+    assertNoFinance(await organizationWorkspace(sql, "steve"));
   } finally {
     await db.close();
   }
@@ -645,66 +651,66 @@ test("financially coupled operations fail closed without changing terms, payees,
     const before = await clubFor(sql);
     const blocked = [
       () =>
-        saveOrganizationTeam(sql, "sara", {
+        saveOrganizationTeam(sql, "steve", {
           revision: 1,
           teamId: "base",
           changes: { coachEmail: "other@example.invalid" },
         }),
       () =>
-        saveOrganizationTeam(sql, "sara", {
+        saveOrganizationTeam(sql, "steve", {
           revision: 1,
           teamId: "base",
           changes: { headCoach: "New Payee" },
         }),
       () =>
-        saveOrganizationTeam(sql, "sara", {
+        saveOrganizationTeam(sql, "steve", {
           revision: 1,
           teamId: "base",
           changes: { seasonStart: "2027-03-01" },
         }),
       () =>
-        saveOrganizationTeam(sql, "sara", {
+        saveOrganizationTeam(sql, "steve", {
           revision: 1,
           teamId: "base",
           changes: { closed: true },
         }),
       () =>
-        saveOrganizationStaff(sql, "sara", {
+        saveOrganizationStaff(sql, "steve", {
           revision: 1,
           teamId: "base",
           staffId: randomUUID(),
           changes: { name: "New Coach", role: "Assistant coach" },
         }),
       () =>
-        saveOrganizationStaff(sql, "sara", {
+        saveOrganizationStaff(sql, "steve", {
           revision: 1,
           teamId: "base",
           staffId: "base-staff",
           changes: { email: "newcoach@example.invalid" },
         }),
       () =>
-        saveOrganizationStaff(sql, "sara", {
+        saveOrganizationStaff(sql, "steve", {
           revision: 1,
           teamId: "base",
           staffId: "base-staff",
           changes: { role: "Head coach" },
         }),
       () =>
-        saveOrganizationPlayer(sql, "sara", {
+        saveOrganizationPlayer(sql, "steve", {
           revision: 1,
           teamId: "base",
           playerId: "base-player",
           changes: { withdrawn: true },
         }),
       () =>
-        saveOrganizationPlayer(sql, "sara", {
+        saveOrganizationPlayer(sql, "steve", {
           revision: 1,
           teamId: "base",
           playerId: "base-player",
           changes: { email: "newathlete@example.invalid" },
         }),
       () =>
-        saveOrganizationPlayer(sql, "sara", {
+        saveOrganizationPlayer(sql, "steve", {
           revision: 1,
           teamId: "base",
           playerId: "base-player",
@@ -720,7 +726,7 @@ test("financially coupled operations fail closed without changing terms, payees,
           },
         }),
       () =>
-        saveOrganizationActivity(sql, "sara", {
+        saveOrganizationActivity(sql, "steve", {
           id: activityId,
           revision: 1,
           teamId: "base",
@@ -743,7 +749,7 @@ test("financially coupled operations fail closed without changing terms, payees,
     assert.equal(activity.payload.entryFee, AMOUNT);
     // A fee plan is sufficient protection even when all legacy team fields are zero.
     const teamId = randomUUID();
-    await saveOrganizationTeam(sql, "sara", {
+    await saveOrganizationTeam(sql, "steve", {
       revision: 1,
       teamId,
       changes: { name: "Plan-linked team", sport: "softball" },
@@ -752,7 +758,7 @@ test("financially coupled operations fail closed without changing terms, payees,
     await sql`insert into team_fee_plans(team_id,payload) values(${teamId},${JSON.stringify(plan)}::jsonb)`;
     await assert.rejects(
       () =>
-        saveOrganizationStaff(sql, "sara", {
+        saveOrganizationStaff(sql, "steve", {
           revision: 2,
           teamId,
           staffId: randomUUID(),
@@ -762,7 +768,7 @@ test("financially coupled operations fail closed without changing terms, payees,
     );
     await assert.rejects(
       () =>
-        saveOrganizationActivity(sql, "sara", {
+        saveOrganizationActivity(sql, "steve", {
           id: randomUUID(),
           revision: 0,
           teamId,
@@ -782,7 +788,7 @@ test("financially coupled operations fail closed without changing terms, payees,
         .payload,
       plan,
     );
-    assertNoFinance(await organizationWorkspace(sql, "sara"));
+    assertNoFinance(await organizationWorkspace(sql, "steve"));
   } finally {
     await db.close();
   }
@@ -796,14 +802,14 @@ test("normalized operational flags preserve legacy stored timestamps during unre
     payload.teams[0].staff[0].backgroundCheck = "2026-09-01";
     payload.teams[0].staff[0].safeSport = "2026-09-02";
     await sql`update club_state set payload=${JSON.stringify(payload)}::jsonb where id='oklahoma-prospects'`;
-    const view = await organizationWorkspace(sql, "sara");
+    const view = await organizationWorkspace(sql, "steve");
     assert.equal(view.teams[0].staff[0].backgroundCheck, true);
-    await saveOrganizationTeam(sql, "sara", {
+    await saveOrganizationTeam(sql, "steve", {
       revision: 1,
       teamId: "base",
       changes: { name: "Renamed", closed: false },
     });
-    await saveOrganizationStaff(sql, "sara", {
+    await saveOrganizationStaff(sql, "steve", {
       revision: 2,
       teamId: "base",
       staffId: "base-staff",
@@ -825,7 +831,7 @@ test("new player creation is blocked for financially linked teams and allowed fo
     const blockedId = randomUUID();
     await assert.rejects(
       () =>
-        saveOrganizationPlayer(sql, "sara", {
+        saveOrganizationPlayer(sql, "steve", {
           revision: before.rev,
           teamId: "base",
           playerId: blockedId,
@@ -840,19 +846,19 @@ test("new player creation is blocked for financially linked teams and allowed fo
     );
     assert.deepEqual(await clubFor(sql), before);
     assert.equal(
-      (await organizationWorkspace(sql, "sara")).teams
+      (await organizationWorkspace(sql, "steve")).teams
         .flatMap((t) => t.roster)
         .some((p) => p.id === blockedId),
       false,
     );
     const emptyTeamId = randomUUID(),
       allowedId = randomUUID();
-    await saveOrganizationTeam(sql, "sara", {
+    await saveOrganizationTeam(sql, "steve", {
       revision: before.rev,
       teamId: emptyTeamId,
       changes: { name: "Unlinked team", sport: "baseball", age: "12U" },
     });
-    await saveOrganizationPlayer(sql, "sara", {
+    await saveOrganizationPlayer(sql, "steve", {
       revision: before.rev + 1,
       teamId: emptyTeamId,
       playerId: allowedId,
@@ -868,7 +874,7 @@ test("new player creation is blocked for financially linked teams and allowed fo
     await sql`insert into team_fee_plans(team_id,payload) values(${emptyTeamId},${JSON.stringify({ financialCanary: CANARY, amount: AMOUNT })}::jsonb)`;
     await assert.rejects(
       () =>
-        saveOrganizationPlayer(sql, "sara", {
+        saveOrganizationPlayer(sql, "steve", {
           revision: allowed.rev,
           teamId: emptyTeamId,
           playerId: randomUUID(),
@@ -879,7 +885,7 @@ test("new player creation is blocked for financially linked teams and allowed fo
     assert.deepEqual(await clubFor(sql), allowed);
     const [audit] = await sql<{
       count: number;
-    }>`select count(*)::int as count from coordinator_audit where actor_id='sara' and action='organization.player.save' and result='conflict'`;
+    }>`select count(*)::int as count from coordinator_audit where actor_id='steve' and action='organization.player.save' and result='conflict'`;
     assert.equal(audit.count, 2);
   } finally {
     await db.close();
@@ -892,17 +898,17 @@ test("an uncommitted player cannot move when either team has a financially linke
     const sourceId = randomUUID(),
       destinationId = randomUUID(),
       playerId = randomUUID();
-    await saveOrganizationTeam(sql, "sara", {
+    await saveOrganizationTeam(sql, "steve", {
       revision: 1,
       teamId: sourceId,
       changes: { name: "Source", sport: "baseball", age: "12U" },
     });
-    await saveOrganizationTeam(sql, "sara", {
+    await saveOrganizationTeam(sql, "steve", {
       revision: 2,
       teamId: destinationId,
       changes: { name: "Destination", sport: "baseball", age: "12U" },
     });
-    await saveOrganizationPlayer(sql, "sara", {
+    await saveOrganizationPlayer(sql, "steve", {
       revision: 3,
       teamId: sourceId,
       playerId,
@@ -924,7 +930,7 @@ test("an uncommitted player cannot move when either team has a financially linke
       await sql`update club_state set payload=${JSON.stringify(state.payload)}::jsonb where id='oklahoma-prospects'`;
       await assert.rejects(
         () =>
-          moveOrganizationPlayer(sql, "sara", {
+          moveOrganizationPlayer(sql, "steve", {
             revision: state.rev,
             teamId: sourceId,
             playerId,
@@ -945,17 +951,17 @@ test("unlocked roster operations preserve membership, fee-floor and uniform-deri
     const sourceId = randomUUID(),
       destinationId = randomUUID(),
       playerId = randomUUID();
-    await saveOrganizationTeam(sql, "sara", {
+    await saveOrganizationTeam(sql, "steve", {
       revision: 1,
       teamId: sourceId,
       changes: { name: "Zero-cost source", sport: "baseball", age: "12U" },
     });
-    await saveOrganizationTeam(sql, "sara", {
+    await saveOrganizationTeam(sql, "steve", {
       revision: 2,
       teamId: destinationId,
       changes: { name: "Zero-cost destination", sport: "baseball", age: "12U" },
     });
-    await saveOrganizationPlayer(sql, "sara", {
+    await saveOrganizationPlayer(sql, "steve", {
       revision: 3,
       teamId: sourceId,
       playerId,
@@ -975,7 +981,7 @@ test("unlocked roster operations preserve membership, fee-floor and uniform-deri
       await sql`update club_state set payload=${JSON.stringify(state.payload)}::jsonb where id='oklahoma-prospects'`;
       await assert.rejects(
         () =>
-          saveOrganizationPlayer(sql, "sara", {
+          saveOrganizationPlayer(sql, "steve", {
             revision: state.rev,
             teamId: sourceId,
             playerId: randomUUID(),
@@ -985,7 +991,7 @@ test("unlocked roster operations preserve membership, fee-floor and uniform-deri
       );
       await assert.rejects(
         () =>
-          saveOrganizationPlayer(sql, "sara", {
+          saveOrganizationPlayer(sql, "steve", {
             revision: state.rev,
             teamId: sourceId,
             playerId,
@@ -995,7 +1001,7 @@ test("unlocked roster operations preserve membership, fee-floor and uniform-deri
       );
       await assert.rejects(
         () =>
-          moveOrganizationPlayer(sql, "sara", {
+          moveOrganizationPlayer(sql, "steve", {
             revision: state.rev,
             teamId: sourceId,
             playerId,
