@@ -99,41 +99,24 @@ test("captured, dirty, disabled and unverified states cannot grant", async () =>
   }
   assert.equal((await sql`select * from organization_operational_access`).length, 0);
 });
-test("review binds release, account and revision; grant preserves identity and financial basis", async () => {
+test("even a clean active financial basis cannot grant retired blanket access", async () => {
   const sql = await fixture();
   const before = await sql`select * from financial_basis_versions`,
     owners = await sql`select * from owner_grants order by email`;
-  let p = await previewOrganizationAccess(sql, "owner", { userId: "sara" });
-  assert.equal(p.ready, true);
-  await assert.rejects(() =>
-    applyOrganizationAccess(sql, "owner", { ...command(p), expectedRelease: "b".repeat(40) }),
-  );
-  await sql`update "user" set name='Changed' where id='sara'`;
-  await assert.rejects(() => applyOrganizationAccess(sql, "owner", command(p)));
-  p = await previewOrganizationAccess(sql, "owner", { userId: "sara" });
-  const result = await applyOrganizationAccess(sql, "owner", command(p));
-  assert.equal(result.revision, 1);
-  await assert.rejects(() => applyOrganizationAccess(sql, "owner", command(p)));
+  const p = await previewOrganizationAccess(sql, "owner", { userId: "sara" });
+  assert.equal(p.ready, false);
+  assert.match(p.blockers.join(" "), /retired/);
+  await assert.rejects(() => applyOrganizationAccess(sql, "owner", command(p)), /retired/);
+  assert.equal((await sql`select * from organization_operational_access`).length, 0);
   assert.deepEqual(await sql`select * from financial_basis_versions`, before);
   assert.equal((await sql`select role from profiles where user_id='sara'`)[0].role, "parent");
   assert.deepEqual(await sql`select * from owner_grants order by email`, owners);
-  assert.equal(
-    (
-      await sql`select financial_restricted,status from organization_operational_access where user_id='sara'`
-    )[0].financial_restricted,
-    true,
-  );
-  assert.equal(
-    (await sql`select * from coordinator_audit where action='organization.access.grant'`).length,
-    1,
-  );
 });
-test("audit failure rolls back grant atomically", async () => {
+test("a persisted removed grant cannot be reactivated through the old endpoint", async () => {
   const sql = await fixture();
+  await sql`insert into organization_operational_access(user_id,status,updated_by) values('sara','removed','owner')`;
+  const before = await sql`select * from organization_operational_access`;
   const p = await previewOrganizationAccess(sql, "owner", { userId: "sara" });
-  await db.exec(
-    "create function reject_grant_audit() returns trigger language plpgsql as $$ begin raise exception 'audit failed'; end $$; create trigger reject_grant_audit before insert on coordinator_audit for each row execute function reject_grant_audit()",
-  );
-  await assert.rejects(() => applyOrganizationAccess(sql, "owner", command(p)), /audit failed/);
-  assert.equal((await sql`select * from organization_operational_access`).length, 0);
+  await assert.rejects(() => applyOrganizationAccess(sql, "owner", command(p)), /retired/);
+  assert.deepEqual(await sql`select * from organization_operational_access`, before);
 });
