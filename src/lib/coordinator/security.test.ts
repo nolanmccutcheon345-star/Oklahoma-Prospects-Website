@@ -1,4 +1,9 @@
-import { requireGrant, secured } from "./access.server";
+import {
+  requireGrant,
+  secured,
+  hasOrganizationOperations,
+  requireOrganizationOperations,
+} from "./access.server";
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFile, readdir } from "node:fs/promises";
@@ -609,6 +614,28 @@ test("sport-wide intake and reports reject forged or orphaned team classificatio
     const report = await operationalReports(sql, "softball", { sport: "softball", teamId: "" });
     assert.equal(report.registrations, 2);
     assert.equal(report.followups, 2);
+  } finally {
+    await db.close();
+  }
+});
+
+test("retired organization grants cannot bypass granular coordinator permissions", async () => {
+  const { db, sql, assign } = await fixture();
+  try {
+    await assign("zero", "softball");
+    await sql`insert into organization_operational_access(user_id,status,updated_by) values('zero','active','owner')`;
+    assert.equal(await hasOrganizationOperations(sql, "zero"), false);
+    await assert.rejects(() => requireOrganizationOperations(sql, "zero"));
+    await assert.rejects(() => roster(sql, "zero", "soft"));
+    await assert.rejects(() => recruiting(sql, "zero", { sport: "softball", teamId: "" }));
+    await requireOrganizationOperations(sql, "owner");
+    assert.equal((await coordinatorHome(sql, "zero")).organizationOperations, false);
+    for (const permission of permissionKeys)
+      await assert.rejects(() =>
+        secured(sql, "zero", permission, (tx) =>
+          requireGrant(tx, "zero", permission, "softball", "soft"),
+        ),
+      );
   } finally {
     await db.close();
   }

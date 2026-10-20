@@ -152,9 +152,9 @@ export async function requireUnrestrictedLegacyAccess(sql: Sql, userId: string) 
 }
 export async function hasOrganizationOperations(sql: Sql, userId: string) {
   await verifiedAccount(sql, userId, true);
-  const [row] =
-    await sql`select user_id from organization_operational_access where user_id=${userId} and status='active' and financial_restricted=true for share`;
-  return Boolean(row);
+  // Retired: organization-wide access is not a coordinator permission.
+  // Persisted legacy grants must never authorize a request, including active sessions.
+  return false;
 }
 export async function requireOrganizationOperations(sql: Sql, userId: string) {
   const user = await verifiedAccount(sql, userId, true);

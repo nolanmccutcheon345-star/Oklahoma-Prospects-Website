@@ -45,7 +45,9 @@ async function preview(
     status: string;
   }>`select revision,status from organization_operational_access where user_id=${userId} for update`;
   const build = releaseIdentity(),
-    blockers: string[] = [];
+    blockers: string[] = [
+      "Organization-wide access has been retired. Assign sport-scoped coordinator permissions in Roles & Permissions.",
+    ];
   if (!target.emailVerified || target.disabledAt || !profile)
     blockers.push("The existing account must be verified, enabled and provisioned.");
   if (!build.clean) blockers.push("A clean, identified release is required.");
