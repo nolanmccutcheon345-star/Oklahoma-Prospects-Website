@@ -15,7 +15,7 @@ export async function resetCoordinatorAccess(
     const [target] = await tx`select id from "user" where id=${input.userId} for update`;
     if (!target) throw new CoordinatorDenied();
     const [owner] =
-      await tx`select email from owner_grants where user_id=${input.userId} and revoked_at is null for share`;
+      await tx`select g.email from owner_grants g join "user" u on u.id=${input.userId} where (g.user_id=u.id or g.email=lower(trim(u.email))) and g.revoked_at is null for share of g`;
     if (owner) throw new Error("Owner access cannot be reset through coordinator management.");
     const assignments = await tx<{
       sport: string;

@@ -560,7 +560,7 @@ try {
     const org = await signedIn("operations@example.invalid");
     // A persisted blanket grant is inert after retirement, even in an authenticated session.
     const retiredMessage =
-      "Your organization operations access is not active. Contact an owner to review your access.";
+      "An owner must withdraw your previous access and explicitly configure your coordinator permissions.";
     await org.page.getByText(retiredMessage, { exact: true }).waitFor();
     assert.equal(await org.page.getByLabel("Team workspace", { exact: true }).count(), 0);
     for (const marker of [
@@ -674,6 +674,53 @@ try {
           !trace.response.includes(marker),
           "Private financial canary leaked in an authenticated response",
         );
+
+    // Explicit owner withdrawal and new granular grant, through compiled authenticated UI.
+    await owner.page.goto(origin + "/office?section=staff");
+    await owner.page
+      .getByLabel("Verified staff account", { exact: true })
+      .selectOption("fixture-org");
+    await owner.page
+      .locator("summary")
+      .filter({ hasText: "Withdraw all coordinator access" })
+      .click();
+    await owner.page
+      .getByLabel("Reason for withdrawing access", { exact: true })
+      .fill("Owner reviewed retirement before scoped delegation");
+    await owner.page
+      .getByRole("button", { name: "Withdraw all coordinator access", exact: true })
+      .click();
+    await owner.page
+      .getByText(
+        "Coordinator access withdrawn. No operational permissions remain; financial restrictions are unchanged.",
+        { exact: true },
+      )
+      .waitFor();
+    await owner.page
+      .getByRole("button", { name: "Assign Role With Zero Permissions", exact: true })
+      .click();
+    await owner.page
+      .getByText("Permissions saved. Server access has been updated.", { exact: true })
+      .waitFor();
+    await org.page.goto(origin + "/coordinator");
+    await org.page.getByText("No operational modules enabled", { exact: true }).waitFor();
+    await owner.page.getByLabel("Coverage", { exact: true }).selectOption("sport");
+    await owner.page.getByLabel("View prospects and tryout registrations", { exact: true }).check();
+    await owner.page.getByRole("button", { name: "Save Permissions", exact: true }).click();
+    await owner.page
+      .getByText("Permissions saved. Server access has been updated.", { exact: true })
+      .waitFor();
+    await org.page.reload();
+    await org.page.getByRole("button", { name: "Recruiting", exact: true }).click();
+    await org.page.getByText("Tryout Test Player · 13U", { exact: true }).waitFor();
+    assert.deepEqual(
+      (
+        await sql`select permissions from coordinator_assignments where user_id='fixture-org' and sport='softball'`
+      )[0].permissions,
+      ["recruiting.read"],
+    );
+    const afterTransition = await replay(privilegedReads[0]);
+    assert.match(afterTransition.body, /not authorized|CoordinatorDenied|ACCESS_DENIED/i);
 
     // Keep the same valid session: suspension must deny the very next mutation,
     // and removal of operations must never restore household financial access.

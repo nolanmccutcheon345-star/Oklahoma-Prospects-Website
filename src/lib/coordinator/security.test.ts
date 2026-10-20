@@ -967,3 +967,124 @@ test("owner access reset clears both sports atomically while preserving financia
     await db.close();
   }
 });
+
+test("former blanket accounts require audited withdrawal before explicit scoped reactivation, retaining financial denial and hiding old drafts", async () => {
+  const { resetCoordinatorAccess } = await import("./reset.server");
+  const { requireUnrestrictedLegacyAccess, financiallyRestricted } =
+    await import("./access.server");
+  const { drafts } = await import("./governance.server");
+  const { db, sql, assign } = await fixture();
+  try {
+    await assign("zero", "softball", [
+      "recruiting.read",
+      "contacts.read",
+      "communications.recruit.send",
+      "content.draft",
+      "content.update",
+      "content.submit",
+    ]);
+    await sql`insert into organization_operational_access(user_id,status,updated_by) values('zero','active','owner')`;
+    const oldDraft = randomUUID();
+    await sql`insert into coordinator_drafts(id,user_id,sport,team_id,title,body) values(${oldDraft},'zero','softball','soft','Old narrative','PRIVATE-FINANCIAL-HISTORY')`;
+    await sql`insert into club_requests(id,kind,payload) values('scoped-history','tryout','{"sport":"softball","preferredTeamId":"soft","player":"Historical prospect","email":"synthetic@example.invalid"}')`;
+    assert.equal((await coordinatorEntry(sql, "zero")).available, false);
+    assert.deepEqual((await coordinatorHome(sql, "zero")).targets, []);
+    await assert.rejects(recruiting(sql, "zero", { sport: "softball", teamId: "soft" }));
+    const input: AssignmentInput = {
+      userId: "zero",
+      sport: "softball",
+      revision: 2,
+      status: "active",
+      coverage: "teams",
+      teamIds: ["soft"],
+      permissions: [
+        "recruiting.read",
+        "contacts.read",
+        "communications.recruit.send",
+        "content.draft",
+        "content.update",
+        "content.submit",
+      ],
+      confirm: true,
+      independentRolesReviewed: true,
+    };
+    await assert.rejects(saveAssignment(sql, "owner", input), /Withdraw/);
+    assert.equal(
+      (
+        await sql`select coordinator_notice_allowed('zero','scoped-history','synthetic@example.invalid') as allowed`
+      )[0].allowed,
+      false,
+    );
+    await resetCoordinatorAccess(sql, "owner", {
+      userId: "zero",
+      assignments: [{ sport: "softball", revision: 2 }],
+      legacyRevision: 1,
+      reason: "Owner reviewed reset before explicit scoped delegation",
+      confirmed: true,
+    });
+    assert.equal((await coordinatorEntry(sql, "zero")).available, false);
+    await assert.rejects(requireGrant(sql, "zero", "recruiting.read", "softball", "soft"));
+    await saveAssignment(sql, "owner", { ...input, revision: 3 });
+    assert.equal((await coordinatorEntry(sql, "zero")).available, true);
+    assert.equal((await coordinatorHome(sql, "zero")).scopedReady, true);
+    assert.equal(
+      (await recruiting(sql, "zero", { sport: "softball", teamId: "soft" })).items[0].id,
+      "scoped-history",
+    );
+    await assert.rejects(recruiting(sql, "zero", { sport: "baseball", teamId: "base" }));
+    assert.equal(await financiallyRestricted(sql, "zero"), true);
+    await assert.rejects(requireUnrestrictedLegacyAccess(sql, "zero"));
+    await assert.rejects(frontOfficeFor(sql, "zero"));
+    await assert.rejects(requireOrganizationOperations(sql, "zero"));
+    assert.equal(
+      (
+        await sql`select coordinator_notice_allowed('zero','scoped-history','synthetic@example.invalid') as allowed`
+      )[0].allowed,
+      true,
+    );
+    assert.deepEqual(await drafts(sql, "zero", { sport: "softball", teamId: "soft" }), []);
+    await assert.rejects(
+      saveDraft(sql, "zero", {
+        id: oldDraft,
+        revision: 1,
+        sport: "softball",
+        teamId: "soft",
+        title: "Replacement",
+        body: "No old narrative",
+        submit: false,
+      }),
+    );
+    const newDraft = randomUUID();
+    await saveDraft(sql, "zero", {
+      id: newDraft,
+      revision: 0,
+      sport: "softball",
+      teamId: "soft",
+      title: "Scoped announcement",
+      body: "Synthetic team practice update",
+      submit: true,
+    });
+    await decideApproval(sql, "owner", {
+      id: newDraft,
+      revision: 1,
+      decision: "approved",
+      reason: "Owner reviewed scoped announcement and publication remains separate",
+      confirm: true,
+    });
+    const visible = await drafts(sql, "zero", { sport: "softball", teamId: "soft" });
+    assert.equal(visible.length, 1);
+    assert.doesNotMatch(JSON.stringify(visible), /PRIVATE-FINANCIAL/);
+    // Any later legacy grant change invalidates the reset proof; there is no fallback.
+    await sql`update organization_operational_access set status='active',revision=revision+1 where user_id='zero'`;
+    await assert.rejects(requireGrant(sql, "zero", "recruiting.read", "softball", "soft"));
+    assert.equal((await coordinatorEntry(sql, "zero")).available, false);
+    assert.equal(
+      (
+        await sql`select coordinator_notice_allowed('zero','scoped-history','synthetic@example.invalid') as allowed`
+      )[0].allowed,
+      false,
+    );
+  } finally {
+    await db.close();
+  }
+});

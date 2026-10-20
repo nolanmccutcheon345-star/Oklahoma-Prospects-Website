@@ -115,6 +115,7 @@ for (const baselineVersion of [66, 76, 79])
             "0072_operational_people.sql",
             "0074_operational_content.sql",
             "0080_retire_blanket_delivery.sql",
+            "0081_coordinator_scoped_transition.sql",
           ],
         );
       for (const { name } of late) {

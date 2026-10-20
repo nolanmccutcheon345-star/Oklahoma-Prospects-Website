@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 import type { z } from "zod";
 import {
   grants,
+  scopedCoordinatorReady,
   hasOrganizationOperations,
   financiallyRestricted,
   permits,
@@ -29,9 +30,7 @@ export async function coordinatorEntry(sql: Sql, userId: string) {
     const organizationOperations = await hasOrganizationOperations(tx, userId);
     const financialRestricted = await financiallyRestricted(tx, userId);
     return {
-      available: financialRestricted
-        ? organizationOperations
-        : assigned.some((g) => g.status === "active"),
+      available: assigned.some((g) => g.status === "active"),
       organizationOperations,
       financialRestricted,
     };
@@ -41,12 +40,16 @@ export async function coordinatorHome(sql: Sql, userId: string) {
   return secured(sql, userId, "coordinator.home", async (tx) => {
     const assignments = await grants(tx, userId, true);
     // Only role identities/effective grants. No record totals or protected team names.
-    const targets = await tx<{
-      id: string;
-      name: string;
-      sport: Sport;
-    }>`select distinct t->>'id' as id,t->>'name' as name,t->>'sport' as sport from club_state c cross join lateral jsonb_array_elements(c.payload->'teams') t join coordinator_assignments g on g.user_id=${userId} and g.status='active' and cardinality(g.permissions)>0 and g.sport=t->>'sport' and (g.coverage='sport' or t->>'id'=any(g.team_ids)) where c.id='oklahoma-prospects' and not c.demo and coalesce(t->>'closed','false')<>'true'`;
+    const scopedReady = await scopedCoordinatorReady(tx, userId);
+    const targets = scopedReady
+      ? await tx<{
+          id: string;
+          name: string;
+          sport: Sport;
+        }>`select distinct t->>'id' as id,t->>'name' as name,t->>'sport' as sport from club_state c cross join lateral jsonb_array_elements(c.payload->'teams') t join coordinator_assignments g on g.user_id=${userId} and g.status='active' and cardinality(g.permissions)>0 and g.sport=t->>'sport' and (g.coverage='sport' or t->>'id'=any(g.team_ids)) where c.id='oklahoma-prospects' and not c.demo and coalesce(t->>'closed','false')<>'true'`
+      : [];
     return {
+      scopedReady,
       assignments: assignments.filter((g) => g.status !== "removed"),
       targets,
       organizationOperations: await hasOrganizationOperations(tx, userId),

@@ -11,7 +11,6 @@ import {
   audit,
   CoordinatorDenied,
   financiallyRestricted,
-  requireOrganizationOperations,
 } from "./access.server";
 export async function saveDraft(sql: Sql, userId: string, raw: z.infer<typeof draftInput>) {
   const input = draftInput.parse(raw);
@@ -24,24 +23,29 @@ export async function saveDraft(sql: Sql, userId: string, raw: z.infer<typeof dr
       input.teamId,
     );
     if (input.submit) await checkScope(tx, userId, "content.submit", input.sport, input.teamId);
+    const restricted = await financiallyRestricted(tx, userId);
     const [old] = await tx<{
       revision: number;
       user_id: string;
       sport: string;
       team_id: string;
       status: string;
-    }>`select revision,user_id,sport,team_id,status from coordinator_drafts where id=${input.id} for update`;
+      after_reset: boolean;
+    }>`select revision,user_id,sport,team_id,status,scoped_reset_at=coordinator_scoped_reset_at(${userId}) as after_reset from coordinator_drafts where id=${input.id} for update`;
     if ((old?.revision || 0) !== input.revision) throw new Error("Draft changed. Reload.");
     if (
       old &&
       (old.user_id !== userId ||
         old.sport !== input.sport ||
         old.team_id !== input.teamId ||
-        old.status !== "draft")
+        old.status !== "draft" ||
+        (restricted && !old.after_reset))
     )
       throw new CoordinatorDenied();
     const status = input.submit ? "submitted" : "draft";
     await tx`insert into coordinator_drafts(id,user_id,sport,team_id,title,body,status) values(${input.id},${userId},${input.sport},${input.teamId},${input.title},${input.body},${status}) on conflict(id) do update set title=excluded.title,body=excluded.body,status=excluded.status,revision=coordinator_drafts.revision+1,updated_at=now()`;
+    if (restricted)
+      await tx`update coordinator_drafts set content_classification='operational',classified_revision=revision,scoped_reset_at=coordinator_scoped_reset_at(${userId}) where id=${input.id}`;
     if (input.submit)
       await tx`insert into coordinator_approvals(id,requester_id,sport,team_id,kind,target_id,proposal,reason) values(${input.id},${userId},${input.sport},${input.teamId},'content',${input.id},${JSON.stringify({ revision: input.revision + 1 })}::jsonb,'Review announcement and publication permissions')`;
     await audit(
@@ -61,13 +65,14 @@ export async function drafts(sql: Sql, userId: string, raw: z.infer<typeof scope
   const input = scopeInput.parse(raw);
   return secured(sql, userId, "content.list", async (tx) => {
     await checkScope(tx, userId, "content.draft", input.sport, input.teamId);
+    const restricted = await financiallyRestricted(tx, userId);
     return tx<{
       id: string;
       title: string;
       body: string;
       status: string;
       revision: number;
-    }>`select id,title,body,status,revision from coordinator_drafts where user_id=${userId} and sport=${input.sport} and team_id=${input.teamId} order by updated_at desc limit 100`;
+    }>`select id,title,body,status,revision from coordinator_drafts where user_id=${userId} and sport=${input.sport} and team_id=${input.teamId} and (not ${restricted} or scoped_reset_at=coordinator_scoped_reset_at(${userId})) order by updated_at desc limit 100`;
   });
 }
 export async function requestApproval(
@@ -184,18 +189,12 @@ export async function decideApproval(sql: Sql, userId: string, raw: z.infer<type
         });
       } else if (row.kind === "content") {
         const restricted = await financiallyRestricted(tx, row.requester_id);
-        if (restricted) {
-          // A suspended/removed organization account must never fall back to an
-          // earlier coordinator assignment when an owner reviews its submission.
-          await requireOrganizationOperations(tx, row.requester_id);
-        } else {
-          await checkScope(tx, row.requester_id, "content.submit", row.sport, row.team_id);
-        }
+        await checkScope(tx, row.requester_id, "content.submit", row.sport, row.team_id);
         const [d] = await tx<{
           revision: number;
           content_classification: string;
           classified_revision: number | null;
-        }>`select revision,content_classification,classified_revision from coordinator_drafts where id::text=${row.target_id} and user_id=${row.requester_id} and sport=${row.sport} and team_id=${row.team_id} and status='submitted' for update`;
+        }>`select revision,content_classification,classified_revision from coordinator_drafts where id::text=${row.target_id} and user_id=${row.requester_id} and sport=${row.sport} and team_id=${row.team_id} and status='submitted' and (not ${restricted} or scoped_reset_at=coordinator_scoped_reset_at(${row.requester_id})) for update`;
         if (!d || d.revision !== row.proposal.revision)
           throw new Error("The draft changed. Request a new review.");
         if (

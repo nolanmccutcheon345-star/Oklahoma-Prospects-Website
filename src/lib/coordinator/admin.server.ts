@@ -1,7 +1,14 @@
 import { reviewPolicyInTransaction } from "./reviews.server";
 import type { Sql } from "../db";
 import { assignmentInput, publicLeadershipInput, type AssignmentInput } from "./contracts";
-import { audit, authority, secured, teamScope, CoordinatorDenied } from "./access.server";
+import {
+  audit,
+  authority,
+  secured,
+  teamScope,
+  CoordinatorDenied,
+  scopedCoordinatorReady,
+} from "./access.server";
 export async function staffWorkspace(sql: Sql, userId: string) {
   return secured(sql, userId, "staff.list", async (tx) => {
     await authority(tx, userId, "staff_roles.manage");
@@ -88,6 +95,14 @@ export async function saveAssignmentInTransaction(tx: Sql, actor: string, raw: A
   if (!old && input.permissions.length)
     throw new Error(
       "Assign the coordinator role with zero permissions first, then explicitly grant access.",
+    );
+  if (
+    input.permissions.length &&
+    input.status === "active" &&
+    !(await scopedCoordinatorReady(tx, input.userId))
+  )
+    throw new Error(
+      "Withdraw the previous coordinator access first, then explicitly review and grant new permissions.",
     );
   const permissions = input.status === "removed" ? [] : [...new Set(input.permissions)];
   await tx`insert into coordinator_assignments(user_id,sport,status,coverage,team_ids,permissions,independent_roles,updated_by) values(${input.userId},${input.sport},${input.status},${input.coverage},${[...new Set(input.teamIds)]},${permissions},${independent},${actor}) on conflict(user_id,sport) do update set status=excluded.status,coverage=excluded.coverage,team_ids=excluded.team_ids,permissions=excluded.permissions,independent_roles=excluded.independent_roles,revision=coordinator_assignments.revision+1,updated_by=excluded.updated_by,updated_at=now()`;

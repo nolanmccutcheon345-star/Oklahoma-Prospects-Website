@@ -35,10 +35,19 @@ export async function authority(sql: Sql, userId: string, capability: string) {
 }
 export async function grants(sql: Sql, userId: string, lock = false) {
   await verifiedAccount(sql, userId, lock);
-  return sql.query<Grant>(
+  const ready = await scopedCoordinatorReady(sql, userId);
+  const rows = await sql.query<Grant>(
     `select user_id,sport,role,status,coverage,team_ids,permissions,revision,independent_roles from coordinator_assignments where user_id=$1 order by sport${lock ? " for share" : ""}`,
     [userId],
   );
+  return ready
+    ? rows
+    : rows.map((row) => ({ ...row, status: "suspended", permissions: [], team_ids: [] }));
+}
+export async function scopedCoordinatorReady(sql: Sql, userId: string) {
+  await sql`select user_id from organization_operational_access where user_id=${userId} for share`;
+  const [row] = await sql<{ ready: boolean }>`select coordinator_scoped_ready(${userId}) as ready`;
+  return row.ready;
 }
 export function permits(rows: Grant[], permission: Capability, sport: Sport, teamId = "") {
   if (!Object.hasOwn(capabilities, permission)) return false;

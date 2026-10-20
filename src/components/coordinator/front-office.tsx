@@ -59,12 +59,13 @@ export function CoordinatorFrontOffice() {
       </main>
     );
   if (home.organizationOperations) return <OrganizationOffice />;
-  if (home.financialRestricted)
+  if (home.financialRestricted && !home.scopedReady)
     return (
       <main id="main" className="p-6">
         <h1>Coordinator Front Office</h1>
         <p role="alert">
-          Your organization operations access is not active. Contact an owner to review your access.
+          An owner must withdraw your previous access and explicitly configure your coordinator
+          permissions.
         </p>
         <UserButton />
       </main>
