@@ -212,7 +212,7 @@ export async function recruiting(
     };
   });
 }
-async function requestFor(
+export async function requestFor(
   tx: Sql,
   userId: string,
   id: string,
@@ -275,6 +275,10 @@ export async function editRequest(sql: Sql, userId: string, raw: z.infer<typeof 
       if (exists) throw new Error("This note was already recorded.");
       await tx`insert into office_request_notes(id,request_id,actor_id,note) values(${input.actionId},${input.id},${userId},${input.note})`;
     } else if (input.action === "status") {
+      if (["attended", "no-show"].includes(input.status)) {
+        if (r.kind !== "tryout") throw new CoordinatorDenied();
+        await checkScope(tx, userId, "tryouts.attendance", r.sport, r.team_id);
+      }
       const [old] = await tx<{
         revision: number;
       }>`select revision from office_request_work where request_id=${input.id} for update`;

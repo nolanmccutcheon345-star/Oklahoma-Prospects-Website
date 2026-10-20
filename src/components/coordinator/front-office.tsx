@@ -1,3 +1,4 @@
+import { RecruitingWorkflow } from "./recruiting-workflow";
 import { UserButton } from "@/lib/auth/gates";
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { Button } from "../ui/button";
@@ -362,7 +363,12 @@ function CoordinatorModule({
                             )
                           }
                         >
-                          {TRYOUT_STATUSES.map((s) => (
+                          {TRYOUT_STATUSES.filter(
+                            (s) =>
+                              !["attended", "no-show"].includes(s) ||
+                              (r.kind === "tryout" && allowed("tryouts.attendance")) ||
+                              s === r.status,
+                          ).map((s) => (
                             <option key={s}>{s}</option>
                           ))}
                         </select>
@@ -449,6 +455,14 @@ function CoordinatorModule({
                       </Button>
                     )}
                   </div>
+                  <RecruitingWorkflow
+                    key={r.id + ":" + r.work_revision}
+                    requestId={r.id}
+                    kind={r.kind}
+                    revision={r.work_revision}
+                    allowed={allowed}
+                    onSaved={load}
+                  />
                 </article>
               ))}
               {allowed("recruiting.create") && (

@@ -314,3 +314,73 @@ export const resetStaffCoordinatorAccess = createServerFn({ method: "POST" })
       data,
     );
   });
+
+import { followupInput, attendanceInput } from "./recruiting-workflow-contracts";
+export const getCoordinatorFollowup = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
+  .validator(id)
+  .handler(async ({ context, data }) => {
+    const { getSql } = await import("../db");
+    return (await import("./recruiting-workflow.server")).followupWorkspace(
+      await getSql(),
+      context.userId,
+      data,
+    );
+  });
+export const saveCoordinatorFollowup = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
+  .validator(followupInput)
+  .handler(async ({ context, data }) => {
+    const { getSql } = await import("../db");
+    return (await import("./recruiting-workflow.server")).saveFollowup(
+      await getSql(),
+      context.userId,
+      data,
+    );
+  });
+export const saveCoordinatorTryoutAttendance = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
+  .validator(attendanceInput)
+  .handler(async ({ context, data }) => {
+    const { getSql } = await import("../db");
+    return (await import("./recruiting-workflow.server")).saveTryoutAttendance(
+      await getSql(),
+      context.userId,
+      data,
+    );
+  });
+export const getCoordinatorRecruitingDelivery = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
+  .validator(id)
+  .handler(async ({ context, data }) => {
+    const { getSql } = await import("../db");
+    return (await import("./recruiting-workflow.server")).recruitingDelivery(
+      await getSql(),
+      context.userId,
+      data,
+    );
+  });
+
+import { transferRecoveryInput } from "./contracts";
+export const getCoordinatorTransferRecovery = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
+  .validator(z.string().uuid())
+  .handler(async ({ context, data }) => {
+    const { getSql } = await import("../db");
+    return (await import("./governance.server")).transferRecovery(
+      await getSql(),
+      context.userId,
+      data,
+    );
+  });
+export const recoverCoordinatorTransfer = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
+  .validator(transferRecoveryInput)
+  .handler(async ({ context, data }) => {
+    const { getSql } = await import("../db");
+    return (await import("./governance.server")).recoverTransfer(
+      await getSql(),
+      context.userId,
+      data,
+    );
+  });

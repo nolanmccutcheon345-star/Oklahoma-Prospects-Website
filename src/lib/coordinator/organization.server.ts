@@ -689,90 +689,101 @@ export async function moveOrganizationPlayer(
   userId: string,
   raw: z.infer<typeof organizationMoveInput>,
 ) {
-  return operate(sql, userId, "organization.player.move", async (tx) => {
-    const input = organizationMoveInput.parse(raw),
-      { payload: club, rev } = await loadClub(tx, input.revision);
-    const source = teamIn(club, input.teamId),
-      destination = teamIn(club, input.destinationTeamId);
-    if (
-      source.id === destination.id ||
-      ((await financialSourceModeInTransaction(tx)) !== "basis" &&
-        (source.sport !== destination.sport ||
-          string(source.age).trim().toLowerCase() !== string(destination.age).trim().toLowerCase()))
-    )
-      throw new Error("Choose a different active team in the same sport and age group.");
-    const player = objects(source.roster).find((p) => p.id === input.playerId);
-    if (!player || withdrawn(player.withdrawn)) throw new CoordinatorDenied();
-    // Team association is also a pricing key in the legacy application. Byte-preserving
-    // a player alone is insufficient: restrict moves to uncommitted, equivalent terms.
-    const [plan] =
-      await tx`select team_id from team_fee_plans where team_id in (${input.teamId},${input.destinationTeamId}) for share`;
-    const [checkout] =
-      await tx`select id from commerce_orders where snapshot->'teamFee'->>'playerId'=${input.playerId} limit 1`;
-    const financialArrays = ["payments", "credits", "cards", "amendments"];
-    const teamTerms = [
-      "months",
-      "orgFee",
-      "coachMonthly",
-      "eventBudget",
-      "otherCosts",
-      "uniformPackageId",
-      "seasonStart",
-      "seasonEnd",
-      "teamCageHoursPerWeek",
-      "playerCageHoursPerWeek",
-    ];
-    if (
-      (await financialSourceModeInTransaction(tx)) !== "basis" &&
-      (plan ||
-        checkout ||
-        player.feeLock ||
-        player.planLock ||
-        check(player.depositPaid) ||
-        check(player.uniformWaived) ||
-        string(object(player.agreement).signedAt) ||
-        player.coachChild ||
-        Number(player.cageOverage || 0) ||
-        financialArrays.some(
-          (key) => Array.isArray(player[key]) && (player[key] as unknown[]).length,
-        ) ||
-        teamTerms.some((key) => JSON.stringify(source[key]) !== JSON.stringify(destination[key])) ||
-        (await hasTeamFinancialLink(tx, source, club)) ||
-        (await hasTeamFinancialLink(tx, destination, club)))
-    )
-      throw new Error(
-        "This transfer requires the protected roster workflow. No records were changed.",
-      );
-    if (objects(destination.roster).some((p) => p.id === player.id)) throw changed();
-    if (
-      string(player.number) &&
-      objects(destination.roster).some(
-        (p) => !withdrawn(p.withdrawn) && string(p.number) === string(player.number),
-      )
-    )
-      throw new Error("Change the duplicate jersey number before moving this player.");
-    await assertRosterAssignment(
-      tx,
-      destination as unknown as Team,
-      player.roleType === "po" ? "po" : "full",
-    );
-    // Move the complete stored object, changing only operational association. Never copy a client projection over it.
-    source.roster = objects(source.roster).filter((p) => p.id !== player.id);
-    destination.roster = [...objects(destination.roster), { ...player, teamId: destination.id }];
-    await writeClub(tx, club, rev);
-    await audit(
-      tx,
-      userId,
-      "organization.player.move",
-      input.playerId,
-      "allowed",
-      { destinationTeamId: input.destinationTeamId, revision: rev + 1 },
-      undefined,
-      input.teamId,
-    );
-    return { ok: true, revision: rev + 1 };
-  });
+  return operate(sql, userId, "organization.player.move", (tx) =>
+    moveOwnerPlayerInTransaction(tx, userId, raw),
+  );
 }
+/** Shared owner-only executor: approvals and the original editor use the same eligibility and financial protections. */
+export async function moveOwnerPlayerInTransaction(
+  tx: Sql,
+  userId: string,
+  raw: z.infer<typeof organizationMoveInput>,
+) {
+  await requireOrganizationOperations(tx, userId);
+
+  const input = organizationMoveInput.parse(raw),
+    { payload: club, rev } = await loadClub(tx, input.revision);
+  const source = teamIn(club, input.teamId),
+    destination = teamIn(club, input.destinationTeamId);
+  if (
+    source.id === destination.id ||
+    ((await financialSourceModeInTransaction(tx)) !== "basis" &&
+      (source.sport !== destination.sport ||
+        string(source.age).trim().toLowerCase() !== string(destination.age).trim().toLowerCase()))
+  )
+    throw new Error("Choose a different active team in the same sport and age group.");
+  const player = objects(source.roster).find((p) => p.id === input.playerId);
+  if (!player || withdrawn(player.withdrawn)) throw new CoordinatorDenied();
+  // Team association is also a pricing key in the legacy application. Byte-preserving
+  // a player alone is insufficient: restrict moves to uncommitted, equivalent terms.
+  const [plan] =
+    await tx`select team_id from team_fee_plans where team_id in (${input.teamId},${input.destinationTeamId}) for share`;
+  const [checkout] =
+    await tx`select id from commerce_orders where snapshot->'teamFee'->>'playerId'=${input.playerId} limit 1`;
+  const financialArrays = ["payments", "credits", "cards", "amendments"];
+  const teamTerms = [
+    "months",
+    "orgFee",
+    "coachMonthly",
+    "eventBudget",
+    "otherCosts",
+    "uniformPackageId",
+    "seasonStart",
+    "seasonEnd",
+    "teamCageHoursPerWeek",
+    "playerCageHoursPerWeek",
+  ];
+  if (
+    (await financialSourceModeInTransaction(tx)) !== "basis" &&
+    (plan ||
+      checkout ||
+      player.feeLock ||
+      player.planLock ||
+      check(player.depositPaid) ||
+      check(player.uniformWaived) ||
+      string(object(player.agreement).signedAt) ||
+      player.coachChild ||
+      Number(player.cageOverage || 0) ||
+      financialArrays.some(
+        (key) => Array.isArray(player[key]) && (player[key] as unknown[]).length,
+      ) ||
+      teamTerms.some((key) => JSON.stringify(source[key]) !== JSON.stringify(destination[key])) ||
+      (await hasTeamFinancialLink(tx, source, club)) ||
+      (await hasTeamFinancialLink(tx, destination, club)))
+  )
+    throw new Error(
+      "This transfer requires the protected roster workflow. No records were changed.",
+    );
+  if (objects(destination.roster).some((p) => p.id === player.id)) throw changed();
+  if (
+    string(player.number) &&
+    objects(destination.roster).some(
+      (p) => !withdrawn(p.withdrawn) && string(p.number) === string(player.number),
+    )
+  )
+    throw new Error("Change the duplicate jersey number before moving this player.");
+  await assertRosterAssignment(
+    tx,
+    destination as unknown as Team,
+    player.roleType === "po" ? "po" : "full",
+  );
+  // Move the complete stored object, changing only operational association. Never copy a client projection over it.
+  source.roster = objects(source.roster).filter((p) => p.id !== player.id);
+  destination.roster = [...objects(destination.roster), { ...player, teamId: destination.id }];
+  await writeClub(tx, club, rev);
+  await audit(
+    tx,
+    userId,
+    "organization.player.move",
+    input.playerId,
+    "allowed",
+    { destinationTeamId: input.destinationTeamId, revision: rev + 1 },
+    undefined,
+    input.teamId,
+  );
+  return { ok: true, revision: rev + 1 };
+}
+
 export async function saveOrganizationRegistration(
   sql: Sql,
   userId: string,

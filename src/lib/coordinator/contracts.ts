@@ -8,6 +8,9 @@ export const capabilities = {
   "recruiting.create": "Add recruiting prospects",
   "recruiting.update": "Edit routine recruiting information",
   "recruiting.status": "Update recruiting follow-up status",
+  "recruiting.followups": "Assign recruiting follow-up tasks",
+  "tryouts.attendance": "Manage tryout attendance",
+  "communications.delivery.read": "View own recruiting message delivery status",
   "recruiting.notes": "Add recruiting notes",
   "contacts.read": "View necessary guardian contact details",
   "rosters.read": "View team rosters",
@@ -214,5 +217,15 @@ export const publicLeadershipInput = z
     enabled: z.boolean(),
     titles: z.array(z.enum(["Baseball Coordinator", "Softball Coordinator"])).max(2),
     order: z.number().int().min(0).max(10000),
+  })
+  .strict();
+
+export const transferRecoveryInput = z
+  .object({
+    approvalId: z.string().uuid(),
+    approvalRevision: z.number().int().positive(),
+    rosterRevision: z.number().int().positive(),
+    reason: z.string().trim().min(10).max(500),
+    confirm: z.literal(true),
   })
   .strict();

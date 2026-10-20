@@ -13,7 +13,14 @@ export async function deliverCenterNotifications(sql: Sql, env: Env, send: typeo
     })
   )
     return { accepted: 0, failed: 0, skipped: true };
-  const staff = await centerStaff(sql, { includeInactive: true });
+  const existingStaff = await centerStaff(sql, { includeInactive: true });
+  // Reminder delivery may include a scoped coordinator, without widening the
+  // legacy registration center's global staff directory or its authority.
+  const scopedStaff = await sql<{
+    id: string;
+    email: string;
+  }>`select distinct u.id,lower(trim(u.email)) as email from "user" u join coordinator_assignments g on g.user_id=u.id where u."emailVerified"=true and u."disabledAt" is null and g.status='active' and 'recruiting.read'=any(g.permissions)`;
+  const staff = [...existingStaff, ...scopedStaff];
   const due = await sql<{
     request_id: string;
     assignee_id: string;
@@ -21,7 +28,10 @@ export async function deliverCenterNotifications(sql: Sql, env: Env, send: typeo
   }>`select w.request_id,w.assignee_id,w.updated_at from office_request_work w join club_requests r on r.id=w.request_id where r.kind in ('tryout','team-inquiry') and w.follow_up_date<=(now() at time zone 'America/Chicago')::date and w.follow_up not in ('closed','accepted') limit 100`;
   for (const w of due) {
     const recipient = staff.find((s) => s.id === w.assignee_id);
-    if (recipient)
+    const [allowed] = recipient
+      ? await sql`select coordinator_recipient_allowed(${recipient.id},${w.request_id}) as allowed`
+      : [];
+    if (recipient && allowed?.allowed)
       await queueCenterNotice(
         sql,
         w.request_id,
@@ -58,7 +68,7 @@ export async function deliverCenterNotifications(sql: Sql, env: Env, send: typeo
       }>`select * from tryout_center_notices where id=${c.id} and ((status='pending' and next_attempt_at<=now()) or (status='processing' and lease_until<now())) for update skip locked`;
       if (!row) return null;
       const [permitted] =
-        await tx`select id from tryout_center_notices where id=${row.id} and (coordinator_actor_id is null or coordinator_notice_allowed(coordinator_actor_id,request_id,email))`;
+        await tx`select id from tryout_center_notices where id=${row.id} and (coordinator_actor_id is null or coordinator_notice_allowed(coordinator_actor_id,request_id,email)) and (recipient_id is null or (coordinator_recipient_allowed(recipient_id,request_id) and exists(select 1 from "user" u where u.id=recipient_id and lower(trim(u.email))=lower(trim(tryout_center_notices.email)))))`;
       if (!permitted) {
         await tx`update tryout_center_notices set status='skipped',lease_token=null,lease_until=null where id=${row.id}`;
         return null;
@@ -91,7 +101,7 @@ export async function deliverCenterNotifications(sql: Sql, env: Env, send: typeo
     });
     if (!n) continue;
     const [current] =
-      await sql`select id from tryout_center_notices where id=${n.id} and status='processing' and lease_token=${lease} and (coordinator_actor_id is null or coordinator_notice_allowed(coordinator_actor_id,request_id,email))`;
+      await sql`select id from tryout_center_notices where id=${n.id} and status='processing' and lease_token=${lease} and (coordinator_actor_id is null or coordinator_notice_allowed(coordinator_actor_id,request_id,email)) and (recipient_id is null or (coordinator_recipient_allowed(recipient_id,request_id) and exists(select 1 from "user" u where u.id=recipient_id and lower(trim(u.email))=lower(trim(tryout_center_notices.email)))))`;
     if (!current) continue;
     try {
       const response = await send("https://api.resend.com/emails", {

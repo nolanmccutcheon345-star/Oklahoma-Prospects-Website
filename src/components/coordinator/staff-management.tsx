@@ -1,3 +1,4 @@
+import { getCoordinatorTransferRecovery, recoverCoordinatorTransfer } from "@/lib/coordinator/api";
 import { CoordinatorAccessReviews } from "./access-reviews";
 import { useEffect, useState } from "react";
 import { Button } from "../ui/button";
@@ -315,10 +316,12 @@ export function StaffRoleManagement() {
               <p className="font-semibold">
                 {value.revision ? "Existing assignment" : "New assignment · zero permissions"}
               </p>
-              <label className="grid gap-1">
+              <label htmlFor="coordinator-coverage" className="grid gap-1">
                 Coverage
                 <select
                   className={field}
+                  id="coordinator-coverage"
+                  aria-label="Coverage"
                   value={value.coverage}
                   onChange={(e) =>
                     setValue({
@@ -661,11 +664,48 @@ export function StaffRoleManagement() {
               <p>Target: {a.target_id}</p>
               <p className="text-sm">
                 {a.kind === "transfer"
-                  ? "Approval records the decision; complete any transfer through the owner roster workflow after reviewing eligibility and agreements."
+                  ? "Approval executes this transfer atomically after rechecking current access, roster revision, eligibility and financial protections. A conflict leaves the request pending and changes no records."
                   : a.kind === "content"
                     ? "Approval does not publish. Use the owner content workflow after checking publication consent."
                     : "Approval cancels the practice and releases its linked unpaid cage reservation atomically."}
               </p>
+              {a.kind === "transfer" &&
+                a.status === "approved" &&
+                (a.proposal.recovered ? (
+                  <p>Transfer recovered to its original team.</p>
+                ) : (
+                  <Button
+                    disabled={busy}
+                    variant="outlineDark"
+                    onClick={() =>
+                      void run(async () => {
+                        const preview = await getCoordinatorTransferRecovery({ data: a.id });
+                        const reason = window.prompt(
+                          "Reason for restoring this athlete to the original team (at least 10 characters):",
+                        );
+                        if (
+                          !reason ||
+                          !window.confirm(
+                            `Restore athlete ${preview.playerId} from ${preview.fromTeamId} to ${preview.toTeamId}? Current eligibility and financial protections will be rechecked.`,
+                          )
+                        )
+                          return;
+                        await recoverCoordinatorTransfer({
+                          data: {
+                            approvalId: a.id,
+                            approvalRevision: preview.approvalRevision,
+                            rosterRevision: preview.rosterRevision,
+                            reason,
+                            confirm: true,
+                          },
+                        });
+                        setQueue(await getCoordinatorApprovals());
+                      }, "Recovery request processed. Review the transfer status.")
+                    }
+                  >
+                    Recover transfer to original team
+                  </Button>
+                ))}
               {a.status === "pending" && (
                 <div className="flex gap-2">
                   {(["approved", "rejected"] as const).map((decision) => (

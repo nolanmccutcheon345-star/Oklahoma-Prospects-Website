@@ -705,6 +705,10 @@ try {
     await org.page.goto(origin + "/coordinator");
     await org.page.getByText("No operational modules enabled", { exact: true }).waitFor();
     await owner.page.getByLabel("Coverage", { exact: true }).selectOption("sport");
+    await owner.page
+      .locator("summary")
+      .filter({ hasText: /^recruiting \(/i })
+      .click();
     await owner.page.getByLabel("View prospects and tryout registrations", { exact: true }).check();
     await owner.page.getByRole("button", { name: "Save Permissions", exact: true }).click();
     await owner.page

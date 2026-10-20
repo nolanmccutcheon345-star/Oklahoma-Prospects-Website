@@ -1,3 +1,6 @@
+import type { Sport } from "./contracts";
+import { lockFinancialExecution } from "../finance/execution.server";
+import { moveOwnerPlayerInTransaction } from "./organization.server";
 import { syncPractice } from "./scheduling.server";
 import type { Sql } from "../db";
 import type { z } from "zod";
@@ -132,7 +135,12 @@ export async function approvals(sql: Sql, userId: string) {
       team_id: string;
       kind: string;
       target_id: string;
-      proposal: { version?: number; revision?: number; destinationTeamId?: string };
+      proposal: {
+        version?: number;
+        revision?: number;
+        destinationTeamId?: string;
+        recovered?: boolean;
+      };
       reason: string;
       status: string;
       revision: number;
@@ -144,96 +152,186 @@ export async function approvals(sql: Sql, userId: string) {
 }
 export async function decideApproval(sql: Sql, userId: string, raw: z.infer<typeof decisionInput>) {
   const input = decisionInput.parse(raw);
-  return secured(sql, userId, "approval.decide", async (tx) => {
+  return secured(
+    sql,
+    userId,
+    "approval.decide",
+    async (tx) => {
+      await authority(tx, userId, "staff_approvals.review");
+      const [row] = await tx<{
+        requester_id: string;
+        kind: string;
+        status: string;
+        revision: number;
+        sport: "baseball" | "softball";
+        team_id: string;
+        target_id: string;
+        proposal: {
+          version?: number;
+          revision?: number;
+          destinationTeamId?: string;
+          recovered?: boolean;
+        };
+      }>`select requester_id,kind,status,revision,sport,team_id,target_id,proposal from coordinator_approvals where id=${input.id} for update`;
+      if (!row || row.requester_id === userId) throw new CoordinatorDenied();
+      if (row.status !== "pending" || row.revision !== input.revision)
+        throw new Error("This request has already changed. Reload.");
+      if (input.decision === "approved") {
+        if (row.kind === "cancel-event") {
+          await requireTeam(tx, row.requester_id, "events.cancel.request", row.team_id);
+          await tx`select id from club_state where id='oklahoma-prospects' for update`;
+          const [event] = await tx<{
+            revision: number;
+            payload: { date: string; startTime: string; location: string };
+          }>`select revision,payload from team_activities where id::text=${row.target_id} and team_id=${row.team_id} and payload->>'kind'='practice' for update`;
+          if (!event || event.revision !== row.proposal.version)
+            throw new Error("The event changed. Request a new review.");
+          const [booking] = await tx<{
+            booking_id: string;
+            order_id: string | null;
+          }>`select cp.booking_id,b.order_id from coordinator_practice_bookings cp join booking_records b on b.id=cp.booking_id where cp.activity_id::text=${row.target_id} for update of b`;
+          if (booking?.order_id) throw new CoordinatorDenied();
+          if (booking) {
+            await tx`delete from booking_occupancy where booking_id=${booking.booking_id}`;
+            await tx`update booking_records set status='cancelled' where id=${booking.booking_id}`;
+          }
+          await tx`update team_activities set payload=jsonb_set(payload,'{status}','"cancelled"'::jsonb),revision=revision+1,updated_by=${userId},updated_at=now() where id::text=${row.target_id}`;
+          await syncPractice(tx, row.team_id, {
+            id: row.target_id,
+            date: event.payload.date,
+            time: event.payload.startTime,
+            where: event.payload.location,
+            cageHours: 0,
+            status: "cancelled",
+          });
+        } else if (row.kind === "content") {
+          const restricted = await financiallyRestricted(tx, row.requester_id);
+          await checkScope(tx, row.requester_id, "content.submit", row.sport, row.team_id);
+          const [d] = await tx<{
+            revision: number;
+            content_classification: string;
+            classified_revision: number | null;
+          }>`select revision,content_classification,classified_revision from coordinator_drafts where id::text=${row.target_id} and user_id=${row.requester_id} and sport=${row.sport} and team_id=${row.team_id} and status='submitted' and (not ${restricted} or scoped_reset_at=coordinator_scoped_reset_at(${row.requester_id})) for update`;
+          if (!d || d.revision !== row.proposal.revision)
+            throw new Error("The draft changed. Request a new review.");
+          if (
+            restricted &&
+            (d.content_classification !== "operational" || d.classified_revision !== d.revision)
+          )
+            throw new CoordinatorDenied();
+          // Approval is editorial review only. Publication remains in the owner-controlled website workflow.
+        } else {
+          await requireTeam(tx, row.requester_id, "rosters.transfer.request", row.team_id);
+          await requireTeam(
+            tx,
+            row.requester_id,
+            "rosters.transfer.request",
+            row.proposal.destinationTeamId || "",
+          );
+          const [c] = await tx<{
+            rev: number;
+          }>`select rev from club_state where id='oklahoma-prospects' for update`;
+          if (c?.rev !== row.proposal.version)
+            throw new Error("Roster changed. Request a fresh transfer review.");
+          await moveOwnerPlayerInTransaction(tx, userId, {
+            revision: c.rev,
+            teamId: row.team_id,
+            playerId: row.target_id,
+            destinationTeamId: row.proposal.destinationTeamId || "",
+          });
+        }
+      }
+      await tx`update coordinator_approvals set status=${input.decision},reviewer_id=${userId},decision_reason=${input.reason},decided_at=now(),revision=revision+1 where id=${input.id}`;
+      if (row.kind === "content")
+        // A status-only decision does not change the classified title/body. Preserve
+        // its binding only when the previous binding was still valid.
+        await tx`update coordinator_drafts set status=${input.decision},classified_revision=case when content_classification='operational' and classified_revision=revision then revision+1 else null end,revision=revision+1 where id::text=${row.target_id}`;
+      await audit(
+        tx,
+        userId,
+        "approval." + input.decision,
+        input.id,
+        "allowed",
+        { kind: row.kind },
+        row.sport,
+        row.team_id,
+      );
+      return { ok: true };
+    },
+    lockFinancialExecution,
+  );
+}
+
+export async function transferRecovery(sql: Sql, userId: string, approvalId: string) {
+  return secured(sql, userId, "approval.transfer.recovery-preview", async (tx) => {
     await authority(tx, userId, "staff_approvals.review");
-    const [row] = await tx<{
-      requester_id: string;
-      kind: string;
-      status: string;
+    const [a] = await tx<{
       revision: number;
-      sport: "baseball" | "softball";
       team_id: string;
       target_id: string;
-      proposal: { version?: number; revision?: number; destinationTeamId?: string };
-    }>`select requester_id,kind,status,revision,sport,team_id,target_id,proposal from coordinator_approvals where id=${input.id} for update`;
-    if (!row || row.requester_id === userId) throw new CoordinatorDenied();
-    if (row.status !== "pending" || row.revision !== input.revision)
-      throw new Error("This request has already changed. Reload.");
-    if (input.decision === "approved") {
-      if (row.kind === "cancel-event") {
-        await requireTeam(tx, row.requester_id, "events.cancel.request", row.team_id);
-        await tx`select id from club_state where id='oklahoma-prospects' for update`;
-        const [event] = await tx<{
-          revision: number;
-          payload: { date: string; startTime: string; location: string };
-        }>`select revision,payload from team_activities where id::text=${row.target_id} and team_id=${row.team_id} and payload->>'kind'='practice' for update`;
-        if (!event || event.revision !== row.proposal.version)
-          throw new Error("The event changed. Request a new review.");
-        const [booking] = await tx<{
-          booking_id: string;
-          order_id: string | null;
-        }>`select cp.booking_id,b.order_id from coordinator_practice_bookings cp join booking_records b on b.id=cp.booking_id where cp.activity_id::text=${row.target_id} for update of b`;
-        if (booking?.order_id) throw new CoordinatorDenied();
-        if (booking) {
-          await tx`delete from booking_occupancy where booking_id=${booking.booking_id}`;
-          await tx`update booking_records set status='cancelled' where id=${booking.booking_id}`;
-        }
-        await tx`update team_activities set payload=jsonb_set(payload,'{status}','"cancelled"'::jsonb),revision=revision+1,updated_by=${userId},updated_at=now() where id::text=${row.target_id}`;
-        await syncPractice(tx, row.team_id, {
-          id: row.target_id,
-          date: event.payload.date,
-          time: event.payload.startTime,
-          where: event.payload.location,
-          cageHours: 0,
-          status: "cancelled",
-        });
-      } else if (row.kind === "content") {
-        const restricted = await financiallyRestricted(tx, row.requester_id);
-        await checkScope(tx, row.requester_id, "content.submit", row.sport, row.team_id);
-        const [d] = await tx<{
-          revision: number;
-          content_classification: string;
-          classified_revision: number | null;
-        }>`select revision,content_classification,classified_revision from coordinator_drafts where id::text=${row.target_id} and user_id=${row.requester_id} and sport=${row.sport} and team_id=${row.team_id} and status='submitted' and (not ${restricted} or scoped_reset_at=coordinator_scoped_reset_at(${row.requester_id})) for update`;
-        if (!d || d.revision !== row.proposal.revision)
-          throw new Error("The draft changed. Request a new review.");
-        if (
-          restricted &&
-          (d.content_classification !== "operational" || d.classified_revision !== d.revision)
-        )
-          throw new CoordinatorDenied();
-        // Approval is editorial review only. Publication remains in the owner-controlled website workflow.
-      } else {
-        await requireTeam(tx, row.requester_id, "rosters.transfer.request", row.team_id);
-        await requireTeam(
-          tx,
-          row.requester_id,
-          "rosters.transfer.request",
-          row.proposal.destinationTeamId || "",
-        );
-        const [c] = await tx<{
-          rev: number;
-        }>`select rev from club_state where id='oklahoma-prospects' for update`;
-        if (c?.rev !== row.proposal.version)
-          throw new Error("Roster changed. Request a fresh transfer review.");
-        // Financial agreements/eligibility must be reconciled by the existing owner roster workflow.
-      }
-    }
-    await tx`update coordinator_approvals set status=${input.decision},reviewer_id=${userId},decision_reason=${input.reason},decided_at=now(),revision=revision+1 where id=${input.id}`;
-    if (row.kind === "content")
-      // A status-only decision does not change the classified title/body. Preserve
-      // its binding only when the previous binding was still valid.
-      await tx`update coordinator_drafts set status=${input.decision},classified_revision=case when content_classification='operational' and classified_revision=revision then revision+1 else null end,revision=revision+1 where id::text=${row.target_id}`;
-    await audit(
-      tx,
-      userId,
-      "approval." + input.decision,
-      input.id,
-      "allowed",
-      { kind: row.kind },
-      row.sport,
-      row.team_id,
-    );
-    return { ok: true };
+      proposal: { destinationTeamId?: string; recovered?: boolean };
+    }>`select revision,team_id,target_id,proposal from coordinator_approvals where id::text=${approvalId} and kind='transfer' and status='approved'`;
+    if (!a || a.proposal.recovered) throw Error("This transfer is not available for recovery.");
+    const [c] = await tx<{
+      rev: number;
+    }>`select rev from club_state where id='oklahoma-prospects' and not demo`;
+    if (!c) throw new CoordinatorDenied();
+    return {
+      approvalId,
+      approvalRevision: a.revision,
+      rosterRevision: c.rev,
+      playerId: a.target_id,
+      fromTeamId: a.proposal.destinationTeamId || "",
+      toTeamId: a.team_id,
+    };
   });
+}
+export async function recoverTransfer(
+  sql: Sql,
+  userId: string,
+  raw: import("zod").z.infer<typeof import("./contracts").transferRecoveryInput>,
+) {
+  const { transferRecoveryInput } = await import("./contracts");
+  const v = transferRecoveryInput.parse(raw);
+  return secured(
+    sql,
+    userId,
+    "approval.transfer.recover",
+    async (tx) => {
+      await authority(tx, userId, "staff_approvals.review");
+      const [a] = await tx<{
+        revision: number;
+        team_id: string;
+        target_id: string;
+        sport: Sport;
+        proposal: { destinationTeamId?: string; recovered?: boolean };
+      }>`select revision,team_id,target_id,sport,proposal from coordinator_approvals where id=${v.approvalId} and kind='transfer' and status='approved' for update`;
+      if (!a || a.proposal.recovered || a.revision !== v.approvalRevision)
+        throw Error("Transfer changed or was already recovered. Reload.");
+      await moveOwnerPlayerInTransaction(tx, userId, {
+        revision: v.rosterRevision,
+        teamId: a.proposal.destinationTeamId || "",
+        playerId: a.target_id,
+        destinationTeamId: a.team_id,
+      });
+      await tx`update coordinator_approvals set proposal=proposal||'{"recovered":true}'::jsonb,revision=revision+1 where id=${v.approvalId}`;
+      await audit(
+        tx,
+        userId,
+        "approval.transfer.recovered",
+        v.approvalId,
+        "allowed",
+        {
+          playerId: a.target_id,
+          fromTeamId: a.proposal.destinationTeamId,
+          toTeamId: a.team_id,
+          reason: v.reason,
+        },
+        a.sport,
+        a.team_id,
+      );
+      return { ok: true };
+    },
+    lockFinancialExecution,
+  );
 }

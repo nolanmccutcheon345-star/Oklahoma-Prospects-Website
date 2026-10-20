@@ -11,6 +11,7 @@ import { randomUUID } from "node:crypto";
 import { PGlite } from "@electric-sql/pglite";
 import type { Sql } from "../db";
 import { sampleClub } from "../teams/seed";
+import type { ClubRecord } from "../teams/types";
 import {
   permissionKeys,
   assignmentInput,
@@ -1083,6 +1084,300 @@ test("former blanket accounts require audited withdrawal before explicit scoped 
         await sql`select coordinator_notice_allowed('zero','scoped-history','synthetic@example.invalid') as allowed`
       )[0].allowed,
       false,
+    );
+  } finally {
+    await db.close();
+  }
+});
+
+test("follow-up assignment, tryout attendance and delivery history use independent grants and current record scope", async () => {
+  const { db, sql, assign } = await fixture();
+  const { followupWorkspace, saveFollowup, saveTryoutAttendance, recruitingDelivery } =
+    await import("./recruiting-workflow.server");
+  try {
+    await sql`insert into club_requests(id,kind,payload) values('workflow-soft','tryout','{"sport":"softball","preferredTeamId":"soft","player":"Synthetic recruit","email":"guardian@example.invalid"}'),('workflow-base','tryout','{"sport":"baseball","preferredTeamId":"base","player":"Other sport"}'),('workflow-inquiry','team-inquiry','{"sport":"softball","preferredTeamId":"soft"}'),('workflow-forged','tryout','{"sport":"softball","preferredTeamId":"base"}')`;
+    const input = {
+      requestId: "workflow-soft",
+      revision: 0,
+      assigneeId: "softball",
+      dueDate: "2027-02-01",
+    };
+    for (const actor of ["zero", "parent", "coach", "instructor"]) {
+      await assert.rejects(followupWorkspace(sql, actor, input.requestId));
+      await assert.rejects(saveFollowup(sql, actor, input));
+      await assert.rejects(
+        saveTryoutAttendance(sql, actor, {
+          requestId: input.requestId,
+          revision: 0,
+          status: "attended",
+        }),
+      );
+      await assert.rejects(recruitingDelivery(sql, actor, input.requestId));
+    }
+    await assign("softball", "softball", ["recruiting.read"], "teams", ["soft"]);
+    await assign("baseball", "baseball", ["recruiting.read"]);
+    await assign("zero", "softball", ["recruiting.read", "recruiting.followups"], "teams", [
+      "soft",
+    ]);
+    const workspace = await followupWorkspace(sql, "zero", input.requestId);
+    assert.deepEqual(workspace.assignees.map((a) => a.id).sort(), ["owner", "softball", "zero"]);
+    assert.doesNotMatch(JSON.stringify(workspace), /@|PRIVATE-MEDICAL|PRIVATE-PAYMENT/);
+    await assert.rejects(saveFollowup(sql, "zero", { ...input, assigneeId: "baseball" }));
+    await assert.rejects(saveFollowup(sql, "zero", { ...input, requestId: "workflow-base" }));
+    await assert.rejects(saveFollowup(sql, "zero", { ...input, requestId: "workflow-forged" }));
+    await saveFollowup(sql, "zero", input);
+    await assert.rejects(saveFollowup(sql, "zero", input), /changed/);
+    assert.equal((await followupWorkspace(sql, "zero", input.requestId)).dueDate, "2027-02-01");
+    await assert.rejects(
+      saveTryoutAttendance(sql, "zero", {
+        requestId: input.requestId,
+        revision: 1,
+        status: "attended",
+      }),
+    );
+    await assign("zero", "softball", ["recruiting.read", "recruiting.status"]);
+    await assert.rejects(
+      editRequest(sql, "zero", {
+        action: "status",
+        id: input.requestId,
+        revision: 1,
+        status: "attended",
+      }),
+    );
+    await assign("zero", "softball", [
+      "recruiting.read",
+      "tryouts.attendance",
+      "communications.delivery.read",
+    ]);
+    await saveTryoutAttendance(sql, "zero", {
+      requestId: input.requestId,
+      revision: 1,
+      status: "attended",
+    });
+    await assert.rejects(
+      saveTryoutAttendance(sql, "zero", {
+        requestId: input.requestId,
+        revision: 1,
+        status: "no-show",
+      }),
+      /changed/,
+    );
+    await assert.rejects(
+      saveTryoutAttendance(sql, "zero", {
+        requestId: "workflow-inquiry",
+        revision: 0,
+        status: "attended",
+      }),
+    );
+    await assert.rejects(
+      saveTryoutAttendance(sql, "zero", {
+        requestId: "workflow-base",
+        revision: 0,
+        status: "attended",
+      }),
+    );
+    const [work] =
+      await sql`select follow_up,assignee_id,to_char(follow_up_date,'YYYY-MM-DD') as due from office_request_work where request_id='workflow-soft'`;
+    assert.deepEqual(work, { follow_up: "attended", assignee_id: "softball", due: "2027-02-01" });
+    await sql`insert into tryout_center_notices(id,request_id,email,subject,body,dedupe_key,coordinator_actor_id,status) values('own','workflow-soft','guardian@example.invalid','Private subject','Private correspondence','own','zero','sent'),('other','workflow-soft','other@example.invalid','Other subject','Other correspondence','other','softball','sent')`;
+    const delivered = await recruitingDelivery(sql, "zero", input.requestId);
+    assert.deepEqual(
+      delivered.map((d) => d.id),
+      ["own"],
+    );
+    assert.doesNotMatch(JSON.stringify(delivered), /@|correspondence|subject/);
+    await assert.rejects(recruitingDelivery(sql, "zero", "workflow-base"));
+    assert.equal(
+      (await sql`select coordinator_recipient_allowed('softball','workflow-soft') as allowed`)[0]
+        .allowed,
+      true,
+    );
+    assert.equal(
+      (await sql`select coordinator_recipient_allowed('softball','workflow-forged') as allowed`)[0]
+        .allowed,
+      false,
+    );
+    const { deliverCenterNotifications } = await import("../tryout-center-delivery.server");
+    await sql`insert into tryout_center_notices(id,request_id,recipient_id,email,subject,body,dedupe_key) values('internal-task','workflow-soft','softball','softball@example.invalid','Follow-up due','Synthetic task','internal-task')`;
+    let attempts = 0;
+    const transport = (async () => {
+      attempts++;
+      throw Error("Synthetic retry");
+    }) as typeof fetch;
+    const env = {
+      CONTEXT: "deploy-preview",
+      NODE_ENV: "production",
+      TRYOUT_NOTIFICATIONS_ENABLED: "true",
+      RESEND_API_KEY: "synthetic-key",
+      RESEND_FROM_EMAIL: "staff@example.invalid",
+      TRYOUT_EMAIL_TEST_RECIPIENTS: "softball@example.invalid",
+    };
+    assert.equal((await deliverCenterNotifications(sql, env, transport)).failed, 1);
+    assert.equal(attempts, 1);
+    await sql`update tryout_center_notices set next_attempt_at=now() where id='internal-task'`;
+    await saveAssignment(sql, "owner", await assign("softball", "softball", []));
+    await deliverCenterNotifications(sql, env, transport);
+    assert.equal(attempts, 1, "revocation blocks transport even after a queued retry");
+    assert.equal(
+      (await sql`select status from tryout_center_notices where id='internal-task'`)[0].status,
+      "skipped",
+    );
+    assert.equal(
+      (await sql`select coordinator_recipient_allowed('softball','workflow-soft') as allowed`)[0]
+        .allowed,
+      false,
+    );
+    await assign("zero", "softball", ["recruiting.read", "recruiting.followups"]);
+    await assert.rejects(saveFollowup(sql, "zero", { ...input, revision: 2 }));
+    const current = await followupWorkspace(sql, "zero", input.requestId);
+    assert.equal(current.assigneeId, "");
+    assert.ok(!current.assignees.some((a) => a.id === "softball"));
+    await assert.rejects(recruitingDelivery(sql, "zero", input.requestId));
+    assert.equal(
+      (
+        await sql`select count(*)::int as n from coordinator_audit where action in ('recruiting.followups','tryouts.attendance') and result='allowed'`
+      )[0].n,
+      2,
+    );
+  } finally {
+    await db.close();
+  }
+});
+
+test("owner-approved transfers execute atomically with current scope and can be recovered once without copying projections", async () => {
+  const { db, sql, assign } = await fixture();
+  const { saveOrganizationTeam, saveOrganizationPlayer } = await import("./organization.server");
+  const { transferRecovery, recoverTransfer } = await import("./governance.server");
+  try {
+    await sql`update club_state set payload=jsonb_set(jsonb_set(payload,'{settings,membershipMonthly}','0'::jsonb),'{settings,orgFeeFloor}','0'::jsonb) where id='oklahoma-prospects'`;
+    const from = randomUUID(),
+      to = randomUUID(),
+      playerId = randomUUID();
+    await saveOrganizationTeam(sql, "owner", {
+      revision: 1,
+      teamId: from,
+      changes: { name: "Synthetic team A", sport: "softball", age: "12U" },
+    });
+    await saveOrganizationTeam(sql, "owner", {
+      revision: 2,
+      teamId: to,
+      changes: { name: "Synthetic team B", sport: "softball", age: "12U" },
+    });
+    await saveOrganizationPlayer(sql, "owner", {
+      revision: 3,
+      teamId: from,
+      playerId,
+      changes: { name: "Synthetic athlete" },
+    });
+    await assign("softball", "softball", ["rosters.transfer.request"], "teams", [from, to]);
+    const id = randomUUID();
+    await requestApproval(sql, "softball", {
+      id,
+      kind: "transfer",
+      targetId: playerId,
+      teamId: from,
+      destinationTeamId: to,
+      reason: "Owner review of routine team fit",
+    });
+    const original = (
+      await sql<{
+        payload: ClubRecord;
+      }>`select payload from club_state where id='oklahoma-prospects'`
+    )[0].payload.teams.find((t) => t.id === from)!.roster[0];
+    await assert.rejects(
+      decideApproval(sql, "softball", {
+        id,
+        revision: 1,
+        decision: "approved",
+        reason: "Self approval",
+        confirm: true,
+      }),
+    );
+    await decideApproval(sql, "owner", {
+      id,
+      revision: 1,
+      decision: "approved",
+      reason: "Reviewed eligibility and agreements",
+      confirm: true,
+    });
+    const moved = (
+      await sql<{
+        payload: ClubRecord;
+      }>`select payload from club_state where id='oklahoma-prospects'`
+    )[0].payload;
+    assert.equal(moved.teams.find((t) => t.id === from)!.roster.length, 0);
+    assert.deepEqual(moved.teams.find((t) => t.id === to)!.roster[0], { ...original, teamId: to });
+    await assert.rejects(
+      decideApproval(sql, "owner", {
+        id,
+        revision: 1,
+        decision: "approved",
+        reason: "Replay approval",
+        confirm: true,
+      }),
+    );
+    await assert.rejects(transferRecovery(sql, "softball", id));
+    const preview = await transferRecovery(sql, "owner", id);
+    assert.doesNotMatch(JSON.stringify(preview), /PRIVATE-MEDICAL|PRIVATE-PAYMENT/);
+    const recovery = {
+      approvalId: id,
+      approvalRevision: preview.approvalRevision,
+      rosterRevision: preview.rosterRevision,
+      reason: "Restore original placement after review",
+      confirm: true as const,
+    };
+    await assert.rejects(recoverTransfer(sql, "owner", { ...recovery, rosterRevision: 1 }));
+    await recoverTransfer(sql, "owner", recovery);
+    const restored = (
+      await sql<{
+        payload: ClubRecord;
+      }>`select payload from club_state where id='oklahoma-prospects'`
+    )[0].payload;
+    assert.deepEqual(restored.teams.find((t) => t.id === from)!.roster[0], original);
+    assert.equal(restored.teams.find((t) => t.id === to)!.roster.length, 0);
+    await assert.rejects(recoverTransfer(sql, "owner", recovery));
+    // Existing financial commitments remain protected, even with owner approval.
+    await assign("softball", "softball", ["rosters.transfer.request"]);
+    const blocked = randomUUID();
+    await requestApproval(sql, "softball", {
+      id: blocked,
+      kind: "transfer",
+      targetId: "soft-player",
+      teamId: "soft",
+      destinationTeamId: to,
+      reason: "Review committed roster athlete",
+    });
+    const before = (
+      await sql<{
+        payload: ClubRecord;
+      }>`select payload from club_state where id='oklahoma-prospects'`
+    )[0].payload;
+    await assert.rejects(
+      decideApproval(sql, "owner", {
+        id: blocked,
+        revision: 1,
+        decision: "approved",
+        reason: "Review financial commitment guard",
+        confirm: true,
+      }),
+    );
+    assert.deepEqual(
+      (
+        await sql<{
+          payload: ClubRecord;
+        }>`select payload from club_state where id='oklahoma-prospects'`
+      )[0].payload,
+      before,
+    );
+    assert.equal(
+      (await sql`select status from coordinator_approvals where id=${blocked}`)[0].status,
+      "pending",
+    );
+    assert.equal(
+      (
+        await sql`select count(*)::int as n from coordinator_audit where action='approval.transfer.recovered' and result='allowed'`
+      )[0].n,
+      1,
     );
   } finally {
     await db.close();
