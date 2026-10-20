@@ -210,7 +210,7 @@ test("operational development projects structured data, preserves finance, and r
   const f = await fixture();
   const { sql, db } = f;
   try {
-    const first = await organizationDevelopment(sql, "sara");
+    const first = await organizationDevelopment(sql, "steve");
     const d = first.curriculum.drills.find((d) => d.id === "training-hitting-1")!;
     const review = (revision = 0): OrganizationDevelopmentCurriculumInput => ({
       kind: "drill",
@@ -226,7 +226,7 @@ test("operational development projects structured data, preserves finance, and r
       "same-transaction authority and strict nested projections with owner parity",
       async () => {
         f.capture(true);
-        const value = await organizationDevelopment(sql, "sara");
+        const value = await organizationDevelopment(sql, "steve");
         f.capture(false);
         privateAbsent(value);
         privateAbsent(f.trace.map((t) => t.rows));
@@ -256,29 +256,29 @@ test("operational development projects structured data, preserves finance, and r
       async () => {
         const before = await protectedSnapshot(sql);
         f.capture(true);
-        const p = await saveOrganizationDevelopmentProfile(sql, "sara", profile(3));
-        const m = await saveOrganizationDevelopmentMetric(sql, "sara", metric(p.revision));
-        const n = await saveOrganizationDevelopmentMetric(sql, "sara", {
+        const p = await saveOrganizationDevelopmentProfile(sql, "steve", profile(3));
+        const m = await saveOrganizationDevelopmentMetric(sql, "steve", metric(p.revision));
+        const n = await saveOrganizationDevelopmentMetric(sql, "steve", {
           ...metric(m.revision),
           id: randomUUID(),
           athleteId: "soft",
           kind: "hb",
           value: -12,
         });
-        const updated = await saveOrganizationDevelopmentMetric(sql, "sara", {
+        const updated = await saveOrganizationDevelopmentMetric(sql, "steve", {
           ...metric(n.revision),
           id: "spin-base",
           kind: "spin",
           value: 1900,
         });
-        await reviewOrganizationDevelopmentCurriculum(sql, "sara", review());
-        await assignOrganizationDevelopmentDay(sql, "sara", plan("base"));
-        await assignOrganizationDevelopmentDay(sql, "sara", plan("soft"));
+        await reviewOrganizationDevelopmentCurriculum(sql, "steve", review());
+        await assignOrganizationDevelopmentDay(sql, "steve", plan("base"));
+        await assignOrganizationDevelopmentDay(sql, "steve", plan("soft"));
         f.capture(false);
         privateAbsent(f.trace.map((t) => t.rows));
         assert.ok(f.trace.every((t) => t.transaction));
         assert.deepEqual(await protectedSnapshot(sql), before);
-        const value = await organizationDevelopment(sql, "sara");
+        const value = await organizationDevelopment(sql, "steve");
         privateAbsent(value);
         assert.equal(value.revision, updated.revision);
         assert.equal(value.athletes.find((a) => a.athleteId === "base")?.position, "C");
@@ -295,7 +295,7 @@ test("operational development projects structured data, preserves finance, and r
           coach_user_id: string;
           items: Record<string, unknown>[];
         }>`select coach_user_id,items from athlete_training_days where athlete_id='base' and day=${chicagoDate()}::date`;
-        assert.equal(day.coach_user_id, "sara");
+        assert.equal(day.coach_user_id, "steve");
         assert.equal(day.items[0].name, d.name);
         assert.equal(day.items[0].reps, "10");
         assert.match(String(day.items[0].instructions), /Reviewed rest between sets: 60 seconds/);
@@ -315,25 +315,25 @@ test("operational development projects structured data, preserves finance, and r
       "revision and historical ownership conflicts never overwrite private records",
       async () => {
         await assert.rejects(
-          () => saveOrganizationDevelopmentProfile(sql, "sara", profile(3)),
+          () => saveOrganizationDevelopmentProfile(sql, "steve", profile(3)),
           /changed/,
         );
         await assert.rejects(
-          () => saveOrganizationDevelopmentMetric(sql, "sara", metric(3)),
+          () => saveOrganizationDevelopmentMetric(sql, "steve", metric(3)),
           /changed/,
         );
         await assert.rejects(
-          () => reviewOrganizationDevelopmentCurriculum(sql, "sara", review()),
+          () => reviewOrganizationDevelopmentCurriculum(sql, "steve", review()),
           /changed/,
         );
         await assert.rejects(
-          () => assignOrganizationDevelopmentDay(sql, "sara", plan()),
+          () => assignOrganizationDevelopmentDay(sql, "steve", plan()),
           /already has a plan/,
         );
-        const current = await organizationDevelopment(sql, "sara");
+        const current = await organizationDevelopment(sql, "steve");
         await assert.rejects(
           () =>
-            saveOrganizationDevelopmentProfile(sql, "sara", {
+            saveOrganizationDevelopmentProfile(sql, "steve", {
               ...profile(current.revision),
               athleteId: "no-file",
             }),
@@ -341,7 +341,7 @@ test("operational development projects structured data, preserves finance, and r
         );
         await assert.rejects(
           () =>
-            saveOrganizationDevelopmentMetric(sql, "sara", {
+            saveOrganizationDevelopmentMetric(sql, "steve", {
               ...metric(current.revision),
               athleteId: "soft",
             }),
@@ -349,7 +349,7 @@ test("operational development projects structured data, preserves finance, and r
         );
         await assert.rejects(
           () =>
-            saveOrganizationDevelopmentMetric(sql, "sara", {
+            saveOrganizationDevelopmentMetric(sql, "steve", {
               ...metric(current.revision),
               id: "secret-value",
               athleteId: "soft",
@@ -362,10 +362,10 @@ test("operational development projects structured data, preserves finance, and r
     await t.test(
       "invalid historical metric content and malformed collections stay preserved",
       async () => {
-        const current = await organizationDevelopment(sql, "sara");
+        const current = await organizationDevelopment(sql, "steve");
         await assert.rejects(
           () =>
-            saveOrganizationDevelopmentMetric(sql, "sara", {
+            saveOrganizationDevelopmentMetric(sql, "steve", {
               ...metric(current.revision),
               id: "secret-value",
               athleteId: "soft",
@@ -379,7 +379,7 @@ test("operational development projects structured data, preserves finance, and r
         await sql`update pd_working_file set payload=jsonb_set(payload::jsonb,'{velocity}',${JSON.stringify({ privateFinancialFuture: SECRET })}::jsonb)::text where id='club'`;
         await assert.rejects(
           () =>
-            saveOrganizationDevelopmentMetric(sql, "sara", {
+            saveOrganizationDevelopmentMetric(sql, "steve", {
               ...metric(current.revision),
               id: randomUUID(),
             }),
@@ -391,7 +391,7 @@ test("operational development projects structured data, preserves finance, and r
     await t.test(
       "strict request bodies reject unknown financial, authority and nested fields",
       async () => {
-        const current = await organizationDevelopment(sql, "sara");
+        const current = await organizationDevelopment(sql, "steve");
         for (const payload of [
           { ...profile(current.revision), coachIds: ["changed"] },
           { ...profile(current.revision), role: "admin" },
@@ -399,19 +399,19 @@ test("operational development projects structured data, preserves finance, and r
           { ...profile(current.revision), assessmentComplete: true },
         ]) {
           assert.equal(organizationDevelopmentProfileInput.safeParse(payload).success, false);
-          await assert.rejects(() => saveOrganizationDevelopmentProfile(sql, "sara", payload));
+          await assert.rejects(() => saveOrganizationDevelopmentProfile(sql, "steve", payload));
         }
         const forgedMetric = { ...metric(current.revision), payout: "paid" };
         assert.equal(organizationDevelopmentMetricInput.safeParse(forgedMetric).success, false);
-        await assert.rejects(() => saveOrganizationDevelopmentMetric(sql, "sara", forgedMetric));
+        await assert.rejects(() => saveOrganizationDevelopmentMetric(sql, "steve", forgedMetric));
         const p = plan("base", "2030-01-04"),
           forgedPlan = { ...p, items: [{ ...p.items[0], credits: 100 }] };
         assert.equal(organizationDevelopmentDayInput.safeParse(forgedPlan).success, false);
-        await assert.rejects(() => assignOrganizationDevelopmentDay(sql, "sara", forgedPlan));
+        await assert.rejects(() => assignOrganizationDevelopmentDay(sql, "steve", forgedPlan));
         const forgedReview = { ...review(1), reviewed_by: "steve" };
         assert.equal(organizationDevelopmentCurriculumInput.safeParse(forgedReview).success, false);
         await assert.rejects(() =>
-          reviewOrganizationDevelopmentCurriculum(sql, "sara", forgedReview),
+          reviewOrganizationDevelopmentCurriculum(sql, "steve", forgedReview),
         );
         assert.equal(
           organizationDevelopmentMetricInput.safeParse({ ...metric(current.revision), value: 1000 })
@@ -423,11 +423,11 @@ test("operational development projects structured data, preserves finance, and r
     await t.test(
       "new-day prescriptions enforce latest safety state, retirement, age and recorded sport",
       async () => {
-        await organizationDevelopment(sql, "sara");
+        await organizationDevelopment(sql, "steve");
         await sql`update training_assignments set status='paused' where id='historical-home'`;
         f.capture(true);
         await assert.rejects(
-          () => assignOrganizationDevelopmentDay(sql, "sara", plan("base", "2030-01-04")),
+          () => assignOrganizationDevelopmentDay(sql, "steve", plan("base", "2030-01-04")),
           /protected coaching/,
         );
         f.capture(false);
@@ -440,22 +440,22 @@ test("operational development projects structured data, preserves finance, and r
             .every((t) => t.transaction),
         );
         await sql`update training_assignments set status='active' where id='historical-home'`;
-        await reviewOrganizationDevelopmentCurriculum(sql, "sara", {
+        await reviewOrganizationDevelopmentCurriculum(sql, "steve", {
           ...review(1),
           status: "retired",
           recommended: false,
         });
         await assert.rejects(
-          () => assignOrganizationDevelopmentDay(sql, "sara", plan("soft", "2030-01-04")),
+          () => assignOrganizationDevelopmentDay(sql, "steve", plan("soft", "2030-01-04")),
           /retired/,
         );
-        await reviewOrganizationDevelopmentCurriculum(sql, "sara", review(2));
+        await reviewOrganizationDevelopmentCurriculum(sql, "steve", review(2));
         await assert.rejects(
-          () => assignOrganizationDevelopmentDay(sql, "sara", plan("young")),
+          () => assignOrganizationDevelopmentDay(sql, "steve", plan("young")),
           /five or older/,
         );
         await assert.rejects(
-          () => assignOrganizationDevelopmentDay(sql, "sara", plan("no-age")),
+          () => assignOrganizationDevelopmentDay(sql, "steve", plan("no-age")),
           /birthday/,
         );
         const softballOnly = first.curriculum.drills.find(
@@ -464,7 +464,7 @@ test("operational development projects structured data, preserves finance, and r
         if (softballOnly)
           await assert.rejects(
             () =>
-              assignOrganizationDevelopmentDay(sql, "sara", {
+              assignOrganizationDevelopmentDay(sql, "steve", {
                 ...plan("base", "2030-01-04"),
                 items: [
                   {
@@ -481,7 +481,7 @@ test("operational development projects structured data, preserves finance, and r
           );
         await assert.rejects(
           () =>
-            assignOrganizationDevelopmentDay(sql, "sara", {
+            assignOrganizationDevelopmentDay(sql, "steve", {
               ...plan("base", "2030-01-04"),
               items: [
                 {
@@ -497,7 +497,7 @@ test("operational development projects structured data, preserves finance, and r
           /recorded age or sport/,
         );
         await assert.rejects(
-          () => assignOrganizationDevelopmentDay(sql, "sara", plan("base", "2026-02-30")),
+          () => assignOrganizationDevelopmentDay(sql, "steve", plan("base", "2026-02-30")),
           /Invalid date/,
         );
       },
@@ -547,7 +547,7 @@ test("operational development projects structured data, preserves finance, and r
         )}::jsonb)::text where id='club'`;
         f.capture(true);
         await assert.rejects(
-          () => assignOrganizationDevelopmentDay(sql, "sara", make("no-file", today)),
+          () => assignOrganizationDevelopmentDay(sql, "steve", make("no-file", today)),
           /protected coaching/,
         );
         f.capture(false);
@@ -558,15 +558,15 @@ test("operational development projects structured data, preserves finance, and r
         );
         assert.ok(fileLock >= 0 && athleteLock > fileLock);
         await assert.rejects(
-          () => assignOrganizationDevelopmentDay(sql, "sara", make("no-file", addDays(4))),
+          () => assignOrganizationDevelopmentDay(sql, "steve", make("no-file", addDays(4))),
           /protected coaching/,
         );
-        await assignOrganizationDevelopmentDay(sql, "sara", make("no-file", addDays(5)));
-        await assignOrganizationDevelopmentDay(sql, "sara", make("soft", addDays(1), softball));
+        await assignOrganizationDevelopmentDay(sql, "steve", make("no-file", addDays(5)));
+        await assignOrganizationDevelopmentDay(sql, "steve", make("soft", addDays(1), softball));
         const future = make("no-file", addDays(6));
         await assert.rejects(
           () =>
-            assignOrganizationDevelopmentDay(sql, "sara", {
+            assignOrganizationDevelopmentDay(sql, "steve", {
               ...future,
               items: [{ ...future.items[0], version: "stale-version" }],
             }),
@@ -577,12 +577,12 @@ test("operational development projects structured data, preserves finance, and r
         )!;
         await assert.rejects(
           () =>
-            assignOrganizationDevelopmentDay(sql, "sara", make("no-file", addDays(6), advanced)),
+            assignOrganizationDevelopmentDay(sql, "steve", make("no-file", addDays(6), advanced)),
           /reviewed skill/,
         );
         const missingRest = { ...future, items: [{ ...future.items[0], restSeconds: 0 }] };
         assert.equal(organizationDevelopmentDayInput.safeParse(missingRest).success, false);
-        await assert.rejects(() => assignOrganizationDevelopmentDay(sql, "sara", missingRest));
+        await assert.rejects(() => assignOrganizationDevelopmentDay(sql, "steve", missingRest));
       },
     );
     await t.test(
@@ -617,7 +617,7 @@ test("operational development projects structured data, preserves finance, and r
         await sql`update "user" set "disabledAt"=null,"emailVerified"=false where id='sara'`;
         await attempt("sara");
         await sql`update "user" set "emailVerified"=true where id='sara'`;
-        for (const status of ["suspended", "removed"]) {
+        for (const status of ["active", "suspended", "removed"]) {
           await sql`update organization_operational_access set status=${status} where user_id='sara'`;
           await attempt("sara");
         }
@@ -625,7 +625,7 @@ test("operational development projects structured data, preserves finance, and r
         assert.equal(account.role, "parent");
         const [allowed] = await sql<{
           count: number;
-        }>`select count(*)::int as count from coordinator_audit where actor_id='sara' and result='allowed' and action like 'organization.development.%'`;
+        }>`select count(*)::int as count from coordinator_audit where actor_id='steve' and result='allowed' and action like 'organization.development.%'`;
         assert.ok(allowed.count >= 7);
       },
     );

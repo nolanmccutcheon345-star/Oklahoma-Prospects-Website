@@ -11,6 +11,7 @@ export const Route = createFileRoute("/invitations")({
 });
 function Invitations() {
   const user = useCurrentUser();
+  const userId = user?.id;
   const [rows, setRows] = useState<Awaited<ReturnType<typeof getInvitations>>>([]),
     [error, setError] = useState(""),
     [notice, setNotice] = useState(""),
@@ -19,8 +20,8 @@ function Invitations() {
     setRows(await getInvitations());
   }
   useEffect(() => {
-    if (user) void load().catch((e) => setError(e.message));
-  }, [user?.id]);
+    if (userId) void load().catch((e) => setError(e.message));
+  }, [userId]);
   return (
     <main id="main" className="mx-auto max-w-3xl px-5 py-8">
       <h1 className="text-4xl">Your invitations</h1>

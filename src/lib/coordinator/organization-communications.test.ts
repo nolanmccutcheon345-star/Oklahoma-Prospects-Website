@@ -39,11 +39,11 @@ async function fixture() {
     0,
     "Migration must not activate any account",
   );
-  for (const id of ["steve", "sara", "legacy", "other", "fake"]) {
+  for (const id of ["steve", "editor", "sara", "legacy", "other", "fake"]) {
     await sql`insert into "user"(id,name,email,"emailVerified") values(${id},${id},${id + "@example.invalid"},true)`;
-    await sql`insert into profiles(user_id,name,email,role) values(${id},${id},${id + "@example.invalid"},${id === "steve" || id === "fake" ? "admin" : "parent"})`;
+    await sql`insert into profiles(user_id,name,email,role) values(${id},${id},${id + "@example.invalid"},${id === "steve" || id === "editor" || id === "fake" ? "admin" : "parent"})`;
   }
-  await sql`insert into owner_grants(email,user_id) values('steve@example.invalid','steve')`;
+  await sql`insert into owner_grants(email,user_id) values('steve@example.invalid','steve'),('editor@example.invalid','editor')`;
   await sql`insert into staff_authorities(email,capability) values('steve@example.invalid','staff_approvals.review')`;
   await sql`insert into organization_operational_access(user_id,status,updated_by) values('sara','active','steve')`;
   for (const actor of ["sara", "legacy"])
@@ -94,22 +94,22 @@ test("operational recruiting email is exact-recipient bound, cross-sport, and id
     const email = mail();
     await assert.rejects(
       () =>
-        sendOrganizationRecruitingEmail(sql, "sara", {
+        sendOrganizationRecruitingEmail(sql, "editor", {
           ...email,
           confirmedEmail: "stranger@example.invalid",
         }),
       /recipient changed/,
     );
-    assert.deepEqual(await sendOrganizationRecruitingEmail(sql, "sara", email), {
+    assert.deepEqual(await sendOrganizationRecruitingEmail(sql, "editor", email), {
       ok: true,
       delivery: "queued",
     });
-    assert.deepEqual(await sendOrganizationRecruitingEmail(sql, "sara", email), {
+    assert.deepEqual(await sendOrganizationRecruitingEmail(sql, "editor", email), {
       ok: true,
       delivery: "queued",
     });
     await assert.rejects(
-      () => sendOrganizationRecruitingEmail(sql, "sara", { ...email, body: "Changed content" }),
+      () => sendOrganizationRecruitingEmail(sql, "editor", { ...email, body: "Changed content" }),
       /identifier was already used/,
     );
     await assert.rejects(
@@ -119,18 +119,18 @@ test("operational recruiting email is exact-recipient bound, cross-sport, and id
     assert.equal((await sql`select id from tryout_center_notices where id=${email.id}`).length, 1);
     assert.equal(
       (
-        await sql`select id from tryout_center_activity where request_id='baseball' and actor_id='sara' and kind='email'`
+        await sql`select id from tryout_center_activity where request_id='baseball' and actor_id='editor' and kind='email'`
       ).length,
       1,
     );
-    await sendOrganizationRecruitingEmail(sql, "sara", { ...mail(), requestId: "softball" });
-    assert.equal(await allowed(sql, "sara", "softball"), true);
+    await sendOrganizationRecruitingEmail(sql, "editor", { ...mail(), requestId: "softball" });
+    assert.equal(await allowed(sql, "editor", "softball"), true);
     await sendOrganizationRecruitingEmail(sql, "steve", mail());
     assert.equal(await allowed(sql, "steve"), true);
     await sql`update club_requests set payload=jsonb_set(payload,'{email}','"changed@example.invalid"') where id='baseball'`;
     assert.equal(await allowed(sql), false);
     await assert.rejects(
-      () => sendOrganizationRecruitingEmail(sql, "sara", email),
+      () => sendOrganizationRecruitingEmail(sql, "editor", email),
       /recipient changed/,
     );
     const [notice] = await sql<{
@@ -148,7 +148,7 @@ test("operational recruiting email is exact-recipient bound, cross-sport, and id
 test("delivery recheck cannot fall back to legacy grants for restricted suspended/removed accounts", async () => {
   const { db, sql } = await fixture();
   try {
-    assert.equal(await allowed(sql), true);
+    assert.equal(await allowed(sql), false);
     assert.equal(
       await allowed(sql, "legacy"),
       true,
@@ -156,8 +156,9 @@ test("delivery recheck cannot fall back to legacy grants for restricted suspende
     );
     assert.equal(await allowed(sql, "legacy", "softball"), false);
     const queued = mail();
-    await sendOrganizationRecruitingEmail(sql, "sara", queued);
-    for (const status of ["suspended", "removed"]) {
+    // Represent a message queued before blanket access was retired.
+    await sql`insert into tryout_center_notices(id,request_id,email,subject,body,dedupe_key,category,coordinator_actor_id) values(${queued.id},${queued.requestId},${queued.confirmedEmail},${queued.subject},${queued.body},${"organization:" + queued.id},'coordinator-recruiting','sara')`;
+    for (const status of ["active", "suspended", "removed"]) {
       await sql`update organization_operational_access set status=${status} where user_id='sara'`;
       assert.equal(await allowed(sql), false);
       await assert.rejects(() => sendOrganizationRecruitingEmail(sql, "sara", mail()));
@@ -167,6 +168,9 @@ test("delivery recheck cannot fall back to legacy grants for restricted suspende
       await assert.rejects(() => saveOrganizationDraft(sql, "sara", draft()));
       await assert.rejects(() => organizationOwnActivity(sql, "sara"));
     }
+    // Still-active legacy grants are also inert: a pre-retirement queued
+    // message must be skipped without making even one provider request.
+    await sql`update organization_operational_access set status='active' where user_id='sara'`;
     let calls = 0;
     const delivered = await deliverCenterNotifications(
       sql,
@@ -214,33 +218,36 @@ test("draft create/edit/submit uses existing owner-review workflow and withholds
     const historical = randomUUID(),
       other = randomUUID(),
       d = draft();
-    await sql`insert into coordinator_drafts(id,user_id,sport,team_id,title,body) values(${historical},'sara','baseball','base',${CANARY},${CANARY})`;
+    await sql`insert into coordinator_drafts(id,user_id,sport,team_id,title,body) values(${historical},'editor','baseball','base',${CANARY},${CANARY})`;
     await sql`insert into coordinator_drafts(id,user_id,sport,team_id,title,body,content_classification,classified_revision) values(${other},'steve','baseball','base','Owner draft',${CANARY},'operational',1)`;
-    assert.deepEqual(await organizationDrafts(sql, "sara", { sport: "baseball", teamId: "base" }), {
-      items: [],
-      withheldCount: 1,
-    });
-    await assert.rejects(() =>
-      saveOrganizationDraft(sql, "sara", { ...d, id: historical, revision: 1 }),
+    assert.deepEqual(
+      await organizationDrafts(sql, "editor", { sport: "baseball", teamId: "base" }),
+      {
+        items: [],
+        withheldCount: 1,
+      },
     );
     await assert.rejects(() =>
-      saveOrganizationDraft(sql, "sara", { ...d, id: other, revision: 1 }),
+      saveOrganizationDraft(sql, "editor", { ...d, id: historical, revision: 1 }),
     );
-    assert.deepEqual(await saveOrganizationDraft(sql, "sara", d), {
+    await assert.rejects(() =>
+      saveOrganizationDraft(sql, "editor", { ...d, id: other, revision: 1 }),
+    );
+    assert.deepEqual(await saveOrganizationDraft(sql, "editor", d), {
       ok: true,
       id: d.id,
       revision: 1,
       status: "draft",
     });
-    await assert.rejects(() => saveOrganizationDraft(sql, "sara", d), /Draft changed/);
+    await assert.rejects(() => saveOrganizationDraft(sql, "editor", d), /Draft changed/);
     const edited = { ...d, revision: 1, body: "Arrive at 6 pm." };
-    assert.equal((await saveOrganizationDraft(sql, "sara", edited)).revision, 2);
-    const listed = await organizationDrafts(sql, "sara", { sport: "baseball", teamId: "base" });
+    assert.equal((await saveOrganizationDraft(sql, "editor", edited)).revision, 2);
+    const listed = await organizationDrafts(sql, "editor", { sport: "baseball", teamId: "base" });
     assert.equal(listed.items.length, 1);
     assert.equal(listed.items[0].body, edited.body);
     assert.equal(listed.items[0].revision, 2);
     assert.ok(!JSON.stringify(listed).includes(CANARY));
-    const submitted = await saveOrganizationDraft(sql, "sara", {
+    const submitted = await saveOrganizationDraft(sql, "editor", {
       ...edited,
       revision: 2,
       submit: true,
@@ -253,9 +260,9 @@ test("draft create/edit/submit uses existing owner-review workflow and withholds
       kind: string;
     }>`select proposal,status,kind from coordinator_approvals where id=${d.id}`;
     assert.deepEqual(approval, { proposal: { revision: 3 }, status: "pending", kind: "content" });
-    await assert.rejects(() => saveOrganizationDraft(sql, "sara", { ...edited, revision: 3 }));
+    await assert.rejects(() => saveOrganizationDraft(sql, "editor", { ...edited, revision: 3 }));
     assert.equal(
-      (await organizationDrafts(sql, "sara", { sport: "baseball", teamId: "base" })).items[0]
+      (await organizationDrafts(sql, "editor", { sport: "baseball", teamId: "base" })).items[0]
         .status,
       "submitted",
     );
@@ -272,26 +279,31 @@ test("classification is revision-bound and sport/team scopes cannot be forged", 
   const { db, sql } = await fixture();
   try {
     const d = draft();
-    await saveOrganizationDraft(sql, "sara", d);
+    await saveOrganizationDraft(sql, "editor", d);
     await sql`update coordinator_drafts set title=${CANARY},body=${CANARY},revision=revision+1 where id=${d.id}`;
-    const result = await organizationDrafts(sql, "sara", { sport: "baseball", teamId: "base" });
+    const result = await organizationDrafts(sql, "editor", { sport: "baseball", teamId: "base" });
     assert.deepEqual(result, { items: [], withheldCount: 1 });
-    await assert.rejects(() => saveOrganizationDraft(sql, "sara", { ...d, revision: 2 }));
-    await assert.rejects(() => saveOrganizationDraft(sql, "sara", { ...draft(), teamId: "soft" }));
+    await assert.rejects(() => saveOrganizationDraft(sql, "editor", { ...d, revision: 2 }));
     await assert.rejects(() =>
-      organizationDrafts(sql, "sara", { sport: "softball", teamId: "base" }),
+      saveOrganizationDraft(sql, "editor", { ...draft(), teamId: "soft" }),
     );
     await assert.rejects(() =>
-      saveOrganizationDraft(sql, "sara", { ...draft(), teamId: "unknown" }),
+      organizationDrafts(sql, "editor", { sport: "softball", teamId: "base" }),
+    );
+    await assert.rejects(() =>
+      saveOrganizationDraft(sql, "editor", { ...draft(), teamId: "unknown" }),
     );
     await sql`update club_requests set payload=jsonb_set(payload,'{preferredTeamId}','"soft"') where id='baseball'`;
     assert.equal(await allowed(sql), false);
-    await assert.rejects(() => sendOrganizationRecruitingEmail(sql, "sara", mail()));
+    await assert.rejects(() => sendOrganizationRecruitingEmail(sql, "editor", mail()));
     await assert.rejects(() =>
-      saveOrganizationDraft(sql, "sara", { ...draft(), invoice: CANARY } as never),
+      saveOrganizationDraft(sql, "editor", { ...draft(), invoice: CANARY } as never),
     );
     await assert.rejects(() =>
-      sendOrganizationRecruitingEmail(sql, "sara", { ...mail(), providerPayload: CANARY } as never),
+      sendOrganizationRecruitingEmail(sql, "editor", {
+        ...mail(),
+        providerPayload: CANARY,
+      } as never),
     );
   } finally {
     await db.close();
@@ -303,7 +315,7 @@ test("own activity is actor-scoped and returns only allowlisted summary fields",
   try {
     await audit(
       sql,
-      "sara",
+      "editor",
       "organization.team.save",
       "base",
       "allowed",
@@ -313,7 +325,7 @@ test("own activity is actor-scoped and returns only allowlisted summary fields",
     );
     await audit(
       sql,
-      "sara",
+      "editor",
       "communications.recruit.send",
       "message-id",
       "allowed",
@@ -331,8 +343,8 @@ test("own activity is actor-scoped and returns only allowlisted summary fields",
       "baseball",
       "base",
     );
-    await audit(sql, "sara", "financial.invoice.export", CANARY, "allowed", { payment: CANARY });
-    const activity = await organizationOwnActivity(sql, "sara");
+    await audit(sql, "editor", "financial.invoice.export", CANARY, "allowed", { payment: CANARY });
+    const activity = await organizationOwnActivity(sql, "editor");
     assert.equal(activity.length, 2);
     for (const entry of activity) {
       assert.deepEqual(
@@ -393,57 +405,33 @@ test("reviewed communication transports explicitly opt in and keep legacy middle
   );
 });
 
-test("owner reviews classified organization submissions without legacy grants and cannot bypass revocation", async () => {
+test("owner cannot approve pending content authored through retired blanket authority", async () => {
   const { db, sql } = await fixture();
   try {
-    const submitted = { ...draft(), submit: true };
-    await saveOrganizationDraft(sql, "sara", submitted);
-    const review = {
-      id: submitted.id,
-      revision: 1,
-      decision: "approved" as const,
-      reason: "Operational announcement reviewed",
-      confirm: true as const,
-    };
-    await decideApproval(sql, "steve", review);
-    const [approved] = (
-      await organizationDrafts(sql, "sara", { sport: "baseball", teamId: "base" })
-    ).items;
-    assert.equal(approved.status, "approved");
-    assert.equal(approved.revision, 2);
-    assert.equal(approved.body, submitted.body);
-    const [approval] = await sql`select status from coordinator_approvals where id=${submitted.id}`;
-    assert.equal(approval.status, "approved");
-
-    const suspended = { ...draft(), submit: true };
-    await saveOrganizationDraft(sql, "sara", suspended);
+    const submitted = draft();
+    await sql`insert into coordinator_drafts(id,user_id,sport,team_id,title,body,status,content_classification,classified_revision) values(${submitted.id},'sara','baseball','base',${submitted.title},${submitted.body},'submitted','operational',1)`;
+    await sql`insert into coordinator_approvals(id,requester_id,sport,team_id,kind,target_id,proposal,reason) values(${submitted.id},'sara','baseball','base','content',${submitted.id},'{"revision":1}'::jsonb,'Previously queued review')`;
     await sql`update coordinator_assignments set permissions=array_append(permissions,'content.submit') where user_id='sara'`;
-    for (const status of ["suspended", "removed"]) {
+    for (const status of ["active", "suspended", "removed"]) {
       await sql`update organization_operational_access set status=${status} where user_id='sara'`;
-      await assert.rejects(() => decideApproval(sql, "steve", { ...review, id: suspended.id }));
+      await assert.rejects(() =>
+        decideApproval(sql, "steve", {
+          id: submitted.id,
+          revision: 1,
+          decision: "approved",
+          reason: "Synthetic owner review",
+          confirm: true,
+        }),
+      );
       assert.equal(
-        (await sql`select status from coordinator_approvals where id=${suspended.id}`)[0].status,
+        (await sql`select status from coordinator_approvals where id=${submitted.id}`)[0].status,
         "pending",
       );
       assert.equal(
-        (await sql`select status from coordinator_drafts where id=${suspended.id}`)[0].status,
+        (await sql`select status from coordinator_drafts where id=${submitted.id}`)[0].status,
         "submitted",
       );
     }
-    await sql`update organization_operational_access set status='active' where user_id='sara'`;
-    const changed = { ...draft(), submit: true };
-    await saveOrganizationDraft(sql, "sara", changed);
-    await sql`update coordinator_drafts set classified_revision=null where id=${changed.id}`;
-    await assert.rejects(() => decideApproval(sql, "steve", { ...review, id: changed.id }));
-    assert.equal(
-      (await sql`select status from coordinator_approvals where id=${changed.id}`)[0].status,
-      "pending",
-    );
-    await sql`update coordinator_drafts set classified_revision=1,revision=2 where id=${changed.id}`;
-    await assert.rejects(
-      () => decideApproval(sql, "steve", { ...review, id: changed.id }),
-      /draft changed/,
-    );
   } finally {
     await db.close();
   }

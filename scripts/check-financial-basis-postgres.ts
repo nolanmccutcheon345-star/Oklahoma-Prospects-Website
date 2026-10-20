@@ -21,11 +21,7 @@ import {
 } from "../src/lib/coordinator/organization-access.server";
 import { saveAssignment } from "../src/lib/coordinator/admin.server";
 import type { AssignmentInput } from "../src/lib/coordinator/contracts";
-import {
-  CoordinatorDenied,
-  requireGrant,
-  hasOrganizationOperations,
-} from "../src/lib/coordinator/access.server";
+import { CoordinatorDenied, requireGrant } from "../src/lib/coordinator/access.server";
 import { saveOrganizationTeam } from "../src/lib/coordinator/organization.server";
 import { pendingMigrations } from "./migration-plan.mjs";
 import {
