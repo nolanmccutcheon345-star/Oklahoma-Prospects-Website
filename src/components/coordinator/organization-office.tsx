@@ -272,6 +272,7 @@ export function OrganizationOffice() {
                 <label>
                   Program
                   <select
+                    aria-label="Program"
                     className={field}
                     value={sport}
                     disabled={busy}
@@ -290,6 +291,7 @@ export function OrganizationOffice() {
                 <label>
                   Team workspace
                   <select
+                    aria-label="Team workspace"
                     className={field}
                     value={selected?.id || ""}
                     disabled={busy}
