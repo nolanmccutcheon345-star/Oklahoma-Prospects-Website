@@ -1,3 +1,9 @@
+import {
+  operationalInstructionFor,
+  operationalLessonViewer,
+  type OperationalLessonViewer,
+} from "../operational-instruction.server";
+import { emptyDevelopment } from "./empty";
 import { lockFinancialExecution } from "../finance/execution.server";
 import { randomUUID } from "node:crypto";
 import { getSql, type Sql } from "../db";
@@ -61,19 +67,26 @@ type Session = {
   status: "draft" | "published";
   snapshot: Snapshot;
   document: LessonDocument;
+  operational_author_id: string | null;
+  updated_by: string;
 };
 async function access(
   tx: Sql,
-  me: Awaited<ReturnType<typeof resolveIdentity>>,
+  me: Awaited<ReturnType<typeof resolveIdentity>> | OperationalLessonViewer,
   id: string,
   lock = false,
 ) {
-  if (me.role !== "admin" && me.role !== "coach" && !me.canInstruct)
-    throw new Error("Instructor access required.");
-  const file = await readWorkingFile(tx),
-    coachId = assignedCoachIdFor(me, file);
+  const operationalOnly = me.role !== "admin" && me.role !== "coach" && !me.canInstruct;
+  const grant = operationalOnly
+    ? await operationalInstructionFor(tx, me.userId, "lesson-draft")
+    : null;
+  if (operationalOnly && !grant) throw new Error("Instructor access required.");
+  // Operational access never loads the mixed financial/player-development file.
+  const file = operationalOnly ? emptyDevelopment() : await readWorkingFile(tx),
+    coachId = grant?.coachId || assignedCoachIdFor(me, file);
+  if (lock) await tx`select id from booking_records where id=${id} for update`;
   const rows = await tx.query<BookingRow>(
-    `select * from booking_records where id=$1 ${lock ? "for update" : ""}`,
+    `select * from operational_booking_schedule where id=$1`,
     [id],
   );
   const booking = rows[0];
@@ -84,19 +97,19 @@ async function access(
     (me.role !== "admin" && booking.coach_id !== coachId)
   )
     throw new Error("Only the assigned instructor or an admin can open this lesson.");
-  return { me, file, booking };
+  return { me, file, booking, operationalOnly };
 }
 async function athleteContext(
   tx: Sql,
   file: Awaited<ReturnType<typeof readWorkingFile>>,
   athleteId: string,
   date: string,
+  operationalOnly = false,
 ) {
   const [a] = await tx<{
     name: string;
     birth_date: string | null;
-    profile: Record<string, unknown>;
-  }>`select name,birth_date::text,profile from club_athletes where id=${athleteId}`;
+  }>`select name,birth_date::text from club_athletes where id=${athleteId}`;
   if (!a) throw new Error("The booked player record is missing. Contact Front Office.");
   const age = a.birth_date ? ageOnClubDay(a.birth_date, date) : null;
   if (age === null || !Number.isFinite(age) || age < 3 || age > 100)
@@ -104,6 +117,21 @@ async function athleteContext(
       "A valid private player birthday is needed to choose age-appropriate training. Ask the guardian to update the player profile.",
     );
   const player = file.athletes.find((a) => a.id === athleteId);
+  // This grant does not classify pre-existing private narratives. New operational
+  // drafts receive only the booked athlete and age-appropriate template inputs.
+  if (operationalOnly)
+    return {
+      name: a.name,
+      age,
+      level: player?.opLevel || 1,
+      goals: [],
+      priorities: [],
+      recentLessons: [],
+      assessments: [],
+      workload: [],
+      throwingPlans: [],
+      notes: "",
+    };
   const pick = <T extends { athleteId: string; date?: string; createdAt?: string }>(rows: T[]) =>
     rows
       .filter((r) => r.athleteId === athleteId)
@@ -127,6 +155,17 @@ async function athleteContext(
     notes: player?.notes || "",
   };
 }
+function assertOperationalDraft(session: Session, userId: string, operationalOnly: boolean) {
+  if (
+    operationalOnly &&
+    (session.operational_author_id !== userId ||
+      session.updated_by !== userId ||
+      session.status !== "draft")
+  )
+    throw new Error(
+      "This existing lesson contains unreviewed history. An owner must review it before operational instructor access.",
+    );
+}
 function checkSnapshot(booking: BookingRow, session: Session) {
   if (
     session.instructor_id !== booking.coach_id ||
@@ -140,15 +179,21 @@ function checkSnapshot(booking: BookingRow, session: Session) {
     );
 }
 export async function openLessonSession(userId: string, bookingId: string) {
-  const sql = await getSql(),
-    identity = await resolveIdentity(await getSql(), userId);
+  return openLessonSessionFor(await getSql(), userId, bookingId);
+}
+export async function openLessonSessionFor(sql: Sql, userId: string, bookingId: string) {
+  const identity =
+    (await operationalLessonViewer(sql, userId)) ?? (await resolveIdentity(sql, userId));
   return sql.transaction(async (tx) => {
-    const { me, file, booking } = await access(tx, identity, bookingId, true);
+    await lockFinancialExecution(tx);
+    const { me, file, booking, operationalOnly } = await access(tx, identity, bookingId, true);
     const [existing] =
       await tx<Session>`select * from guided_lesson_sessions where booking_id=${bookingId}`;
     if (existing) {
+      assertOperationalDraft(existing, userId, operationalOnly);
       checkSnapshot(booking, existing);
       return {
+        operationalOnly,
         session: existing,
         bookingStatus: booking.status,
         canReview: me.role === "admin",
@@ -161,6 +206,7 @@ export async function openLessonSession(userId: string, bookingId: string) {
     }
     if (booking.status === "completed")
       return {
+        operationalOnly,
         session: null,
         bookingStatus: booking.status,
         canReview: false,
@@ -168,8 +214,10 @@ export async function openLessonSession(userId: string, bookingId: string) {
         athleteName: "",
         legacyCompleted: {
           recap:
-            booking.completion_recap ||
-            "No booking recap recorded. Review the existing player development history.",
+            (!operationalOnly && booking.completion_recap) ||
+            (operationalOnly
+              ? "This historical lesson requires owner review."
+              : "No booking recap recorded. Review the existing player development history."),
           bookingId: booking.id,
         },
       };
@@ -177,9 +225,26 @@ export async function openLessonSession(userId: string, bookingId: string) {
       throw new Error(
         "Only confirmed bookings can start a new guided lesson. Existing history is unchanged.",
       );
-    const config = booking.lesson_config;
+    const savedConfig = booking.lesson_config;
+    // Purchased snapshots can contain prices and payout terms beyond the
+    // TypeScript shape. Project keys explicitly for operational-only sessions.
+    const config: Config | null =
+      operationalOnly && savedConfig?.service
+        ? {
+            service: {
+              id: savedConfig.service.id,
+              name: savedConfig.service.name,
+              discipline: savedConfig.service.discipline,
+              minutes: savedConfig.service.minutes,
+              lesson_version: savedConfig.service.lesson_version,
+            },
+            sport: savedConfig.sport,
+            source: "operational-instructor-template",
+          }
+        : savedConfig;
     if (!config || !lessonSports.includes(config.sport as LessonSport))
       return {
+        operationalOnly,
         session: null,
         bookingStatus: booking.status,
         canReview: me.role === "admin",
@@ -194,6 +259,7 @@ export async function openLessonSession(userId: string, bookingId: string) {
       duration !== Number(config.service.minutes)
     )
       return {
+        operationalOnly,
         session: null,
         bookingStatus: booking.status,
         canReview: me.role === "admin",
@@ -206,6 +272,7 @@ export async function openLessonSession(userId: string, bookingId: string) {
       file,
       booking.athlete_id,
       chicagoDate(new Date(booking.starts_at)),
+      operationalOnly,
     );
     const priorities = [
       JSON.stringify(context.goals),
@@ -236,8 +303,9 @@ export async function openLessonSession(userId: string, bookingId: string) {
     const document = blankLessonDocument();
     document.objective = template.objective;
     const [session] =
-      await tx<Session>`insert into guided_lesson_sessions(id,booking_id,athlete_id,instructor_id,snapshot,document,created_by,updated_by) values(${randomUUID()},${bookingId},${booking.athlete_id},${booking.coach_id},${JSON.stringify(snapshot)}::jsonb,${JSON.stringify(document)}::jsonb,${userId},${userId}) returning *`;
+      await tx<Session>`insert into guided_lesson_sessions(id,booking_id,athlete_id,instructor_id,snapshot,document,created_by,updated_by,operational_author_id) values(${randomUUID()},${bookingId},${booking.athlete_id},${booking.coach_id},${JSON.stringify(snapshot)}::jsonb,${JSON.stringify(document)}::jsonb,${userId},${userId},${operationalOnly ? userId : null}) returning *`;
     return {
+      operationalOnly,
       session,
       bookingStatus: booking.status,
       canReview: me.role === "admin",
@@ -300,15 +368,31 @@ export async function saveLessonSession(
   userId: string,
   input: { bookingId: string; revision: number; document: LessonDocument; complete: boolean },
 ) {
+  return saveLessonSessionFor(await getSql(), userId, input);
+}
+export async function saveLessonSessionFor(
+  sql: Sql,
+  userId: string,
+  input: { bookingId: string; revision: number; document: LessonDocument; complete: boolean },
+) {
   const document = lessonDocument.parse(input.document),
-    sql = await getSql(),
-    identity = await resolveIdentity(sql, userId);
+    identity = (await operationalLessonViewer(sql, userId)) ?? (await resolveIdentity(sql, userId));
   return sql.transaction(async (tx) => {
     await lockFinancialExecution(tx);
-    const { me, file, booking } = await access(tx, identity, input.bookingId, true);
+    const { me, file, booking, operationalOnly } = await access(
+      tx,
+      identity,
+      input.bookingId,
+      true,
+    );
+    if (me.role === "operational-instructor" && input.complete)
+      throw new Error(
+        "Operational instructor access cannot publish paid completion or recognize earnings. Save the draft for owner review.",
+      );
     const [session] =
       await tx<Session>`select * from guided_lesson_sessions where booking_id=${booking.id} for update`;
     if (!session) throw new Error("Open the booked lesson before saving.");
+    assertOperationalDraft(session, userId, operationalOnly);
     checkSnapshot(booking, session);
     if (session.status === "published") {
       if (input.complete && booking.status === "completed")
@@ -356,6 +440,8 @@ export async function saveLessonSession(
         );
       if (!document.logs.length && !document.overrideReason.trim())
         throw new Error("Record training results or explain why tracking was not appropriate.");
+      if (me.role === "operational-instructor")
+        throw new Error("Financial completion requires existing instructor authority.");
       await completeSessionInTransaction(
         tx,
         me,
@@ -414,7 +500,7 @@ export async function historicalLessonExceptions(userId: string) {
     booking_id: string;
     instructor_id: string;
     snapshot: Snapshot;
-  }>`select s.id,s.booking_id,s.instructor_id,s.snapshot from guided_lesson_sessions s join booking_records b on b.id=s.booking_id where s.snapshot->'service'->'service'->>'id' is distinct from b.product_id or s.instructor_id is distinct from b.coach_id or s.athlete_id is distinct from b.athlete_id or (s.snapshot->>'startsAt')::timestamptz<>b.starts_at or (s.snapshot->>'endsAt')::timestamptz<>b.ends_at`;
+  }>`select s.id,s.booking_id,s.instructor_id,s.snapshot from guided_lesson_sessions s join operational_booking_schedule b on b.id=s.booking_id where s.snapshot->'service'->'service'->>'id' is distinct from b.product_id or s.instructor_id is distinct from b.coach_id or s.athlete_id is distinct from b.athlete_id or (s.snapshot->>'startsAt')::timestamptz<>b.starts_at or (s.snapshot->>'endsAt')::timestamptz<>b.ends_at`;
   const legacy = file.lessons
     .filter((l) => !/guided:/.test(l.id))
     .flatMap((l) => {
@@ -493,36 +579,60 @@ export async function historicalLessonExceptions(userId: string) {
   };
 }
 /** Replace draft curriculum only; authoritative booking/service identity is immutable. */
-export async function chooseLessonForUser(userId:string,raw:import('./lesson-choices').LessonChoiceInput){
- const {lessonChoiceInput,customizeLesson}=await import('./lesson-choices');
- const input=lessonChoiceInput.parse(raw),sql=await getSql(),identity=await resolveIdentity(sql,userId);
- return sql.transaction(async tx=>{
- const {booking}=await access(tx,identity,input.bookingId,true);
- const [s]=await tx<Session>`select * from guided_lesson_sessions where booking_id=${booking.id} for update`;
- if(!s||s.status!=='draft'||booking.status!=='confirmed')throw new Error('Only an open confirmed lesson draft can change curriculum.');
- checkSnapshot(booking,s);
- if(s.revision!==input.revision)throw new Error('Lesson changed. Save or reload before choosing a template.');
- const library=await (await import("./training-content.server")).approvedDrills(tx);
- const template=customizeLesson(s.snapshot.template,input,library),snapshot={...s.snapshot,template},document={...s.document,objective:input.objective};
- await tx`select set_config('app.actor_id',${userId},true)`;
- await tx`update guided_lesson_sessions set snapshot=${JSON.stringify(snapshot)}::jsonb,document=${JSON.stringify(document)}::jsonb,revision=revision+1,updated_by=${userId},updated_at=now() where id=${s.id}`;
- if(input.saveAs)await tx`insert into instructor_lesson_presets(id,author_id,name,sport,discipline,minutes,document) values(${randomUUID()},${userId},${input.saveAs},${template.sport},${template.discipline},${template.minutes},${JSON.stringify(input)}::jsonb)`;
- return {ok:true};
- });
+export async function chooseLessonForUser(
+  userId: string,
+  raw: import("./lesson-choices").LessonChoiceInput,
+) {
+  const { lessonChoiceInput, customizeLesson } = await import("./lesson-choices");
+  const input = lessonChoiceInput.parse(raw),
+    sql = await getSql(),
+    identity = await resolveIdentity(sql, userId);
+  return sql.transaction(async (tx) => {
+    const { booking } = await access(tx, identity, input.bookingId, true);
+    const [s] =
+      await tx<Session>`select * from guided_lesson_sessions where booking_id=${booking.id} for update`;
+    if (!s || s.status !== "draft" || booking.status !== "confirmed")
+      throw new Error("Only an open confirmed lesson draft can change curriculum.");
+    checkSnapshot(booking, s);
+    if (s.revision !== input.revision)
+      throw new Error("Lesson changed. Save or reload before choosing a template.");
+    const library = await (await import("./training-content.server")).approvedDrills(tx);
+    const template = customizeLesson(s.snapshot.template, input, library),
+      snapshot = { ...s.snapshot, template },
+      document = { ...s.document, objective: input.objective };
+    await tx`select set_config('app.actor_id',${userId},true)`;
+    await tx`update guided_lesson_sessions set snapshot=${JSON.stringify(snapshot)}::jsonb,document=${JSON.stringify(document)}::jsonb,revision=revision+1,updated_by=${userId},updated_at=now() where id=${s.id}`;
+    if (input.saveAs)
+      await tx`insert into instructor_lesson_presets(id,author_id,name,sport,discipline,minutes,document) values(${randomUUID()},${userId},${input.saveAs},${template.sport},${template.discipline},${template.minutes},${JSON.stringify(input)}::jsonb)`;
+    return { ok: true };
+  });
 }
-export async function lessonPresetsForUser(userId:string,bookingId:string){
- const sql=await getSql(),me=await resolveIdentity(sql,userId),{booking}=await access(sql,me,bookingId);
- const [s]=await sql<Session>`select * from guided_lesson_sessions where booking_id=${booking.id}`;
- if(!s)return [];
- return sql<{id:string;name:string;status:string;document:import('./lesson-choices').LessonChoiceInput}>`select id,name,status,document from instructor_lesson_presets where sport=${s.snapshot.template.sport} and discipline=${s.snapshot.template.discipline} and minutes=${s.snapshot.template.minutes} and (author_id=${userId} or status='approved' or ${me.role==='admin'}) and status<>'retired' order by created_at desc`;
+export async function lessonPresetsForUser(userId: string, bookingId: string) {
+  const sql = await getSql(),
+    me = await resolveIdentity(sql, userId),
+    { booking } = await access(sql, me, bookingId);
+  const [s] =
+    await sql<Session>`select * from guided_lesson_sessions where booking_id=${booking.id}`;
+  if (!s) return [];
+  return sql<{
+    id: string;
+    name: string;
+    status: string;
+    document: import("./lesson-choices").LessonChoiceInput;
+  }>`select id,name,status,document from instructor_lesson_presets where sport=${s.snapshot.template.sport} and discipline=${s.snapshot.template.discipline} and minutes=${s.snapshot.template.minutes} and (author_id=${userId} or status='approved' or ${me.role === "admin"}) and status<>'retired' order by created_at desc`;
 }
-export async function reviewLessonPresetForUser(userId:string,input:{id:string;status:'approved'|'retired';reason:string}){
- const sql=await getSql(),me=await resolveIdentity(sql,userId);
- if(me.role!=='admin')throw new Error('Academy approval requires an admin.');
- return sql.transaction(async tx=>{
- await tx`select set_config('app.actor_id',${userId},true)`;
- const rows=await tx`update instructor_lesson_presets set status=${input.status},reviewed_by=${userId},review_note=${input.reason} where id=${input.id} returning id`;
- if(!rows.length)throw new Error('Preset unavailable.');
- return {ok:true};
- });
+export async function reviewLessonPresetForUser(
+  userId: string,
+  input: { id: string; status: "approved" | "retired"; reason: string },
+) {
+  const sql = await getSql(),
+    me = await resolveIdentity(sql, userId);
+  if (me.role !== "admin") throw new Error("Academy approval requires an admin.");
+  return sql.transaction(async (tx) => {
+    await tx`select set_config('app.actor_id',${userId},true)`;
+    const rows =
+      await tx`update instructor_lesson_presets set status=${input.status},reviewed_by=${userId},review_note=${input.reason} where id=${input.id} returning id`;
+    if (!rows.length) throw new Error("Preset unavailable.");
+    return { ok: true };
+  });
 }

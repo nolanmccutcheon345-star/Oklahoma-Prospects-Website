@@ -50,3 +50,46 @@ test("grant build identity rejects development, stale manifests, tracked and unt
     await rm(root, { recursive: true, force: true });
   }
 });
+
+test("only exact generated Netlify mirrors of tracked migration sources preserve the release seal", async () => {
+  const root = await mkdtemp(join(tmpdir(), "release-mirror-"));
+  try {
+    const git = (args) =>
+      execFileSync("git", args, {
+        cwd: root,
+        encoding: "utf8",
+        stdio: ["ignore", "pipe", "ignore"],
+      }).trim();
+    git(["init"]);
+    await mkdir(join(root, "public"));
+    await mkdir(join(root, "migrations"));
+    await writeFile(join(root, ".gitignore"), "public/release.json\n");
+    const source = "select 1;\n";
+    await writeFile(join(root, "migrations/0001_fixture.sql"), source);
+    git(["add", "."]);
+    git([
+      "-c",
+      "user.name=Synthetic",
+      "-c",
+      "user.email=synthetic@example.invalid",
+      "commit",
+      "-m",
+      "fixture",
+    ]);
+    const commit = git(["rev-parse", "HEAD"]);
+    await writeFile(join(root, "public/release.json"), JSON.stringify({ commit, dirty: false }));
+    const { wrapMigration } = await import("./netlify-migrations.mjs");
+    const folder = join(root, "netlify/database/migrations/0001_fixture");
+    await mkdir(folder, { recursive: true });
+    await writeFile(join(folder, "migration.sql"), wrapMigration("0001_fixture.sql", source));
+    const check = () => reviewedReleaseIdentity({ root, command: "build", mode: "production" });
+    assert.deepEqual(check(), { commit, dirty: false });
+    await writeFile(join(folder, "migration.sql"), wrapMigration("0001_fixture.sql", "select 2;"));
+    assert.equal(check().dirty, true);
+    await writeFile(join(folder, "migration.sql"), wrapMigration("0001_fixture.sql", source));
+    await writeFile(join(folder, "extra.sql"), "select 3;");
+    assert.equal(check().dirty, true);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});

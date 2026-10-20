@@ -60,6 +60,8 @@ export type ClubService = {
 };
 
 export type ServiceInput = {
+  operationalDraftRevision?: number;
+  operationalDraftConfirmed?: true;
   basisVersion?: number;
   id?: string;
   kind: ServiceKind;
@@ -406,7 +408,8 @@ export const getServices = createServerFn({ method: "GET" }).handler(async () =>
   const sql = await getSql();
   // Signed-out callers must never receive inactive or unpublished catalog items.
   // Office editors use their authenticated mutation/editor paths, not this public API.
-  return publishedServices(await loadServices(sql));
+  const { availableOperationalServices } = await import("./coordinator/organization-services.server");
+  return publishedServices(await availableOperationalServices(sql, await loadServices(sql)));
 });
 
 export const getAdminServices = createServerFn({ method: "GET" }).middleware([authMiddleware]).handler(async ({context}) => {
@@ -427,7 +430,8 @@ export const getPurchaseAvailability = createServerFn({ method: "GET" }).handler
 
 export const loadPublicCatalog = createServerOnlyFn(async () => {
   const sql = await getSql();
-  return buildPublicCatalog(await loadServices(sql));
+  const { availableOperationalServices } = await import("./coordinator/organization-services.server");
+  return buildPublicCatalog(await availableOperationalServices(sql, await loadServices(sql)));
 });
 
 /** Owner catalog changes approve future lesson terms in the same transaction. */

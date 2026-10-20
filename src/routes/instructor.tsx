@@ -1,4 +1,6 @@
-import {MyFinance} from "@/components/finance/my-finance";
+import { getOperationalInstructionEntry } from "@/lib/operational-instruction-api";
+import { OperationalInstructorSessions } from "@/components/commerce/operational-instructor-sessions";
+import { MyFinance } from "@/components/finance/my-finance";
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { getMyPerson } from "@/lib/person-api";
@@ -16,12 +18,30 @@ function Page() {
   const { user, isPending } = useCurrentUserState();
   const [person, setPerson] = useState<Awaited<ReturnType<typeof getMyPerson>>>(),
     [error, setError] = useState("");
+  const userId = user?.id;
+  const [entry, setEntry] = useState<Awaited<ReturnType<typeof getOperationalInstructionEntry>>>();
   useEffect(() => {
-    if (user)
-      getMyPerson()
-        .then(setPerson)
-        .catch((e) => setError(e.message));
-  }, [user?.id]);
+    let active = true;
+    setEntry(undefined);
+    setPerson(undefined);
+    setError("");
+    if (userId)
+      void getOperationalInstructionEntry()
+        .then(async (value) => {
+          if (!active) return;
+          setEntry(value);
+          if (!value.operationalOnly) {
+            const person = await getMyPerson();
+            if (active) setPerson(person);
+          }
+        })
+        .catch((error) => {
+          if (active) setError(error.message);
+        });
+    return () => {
+      active = false;
+    };
+  }, [userId]);
   if (isPending)
     return (
       <main id="main" className="p-6">
@@ -33,9 +53,11 @@ function Page() {
     <main id="main" className="mx-auto max-w-4xl px-5 py-6">
       <h1 className="text-4xl">Instructor workspace</h1>
       <nav className="my-5 flex flex-wrap gap-5">
-        <a href="/my-profile" className="min-h-11 underline">
-          My shared profile
-        </a>
+        {!entry?.operationalOnly && (
+          <a href="/my-profile" className="min-h-11 underline">
+            My shared profile
+          </a>
+        )}
         <a href="/family" className="min-h-11 underline">
           Family
         </a>
@@ -45,12 +67,14 @@ function Page() {
       </nav>
       {error ? (
         <p role="alert">{error}</p>
+      ) : entry?.operationalOnly ? (
+        <OperationalInstructorSessions />
       ) : !person ? (
         <p>Loading assignments…</p>
       ) : person.value.instructor || person.canManage ? (
         <>
           <CoachSessions />
-          <MyFinance/>
+          <MyFinance />
           <details className="mt-6 rounded-xl border p-4">
             <summary className="min-h-11 cursor-pointer font-semibold">My availability</summary>
             <CoachProfile availabilityOnly />

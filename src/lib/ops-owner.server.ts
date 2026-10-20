@@ -1,4 +1,5 @@
 /** Raw owner mutations stay behind the server-function transport boundary. */
+import { reviewOperationalServiceAdoption, finishOperationalServiceAdoption } from "./coordinator/organization-services.server";
 import type { Sql } from "./db";
 import type { ClubRole } from "./club-data";
 import type { ServiceInput, StaffInput } from "./ops";
@@ -57,6 +58,7 @@ export async function saveServiceFor(sql: Sql, userId: string, raw: ServiceInput
               ? "p"
               : "s";
     const id = data.id?.trim() || newId(prefix, name);
+    const adopting = await reviewOperationalServiceAdoption(tx,id,data.operationalDraftRevision,data.operationalDraftConfirmed,kind,data.price);
     if (kind !== "fee" && data.price <= 0)
       throw new Error("Enter a customer price greater than zero.");
     const [existing] = await tx<{ kind: string }>`select kind from club_services where id=${id}`;
@@ -123,6 +125,7 @@ export async function saveServiceFor(sql: Sql, userId: string, raw: ServiceInput
       command: { type: "service", serviceId: id },
       reason: "Owner updated service terms for future bookings",
     });
+    if(adopting)await finishOperationalServiceAdoption(tx,userId,id,data.active);
     return { id };
   });
 }
