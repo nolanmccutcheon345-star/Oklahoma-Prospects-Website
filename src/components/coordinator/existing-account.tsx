@@ -6,9 +6,11 @@ import { Button } from "../ui/button";
 export function ExistingCoordinatorAccount({
   data,
   onAssigned,
+  onManage,
 }: {
   data: Awaited<ReturnType<typeof getStaffRoles>>;
   onAssigned: (userId: string, sport: Sport) => Promise<void>;
+  onManage?: (userId: string, sport: Sport) => void;
 }) {
   const [userId, setUserId] = useState("");
   const [sport, setSport] = useState<Sport>("softball");
@@ -17,7 +19,7 @@ export function ExistingCoordinatorAccount({
   const [error, setError] = useState("");
   const accounts = data.accounts.filter((a) => a.role !== "player");
   const account = accounts.find((a) => a.id === userId);
-  const exists = data.assignments.some((a) => a.user_id === userId && a.sport === sport);
+  const existing = data.assignments.find((a) => a.user_id === userId && a.sport === sport);
   const field = "min-h-11 w-full min-w-0 rounded border border-line bg-white p-2 text-ink";
   return (
     <form
@@ -27,7 +29,7 @@ export function ExistingCoordinatorAccount({
         if (
           busy ||
           !account ||
-          exists ||
+          existing ||
           !window.confirm(
             `Assign ${sport} coordinator to ${account.name} (${account.email}) with zero permissions and no team access?`,
           )
@@ -109,18 +111,26 @@ export function ExistingCoordinatorAccount({
         I reviewed any separate roles this account already holds. Required if the account has other
         staff roles.
       </label>
-      {exists && (
-        <p role="status">
-          This account already has this coordinator role. Use Roles &amp; Permissions to review its
-          access.
-        </p>
+      {existing && (
+        <div className="grid gap-2">
+          <p role="status">
+            A saved {sport} coordinator assignment exists. Status: {existing.status || "unknown"}.
+            This is a saved account record, not an automatic grant. Suspended and removed roles
+            provide no coordinator access.
+          </p>
+          {onManage && (
+            <Button type="button" variant="outlineDark" onClick={() => onManage(userId, sport)}>
+              Manage this account’s permissions and public profile
+            </Button>
+          )}
+        </div>
       )}
       {error && (
         <p role="alert" className="text-red-800">
           {error}
         </p>
       )}
-      <Button type="submit" disabled={busy || !account || exists}>
+      <Button type="submit" disabled={busy || !account || !!existing}>
         {busy ? "Assigning…" : "Assign coordinator with zero permissions"}
       </Button>
     </form>
