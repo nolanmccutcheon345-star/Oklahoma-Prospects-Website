@@ -100,6 +100,8 @@ export const budgetSchema = z
       .strict()
       .optional(),
     tournament: cents,
+    tournamentEstimate: cents.optional(),
+    uniformEstimate: cents.optional(),
     hotelNightly: cents.default(0),
     hotelNights: z.number().int().min(0).max(10000).default(0),
     uniformId: z.string().max(100),
@@ -213,6 +215,14 @@ export function billableMonths(b: FeeBudget) {
 export function withBillableMonths(b: FeeBudget): FeeBudget {
   return { ...b, months: billableMonths(b) };
 }
+/** Explicit owner estimates replace, rather than add to, schedule/package costs. */
+export function effectiveFeeBudget(b: FeeBudget): FeeBudget {
+  return {
+    ...withBillableMonths(b),
+    tournament: b.tournamentEstimate ?? b.tournament,
+    uniformCost: b.uniformEstimate ?? b.uniformCost,
+  };
+}
 // An upgrade changes only the new offer. Historical published snapshots stay legacy.
 export function programDraft(b: FeeBudget): FeeBudget {
   if (b.programModel === 3) return withBillableMonths(b);
@@ -324,7 +334,7 @@ function gross(net: number, b: FeeBudget) {
   return total;
 }
 export function calculateFees(input: FeeBudget, individualAccess = false) {
-  const b = withBillableMonths(budgetSchema.parse(input));
+  const b = effectiveFeeBudget(budgetSchema.parse(input));
   const fixed =
     sum(
       b.costs.map(
@@ -436,7 +446,7 @@ export function project(
   accessCount = 0,
   extraAccessCount = 0,
 ) {
-  b = withBillableMonths(b);
+  b = effectiveFeeBudget(b);
   if (!Number.isInteger(accessCount) || accessCount < 0 || accessCount > fullCount)
     throw Error("Invalid individual access upgrade count.");
   for (const n of [fullCount, poCount])
@@ -664,7 +674,7 @@ export function additionalPlayerContribution(
   costs: { insurance: number; registration: number; other: number },
   individualAccess = false,
 ) {
-  b = withBillableMonths(b);
+  b = effectiveFeeBudget(b);
   const f = calculateFees(b, role === "full" && individualAccess);
   const fee = role === "po" ? f.po : f.full;
   const processing = role === "po" ? f.poProcessing : f.fullProcessing;

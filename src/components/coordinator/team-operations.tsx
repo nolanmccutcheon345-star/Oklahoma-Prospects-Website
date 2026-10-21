@@ -58,6 +58,46 @@ export function TeamOperations({
       </Button>
       {data && (
         <>
+          {allowed("rosters.read") && (
+            <section aria-label="Published team player fees" className="grid gap-2">
+              <h3 className="text-xl">Published player fees</h3>
+              {data.publishedFees ? (
+                <>
+                  <p>
+                    Full player:{" "}
+                    {(data.publishedFees.full / 100).toLocaleString("en-US", {
+                      style: "currency",
+                      currency: "USD",
+                    })}
+                  </p>
+                  {data.publishedFees.fullAccess !== undefined && (
+                    <p>
+                      With optional individual access:{" "}
+                      {(data.publishedFees.fullAccess / 100).toLocaleString("en-US", {
+                        style: "currency",
+                        currency: "USD",
+                      })}
+                    </p>
+                  )}
+                  {data.publishedFees.po !== undefined && (
+                    <p>
+                      Pitcher only:{" "}
+                      {(data.publishedFees.po / 100).toLocaleString("en-US", {
+                        style: "currency",
+                        currency: "USD",
+                      })}
+                    </p>
+                  )}
+                  <p>
+                    Final payment due {data.publishedFees.finalDue} · Published version{" "}
+                    {data.publishedFees.revision}
+                  </p>
+                </>
+              ) : (
+                <p>Awaiting admin publication for this team.</p>
+              )}
+            </section>
+          )}
           {allowed("teams.openings") && data.openings !== undefined && (
             <form
               key={"openings:" + data.revision}

@@ -67,11 +67,13 @@ for (const { role, individualAccess } of [
       const other = team.roster[1];
       other.familyId = "other-home";
       other.parents = [];
+      await sql`insert into person_player_links(user_id,player_id) values('player',${player.id})`;
       await sql`insert into club_state(id,payload,rev,demo) values('oklahoma-prospects',${JSON.stringify(club)}::jsonb,0,false)`;
       await sql`update team_budget_master set payload=jsonb_set(payload,'{overheadReviewed}','true'::jsonb) where id='master'`;
       const budget = {
         ...defaultBudget(),
         poEnabled: true,
+        tournamentEstimate: 10000,
         readiness: {
           schedule: true,
           gas: true,
@@ -173,8 +175,50 @@ for (const { role, individualAccess } of [
       assert.equal(coach.business, null);
       assert.ok(!JSON.stringify(coach).includes("Private owner cost"));
       assert.ok(!JSON.stringify(coach).includes("45678"));
+      const unpublished = (await feeWorkspace(sql, "parent")).teams[0];
+      assert.equal(unpublished.publication, null);
+      assert.deepEqual(unpublished.players, []);
+      assert.equal(unpublished.choices, null);
+      assert.deepEqual(coach.teams[0].players, []);
+      await assert.rejects(() => feeWorkspace(sql, "anonymous"));
       const stranger = await feeWorkspace(sql, "stranger");
       assert.equal(stranger.teams.length, 0);
+      // Reviewed flags alone cannot publish an empty schedule. Estimates are owner-only.
+      await sql`update team_fee_plans set payload=payload#-'{budget,tournamentEstimate}' where team_id=${team.id}`;
+      await assert.rejects(
+        () =>
+          mutateFeePlan(sql, "owner", {
+            action: "publish",
+            teamId: team.id,
+            revision: 2,
+            confirmed: true,
+          }),
+        /Complete the team event schedule/,
+      );
+      assert.equal((await feeWorkspace(sql, "parent")).teams[0].publication, null);
+      await sql`update team_fee_plans set payload=jsonb_set(payload,'{budget,tournamentEstimate}','10000') where team_id=${team.id}`;
+      if (role === "full" && !individualAccess) {
+        // Exercise the coach schedule/package path as well as the admin estimate path.
+        const eventId = "11111111-1111-4111-8111-111111111111";
+        const event = {
+          id: eventId,
+          teamId: team.id,
+          revision: 0,
+          kind: "tournament",
+          title: "Coach selected tournament",
+          date: "2027-05-01",
+          startTime: "10:00",
+          endTime: "18:00",
+          location: "Test field",
+          status: "scheduled",
+          entryFee: 10000,
+          stats: [],
+          ourRuns: 0,
+          oppRuns: 0,
+        };
+        await sql`insert into team_activities(id,team_id,updated_by,payload) values(${eventId},${team.id},'coach',${JSON.stringify(event)}::jsonb)`;
+        await sql`update team_fee_plans set payload=jsonb_set(payload#-'{budget,tournamentEstimate}','{budget,scheduleCostsAutomatic}','true') where team_id=${team.id}`;
+      }
       await assert.rejects(
         () =>
           mutateFeePlan(sql, "coach", {
@@ -191,6 +235,14 @@ for (const { role, individualAccess } of [
         revision: 2,
         confirmed: true,
       });
+      const athlete = (await feeWorkspace(sql, "player")).teams[0];
+      assert.equal(
+        athlete.publication?.full,
+        (await feeWorkspace(sql, "coach")).teams[0].publication?.full,
+      );
+      assert.deepEqual(athlete.players, []);
+      assert.equal(athlete.private, null);
+      assert.equal(athlete.choices, null);
       const parent = await feeWorkspace(sql, "parent");
       assert.equal(parent.teams[0].players.length, 1);
       assert.equal(parent.teams[0].choices, null);

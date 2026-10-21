@@ -308,6 +308,8 @@ test("master admin permissions, durable revisions, draft initialization, review 
       revision: p.revision,
       budget: {
         ...p.budget,
+        tournamentEstimate: 0,
+        uniformEstimate: 0,
         noUniformReason: "Returning team reusing existing uniforms",
         processingZeroReason: "No processing charge in this fixture",
         readiness: {

@@ -113,7 +113,7 @@ export function FamilyApp({
   return (
     <div className="grid gap-3">
       {financial&&<FamilyFinancialRecords financial={financial} familyId={familyId}/>}
-      {!financial&&!isPlayer&&<TeamFeeWorkspace teamId={team.id}/>}
+      {!financial&&<TeamFeeWorkspace teamId={team.id}/>}
       <TeamActivities key={team.id} teamId={team.id} onSaved={onReload}/>
       {mine.length > 1 ? (
         <div className="flex flex-wrap gap-2">
@@ -150,7 +150,7 @@ export function FamilyApp({
         ))}
       </div>
 
-      {!financial && (!isPlayer ? (
+      {!financial && player.feeLock && (!isPlayer ? (
         <Section title={t.pay} defaultOpen>
           <p className="font-display text-4xl">{money(due)}</p>
           <p className="text-sm text-muted">

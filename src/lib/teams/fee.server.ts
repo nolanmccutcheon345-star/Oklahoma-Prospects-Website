@@ -1,7 +1,7 @@
 import { poRosterLimit } from "./po-roster";
 import { assertRosterAssignment, assertRosterCapacity } from "./po-roster.server";
 import { linkedPODraft } from "./budget-matrix";
-import { feeHealth, offersPO, pendingGas } from "./fee-health";
+import { feeHealth, offersPO, pendingGas, publicationCostIssues } from "./fee-health";
 import { teamSeasonOverhead } from "./facility-overhead";
 import { loadBudgetMaster } from "./budget-matrix.server";
 import { budgetFromMatrix, rowKey } from "./budget-matrix";
@@ -211,6 +211,8 @@ export async function feeWorkspaceInTransaction(
       ? isFinancialGuardian(context, player.teamId, player.id)
       : guardian(player, me);
   const canCoach = (team: Team) => isFinancialCoach(context, team);
+  const canViewPlayer = (player: Player) =>
+    canGuard(player) || (me.role === "player" && me.playerIds.includes(player.id));
   for (const row of rows)
     if (row.payload.status !== "closed")
       row.payload.budget = {
@@ -232,7 +234,7 @@ export async function feeWorkspaceInTransaction(
   const overheadMaster = (await loadBudgetMaster(tx, context)).value;
   const admin = me.role === "admin";
   const teams = club.teams
-    .filter((t) => admin || canCoach(t) || t.roster.some((p) => canGuard(p)))
+    .filter((t) => admin || canCoach(t) || t.roster.some((p) => canViewPlayer(p)))
     .map((t) => {
       const row = rows.find((r) => r.team_id === t.id),
         p = row ? { ...row.payload, revision: row.revision } : initial(t),
@@ -244,11 +246,15 @@ export async function feeWorkspaceInTransaction(
           overheadMaster,
         );
       const players = t.roster
-        .filter((x) => admin || coach || canGuard(x))
+        .filter(
+          (x) =>
+            admin || (!coach && me.role !== "player" && canGuard(x) && (p.published || x.feeLock)),
+        )
         .map((x) => ({
           ...playerView(t, x, p, asOf),
           canPay: guardian(x, me),
           canAccept:
+            me.role !== "player" &&
             canGuard(x) &&
             (x.roleType !== "po" ||
               (offersPO(p.budget, t.sport) && offersPO(p.publishedBudget || p.budget, t.sport))),
@@ -394,13 +400,33 @@ export async function feeWorkspaceInTransaction(
         private: admin
           ? {
               plan: p,
-              feeHealth: feeHealth(p.budget, {
-                key: p.defaults?.key,
-                seasonLabel: t.seasonLabel,
-                overheadReviewed: overheadMaster.overheadReviewed,
-                finalDue: deadline(p.budget, events),
-                today: asOf,
-              }),
+              feeHealth: (() => {
+                const health = feeHealth(p.budget, {
+                  key: p.defaults?.key,
+                  seasonLabel: t.seasonLabel,
+                  overheadReviewed: overheadMaster.overheadReviewed,
+                  finalDue: deadline(p.budget, events),
+                  today: asOf,
+                });
+                const pending = [
+                  ...health.pending,
+                  ...publicationCostIssues(
+                    p.budget,
+                    activities.filter((a) => a.team_id === t.id).map((a) => a.payload),
+                    club.catalog,
+                    t.tournamentIds,
+                  ),
+                ];
+                return {
+                  ...health,
+                  pending,
+                  ready: health.ready && !pending.length,
+                  status:
+                    pending.length && health.status !== "UNDERFUNDED"
+                      ? "INCOMPLETE"
+                      : health.status,
+                };
+              })(),
               forecast,
               additionalPlayers,
               actual: {
@@ -573,6 +599,12 @@ export async function mutateFeePlan(sql: Sql, userId: string, raw: z.infer<typeo
       await assertRosterCapacity(tx, t, p.budget, context);
     if (input.action === "publish") {
       checkBudget(p);
+      const costIssues = publicationCostIssues(
+        p.budget,
+        context.activities.filter((a) => a.team_id === t.id).map((a) => a.payload),
+        club.catalog,
+        t.tournamentIds,
+      );
       const health = feeHealth(p.budget, {
         key: p.defaults?.key,
         seasonLabel: t.seasonLabel,
@@ -588,6 +620,7 @@ export async function mutateFeePlan(sql: Sql, userId: string, raw: z.infer<typeo
           "Fee health: " +
             (health.pending.join(" ") || "Projected fees do not fully fund costs and targets."),
         );
+      if (costIssues.length) throw Error("Fee publication: " + costIssues.join(" "));
       const poEnabled = offersPO(p.budget, t.sport);
       if (!poEnabled && t.roster.some((x) => !x.withdrawn && x.roleType === "po" && !x.feeLock))
         throw Error(
