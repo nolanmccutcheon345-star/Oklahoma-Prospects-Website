@@ -85,6 +85,10 @@ export function StaffRoleManagement() {
     void load().catch((e) => setError(e.message));
   }, []);
   function choose(userId: string, sport: Sport, source = data) {
+    if (!userId) {
+      setValue(undefined);
+      return;
+    }
     const row = source?.assignments.find((a) => a.user_id === userId && a.sport === sport);
     setValue({
       userId,
@@ -201,6 +205,12 @@ export function StaffRoleManagement() {
         <div className="grid gap-4">
           <ExistingCoordinatorAccount
             data={data}
+            onManage={(userId, sport) => {
+              choose(userId, sport);
+              setError("");
+              setNotice("");
+              setTab("roles");
+            }}
             onAssigned={async (userId, sport) => {
               const updated = await load();
               choose(userId, sport, updated);
@@ -287,6 +297,28 @@ export function StaffRoleManagement() {
       )}
       {tab === "roles" && (
         <>
+          <h3 className="text-xl">Coordinator permissions &amp; public profile</h3>
+          <p>
+            Choose an account below to see every permission and its public coordinator profile
+            settings.
+          </p>
+          {data.assignments.length > 0 && (
+            <div className="grid gap-2" aria-label="Saved coordinator assignments">
+              {data.assignments.map((assignment) => (
+                <Button
+                  key={`${assignment.user_id}-${assignment.sport}`}
+                  variant="outlineDark"
+                  onClick={() => choose(assignment.user_id, assignment.sport)}
+                >
+                  {data.accounts.find((account) => account.id === assignment.user_id)?.name ||
+                    "Unavailable account"}
+                  {" · "}
+                  {assignment.sport} coordinator · {assignment.status} ·{" "}
+                  {assignment.permissions.length} permissions
+                </Button>
+              ))}
+            </div>
+          )}
           <label className="grid gap-1">
             Verified staff account
             <select
@@ -375,8 +407,18 @@ export function StaffRoleManagement() {
                 </select>
               </label>
               <p className="font-semibold">
-                {value.revision ? "Existing assignment" : "New assignment · zero permissions"}
+                {value.revision
+                  ? `Saved assignment · ${value.status} · ${value.permissions.length} selected permissions`
+                  : "New assignment · zero permissions"}
               </p>
+              <nav aria-label="Coordinator settings" className="flex flex-wrap gap-3">
+                <a className="underline min-h-11" href="#coordinator-permission-options">
+                  Individual permissions
+                </a>
+                <a className="underline min-h-11" href="#coordinator-public-profile">
+                  Public coaches-page profile
+                </a>
+              </nav>
               <label htmlFor="coordinator-coverage" className="grid gap-1">
                 Coverage
                 <select
@@ -452,10 +494,24 @@ export function StaffRoleManagement() {
                   I reviewed this account’s separate roles and team assignments.
                 </label>
               </details>
-              {!value.revision ? (
-                <p>Assign the role first. All operational permissions start unchecked.</p>
-              ) : (
-                <>
+              <section
+                id="coordinator-permission-options"
+                aria-label="Operational permission options"
+                className="grid gap-3"
+              >
+                <h3 className="text-xl">Operational permissions</h3>
+                <p>
+                  Select individual permissions below, then save. Unchecked permissions remain
+                  denied.
+                </p>
+                {!value.revision && (
+                  <p>
+                    Assign the role first with zero permissions. These options become editable after
+                    assignment.
+                  </p>
+                )}
+                <fieldset disabled={!value.revision || busy} className="grid gap-3">
+                  <legend className="sr-only">Explicit coordinator permissions</legend>
                   <Button
                     type="button"
                     variant="outlineDark"
@@ -480,7 +536,11 @@ export function StaffRoleManagement() {
                     Select proposed starter permissions — review before saving
                   </Button>
                   {groups.map((group) => (
-                    <details key={group} className="rounded border p-3">
+                    <details
+                      open
+                      key={`${value.userId}-${value.sport}-${group}`}
+                      className="rounded border p-3"
+                    >
                       <summary className="min-h-11 cursor-pointer font-semibold capitalize">
                         {group} ({value.permissions.filter((p) => p.startsWith(group + ".")).length}
                         )
@@ -529,8 +589,8 @@ export function StaffRoleManagement() {
                     </ul>
                     <p>Suspended and removed assignments grant no coordinator access.</p>
                   </details>
-                </>
-              )}
+                </fieldset>
+              </section>
               <p className="rounded bg-paper p-3">
                 Financial access, medical documents, permission administration, permanent deletion,
                 bulk exports, paid-booking overrides, and direct publication are never grantable
@@ -571,10 +631,23 @@ export function StaffRoleManagement() {
                   </>
                 )}
               </div>
-              <details className="rounded border p-3">
+              <details id="coordinator-public-profile" open className="rounded border p-3">
                 <summary className="min-h-11 cursor-pointer font-semibold">
                   Public coordinator titles (independent of access)
                 </summary>
+                <p>
+                  Saved visibility:{" "}
+                  {data.leadership.find((l) => l.user_id === value.userId)?.enabled &&
+                  data.leadership.find((l) => l.user_id === value.userId)?.titles.length
+                    ? "Published coordinator title enabled"
+                    : "Coordinator title hidden"}
+                  .
+                </p>
+                <p>
+                  To show this person on the Coaches page and its sport filter, enable the public
+                  profile, select the matching coordinator title, and save public titles. Assigning
+                  a role alone does not publish a profile or grant permissions.
+                </p>
                 <label className="flex min-h-11 items-center gap-2">
                   <input
                     type="checkbox"

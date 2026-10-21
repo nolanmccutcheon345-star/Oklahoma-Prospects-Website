@@ -80,7 +80,7 @@ test("existing-account form displays server rejection and blocks already assigne
         assert.equal(host.querySelector("button").disabled, false);
         await change(sport, "baseball");
         assert.equal(host.querySelector("button").disabled, true);
-        assert.match(host.textContent, /already has this coordinator role/);
+        assert.match(host.textContent, /saved baseball coordinator assignment exists/);
       },
     );
   } finally {
