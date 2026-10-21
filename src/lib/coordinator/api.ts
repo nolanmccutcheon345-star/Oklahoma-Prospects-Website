@@ -861,7 +861,7 @@ export const applyCoordinatorRecovery = createServerFn({ method: "POST" })
     return (await import("./recovery.server")).applyRecovery(await getSql(), context.userId, data);
   });
 
-import { privacyPolicyInput, privacyReviewInput } from "./privacy-contracts";
+import { privacyPolicyInput, privacyReviewInput, backupReviewInput } from "./privacy-contracts";
 export const getCoordinatorPrivacy = createServerFn({ method: "GET" })
   .middleware([authMiddleware])
   .handler(async ({ context }) => {
@@ -897,5 +897,17 @@ export const getCoordinatorArchiveStatus = createServerFn({ method: "GET" })
     return (await import("./security-archive.server")).archiveStatus(
       await getSql(),
       context.userId,
+    );
+  });
+
+export const saveCoordinatorBackupReview = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
+  .validator(backupReviewInput)
+  .handler(async ({ context, data }) => {
+    const { getSql } = await import("../db");
+    return (await import("./security-archive.server")).recordBackupReview(
+      await getSql(),
+      context.userId,
+      data,
     );
   });

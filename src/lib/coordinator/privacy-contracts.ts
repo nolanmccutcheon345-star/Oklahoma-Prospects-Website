@@ -25,3 +25,14 @@ export const privacyReviewInput = z
     confirm: z.literal(true),
   })
   .strict();
+
+export const backupReviewInput = z
+  .object({
+    id: z.string().uuid(),
+    reference: z.string().trim().min(8).max(200),
+    snapshotAt: z.string().datetime(),
+    expiresAt: z.string().datetime(),
+    recoveryEvidence: z.string().trim().max(1000),
+    confirm: z.literal(true),
+  })
+  .strict();

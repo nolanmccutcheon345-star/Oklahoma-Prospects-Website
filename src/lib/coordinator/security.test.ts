@@ -3501,7 +3501,7 @@ test("owner recovery preserves newer edits, transaction history and paid occupan
   }
 });
 
-test("protected archive requires verified immutable remote receipts and privacy policies require owner review", async () => {
+test("provider backup reviews require current owner authority and never claim an automatic archive or restore", async () => {
   const { db, sql } = await fixture();
   const privacy = await import("./privacy.server");
   const archive = await import("./security-archive.server");
@@ -3536,68 +3536,63 @@ test("protected archive requires verified immutable remote receipts and privacy 
         .n,
       1,
     );
-    const env = {
-      CONTEXT: "production",
-      SQUARE_DEPLOY_CONTEXT: "production",
-      COORDINATOR_ARCHIVE_BUCKET: "synthetic-private-bucket",
-      COORDINATOR_ARCHIVE_REGION: "us-east-1",
-      COORDINATOR_ARCHIVE_ACCESS_KEY_ID: "synthetic-key",
-      COORDINATOR_ARCHIVE_SECRET_ACCESS_KEY: "synthetic-secret",
-    };
-    assert.equal((await archive.archiveStaffActivity(sql, {})).configured, false);
+    const env = { CONTEXT: "production", SQUARE_DEPLOY_CONTEXT: "production" };
+    assert.equal((await archive.archiveStaffActivity(sql, {})).archived, 0);
     assert.equal(
-      (await archive.archiveStaffActivity(sql, { ...env, CONTEXT: "deploy-preview" })).archived,
-      0,
+      (await archive.archiveStaffActivity(sql, { ...env, CONTEXT: "deploy-preview" })).skipped,
+      true,
     );
-    let stored:
-        Parameters<import("./security-archive.server").ArchiveTransport["put"]>[0] | undefined,
-      allow = false;
-    const writes: string[] = [];
-    const remote: import("./security-archive.server").ArchiveTransport = {
-      put: async (v) => {
-        stored = v;
-        writes.push(v.body);
-      },
-      head: async () => ({
-        versionId: "synthetic-version",
-        mode: allow ? "COMPLIANCE" : "GOVERNANCE",
-        retainUntil: stored!.retainUntil,
-        digest: stored!.digest,
-      }),
-    };
-    await assert.rejects(archive.archiveStaffActivity(sql, env, remote), /verification failed/);
-    assert.equal((await sql`select count(*)::int n from coordinator_archive_receipts`)[0].n, 0);
-    allow = true;
-    assert.equal((await archive.archiveStaffActivity(sql, env, remote)).archived, 1);
-    assert.equal(writes[1], writes[0]);
-    assert.doesNotMatch(
-      writes[0],
-      /PRIVATE-MEDICAL|PRIVATE-PAYMENT|Synthetic owner-approved test retention|synthetic-secret|98765/,
-    );
-    // Startup history can span more than one bounded batch; drain it without losing members.
-    let remaining = 1;
-    for (let i = 0; i < 20 && remaining; i++)
-      remaining = (await archive.archiveStaffActivity(sql, env, remote)).archived;
-    assert.equal(remaining, 0);
+    assert.equal((await archive.archiveStaffActivity(sql, env)).reviewDue, true);
+    await archive.archiveStaffActivity(sql, env);
     assert.equal(
       (
-        await sql`select count(*)::int n from coordinator_audit a where not exists(select 1 from coordinator_archive_members m where m.stream='coordinator' and m.event_id=a.id)`
-      )[0].n,
-      0,
-    );
-    await sql`insert into coordinator_audit(id,actor_id,action,result,correlation_id) overriding system value values(-1,'owner','late-committed-test','allowed',${randomUUID()})`;
-    assert.equal((await archive.archiveStaffActivity(sql, env, remote)).archived, 1);
-    assert.equal(
-      (
-        await sql`select count(*)::int n from coordinator_archive_members where stream='coordinator' and event_id=-1`
+        await sql`select count(*)::int n from coordinator_risk_alerts where code='provider-backup-review-due'`
       )[0].n,
       1,
     );
-    await assert.rejects(archive.archiveStatus(sql, "parent", env));
-    const status = await archive.archiveStatus(sql, "owner", env);
-    assert.ok(status.lastVerifiedAt);
-    assert.equal(status.pending, 0);
-    await assert.rejects(sql`update coordinator_archive_receipts set digest='tamper'`);
+    const receipt = {
+      id: randomUUID(),
+      reference: "Netlify scheduled synthetic backup",
+      snapshotAt: new Date(Date.now() - 3600000).toISOString(),
+      expiresAt: new Date(Date.now() + 86400000).toISOString(),
+      recoveryEvidence: "",
+      confirm: true as const,
+    };
+    for (const actor of ["fake", "parent", "zero", "softball", "baseball", "coach", "instructor"])
+      await assert.rejects(archive.recordBackupReview(sql, actor, receipt));
+    await assert.rejects(
+      archive.recordBackupReview(sql, "owner", {
+        ...receipt,
+        snapshotAt: new Date(Date.now() + 3600000).toISOString(),
+      }),
+    );
+    await assert.rejects(
+      archive.recordBackupReview(sql, "owner", {
+        ...receipt,
+        expiresAt: new Date(Date.now() - 1).toISOString(),
+      }),
+    );
+    await archive.recordBackupReview(sql, "owner", receipt);
+    await archive.recordBackupReview(sql, "owner", receipt);
+    await assert.rejects(
+      archive.recordBackupReview(sql, "owner", { ...receipt, reference: "changed evidence" }),
+      /already used/,
+    );
+    assert.equal((await sql`select count(*)::int n from coordinator_backup_reviews`)[0].n, 1);
+    const result = await archive.archiveStaffActivity(sql, env);
+    assert.equal(result.archived, 0);
+    assert.equal(result.reviewDue, false);
+    await assert.rejects(archive.archiveStatus(sql, "parent"));
+    const status = await archive.archiveStatus(sql, "owner");
+    assert.equal(status.review?.recoveryEvidence, "");
+    assert.equal(status.mode, "provider-backups");
+    await assert.rejects(sql`update coordinator_backup_reviews set reference='tamper'`);
+    await assert.rejects(sql`delete from coordinator_backup_reviews`);
+    await assert.rejects(sql`truncate coordinator_backup_reviews`);
+    await sql`update owner_grants set revoked_at=now() where user_id='owner'`;
+    await assert.rejects(
+      archive.recordBackupReview(sql, "owner", { ...receipt, id: randomUUID() }),
+    );
     await assert.rejects(sql`truncate coordinator_privacy_reviews`);
   } finally {
     await db.close();

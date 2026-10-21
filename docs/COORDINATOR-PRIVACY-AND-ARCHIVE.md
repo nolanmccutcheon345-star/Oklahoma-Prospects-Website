@@ -29,22 +29,31 @@ Staff Management → Privacy & Audit Protection has five independently reviewed 
 5. If deletion or de-identification is justified, prepare an exact record-level plan, independent backup/restore evidence, dependency checks and owner approval. Execute through a separately reviewed maintenance change, not routine coordinator hard deletion or a broad database purge. Include processor copies, exports, media and backup expiration in the plan.
 6. Verify public and private reads, dependencies and external processors; document the actual outcome. A review attestation does not mean deletion occurred. Explain outstanding obligations to the verified requester.
 
-The current feature deliberately contains no automated athlete/financial/audit-history purge. Policies need real owner decisions before activation. Audit copies use the approved audit period as a fixed storage-protection term; owners must assess that necessity before enabling the worker. Existing locked copies cannot be shortened by editing the local policy.
+The current feature deliberately contains no automated athlete/financial/audit-history purge. Policies need real owner decisions before activation. Provider backup retention is controlled separately in Netlify. Recording a local policy does not alter or delete backups.
 
-## Independent archive deployment
+## Provider-managed backups — no separate AWS account
 
-`security-archive.server.ts` writes minimized coordinator and privileged-staff event metadata to a separately administered private Amazon S3 bucket. It preserves event identity, action, target, role/scope, time and correlation; coordinator detail payloads are represented by digests. Message bodies, medical values, credentials and financial before/after values are excluded. Full operational history remains in the protected application database. This archive is an independent integrity record, not a full database backup.
+Owner direction on October 20: use the existing services without a separate AWS account. The S3 adapter and dependency have been removed. Migration 0096 adds append-only owner backup-review records; migration 0095 and any historical S3 receipts remain unchanged.
 
-Provision in a separately controlled AWS account or equivalent independently administered security boundary:
+The original directive requires append-only audit history for normal users and an independently protected copy where appropriate. It does not require S3, Object Lock, permanent write-once storage, or a separate cloud account. The supported design combines:
 
-- Private bucket, public access blocked, versioning and Object Lock enabled. Require HTTPS and server-side encryption.
-- Dedicated application credentials limited to this bucket's `coordinator-audit/*` prefix: put object with retention, read object/version/checksum/retention as needed. No bucket administration, delete, retention-bypass or credential-management authority. Keep independently controlled bucket policies and an owner recovery identity outside the application.
-- Bucket policy must require COMPLIANCE retention and bound permitted durations to the reviewed policy. Add expiration lifecycle after the necessary protection period and review processor retention. Do not choose an arbitrary indefinite period.
-- Set server-only production `COORDINATOR_ARCHIVE_BUCKET`, `COORDINATOR_ARCHIVE_REGION`, `COORDINATOR_ARCHIVE_ACCESS_KEY_ID`, `COORDINATOR_ARCHIVE_SECRET_ACCESS_KEY`, and optional temporary `COORDINATOR_ARCHIVE_SESSION_TOKEN`. Never commit or display values. No custom endpoint is accepted. Preview contexts never upload.
-- Record the owner-approved audit retention policy. The existing authenticated production site-alert worker invokes archiving. It prepares immutable bounded batches with a predecessor digest. Explicit event membership handles late commits with lower IDs; a cursor alone would lose those records.
-- The uploader uses conditional object creation and a SHA-256 checksum. It independently reads object metadata and requires a version ID, matching checksum, COMPLIANCE mode and a sufficient retention deadline before recording success. Failed validation leaves the batch pending and queues an owner alert; normal alert delivery continues.
-- Verify a synthetic production canary, its exact immutable version and checksum from the separate storage console. Verify restricted credentials cannot overwrite/delete the protected version, and verify owner recovery can retrieve it. Record only references/digests in the release receipt. Remove no production records to test retention.
+- Server-generated append-only audit and communication history, owner-only review, existing transactional integrity checks and risk alerts.
+- Netlify-managed full database backups outside the application runtime. The application does not receive Netlify administration/restore credentials. Backups include the audit and communications tables as of the snapshot time.
+- Owner-only, append-only reviews of provider backup references, snapshot time and expiration; optional recovery evidence is distinctly labeled as owner-reported. Neither an environment flag nor a review record is presented as automatic backup or restore verification.
+- The authenticated production review worker flags missing, expired or more-than-seven-day-old reviewed backup evidence. This is a review reminder, not proof that provider backups failed. Previews skip this check. No storage uploads or credentials are required.
 
-AWS describes Object Lock as version-level WORM protection; uploading a new version does not alter a protected prior version. Conditional `PutObject` rejects an existing key, and `HeadObject` can retrieve version and retention metadata. References: [Object Lock](https://docs.aws.amazon.com/AmazonS3/latest/userguide/object-lock.html), [PutObject](https://docs.aws.amazon.com/AmazonS3/latest/API/API_PutObject.html), [HeadObject](https://docs.aws.amazon.com/AmazonS3/latest/API/API_HeadObject.html).
+### Verified provider configuration
 
-A configured key, passing mock test or local immutable table is not an independently protected production archive. Until the external store, approved policy and actual protected-copy receipt are verified, this release requirement remains open.
+On October 20 the authenticated Netlify Database dashboard showed daily backups retained for 30 days, the ten most recent on-publish backups, and a scheduled backup dated October 20 at 6:02 PM America/Chicago. The current production publish snapshot was also visible. Production personal-access-token write access was disabled and was not changed.
+
+These backups are independent of application permissions, not independent of the Netlify team administrators. They are not WORM storage. A compromised Netlify owner account or provider incident remains a shared risk. Backups cover only data through the snapshot timestamp, not later writes. Maintain owner MFA and restricted administration. Do not describe this arrangement as AWS Object Lock or an externally verified immutable archive.
+
+### Review and recovery
+
+In Netlify, open Data & Storage → Database → Backups. Review the current backup reference, snapshot time and plan retention. After deployment, record that evidence in Staff Management → Privacy & Audit Protection → Record a provider backup review. Do not include credentials or athlete details. No production evidence is seeded by migrations.
+
+Netlify's documented Restore replaces the production database. Never use it to conduct a routine test. For an actual incident, preserve current data, assess changes since the snapshot and obtain an exact recovery decision. Prefer a targeted correction where possible. A successful isolated restore has not been demonstrated; record that limitation rather than claiming a test passed. The original deployment directive requires a backup, staging migrations and security/regression checks; an isolated production-backup restoration was an additional implementation checklist item, not an instruction to overwrite production.
+
+Provider backup retention and the application's purpose-specific retention policies are separate. Owner policy choices do not change Netlify settings or erase records. Review child-account/guardian flows and specific retention purposes before staff activation.
+
+References: https://docs.netlify.com/build/data-and-storage/netlify-database/backup-and-recovery/

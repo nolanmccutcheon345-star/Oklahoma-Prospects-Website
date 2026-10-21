@@ -14,6 +14,7 @@ const names = [
   "getCoordinatorArchiveStatus",
   "saveCoordinatorPrivacyPolicy",
   "saveCoordinatorPrivacyReview",
+  "saveCoordinatorBackupReview",
 ];
 const mocks = {
   "@/lib/coordinator/api": names
@@ -138,10 +139,9 @@ test("privacy controls do not invent a retention period or claim a configured ar
   globalThis.releaseUI = {
     getCoordinatorPrivacy: async () => ({ policies, reviews: [], candidates: [] }),
     getCoordinatorArchiveStatus: async () => ({
-      configured: true,
-      pending: 1,
-      lastVerifiedAt: null,
-      lastRetainUntil: null,
+      mode: "provider-backups",
+      review: null,
+      reviewDue: true,
     }),
     saveCoordinatorPrivacyPolicy: async (x) => {
       calls.push(x);
@@ -158,15 +158,68 @@ test("privacy controls do not invent a retention period or claim a configured ar
         globalThis.FormData = dom.window.FormData;
         dom.window.confirm = () => true;
         assert.equal(host.querySelector('[name="days"]').value, "");
-        assert.match(host.textContent, /No independently protected copy has been verified/);
+        assert.match(host.textContent, /No provider backup review has been recorded/);
         host.querySelector('[name="days"]').value = "30";
         host.querySelector('[name="purpose"]').value = "Synthetic operational retention purpose";
         host.querySelector('[name="basis"]').value = "Synthetic reviewed purpose and obligations";
-        await act(async () => host.querySelector('button[type="submit"]').click());
+        await act(async () =>
+          host
+            .querySelector('[name="days"]')
+            .closest("form")
+            .querySelector('button[type="submit"]')
+            .click(),
+        );
         assert.equal(calls[0].data.revision, 0);
         assert.equal(calls[0].data.retentionDays, 30);
         assert.equal(calls[0].data.confirm, true);
         assert.match(host.textContent, /No account access or customer records changed/);
+      },
+    );
+  } finally {
+    globalThis.FormData = previous;
+    delete globalThis.releaseUI;
+  }
+});
+
+test("backup review shows restore limitations and submits only explicit owner evidence", async () => {
+  const previous = globalThis.FormData;
+  const calls = [];
+  globalThis.releaseUI = {
+    getCoordinatorPrivacy: async () => ({ policies: [], reviews: [], candidates: [] }),
+    getCoordinatorArchiveStatus: async () => ({
+      mode: "provider-backups",
+      review: null,
+      reviewDue: true,
+    }),
+    saveCoordinatorBackupReview: async (x) => {
+      calls.push(x);
+    },
+  };
+  try {
+    await withRendered(
+      "src/components/coordinator/privacy.tsx",
+      "CoordinatorPrivacy",
+      {},
+      mocks,
+      async ({ host, act, dom }) => {
+        globalThis.FormData = dom.window.FormData;
+        dom.window.confirm = () => true;
+        assert.match(host.textContent, /successful restore has not been recorded/);
+        assert.match(host.textContent, /not automated verification/);
+        host.querySelector('[name="backupReference"]').value = "Synthetic Netlify backup reference";
+        host.querySelector('[name="snapshot"]').value = "2026-10-20T18:02";
+        host.querySelector('[name="expires"]').value = "2026-11-19T18:02";
+        await act(async () =>
+          host
+            .querySelector('[name="backupReference"]')
+            .closest("form")
+            .querySelector('button[type="submit"]')
+            .click(),
+        );
+        assert.equal(calls.length, 1);
+        assert.equal(calls[0].data.confirm, true);
+        assert.equal(calls[0].data.recoveryEvidence, "");
+        assert.equal(calls[0].data.reference, "Synthetic Netlify backup reference");
       },
     );
   } finally {

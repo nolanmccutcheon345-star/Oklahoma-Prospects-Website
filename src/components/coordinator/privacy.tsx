@@ -83,25 +83,97 @@ export function CoordinatorPrivacy() {
       {!data && !error && <p role="status">Loading privacy controls…</p>}
       {archive && (
         <div className="rounded border p-3">
-          <h4>Independently protected audit archive</h4>
+          <h4>Audit history & provider backups</h4>
           <p>
-            {archive.configured
-              ? "Storage configuration present."
-              : "Separate protected storage is not configured."}
+            Audit and communication history stays append-only to normal application users. Netlify
+            manages database backups outside this application; no AWS account is required.
           </p>
           <p>
-            {archive.lastVerifiedAt
-              ? `Last verified protected copy: ${new Date(archive.lastVerifiedAt).toLocaleString()}`
-              : "No independently protected copy has been verified."}
+            {archive.review
+              ? `Owner-reviewed backup: ${archive.review.reference}`
+              : "No provider backup review has been recorded."}
+          </p>
+          {archive.review && (
+            <p>
+              Snapshot: {new Date(archive.review.snapshotAt).toLocaleString()}. Recorded expiry:{" "}
+              {new Date(archive.review.expiresAt).toLocaleString()}.
+            </p>
+          )}
+          <p>
+            {archive.reviewDue
+              ? "Owner backup review is due."
+              : "Backup evidence was reviewed within the last seven days."}
           </p>
           <p>
-            Pending batches: {archive.pending}. Protection through:{" "}
-            {archive.lastRetainUntil || "Not verified"}.
+            {archive.review?.recoveryEvidence
+              ? `Owner-reported recovery evidence: ${archive.review.recoveryEvidence}`
+              : "A successful restore has not been recorded."}
           </p>
           <p>
-            A configured connection alone is not evidence of protected storage. The worker verifies
-            the stored checksum, immutable object version and compliance retention.
+            These are owner review records, not automated verification. Backups cover data through
+            their snapshot time. They are not permanent write-locked storage and Netlify
+            administrators retain control. Recording a policy here does not change Netlify backup
+            retention.
           </p>
+          <details>
+            <summary>Record a provider backup review</summary>
+            <p>
+              Check Netlify → Data & Storage → Database → Backups. Enter only a backup reference,
+              dates and a recovery-test reference if one exists. Do not enter credentials or athlete
+              data. Do not restore over the live database to perform a test.
+            </p>
+            <form
+              className="grid gap-3"
+              onSubmit={(e) => {
+                e.preventDefault();
+                const f = new FormData(e.currentTarget);
+                if (
+                  !window.confirm(
+                    "Record this backup review? This records evidence only; it does not create or restore a backup.",
+                  )
+                )
+                  return;
+                void run(async () => {
+                  await api.saveCoordinatorBackupReview({
+                    data: {
+                      id: crypto.randomUUID(),
+                      reference: String(f.get("backupReference")),
+                      snapshotAt: new Date(String(f.get("snapshot"))).toISOString(),
+                      expiresAt: new Date(String(f.get("expires"))).toISOString(),
+                      recoveryEvidence: String(f.get("recovery") || ""),
+                      confirm: true,
+                    },
+                  });
+                });
+              }}
+            >
+              <label>
+                Backup reference
+                <input
+                  className={field}
+                  name="backupReference"
+                  minLength={8}
+                  maxLength={200}
+                  required
+                />
+              </label>
+              <label>
+                Snapshot time (your local time)
+                <input className={field} name="snapshot" type="datetime-local" required />
+              </label>
+              <label>
+                Backup expires (your local time)
+                <input className={field} name="expires" type="datetime-local" required />
+              </label>
+              <label>
+                Recovery-test evidence (optional)
+                <textarea className={field} name="recovery" maxLength={1000} />
+              </label>
+              <Button type="submit" disabled={busy}>
+                Record Backup Review
+              </Button>
+            </form>
+          </details>
         </div>
       )}
       {data && (
@@ -109,9 +181,8 @@ export function CoordinatorPrivacy() {
           <p>
             Record a purpose and necessary retention period for each category. Expired candidates
             require an owner review of current purpose, guardian requests and holds. This screen
-            does not erase athlete, financial or audit history. Audit retention also sets the
-            irreversible protection period for newly archived copies; existing protected copies
-            cannot be shortened.
+            does not erase athlete, financial or audit history. Provider backup retention is managed
+            separately in Netlify.
           </p>
           <label>
             Category
@@ -133,7 +204,7 @@ export function CoordinatorPrivacy() {
               const f = new FormData(e.currentTarget);
               if (
                 !window.confirm(
-                  "Approve this purpose and retention period? For audit copies, protection cannot be shortened after storage.",
+                  "Approve this purpose and retention period? This does not change provider backup settings or delete records.",
                 )
               )
                 return;
