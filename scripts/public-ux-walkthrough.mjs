@@ -35,6 +35,9 @@ try {
  for(const width of [320,390,430,768,1280]) {
   await page.setViewportSize({width,height:900});
   await page.goto(h.base+'/');
+  // The SSR menu is visible before React attaches its click handler. The
+  // signed-out account link appears after the shared hydration/session gate.
+  await page.getByRole('link',{name:'Sign in',exact:true}).waitFor();
   await page.getByRole('button',{name:'Train',exact:true}).click();
   const dialog=page.getByRole('dialog');await dialog.waitFor();
   assert.equal(await page.evaluate(()=>document.body.style.overflow),'hidden');
