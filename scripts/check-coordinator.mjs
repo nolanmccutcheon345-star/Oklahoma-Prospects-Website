@@ -782,10 +782,28 @@ try {
     await org.page.goto(origin + "/coordinator");
     await org.page.getByText("No operational modules enabled", { exact: true }).waitFor();
     await owner.page.getByLabel("Coverage", { exact: true }).selectOption("sport");
-    await owner.page
-      .locator("summary")
-      .filter({ hasText: /^tryouts \(/i })
-      .click();
+    assert.equal(
+      await owner.page.getByLabel("View tryout registrations", { exact: true }).isVisible(),
+      true,
+      "Permission options must be visible without opening a disclosure",
+    );
+    await owner.page.setViewportSize({ width: 390, height: 844 });
+    assert.equal(
+      await owner.page.getByLabel("View tryout registrations", { exact: true }).isVisible(),
+      true,
+    );
+    assert.equal(
+      await owner.page
+        .getByLabel("Show approved leadership profile publicly", { exact: true })
+        .isVisible(),
+      true,
+    );
+    assert.ok(
+      await owner.page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
+      "Mobile staff editor must not overflow horizontally",
+    );
+    await owner.page.screenshot({ path: shots + "/owner-permissions-mobile.png", fullPage: true });
+    await owner.page.setViewportSize({ width: 1280, height: 900 });
     await owner.page.getByLabel("View tryout registrations", { exact: true }).check();
     await owner.page.getByRole("button", { name: "Save Permissions", exact: true }).click();
     await owner.page
