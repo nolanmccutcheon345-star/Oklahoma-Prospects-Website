@@ -1,5 +1,5 @@
-import { serviceMonths } from "./season-months";
-import { project, scheduleRows, type FeeBudget } from "./fee-model";
+import { calendarBillableMonths, serviceMonths } from "./season-months";
+import { withBillableMonths, project, scheduleRows, type FeeBudget } from "./fee-model";
 export const offersPO = (b: FeeBudget, sport: string) => b.poEnabled ?? sport === "baseball";
 export function pendingGas(b: FeeBudget): FeeBudget {
   b = {
@@ -43,7 +43,14 @@ export function feeHealth(
     today?: string;
   } = {},
 ) {
+  b = withBillableMonths(b);
   const pending: string[] = [];
+  if (
+    b.programModel === 3 &&
+    b.billableMonthsOverride !== undefined &&
+    (b.billableMonthsReason || "").trim().length < 10
+  )
+    pending.push("Explain the admin override for Actual Billable Months.");
   if (!b.policy.trim() || !b.reinstatement.trim())
     pending.push("Complete the payment/refund policy and reinstatement rules.");
   if (!finalDue || (today && finalDue < today))
@@ -53,8 +60,11 @@ export function feeHealth(
   if (b.secondDue && (b.secondDue > finalDue || (today && b.secondDue < today)))
     pending.push("Review the second payment date override.");
   if (!b.start || !b.end || b.end < b.start) pending.push("Set valid season dates.");
-  const duration = serviceMonths(b.start, b.end);
-  if (duration !== null && Math.abs(duration - b.months) > 0.15)
+  if (b.programModel === 3 && b.start && b.end && calendarBillableMonths(b.start, b.end) === null)
+    pending.push("Set valid program dates spanning no more than 36 billable calendar months.");
+  const duration =
+    b.programModel === 3 ? calendarBillableMonths(b.start, b.end) : serviceMonths(b.start, b.end);
+  if (b.programModel !== 3 && duration !== null && Math.abs(duration - b.months) > 0.15)
     pending.push(
       `Service dates cover approximately ${duration} months, but the budget bills ${b.months}. Correct the dates or billable months before publishing.`,
     );

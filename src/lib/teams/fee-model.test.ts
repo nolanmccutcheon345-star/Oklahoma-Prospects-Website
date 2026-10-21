@@ -12,6 +12,9 @@ import {
 } from "./fee-model";
 const fixture = () => ({
   ...defaultBudget(),
+  // Historical frozen terms remain covered alongside the new program-model tests.
+  programModel: undefined,
+  membershipMonthly: 20000,
   start: "2027-04-01",
   end: "2027-06-15",
   months: 2.5,

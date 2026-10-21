@@ -94,7 +94,7 @@ function AdminDesk({ desk, onDesk }: { desk: string; onDesk: (id: string) => voi
           rows={[
             { label: "Phone", value: TEAMS_OS.phone },
             { label: "Address", value: TEAMS_OS.addressLine },
-            { label: "Membership / mo", value: formatTeamMoney(s.membershipMonthly) },
+            { label: "Legacy team program rate / mo", value: formatTeamMoney(s.membershipMonthly) },
             { label: "Round fees to", value: formatTeamMoney(s.roundStep) },
             { label: "Role switcher", value: TEAMS_OS.showRoleSwitcher ? "On" : "Off" },
           ]}

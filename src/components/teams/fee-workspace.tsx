@@ -12,6 +12,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import { getFeeWorkspace, changeFeePlan, saveFeeBusiness } from "@/lib/teams/fee-api";
 import {
   feeComposition,
+  withBillableMonths,
   project,
   businessProjection,
   deadline,
@@ -197,7 +198,8 @@ function TeamPlan({
     [full, setFull] = useState(10),
     [po, setPo] = useState(0),
     [name, setName] = useState(""),
-    [consent, setConsent] = useState(false);
+    [consent, setConsent] = useState(false),
+    [accessChoices, setAccessChoices] = useState<Record<string, boolean>>({});
   useEffect(() => {
     if (team.access !== "admin") return;
     const load = () => {
@@ -235,7 +237,7 @@ function TeamPlan({
     }
   }
   const update = (patch: Partial<FeeBudget>) =>
-    setPlan((p) => (p ? { ...p, budget: { ...p.budget, ...patch } } : p));
+    setPlan((p) => (p ? { ...p, budget: withBillableMonths({ ...p.budget, ...patch }) } : p));
   const canPO = plan?.budget.poEnabled ?? team.poEnabled ?? true;
   let health: ReturnType<typeof feeHealth> | null = null;
   try {
@@ -286,6 +288,14 @@ function TeamPlan({
           <Numbers
             rows={[
               ["Full player", publication.full],
+              ...(publication.fullAccess !== undefined
+                ? [
+                    [
+                      "Full player with optional Individual Facility Access Upgrade",
+                      publication.fullAccess,
+                    ] as [string, number],
+                  ]
+                : []),
               ...(canPO ? [["Pitcher only", publication.po] as [string, number]] : []),
             ]}
           />
@@ -507,10 +517,16 @@ function TeamPlan({
                 onChange={(end) => update({ end })}
               />
               <Field
-                label="Billable season months (partial months allowed)"
+                label="Actual Billable Months override (blank uses team dates)"
                 type="number"
-                value={String(plan.budget.months)}
-                onChange={(s) => update({ months: Number(s) })}
+                value={
+                  plan.budget.billableMonthsOverride === undefined
+                    ? ""
+                    : String(plan.budget.billableMonthsOverride)
+                }
+                onChange={(s) =>
+                  update({ billableMonthsOverride: s === "" ? undefined : Number(s) })
+                }
               />
               <Field
                 label="Baseline full paying players"
@@ -518,17 +534,23 @@ function TeamPlan({
                 value={String(plan.budget.baseline)}
                 onChange={(s) => update({ baseline: Number(s) })}
               />
+              <Field
+                label="Reason for billable-month override"
+                value={plan.budget.billableMonthsReason || ""}
+                onChange={(billableMonthsReason) => update({ billableMonthsReason })}
+              />
               <p className="text-sm">
-                Service dates: {serviceMonths(plan.budget.start, plan.budget.end) ?? "—"} calendar
-                months · Billable months: {plan.budget.months}. Spring + Summer defaults to February
-                1–July 31 for six months.
+                Default Months: {plan.budget.defaultMonths ?? "—"} (template only) · Actual Billable
+                Months: {plan.budget.months} · Pricing Uses: Actual Billable Months. Each calendar
+                month with program access is billed, including partial months. Prorated service
+                duration: {serviceMonths(plan.budget.start, plan.budget.end) ?? "—"} months.
               </p>
               {(
                 [
-                  ["membershipMonthly", "Membership / facility per full player per month"],
+                  ["membershipMonthly", "Team & Development Program Fee per full player per month"],
                   [
                     "poMembershipMonthly",
-                    "Membership / facility per pitcher-only player per month",
+                    "Team & Development Program Fee per pitcher-only player per month",
                   ],
                   ["fullOrg", "Organization fee per full player"],
                   ["poOrg", "Organization fee per pitcher-only player"],
@@ -536,7 +558,18 @@ function TeamPlan({
                     "fullIncremental",
                     "Other direct cost per player (full and PO; exclude uniform)",
                   ],
-                  ["serviceCostMonthly", "Membership service cost per player per month"],
+                  [
+                    "individualAccessMonthly",
+                    "Optional Individual Facility Access Upgrade per month",
+                  ],
+                  [
+                    "standaloneAccessMonthly",
+                    "Standard standalone individual access — reference only per month",
+                  ],
+                  [
+                    "serviceCostMonthly",
+                    "Other actual service expense per player per month (no automatic programming labor)",
+                  ],
                   ["overhead", "Manual season overhead estimate / override"],
                   ["reserve", "Required business reserve contribution"],
                   ["processingFixed", "Fixed processing cost per payment"],
@@ -566,7 +599,7 @@ function TeamPlan({
                 ))}
               {(
                 [
-                  ["contingencyBps", "Contingency (%)"],
+                  ["contingencyBps", "Team Contingency (%)"],
                   ["processingBps", "Processing rate (%)"],
                   ["nolanBps", "Nolan ownership (%) — Steve receives remainder"],
                 ] as const
@@ -596,9 +629,9 @@ function TeamPlan({
                   limit. Only admins can change it.
                 </p>
                 <p className="text-sm">
-                  POs share the full-player team-cost component. Membership and organization fees
-                  are the only automatic discounts. Extra roster spots do not reduce the 10-player
-                  baseline.
+                  POs share the full-player team-cost component. The PO discount comes from its
+                  organization fee. Both player types pay the required Team & Development Program
+                  Fee. Extra roster spots do not reduce the 10-player baseline.
                 </p>
                 {(
                   [
@@ -637,9 +670,12 @@ function TeamPlan({
               </div>
             )}
             <p className="text-xs">
-              Membership service costs reduce contribution separately; do not include those costs
-              again in facility overhead. Processing is included in the published fee, with a
-              three-payment allowance.
+              The Team & Development Program Fee includes scheduled team facility use, strength and
+              athletic programming, throwing and arm care, assigned position/age-specific
+              programming, drills, tracking, coach access and development history. Platform
+              programming adds no automatic labor charge. Individual access is optional for full
+              players; the standalone retail reference is excluded from pricing. Processing follows
+              the configured payment schedule.
             </p>
           </Panel>
           <Panel title="Fee Composition" open>
@@ -653,8 +689,8 @@ function TeamPlan({
                       <Numbers
                         rows={[
                           ["Team costs (including uniforms)", c.teamCosts],
-                          ["Contingency", c.contingency],
-                          ["Membership", c.membership],
+                          ["Team Contingency", c.contingency],
+                          ["Team & Development Program Fee", c.membership],
                           [
                             role === "po" ? "PO organization fee" : "Organization fee",
                             c.organization,
@@ -677,10 +713,117 @@ function TeamPlan({
             </div>
             <p className="text-xs">
               Contribution is after the standard full-player team-cost allocation, contingency,
-              processing and membership service costs; before facility overhead, business reserves
-              and owner distributions. Extra roster spots are reported separately under Additional
-              Player Contribution.
+              processing and other actual service expenses; before facility overhead, business
+              reserves and owner distributions. Extra roster spots are reported separately under
+              Additional Player Contribution.
             </p>
+          </Panel>
+          {team.private?.additionalPlayers && team.private.additionalPlayers.length > 0 && (
+            <Panel title="Net Additional Player Contribution — current roster">
+              <p className="text-sm">
+                Current draft price projection for each additional roster spot; fixed team expenses
+                are funded by the baseline and are not deducted again. No automatic insurance or
+                registration cost is added. This table is separate from actual collections.
+              </p>
+              {team.private.additionalPlayers.map((p) => (
+                <section key={p.id}>
+                  <h3>{p.name}</h3>
+                  <Numbers
+                    rows={[
+                      ["Additional Player Fee", p.fee],
+                      ["Uniform", p.uniform],
+                      ["Processing", p.processing],
+                      ["Actual incremental registration", p.registration],
+                      ["Actual incremental insurance", p.insurance],
+                      ["Other true incremental expenses", p.other],
+                      ["Net Additional Player Contribution", p.contribution],
+                    ]}
+                  />
+                </section>
+              ))}
+            </Panel>
+          )}
+          <Panel title="Additional player insurance / registration exceptions">
+            <p className="text-sm">
+              Insurance and event registration are team expenses by default. Enter only an actual
+              insurer roster surcharge, per-player registration, or other incremental expense for
+              Player 11+ or an additional PO. Uniform and processing costs are already deducted
+              once. These exceptions affect contribution reporting, not the published player price.
+              Record incurred expenses in the actual expense ledger as well.
+            </p>
+            {(plan.budget.additionalPlayerCosts || []).map((cost, i) => (
+              <div key={cost.playerId} className="grid gap-2 rounded border p-3 sm:grid-cols-2">
+                <p>{team.players.find((p) => p.id === cost.playerId)?.name || cost.playerId}</p>
+                {(["insurance", "registration", "other"] as const).map((k) => (
+                  <Dollars
+                    key={k}
+                    label={
+                      k === "insurance"
+                        ? "Incremental insurance"
+                        : k === "registration"
+                          ? "Per-player registration"
+                          : "Other true incremental expense"
+                    }
+                    value={cost[k]}
+                    onChange={(n) =>
+                      update({
+                        additionalPlayerCosts: plan.budget.additionalPlayerCosts!.map((c, j) =>
+                          j === i ? { ...c, [k]: n } : c,
+                        ),
+                      })
+                    }
+                  />
+                ))}
+                <Button
+                  type="button"
+                  onClick={() =>
+                    update({
+                      additionalPlayerCosts: plan.budget.additionalPlayerCosts!.filter(
+                        (_, j) => i !== j,
+                      ),
+                    })
+                  }
+                >
+                  Remove exception
+                </Button>
+              </div>
+            ))}
+            <label>
+              Add player exception
+              <select
+                className="office-control w-full"
+                value=""
+                onChange={(e) => {
+                  if (e.target.value)
+                    update({
+                      additionalPlayerCosts: [
+                        ...(plan.budget.additionalPlayerCosts || []),
+                        { playerId: e.target.value, insurance: 0, registration: 0, other: 0 },
+                      ],
+                    });
+                }}
+              >
+                <option value="">Select additional player</option>
+                {team.players
+                  .filter((p) => p.rosterStatus !== "Removed")
+                  .filter(
+                    (p) =>
+                      p.role === "po" ||
+                      team.players
+                        .filter((x) => x.role === "full" && x.rosterStatus !== "Removed")
+                        .indexOf(p) >= plan.budget.baseline,
+                  )
+                  .filter(
+                    (p) =>
+                      !(plan.budget.additionalPlayerCosts || []).some((c) => c.playerId === p.id),
+                  )
+                  .map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.name}
+                    </option>
+                  ))}
+              </select>
+            </label>
           </Panel>
           <Panel title="Direct team costs">
             <Field
@@ -1059,8 +1202,8 @@ function TeamPlan({
                   </p>
                   <p>
                     {health.targetMet
-                      ? "PROFIT TARGET MET — membership and organization targets covered."
-                      : "Membership and organization targets are not fully covered."}
+                      ? "PROFIT TARGET MET — program and organization targets covered."
+                      : "Program and organization targets are not fully covered."}
                   </p>
                   {health.pending.map((x) => (
                     <p key={x}>Pending: {x}</p>
@@ -1097,8 +1240,8 @@ function TeamPlan({
                         ["Pitcher-only fee", preview.po],
                         ["Full shared/direct component", preview.allocation],
                         ["PO shared/direct component", preview.poAllocation],
-                        ["Full membership for season", preview.member],
-                        ["PO membership for season", preview.poMember],
+                        ["Full Team & Development Program Fee for season", preview.member],
+                        ["PO Team & Development Program Fee for season", preview.poMember],
                         ["PO discount before processing / rounding", preview.poDiscount],
                         ["PO cost subsidy per player", preview.poSubsidy],
                       ] as [string, number][])
@@ -1114,17 +1257,26 @@ function TeamPlan({
                   ["Total player revenue", preview.totalRevenue],
                   ["Direct costs for projected roster", preview.direct],
                   ["Contingency reserve", preview.reserve],
-                  ["Membership / facility revenue — all players", preview.membership],
+                  ["Team & Development Program revenue — all players", preview.membership],
                   ["Organization revenue — all players", preview.organization],
                   ["Additional-player revenue", preview.extraRevenue],
                   ["Additional-player incremental costs", preview.extraCosts],
                   [
-                    "Additional-player contribution (includes their membership & org revenue)",
+                    "Net Additional Player Contribution (includes program & organization revenue)",
                     preview.extraContribution,
                   ],
                   ["Processing allocation", preview.processing],
-                  ["Membership service costs", preview.serviceCosts],
-                  ["Projected team contribution", preview.contribution],
+                  ["Other actual service expenses", preview.serviceCosts],
+                  ["Team Operating Contribution — projected", preview.teamOperatingContribution],
+                  [
+                    "Organization & Program Revenue — projected",
+                    preview.organizationAndProgramRevenue,
+                  ],
+                  [
+                    "Total Team-Associated Contribution — projected",
+                    preview.totalTeamAssociatedContribution,
+                  ],
+                  ["Contribution after protected Team Contingency", preview.contribution],
                   ["Contingency used", preview.used],
                   ["Potential unused contingency", preview.remaining],
                   ["Unexpected expense above reserve", preview.unexpected],
@@ -1144,10 +1296,9 @@ function TeamPlan({
                 ]}
               />
               <p className="text-sm">
-                Additional contribution already contains the extra players’ membership and
-                organization allocations. Do not add it again to all-player revenue totals.
-                Contingency stays protected until season close. Projections are not permission to
-                distribute cash.
+                Additional contribution already contains the extra players’ program and organization
+                allocations. Do not add it again to all-player revenue totals. Contingency stays
+                protected until season close. Projections are not permission to distribute cash.
               </p>
             </Panel>
           )}
@@ -1229,10 +1380,32 @@ function TeamPlan({
             >
               Add actual expense
             </Button>
+            {team.private && !team.private.actual.contributionReportComplete && (
+              <p className="text-sm">
+                Historical collected fees need confirmed organization/program allocations before the
+                three-part actual contribution report can be shown. Accepted fees remain locked.
+              </p>
+            )}
             {team.private && (
               <Numbers
                 rows={[
                   ["Cash collected", team.private.actual.totalCollected],
+                  ...(team.private.actual.contributionReportComplete
+                    ? ([
+                        [
+                          "Team Operating Contribution — collections less paid/unpaid actual expenses",
+                          team.private.actual.teamOperatingContribution,
+                        ],
+                        [
+                          "Organization & Program Revenue — collected allocation",
+                          team.private.actual.organizationAndProgramRevenue,
+                        ],
+                        [
+                          "Total Team-Associated Contribution — actual",
+                          team.private.actual.totalTeamAssociatedContribution,
+                        ],
+                      ] as [string, number][])
+                    : []),
                   [
                     "Contingency funded from collected fees (pro rata)",
                     team.private.actual.contingencyFunded,
@@ -1241,8 +1414,8 @@ function TeamPlan({
                   ["Credits applied (not cash)", team.private.actual.totalCredits],
                   ["Actual expenses paid", team.private.actual.expensesPaid],
                   ["Actual expenses unpaid", team.private.actual.expensesUnpaid],
-                  ["Membership earned by service delivery", team.private.actual.earned],
-                  ["Membership not yet earned", team.private.actual.deferred],
+                  ["Program/access revenue earned by service delivery", team.private.actual.earned],
+                  ["Program/access revenue not yet earned", team.private.actual.deferred],
                   [
                     "Potential actual distributable profit after close",
                     team.private.actual.actualDistributable,
@@ -1507,6 +1680,30 @@ function TeamPlan({
               )}
               {p.canAccept && !p.signed && publication && (
                 <div className="grid gap-2">
+                  {p.role === "full" && publication.fullAccess !== undefined && (
+                    <label className="flex gap-2">
+                      <input
+                        type="checkbox"
+                        checked={Boolean(accessChoices[p.id])}
+                        onChange={(e) => {
+                          setAccessChoices({ ...accessChoices, [p.id]: e.target.checked });
+                          setConsent(false);
+                        }}
+                      />
+                      Optional Individual Facility Access Upgrade: +
+                      {money(publication.individualAccessMonthly || 0)}/month ×{" "}
+                      {publication.billableMonths} months. Season total with processing:{" "}
+                      {money(accessChoices[p.id] ? publication.fullAccess : publication.full)}.
+                    </label>
+                  )}
+                  {p.role === "full" && accessChoices[p.id] && p.upgradeRows?.length > 0 && (
+                    <p className="text-sm">
+                      Upgrade payment schedule:{" "}
+                      {p.upgradeRows
+                        .map((r) => `${r.label}: ${money(r.amount)} · ${r.due || "at acceptance"}`)
+                        .join("; ")}
+                    </p>
+                  )}
                   <Field label="Guardian full name" value={name} onChange={setName} />
                   <label className="flex gap-2">
                     <input
@@ -1519,7 +1716,14 @@ function TeamPlan({
                   <Button
                     disabled={busy || !consent || name.trim().length < 3}
                     onClick={() =>
-                      void act({ ...base, action: "accept", playerId: p.id, consent: true, name })
+                      void act({
+                        ...base,
+                        action: "accept",
+                        playerId: p.id,
+                        consent: true,
+                        name,
+                        individualAccess: p.role === "full" && Boolean(accessChoices[p.id]),
+                      })
                     }
                   >
                     Accept season fee
@@ -1630,7 +1834,13 @@ function BusinessModel({
               <Numbers
                 rows={[
                   ["Team revenue", r.revenue],
-                  ["Membership revenue", r.membership],
+                  ["Team & Development Program revenue", r.membership],
+                  ["Team Operating Contribution — projected", r.teamOperatingContribution],
+                  ["Organization & Program Revenue — projected", r.organizationAndProgramRevenue],
+                  [
+                    "Total Team-Associated Contribution — projected",
+                    r.totalTeamAssociatedContribution,
+                  ],
                   ["Organization revenue", r.organization],
                   ["Direct costs", r.direct],
                   ["Contingencies", r.contingency],

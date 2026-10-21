@@ -6,11 +6,11 @@ Assigned coaches use Coach Desk; linked guardians use their team family desk.
 ## Calculation and approval
 
 All money is calculated in integer cents. Defaults are ten full paying players,
-15% contingency, $200 per player per billable month, and a 50/50 owner split.
-These are editable per team. Partial billable months are explicit admin inputs.
+15% Team Contingency, a required $150 Team & Development Program Fee per player per Actual Billable Month, optional +$50 Individual Facility Access for full players, and a 50/50 owner split. The $80 standalone retail reference is excluded from pricing.
+These are editable per team. Billing uses inclusive calendar months from actual team dates; fractional overrides require an admin reason.
 Uniform vendor cost, all baseline per-player costs, tournament costs, and all
 coaching / operating budgets are inside direct costs before contingency.
-Membership and organization allocations are outside direct cost and contingency.
+Team & Development Program and organization allocations are outside direct cost and contingency.
 PO pricing has its own direct allocation, incremental cost and organization fee.
 Processing gross-up covers the configured number of rounded transactions; no method-specific fee
 is added by this module.
@@ -18,7 +18,7 @@ is added by this module.
 Extra-player contribution includes the extra players' membership and organization
 revenue. Consequently it must NOT be added to membership/organization revenue
 for the entire roster. Reports reconcile from total revenue less direct costs,
-processing, service costs, and protected contingency. Roster downside does not
+processing, service costs, and protected contingency. The three-part contribution report separates team operations from organization/program revenue; contingency remains protected from distributions. Roster downside does not
 reduce published baseline fees. Company scenario overhead is counted once,
 instead of adding both allocated team overhead and full company overhead.
 

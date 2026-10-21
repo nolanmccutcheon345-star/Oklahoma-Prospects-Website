@@ -25,3 +25,15 @@ export function serviceMonths(start: string, end: string): number | null {
   }
   return null;
 }
+
+// Billing counts each calendar month with program access, including partial months.
+// Service recognition above remains prorated and independent of billing policy.
+export function calendarBillableMonths(start: string, end: string): number | null {
+  if (serviceMonths(start, end) === null) return null;
+  const months =
+    (Number(end.slice(0, 4)) - Number(start.slice(0, 4))) * 12 +
+    Number(end.slice(5, 7)) -
+    Number(start.slice(5, 7)) +
+    1;
+  return months <= 36 ? months : null;
+}

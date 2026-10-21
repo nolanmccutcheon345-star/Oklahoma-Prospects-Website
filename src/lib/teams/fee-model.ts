@@ -1,5 +1,6 @@
 import { overheadRuleSchema } from "./facility-overhead";
 import { z } from "zod";
+import { calendarBillableMonths } from "./season-months";
 
 // All monetary inputs and outputs are integer cents. Rates are basis points.
 const cents = z.number().int().min(0).max(1_000_000_000);
@@ -22,6 +23,11 @@ export const expenseSchema = z
     date: day,
   })
   .strict();
+export const programFields = {
+  programModel: z.literal(3).optional(),
+  individualAccessMonthly: cents.optional(),
+  standaloneAccessMonthly: cents.optional(),
+};
 export const poAllocationFields = {
   poMembershipMonthly: cents.optional(),
   poTeamBps: z.number().int().min(0).max(10000).optional(),
@@ -41,6 +47,27 @@ export const defaultPOOrganization = (full: number) => Math.ceil((full * 0.6) / 
 export const budgetSchema = z
   .object({
     ...poAllocationFields,
+    ...programFields,
+    defaultMonths: z.number().positive().max(36).optional(),
+    billableMonthsOverride: z.number().positive().max(36).optional(),
+    billableMonthsReason: z.string().max(1000).optional(),
+    additionalPlayerCosts: z
+      .array(
+        z
+          .object({
+            playerId: z.string().min(1).max(150),
+            insurance: cents,
+            registration: cents,
+            other: cents,
+          })
+          .strict(),
+      )
+      .max(500)
+      .refine(
+        (rows) => new Set(rows.map((r) => r.playerId)).size === rows.length,
+        "Enter additional costs only once per player.",
+      )
+      .optional(),
     poModel: z.literal(2).optional(),
     start: day,
     end: day,
@@ -121,11 +148,14 @@ export type Expense = z.infer<typeof expenseSchema>;
 export const defaultBudget = (): FeeBudget => ({
   ...poDefaults,
   poModel: 2,
+  programModel: 3,
+  individualAccessMonthly: 5000,
+  standaloneAccessMonthly: 8000,
   start: "",
   end: "",
   months: 3,
   baseline: 10,
-  membershipMonthly: 20000,
+  membershipMonthly: 15000,
   fullOrg: 0,
   poOrg: 0,
   contingencyBps: 1500,
@@ -175,6 +205,26 @@ export const defaultBudget = (): FeeBudget => ({
   coachTournament: true,
   coachUniform: true,
 });
+export function billableMonths(b: FeeBudget) {
+  return b.programModel === 3
+    ? (b.billableMonthsOverride ?? calendarBillableMonths(b.start, b.end) ?? b.months)
+    : b.months;
+}
+export function withBillableMonths(b: FeeBudget): FeeBudget {
+  return { ...b, months: billableMonths(b) };
+}
+// An upgrade changes only the new offer. Historical published snapshots stay legacy.
+export function programDraft(b: FeeBudget): FeeBudget {
+  if (b.programModel === 3) return withBillableMonths(b);
+  return withBillableMonths({
+    ...b,
+    programModel: 3,
+    defaultMonths: b.defaultMonths ?? b.months,
+    membershipMonthly: b.membershipMonthly === 20000 ? 15000 : b.membershipMonthly,
+    individualAccessMonthly: 5000,
+    standaloneAccessMonthly: 8000,
+  });
+}
 export const money = (n: number) =>
   new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(n / 100);
 export const sum = (a: number[]) => a.reduce((s, n) => s + n, 0);
@@ -235,6 +285,22 @@ export function scheduleRows(
     label: i === 0 ? "Deposit" : i === rows.length - 1 ? "Final payment" : `Payment ${i + 1}`,
   }));
 }
+// Preserve the published installment dates and proportions for an optional upgrade,
+// including custom dollar schedules. The last installment absorbs cent rounding.
+export function individualAccessSchedule(b: FeeBudget, final: string, accepted = "") {
+  const base = calculateFees(b).full,
+    total = calculateFees(b, true).full;
+  const rows = scheduleRows(b, base, "full", final, accepted);
+  let allocated = 0;
+  return rows.map((r, i) => {
+    const amount =
+      i === rows.length - 1
+        ? total - allocated
+        : Math.round(base ? (total * r.amount) / base : total / rows.length);
+    allocated += amount;
+    return { ...r, amount };
+  });
+}
 // Processing allowance follows the configured payment count, including per-charge rounding.
 function gross(net: number, b: FeeBudget) {
   const count = b.paymentSchedule?.rows.length || 3;
@@ -257,8 +323,8 @@ function gross(net: number, b: FeeBudget) {
   }
   return total;
 }
-export function calculateFees(input: FeeBudget) {
-  const b = budgetSchema.parse(input);
+export function calculateFees(input: FeeBudget, individualAccess = false) {
+  const b = withBillableMonths(budgetSchema.parse(input));
   const fixed =
     sum(
       b.costs.map(
@@ -283,7 +349,11 @@ export function calculateFees(input: FeeBudget) {
     protectedBudget = direct + contingency;
   const member = Math.round(b.membershipMonthly * b.months),
     allocation = Math.ceil(protectedBudget / b.baseline);
-  const fullNet = allocation + member + b.fullOrg;
+  const access =
+    individualAccess && b.programModel === 3
+      ? Math.round((b.individualAccessMonthly ?? 5000) * b.months)
+      : 0;
+  const fullNet = allocation + member + b.fullOrg + access;
   // Only frozen legacy agreements retain the independent PO calculation.
   const linked = b.poModel === 2;
   const teamComponent = Math.ceil(fixed / b.baseline) + b.fullIncremental;
@@ -331,6 +401,8 @@ export function calculateFees(input: FeeBudget) {
         )
     : processing(po, poNet);
   return {
+    access,
+    months: b.months,
     poMember,
     poAllocation,
     teamComponent,
@@ -361,29 +433,57 @@ export function project(
   poCount: number,
   expenses: Expense[] = [],
   closed = false,
+  accessCount = 0,
+  extraAccessCount = 0,
 ) {
+  b = withBillableMonths(b);
+  if (!Number.isInteger(accessCount) || accessCount < 0 || accessCount > fullCount)
+    throw Error("Invalid individual access upgrade count.");
   for (const n of [fullCount, poCount])
     if (!Number.isInteger(n) || n < 0 || n > 500) throw Error("Invalid roster count.");
   const f = calculateFees(b),
     baselinePlayers = Math.min(fullCount, b.baseline),
     extra = Math.max(0, fullCount - b.baseline);
-  const service = Math.round(b.serviceCostMonthly * b.months),
-    extraRevenue = extra * f.full + poCount * f.po;
+  const service = Math.round(b.serviceCostMonthly * b.months);
+  const accessFee = calculateFees(b, true),
+    accessRevenue = accessCount * accessFee.access,
+    accessFeeDifference = accessFee.full - f.full,
+    accessProcessing = accessCount * (accessFee.fullProcessing - f.fullProcessing),
+    incrementalSurcharges = sum(
+      (b.additionalPlayerCosts || [])
+        .slice(0, extra + poCount)
+        .map((c) => c.insurance + c.registration + c.other),
+    );
+  if (
+    !Number.isInteger(extraAccessCount) ||
+    extraAccessCount < 0 ||
+    extraAccessCount > Math.min(extra, accessCount)
+  )
+    throw Error("Invalid additional player upgrade count.");
+  const extraRevenue = extra * f.full + poCount * f.po + extraAccessCount * accessFeeDifference;
   const poIncremental = b.poModel === 2 ? b.fullIncremental : b.poIncremental;
   const extraCosts =
     extra * (b.uniformCost + b.fullIncremental + service + f.fullProcessing) +
-    poCount * (b.uniformCost + poIncremental + service + f.poProcessing);
-  const reserve = f.contingency + poCount * f.poContingency;
+    poCount * (b.uniformCost + poIncremental + service + f.poProcessing) +
+    incrementalSurcharges +
+    extraAccessCount * (accessFee.fullProcessing - f.fullProcessing);
+  const reserve = f.contingency + (b.programModel === 3 ? 0 : poCount * f.poContingency);
   const direct =
     f.fixed +
     fullCount * (b.uniformCost + b.fullIncremental) +
-    poCount * (b.uniformCost + poIncremental);
-  const totalRevenue = fullCount * f.full + poCount * f.po,
+    poCount * (b.uniformCost + poIncremental) +
+    incrementalSurcharges;
+  const totalRevenue = fullCount * f.full + poCount * f.po + accessCount * accessFeeDifference,
     membership = fullCount * f.member + poCount * f.poMember,
     organization = fullCount * b.fullOrg + poCount * b.poOrg;
-  const processing = fullCount * f.fullProcessing + poCount * f.poProcessing,
+  const processing = fullCount * f.fullProcessing + poCount * f.poProcessing + accessProcessing,
     serviceCosts = (fullCount + poCount) * service;
-  const contribution = totalRevenue - direct - reserve - processing - serviceCosts;
+  const organizationAndProgramRevenue = membership + organization + accessRevenue;
+  const teamOperatingRevenue = totalRevenue - organizationAndProgramRevenue;
+  const teamOperatingContribution = teamOperatingRevenue - direct - processing - serviceCosts;
+  const totalTeamAssociatedContribution = teamOperatingContribution + organizationAndProgramRevenue;
+  // Protected contingency is a restriction on available funds, never a profit expense.
+  const contribution = totalTeamAssociatedContribution - reserve;
   const used = sum(expenses.filter((e) => e.contingency).map((e) => e.cents)),
     remaining = Math.max(0, reserve - used);
   const unexpected = Math.max(0, used - reserve);
@@ -393,7 +493,8 @@ export function project(
   const nolan = Math.floor((distributable * b.nolanBps) / 10000);
   // Additional contribution already contains its membership and org allocations.
   // To reconcile all-player membership/org totals, use residualExtra, not extraContribution.
-  const extraContribution = extraRevenue - extraCosts - poCount * f.poContingency;
+  const extraContribution =
+    extraRevenue - extraCosts - (b.programModel === 3 ? 0 : poCount * f.poContingency);
   return {
     ...f,
     fullCount,
@@ -401,6 +502,12 @@ export function project(
     baselinePlayers,
     extra,
     totalRevenue,
+    accessRevenue,
+    organizationAndProgramRevenue,
+    teamOperatingRevenue,
+    teamOperatingContribution,
+    totalTeamAssociatedContribution,
+    incrementalSurcharges,
     direct,
     reserve,
     membership,
@@ -411,7 +518,10 @@ export function project(
     extraCosts,
     extraContribution,
     residualExtra:
-      extraContribution - extra * (f.member + b.fullOrg) - poCount * (f.poMember + b.poOrg),
+      extraContribution -
+      extra * (f.member + b.fullOrg) -
+      poCount * (f.poMember + b.poOrg) -
+      extraAccessCount * accessFee.access,
     contribution,
     used,
     remaining,
@@ -505,6 +615,9 @@ export function businessProjection(
     nolan = Math.floor((distributable * nolanBps) / 10000);
   return {
     revenue: sum(teams.map((t) => t.totalRevenue)),
+    teamOperatingContribution: sum(teams.map((t) => t.teamOperatingContribution)),
+    organizationAndProgramRevenue: sum(teams.map((t) => t.organizationAndProgramRevenue)),
+    totalTeamAssociatedContribution: sum(teams.map((t) => t.totalTeamAssociatedContribution)),
     membership: sum(teams.map((t) => t.membership)),
     organization: sum(teams.map((t) => t.organization)),
     direct: sum(teams.map((t) => t.direct)),
@@ -518,8 +631,9 @@ export function businessProjection(
   };
 }
 
-export function feeComposition(b: FeeBudget, role: "full" | "po") {
-  const f = calculateFees(b),
+export function feeComposition(b: FeeBudget, role: "full" | "po", individualAccess = false) {
+  b = withBillableMonths(b);
+  const f = calculateFees(b, role === "full" && individualAccess),
     po = role === "po";
   const teamCosts = po ? f.poAllocation - f.poContingency : f.teamComponent + f.uniformComponent;
   const contingency = po ? f.poContingency : f.contingencyComponent;
@@ -532,6 +646,7 @@ export function feeComposition(b: FeeBudget, role: "full" | "po") {
   const contribution =
     total - f.allocation - processing - Math.round(b.serviceCostMonthly * b.months);
   return {
+    access: f.access,
     teamCosts,
     contingency,
     membership,
@@ -540,5 +655,31 @@ export function feeComposition(b: FeeBudget, role: "full" | "po") {
     adjustment,
     total,
     contribution,
+  };
+}
+
+export function additionalPlayerContribution(
+  b: FeeBudget,
+  role: "full" | "po",
+  costs: { insurance: number; registration: number; other: number },
+  individualAccess = false,
+) {
+  b = withBillableMonths(b);
+  const f = calculateFees(b, role === "full" && individualAccess);
+  const fee = role === "po" ? f.po : f.full;
+  const processing = role === "po" ? f.poProcessing : f.fullProcessing;
+  const uniform = b.uniformCost;
+  const other =
+    costs.other +
+    (role === "po" && b.poModel !== 2 ? b.poIncremental : b.fullIncremental) +
+    Math.round(b.serviceCostMonthly * b.months);
+  return {
+    fee,
+    uniform,
+    processing,
+    registration: costs.registration,
+    insurance: costs.insurance,
+    other,
+    contribution: fee - uniform - processing - costs.registration - costs.insurance - other,
   };
 }

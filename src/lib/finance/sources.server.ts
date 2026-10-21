@@ -372,7 +372,7 @@ export async function sourceData(
       Object.values(plan.players).map(
         (p) =>
           membershipRecognition(
-            p.membershipAllocation || 0,
+            (p.membershipAllocation || 0) + (p.accessAllocation || 0),
             p.serviceStart || b.start,
             p.serviceEnd || b.end,
             date,
@@ -392,6 +392,14 @@ export async function sourceData(
         Math.max(b.baseline, t.roster.filter((p) => p.roleType === "full" && !p.withdrawn).length),
         t.roster.filter((p) => p.roleType === "po" && !p.withdrawn).length,
         expenses,
+        false,
+        t.roster.filter(
+          (p) => !p.withdrawn && p.roleType === "full" && plan.players[p.id]?.individualAccess,
+        ).length,
+        t.roster
+          .filter((p) => !p.withdrawn && p.roleType === "full")
+          .slice(b.baseline)
+          .filter((p) => plan.players[p.id]?.individualAccess).length,
       ).beforeOverhead,
       closed: plan.status === "closed",
     });
