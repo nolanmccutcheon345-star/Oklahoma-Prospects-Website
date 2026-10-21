@@ -38,7 +38,7 @@ export function FamilyFinancialRecords({
             <ul className="mt-2 text-sm">
               <li>Team and event costs {money(p.feeLock.components.teamAndEvents ?? 0)}</li>
               <li>Coaching and instruction {money(p.feeLock.components.coaching ?? 0)}</li>
-              <li>Program and membership {money(p.feeLock.components.program ?? 0)}</li>
+              <li>Organization + Team &amp; Development Program {money(p.feeLock.components.program ?? 0)}</li>
               <li>Uniform {money(p.feeLock.components.uniform ?? 0)}</li>
             </ul>
           )}
