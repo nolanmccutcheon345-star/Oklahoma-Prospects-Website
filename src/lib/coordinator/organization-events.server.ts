@@ -94,7 +94,7 @@ async function independentIfCommitted(tx: Sql, e: OperationalEvent) {
   )
     throw Error("Independent paid event changes require the reviewed financial cutover.");
 }
-const allSessions = (tx: Sql, e: OperationalEvent) =>
+export const allSessions = (tx: Sql, e: OperationalEvent) =>
   operationalEventSessions(tx, e.id, e.originalSessions, e.location, { includeAdditional: true });
 export async function organizationEvents(
   sql: Sql,
@@ -171,25 +171,33 @@ export async function createOperationalEvent(
     "organization.events.create",
     async (tx) => {
       await requireOrganizationOperations(tx, userId);
-      await authorizedCoaches(tx, v.coachIds);
-      const digest = createHash("sha256").update(JSON.stringify(v)).digest("hex");
-      const [prior] = await tx<{
-        created_by: string;
-        creation_digest: string;
-      }>`select created_by,creation_digest from operational_event_records where id=${v.requestId}`;
-      if (prior) {
-        if (prior.created_by !== userId || prior.creation_digest !== digest)
-          throw Error("Creation request changed or already belongs to another event.");
-        return { ok: true, id: v.requestId };
-      }
-      await tx`insert into operational_event_records(id,created_by,creation_digest,revision,name,description,event_type,sport,location,capacity,coach_ids,publication,updated_by) values(${v.requestId},${userId},${digest},1,${v.name},${v.description},${v.type},${v.sport},${v.location},${v.capacity},${JSON.stringify(v.coachIds)}::jsonb,'draft',${userId})`;
-      await audit(tx, userId, "organization.events.create", v.requestId, "allowed", {
-        reason: v.reason,
-      });
-      return { ok: true, id: v.requestId };
+      return createOperationalEventInTransaction(tx, userId, v);
     },
     lockFinancialExecution,
   );
+}
+/** Internal domain executor; callers must authorize the current account and actual event scope. */
+export async function createOperationalEventInTransaction(
+  tx: Sql,
+  userId: string,
+  v: OperationalEventCreate,
+) {
+  await authorizedCoaches(tx, v.coachIds);
+  const digest = createHash("sha256").update(JSON.stringify(v)).digest("hex");
+  const [prior] = await tx<{
+    created_by: string;
+    creation_digest: string;
+  }>`select created_by,creation_digest from operational_event_records where id=${v.requestId}`;
+  if (prior) {
+    if (prior.created_by !== userId || prior.creation_digest !== digest)
+      throw Error("Creation request changed or already belongs to another event.");
+    return { ok: true, id: v.requestId };
+  }
+  await tx`insert into operational_event_records(id,created_by,creation_digest,revision,name,description,event_type,sport,location,capacity,coach_ids,publication,updated_by) values(${v.requestId},${userId},${digest},1,${v.name},${v.description},${v.type},${v.sport},${v.location},${v.capacity},${JSON.stringify(v.coachIds)}::jsonb,'draft',${userId})`;
+  await audit(tx, userId, "organization.events.create", v.requestId, "allowed", {
+    reason: v.reason,
+  });
+  return { ok: true, id: v.requestId };
 }
 async function staffBooking(
   tx: Sql,
@@ -198,14 +206,9 @@ async function staffBooking(
   userId: string,
   resources: string[],
 ) {
-  const original = e.originalSessions.find(
-    (o) => operationalEventSessionKey(e.id, o) === s.sessionKey,
-  );
-  const [existing] = await tx<{
-    id: string;
-    athlete_id: null;
-  }>`select id,athlete_id from booking_records where order_id is null and product_id=${"training-event:" + e.id} and starts_at=${original ? chicagoInstant(original.date, original.start).toISOString() : s.startsAt} and ends_at=${original ? chicagoInstant(original.date, original.end).toISOString() : s.endsAt} order by id limit 1 for update`;
-  const id = existing?.id || "operational-event-staff:" + s.sessionKey;
+  const id = "operational-event-staff:" + s.sessionKey;
+  const [existing] =
+    await tx`select id from booking_records where id=${id} and order_id is null and athlete_id is null for update`;
   if (!existing)
     await tx`insert into booking_records(id,user_id,product_id,starts_at,ends_at,resources,status,participants_verified) values(${id},${userId},${"training-event:" + e.id},${s.startsAt},${s.endsAt},${JSON.stringify(resources)}::jsonb,'confirmed',true) on conflict(id) do nothing`;
   await replaceOperationalOccupancy(
@@ -229,40 +232,48 @@ export async function saveOperationalEventSettings(
     "organization.events.settings",
     async (tx) => {
       await requireOrganizationOperations(tx, userId);
-      const e = await editable(tx, v.eventId);
-      if (e.revision !== v.revision) throw Error("Event changed. Reload before saving.");
-      await independentIfCommitted(tx, e);
-      await authorizedCoaches(tx, v.coachIds, e.coachIds);
-      if (
-        e.trainingEventId &&
-        (v.name !== undefined || v.description !== undefined || v.location !== undefined)
-      )
-        throw Error(
-          "Edit existing published event copy in the catalog; use session controls for delivery locations.",
-        );
-      const sessions = await allSessions(tx, e);
-      if (
-        v.publication === "open" &&
-        !sessions.some((s) => s.status === "confirmed" && new Date(s.endsAt) > new Date())
-      )
-        throw Error("Add a future session before opening enrollment.");
-      if (JSON.stringify(v.coachIds) !== JSON.stringify(e.coachIds))
-        for (const s of sessions.filter((s) => new Date(s.startsAt) > new Date()))
-          await staffBooking(
-            tx,
-            e,
-            s,
-            userId,
-            v.coachIds.map((id) => "coach:" + id),
-          );
-      await tx`update operational_event_records set name=coalesce(${v.name || null},name),description=coalesce(${v.description || null},description),location=coalesce(${v.location || null},location),capacity=${v.capacity},coach_ids=${JSON.stringify(v.coachIds)}::jsonb,publication=${v.publication},revision=revision+1,updated_by=${userId},updated_at=now() where id=${e.id}`;
-      await audit(tx, userId, "organization.events.settings", e.id, "allowed", {
-        reason: v.reason,
-      });
-      return { ok: true, revision: e.revision + 1 };
+      return saveOperationalEventSettingsInTransaction(tx, userId, v);
     },
     lockFinancialExecution,
   );
+}
+/** Internal domain executor; callers must authorize the current account and actual event scope. */
+export async function saveOperationalEventSettingsInTransaction(
+  tx: Sql,
+  userId: string,
+  v: OperationalEventSettings,
+) {
+  const e = await editable(tx, v.eventId);
+  if (e.revision !== v.revision) throw Error("Event changed. Reload before saving.");
+  await independentIfCommitted(tx, e);
+  await authorizedCoaches(tx, v.coachIds, e.coachIds);
+  if (
+    e.trainingEventId &&
+    (v.name !== undefined || v.description !== undefined || v.location !== undefined)
+  )
+    throw Error(
+      "Edit existing published event copy in the catalog; use session controls for delivery locations.",
+    );
+  const sessions = await allSessions(tx, e);
+  if (
+    v.publication === "open" &&
+    !sessions.some((s) => s.status === "confirmed" && new Date(s.endsAt) > new Date())
+  )
+    throw Error("Add a future session before opening enrollment.");
+  if (JSON.stringify(v.coachIds) !== JSON.stringify(e.coachIds))
+    for (const s of sessions.filter((s) => new Date(s.startsAt) > new Date()))
+      await staffBooking(
+        tx,
+        e,
+        s,
+        userId,
+        v.coachIds.map((id) => "coach:" + id),
+      );
+  await tx`update operational_event_records set name=coalesce(${v.name || null},name),description=coalesce(${v.description || null},description),location=coalesce(${v.location || null},location),capacity=${v.capacity},coach_ids=${JSON.stringify(v.coachIds)}::jsonb,publication=${v.publication},revision=revision+1,updated_by=${userId},updated_at=now() where id=${e.id}`;
+  await audit(tx, userId, "organization.events.settings", e.id, "allowed", {
+    reason: v.reason,
+  });
+  return { ok: true, revision: e.revision + 1 };
 }
 export async function addOperationalEventSession(
   sql: Sql,
@@ -276,43 +287,49 @@ export async function addOperationalEventSession(
     "organization.events.session.add",
     async (tx) => {
       await requireOrganizationOperations(tx, userId);
-      const e = await editable(tx, v.eventId);
-      if (e.revision !== v.revision) throw Error("Event changed. Reload before saving.");
-      await independentIfCommitted(tx, e);
-      if (!validDate(v.date) || v.end <= v.start) throw Error("Use a valid session date and time.");
-      const start = chicagoInstant(v.date, v.start),
-        end = chicagoInstant(v.date, v.end);
-      if (start <= new Date()) throw Error("Add a future session.");
-      const sessions = await allSessions(tx, e);
-      if (
-        sessions.some(
-          (s) =>
-            s.status === "confirmed" &&
-            +new Date(s.startsAt) < +end &&
-            +new Date(s.endsAt) > +start,
-        )
-      )
-        throw Error("Event sessions cannot overlap.");
-      const key = operationalEventSessionKey(e.id, v);
-      if (sessions.some((s) => s.sessionKey === key))
-        throw Error("This original session already exists. Reschedule or restore it instead.");
-      await tx`insert into operational_event_sessions(event_id,session_key,is_additional,original_date,original_start,original_end,starts_at,ends_at,location,status,revision,reason,updated_by) values(${e.id},${key},true,${v.date},${v.start},${v.end},${start.toISOString()},${end.toISOString()},${v.location},'confirmed',1,${v.reason},${userId})`;
-      const s = (await allSessions(tx, e)).find((s) => s.sessionKey === key)!;
-      await staffBooking(
-        tx,
-        e,
-        s,
-        userId,
-        e.coachIds.map((id) => "coach:" + id),
-      );
-      await tx`update operational_event_records set revision=revision+1,updated_by=${userId},updated_at=now() where id=${e.id}`;
-      await audit(tx, userId, "organization.events.session.add", e.id, "allowed", {
-        reason: v.reason,
-      });
-      return { ok: true, sessionKey: key };
+      return addOperationalEventSessionInTransaction(tx, userId, v);
     },
     lockFinancialExecution,
   );
+}
+/** Internal domain executor; callers must authorize the current account and actual event scope. */
+export async function addOperationalEventSessionInTransaction(
+  tx: Sql,
+  userId: string,
+  v: OperationalEventSessionCreate,
+) {
+  const e = await editable(tx, v.eventId);
+  if (e.revision !== v.revision) throw Error("Event changed. Reload before saving.");
+  await independentIfCommitted(tx, e);
+  if (!validDate(v.date) || v.end <= v.start) throw Error("Use a valid session date and time.");
+  const start = chicagoInstant(v.date, v.start),
+    end = chicagoInstant(v.date, v.end);
+  if (start <= new Date()) throw Error("Add a future session.");
+  const sessions = await allSessions(tx, e);
+  if (
+    sessions.some(
+      (s) =>
+        s.status === "confirmed" && +new Date(s.startsAt) < +end && +new Date(s.endsAt) > +start,
+    )
+  )
+    throw Error("Event sessions cannot overlap.");
+  const key = operationalEventSessionKey(e.id, v);
+  if (sessions.some((s) => s.sessionKey === key))
+    throw Error("This original session already exists. Reschedule or restore it instead.");
+  await tx`insert into operational_event_sessions(event_id,session_key,is_additional,original_date,original_start,original_end,starts_at,ends_at,location,status,revision,reason,updated_by) values(${e.id},${key},true,${v.date},${v.start},${v.end},${start.toISOString()},${end.toISOString()},${v.location},'confirmed',1,${v.reason},${userId})`;
+  const s = (await allSessions(tx, e)).find((s) => s.sessionKey === key)!;
+  await staffBooking(
+    tx,
+    e,
+    s,
+    userId,
+    e.coachIds.map((id) => "coach:" + id),
+  );
+  await tx`update operational_event_records set revision=revision+1,updated_by=${userId},updated_at=now() where id=${e.id}`;
+  await audit(tx, userId, "organization.events.session.add", e.id, "allowed", {
+    reason: v.reason,
+  });
+  return { ok: true, sessionKey: key };
 }
 export async function saveOperationalEventEnrollment(
   sql: Sql,
@@ -326,110 +343,115 @@ export async function saveOperationalEventEnrollment(
     "organization.events.enrollment",
     async (tx) => {
       await requireOrganizationOperations(tx, userId);
-      const e = await editable(tx, v.eventId);
-      await independentIfCommitted(tx, e);
-      const s = (await allSessions(tx, e)).find((s) => s.sessionKey === v.sessionKey);
-      if (!s || s.revision !== v.sessionRevision)
-        throw Error("Session changed. Reload before saving.");
-      const [athlete] = await tx<{
-        id: string;
-        name: string;
-        user_id: string;
-        household_id: string;
-      }>`select id,name,user_id,household_id from club_athletes where id=${v.athleteId}`;
-      if (!athlete) throw Error("Choose a current player.");
-      const [prior] = await tx<{
-        id: string;
-        booking_id: string;
-        revision: number;
-        status: string;
-      }>`select id,booking_id,revision,status from operational_event_enrollments where event_id=${e.id} and session_key=${s.sessionKey} and athlete_id=${athlete.id} for update`;
-      if ((prior?.revision || 0) !== v.revision)
-        throw Error("Enrollment changed. Reload before saving.");
-      const original = e.originalSessions.find(
-          (o) => operationalEventSessionKey(e.id, o) === s.sessionKey,
-        ),
-        originalStart = original
-          ? chicagoInstant(original.date, original.start).toISOString()
-          : s.startsAt,
-        originalEnd = original
-          ? chicagoInstant(original.date, original.end).toISOString()
-          : s.endsAt;
-      const [paid] = original
-        ? await tx<{
-            id: string;
-          }>`select id from booking_records where product_id=${e.id} and athlete_id=${athlete.id} and starts_at=${originalStart} and ends_at=${originalEnd} and status in ('confirmed','completed') order by id limit 1 for update`
-        : [];
-      let bookingId = prior?.booking_id || paid?.id;
-      const [existing] = bookingId
-        ? await tx<{
-            id: string;
-            status: string;
-            checked_in_at: Date | null;
-            participant_count: number;
-            participants_verified: boolean;
-            starts_at: Date;
-            ends_at: Date;
-            resources: string[];
-            athlete_id: string;
-          }>`select id,status,checked_in_at,participant_count,participants_verified,starts_at,ends_at,resources,athlete_id from operational_booking_schedule where id=${bookingId}`
-        : [];
-      if (v.action === "check-in") {
-        if (!existing || existing.status !== "confirmed")
-          throw Error("Enroll this player before check-in.");
-        await enforceVisitWaivers(tx, existing);
-        await tx`insert into operational_booking_changes(booking_id,revision,checked_in_at,reason,updated_by,source_kind,source_key) values(${bookingId!},1,now(),${v.reason},${userId},'event-session',${s.sessionKey}) on conflict(booking_id) do update set checked_in_at=coalesce(operational_booking_changes.checked_in_at,excluded.checked_in_at),revision=operational_booking_changes.revision+1,updated_by=excluded.updated_by,updated_at=now()`;
-      } else {
-        if (existing?.checked_in_at || new Date(s.startsAt) <= new Date())
-          throw Error("Change enrollment before the session starts or checks in.");
-        if (v.action === "enroll") {
-          if (s.status !== "confirmed" || e.publication !== "open")
-            throw Error("Open a scheduled session before enrolling players.");
-          if (!existing || existing.status !== "confirmed") {
-            const [count] = await tx<{
-              count: number;
-            }>`select count(distinct b.athlete_id)::integer as count from operational_booking_schedule b left join operational_event_enrollments n on n.booking_id=b.id where b.status in ('confirmed','completed') and b.athlete_id is not null and ((n.event_id=${e.id} and n.session_key=${s.sessionKey}) or (b.product_id=${e.id} and exists(select 1 from booking_records original where original.id=b.id and original.starts_at=${originalStart} and original.ends_at=${originalEnd})))`;
-            const pending = original
-              ? await tx<{
-                  athlete_id: string;
-                }>`select distinct o.athlete_id from commerce_orders o cross join lateral jsonb_array_elements(coalesce(o.snapshot->'eventRegistration'->'sessions','[]'::jsonb)) ss where o.kind='event' and o.product_id=${e.id} and ((o.status in ('pending','pending_fee') and o.hold_until>now()) or exists(select 1 from square_payment_attempts a where a.order_id=o.id and a.status in ('pending','unknown'))) and ss->>'date'=${original.date} and ss->>'start'=${original.start} and ss->>'end'=${original.end}`
-              : [];
-            if (pending.some((p) => p.athlete_id === athlete.id))
-              throw Error(
-                "This player has an existing checkout. Resolve that checkout before manual enrollment.",
-              );
-            if (count.count + pending.length >= e.capacity)
-              throw Error(
-                "This session is at its operational capacity. Existing enrollments are retained.",
-              );
-          }
-          if (!bookingId) {
-            bookingId = "operational-event-enrollment:" + randomUUID();
-            await tx`insert into booking_records(id,user_id,household_id,athlete_id,product_id,starts_at,ends_at,resources,status,participant_count,participants_verified) values(${bookingId},${athlete.user_id || userId},${athlete.household_id},${athlete.id},${e.id},${originalStart},${originalEnd},${JSON.stringify(["athlete:" + athlete.id])}::jsonb,'confirmed',1,true)`;
-            await tx`insert into booking_participants(booking_id,athlete_id) values(${bookingId},${athlete.id})`;
-          }
-        } else if (!bookingId) throw Error("This player is not enrolled.");
-        await replaceOperationalOccupancy(
-          tx,
-          {
-            id: bookingId!,
-            athlete_id: athlete.id,
-            resources: existing?.resources || ["athlete:" + athlete.id],
-          },
-          new Date(s.startsAt),
-          new Date(s.endsAt),
-          v.action === "unenroll",
-        );
-        await tx`insert into operational_booking_changes(booking_id,revision,starts_at,ends_at,status,reason,updated_by,source_kind,source_key) values(${bookingId!},1,${s.startsAt},${s.endsAt},${v.action === "unenroll" ? "cancelled" : "confirmed"},${v.reason},${userId},'event-session',${s.sessionKey}) on conflict(booking_id) do update set starts_at=excluded.starts_at,ends_at=excluded.ends_at,status=excluded.status,revision=operational_booking_changes.revision+1,updated_by=excluded.updated_by,updated_at=now()`;
-      }
-      await tx`insert into operational_event_enrollments(id,event_id,session_key,athlete_id,booking_id,status,revision,updated_by) values(${prior?.id || randomUUID()},${e.id},${s.sessionKey},${athlete.id},${bookingId!},${v.action === "unenroll" ? "cancelled" : "active"},1,${userId}) on conflict(event_id,session_key,athlete_id) do update set status=excluded.status,revision=operational_event_enrollments.revision+1,updated_by=excluded.updated_by,updated_at=now()`;
-      await audit(tx, userId, "organization.events." + v.action, e.id, "allowed", {
-        reason: v.reason,
-      });
-      return { ok: true };
+      return saveOperationalEventEnrollmentInTransaction(tx, userId, v);
     },
     lockFinancialExecution,
   );
+}
+/** Internal domain executor; callers must authorize the current account and actual event scope. */
+export async function saveOperationalEventEnrollmentInTransaction(
+  tx: Sql,
+  userId: string,
+  v: OperationalEventEnrollment,
+) {
+  const e = await editable(tx, v.eventId);
+  await independentIfCommitted(tx, e);
+  const s = (await allSessions(tx, e)).find((s) => s.sessionKey === v.sessionKey);
+  if (!s || s.revision !== v.sessionRevision) throw Error("Session changed. Reload before saving.");
+  const [athlete] = await tx<{
+    id: string;
+    name: string;
+    user_id: string;
+    household_id: string;
+  }>`select id,name,user_id,household_id from club_athletes where id=${v.athleteId}`;
+  if (!athlete) throw Error("Choose a current player.");
+  const [prior] = await tx<{
+    id: string;
+    booking_id: string;
+    revision: number;
+    status: string;
+  }>`select id,booking_id,revision,status from operational_event_enrollments where event_id=${e.id} and session_key=${s.sessionKey} and athlete_id=${athlete.id} for update`;
+  if ((prior?.revision || 0) !== v.revision)
+    throw Error("Enrollment changed. Reload before saving.");
+  const original = e.originalSessions.find(
+      (o) => operationalEventSessionKey(e.id, o) === s.sessionKey,
+    ),
+    originalStart = original
+      ? chicagoInstant(original.date, original.start).toISOString()
+      : s.startsAt,
+    originalEnd = original ? chicagoInstant(original.date, original.end).toISOString() : s.endsAt;
+  const [paid] = original
+    ? await tx<{
+        id: string;
+      }>`select id from booking_records where product_id=${e.id} and athlete_id=${athlete.id} and starts_at=${originalStart} and ends_at=${originalEnd} and status in ('confirmed','completed') order by id limit 1 for update`
+    : [];
+  let bookingId = prior?.booking_id || paid?.id;
+  const [existing] = bookingId
+    ? await tx<{
+        id: string;
+        status: string;
+        checked_in_at: Date | null;
+        participant_count: number;
+        participants_verified: boolean;
+        starts_at: Date;
+        ends_at: Date;
+        resources: string[];
+        athlete_id: string;
+      }>`select id,status,checked_in_at,participant_count,participants_verified,starts_at,ends_at,resources,athlete_id from operational_booking_schedule where id=${bookingId}`
+    : [];
+  if (v.action === "check-in") {
+    if (!existing || existing.status !== "confirmed")
+      throw Error("Enroll this player before check-in.");
+    await enforceVisitWaivers(tx, existing);
+    await tx`insert into operational_booking_changes(booking_id,revision,checked_in_at,reason,updated_by,source_kind,source_key) values(${bookingId!},1,now(),${v.reason},${userId},'event-session',${s.sessionKey}) on conflict(booking_id) do update set checked_in_at=coalesce(operational_booking_changes.checked_in_at,excluded.checked_in_at),revision=operational_booking_changes.revision+1,updated_by=excluded.updated_by,updated_at=now()`;
+  } else {
+    if (existing?.checked_in_at || new Date(s.startsAt) <= new Date())
+      throw Error("Change enrollment before the session starts or checks in.");
+    if (v.action === "enroll") {
+      if (s.status !== "confirmed" || e.publication !== "open")
+        throw Error("Open a scheduled session before enrolling players.");
+      if (!existing || existing.status !== "confirmed") {
+        const [count] = await tx<{
+          count: number;
+        }>`select count(distinct b.athlete_id)::integer as count from operational_booking_schedule b left join operational_event_enrollments n on n.booking_id=b.id where b.status in ('confirmed','completed') and b.athlete_id is not null and ((n.event_id=${e.id} and n.session_key=${s.sessionKey}) or (b.product_id=${e.id} and exists(select 1 from booking_records original where original.id=b.id and original.starts_at=${originalStart} and original.ends_at=${originalEnd})))`;
+        const pending = original
+          ? await tx<{
+              athlete_id: string;
+            }>`select distinct o.athlete_id from commerce_orders o cross join lateral jsonb_array_elements(coalesce(o.snapshot->'eventRegistration'->'sessions','[]'::jsonb)) ss where o.kind='event' and o.product_id=${e.id} and ((o.status in ('pending','pending_fee') and o.hold_until>now()) or exists(select 1 from square_payment_attempts a where a.order_id=o.id and a.status in ('pending','unknown'))) and ss->>'date'=${original.date} and ss->>'start'=${original.start} and ss->>'end'=${original.end}`
+          : [];
+        if (pending.some((p) => p.athlete_id === athlete.id))
+          throw Error(
+            "This player has an existing checkout. Resolve that checkout before manual enrollment.",
+          );
+        if (count.count + pending.length >= e.capacity)
+          throw Error(
+            "This session is at its operational capacity. Existing enrollments are retained.",
+          );
+      }
+      if (!bookingId) {
+        bookingId = "operational-event-enrollment:" + randomUUID();
+        await tx`insert into booking_records(id,user_id,household_id,athlete_id,product_id,starts_at,ends_at,resources,status,participant_count,participants_verified) values(${bookingId},${athlete.user_id || userId},${athlete.household_id},${athlete.id},${e.id},${originalStart},${originalEnd},${JSON.stringify(["athlete:" + athlete.id])}::jsonb,'confirmed',1,true)`;
+        await tx`insert into booking_participants(booking_id,athlete_id) values(${bookingId},${athlete.id})`;
+      }
+    } else if (!bookingId) throw Error("This player is not enrolled.");
+    await replaceOperationalOccupancy(
+      tx,
+      {
+        id: bookingId!,
+        athlete_id: athlete.id,
+        resources: existing?.resources || ["athlete:" + athlete.id],
+      },
+      new Date(s.startsAt),
+      new Date(s.endsAt),
+      v.action === "unenroll",
+    );
+    await tx`insert into operational_booking_changes(booking_id,revision,starts_at,ends_at,status,reason,updated_by,source_kind,source_key) values(${bookingId!},1,${s.startsAt},${s.endsAt},${v.action === "unenroll" ? "cancelled" : "confirmed"},${v.reason},${userId},'event-session',${s.sessionKey}) on conflict(booking_id) do update set starts_at=excluded.starts_at,ends_at=excluded.ends_at,status=excluded.status,revision=operational_booking_changes.revision+1,updated_by=excluded.updated_by,updated_at=now()`;
+  }
+  await tx`insert into operational_event_enrollments(id,event_id,session_key,athlete_id,booking_id,status,revision,updated_by) values(${prior?.id || randomUUID()},${e.id},${s.sessionKey},${athlete.id},${bookingId!},${v.action === "unenroll" ? "cancelled" : "active"},1,${userId}) on conflict(event_id,session_key,athlete_id) do update set status=excluded.status,revision=operational_event_enrollments.revision+1,updated_by=excluded.updated_by,updated_at=now()`;
+  await audit(tx, userId, "organization.events." + v.action, e.id, "allowed", {
+    reason: v.reason,
+  });
+  return { ok: true };
 }
 /** Published unpriced listings never become Square offers or confer financial terms. */
 export async function publicOperationalEvents(sql: Sql) {
@@ -452,4 +474,8 @@ export async function publicOperationalEvents(sql: Sql) {
       };
     }),
   );
+}
+
+export async function eventCoachChoices(tx: Sql) {
+  return (await roster(tx)).map((c) => ({ id: c.id, name: c.name }));
 }

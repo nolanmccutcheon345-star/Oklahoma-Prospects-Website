@@ -134,7 +134,7 @@ async function operation(
   action: "reschedule" | "cancel" | "restore" | "check-in",
   extra = {},
 ) {
-  const b = (await organizationBookings(sql, "sara")).bookings.find((b) => b.id === "lesson")!;
+  const b = (await organizationBookings(sql, "owner")).bookings.find((b) => b.id === "lesson")!;
   return {
     bookingId: b.id,
     revision: b.revision,
@@ -203,15 +203,15 @@ test("booking operational move/cancel/restore preserves original financial rows 
   const { sql } = await fixture(),
     before = await finances(sql),
     old = await operation(sql, "reschedule", { date: "2030-01-07", time: "17:00" });
-  await saveOrganizationBookingOperation(sql, "sara", old);
+  await saveOrganizationBookingOperation(sql, "owner", old);
   assert.equal(
-    (await organizationBookings(sql, "sara")).bookings[0].startsAt,
+    (await organizationBookings(sql, "owner")).bookings[0].startsAt,
     "2030-01-07T23:00:00.000Z",
   );
-  await assert.rejects(saveOrganizationBookingOperation(sql, "sara", old), /changed/);
-  await saveOrganizationBookingOperation(sql, "sara", await operation(sql, "cancel"));
+  await assert.rejects(saveOrganizationBookingOperation(sql, "owner", old), /changed/);
+  await saveOrganizationBookingOperation(sql, "owner", await operation(sql, "cancel"));
   assert.equal((await sql`select * from booking_occupancy where booking_id='lesson'`).length, 0);
-  await saveOrganizationBookingOperation(sql, "sara", await operation(sql, "restore"));
+  await saveOrganizationBookingOperation(sql, "owner", await operation(sql, "restore"));
   assert.equal((await sql`select * from booking_occupancy where booking_id='lesson'`).length, 36);
   assert.deepEqual(await finances(sql), before);
 });
@@ -221,7 +221,7 @@ test("conflict rollback, actual current authorization and strict no-financial re
   await sql`insert into booking_occupancy(resource_id,slot_at,booking_id) values('lane:fixture','2030-01-07T23:00Z','conflict')`;
   const cells = await sql`select * from booking_occupancy order by resource_id,slot_at`,
     v = await operation(sql, "reschedule", { date: "2030-01-07", time: "17:00" });
-  await assert.rejects(saveOrganizationBookingOperation(sql, "sara", v), /conflict/);
+  await assert.rejects(saveOrganizationBookingOperation(sql, "owner", v), /conflict/);
   assert.deepEqual(await sql`select * from booking_occupancy order by resource_id,slot_at`, cells);
   assert.equal((await sql`select * from operational_booking_changes`).length, 0);
   await assert.rejects(
@@ -229,17 +229,18 @@ test("conflict rollback, actual current authorization and strict no-financial re
     /access|required|permission/i,
   );
   await assert.rejects(
-    saveOrganizationBookingOperation(sql, "sara", { ...v, totalCents: 0 } as typeof v),
+    saveOrganizationBookingOperation(sql, "owner", { ...v, totalCents: 0 } as typeof v),
     /unrecognized/i,
   );
-  await sql`update "user" set "disabledAt"=now() where id='sara'`;
-  await assert.rejects(saveOrganizationBookingOperation(sql, "sara", v), /disabled|access/i);
+  await assert.rejects(saveOrganizationBookingOperation(sql, "sara", v), /not authorized/i);
+  await sql`update "user" set "disabledAt"=now() where id='owner'`;
+  await assert.rejects(saveOrganizationBookingOperation(sql, "owner", v), /disabled|access/i);
 });
 test("captured mode retains financial coupling blocker", async () => {
   const { sql } = await fixture(false);
-  assert.equal((await organizationBookings(sql, "sara")).canAdjust, false);
+  assert.equal((await organizationBookings(sql, "owner")).canAdjust, false);
   await assert.rejects(
-    saveOrganizationBookingOperation(sql, "sara", await operation(sql, "cancel")),
+    saveOrganizationBookingOperation(sql, "owner", await operation(sql, "cancel")),
     /cutover/,
   );
 });
@@ -249,7 +250,7 @@ test("whole camp reschedule preserves pending order, verifies payment exactly on
     o = await pending(sql, e),
     key = operationalEventSessionKey(e.id, e.sessions[0]);
   const before = await finances(sql);
-  await saveOrganizationEventSessionOperation(sql, "sara", {
+  await saveOrganizationEventSessionOperation(sql, "owner", {
     eventId: e.id,
     sessionKey: key,
     revision: 0,
@@ -290,7 +291,7 @@ test("camp operational cancellation does not reject pending payment or create re
     o = await pending(sql, e);
   delete o.snapshot.eventRegistration!.sessionKeys;
   await sql`update commerce_orders set snapshot=${JSON.stringify(o.snapshot)}::jsonb where id=${o.id}`;
-  await saveOrganizationEventSessionOperation(sql, "sara", {
+  await saveOrganizationEventSessionOperation(sql, "owner", {
     eventId: e.id,
     sessionKey: operationalEventSessionKey(e.id, e.sessions[0]),
     revision: 0,
@@ -336,14 +337,14 @@ test("unpriced create/edit/add session/manual enroll/archive remains finance neu
   const { sql } = await fixture(false),
     before = await finances(sql),
     v = draft();
-  const created = await createOperationalEvent(sql, "sara", v);
-  await createOperationalEvent(sql, "sara", v);
+  const created = await createOperationalEvent(sql, "owner", v);
+  await createOperationalEvent(sql, "owner", v);
   await assert.rejects(
-    createOperationalEvent(sql, "sara", { ...v, name: "Changed retry" }),
+    createOperationalEvent(sql, "owner", { ...v, name: "Changed retry" }),
     /request|changed/i,
   );
   const id = created.id;
-  await addOperationalEventSession(sql, "sara", {
+  await addOperationalEventSession(sql, "owner", {
     eventId: id,
     revision: 1,
     date: "2030-01-09",
@@ -352,7 +353,7 @@ test("unpriced create/edit/add session/manual enroll/archive remains finance neu
     location: "Facility",
     reason: "Add training session",
   });
-  await saveOperationalEventSettings(sql, "sara", {
+  await saveOperationalEventSettings(sql, "owner", {
     eventId: id,
     revision: 2,
     capacity: 1,
@@ -361,7 +362,7 @@ test("unpriced create/edit/add session/manual enroll/archive remains finance neu
     name: "Renamed public camp",
     reason: "Open manual enrollment",
   });
-  const session = (await organizationEvents(sql, "sara")).events.find((e) => e.id === id)!
+  const session = (await organizationEvents(sql, "owner")).events.find((e) => e.id === id)!
     .sessions[0];
   const enrollment = {
     eventId: id,
@@ -372,19 +373,19 @@ test("unpriced create/edit/add session/manual enroll/archive remains finance neu
     action: "enroll" as const,
     reason: "Enroll synthetic athlete",
   };
-  await saveOperationalEventEnrollment(sql, "sara", enrollment);
+  await saveOperationalEventEnrollment(sql, "owner", enrollment);
   await assert.rejects(
-    saveOperationalEventEnrollment(sql, "sara", { ...enrollment, athleteId: "other-athlete" }),
+    saveOperationalEventEnrollment(sql, "owner", { ...enrollment, athleteId: "other-athlete" }),
     /capacity|full/i,
   );
   assert.equal((await publicOperationalEvents(sql))[0].name, "Renamed public camp");
   assert.equal((await eventFamily(sql, "parent")).operationalEnrollments.length, 1);
-  await saveOperationalEventEnrollment(sql, "sara", {
+  await saveOperationalEventEnrollment(sql, "owner", {
     ...enrollment,
     revision: 1,
     action: "unenroll",
   });
-  await saveOperationalEventSettings(sql, "sara", {
+  await saveOperationalEventSettings(sql, "owner", {
     eventId: id,
     revision: 3,
     capacity: 1,
@@ -400,9 +401,9 @@ test("private commercial draft copy is withheld including session metadata; oper
   const { sql } = await fixture(),
     e = await camp(sql, "draft");
   await sql`update training_events set payload=jsonb_set(payload,'{sessions,0,location}','"PRIVATE-FINANCE-CANARY nested"'::jsonb) where id=${e.id}`;
-  let events = await organizationEvents(sql, "sara");
+  let events = await organizationEvents(sql, "owner");
   assert.doesNotMatch(JSON.stringify(events), /PRIVATE-FINANCE-CANARY/);
-  await saveOperationalEventSettings(sql, "sara", {
+  await saveOperationalEventSettings(sql, "owner", {
     eventId: e.id,
     revision: 0,
     capacity: 5,
@@ -410,10 +411,10 @@ test("private commercial draft copy is withheld including session metadata; oper
     publication: "open",
     reason: "Open safe manual enrollment",
   });
-  events = await organizationEvents(sql, "sara");
+  events = await organizationEvents(sql, "owner");
   assert.doesNotMatch(JSON.stringify(events), /PRIVATE-FINANCE-CANARY/);
   const session = events.events.find((x) => x.id === e.id)!.sessions[0];
-  await saveOperationalEventEnrollment(sql, "sara", {
+  await saveOperationalEventEnrollment(sql, "owner", {
     eventId: e.id,
     sessionKey: session.sessionKey,
     sessionRevision: session.revision,
@@ -435,13 +436,13 @@ test("operational check-in requires a current waiver and leaves original financi
   await sql`insert into operational_booking_changes(booking_id,revision,starts_at,ends_at,status,reason,updated_by,source_kind) values('lesson',1,${start.toISOString()},${end.toISOString()},'confirmed','Synthetic current delivery fixture','sara','operator')`;
   const before = await finances(sql);
   await assert.rejects(
-    saveOrganizationBookingOperation(sql, "sara", await operation(sql, "check-in")),
+    saveOrganizationBookingOperation(sql, "owner", await operation(sql, "check-in")),
     /waiver/,
   );
   await sql`insert into club_waivers(id,user_id,athlete_id,version,signer_name,signed_at,consent_text) values('waiver','parent','athlete','fixture','Synthetic Parent',now(),'Synthetic consent')`;
-  await saveOrganizationBookingOperation(sql, "sara", await operation(sql, "check-in"));
+  await saveOrganizationBookingOperation(sql, "owner", await operation(sql, "check-in"));
   assert.ok(
-    (await organizationBookings(sql, "sara")).bookings.find((b) => b.id === "lesson")!.checkedInAt,
+    (await organizationBookings(sql, "owner")).bookings.find((b) => b.id === "lesson")!.checkedInAt,
   );
   assert.deepEqual(await finances(sql), before);
 });
@@ -450,7 +451,7 @@ test("paid camp staffing/capacity/archive/additional sessions preserve pending c
     e = await camp(sql),
     o = await pending(sql, e),
     before = await finances(sql);
-  await saveOperationalEventSettings(sql, "sara", {
+  await saveOperationalEventSettings(sql, "owner", {
     eventId: e.id,
     revision: 0,
     capacity: 1,
@@ -458,7 +459,7 @@ test("paid camp staffing/capacity/archive/additional sessions preserve pending c
     publication: "archived",
     reason: "Close new enrollment only",
   });
-  await addOperationalEventSession(sql, "sara", {
+  await addOperationalEventSession(sql, "owner", {
     eventId: e.id,
     revision: 1,
     date: "2030-01-11",
@@ -488,16 +489,16 @@ test("paid camp staffing/capacity/archive/additional sessions preserve pending c
   assert.equal((await sql`select * from booking_records where order_id=${o.id}`).length, 1);
   assert.equal((await eventFamily(sql, "parent")).registrations[0].operationalSessions.length, 1);
   assert.equal(
-    (await organizationEvents(sql, "sara")).events.find((x) => x.id === e.id)!.sessions.length,
+    (await organizationEvents(sql, "owner")).events.find((x) => x.id === e.id)!.sessions.length,
     2,
   );
 });
 test("additional session enrollment follows repeated group moves and checked-in delivery blocks changes", async () => {
   const { sql } = await fixture(false),
     v = draft(),
-    { id } = await createOperationalEvent(sql, "sara", v),
+    { id } = await createOperationalEvent(sql, "owner", v),
     key = operationalEventSessionKey(id, { date: "2030-01-09", start: "16:00", end: "17:00" });
-  await addOperationalEventSession(sql, "sara", {
+  await addOperationalEventSession(sql, "owner", {
     eventId: id,
     revision: 1,
     date: "2030-01-09",
@@ -506,7 +507,7 @@ test("additional session enrollment follows repeated group moves and checked-in 
     location: "Facility",
     reason: "Add operational session",
   });
-  await saveOperationalEventSettings(sql, "sara", {
+  await saveOperationalEventSettings(sql, "owner", {
     eventId: id,
     revision: 2,
     capacity: 2,
@@ -514,7 +515,7 @@ test("additional session enrollment follows repeated group moves and checked-in 
     publication: "open",
     reason: "Open office enrollment",
   });
-  await saveOrganizationEventSessionOperation(sql, "sara", {
+  await saveOrganizationEventSessionOperation(sql, "owner", {
     eventId: id,
     sessionKey: key,
     revision: 1,
@@ -525,7 +526,7 @@ test("additional session enrollment follows repeated group moves and checked-in 
     location: "Facility",
     reason: "First group schedule adjustment",
   });
-  await saveOperationalEventEnrollment(sql, "sara", {
+  await saveOperationalEventEnrollment(sql, "owner", {
     eventId: id,
     sessionKey: key,
     sessionRevision: 2,
@@ -535,7 +536,7 @@ test("additional session enrollment follows repeated group moves and checked-in 
     reason: "Office enrollment after move",
   });
   const before = await finances(sql);
-  await saveOrganizationEventSessionOperation(sql, "sara", {
+  await saveOrganizationEventSessionOperation(sql, "owner", {
     eventId: id,
     sessionKey: key,
     revision: 2,
@@ -553,7 +554,7 @@ test("additional session enrollment follows repeated group moves and checked-in 
   assert.deepEqual(await finances(sql), before);
   await sql`update operational_booking_changes set checked_in_at=now() where booking_id in(select booking_id from operational_event_enrollments where event_id=${id})`;
   await assert.rejects(
-    saveOrganizationEventSessionOperation(sql, "sara", {
+    saveOrganizationEventSessionOperation(sql, "owner", {
       eventId: id,
       sessionKey: key,
       revision: 3,
@@ -573,7 +574,7 @@ test("pending and unknown checkout athletes reserve group-move occupancy without
   await sql`insert into booking_occupancy(resource_id,slot_at,booking_id) values('athlete:athlete','2030-01-10T22:00Z','conflict')`;
   const before = await finances(sql);
   await assert.rejects(
-    saveOrganizationEventSessionOperation(sql, "sara", {
+    saveOrganizationEventSessionOperation(sql, "owner", {
       eventId: e.id,
       sessionKey: operationalEventSessionKey(e.id, e.sessions[0]),
       revision: 0,
@@ -605,10 +606,10 @@ test("actual parent refund preview is identical while the family schedule follow
     assert.equal(before.refundCents, 10000);
     await saveOrganizationBookingOperation(
       sql,
-      "sara",
+      "owner",
       await operation(sql, "reschedule", { date: "2030-01-07", time: "17:00" }),
     );
-    await saveOrganizationBookingOperation(sql, "sara", await operation(sql, "cancel"));
+    await saveOrganizationBookingOperation(sql, "owner", await operation(sql, "cancel"));
     assert.deepEqual(await squareRefundPreview("parent", "lesson"), before);
     const row = (await readFamilyBilling(sql, me)).bookings.find((b) => b.id === "lesson")!;
     assert.equal(row.status, "cancelled");
@@ -626,7 +627,7 @@ test("paid individual camp unenrollment survives group moves without changing or
   await pay(sql, o);
   const key = operationalEventSessionKey(e.id, e.sessions[0]),
     before = await finances(sql);
-  await saveOperationalEventEnrollment(sql, "sara", {
+  await saveOperationalEventEnrollment(sql, "owner", {
     eventId: e.id,
     sessionKey: key,
     sessionRevision: 0,
@@ -635,7 +636,7 @@ test("paid individual camp unenrollment survives group moves without changing or
     action: "unenroll",
     reason: "Player cannot attend this day",
   });
-  await saveOrganizationEventSessionOperation(sql, "sara", {
+  await saveOrganizationEventSessionOperation(sql, "owner", {
     eventId: e.id,
     sessionKey: key,
     revision: 0,

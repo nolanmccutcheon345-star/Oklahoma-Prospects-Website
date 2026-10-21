@@ -45,7 +45,7 @@ export async function matchTryoutApplicants(tx: Sql) {
     age_groups: string[];
     sport: string;
     season: string;
-  }>`select id,capacity,age_groups,sport,season from tryout_events where status='published' and (event_date+start_time::time) at time zone 'America/Chicago'>now() order by event_date,start_time,id for update`;
+  }>`select id,capacity,age_groups,sport,season from tryout_events where status='published' and not exists(select 1 from coordinator_tryout_scopes scope where scope.event_id=tryout_events.id) and (event_date+start_time::time) at time zone 'America/Chicago'>now() order by event_date,start_time,id for update`;
   for (const event of events) {
     const requests = await tx<{
       id: string;
@@ -103,6 +103,14 @@ export async function recordInquiryFor(
             throw new Error(
               "This tryout changed or is no longer available. Refresh and choose a published event.",
             );
+          const [scope] = await tx<{
+            team_id: string;
+          }>`select team_id from coordinator_tryout_scopes where event_id=${event.id}`;
+          if (scope) {
+            if (input.preferredTeamId && input.preferredTeamId !== scope.team_id)
+              throw new Error("This event belongs to a different team. Refresh your selection.");
+            input = { ...input, preferredTeamId: scope.team_id };
+          }
           input = {
             ...input,
             requestedEvent: {

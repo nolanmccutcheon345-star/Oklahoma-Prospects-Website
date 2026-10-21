@@ -165,16 +165,16 @@ for (const mode of ["legacy", "captured", "basis"])
   test(`unpriced create/copy and operational archive preserve every commercial source (${mode})`, async () => {
     const { sql, file } = await fixture(mode);
     const before = await protectedRows(sql);
-    const list = await organizationServices(sql, "sara");
+    const list = await organizationServices(sql, "owner");
     assert.doesNotMatch(JSON.stringify(list), /PRIVATE|price|profit|credits|expires/);
-    const created = await createOrganizationServiceDraft(sql, "sara", draft);
-    const copied = await createOrganizationServiceDraft(sql, "sara", { ...draft, name: "Copy" });
+    const created = await createOrganizationServiceDraft(sql, "owner", draft);
+    const copied = await createOrganizationServiceDraft(sql, "owner", { ...draft, name: "Copy" });
     assert.notEqual(created.id, copied.id);
     assert.equal((await sql`select id from club_services where id=${created.id}`).length, 0);
     assert.equal((await ownerServiceDrafts(sql, "owner")).length, 2);
-    await assert.rejects(createOrganizationServiceDraft(sql, "sara", { ...draft, price: 0 }));
+    await assert.rejects(createOrganizationServiceDraft(sql, "owner", { ...draft, price: 0 }));
     const service = list.find((s) => s.id === "s2")!;
-    await setOrganizationServiceStatus(sql, "sara", {
+    await setOrganizationServiceStatus(sql, "owner", {
       ...target(service),
       status: "archived",
       reason: "Instructor is away",
@@ -193,29 +193,29 @@ for (const mode of ["legacy", "captured", "basis"])
       "prepared/purchased fulfillment retains original offering",
     );
     await assert.rejects(
-      setOrganizationServiceStatus(sql, "sara", {
+      setOrganizationServiceStatus(sql, "owner", {
         ...target(service),
         status: "active",
         reason: "Stale revision",
       }),
       /changed/,
     );
-    const archived = (await organizationServices(sql, "sara")).find((s) => s.id === "s2")!;
-    await setOrganizationServiceStatus(sql, "sara", {
+    const archived = (await organizationServices(sql, "owner")).find((s) => s.id === "s2")!;
+    await setOrganizationServiceStatus(sql, "owner", {
       ...target(archived),
       status: "active",
       reason: "Instructor returned",
     });
     await assertOperationalServiceForNewPurchase(sql, "s2");
     assert.deepEqual(await protectedRows(sql), before);
-    const d = (await organizationServices(sql, "sara")).find((s) => s.id === created.id)!;
-    await setOrganizationServiceStatus(sql, "sara", {
+    const d = (await organizationServices(sql, "owner")).find((s) => s.id === created.id)!;
+    await setOrganizationServiceStatus(sql, "owner", {
       ...target(d),
       status: "archived",
       reason: "Pause new draft",
     });
-    const a = (await organizationServices(sql, "sara")).find((s) => s.id === created.id)!;
-    await setOrganizationServiceStatus(sql, "sara", {
+    const a = (await organizationServices(sql, "owner")).find((s) => s.id === created.id)!;
+    await setOrganizationServiceStatus(sql, "owner", {
       ...target(a),
       status: "active",
       reason: "Restore review draft",
@@ -228,12 +228,15 @@ for (const mode of ["legacy", "captured", "basis"])
 test("public metadata is field-scoped, source-CAS protected, and never becomes approved future financial terms", async () => {
   const { sql } = await fixture("basis");
   const before = await protectedRows(sql);
-  const s = (await organizationServices(sql, "sara")).find((s) => s.id === "s2")!;
+  const s = (await organizationServices(sql, "owner")).find((s) => s.id === "s2")!;
   await assert.rejects(
-    saveOrganizationService(sql, "sara", { ...metadata(s), name: "New financial assessment name" }),
+    saveOrganizationService(sql, "owner", {
+      ...metadata(s),
+      name: "New financial assessment name",
+    }),
     /owner review/,
   );
-  await saveOrganizationService(sql, "sara", {
+  await saveOrganizationService(sql, "owner", {
     ...metadata(s),
     detail: "Current public delivery description",
   });
@@ -247,13 +250,13 @@ test("public metadata is field-scoped, source-CAS protected, and never becomes a
   }>`select detail,price,minutes from club_services where id='s2'`;
   assert.equal(saved.detail, "Current public delivery description");
   await assert.rejects(
-    saveOrganizationService(sql, "sara", { ...metadata(s), detail: "Stale draft" }),
+    saveOrganizationService(sql, "owner", { ...metadata(s), detail: "Stale draft" }),
     /changed/,
   );
-  const current = (await organizationServices(sql, "sara")).find((s) => s.id === "s2")!;
+  const current = (await organizationServices(sql, "owner")).find((s) => s.id === "s2")!;
   await sql`update club_services set price=price+1 where id='s2'`;
   await assert.rejects(
-    setOrganizationServiceStatus(sql, "sara", {
+    setOrganizationServiceStatus(sql, "owner", {
       ...target(current),
       status: "archived",
       reason: "Stale source input",
@@ -263,7 +266,7 @@ test("public metadata is field-scoped, source-CAS protected, and never becomes a
 });
 test("only a current genuine owner can adopt the reviewed draft atomically with positive financial terms and basis CAS", async () => {
   const { sql } = await fixture("basis");
-  const created = await createOrganizationServiceDraft(sql, "sara", draft);
+  const created = await createOrganizationServiceDraft(sql, "owner", draft);
   const raw = terms(created.id, 1, 1);
   await assert.rejects(saveServiceFor(sql, "sara", raw));
   await assert.rejects(saveServiceFor(sql, "other", raw));
@@ -317,14 +320,14 @@ test("only a current genuine owner can adopt the reviewed draft atomically with 
 });
 test("current security revocation and operational audit failure deny or roll back all service writes", async () => {
   const { sql } = await fixture();
-  const s = (await organizationServices(sql, "sara")).find((s) => s.id === "s2")!;
+  const s = (await organizationServices(sql, "owner")).find((s) => s.id === "s2")!;
   await assert.rejects(createOrganizationServiceDraft(sql, "parent", draft));
   await assert.rejects(ownerServiceDrafts(sql, "sara"));
   await db.exec(
     "create function reject_service_audit() returns trigger language plpgsql as $$ begin raise exception 'audit failed'; end $$; create trigger reject_service_audit before insert on coordinator_audit for each row execute function reject_service_audit()",
   );
   await assert.rejects(
-    setOrganizationServiceStatus(sql, "sara", {
+    setOrganizationServiceStatus(sql, "owner", {
       ...target(s),
       status: "archived",
       reason: "Test failure rollback",
@@ -363,8 +366,8 @@ test("a verified prepared Square package still fulfills original paid credits af
     needsSlot: false,
   };
   await sql`insert into commerce_orders(id,request_key,user_id,email,athlete_id,product_id,kind,snapshot,total_cents,hold_until,payment_provider,payment_environment,square_customer_id) values('prepared','prepared','parent','parent@example.invalid','athlete','p1','package',${JSON.stringify(q)}::jsonb,22000,now()+interval '10 minutes','square','sandbox','customer')`;
-  const s = (await organizationServices(sql, "sara")).find((s) => s.id === "p1")!;
-  await setOrganizationServiceStatus(sql, "sara", {
+  const s = (await organizationServices(sql, "owner")).find((s) => s.id === "p1")!;
+  await setOrganizationServiceStatus(sql, "owner", {
     ...target(s),
     status: "archived",
     reason: "No new package sales",
@@ -399,7 +402,7 @@ test("a verified prepared Square package still fulfills original paid credits af
 for (const mode of ["legacy", "captured"])
   test(`owner adoption works without an active basis version (${mode})`, async () => {
     const { sql } = await fixture(mode);
-    const d = await createOrganizationServiceDraft(sql, "sara", draft);
+    const d = await createOrganizationServiceDraft(sql, "owner", draft);
     await saveServiceFor(sql, "owner", terms(d.id, 1));
     assert.equal((await sql`select id from club_services where id=${d.id}`).length, 1);
   });

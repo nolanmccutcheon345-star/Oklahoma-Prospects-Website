@@ -80,7 +80,7 @@ async function fixture() {
   await sql`insert into club_staff_services(staff_id,service_id,profit_split) values('staff-coach','lesson',65)`;
   return { sql, file };
 }
-async function input(sql: Sql, id = "coach", actor = "sara") {
+async function input(sql: Sql, id = "coach", actor = "owner") {
   const p = await organizationPerson(sql, actor, id);
   return organizationPersonInput.parse({
     userId: p.userId,
@@ -118,7 +118,7 @@ test("operational contacts/status/windows preserve auth, pricing, identity and o
   const { sql, file } = await fixture();
   const before = await protectedState(sql);
   const value = await input(sql);
-  await saveOrganizationPerson(sql, "sara", {
+  await saveOrganizationPerson(sql, "owner", {
     ...value,
     contactEmail: "contact@example.invalid",
     phone: "9185550101",
@@ -128,7 +128,7 @@ test("operational contacts/status/windows preserve auth, pricing, identity and o
   assert.deepEqual(await protectedState(sql), before);
   assert.equal((await sql`select * from person_profiles`).length, 0);
   assert.equal(
-    (await organizationPerson(sql, "sara", "coach")).loginEmail,
+    (await organizationPerson(sql, "owner", "coach")).loginEmail,
     "coach@example.invalid",
   );
   assert.deepEqual(
@@ -138,16 +138,16 @@ test("operational contacts/status/windows preserve auth, pricing, identity and o
     [],
   );
   await requireCoachService(sql, file.coaches, "coach-identity", "lesson", { operational: false });
-  await assert.rejects(saveOrganizationPerson(sql, "sara", value), /changed/);
+  await assert.rejects(saveOrganizationPerson(sql, "owner", value), /changed/);
   const updated = await input(sql);
-  await saveOrganizationPerson(sql, "sara", { ...updated, active: false });
+  await saveOrganizationPerson(sql, "owner", { ...updated, active: false });
   assert.ok(!(await centerStaff(sql)).some((s) => s.id === "coach"));
   assert.ok((await centerStaff(sql, { includeInactive: true })).some((s) => s.id === "coach"));
   assert.deepEqual(await protectedState(sql), before);
 });
 test("source-bound availability survives unrelated PD updates but yields to actual owner schedule changes", async () => {
   const { sql, file } = await fixture();
-  await saveOrganizationPerson(sql, "sara", {
+  await saveOrganizationPerson(sql, "owner", {
     ...(await input(sql)),
     windows: [{ weekday: "Tue", start: "16:00", end: "18:00" }],
   });
@@ -161,7 +161,7 @@ test("source-bound availability survives unrelated PD updates but yields to actu
   ]);
   assert.equal(effective.availability[0].weekday, "Mon");
 });
-test("private mixed profile is withheld in list and detail, contact edits preserve it and cannot publish", async () => {
+test("private mixed profile is unavailable to retired blanket actors and owner contact edits preserve it", async () => {
   const { sql } = await fixture();
   const privateProfile = {
     ...emptySharedProfile("Private salary name"),
@@ -169,24 +169,21 @@ test("private mixed profile is withheld in list and detail, contact edits preser
     financialSecret: "hidden",
   };
   await sql`insert into person_profiles(user_id,profile,revision,instructor,publish_coach,publish_instructor) values('coach',${JSON.stringify(privateProfile)}::jsonb,1,true,false,false)`;
-  const detail = await organizationPerson(sql, "sara", "coach");
-  assert.equal(detail.profile, null);
-  assert.equal(detail.profileWithheld, true);
-  assert.ok(!JSON.stringify(await organizationPeople(sql, "sara")).includes("Private"));
+  await assert.rejects(organizationPerson(sql, "sara", "coach"));
+  await assert.rejects(organizationPeople(sql, "sara"));
   const value = await input(sql);
-  await saveOrganizationPerson(sql, "sara", { ...value, phone: "9185550101" });
+  await assert.rejects(
+    saveOrganizationPerson(sql, "sara", {
+      ...value,
+      publishCoach: true,
+      reviewedPublication: true,
+    }),
+  );
+  await saveOrganizationPerson(sql, "owner", { ...value, phone: "9185550101" });
   assert.deepEqual(
     (await sql<{ profile: unknown }>`select profile from person_profiles where user_id='coach'`)[0]
       .profile,
     privateProfile,
-  );
-  await assert.rejects(
-    saveOrganizationPerson(sql, "sara", {
-      ...(await input(sql)),
-      publishCoach: true,
-      reviewedPublication: true,
-    }),
-    /owner/,
   );
 });
 test("public legacy profile representation survives contact-only changes and inactive privacy matches list/detail/public", async () => {
@@ -196,25 +193,25 @@ test("public legacy profile representation survives contact-only changes and ina
   const value = await input(sql);
   assert.equal(value.publishCoach, true);
   assert.equal(value.publishInstructor, true);
-  await saveOrganizationPerson(sql, "sara", { ...value, phone: "9185550101" });
+  await saveOrganizationPerson(sql, "owner", { ...value, phone: "9185550101" });
   assert.deepEqual(await publicPeopleFor(sql), before);
   assert.equal((await sql`select * from person_profiles`).length, 0);
-  await saveOrganizationPerson(sql, "sara", { ...(await input(sql)), active: false });
+  await saveOrganizationPerson(sql, "owner", { ...(await input(sql)), active: false });
   assert.equal((await publicPeopleFor(sql)).length, 0);
-  assert.equal((await organizationPerson(sql, "sara", "coach")).profile?.bio, "");
+  assert.equal((await organizationPerson(sql, "owner", "coach")).profile?.bio, "");
 });
 test("explicit reviewed operational public profile preserves base instructor and unknown fields; classification is revision-bound", async () => {
   const { sql } = await fixture();
   await sql`insert into person_profiles(user_id,profile,revision,instructor,publish_coach,publish_instructor) values('coach',${JSON.stringify({ ...emptySharedProfile("Coach"), bio: "Public", sports: ["baseball"], secret: "keep" })}::jsonb,1,true,true,true)`;
   const value = await input(sql);
   await assert.rejects(
-    saveOrganizationPerson(sql, "sara", {
+    saveOrganizationPerson(sql, "owner", {
       ...value,
       profile: { ...value.profile!, bio: "New public" },
     }),
     /Review/,
   );
-  await saveOrganizationPerson(sql, "sara", {
+  await saveOrganizationPerson(sql, "owner", {
     ...value,
     profile: { ...value.profile!, bio: "New public" },
     reviewedPublication: true,
@@ -226,26 +223,24 @@ test("explicit reviewed operational public profile preserves base instructor and
   assert.equal(row.instructor, true);
   assert.equal(row.profile.secret, "keep");
   await sql`update person_profiles set publish_coach=false,publish_instructor=false,revision=revision+1 where user_id='coach'`;
-  assert.equal((await organizationPerson(sql, "sara", "coach")).profile, null);
+  assert.equal((await organizationPerson(sql, "owner", "coach")).profile?.bio, "New public");
+  await assert.rejects(organizationPerson(sql, "sara", "coach"));
 });
-test("staff contact changes retain association, withhold private bios, and never attach an unlinked listing to a new account", async () => {
+test("owner staff contact changes preserve identity and private biography; retired blanket actors are denied", async () => {
   const { sql } = await fixture();
   const id = "00000000-0000-4000-8000-000000000002";
   await sql`insert into staff_directory(id,name,title,program,email,bio,published) values(${id},'Coach','Coach','Baseball','coach@example.invalid','Private salary',false)`;
-  const [row] = await listStaffDirectoryFor(sql, "sara");
-  assert.equal(row.bio, "");
+  await assert.rejects(listStaffDirectoryFor(sql, "sara"));
+  const [row] = await listStaffDirectoryFor(sql, "owner");
   const { bioWithheld: _, ...safe } = row as typeof row & { bioWithheld?: boolean };
-  await saveStaffListingFor(sql, "sara", { ...safe, email: "newcontact@example.invalid" });
+  await assert.rejects(saveStaffListingFor(sql, "sara", { ...safe, published: true }));
+  await saveStaffListingFor(sql, "owner", { ...safe, email: "newcontact@example.invalid" });
   const [stored] = await sql<{
     identity_user_id: string;
     bio: string;
   }>`select identity_user_id,bio from staff_directory where id=${id}`;
   assert.equal(stored.identity_user_id, "coach");
   assert.equal(stored.bio, "Private salary");
-  await assert.rejects(
-    saveStaffListingFor(sql, "sara", { ...safe, version: 2, published: true }),
-    /owner/,
-  );
 });
 test("server rejects fake/removed/unverified actors and strict financial/security payload additions", async () => {
   const { sql } = await fixture();
@@ -253,10 +248,10 @@ test("server rejects fake/removed/unverified actors and strict financial/securit
   for (const actor of ["fake", "parent", "missing"])
     await assert.rejects(saveOrganizationPerson(sql, actor, value));
   await assert.rejects(
-    saveOrganizationPerson(sql, "sara", { ...value, instructor: true } as typeof value),
+    saveOrganizationPerson(sql, "owner", { ...value, instructor: true } as typeof value),
   );
   await assert.rejects(
-    saveOrganizationPerson(sql, "sara", { ...value, unavailableServiceIds: ["unknown"] }),
+    saveOrganizationPerson(sql, "owner", { ...value, unavailableServiceIds: ["unknown"] }),
   );
   await sql`update organization_operational_access set status='suspended' where user_id='sara'`;
   await assert.rejects(organizationPerson(sql, "sara", "coach"));
@@ -273,7 +268,7 @@ for (const mode of ["captured", "basis"])
     });
     if (mode === "basis") await applyFutureActiveSchemaForTest(sql);
     const before = await protectedState(sql);
-    await saveOrganizationPerson(sql, "sara", {
+    await saveOrganizationPerson(sql, "owner", {
       ...(await input(sql)),
       phone: "9185550101",
       active: false,
@@ -295,7 +290,7 @@ test("inactive current assignee survives unrelated follow-up and queued delivery
     actionId: randomUUID(),
   };
   await saveCenterWorkFor(sql, "owner", value);
-  await saveOrganizationPerson(sql, "sara", { ...(await input(sql)), active: false });
+  await saveOrganizationPerson(sql, "owner", { ...(await input(sql)), active: false });
   await saveCenterWorkFor(sql, "owner", {
     ...value,
     revision: 1,
@@ -339,108 +334,59 @@ async function inactiveShared(sql: Sql, classified = false, invalid = false) {
   await sql`insert into person_profiles(user_id,profile,revision,instructor,publish_coach,publish_instructor) values('coach',${JSON.stringify({ ...emptySharedProfile("HIDDEN-PUBLIC-NAME"), bio: "HIDDEN-PUBLIC-BIO", sports: ["baseball"], photo: invalid ? "invalid-private-photo" : "" })}::jsonb,1,true,true,true)`;
   await sql`insert into operational_person_settings(user_id,revision,coach_id,directory_active,classified_profile_revision,updated_by) values('coach',1,'coach-identity',false,${classified ? 1 : null},'owner')`;
 }
-test("restricted reactivation cannot publish withheld shared text; unrelated contact edits and owner reactivation remain supported", async () => {
+test("classification, publication and account status cannot restore retired blanket access", async () => {
   const { sql } = await fixture();
   await inactiveShared(sql);
-  let value = await input(sql);
-  assert.equal(value.profile, null);
-  await saveOrganizationPerson(sql, "sara", { ...value, phone: "9185550101" });
-  value = await input(sql);
-  await assert.rejects(
-    saveOrganizationPerson(sql, "sara", { ...value, active: true }),
-    /owner must review hidden/i,
-  );
-  assert.equal((await publicPeopleFor(sql)).length, 0);
-  assert.equal((await organizationPerson(sql, "sara", "coach")).profile, null);
-  await saveOrganizationPerson(sql, "owner", {
-    ...(await input(sql, "coach", "owner")),
-    active: true,
-  });
+  const value = await input(sql);
+  for (const status of ["active", "suspended", "removed"]) {
+    await sql`update organization_operational_access set status=${status} where user_id='sara'`;
+    for (const classified of [false, true]) {
+      await sql`update operational_person_settings set classified_profile_revision=${classified ? 1 : null} where user_id='coach'`;
+      await assert.rejects(organizationPerson(sql, "sara", "coach"));
+      await assert.rejects(organizationPeople(sql, "sara"));
+      await assert.rejects(saveOrganizationPerson(sql, "sara", { ...value, active: true }));
+      assert.equal((await publicPeopleFor(sql)).length, 0);
+    }
+  }
+  await saveOrganizationPerson(sql, "owner", { ...(await input(sql)), active: true });
   assert.ok((await publicPeopleFor(sql)).some((p) => p.bio === "HIDDEN-PUBLIC-BIO"));
 });
-test("exact classified profile permits restricted reactivation but stale classification and unverified target do not", async () => {
+test("invalid public shared profile stays private regardless of classification", async () => {
   const { sql } = await fixture();
-  await inactiveShared(sql, true);
-  assert.equal((await publicPeopleFor(sql)).length, 0);
-  await saveOrganizationPerson(sql, "sara", { ...(await input(sql)), active: true });
-  assert.ok((await publicPeopleFor(sql)).some((p) => p.bio === "HIDDEN-PUBLIC-BIO"));
-  await saveOrganizationPerson(sql, "sara", { ...(await input(sql)), active: false });
-  await sql`update "user" set "emailVerified"=false where id='coach'`;
-  await assert.rejects(
-    saveOrganizationPerson(sql, "sara", { ...(await input(sql)), active: true }),
-    /verified adult/,
-  );
-  await sql`update "user" set "emailVerified"=true where id='coach'`;
-  await sql`update person_profiles set revision=2 where user_id='coach'`;
-  await assert.rejects(
-    saveOrganizationPerson(sql, "sara", { ...(await input(sql)), active: true }),
-    /owner must review hidden/i,
-  );
+  await inactiveShared(sql, false, true);
+  await sql`update operational_person_settings set directory_active=true where user_id='coach'`;
+  for (const revision of [null, 1, 2]) {
+    await sql`update operational_person_settings set classified_profile_revision=${revision} where user_id='coach'`;
+    assert.equal((await publicPeopleFor(sql)).length, 0);
+    await assert.rejects(organizationPerson(sql, "sara", "coach"));
+    await assert.rejects(organizationPeople(sql, "sara"));
+  }
 });
-test("legacy published coach and directory fallback cannot be restored through status-only restricted save", async () => {
+
+test("legacy and directory publication cannot bypass retired access, including disabled targets", async () => {
   const { sql } = await fixture();
   await sql`insert into operational_person_settings(user_id,revision,coach_id,directory_active,updated_by) values('coach',1,'coach-identity',false,'owner')`;
   await sql`insert into coach_profiles(id,user_id,profile,published) values('legacy','coach','{"name":"Legacy","career":"HIDDEN-LEGACY-BIO"}'::jsonb,true)`;
-  const value = await input(sql);
-  assert.equal(value.profile?.bio, "");
-  assert.equal(value.publishCoach, false);
-  await assert.rejects(
-    saveOrganizationPerson(sql, "sara", { ...value, active: true }),
-    /owner must review hidden/i,
-  );
-  await sql`delete from coach_profiles`;
-  await sql`insert into staff_directory(id,name,title,program,email,bio,published) values('00000000-0000-4000-8000-000000000003','Coach','Coach','Baseball','coach@example.invalid','HIDDEN-DIRECTORY-BIO',true)`;
   await assert.rejects(
     saveOrganizationPerson(sql, "sara", { ...(await input(sql)), active: true }),
-    /owner must review hidden/i,
   );
   assert.equal((await publicPeopleFor(sql)).length, 0);
-});
-test("staff biographies use actual public account/activity predicate and preserve hidden text during contact updates", async () => {
-  const { sql } = await fixture();
-  await sql`insert into operational_person_settings(user_id,revision,coach_id,directory_active,updated_by) values('coach',1,'coach-identity',false,'owner')`;
-  await sql`insert into staff_directory(id,name,title,program,email,bio,published) values('00000000-0000-4000-8000-000000000004','Coach','Coach','Baseball','coach@example.invalid','HIDDEN-STAFF-BIO',true)`;
+  await sql`delete from coach_profiles`;
+  await sql`insert into staff_directory(id,name,title,program,email,bio,published,operational_bio_version) values('00000000-0000-4000-8000-000000000004','Coach','Coach','Baseball','coach@example.invalid','HIDDEN-STAFF-BIO',true,1)`;
   for (const disabled of [false, true]) {
     if (disabled) {
       await sql`update operational_person_settings set directory_active=true where user_id='coach'`;
       await sql`update "user" set "disabledAt"=now() where id='coach'`;
     }
-    const [row] = await listStaffDirectoryFor(sql, "sara");
-    assert.equal(row.bio, "");
-    assert.equal((row as typeof row & { bioWithheld: boolean }).bioWithheld, true);
+    await assert.rejects(listStaffDirectoryFor(sql, "sara"));
+    const [row] = await listStaffDirectoryFor(sql, "owner");
     const { bioWithheld: _, ...safe } = row as typeof row & { bioWithheld?: boolean };
-    const saved = await saveStaffListingFor(sql, "sara", { ...safe, phone: "9185550101" });
-    assert.equal(saved.bio, "");
-    assert.equal(saved.published, true);
+    await assert.rejects(saveStaffListingFor(sql, "sara", { ...safe, phone: "9185550101" }));
+    await assert.rejects(
+      saveOrganizationPerson(sql, "sara", { ...(await input(sql)), active: true }),
+    );
+    await saveStaffListingFor(sql, "owner", { ...safe, phone: "9185550101" });
     assert.equal((await listStaffDirectoryFor(sql, "owner"))[0].bio, "HIDDEN-STAFF-BIO");
     assert.equal((await publicPeopleFor(sql)).length, 0);
   }
-});
-test("invalid public shared profile is withheld consistently; exact reviewed classification is separate from public visibility", async () => {
-  const { sql } = await fixture();
-  await inactiveShared(sql, false, true);
-  await sql`update operational_person_settings set directory_active=true where user_id='coach'`;
-  assert.equal((await publicPeopleFor(sql)).length, 0);
-  assert.equal((await organizationPerson(sql, "sara", "coach")).profile, null);
-  assert.ok(!JSON.stringify(await organizationPeople(sql, "sara")).includes("HIDDEN-PUBLIC-NAME"));
-  await sql`update operational_person_settings set classified_profile_revision=1 where user_id='coach'`;
-  assert.equal((await organizationPerson(sql, "sara", "coach")).profile?.bio, "HIDDEN-PUBLIC-BIO");
-  assert.ok(JSON.stringify(await organizationPeople(sql, "sara")).includes("HIDDEN-PUBLIC-NAME"));
-  assert.equal((await publicPeopleFor(sql)).length, 0);
-  await sql`update person_profiles set revision=2 where user_id='coach'`;
-  assert.equal((await organizationPerson(sql, "sara", "coach")).profile, null);
-});
-
-test("reviewed legacy directory reactivation still requires an existing verified adult assignment", async () => {
-  const { sql } = await fixture();
-  await sql`insert into operational_person_settings(user_id,revision,coach_id,directory_active,updated_by) values('coach',1,'coach-identity',false,'owner')`;
-  await sql`insert into staff_directory(id,name,title,program,email,bio,published,operational_bio_version) values('00000000-0000-4000-8000-000000000005','Coach','Coach','Baseball','coach@example.invalid','Reviewed directory biography',true,1)`;
-  await sql`update "user" set "emailVerified"=false where id='coach'`;
-  await assert.rejects(
-    saveOrganizationPerson(sql, "sara", { ...(await input(sql)), active: true }),
-    /verified adult/,
-  );
-  await sql`update "user" set "emailVerified"=true where id='coach'`;
-  await saveOrganizationPerson(sql, "sara", { ...(await input(sql)), active: true });
-  assert.ok((await publicPeopleFor(sql)).some((p) => p.bio === "Reviewed directory biography"));
 });

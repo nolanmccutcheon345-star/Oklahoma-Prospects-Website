@@ -1,3 +1,4 @@
+import { withAuditActor, currentAuditCorrelation } from "../audit-context.server";
 import { randomUUID } from "node:crypto";
 import type { Sql } from "../db";
 import { lockFinancialExecution } from "../finance/execution.server";
@@ -35,10 +36,19 @@ export async function authority(sql: Sql, userId: string, capability: string) {
 }
 export async function grants(sql: Sql, userId: string, lock = false) {
   await verifiedAccount(sql, userId, lock);
-  return sql.query<Grant>(
+  const ready = await scopedCoordinatorReady(sql, userId);
+  const rows = await sql.query<Grant>(
     `select user_id,sport,role,status,coverage,team_ids,permissions,revision,independent_roles from coordinator_assignments where user_id=$1 order by sport${lock ? " for share" : ""}`,
     [userId],
   );
+  return ready
+    ? rows
+    : rows.map((row) => ({ ...row, status: "suspended", permissions: [], team_ids: [] }));
+}
+export async function scopedCoordinatorReady(sql: Sql, userId: string) {
+  await sql`select user_id from organization_operational_access where user_id=${userId} for share`;
+  const [row] = await sql<{ ready: boolean }>`select coordinator_scoped_ready(${userId}) as ready`;
+  return row.ready;
 }
 export function permits(rows: Grant[], permission: Capability, sport: Sport, teamId = "") {
   if (!Object.hasOwn(capabilities, permission)) return false;
@@ -100,10 +110,19 @@ export async function audit(
   sport?: Sport,
   teamId?: string,
 ) {
-  await sql`insert into coordinator_audit(actor_id,action,target_id,result,details,correlation_id,sport,team_id) values(${userId},${action},${targetId},${result},${JSON.stringify(details)}::jsonb,${randomUUID()},${sport || null},${teamId || null})`;
+  await sql`insert into coordinator_audit(actor_id,action,target_id,result,details,correlation_id,sport,team_id) values(${userId},${action},${targetId},${result},${JSON.stringify(details)}::jsonb,${currentAuditCorrelation() || randomUUID()},${sport || null},${teamId || null})`;
+}
+export async function secured<T>(
+  sql: Sql,
+  userId: string,
+  action: string,
+  work: (tx: Sql) => Promise<T>,
+  beforeLocks?: typeof lockFinancialExecution,
+) {
+  return withAuditActor(userId, () => securedWork(sql, userId, action, work, beforeLocks));
 }
 /** Grants are read and locked in the SAME transaction as data access. Revocation waits for in-flight work; the next request sees it. */
-export async function secured<T>(
+async function securedWork<T>(
   sql: Sql,
   userId: string,
   action: string,
@@ -120,6 +139,9 @@ export async function secured<T>(
       }
       await verifiedAccount(tx, userId, true);
       await tx.query("select set_config('app.actor_id',$1,true)", [userId]);
+      await tx.query("select set_config('app.correlation_id',$1,true)", [
+        currentAuditCorrelation() || randomUUID(),
+      ]);
       return work(tx);
     });
   } catch (error) {
@@ -152,9 +174,9 @@ export async function requireUnrestrictedLegacyAccess(sql: Sql, userId: string) 
 }
 export async function hasOrganizationOperations(sql: Sql, userId: string) {
   await verifiedAccount(sql, userId, true);
-  const [row] =
-    await sql`select user_id from organization_operational_access where user_id=${userId} and status='active' and financial_restricted=true for share`;
-  return Boolean(row);
+  // Retired: organization-wide access is not a coordinator permission.
+  // Persisted legacy grants must never authorize a request, including active sessions.
+  return false;
 }
 export async function requireOrganizationOperations(sql: Sql, userId: string) {
   const user = await verifiedAccount(sql, userId, true);

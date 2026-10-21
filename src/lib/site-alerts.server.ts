@@ -49,13 +49,19 @@ const labels: Record<string, string> = {
   reservations: "Legacy booking",
   billing_invoices: "Invoice",
   booking_participants: "Booking participants",
+  coordinator_activity: "Staff activity",
 };
 
 // Audit summaries already exclude timestamps and private form fields.
 export function alertPriority(e: Event): "immediate" | "daily" | "history" {
-  if (e.target_table === "coordinator_activity") return e.after_state?.status === "denied" && e.action.startsWith("staff_") ? "immediate" : "daily";
+  if (e.target_table === "coordinator_activity")
+    return e.after_state?.status === "denied" &&
+      (e.action.startsWith("staff") || e.action === "protected.request-rejected")
+      ? "immediate"
+      : "daily";
   // Tryout email leases/preferences already have their own delivery view; do not generate digest noise.
-  if (["tryout_center_notices", "tryout_center_preferences"].includes(e.target_table)) return "history";
+  if (["tryout_center_notices", "tryout_center_preferences"].includes(e.target_table))
+    return "history";
   if (e.action === "UPDATE" && isDeepStrictEqual(e.before_state, e.after_state)) return "history";
   if (e.target_table === "commerce_policy" && e.target_id.startsWith("square-plan:"))
     return "history";
@@ -282,11 +288,15 @@ export async function deliverSiteAlerts(
       }
       // Revocation applies to queued mail too. This does not grant staff owner access.
       const valid =
-        d.audience === "owners"
-          ? (await owners(sql)).some((r) => r.email === d.recipient)
-          : (
-              await sql`select email from cage_alert_recipients where active and email=${d.recipient}`
-            ).length > 0;
+        d.audience === "coordinator-owners"
+          ? (
+              await sql`select g.email from owner_grants g join "user" u on u.id=g.user_id join staff_authorities a on a.email=g.email where g.email=${d.recipient} and g.email=lower(trim(u.email)) and g.revoked_at is null and u."emailVerified"=true and u."disabledAt" is null and a.capability='staff_activity.read'`
+            ).length > 0
+          : d.audience === "owners"
+            ? (await owners(sql)).some((r) => r.email === d.recipient)
+            : (
+                await sql`select email from cage_alert_recipients where active and email=${d.recipient}`
+              ).length > 0;
       if (!valid) {
         await sql`update site_alert_deliveries set status='revoked' where id=${d.id}`;
         return null;

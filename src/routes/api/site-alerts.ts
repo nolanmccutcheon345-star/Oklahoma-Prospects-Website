@@ -23,8 +23,34 @@ export const Route = createFileRoute("/api/site-alerts")({
             await import("@/lib/commerce/recovery-health.server");
           const sql = await getSql(),
             c = squareConfig();
-          if (!siteAlertsEnabled() || c.environment !== "production")
-            return Response.json({ ok: true, skipped: true });
+          if (c.environment !== "production") return Response.json({ ok: true, skipped: true });
+          const { runScheduledCoordinatorReviews } =
+            await import("@/lib/coordinator/scheduled-reviews.server");
+          const { runCoordinatorRiskChecks } =
+            await import("@/lib/coordinator/risk-reviews.server");
+          const risks = await runCoordinatorRiskChecks(sql);
+          const reviews = await runScheduledCoordinatorReviews(sql);
+          const { archiveStaffActivity, recordArchiveProblem } =
+            await import("@/lib/coordinator/security-archive.server");
+          let archive: { configured: boolean; archived: number; failed?: boolean };
+          try {
+            archive = await archiveStaffActivity(sql, process.env);
+          } catch {
+            archive = { configured: true, archived: 0, failed: true };
+            await recordArchiveProblem(sql);
+          }
+
+          if (!siteAlertsEnabled())
+            return Response.json(
+              {
+                ok: !archive.failed,
+                skipped: true,
+                coordinatorArchive: archive,
+                coordinatorReviewRuns: reviews.created,
+                coordinatorRiskAlerts: risks.created,
+              },
+              { status: archive.failed ? 503 : 200 },
+            );
           const summary = await recordRecoveryRun(sql, c.environment, "notifications", async () => {
             const payments = await sendPaymentNotifications();
             const alerts = await flushSiteAlerts();
@@ -36,7 +62,10 @@ export const Route = createFileRoute("/api/site-alerts")({
               staffEmailsAccepted: alerts.length,
             };
           });
-          return Response.json({ ok: true, ...summary });
+          return Response.json(
+            { ok: !archive.failed, coordinatorArchive: archive, ...summary },
+            { status: archive.failed ? 503 : 200 },
+          );
         } catch {
           return new Response("Retry pending", { status: 503 });
         }

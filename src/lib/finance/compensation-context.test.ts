@@ -490,7 +490,8 @@ test("operational attendance leaves every financial ledger, payable and refund e
   const before = await financialSnapshot(),
     refunds = await refundPreview(),
     finance = await financeWorkspace(sql, "owner");
-  const list = await operationalLessonCompletions(sql, "operations");
+  await assert.rejects(operationalLessonCompletions(sql, "operations"));
+  const list = await operationalLessonCompletions(sql, "owner");
   assert.equal(list.canRecord, true);
   const selected = list.lessons.find((r) => r.id === "observed-lesson")!;
   assert.ok(selected);
@@ -501,14 +502,15 @@ test("operational attendance leaves every financial ledger, payable and refund e
     recap: "Verified attendance and reviewed the completed hitting lesson.",
     qualifiedReview: true as const,
   };
-  await recordOperationalLessonCompletion(sql, "operations", request);
-  await recordOperationalLessonCompletion(sql, "operations", request);
+  await assert.rejects(recordOperationalLessonCompletion(sql, "operations", request));
+  await recordOperationalLessonCompletion(sql, "owner", request);
+  await recordOperationalLessonCompletion(sql, "owner", request);
   assert.deepEqual(await financialSnapshot(), before);
   assert.deepEqual(await refundPreview(), refunds);
   assert.deepEqual((await financeWorkspace(sql, "owner")).summary, finance.summary);
   assert.equal((await sql`select booking_id from operational_lesson_completions`).length, 1);
   await assert.rejects(
-    recordOperationalLessonCompletion(sql, "operations", { ...request, amount: 5000 } as any),
+    recordOperationalLessonCompletion(sql, "owner", { ...request, amount: 5000 } as any),
     /Unrecognized key/,
   );
   await assert.rejects(

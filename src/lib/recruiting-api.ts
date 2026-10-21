@@ -14,6 +14,8 @@ export const getRecruitingDirectory = createServerFn({ method: "GET" }).handler(
   async ({ context, data }) => {
     const { getSql } = await import("./db");
     const { publicRecruiting } = await import("./recruiting.server");
+    const { setResponseHeader } = await import("@tanstack/react-start/server");
+    setResponseHeader("Cache-Control", "private, no-store");
     return publicRecruiting(await getSql());
   },
 );
@@ -22,6 +24,8 @@ export const getRecruitingPlayer = createServerFn({ method: "POST" })
   .handler(async ({ context, data }) => {
     const { getSql } = await import("./db");
     const { publicRecruiting } = await import("./recruiting.server");
+    const { setResponseHeader } = await import("@tanstack/react-start/server");
+    setResponseHeader("Cache-Control", "private, no-store");
     return publicRecruiting(await getSql(), data.athleteId);
   });
 export const getRecruitingWorkspace = createServerFn({ method: "GET" })

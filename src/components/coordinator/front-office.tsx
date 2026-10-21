@@ -1,3 +1,11 @@
+import { PlayerPublicationRequest } from "./player-publication";
+import { ScheduledCommunications } from "./communications";
+import { ContentDrafts } from "./content-drafts";
+import { EligibleRosterAthletes, RoutinePlayerInformation } from "./roster-management";
+import { TryoutScheduling } from "./tryout-scheduling";
+import { ProgramEvents } from "./program-events";
+import { TeamOperations } from "./team-operations";
+import { RecruitingWorkflow } from "./recruiting-workflow";
 import { UserButton } from "@/lib/auth/gates";
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { Button } from "../ui/button";
@@ -59,12 +67,13 @@ export function CoordinatorFrontOffice() {
       </main>
     );
   if (home.organizationOperations) return <OrganizationOffice />;
-  if (home.financialRestricted)
+  if (home.financialRestricted && !home.scopedReady)
     return (
       <main id="main" className="p-6">
         <h1>Coordinator Front Office</h1>
         <p role="alert">
-          Your organization operations access is not active. Contact an owner to review your access.
+          An owner must withdraw your previous access and explicitly configure your coordinator
+          permissions.
         </p>
         <UserButton />
       </main>
@@ -79,17 +88,47 @@ export function CoordinatorFrontOffice() {
   const enabled = home.assignments.some((a) => a.status === "active" && a.permissions.length);
   const tabs = [
     ["overview", "Overview", true],
-    ["recruiting", "Recruiting", allowed("recruiting.read") || allowed("recruiting.create")],
-    ["rosters", "Teams & Rosters", allowed("rosters.read")],
+    [
+      "recruiting",
+      "Recruiting",
+      allowed("recruiting.read") || allowed("tryouts.read") || allowed("recruiting.create"),
+    ],
+    [
+      "rosters",
+      "Teams & Rosters",
+      allowed("rosters.read") ||
+        allowed("rosters.add") ||
+        allowed("rosters.publication.request") ||
+        allowed("photos.publication.request") ||
+        allowed("teams.openings") ||
+        allowed("teams.needs") ||
+        allowed("teams.statistics"),
+    ],
     ["events", "Practices & Events", allowed("events.read") || allowed("practices.create")],
+    [
+      "programs",
+      "Camps & Clinics",
+      allowed("events.read") || allowed("camps.create") || allowed("clinics.create"),
+    ],
+    ["tryout-schedule", "Tryout Schedule", allowed("events.read") || allowed("tryouts.create")],
     ["cages", "Cage Availability", allowed("cages.read")],
     [
       "messages",
       "Communications",
-      allowed("communications.read") || allowed("communications.team.send"),
+      Object.keys(capabilities).some(
+        (p) => p.startsWith("communications.") && allowed(p as Capability),
+      ),
     ],
-    ["drafts", "Website Drafts", allowed("content.draft")],
-    ["reports", "Operational Reports", allowed("reports.read")],
+    [
+      "drafts",
+      "Website Content",
+      Object.keys(capabilities).some((p) => p.startsWith("content.") && allowed(p as Capability)),
+    ],
+    [
+      "reports",
+      "Operational Reports",
+      Object.keys(capabilities).some((p) => p.startsWith("reports.") && allowed(p as Capability)),
+    ],
     ["activity", "My Activity", allowed("activity.read")],
   ] as const;
   const current = tabs.find((t) => t[0] === tab && t[2]) ? tab : "overview";
@@ -179,6 +218,21 @@ export function CoordinatorFrontOffice() {
                 </ul>
                 {!g && <p>No active role for this sport.</p>}
               </section>
+            ) : current === "drafts" ? (
+              <ContentDrafts
+                key={sport + teamId + g?.revision}
+                sport={sport}
+                teamId={teamId}
+                allowed={allowed}
+              />
+            ) : current === "tryout-schedule" ? (
+              <TryoutScheduling
+                key={sport + teamId + g?.revision}
+                teamId={teamId}
+                allowed={allowed}
+              />
+            ) : current === "programs" ? (
+              <ProgramEvents key={sport + teamId + g?.revision} teamId={teamId} allowed={allowed} />
             ) : (
               <CoordinatorModule
                 key={sport + teamId + current + g?.revision}
@@ -186,6 +240,7 @@ export function CoordinatorFrontOffice() {
                 sport={sport}
                 teamId={teamId}
                 allowed={allowed}
+                teams={home.targets.filter((t) => t.sport === sport)}
                 teamName={home.targets.find((t) => t.id === teamId)?.name || ""}
               />
             )}
@@ -201,12 +256,14 @@ function CoordinatorModule({
   teamId,
   allowed,
   teamName,
+  teams,
 }: {
   tab: string;
   sport: Sport;
   teamId: string;
   allowed: (p: Capability) => boolean;
   teamName: string;
+  teams: { id: string; name: string }[];
 }) {
   const [error, setError] = useState(""),
     [notice, setNotice] = useState(""),
@@ -221,7 +278,6 @@ function CoordinatorModule({
   const [messages, setMessages] = useState<
     Awaited<ReturnType<typeof api.getCoordinatorMessages>>["items"]
   >([]);
-  const [drafts, setDrafts] = useState<Awaited<ReturnType<typeof api.getCoordinatorDrafts>>>([]);
   const [report, setReport] = useState<Awaited<ReturnType<typeof api.getCoordinatorReports>>>();
   const [activity, setActivity] = useState<Awaited<ReturnType<typeof api.getCoordinatorActivity>>>(
     [],
@@ -231,12 +287,13 @@ function CoordinatorModule({
   const [nextCursor, setNextCursor] = useState<HistoryCursor | null>(null);
   const [loaded, setLoaded] = useState(false);
   const load = useCallback(async () => {
-    if (tab === "recruiting" && allowed("recruiting.read")) {
+    if (tab === "recruiting" && (allowed("recruiting.read") || allowed("tryouts.read"))) {
       const page = await api.getCoordinatorRecruiting({ data: { sport, teamId, before } });
       setRecruits(page.items);
       setNextCursor(page.nextCursor);
     }
-    if (tab === "rosters" && teamId) setRoster(await api.getCoordinatorRoster({ data: teamId }));
+    if (tab === "rosters" && teamId && allowed("rosters.read"))
+      setRoster(await api.getCoordinatorRoster({ data: teamId }));
     if (tab === "events" && teamId && allowed("events.read"))
       setSchedule(await api.getCoordinatorSchedule({ data: teamId }));
     if (tab === "messages" && teamId && allowed("communications.read")) {
@@ -244,7 +301,6 @@ function CoordinatorModule({
       setMessages(page.items);
       setNextCursor(page.nextCursor);
     }
-    if (tab === "drafts") setDrafts(await api.getCoordinatorDrafts({ data: { sport, teamId } }));
     if (tab === "reports") setReport(await api.getCoordinatorReports({ data: { sport, teamId } }));
     if (tab === "activity")
       setActivity(await api.getCoordinatorActivity({ data: { sport, teamId } }));
@@ -324,9 +380,9 @@ function CoordinatorModule({
           {tab === "recruiting" && (
             <>
               <h2 className="text-2xl">Recruiting & Tryout Registrations</h2>
-              {loaded && allowed("recruiting.read") && !recruits.length && (
-                <p>No registrations in this scope.</p>
-              )}
+              {loaded &&
+                (allowed("recruiting.read") || allowed("tryouts.read")) &&
+                !recruits.length && <p>No registrations in this scope.</p>}
               {recruits.map((r) => (
                 <article className="grid gap-2 rounded border p-4" key={r.id}>
                   <h3 className="text-xl">
@@ -341,7 +397,7 @@ function CoordinatorModule({
                     </p>
                   )}
                   <div className="flex flex-wrap gap-2">
-                    {allowed("recruiting.status") && (
+                    {allowed(r.kind === "tryout" ? "tryouts.status" : "recruiting.status") && (
                       <label>
                         Status
                         <select
@@ -361,7 +417,12 @@ function CoordinatorModule({
                             )
                           }
                         >
-                          {TRYOUT_STATUSES.map((s) => (
+                          {TRYOUT_STATUSES.filter(
+                            (s) =>
+                              !["attended", "no-show"].includes(s) ||
+                              (r.kind === "tryout" && allowed("tryouts.attendance")) ||
+                              s === r.status,
+                          ).map((s) => (
                             <option key={s}>{s}</option>
                           ))}
                         </select>
@@ -414,40 +475,79 @@ function CoordinatorModule({
                         Edit Positions
                       </Button>
                     )}
-                    {allowed("communications.recruit.send") && r.email && (
-                      <Button
-                        variant="outlineDark"
-                        disabled={busy}
-                        onClick={() => {
-                          const subject = window.prompt("Email subject:");
-                          if (!subject) return;
-                          const body = window.prompt("Message to this guardian:");
-                          if (
-                            !body ||
-                            !window.confirm(
-                              `Send to ${r.parent || "guardian"} at ${r.email}?\n\n${subject}\n\n${body}`,
-                            )
-                          )
-                            return;
-                          void run(
-                            () =>
-                              api.sendCoordinatorEmail({
-                                data: {
-                                  id: crypto.randomUUID(),
-                                  requestId: r.id,
-                                  subject,
-                                  body,
-                                  confirmedEmail: r.email!,
-                                },
-                              }),
-                            "Email queued. Delivery is handled by the existing notification worker.",
-                          );
-                        }}
-                      >
-                        Email Guardian
-                      </Button>
-                    )}
+                    {r.email &&
+                      [
+                        {
+                          purpose: "recruiting" as const,
+                          permission: "communications.recruit.send" as Capability,
+                          label: "Email Guardian",
+                        },
+                        {
+                          purpose: "invitation" as const,
+                          permission: "recruiting.invite" as Capability,
+                          label: "Recruiting Invitation",
+                        },
+                        ...(r.kind === "team-inquiry"
+                          ? [
+                              {
+                                purpose: "inquiry" as const,
+                                permission: "communications.inquiry.reply" as Capability,
+                                label: "Reply to Inquiry",
+                              },
+                            ]
+                          : [
+                              {
+                                purpose: "tryout-reminder" as const,
+                                permission: "communications.tryout.remind" as Capability,
+                                label: "Tryout Reminder",
+                              },
+                            ]),
+                      ]
+                        .filter((action) => allowed(action.permission))
+                        .map((action) => (
+                          <Button
+                            key={action.purpose}
+                            variant="outlineDark"
+                            disabled={busy}
+                            onClick={() => {
+                              const subject = window.prompt("Email subject:");
+                              if (!subject) return;
+                              const body = window.prompt("Message to this guardian:");
+                              if (
+                                !body ||
+                                !window.confirm(
+                                  `Send to ${r.parent || "guardian"} at ${r.email}?\n\n${subject}\n\n${body}`,
+                                )
+                              )
+                                return;
+                              void run(
+                                () =>
+                                  api.sendCoordinatorEmail({
+                                    data: {
+                                      purpose: action.purpose,
+                                      id: crypto.randomUUID(),
+                                      requestId: r.id,
+                                      subject,
+                                      body,
+                                      confirmedEmail: r.email!,
+                                    },
+                                  }),
+                                "Email queued. Delivery is handled by the existing notification worker.",
+                              );
+                            }}
+                          >
+                            {action.label}
+                          </Button>
+                        ))}
                   </div>
+                  <RecruitingWorkflow
+                    key={r.id + ":" + r.work_revision}
+                    requestId={r.id}
+                    kind={r.kind}
+                    revision={r.work_revision}
+                    allowed={allowed}
+                    onSaved={load}
+                  />
                 </article>
               ))}
               {allowed("recruiting.create") && (
@@ -502,13 +602,35 @@ function CoordinatorModule({
           {tab === "rosters" && (
             <>
               <h2 className="text-2xl">{teamName} Roster</h2>
-              {!roster.length && loaded && <p>No active roster players.</p>}
+              {allowed("rosters.add") && <EligibleRosterAthletes teamId={teamId} onAdded={load} />}
+              {allowed("rosters.publication.request") && (
+                <PlayerPublicationRequest teamId={teamId} kind="roster" />
+              )}
+              {allowed("photos.publication.request") && (
+                <PlayerPublicationRequest teamId={teamId} kind="photo" />
+              )}
+              {(allowed("teams.openings") ||
+                allowed("teams.needs") ||
+                allowed("teams.statistics")) && (
+                <TeamOperations teamId={teamId} allowed={allowed} />
+              )}
+              {allowed("rosters.read") && !roster.length && loaded && (
+                <p>No active roster players.</p>
+              )}
               {roster.map((p) => (
                 <article key={p.id} className="grid gap-2 rounded border p-4">
                   <h3 className="text-xl">
                     #{p.number} {p.name}
                   </h3>
                   <p>{p.positions?.join(", ")}</p>
+                  {allowed("rosters.information") && (
+                    <RoutinePlayerInformation
+                      key={p.id + ":" + p.revision}
+                      teamId={teamId}
+                      player={p}
+                      onSaved={load}
+                    />
+                  )}
                   {p.parents.map((g, i) => (
                     <p key={i}>
                       {g.name} · {g.email} · {g.phone}
@@ -716,6 +838,16 @@ function CoordinatorModule({
           {tab === "messages" && (
             <>
               <h2 className="text-2xl">{teamName} Communications</h2>
+              <ScheduledCommunications
+                sport={sport}
+                teamId={teamId}
+                teams={teams}
+                allowed={allowed}
+              />
+              <p>
+                Historical messages appear only after an owner reviews their exact content for
+                operational visibility.
+              </p>
               {allowed("communications.team.send") && (
                 <form
                   className="grid gap-3"
@@ -803,59 +935,6 @@ function CoordinatorModule({
               </p>
             ))}
           </div>
-        </>
-      )}
-      {tab === "drafts" && (
-        <>
-          <h2 className="text-2xl">Website Drafts</h2>
-          <form
-            className="grid gap-3"
-            onSubmit={(e) =>
-              submit(e, (f) =>
-                api.saveCoordinatorDraft({
-                  data: {
-                    id: crypto.randomUUID(),
-                    revision: 0,
-                    sport,
-                    teamId,
-                    title: text(f, "title"),
-                    body: text(f, "body"),
-                    submit: f.has("submit"),
-                  },
-                }),
-              )
-            }
-          >
-            <label>
-              Title
-              <input className={field} name="title" required maxLength={140} />
-            </label>
-            <label>
-              Announcement
-              <textarea className={field} name="body" required rows={6} maxLength={3000} />
-            </label>
-            <p>
-              Do not include medical, financial, or private family details. Public player names and
-              photos require publication consent and owner review.
-            </p>
-            {allowed("content.submit") && (
-              <label className="flex min-h-11 items-center gap-2">
-                <input name="submit" type="checkbox" />
-                Submit for owner approval
-              </label>
-            )}
-            <Button type="submit" disabled={busy}>
-              Save Draft
-            </Button>
-          </form>
-          {drafts.map((d) => (
-            <article className="rounded border p-3" key={d.id}>
-              <strong>
-                {d.title} · {d.status}
-              </strong>
-              <p className="whitespace-pre-wrap">{d.body}</p>
-            </article>
-          ))}
         </>
       )}
       {tab === "reports" && report && (

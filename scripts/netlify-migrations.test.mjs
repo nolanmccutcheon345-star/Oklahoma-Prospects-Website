@@ -76,7 +76,7 @@ test("late PR migrations append after deployed version 35 without changing ledge
   }
 });
 
-for (const baselineVersion of [66, 76])
+for (const baselineVersion of [66, 76, 79])
   test(`lifecycle migrations upgrade release ${baselineVersion} with original ledger/data preserved`, async () => {
     const source = new URL("../migrations/", import.meta.url);
     const entries = pendingMigrations(await readdir(source), []).sort((a, b) =>
@@ -114,6 +114,23 @@ for (const baselineVersion of [66, 76])
             "0077_financial_basis_activation.sql",
             "0072_operational_people.sql",
             "0074_operational_content.sql",
+            "0080_retire_blanket_delivery.sql",
+            "0081_coordinator_scoped_transition.sql",
+            "0082_coordinator_recruiting_workflow.sql",
+            "0083_coordinator_review_runs.sql",
+            "0084_coordinator_granular_intake_reports.sql",
+            "0085_coordinator_program_events.sql",
+            "0086_coordinator_tryout_events.sql",
+            "0087_coordinator_audit_context.sql",
+            "0088_coordinator_program_reviews.sql",
+            "0089_coordinator_roster_eligibility.sql",
+            "0090_coordinator_content_publication.sql",
+            "0091_coordinator_communications.sql",
+            "0092_coordinator_player_publication.sql",
+            "0093_coordinator_program_notices.sql",
+            "0094_coordinator_recovery.sql",
+            "0095_coordinator_security_archive.sql",
+            "0096_coordinator_provider_backup_reviews.sql",
           ],
         );
       for (const { name } of late) {

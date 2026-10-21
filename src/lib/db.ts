@@ -209,11 +209,13 @@ export async function getSql(): Promise<Sql> {
     });
   }
   const raw = await (injected ?? sqlPromise!);
-  const { currentAuditActor } = await import('./audit-context.server');
+  const { currentAuditActor,currentAuditCorrelation } = await import('./audit-context.server');
   const actor = currentAuditActor();
   if (!actor) return raw;
   const transaction: Sql['transaction'] = work => raw.transaction(async tx => {
     await tx.query("select set_config('app.actor_id',$1,true)",[actor]);
+    const correlation=currentAuditCorrelation();
+    if(correlation)await tx.query("select set_config('app.correlation_id',$1,true)",[correlation]);
     return work(tx);
   });
   return toSql((text, params) => transaction(tx => tx.query(text,params)),transaction);

@@ -1,5 +1,14 @@
+import { CoordinatorPrivacy } from "./privacy";
+import { CoordinatorRecovery } from "./recovery";
+import { OwnerPlayerPublications } from "./player-publication";
+import { TeamMessageReview, CommunicationArchive } from "./communications";
+import { PublishedContentManagement } from "./content-drafts";
+import { publishReviewedCoordinatorDraft } from "@/lib/coordinator/api";
+import { RosterEligibilityReview } from "./roster-management";
+import type { StaffActivityFilter } from "@/lib/coordinator/audit-contracts";
+import { getCoordinatorTransferRecovery, recoverCoordinatorTransfer } from "@/lib/coordinator/api";
+import { CoordinatorAccessReviews } from "./access-reviews";
 import { useEffect, useState } from "react";
-import { OrganizationAccess } from "./organization-access";
 import { Button } from "../ui/button";
 import {
   capabilities,
@@ -11,11 +20,15 @@ import {
 } from "@/lib/coordinator/contracts";
 import {
   getStaffRoles,
+  resetStaffCoordinatorAccess,
   saveStaffRole,
   getStaffActivity,
   getCoordinatorApprovals,
   decideCoordinatorApproval,
   savePublicLeadership,
+  inviteStaffCoordinator,
+  getCoordinatorInvitations,
+  revokeStaffCoordinatorInvitation,
 } from "@/lib/coordinator/api";
 const field = "min-h-11 rounded border border-line bg-white p-2 text-ink";
 export function StaffRoleManagement() {
@@ -25,9 +38,38 @@ export function StaffRoleManagement() {
     [notice, setNotice] = useState(""),
     [busy, setBusy] = useState(false);
   const [tab, setTab] = useState("roles");
+  const [inviteEmail, setInviteEmail] = useState("");
+  const [inviteSport, setInviteSport] = useState<Sport>("softball");
+  const [invitations, setInvitations] =
+    useState<Awaited<ReturnType<typeof getCoordinatorInvitations>>>();
   const [activity, setActivity] = useState<Awaited<ReturnType<typeof getStaffActivity>>>();
   const [queue, setQueue] = useState<Awaited<ReturnType<typeof getCoordinatorApprovals>>>();
   const [actorFilter, setActorFilter] = useState("");
+  const [activityFilters, setActivityFilters] = useState({
+    sport: "",
+    teamId: "",
+    after: "",
+    before: "",
+    action: "",
+    targetId: "",
+    result: "",
+  });
+  async function loadActivity(beforeId?: number) {
+    const filters: StaffActivityFilter = {
+      actor: actorFilter,
+      ...(activityFilters.sport ? { sport: activityFilters.sport as Sport } : {}),
+      ...(activityFilters.result
+        ? { result: activityFilters.result as StaffActivityFilter["result"] }
+        : {}),
+      teamId: activityFilters.teamId,
+      action: activityFilters.action,
+      targetId: activityFilters.targetId,
+      ...(activityFilters.after ? { after: new Date(activityFilters.after).toISOString() } : {}),
+      ...(activityFilters.before ? { before: new Date(activityFilters.before).toISOString() } : {}),
+      ...(beforeId ? { beforeId } : {}),
+    };
+    setActivity(await getStaffActivity({ data: filters }));
+  }
   const [publicEnabled, setPublicEnabled] = useState(false),
     [publicTitles, setPublicTitles] = useState<("Baseball Coordinator" | "Softball Coordinator")[]>(
       [],
@@ -69,7 +111,7 @@ export function StaffRoleManagement() {
     setNotice("");
     setBusy(true);
     try {
-      await work();
+      if ((await work()) === false) return;
       setNotice(success);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not complete the action.");
@@ -105,7 +147,6 @@ export function StaffRoleManagement() {
       aria-label="Staff Management"
     >
       <h2 className="text-2xl">Staff Management</h2>
-      <OrganizationAccess accounts={data.accounts} />
       <p>
         Role identity, operational permissions, team scope, and public titles are configured
         separately.
@@ -113,14 +154,24 @@ export function StaffRoleManagement() {
       <div className="flex flex-wrap gap-2">
         {[
           ["roles", "Roles & Permissions"],
+          ["invitations", "Coordinator Invitations"],
           ["approvals", "Approval Queue"],
+          ["player-publications", "Player Publications"],
+          ["eligibility", "Roster Eligibility"],
+          ["publications", "Published Updates"],
+          ["communications", "Communication Review"],
           ["activity", "Staff Activity & Audit Center"],
+          ["reviews", "Access Reviews"],
+          ["recovery", "Recovery"],
+          ["privacy", "Privacy & Audit Protection"],
         ].map(([key, label]) => (
           <Button
             key={key}
             variant={tab === key ? "primary" : "outlineDark"}
             onClick={() => {
               setTab(key);
+              if (key === "invitations")
+                void run(async () => setInvitations(await getCoordinatorInvitations()), "");
               if (key === "approvals")
                 void run(async () => setQueue(await getCoordinatorApprovals()), "");
               if (key === "activity")
@@ -137,6 +188,89 @@ export function StaffRoleManagement() {
         </p>
       )}
       {notice && <p role="status">{notice}</p>}
+      {tab === "communications" && (
+        <>
+          <TeamMessageReview teams={data.teams} />
+          <CommunicationArchive />
+        </>
+      )}
+      {tab === "publications" && <PublishedContentManagement />}
+      {tab === "eligibility" && <RosterEligibilityReview />}
+      {tab === "invitations" && (
+        <div className="grid gap-4">
+          <p>
+            Invitations expire after seven days. Acceptance adds only the coordinator role, with
+            zero permissions and no team access. Review scope and permissions separately after
+            acceptance. Existing staff with independent roles require review in Roles & Permissions.
+          </p>
+          <form
+            className="grid gap-3"
+            onSubmit={(event) => {
+              event.preventDefault();
+              void run(async () => {
+                await inviteStaffCoordinator({ data: { email: inviteEmail, sport: inviteSport } });
+                setInvitations(await getCoordinatorInvitations());
+                setInviteEmail("");
+              }, "Invitation saved. Ask the recipient to sign in with the invited verified email and open /invitations. No email has been sent and no operational permissions have been granted.");
+            }}
+          >
+            <label className="grid gap-1">
+              Invitation email
+              <input
+                type="email"
+                required
+                maxLength={254}
+                className={field}
+                value={inviteEmail}
+                onChange={(e) => setInviteEmail(e.target.value)}
+              />
+            </label>
+            <label className="grid gap-1">
+              Invited coordinator role
+              <select
+                className={field}
+                value={inviteSport}
+                onChange={(e) => setInviteSport(e.target.value as Sport)}
+              >
+                <option value="softball">Softball Coordinator</option>
+                <option value="baseball">Baseball Coordinator</option>
+              </select>
+            </label>
+            <Button disabled={busy} type="submit">
+              Create zero-permission invitation
+            </Button>
+          </form>
+          {!invitations ? (
+            <p role="status">Loading invitations…</p>
+          ) : !invitations.length ? (
+            <p>No pending coordinator invitations.</p>
+          ) : (
+            invitations.map((invite) => (
+              <article key={invite.id} className="rounded border border-line p-3">
+                <p>
+                  {invite.email} ·{" "}
+                  {invite.role === "softball_coordinator"
+                    ? "Softball Coordinator"
+                    : "Baseball Coordinator"}
+                </p>
+                <p>Expires {new Date(invite.expires_at).toLocaleDateString()}</p>
+                <Button
+                  disabled={busy}
+                  variant="outlineDark"
+                  onClick={() =>
+                    void run(async () => {
+                      await revokeStaffCoordinatorInvitation({ data: { id: invite.id } });
+                      setInvitations(await getCoordinatorInvitations());
+                    }, "Invitation revoked.")
+                  }
+                >
+                  Revoke invitation
+                </Button>
+              </article>
+            ))
+          )}
+        </div>
+      )}
       {tab === "roles" && (
         <>
           <label className="grid gap-1">
@@ -161,6 +295,60 @@ export function StaffRoleManagement() {
           </p>
           {value && (
             <>
+              <details className="rounded border border-line p-3">
+                <summary>Withdraw all coordinator access</summary>
+                <p>
+                  This suspends both sport assignments, clears all coordinator permissions and team
+                  scopes, retires any old organization-wide grant, rejects pending approval requests
+                  and cancels unsent coordinator notices. Financial restrictions and the base
+                  account remain unchanged. Messages already accepted by an email provider cannot be
+                  recalled.
+                </p>
+                <form
+                  className="grid gap-2"
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    const reason = String(new FormData(e.currentTarget).get("resetReason") || "");
+                    if (
+                      !window.confirm(
+                        "Withdraw all coordinator access for this person in both sports?",
+                      )
+                    )
+                      return;
+                    void run(async () => {
+                      await resetStaffCoordinatorAccess({
+                        data: {
+                          userId: value.userId,
+                          assignments: data.assignments
+                            .filter((a) => a.user_id === value.userId)
+                            .map((a) => ({ sport: a.sport, revision: a.revision })),
+                          legacyRevision:
+                            data.retiredAccess?.find((a) => a.user_id === value.userId)?.revision ||
+                            0,
+                          reason,
+                          confirmed: true,
+                        },
+                      });
+                      const updated = await load();
+                      choose(value.userId, value.sport, updated);
+                    }, "Coordinator access withdrawn. No operational permissions remain; financial restrictions are unchanged.");
+                  }}
+                >
+                  <label className="grid gap-1">
+                    Reason for withdrawing access
+                    <textarea
+                      name="resetReason"
+                      required
+                      minLength={10}
+                      maxLength={500}
+                      className={field}
+                    />
+                  </label>
+                  <Button type="submit" disabled={busy}>
+                    Withdraw all coordinator access
+                  </Button>
+                </form>
+              </details>
               <label className="grid gap-1">
                 Role / sport
                 <select
@@ -175,10 +363,12 @@ export function StaffRoleManagement() {
               <p className="font-semibold">
                 {value.revision ? "Existing assignment" : "New assignment · zero permissions"}
               </p>
-              <label className="grid gap-1">
+              <label htmlFor="coordinator-coverage" className="grid gap-1">
                 Coverage
                 <select
                   className={field}
+                  id="coordinator-coverage"
+                  aria-label="Coverage"
                   value={value.coverage}
                   onChange={(e) =>
                     setValue({
@@ -435,6 +625,7 @@ export function StaffRoleManagement() {
           )}
         </>
       )}
+      {tab === "reviews" && <CoordinatorAccessReviews />}
       {tab === "activity" && (
         <>
           <label className="grid gap-1">
@@ -452,20 +643,69 @@ export function StaffRoleManagement() {
               ))}
             </select>
           </label>
-          <Button
-            onClick={() =>
-              void run(
-                async () => setActivity(await getStaffActivity({ data: { actor: actorFilter } })),
-                "",
-              )
-            }
-          >
+          <div className="grid gap-3 sm:grid-cols-2">
+            <label>
+              Sport
+              <select
+                className={field}
+                value={activityFilters.sport}
+                onChange={(e) => setActivityFilters({ ...activityFilters, sport: e.target.value })}
+              >
+                <option value="">All sports</option>
+                <option value="baseball">Baseball</option>
+                <option value="softball">Softball</option>
+              </select>
+            </label>
+            <label>
+              Result
+              <select
+                className={field}
+                value={activityFilters.result}
+                onChange={(e) => setActivityFilters({ ...activityFilters, result: e.target.value })}
+              >
+                <option value="">All results</option>
+                {["allowed", "denied", "conflict"].map((r) => (
+                  <option key={r}>{r}</option>
+                ))}
+              </select>
+            </label>
+            {(
+              [
+                ["teamId", "Team ID"],
+                ["targetId", "Affected record ID"],
+                ["action", "Exact action type"],
+                ["after", "From (local time)"],
+                ["before", "Through (local time)"],
+              ] as const
+            ).map(([key, label]) => (
+              <label key={key}>
+                {label}
+                <input
+                  className={field}
+                  type={key === "after" || key === "before" ? "datetime-local" : "text"}
+                  maxLength={200}
+                  value={activityFilters[key]}
+                  onChange={(e) =>
+                    setActivityFilters({ ...activityFilters, [key]: e.target.value })
+                  }
+                />
+              </label>
+            ))}
+          </div>
+          <Button disabled={busy} onClick={() => void run(() => loadActivity(), "")}>
             Filter Activity / Permission History
           </Button>
           {activity?.alerts.map((a) => (
             <p role="status" key={a.actor_id}>
-              {a.denials} denied actions in 24 hours for {a.actor_id}. Review context before
-              treating this as an incident.
+              {a.denials} denied actions in {activity.denialWindowHours} hours for {a.actor_id}.
+              Review context before treating this as an incident.
+            </p>
+          ))}
+          {activity?.riskAlerts.map((a) => (
+            <p role="status" key={a.id}>
+              {a.priority}: {a.code} — {a.observed_count} observations in {a.window_hours} hours
+              {a.actor_id ? ` for ${a.actor_id}` : ""}. Review the related activity; this is not a
+              confirmed incident.
             </p>
           ))}
           <div className="overflow-auto">
@@ -489,6 +729,14 @@ export function StaffRoleManagement() {
                     <td>
                       <details>
                         <summary className="min-h-11">Review</summary>
+                        <p>
+                          Sport: {e.sport || "Not recorded"} · Team: {e.team_id || "Not recorded"} ·
+                          Target: {e.target_id}
+                        </p>
+                        <p>Request: {e.correlation_id}</p>
+                        <pre className="max-w-sm whitespace-pre-wrap">
+                          {JSON.stringify(e.actor_roles, null, 2)}
+                        </pre>
                         <pre className="max-w-sm whitespace-pre-wrap">{e.details}</pre>
                       </details>
                     </td>
@@ -497,8 +745,31 @@ export function StaffRoleManagement() {
               </tbody>
             </table>
           </div>
+          {activity?.nextBeforeId && (
+            <Button
+              disabled={busy}
+              onClick={() => void run(() => loadActivity(activity.nextBeforeId!), "")}
+            >
+              Older matching activity
+            </Button>
+          )}
+          {activity && (
+            <details>
+              <summary>Other recorded staff activity (up to 200)</summary>
+              <p>Metadata only. Financial, medical and private narrative payloads are excluded.</p>
+              {activity.otherActivity.map((e) => (
+                <p key={e.id}>
+                  {new Date(e.created_at).toLocaleString()} · {e.actor_id} · {e.action} ·{" "}
+                  {e.target_table} · {e.target_id}
+                </p>
+              ))}
+            </details>
+          )}
         </>
       )}
+      {tab === "privacy" && <CoordinatorPrivacy />}
+      {tab === "recovery" && <CoordinatorRecovery />}
+      {tab === "player-publications" && <OwnerPlayerPublications />}
       {tab === "approvals" && (
         <>
           {queue?.length === 0 && <p>No approval requests.</p>}
@@ -518,13 +789,131 @@ export function StaffRoleManagement() {
                 </>
               )}
               <p>Target: {a.target_id}</p>
+              {["tryout-change", "program-change", "communication"].includes(a.kind) && (
+                <details>
+                  <summary>Review proposed change</summary>
+                  <pre className="whitespace-pre-wrap break-words text-sm">
+                    {JSON.stringify(a.proposal, null, 2)}
+                  </pre>
+                </details>
+              )}
+              <p>Team: {a.team_id || "Authorized sport scope"}</p>
+              {["roster-publication", "photo-publication"].includes(a.kind) && (
+                <div className="rounded border p-3">
+                  <p>
+                    Review the exact player information for public display. Current guardian consent
+                    and the requesting coordinator’s scope are rechecked when approved.
+                  </p>
+                  <pre className="whitespace-pre-wrap break-words">
+                    {JSON.stringify(
+                      { name: a.proposal.display?.name, number: a.proposal.display?.number },
+                      null,
+                      2,
+                    )}
+                  </pre>
+                  {a.kind === "photo-publication" && a.proposal.display?.photo && (
+                    <img
+                      className="max-h-64 max-w-full object-contain"
+                      src={a.proposal.display.photo}
+                      alt="Player photo proposed for publication" referrerPolicy="no-referrer"
+                    />
+                  )}
+                </div>
+              )}
+              {a.proposal.destinationTeamId && (
+                <p>Proposed destination: {a.proposal.destinationTeamId}</p>
+              )}
+              {a.proposal.sessions && (
+                <p>
+                  Cancellation covers {a.proposal.sessions.length} recorded sessions. Changed
+                  sessions require a fresh review.
+                </p>
+              )}
               <p className="text-sm">
-                {a.kind === "transfer"
-                  ? "Approval records the decision; complete any transfer through the owner roster workflow after reviewing eligibility and agreements."
-                  : a.kind === "content"
-                    ? "Approval does not publish. Use the owner content workflow after checking publication consent."
-                    : "Approval cancels the practice and releases its linked unpaid cage reservation atomically."}
+                {a.kind === "roster-publication" || a.kind === "photo-publication"
+                  ? "Approval permits only this exact consented identity or photo. Current guardian relationship, consent, source data and requester scope are rechecked. Withdrawal and later changes fail closed."
+                  : a.kind === "communication"
+                    ? "Approval queues the exact program notice for confirmed recipients. Dispatch rechecks permission and current recipients."
+                    : a.kind === "transfer"
+                      ? "Approval executes this transfer atomically after rechecking current access, roster revision, eligibility and financial protections. A conflict leaves the request pending and changes no records."
+                      : a.kind === "program-change"
+                        ? "Approval applies the exact camp or clinic proposal after rechecking requester access, current revisions and shared reservations. Paid or conflicting bookings remain protected."
+                        : a.kind === "tryout-change"
+                          ? "Approval applies the exact requested tryout schedule and publication state, rechecks current access and shared reservations, and queues family notices atomically. Conflicts leave this request pending."
+                          : a.kind === "content"
+                            ? "Approval does not publish. After review, an authorized owner can publish general program information here. Player identities and photos require their separate consent workflow."
+                            : a.proposal.system === "program"
+                              ? "Approval archives this camp or clinic, cancels future sessions and releases unpaid reservations atomically. Protected or paid reservations remain blocked."
+                              : "Approval cancels the practice and releases its linked unpaid cage reservation atomically."}
               </p>
+              {a.kind === "content" && a.status === "approved" && (
+                <Button
+                  disabled={busy}
+                  onClick={() =>
+                    void run(async () => {
+                      if (
+                        !window.confirm(
+                          "Publish this approved general program update? Confirm it contains no identifying player details, athlete photographs, private family information, medical or financial data. Player publication requires its separate consent workflow.",
+                        )
+                      )
+                        return false;
+                      const reason = window.prompt(
+                        "Reason for publishing this reviewed program update (at least 10 characters):",
+                      );
+                      if (!reason) return false;
+                      await publishReviewedCoordinatorDraft({
+                        data: {
+                          draftId: a.target_id,
+                          revision: (a.proposal.revision || 0) + 1,
+                          approvalRevision: a.revision,
+                          confirm: true,
+                          generalProgramContentOnly: true,
+                          reason,
+                        },
+                      });
+                    }, "Publication action completed. Review Published Updates for current visibility.")
+                  }
+                >
+                  Publish Approved General Update
+                </Button>
+              )}
+              {a.kind === "transfer" &&
+                a.status === "approved" &&
+                (a.proposal.recovered ? (
+                  <p>Transfer recovered to its original team.</p>
+                ) : (
+                  <Button
+                    disabled={busy}
+                    variant="outlineDark"
+                    onClick={() =>
+                      void run(async () => {
+                        const preview = await getCoordinatorTransferRecovery({ data: a.id });
+                        const reason = window.prompt(
+                          "Reason for restoring this athlete to the original team (at least 10 characters):",
+                        );
+                        if (
+                          !reason ||
+                          !window.confirm(
+                            `Restore athlete ${preview.playerId} from ${preview.fromTeamId} to ${preview.toTeamId}? Current eligibility and financial protections will be rechecked.`,
+                          )
+                        )
+                          return;
+                        await recoverCoordinatorTransfer({
+                          data: {
+                            approvalId: a.id,
+                            approvalRevision: preview.approvalRevision,
+                            rosterRevision: preview.rosterRevision,
+                            reason,
+                            confirm: true,
+                          },
+                        });
+                        setQueue(await getCoordinatorApprovals());
+                      }, "Recovery request processed. Review the transfer status.")
+                    }
+                  >
+                    Recover transfer to original team
+                  </Button>
+                ))}
               {a.status === "pending" && (
                 <div className="flex gap-2">
                   {(["approved", "rejected"] as const).map((decision) => (

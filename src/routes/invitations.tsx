@@ -1,11 +1,91 @@
-import {createFileRoute,Link} from '@tanstack/react-router';
-import {useEffect,useState} from 'react';
-import {useCurrentUser} from '@/lib/auth/use-current-user';
-import {getInvitations,acceptClubInvitation} from '@/lib/invitations';
-import {Button} from '@/components/ui/button';
-import {pageHead} from '@/lib/seo';
-import { CLUB } from '@/lib/club';
-export const Route=createFileRoute('/invitations')({head:()=>pageHead('/invitations','Invitations',`Accept your ${CLUB.name} invitation.`,true),component:Invitations});
-function Invitations(){const user=useCurrentUser();const [rows,setRows]=useState<Awaited<ReturnType<typeof getInvitations>>>([]),[error,setError]=useState(''),[notice,setNotice]=useState(''),[busy,setBusy]=useState(false);
- async function load(){setRows(await getInvitations());}useEffect(()=>{if(user)void load().catch(e=>setError(e.message));},[user?.id]);
- return <main id="main" className="mx-auto max-w-3xl px-5 py-8"><h1 className="text-4xl">Your invitations</h1><p>Use the exact invited email and verify it before accepting. Invitations expire after seven days.</p>{!user?<Link to="/login" search={{next:'/invitations'}} className="underline">Sign in or create your own account</Link>:<>{!rows.length?<p className="mt-4">No pending invitations for this account.</p>:null}{rows.map(r=><article key={r.id} className="mt-4 rounded-xl border p-4"><h2 className="text-2xl">{r.family_id?'Household guardian':r.role} invitation</h2><p>{r.family_id?'Accepting gives access to this household’s athletes, waivers, bookings and billing.':'Accepting opens the assigned club workspace.'}</p><Button disabled={busy} onClick={async()=>{setBusy(true);setError('');try{await acceptClubInvitation({data:{id:r.id}});await load();setNotice('Invitation accepted. Open your account to continue.');}catch(e){setError(e instanceof Error?e.message:'Could not accept.');}finally{setBusy(false);}}}>Accept invitation</Button></article>)}</>}{error?<p role="alert">{error}</p>:null}{notice?<p role="status">{notice} <Link to="/account" className="underline">Open account</Link></p>:null}</main>;}
+import { createFileRoute, Link } from "@tanstack/react-router";
+import { useEffect, useState } from "react";
+import { useCurrentUser } from "@/lib/auth/use-current-user";
+import { getInvitations, acceptClubInvitation } from "@/lib/invitations";
+import { Button } from "@/components/ui/button";
+import { pageHead } from "@/lib/seo";
+import { CLUB } from "@/lib/club";
+export const Route = createFileRoute("/invitations")({
+  head: () => pageHead("/invitations", "Invitations", `Accept your ${CLUB.name} invitation.`, true),
+  component: Invitations,
+});
+function Invitations() {
+  const user = useCurrentUser();
+  const userId = user?.id;
+  const [rows, setRows] = useState<Awaited<ReturnType<typeof getInvitations>>>([]),
+    [error, setError] = useState(""),
+    [notice, setNotice] = useState(""),
+    [busy, setBusy] = useState(false);
+  async function load() {
+    setRows(await getInvitations());
+  }
+  useEffect(() => {
+    if (userId) void load().catch((e) => setError(e.message));
+  }, [userId]);
+  return (
+    <main id="main" className="mx-auto max-w-3xl px-5 py-8">
+      <h1 className="text-4xl">Your invitations</h1>
+      <p>
+        Use the exact invited email and verify it before accepting. Invitations expire after seven
+        days.
+      </p>
+      {!user ? (
+        <Link to="/login" search={{ next: "/invitations" }} className="underline">
+          Sign in or create your own account
+        </Link>
+      ) : (
+        <>
+          {!rows.length ? <p className="mt-4">No pending invitations for this account.</p> : null}
+          {rows.map((r) => (
+            <article key={r.id} className="mt-4 rounded-xl border p-4">
+              <h2 className="text-2xl">
+                {r.family_id
+                  ? "Household guardian"
+                  : r.role === "softball_coordinator"
+                    ? "Softball Coordinator"
+                    : r.role === "baseball_coordinator"
+                      ? "Baseball Coordinator"
+                      : r.role}{" "}
+                invitation
+              </h2>
+              <p>
+                {r.family_id
+                  ? "Accepting gives access to this household’s athletes, waivers, bookings and billing."
+                  : r.role.endsWith("_coordinator")
+                    ? "Accepting adds only your coordinator role. No operational modules or team records are available until an authorized owner explicitly grants permissions."
+                    : "Accepting opens the assigned club workspace."}
+              </p>
+              <Button
+                disabled={busy}
+                onClick={async () => {
+                  setBusy(true);
+                  setError("");
+                  try {
+                    await acceptClubInvitation({ data: { id: r.id } });
+                    await load();
+                    setNotice("Invitation accepted. Open your account to continue.");
+                  } catch (e) {
+                    setError(e instanceof Error ? e.message : "Could not accept.");
+                  } finally {
+                    setBusy(false);
+                  }
+                }}
+              >
+                Accept invitation
+              </Button>
+            </article>
+          ))}
+        </>
+      )}
+      {error ? <p role="alert">{error}</p> : null}
+      {notice ? (
+        <p role="status">
+          {notice}{" "}
+          <Link to="/account" className="underline">
+            Open account
+          </Link>
+        </p>
+      ) : null}
+    </main>
+  );
+}

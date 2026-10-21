@@ -278,7 +278,7 @@ test("reconstructed catalog, both sports, filters and safe export never disclose
   try {
     const before = await readClub(sql),
       finances = await financialSnapshot(sql);
-    const workspace = await organizationTournaments(sql, "sara");
+    const workspace = await organizationTournaments(sql, "steve");
     privateFieldsAbsent(workspace);
     assert.deepEqual(
       workspace.teams.map((team) => team.id),
@@ -363,7 +363,7 @@ test("reconstructed catalog, both sports, filters and safe export never disclose
       organizationTournamentConflict(workspace.catalog[0], base, workspace.catalog)?.id,
       "overlap",
     );
-    const report = await organizationTournamentReport(sql, "sara", {
+    const report = await organizationTournamentReport(sql, "steve", {
       teamId: "soft",
       filters: { ...all, plannedOnly: true },
     });
@@ -377,10 +377,10 @@ test("reconstructed catalog, both sports, filters and safe export never disclose
     const modified = structuredClone(before.payload);
     modified.catalog[0].name = '=HYPERLINK("https://example.invalid")';
     await sql`update club_state set payload=${JSON.stringify(modified)}::jsonb where id='oklahoma-prospects'`;
-    const csv = await organizationTournamentReport(sql, "sara", { teamId: "", filters: all });
+    const csv = await organizationTournamentReport(sql, "steve", { teamId: "", filters: all });
     assert.match(csv.body, /"'=HYPERLINK\(""https:\/\/example.invalid""\)"/);
     await assert.rejects(
-      () => organizationTournamentReport(sql, "sara", { teamId: "closed", filters: all }),
+      () => organizationTournamentReport(sql, "steve", { teamId: "closed", filters: all }),
       /not authorized/,
     );
   } finally {
@@ -410,7 +410,7 @@ test("source edits preserve every other club value, financial table, quoted fee 
       };
     };
     const pricedBefore = await outputs();
-    const result = await saveOrganizationTournamentSource(sql, "sara", input());
+    const result = await saveOrganizationTournamentSource(sql, "steve", input());
     assert.deepEqual(result, { revision: 2, changed: true });
     privateFieldsAbsent(result);
     const after = await readClub(sql);
@@ -419,32 +419,32 @@ test("source edits preserve every other club value, financial table, quoted fee 
     assert.deepEqual(await outputs(), pricedBefore);
     assert.equal(after.payload.catalog[0].sourceUrl, input().sourceUrl);
     assert.equal(after.payload.catalog[0].distanceMiles, 60);
-    assert.deepEqual(await saveOrganizationTournamentSource(sql, "sara", input(2)), {
+    assert.deepEqual(await saveOrganizationTournamentSource(sql, "steve", input(2)), {
       revision: 2,
       changed: false,
     });
-    await assert.rejects(() => saveOrganizationTournamentSource(sql, "sara", input(1)), /changed/);
+    await assert.rejects(() => saveOrganizationTournamentSource(sql, "steve", input(1)), /changed/);
     await assert.rejects(
-      () => saveOrganizationTournamentSource(sql, "sara", { ...input(2), id: "private-source" }),
+      () => saveOrganizationTournamentSource(sql, "steve", { ...input(2), id: "private-source" }),
       /owner review/,
     );
     await assert.rejects(
-      () => saveOrganizationTournamentSource(sql, "sara", { ...input(2), id: "malformed-nested" }),
+      () => saveOrganizationTournamentSource(sql, "steve", { ...input(2), id: "malformed-nested" }),
       /owner review/,
     );
     await assert.rejects(
-      () => saveOrganizationTournamentSource(sql, "sara", { ...input(2), id: "activity-hidden" }),
+      () => saveOrganizationTournamentSource(sql, "steve", { ...input(2), id: "activity-hidden" }),
       /not authorized/,
     );
     await assert.rejects(() =>
-      saveOrganizationTournamentSource(sql, "sara", {
+      saveOrganizationTournamentSource(sql, "steve", {
         ...input(2),
         fee: 1,
       } as OrganizationTournamentSourceInput),
     );
     assert.deepEqual(await readClub(sql), after);
     assert.deepEqual(
-      await saveOrganizationTournamentSource(sql, "sara", {
+      await saveOrganizationTournamentSource(sql, "steve", {
         ...input(2),
         sourceUrl: "",
         sourceCheckedOn: "",
@@ -461,7 +461,7 @@ test("source edits preserve every other club value, financial table, quoted fee 
       `create function synthetic_reject_tournament_write() returns trigger language plpgsql as $$ begin raise exception 'Synthetic atomic write failure'; end $$; create trigger synthetic_reject_tournament_write before update on club_state for each row execute function synthetic_reject_tournament_write();`,
     );
     await assert.rejects(
-      () => saveOrganizationTournamentSource(sql, "sara", input(3)),
+      () => saveOrganizationTournamentSource(sql, "steve", input(3)),
       /Synthetic atomic write failure/,
     );
     assert.deepEqual(await readClub(sql), beforeFailure);
@@ -487,7 +487,7 @@ test("every read, download and save rechecks active organization authority and d
     ];
     for (const user of ["parent", "coach", "fake-owner", "unverified", "disabled", "missing"])
       for (const attempt of attempts(user)) await assert.rejects(attempt, /not authorized/);
-    for (const status of ["suspended", "removed"]) {
+    for (const status of ["active", "suspended", "removed"]) {
       await sql`update organization_operational_access set status=${status} where user_id='sara'`;
       for (const attempt of attempts("sara")) await assert.rejects(attempt, /not authorized/);
     }

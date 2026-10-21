@@ -81,30 +81,27 @@ test("organization tryout events preserve owner access, consent, event locks and
     ] as const)
       await sql`insert into club_requests(id,kind,payload) values(${id},'tryout',${JSON.stringify(input)}::jsonb)`;
     await saveTryoutEventFor(sql, "steve", event);
-    assert.deepEqual(
-      await adminTryoutEventsFor(sql, "sara"),
-      await adminTryoutEventsFor(sql, "steve"),
-    );
-    let current = (await adminTryoutEventsFor(sql, "sara"))[0];
+    await assert.rejects(() => adminTryoutEventsFor(sql, "sara"));
+    let current = (await adminTryoutEventsFor(sql, "steve"))[0];
     for (const extra of [
       { fee: 100 },
       { payment: { total: 100 } },
       { finance: { refund: true } },
       { updated_by: "steve" },
     ]) {
-      await assert.rejects(() => saveTryoutEventFor(sql, "sara", { ...current, ...extra }));
+      await assert.rejects(() => saveTryoutEventFor(sql, "steve", { ...current, ...extra }));
     }
     for (const bad of [
       { ageGroups: [{ age: "10U", price: 1 }] },
       { location: { location: "Field", payment: 1 } },
     ]) {
       await assert.rejects(() =>
-        saveTryoutEventFor(sql, "sara", { ...current, ...bad } as unknown as TryoutEventInput),
+        saveTryoutEventFor(sql, "steve", { ...current, ...bad } as unknown as TryoutEventInput),
       );
     }
-    await saveTryoutEventFor(sql, "sara", { ...current, status: "published" });
+    await saveTryoutEventFor(sql, "steve", { ...current, status: "published" });
     assert.equal((await publicTryoutEventsFor(sql)).length, 1);
-    const enrollments = await operationalTryoutEnrollmentsFor(sql, "sara");
+    const enrollments = await operationalTryoutEnrollmentsFor(sql, "steve");
     assert.equal(enrollments.length, 1);
     assert.equal(enrollments[0].player, "Synthetic Player");
     assert.equal(enrollments[0].notification, "pending");
@@ -118,20 +115,20 @@ test("organization tryout events preserve owner access, consent, event locks and
     );
     assert.deepEqual(await operationalTryoutEnrollmentsFor(sql, "steve"), enrollments);
     assert.deepEqual(
-      Object.keys((await adminTryoutEventsFor(sql, "sara"))[0]).sort(),
+      Object.keys((await adminTryoutEventsFor(sql, "steve"))[0]).sort(),
       Object.keys(event).sort(),
     );
-    current = (await adminTryoutEventsFor(sql, "sara"))[0];
+    current = (await adminTryoutEventsFor(sql, "steve"))[0];
     await assert.rejects(
-      () => saveTryoutEventFor(sql, "sara", { ...current, status: "draft" }),
+      () => saveTryoutEventFor(sql, "steve", { ...current, status: "draft" }),
       /Cancel/,
     );
     await assert.rejects(
-      () => saveTryoutEventFor(sql, "sara", { ...current, sport: "Softball" }),
+      () => saveTryoutEventFor(sql, "steve", { ...current, sport: "Softball" }),
       /Cancel/,
     );
     await assert.rejects(
-      () => saveTryoutEventFor(sql, "sara", { ...current, revision: 1 }),
+      () => saveTryoutEventFor(sql, "steve", { ...current, revision: 1 }),
       /Another editor/,
     );
     await sql`insert into club_staff(id,name,email,role,active) values('coach','Synthetic Coach','coach@example.invalid','coach',true)`;
@@ -139,17 +136,17 @@ test("organization tryout events preserve owner access, consent, event locks and
     await sql`insert into tryout_event_reservations(event_id,booking_id,coach_id,lane_ids) values(${event.id},'reservation','coach',array['1'])`;
     const reservations = await sql`select * from booking_records where id='reservation'`;
     await assert.rejects(
-      () => saveTryoutEventFor(sql, "sara", { ...current, status: "cancelled" }),
+      () => saveTryoutEventFor(sql, "steve", { ...current, status: "cancelled" }),
       /confirmed coach\/facility/,
     );
     assert.deepEqual(await sql`select * from booking_records where id='reservation'`, reservations);
     await sql`delete from tryout_event_reservations where event_id=${event.id}`;
-    await saveTryoutEventFor(sql, "sara", { ...current, status: "cancelled" });
-    assert.equal((await operationalTryoutEnrollmentsFor(sql, "sara"))[0].status, "cancelled");
+    await saveTryoutEventFor(sql, "steve", { ...current, status: "cancelled" });
+    assert.equal((await operationalTryoutEnrollmentsFor(sql, "steve"))[0].status, "cancelled");
     assert.deepEqual(await publicTryoutEventsFor(sql), []);
     // Legacy malformed mixed payloads cannot smuggle nested money through identity text.
     await sql`update club_requests set payload=payload||'{"player":{"payment":"nested-finance-sentinel"},"email":{"balance":42}}'::jsonb where id='consented'`;
-    const malformed = (await operationalTryoutEnrollmentsFor(sql, "sara"))[0];
+    const malformed = (await operationalTryoutEnrollmentsFor(sql, "steve"))[0];
     assert.equal(malformed.player, "");
     assert.equal(malformed.email, "");
     assert.doesNotMatch(JSON.stringify(malformed), /nested-finance|balance|payment/);
@@ -159,7 +156,7 @@ test("organization tryout events preserve owner access, consent, event locks and
     assert.equal((await sql`select user_id from owner_grants where user_id='sara'`).length, 0);
     assert.ok(
       (
-        await sql`select id from coordinator_audit where actor_id='sara' and action='organization.tryout-events.save' and result='allowed'`
+        await sql`select id from coordinator_audit where actor_id='steve' and action='organization.tryout-events.save' and result='allowed'`
       ).length,
     );
     assert.ok(
@@ -168,10 +165,10 @@ test("organization tryout events preserve owner access, consent, event locks and
     );
     assert.ok(
       (
-        await sql`select id from audit_events where actor_id='sara' and target_table='tryout_events'`
+        await sql`select id from audit_events where actor_id='steve' and target_table='tryout_events'`
       ).length,
     );
-    for (const status of ["suspended", "removed"]) {
+    for (const status of ["active", "suspended", "removed"]) {
       await sql`update organization_operational_access set status=${status} where user_id='sara'`;
       await assert.rejects(() => adminTryoutEventsFor(sql, "sara"));
       await assert.rejects(() => operationalTryoutEnrollmentsFor(sql, "sara"));

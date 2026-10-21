@@ -356,6 +356,11 @@ export async function saveCenterAppointmentFor(
         status: string;
       }>`select *,event_date::text as event_date from tryout_events where id=${input.eventId} for update`;
       if (!event) throw new Error("Event not found.");
+      const [scope] = await tx<{
+        team_id: string;
+      }>`select team_id from coordinator_tryout_scopes where event_id=${input.eventId}`;
+      if (scope && request.payload.preferredTeamId !== scope.team_id)
+        throw new Error("This event belongs to a different team than this registration.");
       if (input.status !== "cancelled") {
         if (
           event.status !== "published" ||
@@ -473,7 +478,7 @@ export async function saveCenterAppointmentFor(
       if (!remaining) {
         const [reservation] = await tx<{
           booking_id: string;
-        }>`delete from tryout_event_reservations where event_id=${old.event_id} returning booking_id`;
+        }>`delete from tryout_event_reservations where event_id=${old.event_id} and not exists(select 1 from coordinator_tryout_scopes s where s.event_id=tryout_event_reservations.event_id) returning booking_id`;
         if (reservation) {
           await tx`delete from booking_occupancy where booking_id=${reservation.booking_id}`;
           await tx`update booking_records set status='cancelled' where id=${reservation.booking_id}`;

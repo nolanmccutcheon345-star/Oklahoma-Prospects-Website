@@ -622,7 +622,7 @@ test("frozen guardian acceptance follows an explicit historical transfer alias w
   );
 });
 
-test("Sara schedule edits stay financially inert; explicit owner event amendment and admission use reviewed revisions", async () => {
+test("Owner operational schedule edits stay financially inert; explicit owner event amendment and admission use reviewed revisions", async () => {
   const { sql, club } = await fixture();
   const id = "22222222-2222-4222-8222-222222222222";
   const activity = {
@@ -681,11 +681,15 @@ test("Sara schedule edits stay financially inert; explicit owner event amendment
   );
   await capture(sql);
   await activateFixture(sql);
+  const saveReviewedActivity = async (input: Parameters<typeof saveOrganizationActivity>[2]) => {
+    await assert.rejects(saveOrganizationActivity(sql, "operations", input), /not authorized/);
+    return saveOrganizationActivity(sql, "owner", input);
+  };
   const original = await feeWorkspace(sql, "owner");
   const before = await financialEventCommitments(sql, "owner", "draft");
   assert.equal(before.events[0].entryFee, 25000);
   await assert.rejects(() => financialEventCommitments(sql, "operations", "draft"), /access/);
-  await saveOrganizationActivity(sql, "operations", {
+  await saveReviewedActivity({
     id,
     teamId: "draft",
     revision: 1,
@@ -747,7 +751,7 @@ test("Sara schedule edits stay financially inert; explicit owner event amendment
   assert.equal(view.status, "pending");
   assert.equal(view.private!.plan.budget.readiness!.schedule, false);
   const newId = "33333333-3333-4333-8333-333333333333";
-  await saveOrganizationActivity(sql, "operations", {
+  await saveReviewedActivity({
     id: newId,
     teamId: "draft",
     revision: 0,

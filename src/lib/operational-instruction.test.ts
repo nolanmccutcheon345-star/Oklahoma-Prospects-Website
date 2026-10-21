@@ -152,7 +152,7 @@ for (const mode of ["legacy", "captured"])
     const { sql } = await fixture(mode);
     const before = await protectedRows(sql);
     await assert.rejects(
-      saveOrganizationInstruction(sql, "sara", grant()),
+      saveOrganizationInstruction(sql, "owner", grant()),
       /cutover must be active/,
     );
     assert.deepEqual(await protectedRows(sql), before);
@@ -164,6 +164,7 @@ test("revisioned operational instructor grants preserve finances and ordinary ac
   const identity = await resolveIdentity(sql, "trainee");
   const selfPay = await myFinance(sql, "trainee");
   await assert.rejects(saveOrganizationInstruction(sql, "other", grant()));
+  await assert.rejects(saveOrganizationInstruction(sql, "sara", grant()));
   for (const target of [
     "sara",
     "owner",
@@ -173,9 +174,9 @@ test("revisioned operational instructor grants preserve finances and ordinary ac
     "disabled",
     "missing",
   ])
-    await assert.rejects(saveOrganizationInstruction(sql, "sara", grant(target)));
+    await assert.rejects(saveOrganizationInstruction(sql, "owner", grant(target)));
   assert.equal(operationalInstructionInput.safeParse({ ...grant(), role: "coach" }).success, false);
-  await saveOrganizationInstruction(sql, "sara", grant());
+  await saveOrganizationInstruction(sql, "owner", grant());
   assert.deepEqual(await protectedRows(sql), before);
   assert.deepEqual(await resolveIdentity(sql, "trainee"), identity);
   assert.deepEqual(await myFinance(sql, "trainee"), selfPay);
@@ -196,15 +197,15 @@ test("revisioned operational instructor grants preserve finances and ordinary ac
     ).role,
     "parent",
   );
-  await assert.rejects(saveOrganizationInstruction(sql, "sara", grant()), /changed/);
-  await saveOrganizationInstruction(sql, "sara", grant("trainee", 1, false));
+  await assert.rejects(saveOrganizationInstruction(sql, "owner", grant()), /changed/);
+  await saveOrganizationInstruction(sql, "owner", grant("trainee", 1, false));
   assert.equal(await hasOperationalInstruction(sql, "trainee"), false);
   assert.deepEqual(await protectedRows(sql), before);
   await assert.rejects(operationalInstructionBookings(sql, "trainee"), /active operational/);
 });
 test("assigned operational lessons expose no prices/history and cannot publish financial completion", async () => {
   const { sql } = await fixture();
-  await saveOrganizationInstruction(sql, "sara", grant());
+  await saveOrganizationInstruction(sql, "owner", grant());
   const before = await protectedRows(sql);
   const schedule = await operationalInstructionBookings(sql, "trainee");
   assert.deepEqual(schedule.map((r) => r.id).sort(), ["assigned", "attendance", "legacy-private"]);
@@ -243,12 +244,12 @@ test("assigned operational lessons expose no prices/history and cannot publish f
     openLessonSessionFor(sql, "trainee", "legacy-private"),
     /unreviewed history/,
   );
-  await saveOrganizationInstruction(sql, "sara", grant("trainee", 1, false));
+  await saveOrganizationInstruction(sql, "owner", grant("trainee", 1, false));
   await assert.rejects(openLessonSessionFor(sql, "trainee", "attendance"), /Instructor access/);
 });
 test("assigned attendance is idempotent, scoped and does not complete paid bookings or assessments", async () => {
   const { sql } = await fixture();
-  await saveOrganizationInstruction(sql, "sara", grant());
+  await saveOrganizationInstruction(sql, "owner", grant());
   const before = await protectedRows(sql);
   const input = {
     bookingId: "attendance",
@@ -279,7 +280,7 @@ test("assigned attendance is idempotent, scoped and does not complete paid booki
   assert.deepEqual(await protectedRows(sql), before);
   await sql`update "user" set "disabledAt"=now() where id='trainee'`;
   await assert.rejects(operationalInstructionBookings(sql, "trainee"));
-  await saveOrganizationInstruction(sql, "sara", grant("trainee", 1, false));
+  await saveOrganizationInstruction(sql, "owner", grant("trainee", 1, false));
   const [suspended] = await sql<{
     status: string;
   }>`select status from operational_instruction_access where user_id='trainee'`;
@@ -287,7 +288,7 @@ test("assigned attendance is idempotent, scoped and does not complete paid booki
 });
 test("operational identity fails closed after coach ID reuse or ambiguous assignment", async () => {
   const { sql, coachId } = await fixture();
-  await saveOrganizationInstruction(sql, "sara", grant());
+  await saveOrganizationInstruction(sql, "owner", grant());
   const file = emptyDevelopment();
   file.coaches = [
     {
@@ -310,12 +311,12 @@ test("operational identity fails closed after coach ID reuse or ambiguous assign
   });
   await sql`update pd_working_file set payload=${JSON.stringify(file)} where id='club'`;
   assert.equal(await hasOperationalInstruction(sql, "trainee"), false);
-  await assert.rejects(saveOrganizationInstruction(sql, "sara", grant("trainee", 1)), /identity/);
+  await assert.rejects(saveOrganizationInstruction(sql, "owner", grant("trainee", 1)), /identity/);
 });
 test("genuine legacy instructor authority persists when the operational overlay is suspended", async () => {
   const { sql } = await fixture();
-  await saveOrganizationInstruction(sql, "sara", grant("coach"));
-  await saveOrganizationInstruction(sql, "sara", grant("coach", 1, false));
+  await saveOrganizationInstruction(sql, "owner", grant("coach"));
+  await saveOrganizationInstruction(sql, "owner", grant("coach", 1, false));
   assert.equal(await hasOperationalInstruction(sql, "coach"), false);
   assert.equal((await resolveIdentity(sql, "coach")).role, "coach");
   const lesson = await openLessonSessionFor(sql, "coach", "other-booking");
@@ -331,7 +332,7 @@ test("genuine legacy instructor authority persists when the operational overlay 
 });
 test("current actor authority and email binding are rechecked while scheduling availability preserves existing lessons", async () => {
   const { sql, coachId } = await fixture();
-  await saveOrganizationInstruction(sql, "sara", grant());
+  await saveOrganizationInstruction(sql, "owner", grant());
   await sql`insert into operational_person_settings(user_id,revision,coach_id,directory_active,updated_by) values('trainee',1,${coachId},false,'owner')`;
   assert.equal(await hasOperationalInstruction(sql, "trainee"), true);
   assert.equal((await operationalInstructionBookings(sql, "trainee")).length, 3);
@@ -351,7 +352,7 @@ test("opening operational instructor entry and drafts never provisions household
   const { sql } = await fixture();
   await sql`delete from household_members where user_id='trainee'`;
   await sql`delete from club_households where primary_email='trainee@example.invalid'`;
-  await saveOrganizationInstruction(sql, "sara", grant());
+  await saveOrganizationInstruction(sql, "owner", grant());
   const before = await protectedRows(sql);
   assert.equal((await operationalInstructionEntry(sql, "trainee")).operationalOnly, true);
   const opened = await openLessonSessionFor(sql, "trainee", "assigned");

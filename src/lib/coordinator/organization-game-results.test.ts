@@ -252,7 +252,7 @@ test("game-result contract accepts only result fields and validated unique batti
 test("game workspace is projected across sports and requires current organization authority", async () => {
   const { db, sql, gameId } = await fixture();
   try {
-    const workspace = await organizationGameResults(sql, "sara");
+    const workspace = await organizationGameResults(sql, "steve");
     assert.equal(workspace.teams.length, 2);
     assert.equal(workspace.teams[1].sport, "softball");
     assert.equal(workspace.teams[0].players[0].stats.h, 12);
@@ -267,7 +267,7 @@ test("game workspace is projected across sports and requires current organizatio
         /not authorized/,
       );
     }
-    for (const status of ["suspended", "removed"]) {
+    for (const status of ["active", "suspended", "removed"]) {
       await sql`update organization_operational_access set status=${status} where user_id='sara'`;
       await assert.rejects(() => organizationGameResults(sql, "sara"), /not authorized/);
       await assert.rejects(
@@ -298,7 +298,7 @@ test("final correction reverses the previous result while preserving all other f
     const finances = await financialSnapshot(sql);
     const computedBudget = await withScheduledHotels(sql, "base", budget);
     const fees = calculateFees(computedBudget);
-    const saved = await saveOrganizationGameResult(sql, "sara", correction(gameId));
+    const saved = await saveOrganizationGameResult(sql, "steve", correction(gameId));
     assert.deepEqual(saved, { id: gameId, revision: 2, changed: true });
     const after = await clubFor(sql),
       afterGame = await gameFor(sql, gameId);
@@ -326,7 +326,7 @@ test("final correction reverses the previous result while preserving all other f
     assert.deepEqual(calculateFees(await withScheduledHotels(sql, "base", budget)), fees);
     assert.equal(after.rev, before.rev + 1);
     assertPrivate(saved);
-    assertPrivate(await organizationGameResults(sql, "sara"));
+    assertPrivate(await organizationGameResults(sql, "steve"));
     const publicView = publicTeamView(team);
     assert.deepEqual(
       publicView.players.map((p) => p.id),
@@ -349,18 +349,18 @@ test("scheduled/live results stay out of cumulative totals; repeated and stale w
   try {
     const original = await clubFor(sql);
     const live = { ...correction(gameId), status: "live" as const };
-    await saveOrganizationGameResult(sql, "sara", live);
+    await saveOrganizationGameResult(sql, "steve", live);
     const reversed = await clubFor(sql);
     assert.equal(reversed.payload.teams[0].record.w, 7);
     assert.equal(reversed.payload.teams[0].roster[0].stats.ab, 36);
     assert.equal(reversed.payload.teams[0].roster[0].stats.h, 10);
-    await assert.rejects(() => saveOrganizationGameResult(sql, "sara", live), /changed/);
+    await assert.rejects(() => saveOrganizationGameResult(sql, "steve", live), /changed/);
     assert.deepEqual(await clubFor(sql), reversed);
-    const unchanged = await saveOrganizationGameResult(sql, "sara", { ...live, revision: 2 });
+    const unchanged = await saveOrganizationGameResult(sql, "steve", { ...live, revision: 2 });
     assert.equal(unchanged.changed, false);
     assert.equal(unchanged.revision, 2);
     assert.deepEqual(await clubFor(sql), reversed);
-    await saveOrganizationGameResult(sql, "sara", {
+    await saveOrganizationGameResult(sql, "steve", {
       ...live,
       revision: 2,
       status: "scheduled",
@@ -391,7 +391,7 @@ test("scheduled/live results stay out of cumulative totals; repeated and stale w
       { ...restored.payload.teams[0].record },
       { ...original.payload.teams[0].record, w: 7, t: 2 },
     );
-    await assert.rejects(() => saveOrganizationGameResult(sql, "sara", tied), /changed/);
+    await assert.rejects(() => saveOrganizationGameResult(sql, "steve", tied), /changed/);
     assert.deepEqual(await clubFor(sql), restored);
   } finally {
     await db.close();
@@ -412,7 +412,7 @@ test("result endpoint rejects new records, cross-team statistics, altered scopes
       { ...correction(gameId), status: "cancelled" },
     ])
       await assert.rejects(() =>
-        saveOrganizationGameResult(sql, "sara", input as OrganizationGameResultInput),
+        saveOrganizationGameResult(sql, "steve", input as OrganizationGameResultInput),
       );
     assert.deepEqual(await clubFor(sql), before);
     assert.deepEqual(await gameFor(sql, gameId), beforeGame);
@@ -423,16 +423,16 @@ test("result endpoint rejects new records, cross-team statistics, altered scopes
     ]) {
       await sql`update team_activities set payload=jsonb_set(jsonb_set(payload,'{kind}',${JSON.stringify(kind)}::jsonb),'{status}',${JSON.stringify(status)}::jsonb) where id=${gameId}`;
       await assert.rejects(
-        () => saveOrganizationGameResult(sql, "sara", correction(gameId)),
+        () => saveOrganizationGameResult(sql, "steve", correction(gameId)),
         /Only scheduled/,
       );
     }
     assert.equal((await gameFor(sql, gameId)).revision, 1);
     assert.deepEqual(await clubFor(sql), before);
     await sql`update club_state set demo=true where id='oklahoma-prospects'`;
-    await assert.rejects(() => organizationGameResults(sql, "sara"), /not authorized/);
+    await assert.rejects(() => organizationGameResults(sql, "steve"), /not authorized/);
     await assert.rejects(
-      () => saveOrganizationGameResult(sql, "sara", correction(gameId)),
+      () => saveOrganizationGameResult(sql, "steve", correction(gameId)),
       /not authorized/,
     );
   } finally {
@@ -449,7 +449,7 @@ test("a failed club write rolls back activity and totals together", async () => 
       `create function synthetic_reject_game_club_write() returns trigger language plpgsql as $$ begin raise exception 'Synthetic atomic write failure'; end $$; create trigger synthetic_reject_game_club_write before update on club_state for each row execute function synthetic_reject_game_club_write();`,
     );
     await assert.rejects(
-      () => saveOrganizationGameResult(sql, "sara", correction(gameId)),
+      () => saveOrganizationGameResult(sql, "steve", correction(gameId)),
       /Synthetic atomic write failure/,
     );
     assert.deepEqual(await clubFor(sql), before);

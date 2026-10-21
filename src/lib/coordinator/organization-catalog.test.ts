@@ -192,7 +192,7 @@ test("published catalog metadata has owner parity without hydrating or changing 
       "both sports, exact public projections, roster sessions and same-transaction authority",
       async () => {
         f.capture(true);
-        const workspace = await organizationCatalog(sql, "sara");
+        const workspace = await organizationCatalog(sql, "steve");
         f.capture(false);
         assertPrivate(workspace);
         assertPrivate(f.trace.map((row) => row.rows));
@@ -243,12 +243,12 @@ test("published catalog metadata has owner parity without hydrating or changing 
         );
         assert.ok(workspace.services.every((s) => s.id !== "withheld-service"));
         assert.deepEqual(await organizationCatalog(sql, "steve"), workspace);
-        const grant = f.trace.find((r) => /organization_operational_access/.test(r.statement));
+        const grant = f.trace.find((r) => /from owner_grants g join profiles/.test(r.statement));
         assert.ok(grant?.transaction);
-        assert.match(grant.statement, /status='active'.*for share/s);
+        assert.match(grant.statement, /revoked_at is null.*for share/s);
         assert.ok(f.trace.every((r) => r.transaction));
         assert.ok(
-          f.trace.findIndex((r) => /organization_operational_access/.test(r.statement)) <
+          f.trace.findIndex((r) => /from owner_grants g join profiles/.test(r.statement)) <
             f.trace.findIndex((r) => /from club_services/.test(r.statement)),
         );
       },
@@ -257,7 +257,7 @@ test("published catalog metadata has owner parity without hydrating or changing 
       "public-copy saves preserve financial bytes and pending event payment validation",
       async () => {
         const before = await financialSnapshot(sql);
-        const workspace = await organizationCatalog(sql, "sara");
+        const workspace = await organizationCatalog(sql, "steve");
         const [pending] =
           await sql<SquareOrder>`select * from commerce_orders where id='pending-order'`;
         await sql.transaction((tx) =>
@@ -266,7 +266,7 @@ test("published catalog metadata has owner parity without hydrating or changing 
         for (const id of ["s2", "m1", "individual", "prospect"]) {
           const service = workspace.services.find((s) => s.id === id)!;
           f.capture(true);
-          await saveOrganizationServiceMetadata(sql, "sara", {
+          await saveOrganizationServiceMetadata(sql, "steve", {
             ...serviceInput(service),
             purpose: `Updated public ${id} summary.`,
             detail: `Updated public ${id} description.`,
@@ -279,7 +279,7 @@ test("published catalog metadata has owner parity without hydrating or changing 
         }
         for (const event of workspace.events) {
           f.capture(true);
-          const saved = await saveOrganizationTrainingEventMetadata(sql, "sara", {
+          const saved = await saveOrganizationTrainingEventMetadata(sql, "steve", {
             ...eventInput(event),
             name: `Updated ${event.sport} camp`,
             description: `Updated ${event.sport} public event description.`,
@@ -312,7 +312,7 @@ test("published catalog metadata has owner parity without hydrating or changing 
       "lesson and cage-plan renames cannot change compensation or existing link resolution",
       async () => {
         const before = await financialSnapshot(sql);
-        const workspace = await organizationCatalog(sql, "sara");
+        const workspace = await organizationCatalog(sql, "steve");
         const rows = await sql<{
           id: string;
           kind: string;
@@ -334,7 +334,7 @@ test("published catalog metadata has owner parity without hydrating or changing 
           ])
             await assert.rejects(
               () =>
-                saveOrganizationServiceMetadata(sql, "sara", { ...serviceInput(service), name }),
+                saveOrganizationServiceMetadata(sql, "steve", { ...serviceInput(service), name }),
               /owner review/,
             );
         }
@@ -356,27 +356,27 @@ test("published catalog metadata has owner parity without hydrating or changing 
       "permitted names update only customer-facing metadata and stale writes are rejected",
       async () => {
         const before = await financialSnapshot(sql);
-        let workspace = await organizationCatalog(sql, "sara");
+        let workspace = await organizationCatalog(sql, "steve");
         const service = workspace.services.find((s) => s.id === "m1")!;
         assert.equal(service.nameEditable, true);
         const input = { ...serviceInput(service), name: "Development program" };
-        await saveOrganizationServiceMetadata(sql, "sara", input);
-        await assert.rejects(() => saveOrganizationServiceMetadata(sql, "sara", input), /changed/);
+        await saveOrganizationServiceMetadata(sql, "steve", input);
+        await assert.rejects(() => saveOrganizationServiceMetadata(sql, "steve", input), /changed/);
         const event = workspace.events[0];
         const change = {
           ...eventInput(event),
           description: "New public description with safe concurrency.",
         };
-        await saveOrganizationTrainingEventMetadata(sql, "sara", change);
+        await saveOrganizationTrainingEventMetadata(sql, "steve", change);
         await assert.rejects(
-          () => saveOrganizationTrainingEventMetadata(sql, "sara", change),
+          () => saveOrganizationTrainingEventMetadata(sql, "steve", change),
           /changed/,
         );
-        workspace = await organizationCatalog(sql, "sara");
+        workspace = await organizationCatalog(sql, "steve");
         const ownerEvent = workspace.events[0];
         await sql`update training_events set revision=revision+1,payload=jsonb_set(payload,'{revision}',to_jsonb(revision+1)) where id=${ownerEvent.id}`;
         await assert.rejects(
-          () => saveOrganizationTrainingEventMetadata(sql, "sara", eventInput(ownerEvent)),
+          () => saveOrganizationTrainingEventMetadata(sql, "steve", eventInput(ownerEvent)),
           /changed/,
         );
         // Undo only the synthetic owner revision so the operational byte-comparison stays meaningful.
@@ -388,7 +388,7 @@ test("published catalog metadata has owner parity without hydrating or changing 
       "strict mutation schemas reject financial, state, schedule, privilege and unknown inputs",
       async () => {
         const before = await financialSnapshot(sql);
-        const workspace = await organizationCatalog(sql, "sara");
+        const workspace = await organizationCatalog(sql, "steve");
         const service = serviceInput(workspace.services[0]);
         const event = eventInput(workspace.events[0]);
         for (const key of [
@@ -416,7 +416,7 @@ test("published catalog metadata has owner parity without hydrating or changing 
         ]) {
           const invalid = { ...service, [key]: SECRET };
           assert.equal(organizationServiceMetadataInput.safeParse(invalid).success, false);
-          await assert.rejects(() => saveOrganizationServiceMetadata(sql, "sara", invalid));
+          await assert.rejects(() => saveOrganizationServiceMetadata(sql, "steve", invalid));
         }
         for (const key of [
           "priceCents",
@@ -440,17 +440,17 @@ test("published catalog metadata has owner parity without hydrating or changing 
         ]) {
           const invalid = { ...event, [key]: SECRET };
           assert.equal(organizationTrainingEventMetadataInput.safeParse(invalid).success, false);
-          await assert.rejects(() => saveOrganizationTrainingEventMetadata(sql, "sara", invalid));
+          await assert.rejects(() => saveOrganizationTrainingEventMetadata(sql, "steve", invalid));
         }
         await assert.rejects(() =>
-          saveOrganizationServiceMetadata(sql, "sara", { ...service, id: "withheld-service" }),
+          saveOrganizationServiceMetadata(sql, "steve", { ...service, id: "withheld-service" }),
         );
         for (const hidden of events.slice(2))
           await assert.rejects(() =>
-            saveOrganizationTrainingEventMetadata(sql, "sara", { ...event, id: hidden.id }),
+            saveOrganizationTrainingEventMetadata(sql, "steve", { ...event, id: hidden.id }),
           );
         await assert.rejects(() =>
-          saveOrganizationTrainingEventMetadata(sql, "sara", { ...event, id: randomUUID() }),
+          saveOrganizationTrainingEventMetadata(sql, "steve", { ...event, id: randomUUID() }),
         );
         assert.deepEqual(await financialSnapshot(sql), before);
       },
@@ -471,7 +471,7 @@ test("published catalog metadata has owner parity without hydrating or changing 
           ],
         })}::jsonb where id=${events[0].id}`;
         f.capture(true);
-        const workspace = await organizationCatalog(sql, "sara");
+        const workspace = await organizationCatalog(sql, "steve");
         f.capture(false);
         assertPrivate(workspace);
         assertPrivate(f.trace.map((r) => r.rows));
@@ -486,7 +486,7 @@ test("published catalog metadata has owner parity without hydrating or changing 
     await t.test(
       "revocation, disabled/unverified accounts and false admin profiles fail closed",
       async () => {
-        const workspace = await organizationCatalog(sql, "sara");
+        const workspace = await organizationCatalog(sql, "steve");
         const service = serviceInput(workspace.services[0]),
           event = eventInput(workspace.events[0]);
         const denied = async (id: string) => {
@@ -495,7 +495,7 @@ test("published catalog metadata has owner parity without hydrating or changing 
           await assert.rejects(() => saveOrganizationTrainingEventMetadata(sql, id, event));
         };
         for (const id of ["parent", "coach", "fake-owner", "missing"]) await denied(id);
-        for (const status of ["suspended", "removed"]) {
+        for (const status of ["active", "suspended", "removed"]) {
           await sql`update organization_operational_access set status=${status} where user_id='sara'`;
           await denied("sara");
         }
@@ -508,10 +508,8 @@ test("published catalog metadata has owner parity without hydrating or changing 
         await sql`update owner_grants set revoked_at=now() where user_id='steve'`;
         await denied("steve");
         await sql`update owner_grants set revoked_at=null where user_id='steve'`;
-        assert.deepEqual(
-          await organizationCatalog(sql, "sara"),
-          await organizationCatalog(sql, "steve"),
-        );
+        await denied("sara");
+        assert.ok((await organizationCatalog(sql, "steve")).services.length > 0);
       },
     );
   } finally {
