@@ -490,8 +490,8 @@ export function BudgetMasterEditor({ teams }: { teams: Teams }) {
           team's season dates. Season contribution is spread across its configured months. Overhead
           uses each team’s override or the master contribution rule. Automatic shares use
           paying-player counts. Reserve uses positive contribution, is limited by net funds and the
-          remaining target, and is separate from 15% team contingency. Enter the actual reserve
-          balance above; these estimates do not transfer money.
+          remaining target, and is separate from {m.contingencyBps / 100}% Team Contingency. Enter
+          the actual reserve balance above; these estimates do not transfer money.
         </p>
         {report.rows.map((r) => (
           <p key={r.id}>
