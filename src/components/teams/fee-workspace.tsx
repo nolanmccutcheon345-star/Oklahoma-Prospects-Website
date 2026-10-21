@@ -510,7 +510,7 @@ function TeamPlan({
               Development Program Fees, organization fees, contingency and processing still apply.
               Existing accepted agreements stay locked.
             </p>
-            {!!team.private?.feeHealth.pending.length && (
+            {!!team.private?.feeHealth?.pending.length && (
               <p className="text-sm">
                 Saved draft review: {team.private.feeHealth.pending.join(" ")}
               </p>
