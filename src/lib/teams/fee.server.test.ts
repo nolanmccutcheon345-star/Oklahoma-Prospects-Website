@@ -5,6 +5,7 @@ import { PGlite } from "@electric-sql/pglite";
 import type { Sql } from "../db";
 import { sampleClub } from "./seed";
 import { feeWorkspace, mutateFeePlan, setFeeBusiness, teamUniform } from "./fee.server";
+import { publishedTeamFees } from "./published-fees.server";
 import { defaultBudget, calculateFees } from "./fee-model";
 
 for (const { role, individualAccess } of [
@@ -177,6 +178,7 @@ for (const { role, individualAccess } of [
       assert.ok(!JSON.stringify(coach).includes("45678"));
       const unpublished = (await feeWorkspace(sql, "parent")).teams[0];
       assert.equal(unpublished.publication, null);
+      assert.equal(await publishedTeamFees(sql, "parent", team.id), null);
       assert.deepEqual(unpublished.players, []);
       assert.equal(unpublished.choices, null);
       assert.deepEqual(coach.teams[0].players, []);
@@ -243,6 +245,13 @@ for (const { role, individualAccess } of [
       assert.deepEqual(athlete.players, []);
       assert.equal(athlete.private, null);
       assert.equal(athlete.choices, null);
+      for (const viewer of ["owner", "coach", "parent", "player"])
+        assert.equal(
+          (await publishedTeamFees(sql, viewer, team.id))?.full,
+          athlete.publication!.full,
+        );
+      assert.equal(await publishedTeamFees(sql, "stranger", team.id), null);
+      await assert.rejects(publishedTeamFees(sql, "anonymous", team.id));
       const parent = await feeWorkspace(sql, "parent");
       assert.equal(parent.teams[0].players.length, 1);
       assert.equal(parent.teams[0].choices, null);

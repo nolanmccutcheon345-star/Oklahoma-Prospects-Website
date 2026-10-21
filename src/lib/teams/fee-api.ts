@@ -1,6 +1,6 @@
 import { masterSchema } from "./budget-matrix";
 import { createServerFn } from "@tanstack/react-start";
-import { authMiddleware } from "../auth/middleware";
+import { authMiddleware, operationalAuthMiddleware } from "../auth/middleware";
 import {
   feeAction,
   businessSchema,
@@ -8,6 +8,14 @@ import {
   financialEventAdmission,
 } from "./fee-contracts";
 import { z } from "zod";
+export const getPublishedTeamFees = createServerFn({ method: "POST" })
+  .middleware([operationalAuthMiddleware])
+  .validator(z.object({ teamId: z.string().min(1).max(150) }).strict())
+  .handler(async ({ context, data }) => {
+    const { getSql } = await import("../db");
+    const { publishedTeamFees } = await import("./published-fees.server");
+    return publishedTeamFees(await getSql(), context.userId, data.teamId);
+  });
 export const getFeeWorkspace = createServerFn({ method: "GET" })
   .middleware([authMiddleware])
   .handler(async ({ context }) => {

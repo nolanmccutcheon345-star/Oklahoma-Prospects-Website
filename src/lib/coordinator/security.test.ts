@@ -3686,6 +3686,7 @@ test("coordinators see only explicitly published team prices within current rost
   const { db, sql, assign } = await fixture();
   const { teamOperations } = await import("./team-operations.server");
   const { feeWorkspace } = await import("../teams/fee.server");
+  const { publishedTeamFees } = await import("../teams/published-fees.server");
   try {
     await assign("zero", "softball", ["rosters.read"], "teams", ["soft"]);
     await sql`insert into team_fee_plans(team_id,payload) values('soft','{"status":"draft","budget":{"privateCost":987654321},"players":{"secret":{"payments":987654321}}}')`;
@@ -3713,6 +3714,8 @@ test("coordinators see only explicitly published team prices within current rost
       revision: 3,
       at: quote.at,
     });
+    assert.deepEqual(await publishedTeamFees(sql, "zero", "soft"), view.publishedFees);
+    assert.equal(await publishedTeamFees(sql, "zero", "base"), null);
     assert.doesNotMatch(JSON.stringify(view), /PRIVATE|987654321|payments|budget|players/);
     await assert.rejects(teamOperations(sql, "zero", "base"));
     await assert.rejects(teamOperations(sql, "parent", "soft"));
@@ -3722,6 +3725,7 @@ test("coordinators see only explicitly published team prices within current rost
     assert.equal(Object.hasOwn(await teamOperations(sql, "zero", "soft"), "publishedFees"), false);
     await sql`update coordinator_assignments set status='suspended' where user_id='zero'`;
     await assert.rejects(teamOperations(sql, "zero", "soft"));
+    assert.equal(await publishedTeamFees(sql, "zero", "soft"), null);
   } finally {
     await db.close();
   }
