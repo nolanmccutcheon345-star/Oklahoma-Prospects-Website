@@ -1,4 +1,5 @@
 import { CoordinatorPrivacy } from "./privacy";
+import { ExistingCoordinatorAccount } from "./existing-account";
 import { CoordinatorRecovery } from "./recovery";
 import { OwnerPlayerPublications } from "./player-publication";
 import { TeamMessageReview, CommunicationArchive } from "./communications";
@@ -198,6 +199,19 @@ export function StaffRoleManagement() {
       {tab === "eligibility" && <RosterEligibilityReview />}
       {tab === "invitations" && (
         <div className="grid gap-4">
+          <ExistingCoordinatorAccount
+            data={data}
+            onAssigned={async (userId, sport) => {
+              const updated = await load();
+              choose(userId, sport, updated);
+              setError("");
+              setNotice(
+                "Coordinator role assigned with zero permissions and no team access. Select and save only the access you approve below.",
+              );
+              setTab("roles");
+            }}
+          />
+          <h3 className="text-xl">Invite by email</h3>
           <p>
             Invitations expire after seven days. Acceptance adds only the coordinator role, with
             zero permissions and no team access. Review scope and permissions separately after
@@ -815,7 +829,8 @@ export function StaffRoleManagement() {
                     <img
                       className="max-h-64 max-w-full object-contain"
                       src={a.proposal.display.photo}
-                      alt="Player photo proposed for publication" referrerPolicy="no-referrer"
+                      alt="Player photo proposed for publication"
+                      referrerPolicy="no-referrer"
                     />
                   )}
                 </div>

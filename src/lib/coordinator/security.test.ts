@@ -658,6 +658,89 @@ test("retired organization grants cannot bypass granular coordinator permissions
   }
 });
 
+test("existing account coordinator assignment is owner-only, zero-scope and never resets existing access", async () => {
+  const { assignExistingCoordinator } = await import("./invitations.server");
+  const { db, sql } = await fixture();
+  const input = {
+    userId: "zero",
+    sport: "softball" as const,
+    independentRolesReviewed: false,
+    confirm: true as const,
+  };
+  try {
+    for (const actor of ["fake", "coach", "parent", "softball"])
+      await assert.rejects(assignExistingCoordinator(sql, actor, input));
+    for (const extra of [
+      { permissions: ["rosters.read"] },
+      { teamIds: ["soft"] },
+      { coverage: "sport" },
+    ])
+      await assert.rejects(
+        assignExistingCoordinator(sql, "owner", { ...input, ...extra } as never),
+      );
+    await assert.rejects(assignExistingCoordinator(sql, "owner", { ...input, userId: "owner" }));
+    await assert.rejects(assignExistingCoordinator(sql, "owner", { ...input, userId: "missing" }));
+    await sql`update "user" set "emailVerified"=false where id='zero'`;
+    await assert.rejects(assignExistingCoordinator(sql, "owner", input));
+    await sql`update "user" set "emailVerified"=true,"disabledAt"=now() where id='zero'`;
+    await assert.rejects(assignExistingCoordinator(sql, "owner", input));
+    await sql`update "user" set "disabledAt"=null where id='zero'`;
+    await sql`update profiles set role='player' where user_id='zero'`;
+    await assert.rejects(assignExistingCoordinator(sql, "owner", input));
+    await sql`update profiles set role='parent' where user_id='zero'`;
+    const before = await sql`select * from profiles order by user_id`;
+    await assignExistingCoordinator(sql, "owner", input);
+    const [grant] =
+      await sql`select permissions,team_ids,coverage,status,role from coordinator_assignments where user_id='zero'`;
+    assert.deepEqual(grant, {
+      permissions: [],
+      team_ids: [],
+      coverage: "teams",
+      status: "active",
+      role: "softball_coordinator",
+    });
+    assert.deepEqual(await sql`select * from profiles order by user_id`, before);
+    for (const capability of permissionKeys)
+      await assert.rejects(requireGrant(sql, "zero", capability, "softball", "soft"));
+    assert.equal((await coordinatorHome(sql, "zero")).targets.length, 0);
+    for (const status of ["active", "suspended", "removed"]) {
+      await sql`update coordinator_assignments set status=${status} where user_id='zero'`;
+      const existing = await sql`select * from coordinator_assignments where user_id='zero'`;
+      await assert.rejects(assignExistingCoordinator(sql, "owner", input));
+      assert.deepEqual(
+        await sql`select * from coordinator_assignments where user_id='zero'`,
+        existing,
+      );
+    }
+    await assert.rejects(assignExistingCoordinator(sql, "owner", { ...input, userId: "coach" }));
+    await assignExistingCoordinator(sql, "owner", {
+      ...input,
+      userId: "coach",
+      independentRolesReviewed: true,
+    });
+    const [coach] = await sql<{
+      permissions: string[];
+      team_ids: string[];
+      independent_roles: string[];
+    }>`select permissions,team_ids,independent_roles from coordinator_assignments where user_id='coach'`;
+    assert.deepEqual(coach.permissions, []);
+    assert.deepEqual(coach.team_ids, []);
+    assert.ok(coach.independent_roles.includes("team-coach"));
+    await sql`insert into registration_readers(user_id,email,active,granted_by) values('legacy','legacy@example.invalid',true,'owner')`;
+    await assert.rejects(
+      assignExistingCoordinator(sql, "owner", {
+        ...input,
+        userId: "legacy",
+        independentRolesReviewed: true,
+      }),
+    );
+    await sql`delete from staff_authorities where email='owner@example.invalid' and capability='staff_roles.manage'`;
+    await assert.rejects(assignExistingCoordinator(sql, "owner", { ...input, userId: "parent" }));
+  } finally {
+    await db.close();
+  }
+});
+
 test("coordinator invitations require dedicated authority and accept with zero grants without changing base roles", async () => {
   const { inviteCoordinator, acceptCoordinatorInvitation, coordinatorInvitations } =
     await import("./invitations.server");

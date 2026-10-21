@@ -8,7 +8,18 @@ import {
   operationalAuthMiddleware,
   coordinatorAuthMiddleware,
 } from "../auth/middleware";
-import { coordinatorInvitationInput } from "./invitation-contracts";
+import { coordinatorInvitationInput, existingCoordinatorInput } from "./invitation-contracts";
+export const assignExistingStaffCoordinator = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
+  .validator(existingCoordinatorInput)
+  .handler(async ({ context, data }) => {
+    const { getSql } = await import("../db");
+    return (await import("./invitations.server")).assignExistingCoordinator(
+      await getSql(),
+      context.userId,
+      data,
+    );
+  });
 export const getScheduledCoordinatorReviews = createServerFn({ method: "GET" })
   .middleware([authMiddleware])
   .handler(async ({ context }) => {
