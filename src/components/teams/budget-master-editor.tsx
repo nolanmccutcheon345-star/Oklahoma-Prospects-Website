@@ -94,6 +94,13 @@ export function BudgetMasterEditor({ teams }: { teams: Teams }) {
             b,
             paying.filter((p) => p.role === "full").length,
             paying.filter((p) => p.role === "po").length,
+            [],
+            false,
+            paying.filter((p) => p.role === "full" && p.individualAccess).length,
+            paying
+              .filter((p) => p.role === "full")
+              .slice(b.baseline)
+              .filter((p) => p.individualAccess).length,
           ).beforeOverhead / b.months,
         ),
       };
@@ -126,7 +133,7 @@ export function BudgetMasterEditor({ teams }: { teams: Teams }) {
           </select>
         </label>
         <div className="grid gap-3 sm:grid-cols-2">
-          {field("Season months", row.months, (n) => cell({ months: n }), 1)}
+          {field("Default Months — template only", row.months, (n) => cell({ months: n }), 1)}
           {(
             [
               "head",
@@ -181,13 +188,24 @@ export function BudgetMasterEditor({ teams }: { teams: Teams }) {
           />
         </label>
         <h3>Common defaults</h3>
+        <p className="text-sm">
+          The required $150 Team & Development Program Fee includes scheduled team facility use and
+          platform development programming, administered through normal team coaching with no
+          automatic direct labor charge. The optional +$50 Individual Facility Access Upgrade is
+          separate and is not offered to PO players. The $80 standalone retail reference is excluded
+          from all team-price calculations. Pricing uses actual team dates and any authorized
+          billable-month override. Team Contingency is 15% of direct costs, separate from the
+          $24,000 business operating reserve.
+        </p>
         <div className="grid gap-3 sm:grid-cols-2">
           {field("Baseline full-paying players", m.baseline, (n) => patch({ baseline: n }), 1)}
-          {field("Membership / facility per full player per month ($)", m.membershipMonthly, (n) =>
-            patch({ membershipMonthly: n }),
+          {field(
+            "Team & Development Program Fee per full player per month ($)",
+            m.membershipMonthly,
+            (n) => patch({ membershipMonthly: n }),
           )}
           {field(
-            "Membership / facility per pitcher-only player per month ($)",
+            "Team & Development Program Fee per pitcher-only player per month ($)",
             m.poMembershipMonthly ?? 15000,
             (n) => patch({ poMembershipMonthly: n }),
           )}
@@ -199,7 +217,17 @@ export function BudgetMasterEditor({ teams }: { teams: Teams }) {
               ["poProcessingBps", "PO processing allocation (%)"],
             ] as const
           ).map(([k, label]) => field(label, m[k] ?? 10000, (n) => patch({ [k]: n })))}
-          {field("Contingency (%)", m.contingencyBps, (n) => patch({ contingencyBps: n }))}
+          {field(
+            "Optional Individual Facility Access Upgrade per month ($)",
+            m.individualAccessMonthly ?? 5000,
+            (n) => patch({ individualAccessMonthly: n }),
+          )}
+          {field(
+            "Standard standalone individual access — reference only ($/month)",
+            m.standaloneAccessMonthly ?? 8000,
+            (n) => patch({ standaloneAccessMonthly: n }),
+          )}
+          {field("Team Contingency (%)", m.contingencyBps, (n) => patch({ contingencyBps: n }))}
           {field("Hotel stipend per night — total, not per coach ($)", m.hotelNightly, (n) =>
             patch({ hotelNightly: n }),
           )}

@@ -36,6 +36,6 @@ const poRows = m.rows.map((r) => {
 });
 await appendFile(
   "docs/budget-matrix-validation.md",
-  `\n## Linked PO pricing audit\n\n120/120 PO rows fund the identical shared/direct component. Discounts below exclude processing and final rounding. Membership defaults: full $200/month; PO $150/month. Exact supplied organization/discount matrices are also independently asserted in po-pricing.test.ts.\n\n| Row | PO organization | Full membership | PO membership | PO discount | Shared cost allocation |\n|---|---:|---:|---:|---:|---:|\n${poRows.join("\n")}\n`,
+  `\n## Linked PO pricing audit\n\n120/120 PO rows fund the identical shared/direct component. Discounts below exclude processing and final rounding. Team & Development Program Fee defaults: full and PO $150/month; optional full-player individual access +$50/month. Discounts come from organization fees. Example calculations use the fixture team dates; matrix months are templates only. Approved organization matrices are independently asserted in po-pricing.test.ts.\n\n| Row | PO organization | Full program fee | PO program fee | PO discount | Shared cost allocation |\n|---|---:|---:|---:|---:|---:|\n${poRows.join("\n")}\n`,
 );
 console.log("PASS: 120/120 linked PO common-cost and membership calculations.");

@@ -24,21 +24,7 @@ const organizations = [
   [150, 275, 225, 375, 375],
   [175, 275, 225, 375, 400],
 ];
-const discounts = [
-  [175, 250, 175, 200, 400],
-  [175, 250, 175, 200, 400],
-  [175, 250, 200, 200, 425],
-  [175, 275, 200, 225, 425],
-  [175, 275, 200, 225, 450],
-  [175, 275, 225, 225, 450],
-  [200, 300, 225, 250, 475],
-  [200, 300, 225, 275, 500],
-  [200, 325, 250, 275, 500],
-  [225, 325, 250, 325, 525],
-  [225, 325, 250, 350, 525],
-  [225, 350, 275, 375, 550],
-];
-test("all 120 rows match supplied PO organization, membership and discount matrices", () => {
+test("all 120 organization matrices stay intact; full and PO program rates match and dates control months", () => {
   const m = seedMasterMatrix(),
     team = sampleClub().teams[0];
   for (const r of m.rows) {
@@ -46,8 +32,9 @@ test("all 120 rows match supplied PO organization, membership and discount matri
       b = budgetFromMatrix(team, m, r),
       f = calculateFees(b);
     assert.equal(b.poOrg, organizations[r.age - 6][s] * 100);
-    assert.equal(f.poMember, [375, 525, 375, 375, 900][s] * 100);
-    assert.equal(f.poDiscount, discounts[r.age - 6][s] * 100);
+    assert.equal(f.poMember, f.months * 15000);
+    assert.equal(f.member, f.poMember);
+    assert.equal(f.poDiscount, r.organization - organizations[r.age - 6][s] * 100);
     assert.equal(f.poAllocation, f.allocation);
     assert.equal(f.poSubsidy, 0);
   }
@@ -68,7 +55,7 @@ test("team costs, premiums, uniforms, hotels and cents move both fees equally be
     headPremiumBps: 1000,
   };
   const before = calculateFees(b);
-  assert.equal(before.poDiscount, 35000);
+  assert.equal(before.poDiscount, 22500);
   for (const patch of [
     { uniformCost: 25007 },
     { tournament: 399999 },
@@ -83,11 +70,8 @@ test("team costs, premiums, uniforms, hotels and cents move both fees equally be
   const roster = project(b, 10, 2);
   assert.equal(roster.full, before.full);
   assert.equal(roster.direct, before.direct + 2 * (b.uniformCost + b.fullIncremental));
-  assert.equal(roster.membership, 10 * 50000 + 2 * 37500);
-  assert.equal(
-    roster.extraContribution,
-    roster.extraRevenue - roster.extraCosts - 2 * before.poContingency,
-  );
+  assert.equal(roster.membership, 12 * 37500);
+  assert.equal(roster.extraContribution, roster.extraRevenue - roster.extraCosts);
   assert.ok(roster.extraContribution < roster.extraRevenue);
   assert.equal(
     roster.totalRevenue,

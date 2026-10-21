@@ -9,6 +9,9 @@ import {
 import { z } from "zod";
 import {
   defaultBudget,
+  programFields,
+  programDraft,
+  withBillableMonths,
   defaultPOOrganization,
   poAllocationFields,
   poDefaults,
@@ -46,6 +49,7 @@ export const matrixRow = z
 export const masterSchema = z
   .object({
     ...poAllocationFields,
+    ...programFields,
     baseline: z.number().int().min(1).max(100),
     membershipMonthly: money,
     contingencyBps: z.number().int().min(0).max(10000),
@@ -169,7 +173,10 @@ export function seedMasterMatrix(): MasterMatrix {
   return {
     ...poDefaults,
     baseline: 10,
-    membershipMonthly: 20000,
+    membershipMonthly: 15000,
+    programModel: 3,
+    individualAccessMonthly: 5000,
+    standaloneAccessMonthly: 8000,
     contingencyBps: 1500,
     hotelNightly: 20000,
     roundTo: 2500,
@@ -216,11 +223,14 @@ export function budgetFromMatrix(team: Team, master: MasterMatrix, row: MatrixRo
     Miscellaneous: row.misc,
     "Field rental": row.fields,
   };
-  return {
+  return withBillableMonths({
     ...b,
     start: team.seasonStart,
     end: team.seasonEnd,
     months: row.months,
+    defaultMonths: row.months,
+    individualAccessMonthly: master.individualAccessMonthly ?? 5000,
+    standaloneAccessMonthly: master.standaloneAccessMonthly ?? 8000,
     baseline: master.baseline,
     membershipMonthly: master.membershipMonthly,
     contingencyBps: master.contingencyBps,
@@ -256,7 +266,7 @@ export function budgetFromMatrix(team: Team, master: MasterMatrix, row: MatrixRo
       processing: false,
       noUniform: false,
     },
-  };
+  });
 }
 
 export function allocateMonthlyBusiness(
@@ -325,6 +335,7 @@ export function allocateMonthlyBusiness(
 // Upgrade working drafts, never publishedBudget or accepted player locks.
 export function linkedPODraft(b: FeeBudget, master: MasterMatrix, team: Team): FeeBudget {
   b = { ...b, poEnabled: b.poEnabled ?? team.sport === "baseball" };
+  b = programDraft(b);
   if (b.poModel === 2) return b;
   const row = matchMatrix(team, master);
   return {
@@ -344,6 +355,15 @@ export function normalizePOMaster(m: MasterMatrix): MasterMatrix {
   return {
     ...poDefaults,
     ...m,
+    programModel: 3,
+    membershipMonthly:
+      m.programModel === 3
+        ? m.membershipMonthly
+        : m.membershipMonthly === 20000
+          ? 15000
+          : m.membershipMonthly,
+    individualAccessMonthly: m.individualAccessMonthly ?? 5000,
+    standaloneAccessMonthly: m.standaloneAccessMonthly ?? 8000,
     rows: m.rows.map((r) => ({
       ...r,
       poOrganization: r.poOrganization ?? defaultPOOrganization(r.organization),

@@ -35,6 +35,9 @@ import {
   budgetSchema,
   defaultBudget,
   calculateFees,
+  withBillableMonths,
+  individualAccessSchedule,
+  additionalPlayerContribution,
   project,
   deadline,
   scheduleRows,
@@ -61,7 +64,12 @@ function guardian(p: Player, me: Identity) {
 }
 function initial(t: Team): FeePlan {
   return {
-    budget: { ...defaultBudget(), start: t.seasonStart, end: t.seasonEnd, months: t.months || 3 },
+    budget: withBillableMonths({
+      ...defaultBudget(),
+      start: t.seasonStart,
+      end: t.seasonEnd,
+      months: t.months || 3,
+    }),
     uniforms: [],
     status: "draft",
     revision: 0,
@@ -71,7 +79,7 @@ function initial(t: Team): FeePlan {
   };
 }
 function checkBudget(p: FeePlan) {
-  const b = budgetSchema.parse(p.budget);
+  const b = withBillableMonths(budgetSchema.parse(p.budget));
   if (!b.start || !b.end || b.end < b.start) throw Error("Set a valid season date range.");
   if (b.holdDays <= b.graceDays || b.removalDays < b.holdDays)
     throw Error("Roster hold must follow the grace period; removal must follow hold.");
@@ -141,6 +149,14 @@ function playerView(t: Team, p: Player, plan: FeePlan, asOf = today()) {
     agreedLateFee: plan.players[p.id]?.latePolicy?.fee || 0,
     lateFeeApplied: plan.players[p.id]?.lateFeeApplied || 0,
     accepted,
+    individualAccess: Boolean(plan.players[p.id]?.individualAccess),
+    upgradeRows:
+      offer?.fullAccess !== undefined &&
+      p.roleType === "full" &&
+      !p.feeLock &&
+      asOf <= offer.finalDue
+        ? individualAccessSchedule(agreedBudget, offer.finalDue, asOf)
+        : [],
     total,
     paid: paid(p),
     credit: credit(p),
@@ -251,6 +267,36 @@ export async function feeWorkspaceInTransaction(
         active.filter((x) => x.roleType === "po").length,
         p.expenses,
         p.status === "closed",
+        active.filter((x) => x.roleType === "full" && p.players[x.id]?.individualAccess).length,
+        active
+          .filter((x) => x.roleType === "full")
+          .slice(p.budget.baseline)
+          .filter((x) => p.players[x.id]?.individualAccess).length,
+      );
+      const additionalPlayers = [
+        ...active.filter((x) => x.roleType === "full").slice(p.budget.baseline),
+        ...active.filter((x) => x.roleType === "po"),
+      ].map((x) => ({
+        id: x.id,
+        name: x.name,
+        ...additionalPlayerContribution(
+          p.budget,
+          x.roleType,
+          p.budget.additionalPlayerCosts?.find((c) => c.playerId === x.id) || {
+            insurance: 0,
+            registration: 0,
+            other: 0,
+          },
+          Boolean(p.players[x.id]?.individualAccess),
+        ),
+      }));
+      const contributionReportComplete = t.roster.every(
+        (x) =>
+          !paid(x) ||
+          (x.feeLock &&
+            p.players[x.id]?.membershipAllocation !== undefined &&
+            (p.players[x.id]?.organizationAllocation !== undefined ||
+              x.feeLock.policyVersion === "fee-plan-" + p.published?.revision)),
       );
       const totalCollected = sum(t.roster.map(paid)),
         totalCredits = sum(t.roster.map(credit)),
@@ -260,7 +306,7 @@ export async function feeWorkspaceInTransaction(
         (r, x) => {
           if (!x.serviceStart || !x.serviceEnd) return r;
           const a = membershipRecognition(
-            x.membershipAllocation || 0,
+            (x.membershipAllocation || 0) + (x.accessAllocation || 0),
             x.serviceStart,
             x.serviceEnd,
             asOf,
@@ -269,6 +315,25 @@ export async function feeWorkspaceInTransaction(
         },
         { earned: 0, deferred: 0 },
       );
+      // Cash-basis component reporting uses frozen agreement allocations, never draft prices.
+      const organizationAndProgramRevenue = sum(
+        t.roster.map((x) => {
+          const record = p.players[x.id];
+          const total = Math.round((x.feeLock?.amount || 0) * 100);
+          if (!total) return 0;
+          const agreed = p.publishedBudget;
+          const organization =
+            record?.organizationAllocation ??
+            (agreed ? (x.roleType === "po" ? agreed.poOrg : agreed.fullOrg) : 0);
+          const allocation =
+            (record?.membershipAllocation || 0) + (record?.accessAllocation || 0) + organization;
+          return Math.min(paid(x), Math.floor(allocation * Math.min(1, paid(x) / total)));
+        }),
+      );
+      const teamOperatingRevenue = totalCollected - organizationAndProgramRevenue;
+      const teamOperatingContribution = teamOperatingRevenue - expensesPaid - expensesUnpaid;
+      const totalTeamAssociatedContribution =
+        teamOperatingContribution + organizationAndProgramRevenue;
       const realized =
         totalCollected -
         expensesPaid -
@@ -337,8 +402,14 @@ export async function feeWorkspaceInTransaction(
                 today: asOf,
               }),
               forecast,
+              additionalPlayers,
               actual: {
                 totalCollected,
+                contributionReportComplete,
+                teamOperatingRevenue,
+                teamOperatingContribution,
+                organizationAndProgramRevenue,
+                totalTeamAssociatedContribution,
                 totalCredits,
                 expensesPaid,
                 expensesUnpaid,
@@ -481,7 +552,20 @@ export async function mutateFeePlan(sql: Sql, userId: string, raw: z.infer<typeo
     }
     const currentMaster = (await loadBudgetMaster(tx, context)).value;
     if (input.action !== "accept") p.budget = linkedPODraft(p.budget, currentMaster, t);
-    p.budget = teamSeasonOverhead(p.budget, currentMaster);
+    p.budget = teamSeasonOverhead(withBillableMonths(p.budget), currentMaster);
+    if (input.action === "save") {
+      const additional = t.roster.filter((x) => !x.withdrawn);
+      const extraIds = new Set(
+        [
+          ...additional.filter((x) => x.roleType === "full").slice(p.budget.baseline),
+          ...additional.filter((x) => x.roleType === "po"),
+        ].map((x) => x.id),
+      );
+      if ((p.budget.additionalPlayerCosts || []).some((c) => !extraIds.has(c.playerId)))
+        throw Error(
+          "Incremental insurance/registration entries must identify an additional active player.",
+        );
+    }
     if (
       (input.action === "save" && p.budget.poRosterLimit !== row?.payload.budget.poRosterLimit) ||
       input.action === "publish"
@@ -522,7 +606,15 @@ export async function mutateFeePlan(sql: Sql, userId: string, raw: z.infer<typeo
           "Enter the approved payment/refund policy and reinstatement rules before publishing.",
         );
       const f = calculateFees(b);
+      const accessOffer = b.programModel === 3 && (b.individualAccessMonthly ?? 5000) > 0;
       const schedules = {
+        ...(accessOffer
+          ? {
+              fullAccess: individualAccessSchedule(b, final, today()).map((r, i) =>
+                i ? r : { ...r, due: "" },
+              ),
+            }
+          : {}),
         full: scheduleRows(b, f.full, "full", final, today()).map((r, i) =>
           i ? r : { ...r, due: "" },
         ),
@@ -543,11 +635,21 @@ export async function mutateFeePlan(sql: Sql, userId: string, raw: z.infer<typeo
       p.published = {
         schedules,
         full: f.full,
+        ...(accessOffer
+          ? {
+              fullAccess: calculateFees(b, true).full,
+              individualAccessMonthly: b.individualAccessMonthly ?? 5000,
+              billableMonths: b.months,
+            }
+          : {}),
         po: poEnabled ? f.po : 0,
         secondDue: b.secondDue,
         finalDue: final,
         policy:
           b.policy +
+          (b.programModel === 3
+            ? `\n\nRequired Team & Development Program Fee: ${money(b.membershipMonthly)}/month × ${b.months} Actual Billable Months. Scheduled team facility use and platform programming are included. Individual facility access is optional.`
+            : "") +
           "\n\nFull player schedule: " +
           schedules.full
             .map(
@@ -651,9 +753,20 @@ export async function mutateFeePlan(sql: Sql, userId: string, raw: z.infer<typeo
         throw Error(
           "The final payment deadline has passed. Contact Front Office before accepting.",
         );
-      const amount = player.roleType === "po" ? p.published.po : p.published.full,
+      const individualAccess = Boolean(input.individualAccess);
+      if (individualAccess && (player.roleType === "po" || p.published.fullAccess === undefined))
+        throw Error(
+          "Individual Facility Access Upgrade is available only with a published full-player option.",
+        );
+      const amount = individualAccess
+          ? p.published.fullAccess!
+          : player.roleType === "po"
+            ? p.published.po
+            : p.published.full,
         schedule =
-          p.published.schedules?.[player.roleType === "po" ? "po" : "full"] ||
+          p.published.schedules?.[
+            individualAccess ? "fullAccess" : player.roleType === "po" ? "po" : "full"
+          ] ||
           scheduleRows(
             p.publishedBudget || p.budget,
             amount,
@@ -665,13 +778,15 @@ export async function mutateFeePlan(sql: Sql, userId: string, raw: z.infer<typeo
       const agreedForDates = p.publishedBudget || p.budget;
       const acceptedSchedule =
         !agreedForDates.paymentSchedule && !agreedForDates.secondDue
-          ? scheduleRows(
-              agreedForDates,
-              amount,
-              player.roleType === "po" ? "po" : "full",
-              p.published.finalDue,
-              date,
-            )
+          ? individualAccess
+            ? individualAccessSchedule(agreedForDates, p.published.finalDue, date)
+            : scheduleRows(
+                agreedForDates,
+                amount,
+                player.roleType === "po" ? "po" : "full",
+                p.published.finalDue,
+                date,
+              )
           : schedule;
       player.feeLock = {
         amount: amount / 100,
@@ -698,7 +813,14 @@ export async function mutateFeePlan(sql: Sql, userId: string, raw: z.infer<typeo
       p.players[player.id] = {
         status: "Confirmed",
         note: "Guardian accepted the published fee and policy.",
-        acceptedPolicy: p.published.policy,
+        acceptedPolicy:
+          p.published.policy +
+          (individualAccess
+            ? `\n\nIndividual Facility Access Upgrade selected: ${money(p.published.individualAccessMonthly || 0)}/month × ${p.published.billableMonths} months. Total season fee with processing: ${money(amount)}. Accepted schedule: ${acceptedSchedule.map((r) => `${r.label}: ${money(r.amount)} ${r.due || "at acceptance"}`).join("; ")}.`
+            : ""),
+        individualAccess,
+        accessAllocation: individualAccess ? calculateFees(agreed, true).access : 0,
+        organizationAllocation: player.roleType === "po" ? agreed.poOrg : agreed.fullOrg,
         membershipAllocation:
           player.roleType === "po" ? calculateFees(agreed).poMember : calculateFees(agreed).member,
         contingencyAllocation:

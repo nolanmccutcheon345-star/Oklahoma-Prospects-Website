@@ -41,7 +41,7 @@ test("matrix matches sport, age and unambiguous season; detailed rows produce ro
   assert.equal(r.balls, 62500);
   const b = budgetFromMatrix(t, m, r);
   const f = calculateFees(b);
-  assert.equal(f.full, 275000);
+  assert.equal(f.full, 245000);
   assert.equal(f.fullProcessing, 0);
   assert.ok(f.fullRounding > 0);
   assert.equal(
@@ -54,8 +54,8 @@ test("matrix matches sport, age and unambiguous season; detailed rows produce ro
   assert.ok(card.full - card.fullProcessing >= card.fullNet);
   assert.equal(project(b, 11, 0).full, project(b, 10, 0).full);
   for (const [age, expected] of [
-    ["12U", 245000],
-    ["17U", 307500],
+    ["12U", 215000],
+    ["17U", 277500],
   ] as const) {
     const team = { ...t, age };
     assert.equal(calculateFees(budgetFromMatrix(team, m, matchMatrix(team, m)!)).full, expected);

@@ -137,7 +137,7 @@ test(`team fee UI saves admin drafts and offers only permitted coach controls ($
       .find((l) => l.textContent.includes("PO organization fee for this age"))
       .querySelector("input");
     assert.equal(poOrg.value, "350");
-    assert.match(host.textContent, /Membership \/ facility per pitcher-only player per month/);
+    assert.match(host.textContent, /Team & Development Program Fee per pitcher-only player per month/);
     const rules = [...host.querySelectorAll("select")].filter((s) =>
       s.parentElement.textContent.includes("Facility overhead contribution"),
     );
@@ -182,13 +182,16 @@ test(`team fee UI saves admin drafts and offers only permitted coach controls ($
       true,
     );
     assert.match(host.textContent, /acceptance midpoint/);
-    assert.match(host.textContent, /\$500\.00/);
+    assert.match(host.textContent, /\$450\.00/);
+    assert.match(host.textContent, /Actual Billable Months/);
+    assert.match(host.textContent, /Optional Individual Facility Access Upgrade/);
+    assert.match(host.textContent, /Standard standalone individual access/);
     const save = [...host.querySelectorAll("button")].find(
       (b) => b.textContent === "Save draft & expenses",
     );
     await act(async () => save.click());
     assert.equal(fixture.saved[0].action, "save");
-    assert.equal(fixture.saved[0].budget.membershipMonthly, 20000);
+    assert.equal(fixture.saved[0].budget.membershipMonthly, 15000);
     assert.equal(Object.hasOwn(fixture.saved[0], "basisVersion"), basisVersion !== undefined);
     assert.equal(fixture.saved[0].basisVersion, basisVersion);
     const poToggle = [...host.querySelectorAll("label")]

@@ -7,8 +7,12 @@ import { sampleClub } from "./seed";
 import { feeWorkspace, mutateFeePlan, setFeeBusiness, teamUniform } from "./fee.server";
 import { defaultBudget, calculateFees } from "./fee-model";
 
-for (const role of ["full", "po"] as const)
-  test(`team financial permissions, approvals, immutable ${role} fees, uniform release and concurrent edits`, async () => {
+for (const { role, individualAccess } of [
+  { role: "full", individualAccess: false },
+  { role: "po", individualAccess: false },
+  { role: "full", individualAccess: true },
+] as const)
+  test(`team financial permissions, approvals, immutable ${role}${individualAccess ? " with access upgrade" : ""} fees, uniform release and concurrent edits`, async () => {
     const db = new PGlite();
     const wrap = (query: PGlite["query"]): Sql => {
       const sql = (async (parts: TemplateStringsArray, ...values: unknown[]) =>
@@ -198,7 +202,13 @@ for (const role of ["full", "po"] as const)
         playerId: player.id,
         consent: true as const,
         name: "Parent Person",
+        individualAccess,
       };
+      if (role === "po")
+        await assert.rejects(
+          () => mutateFeePlan(sql, "parent", { ...accept, individualAccess: true }),
+          /only with a published full-player option/,
+        );
       await assert.rejects(() => mutateFeePlan(sql, "stranger", accept), /guardian/);
       if (role === "po") {
         await sql`update team_fee_plans set payload=jsonb_set(payload,'{budget,poEnabled}','false') where team_id=${team.id}`;
@@ -206,7 +216,10 @@ for (const role of ["full", "po"] as const)
         assert.equal(off.poEnabled, false);
         assert.equal(off.players[0].canAccept, false);
         assert.equal(off.players[0].total, 0);
-        await assert.rejects(() => mutateFeePlan(sql, "parent", accept), /does not offer pitcher-only/);
+        await assert.rejects(
+          () => mutateFeePlan(sql, "parent", accept),
+          /does not offer pitcher-only/,
+        );
         await sql`update team_fee_plans set payload=jsonb_set(payload,'{budget,poEnabled}','true') where team_id=${team.id}`;
       }
       await mutateFeePlan(sql, "parent", accept);
@@ -225,13 +238,21 @@ for (const role of ["full", "po"] as const)
       const [allocationPlan] = await sql<{
         payload: import("./fee-contracts").FeePlan;
       }>`select payload from team_fee_plans where team_id=${team.id}`;
-      assert.equal(
-        allocationPlan.payload.players[player.id].membershipAllocation,
-        role === "po" ? 37500 : 50000,
-      );
+      assert.equal(allocationPlan.payload.players[player.id].membershipAllocation, 45000);
       assert.equal(
         Math.round(signed.feeLock!.amount * 100),
-        allocationPlan.payload.published![role],
+        individualAccess
+          ? allocationPlan.payload.published!.fullAccess
+          : allocationPlan.payload.published![role],
+      );
+      assert.equal(allocationPlan.payload.players[player.id].individualAccess, individualAccess);
+      assert.equal(
+        allocationPlan.payload.players[player.id].accessAllocation,
+        individualAccess ? 15000 : 0,
+      );
+      assert.equal(
+        allocationPlan.payload.players[player.id].organizationAllocation,
+        role === "po" ? 20000 : 45678,
       );
       assert.equal(signed.planLock!.rows.length, 4);
       assert.equal(
