@@ -718,8 +718,11 @@ test("existing account coordinator assignment is owner-only, zero-scope and neve
       userId: "coach",
       independentRolesReviewed: true,
     });
-    const [coach] =
-      await sql`select permissions,team_ids,independent_roles from coordinator_assignments where user_id='coach'`;
+    const [coach] = await sql<{
+      permissions: string[];
+      team_ids: string[];
+      independent_roles: string[];
+    }>`select permissions,team_ids,independent_roles from coordinator_assignments where user_id='coach'`;
     assert.deepEqual(coach.permissions, []);
     assert.deepEqual(coach.team_ids, []);
     assert.ok(coach.independent_roles.includes("team-coach"));
