@@ -648,7 +648,7 @@ export async function mutateFeePlan(sql: Sql, userId: string, raw: z.infer<typeo
         policy:
           b.policy +
           (b.programModel === 3
-            ? `\n\nRequired Team & Development Program Fee: ${money(b.membershipMonthly)}/month × ${b.months} Actual Billable Months. Scheduled team facility use and platform programming are included. Individual facility access is optional.`
+            ? `\n\nRequired Team & Development Program Fee: ${money(b.membershipMonthly)}/month per full player${poEnabled ? `; ${money(b.poMembershipMonthly ?? 15000)}/month per PO player` : ""} × ${b.months} Actual Billable Months. Scheduled team facility use and platform programming are included. Individual facility access is optional.`
             : "") +
           "\n\nFull player schedule: " +
           schedules.full

@@ -161,6 +161,16 @@ test(`team fee UI saves admin drafts and offers only permitted coach controls ($
         .click(),
     );
     assert.match(host.textContent, /Example Parent per month/);
+    assert.match(host.textContent, /Pricing overrides for softball · 14U · Spring/);
+    const override = [...host.querySelectorAll("label")].find(l => l.textContent.startsWith("Row Team & Development Program Fee per full player per month")).querySelector("input");
+    assert.equal(override.value, "");
+    assert.equal(override.placeholder, "150");
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(dom.window.HTMLInputElement.prototype, "value").set.call(override, "175");
+      override.dispatchEvent(new dom.window.Event("input", { bubbles: true }));
+      override.dispatchEvent(new dom.window.Event("change", { bubbles: true }));
+    });
+
 
     await act(async () =>
       [...host.querySelectorAll("button")]
@@ -168,6 +178,8 @@ test(`team fee UI saves admin drafts and offers only permitted coach controls ($
         .click(),
     );
     assert.equal(globalThis.__matrixSaved.value.rows.length, 120);
+    assert.equal(globalThis.__matrixSaved.value.rows.find(r => r.sport === "softball" && r.age === 14 && r.season === "springSummer").membershipMonthly, 17500);
+    assert.equal(globalThis.__matrixSaved.value.rows.find(r => r.sport === "baseball" && r.age === 14 && r.season === "springSummer").membershipMonthly, undefined);
     assert.equal(globalThis.__matrixSaved.value.overheadRule.monthly, 50000);
     assert.equal(globalThis.__matrixSaved.value.payroll[0].userId, "parent");
     assert.equal(Object.hasOwn(globalThis.__matrixSaved, "basisVersion"), basisVersion !== undefined);
