@@ -1,4 +1,13 @@
 import { z } from "zod";
+import { id } from "./contracts";
+export const existingCoordinatorInput = z
+  .object({
+    userId: id,
+    sport: z.enum(["baseball", "softball"]),
+    independentRolesReviewed: z.boolean(),
+    confirm: z.literal(true),
+  })
+  .strict();
 export const coordinatorInvitationInput = z
   .object({
     email: z

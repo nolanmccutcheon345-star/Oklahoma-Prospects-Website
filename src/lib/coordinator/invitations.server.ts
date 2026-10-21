@@ -2,8 +2,37 @@ import { createHash, randomUUID } from "node:crypto";
 import type { Sql } from "../db";
 import { audit, authority, secured, verifiedAccount, CoordinatorDenied } from "./access.server";
 import { saveAssignmentInTransaction } from "./admin.server";
-import { coordinatorInvitationInput } from "./invitation-contracts";
+import { coordinatorInvitationInput, existingCoordinatorInput } from "./invitation-contracts";
 import type { z } from "zod";
+
+export async function assignExistingCoordinator(
+  sql: Sql,
+  actor: string,
+  raw: z.input<typeof existingCoordinatorInput>,
+) {
+  const input = existingCoordinatorInput.parse(raw);
+  return secured(sql, actor, "staff.assignment.create", async (tx) => {
+    await authority(tx, actor, "staff_roles.manage");
+    // Share the account lock with normal role edits and invitation acceptance.
+    // Never reset a previously assigned (including removed) role through this shortcut.
+    await tx`select id from "user" where id=${input.userId} for update`;
+    const [existing] =
+      await tx`select user_id from coordinator_assignments where user_id=${input.userId} and sport=${input.sport}`;
+    if (existing)
+      throw new Error("This coordinator role already exists. Review it in Roles & Permissions.");
+    return saveAssignmentInTransaction(tx, actor, {
+      userId: input.userId,
+      sport: input.sport,
+      revision: 0,
+      status: "active",
+      coverage: "teams",
+      teamIds: [],
+      permissions: [],
+      confirm: true,
+      independentRolesReviewed: input.independentRolesReviewed,
+    });
+  });
+}
 
 export async function inviteCoordinator(
   sql: Sql,
