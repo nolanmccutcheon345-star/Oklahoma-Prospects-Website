@@ -157,7 +157,7 @@ export function ShopOffice({ changed }: { changed: () => void }) {
             )}
           </details>
           <ShopCollectionsEditor
-            key={data.settings.revision}
+            key={`navigation-${data.settings.revision}`}
             navigation={data.settings.navigation}
             revision={data.settings.revision}
             busy={busy}
@@ -165,7 +165,7 @@ export function ShopOffice({ changed }: { changed: () => void }) {
           />
           <SupplierCatalog busy={busy} />
           <PricingSettings
-            key={data.settings.revision}
+            key={`pricing-${data.settings.revision}`}
             settings={data.settings}
             busy={busy}
             run={run}
