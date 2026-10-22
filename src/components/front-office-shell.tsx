@@ -11,6 +11,7 @@ export const OFFICE_SECTIONS = [
   ["payments", "Payments"],
   ["finance", "Finance"],
   ["services", "Services & Pricing"],
+  ["shop", "Shop"],
   ["staff", "Staff & Access"],
   ["reports", "Reports"],
 ] as const;

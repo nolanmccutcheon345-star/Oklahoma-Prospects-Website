@@ -859,3 +859,137 @@ test("Fulfill Engine launch drafts stay private and cannot charge; owner imports
     await db.close();
   }
 });
+
+test("retail navigation: validated custom groups, combined filters, owner-only revisioned saves and preserved pricing", async () => {
+  const { sql, db } = await fixture();
+  try {
+    const { settings, saveNavigation } = await import("./management.server");
+    const { shopNavigationSchema, matchesShopFilters } = await import("./collections");
+    await seed(sql);
+    const initial = await settings(sql);
+    assert.equal(initial.navigation[0].options[0].label, "Hats");
+    const navigation = shopNavigationSchema.parse([
+      {
+        id: "items",
+        label: "Shop by style",
+        options: [
+          { id: "cap", label: "Caps" },
+          { id: "tee", label: "Tees" },
+        ],
+      },
+      {
+        id: "sport",
+        label: "Sport",
+        options: [
+          { id: "sb", label: "Softball" },
+          { id: "bb", label: "Baseball" },
+        ],
+      },
+      { id: "ages", label: "Age", options: [{ id: "kid", label: "Kids" }] },
+    ]);
+    for (const user of ["parent", "coach", "coordinator", "fake"])
+      await assert.rejects(() => saveNavigation(sql, user, initial.revision, navigation), /Owner/);
+    await saveNavigation(sql, "owner", initial.revision, navigation);
+    assert.deepEqual((await publicShop(sql)).navigation, navigation);
+    await assert.rejects(() => saveNavigation(sql, "owner", initial.revision, []), /changed/);
+    const product = { category: "Apparel", collection_ids: ["cap", "sb", "kid"] };
+    assert.equal(
+      matchesShopFilters(product, navigation, { items: "cap", sport: "sb", ages: "kid" }),
+      true,
+    );
+    assert.equal(matchesShopFilters(product, navigation, { items: "tee", sport: "sb" }), false);
+    assert.equal(matchesShopFilters(product, navigation, { items: "removed" }), false);
+    assert.equal(matchesShopFilters(product, navigation, {}), true);
+    const renamed = navigation.map((g) => ({
+      ...g,
+      options: g.options.map((o) => ({ ...o, label: "Renamed " + o.label })),
+    }));
+    assert.equal(matchesShopFilters(product, renamed, { items: "cap" }), true);
+    assert.throws(() => shopNavigationSchema.parse([...navigation, navigation[0]]));
+    assert.throws(() => shopNavigationSchema.parse([{ id: "items", label: "", options: [] }]));
+    const [unchanged] = await sql<{
+      variants: (typeof variant)[];
+      published: boolean;
+    }>`select variants,published from shop_products where id='shirt'`;
+    assert.equal(unchanged.variants[0].priceCents, 5000);
+    assert.equal(unchanged.published, true);
+    assert.equal((await sql`select * from shop_changes where action='shop-navigation'`).length, 1);
+  } finally {
+    await db.close();
+  }
+});
+
+test("coming soon: publishes photos without supplier setup, blocks quotes and payment, preserves draft privacy and sale gates", async () => {
+  const { sql, db } = await fixture();
+  try {
+    const id = await createDraft(sql, "owner", "SYNTHETIC Preview Cap");
+    const read = async () =>
+      (await sql<import("./contracts").ShopProduct>`select * from shop_products where id=${id}`)[0];
+    let p = await read();
+    const save = (overrides: Partial<import("./management.server").ManagedProductInput> = {}) =>
+      saveManagedProduct(sql, "owner", {
+        id,
+        revision: p.revision,
+        description: "A preview of our new cap.",
+        sizeGuide: "",
+        teamLabel: "",
+        category: "Hats",
+        taxCode: "",
+        sampleApproved: false,
+        published: true,
+        comingSoon: true,
+        collectionIds: ["hats", "softball", "youth"],
+        ...overrides,
+      });
+    await assert.rejects(() => save(), /photo/);
+    await uploadStudioPhoto(sql, "owner", {
+      id,
+      revision: p.revision,
+      data: studioPng(),
+      alt: "Synthetic cap",
+      variantIds: [],
+    });
+    p = await read();
+    await save();
+    p = await read();
+    const shop = await publicShop(sql);
+    const preview = shop.products.find((v) => v.id === id)!;
+    assert.equal(preview.coming_soon, true);
+    assert.equal(preview.variants.length, 0);
+    assert.equal(shop.checkout, false);
+    assert.deepEqual(preview.collection_ids, ["hats", "softball", "youth"]);
+    assert.ok(!("preparation_notes" in preview));
+    assert.equal((await shopImageResponse(sql, p.gallery[0].id, null)).status, 200);
+    await assert.rejects(() => save({ comingSoon: false }), /sample/);
+    assert.equal((await read()).coming_soon, true);
+    await save({ published: false });
+    p = await read();
+    assert.equal((await shopImageResponse(sql, p.gallery[0].id, null)).status, 404);
+    await save();
+    p = await read();
+    await editGallery(sql, "owner", { id, revision: p.revision, imageIds: [] });
+    assert.equal((await read()).published, false);
+    await seed(sql);
+    const input = request();
+    const quote = await createShopQuote(sql, "parent", input, deps);
+    await sql`update shop_products set coming_soon=true where id='shirt'`;
+    const products = await sql<
+      import("./contracts").ShopProduct
+    >`select * from shop_products where id='shirt'`;
+    assert.throws(() => selectedLines(products, input.cart), /no longer available/);
+    await assert.rejects(
+      () => createShopQuote(sql, "parent", request(), deps),
+      /no longer available/,
+    );
+    // Payment validation must also reject a previously quoted item (even without a revision bump).
+    const { validateShopPayment } = await import("./store.server");
+    const order = (await sql`select * from commerce_orders where id=${quote.orderId}`)[0];
+    await assert.rejects(
+      () =>
+        validateShopPayment(sql, order as import("../commerce/square-payments.server").SquareOrder),
+      /An item changed/,
+    );
+  } finally {
+    await db.close();
+  }
+});

@@ -83,6 +83,8 @@ export type ShopProduct = {
   team_label: string;
   tax_code: string;
   variants: ShopVariant[];
+  coming_soon?: boolean;
+  collection_ids?: string[];
   published: boolean;
   sample_approved: boolean;
   revision: number;
@@ -117,7 +119,12 @@ export function safeHttps(value: unknown) {
 export function selectedLines(products: ShopProduct[], cart: Cart) {
   return cartSchema.parse(cart).map((line) => {
     const p = products.find(
-      (p) => p.id === line.productId && p.published && p.sample_approved && !p.archived,
+      (p) =>
+        p.id === line.productId &&
+        p.published &&
+        !p.coming_soon &&
+        p.sample_approved &&
+        !p.archived,
     );
     const v = p?.variants.find(
       (v) => v.id === line.variantId && v.available && v.sellEnabled !== false,

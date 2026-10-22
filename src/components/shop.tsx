@@ -8,6 +8,7 @@ import { formatMoney } from "@/lib/pricing";
 import { getShop, canManageShop, quoteShop, myShopOrders } from "@/lib/shop/api";
 import { submitSquarePayment } from "@/lib/commerce/api";
 const ShopOffice = lazy(() => import("./shop-office").then((m) => ({ default: m.ShopOffice })));
+import { matchesShopFilters, inShopCollection } from "@/lib/shop/collections";
 import { cartSchema, type Cart } from "@/lib/shop/contracts";
 type Shop = Awaited<ReturnType<typeof getShop>>;
 const inputClass =
@@ -44,6 +45,7 @@ export function Shop({ selectedProductId }: { selectedProductId?: string }) {
   const [view, setView] = useState("shop");
   const [busy, setBusy] = useState(false);
   const [category, setCategory] = useState("");
+  const [filters, setFilters] = useState<Record<string, string>>({});
   const [team, setTeam] = useState("");
   const [checkout, setCheckout] = useState<Awaited<ReturnType<typeof quoteShop>>>();
   const [address, setAddress] = useState({
@@ -107,6 +109,17 @@ export function Shop({ selectedProductId }: { selectedProductId?: string }) {
     }
   }
   function add(productId: string, variantId: number) {
+    if (
+      !data?.products.some(
+        (p) =>
+          p.id === productId &&
+          !p.coming_soon &&
+          p.variants.some((v) => v.id === variantId && v.available),
+      )
+    ) {
+      setError("This item is not available to order yet.");
+      return;
+    }
     const found = cart.find((i) => i.productId === productId && i.variantId === variantId);
     const next = found
       ? cart.map((i) => (i === found ? { ...i, quantity: Math.min(20, i.quantity + 1) } : i))
@@ -118,13 +131,21 @@ export function Shop({ selectedProductId }: { selectedProductId?: string }) {
     changeCart(next);
     setMessage("Added to your bag.");
   }
+  const navigation = data?.navigation ?? [];
+  const visibleProducts =
+    data?.products.filter(
+      (p) =>
+        matchesShopFilters(p, navigation, filters) &&
+        (!category || p.category === category) &&
+        (!team || p.team_label === team),
+    ) ?? [];
   const count = cart.reduce((sum, i) => sum + i.quantity, 0);
   return (
     <main id="main" className="min-w-0">
       <section className="bg-navy px-5 py-12 text-white">
         <div className="mx-auto max-w-6xl">
           <p className="text-sm font-semibold uppercase tracking-widest text-sky-200">
-            Oklahoma Prospects · Official shop
+            Prospects Sports Academy · Official shop
           </p>
           <h1 className="mt-3 text-4xl sm:text-6xl">
             {selectedProductId
@@ -190,25 +211,77 @@ export function Shop({ selectedProductId }: { selectedProductId?: string }) {
                     </p>
                   </div>
                 )}
-                {data.products.length > 0 && (
+                {
                   <>
-                    <div className="mb-6 grid gap-3 sm:grid-cols-2">
-                      <label>
-                        Collection
+                    {navigation[0] && (
+                      <nav aria-label="Shop collections" className="mb-5 flex flex-wrap gap-2">
+                        <button
+                          type="button"
+                          aria-pressed={!filters[navigation[0].id]}
+                          className={`min-h-11 rounded-full border border-line px-4 py-2 text-sm font-semibold ${!filters[navigation[0].id] ? "bg-navy text-white" : "bg-white"}`}
+                          onClick={() => {
+                            setFilters({});
+                            setCategory("");
+                            setTeam("");
+                          }}
+                        >
+                          All products
+                        </button>
+                        {navigation[0].options.map((option) => (
+                          <button
+                            type="button"
+                            key={option.id}
+                            aria-pressed={filters[navigation[0].id] === option.id}
+                            className={`min-h-11 rounded-full border border-line px-4 py-2 text-sm font-semibold ${filters[navigation[0].id] === option.id ? "bg-navy text-white" : "bg-white"}`}
+                            onClick={() =>
+                              setFilters({ ...filters, [navigation[0].id]: option.id })
+                            }
+                          >
+                            {option.label}{" "}
+                            <span className="opacity-70">
+                              ({data.products.filter((p) => inShopCollection(p, option)).length})
+                            </span>
+                          </button>
+                        ))}
+                      </nav>
+                    )}
+                    <div className="mb-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                      {navigation.slice(1).map((group) => (
+                        <div key={group.id}>
+                          <label htmlFor={`shop-filter-${group.id}`}>{group.label}</label>
+                          <select
+                            id={`shop-filter-${group.id}`}
+                            className={inputClass}
+                            value={filters[group.id] || ""}
+                            onChange={(e) => setFilters({ ...filters, [group.id]: e.target.value })}
+                          >
+                            <option value="">All {group.label.toLowerCase()}</option>
+                            {group.options.map((option) => (
+                              <option key={option.id} value={option.id}>
+                                {option.label}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                      ))}
+                      <div>
+                        <label htmlFor="shop-category">Product category</label>
                         <select
+                          id="shop-category"
                           className={inputClass}
                           value={category}
                           onChange={(e) => setCategory(e.target.value)}
                         >
-                          <option value="">All collections</option>
+                          <option value="">All categories</option>
                           {[...new Set(data.products.map((p) => p.category))].map((v) => (
                             <option key={v}>{v}</option>
                           ))}
                         </select>
-                      </label>
-                      <label>
-                        Team shop
+                      </div>
+                      <div>
+                        <label htmlFor="shop-team">Team shop</label>
                         <select
+                          id="shop-team"
                           className={inputClass}
                           value={team}
                           onChange={(e) => setTeam(e.target.value)}
@@ -220,21 +293,38 @@ export function Shop({ selectedProductId }: { selectedProductId?: string }) {
                             ),
                           )}
                         </select>
-                      </label>
+                      </div>
                     </div>
+                    <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+                      <p role="status">
+                        {visibleProducts.length}{" "}
+                        {visibleProducts.length === 1 ? "product" : "products"}
+                      </p>
+                      <button
+                        type="button"
+                        className="min-h-11 px-3 underline"
+                        onClick={() => {
+                          setFilters({});
+                          setCategory("");
+                          setTeam("");
+                        }}
+                      >
+                        Clear filters
+                      </button>
+                    </div>
+                    {!visibleProducts.length && (
+                      <p className="rounded-xl bg-paper-2 p-5">
+                        No products match these filters. Try another collection or clear the
+                        filters.
+                      </p>
+                    )}
                     <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-                      {data.products
-                        .filter(
-                          (p) =>
-                            (!category || p.category === category) &&
-                            (!team || p.team_label === team),
-                        )
-                        .map((p) => (
-                          <Product key={p.id} product={p} add={(id) => add(p.id, id)} />
-                        ))}
+                      {visibleProducts.map((p) => (
+                        <Product key={p.id} product={p} add={(id) => add(p.id, id)} />
+                      ))}
                     </div>
                   </>
-                )}
+                }
                 {!data.products.length && (
                   <>
                     <figure className="overflow-hidden rounded-2xl border border-line">
@@ -600,7 +690,12 @@ function Product({
           : "flex min-w-0 flex-col overflow-hidden rounded-2xl border border-line"
       }
     >
-      <div className="min-w-0">
+      <div className="relative min-w-0">
+        {p.coming_soon && (
+          <span className="absolute left-3 top-3 z-10 rounded-full bg-navy px-3 py-2 text-xs font-bold uppercase tracking-wide text-white">
+            Coming soon
+          </span>
+        )}
         <img
           src={selectedPhoto?.url || p.image_url}
           alt={selectedPhoto?.alt || p.title}
@@ -642,35 +737,43 @@ function Product({
             ? p.description
             : p.description.slice(0, 160) + (p.description.length > 160 ? "…" : "")}
         </p>
-        <p className="mt-4 font-semibold">
-          {variant
-            ? formatMoney(variant.priceCents)
-            : `From ${formatMoney(Math.min(...p.variants.map((v) => v.priceCents)))}`}
-        </p>
-        <label className="mt-3" htmlFor={"variant-" + p.id}>
-          Color / size
-        </label>
-        <select
-          id={"variant-" + p.id}
-          className={inputClass}
-          value={id}
-          onChange={(e) => {
-            setId(e.target.value);
-            setPhoto("");
-          }}
-        >
-          <option value="">Choose your selection</option>
-          {p.variants.map((v) => (
-            <option key={v.id} value={v.id} disabled={!v.available}>
-              {v.label}
-              {v.available ? "" : " — unavailable"}
-            </option>
-          ))}
-        </select>
-        <details className="my-4 text-sm">
-          <summary className="min-h-10 cursor-pointer py-2 underline">Size guide</summary>
-          <p className="whitespace-pre-wrap">{p.size_guide}</p>
-        </details>
+        {p.coming_soon ? (
+          <p className="mt-4 font-semibold">Coming soon · Not available to order</p>
+        ) : (
+          <>
+            <p className="mt-4 font-semibold">
+              {variant
+                ? formatMoney(variant.priceCents)
+                : `From ${formatMoney(Math.min(...p.variants.map((v) => v.priceCents)))}`}
+            </p>
+            <label className="mt-3" htmlFor={"variant-" + p.id}>
+              Color / size
+            </label>
+            <select
+              id={"variant-" + p.id}
+              className={inputClass}
+              value={id}
+              onChange={(e) => {
+                setId(e.target.value);
+                setPhoto("");
+              }}
+            >
+              <option value="">Choose your selection</option>
+              {p.variants.map((v) => (
+                <option key={v.id} value={v.id} disabled={!v.available}>
+                  {v.label}
+                  {v.available ? "" : " — unavailable"}
+                </option>
+              ))}
+            </select>
+          </>
+        )}
+        {p.size_guide && (
+          <details className="my-4 text-sm">
+            <summary className="min-h-10 cursor-pointer py-2 underline">Size guide</summary>
+            <p className="whitespace-pre-wrap">{p.size_guide}</p>
+          </details>
+        )}
         {!detail && (
           <a
             className="mb-4 block min-h-10 py-2 text-center underline"
@@ -681,10 +784,10 @@ function Product({
         )}
         <Button
           className="mt-auto"
-          disabled={!variant?.available}
-          onClick={() => variant && add(variant.id)}
+          disabled={p.coming_soon || !variant?.available}
+          onClick={() => !p.coming_soon && variant && add(variant.id)}
         >
-          Add to bag
+          {p.coming_soon ? "Coming soon" : "Add to bag"}
         </Button>
       </div>
     </article>

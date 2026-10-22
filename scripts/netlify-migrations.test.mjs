@@ -131,6 +131,7 @@ for (const baselineVersion of [66, 76, 79])
             "0094_coordinator_recovery.sql",
             "0095_coordinator_security_archive.sql",
             "0096_coordinator_provider_backup_reviews.sql",
+            "0097_shop_collections.sql",
           ],
         );
       for (const { name } of late) {
@@ -160,3 +161,49 @@ for (const baselineVersion of [66, 76, 79])
       await db.close();
     }
   });
+
+test("shop collection upgrade preserves published products and pricing while assigning explicit legacy categories", async () => {
+  const source = new URL("../migrations/", import.meta.url);
+  const entries = pendingMigrations(await readdir(source), []);
+  const db = new PGlite();
+  try {
+    for (const { name } of entries.filter((e) => e.name !== "0097_shop_collections.sql"))
+      await db.exec(wrapMigration(name, await readFile(new URL(name, source), "utf8")));
+    await db.exec(
+      `insert into shop_products(id,title,category,image_url,variants,updated_by,published,sample_approved,revision) values('preserved-cap','Preserved cap','Caps','https://example.invalid/cap.png','[{"id":1,"priceCents":4200}]','synthetic',true,true,9)`,
+    );
+    await db.exec("update shop_settings set default_markup_bps=7500,revision=8 where id=1");
+    const before = (
+      await db.query(
+        "select id,title,category,variants,published,sample_approved,revision from shop_products order by id",
+      )
+    ).rows;
+    const upgrade = wrapMigration(
+      "0097_shop_collections.sql",
+      await readFile(new URL("0097_shop_collections.sql", source), "utf8"),
+    );
+    await db.exec(upgrade);
+    await db.exec(upgrade);
+    assert.deepEqual(
+      (
+        await db.query(
+          "select id,title,category,variants,published,sample_approved,revision from shop_products order by id",
+        )
+      ).rows,
+      before,
+    );
+    const [cap] = (
+      await db.query(
+        "select collection_ids,coming_soon from shop_products where id='preserved-cap'",
+      )
+    ).rows;
+    assert.deepEqual(cap.collection_ids, ["hats"]);
+    assert.equal(cap.coming_soon, false);
+    const [settings] = (await db.query("select * from shop_settings where id=1")).rows;
+    assert.equal(settings.default_markup_bps, 7500);
+    assert.equal(settings.revision, 8);
+    assert.equal(settings.navigation[0].options[0].label, "Hats");
+  } finally {
+    await db.close();
+  }
+});

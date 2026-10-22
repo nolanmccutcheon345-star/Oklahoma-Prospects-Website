@@ -7,12 +7,18 @@ export async function shopImageResponse(sql: Sql, id: string, userId: string | n
   const [image] = await sql<{
     png_base64: string;
     published: boolean;
+    coming_soon: boolean;
     sample_approved: boolean;
     archived: boolean;
     image_approved: boolean;
-  }>`select i.png_base64,p.published,p.sample_approved,p.archived,p.image_approved from shop_images i join shop_products p on p.id=i.product_id where i.id=${id} and exists(select 1 from jsonb_array_elements(p.gallery) g where g->>'id'=i.id)`;
+  }>`select i.png_base64,p.published,p.coming_soon,p.sample_approved,p.archived,p.image_approved from shop_images i join shop_products p on p.id=i.product_id where i.id=${id} and exists(select 1 from jsonb_array_elements(p.gallery) g where g->>'id'=i.id)`;
   if (!image) return new Response("Image unavailable", { status: 404, headers });
-  if (!image.published || !image.sample_approved || !image.image_approved || image.archived) {
+  if (
+    !image.published ||
+    (!image.sample_approved && !image.coming_soon) ||
+    !image.image_approved ||
+    image.archived
+  ) {
     try {
       if (!userId) throw new Error("Not signed in");
       await owner(sql, userId);
