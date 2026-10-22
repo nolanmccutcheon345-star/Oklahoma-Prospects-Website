@@ -247,9 +247,10 @@ export function Shop({ selectedProductId }: { selectedProductId?: string }) {
                     )}
                     <div className="mb-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                       {navigation.slice(1).map((group) => (
-                        <label key={group.id}>
-                          {group.label}
+                        <div key={group.id}>
+                          <label htmlFor={`shop-filter-${group.id}`}>{group.label}</label>
                           <select
+                            id={`shop-filter-${group.id}`}
                             className={inputClass}
                             value={filters[group.id] || ""}
                             onChange={(e) => setFilters({ ...filters, [group.id]: e.target.value })}
@@ -261,11 +262,12 @@ export function Shop({ selectedProductId }: { selectedProductId?: string }) {
                               </option>
                             ))}
                           </select>
-                        </label>
+                        </div>
                       ))}
-                      <label>
-                        Product category
+                      <div>
+                        <label htmlFor="shop-category">Product category</label>
                         <select
+                          id="shop-category"
                           className={inputClass}
                           value={category}
                           onChange={(e) => setCategory(e.target.value)}
@@ -275,10 +277,11 @@ export function Shop({ selectedProductId }: { selectedProductId?: string }) {
                             <option key={v}>{v}</option>
                           ))}
                         </select>
-                      </label>
-                      <label>
-                        Team shop
+                      </div>
+                      <div>
+                        <label htmlFor="shop-team">Team shop</label>
                         <select
+                          id="shop-team"
                           className={inputClass}
                           value={team}
                           onChange={(e) => setTeam(e.target.value)}
@@ -290,7 +293,7 @@ export function Shop({ selectedProductId }: { selectedProductId?: string }) {
                             ),
                           )}
                         </select>
-                      </label>
+                      </div>
                     </div>
                     <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
                       <p role="status">
