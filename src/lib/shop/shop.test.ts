@@ -907,7 +907,10 @@ test("retail navigation: validated custom groups, combined filters, owner-only r
     assert.equal(matchesShopFilters(product, renamed, { items: "cap" }), true);
     assert.throws(() => shopNavigationSchema.parse([...navigation, navigation[0]]));
     assert.throws(() => shopNavigationSchema.parse([{ id: "items", label: "", options: [] }]));
-    const [unchanged] = await sql`select variants,published from shop_products where id='shirt'`;
+    const [unchanged] = await sql<{
+      variants: (typeof variant)[];
+      published: boolean;
+    }>`select variants,published from shop_products where id='shirt'`;
     assert.equal(unchanged.variants[0].priceCents, 5000);
     assert.equal(unchanged.published, true);
     assert.equal((await sql`select * from shop_changes where action='shop-navigation'`).length, 1);
