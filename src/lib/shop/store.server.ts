@@ -60,17 +60,19 @@ export async function owner(sql: Sql, userId: string) {
 }
 export async function publicShop(sql: Sql) {
   const products =
-    await sql<ShopProduct>`select * from shop_products where published and sample_approved and not archived order by category,title`;
+    await sql<ShopProduct>`select * from shop_products where published and (sample_approved or coming_soon) and not archived order by category,title`;
   let checkout = false;
   try {
-    if (products.length) {
-      for (const provider of new Set(products.map((p) => p.provider))) assertShopReady(provider);
+    if (products.some((p) => !p.coming_soon)) {
+      for (const provider of new Set(products.filter((p) => !p.coming_soon).map((p) => p.provider)))
+        assertShopReady(provider);
       checkout = true;
     }
   } catch {
     /* Availability is intentionally fail closed. */
   }
   return {
+    navigation: (await (await import("./management.server")).settings(sql)).navigation,
     checkout,
     square: checkout ? squarePublicConfig() : null,
     products: products.map((p) => ({
@@ -78,6 +80,8 @@ export async function publicShop(sql: Sql) {
       title: p.title,
       description: p.description,
       category: p.category,
+      collection_ids: p.collection_ids ?? [],
+      coming_soon: p.coming_soon ?? false,
       image_url: p.image_url,
       gallery: p.gallery,
       size_guide: p.size_guide,
@@ -86,7 +90,7 @@ export async function publicShop(sql: Sql) {
         id: v.id,
         label: v.label,
         priceCents: v.priceCents,
-        available: v.available && v.sellEnabled !== false,
+        available: !p.coming_soon && v.available && v.sellEnabled !== false,
       })),
     })),
   };
@@ -254,7 +258,6 @@ export async function validateShopPayment(sql: Sql, order: SquareOrder) {
     provider: ShopProduct["provider"];
   }>`select product_revisions,status,provider from shop_order_details where order_id=${order.id} and user_id=${order.user_id}`;
   if (!d || d.status !== "awaiting-payment") throw new Error("Shop checkout is unavailable.");
-  assertShopReady(d.provider);
   const products =
     await sql<ShopProduct>`select * from shop_products where id=any(${Object.keys(d.product_revisions)}::text[]) order by id for update`;
   if (
@@ -262,12 +265,14 @@ export async function validateShopPayment(sql: Sql, order: SquareOrder) {
     products.some(
       (p) =>
         !p.published ||
+        p.coming_soon ||
         !p.sample_approved ||
         p.archived ||
         p.revision !== d.product_revisions[p.id],
     )
   )
     throw new Error("An item changed. Refresh your bag before paying.");
+  assertShopReady(d.provider);
 }
 export async function fulfillShopPayment(sql: Sql, order: SquareOrder) {
   const late = order.status !== "pending" || new Date(order.hold_until).getTime() <= Date.now();

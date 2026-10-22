@@ -4,6 +4,7 @@ import type { Sql } from "../db";
 import { owner } from "./store.server";
 import { priceVariant, type PricingMode } from "./pricing";
 import type { ShopProduct, ShopImage } from "./contracts";
+import { shopNavigationSchema, collectionIdsSchema, type ShopNavigation } from "./collections";
 import {
   printifyClient,
   shopPath,
@@ -11,7 +12,11 @@ import {
   type PrintifyRequest,
 } from "./printify.server";
 
-export type ShopSettings = { default_markup_bps: number; revision: number };
+export type ShopSettings = {
+  default_markup_bps: number;
+  revision: number;
+  navigation: ShopNavigation;
+};
 export async function settings(sql: Sql) {
   return (await sql<ShopSettings>`select * from shop_settings where id=1`)[0];
 }
@@ -98,6 +103,8 @@ export type ManagedProductInput = {
   taxCode: string;
   sampleApproved: boolean;
   published: boolean;
+  comingSoon?: boolean;
+  collectionIds?: string[];
   pricingMode?: PricingMode;
   pricingBps?: number;
   variants?: {
@@ -114,6 +121,20 @@ export async function saveManagedProduct(sql: Sql, userId: string, input: Manage
     const [p] = await tx<ShopProduct>`select * from shop_products where id=${input.id} for update`;
     if (!p || p.revision !== input.revision)
       throw new Error("Product changed. Reload before saving.");
+    const comingSoon = input.comingSoon ?? p.coming_soon ?? false;
+    const collectionIds = collectionIdsSchema.parse(input.collectionIds ?? p.collection_ids ?? []);
+    const validIds = new Set(s.navigation.flatMap((g) => g.options.map((o) => o.id)));
+    // Removed labels do not alter a product; unknown new assignments are rejected.
+    if (collectionIds.some((id) => !validIds.has(id) && !p.collection_ids?.includes(id)))
+      throw new Error("Shop collections changed. Reload before saving.");
+    if (
+      input.published &&
+      comingSoon &&
+      (p.archived || !input.description.trim() || !p.image_approved || !p.image_url)
+    )
+      throw new Error(
+        "Add a description and approved product photo before showing a coming-soon product.",
+      );
     const mode = input.pricingMode || p.pricing_mode,
       bps = input.pricingBps ?? p.pricing_bps;
     if (
@@ -130,6 +151,7 @@ export async function saveManagedProduct(sql: Sql, userId: string, input: Manage
     });
     if (
       input.published &&
+      !comingSoon &&
       (p.archived ||
         !input.sampleApproved ||
         !input.description.trim() ||
@@ -143,15 +165,17 @@ export async function saveManagedProduct(sql: Sql, userId: string, input: Manage
       throw new Error(
         "Approve the physical sample and studio photo, link supplier variants, and add a description, size guide and tax category before publishing.",
       );
-    if (p.provider === "fulfill-engine" && input.published)
+    if (p.provider === "fulfill-engine" && input.published && !comingSoon)
       throw new Error((await import("./fulfill-engine.server")).FULFILL_ENGINE_LAUNCH_BLOCKER);
     const title = (input.title ?? p.title).trim();
     if (!title) throw new Error("Product title is required.");
-    await tx`update shop_products set preparation_notes=${input.preparationNotes ?? p.preparation_notes},title=${title},description=${input.description},size_guide=${input.sizeGuide},team_label=${input.teamLabel},category=${input.category},tax_code=${input.taxCode},sample_approved=${input.sampleApproved},published=${input.published},pricing_mode=${mode},pricing_bps=${bps},variants=${JSON.stringify(variants)}::jsonb,revision=revision+1,updated_by=${userId},updated_at=now() where id=${p.id}`;
+    await tx`update shop_products set coming_soon=${comingSoon},collection_ids=${JSON.stringify(collectionIds)}::jsonb,preparation_notes=${input.preparationNotes ?? p.preparation_notes},title=${title},description=${input.description},size_guide=${input.sizeGuide},team_label=${input.teamLabel},category=${input.category},tax_code=${input.taxCode},sample_approved=${input.sampleApproved},published=${input.published},pricing_mode=${mode},pricing_bps=${bps},variants=${JSON.stringify(variants)}::jsonb,revision=revision+1,updated_by=${userId},updated_at=now() where id=${p.id}`;
     await audit(tx, userId, "edit-product", p.id, {
       pricingMode: mode,
       pricingBps: bps,
       published: input.published,
+      comingSoon,
+      collectionIds,
       prices: variants.map((v) => ({
         id: v.id,
         cents: v.priceCents,
@@ -346,5 +370,22 @@ export async function syncFulfillEngineProduct(
       costsArePreliminary: true,
     });
     return key;
+  });
+}
+
+export async function saveNavigation(
+  sql: Sql,
+  userId: string,
+  revision: number,
+  input: ShopNavigation,
+) {
+  await owner(sql, userId);
+  const navigation = shopNavigationSchema.parse(input);
+  await sql.transaction(async (tx) => {
+    const [s] = await tx<ShopSettings>`select * from shop_settings where id=1 for update`;
+    if (!s || s.revision !== revision)
+      throw new Error("Shop settings changed. Reload before saving.");
+    await tx`update shop_settings set navigation=${JSON.stringify(navigation)}::jsonb,revision=revision+1,updated_by=${userId},updated_at=now() where id=1`;
+    await audit(tx, userId, "shop-navigation", null, { navigation });
   });
 }

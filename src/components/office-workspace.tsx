@@ -13,6 +13,7 @@ import { TeamFeeWorkspace } from "./teams/fee-workspace";
 import { SquareOffice } from "./commerce/square-office";
 import { DiscountOffice } from "./commerce/discount-office";
 import { OfficeOperations } from "./commerce/operations";
+import { ShopOffice } from "./shop-office";
 import { StaffBookingChanges } from "./commerce/booking-changes";
 import { TryoutEvaluations } from "./tryout-evaluations";
 import { AdminServicesDesk, AdminAccountsDesk, AdminStaffDesk } from "./pd/admin-ops";
@@ -190,6 +191,7 @@ export function OfficeWorkspace({
           )}
         </div>
       )}
+      {section === "shop" && <ShopOffice changed={() => {}} />}
       {section === "finance" && <FinanceWorkspace/>}
       {section === "payments" && (
         <div className="grid gap-5">

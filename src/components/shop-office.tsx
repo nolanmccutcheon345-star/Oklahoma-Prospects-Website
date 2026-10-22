@@ -17,6 +17,8 @@ import { priceVariant, priceMetrics, type PricingMode } from "@/lib/shop/pricing
 import { prepareProductPhoto } from "@/lib/shop/photo-studio";
 import { formatMoney } from "@/lib/pricing";
 import { Orders } from "./shop";
+import { ShopCollectionsEditor } from "./shop-collections-editor";
+import type { ShopNavigation } from "@/lib/shop/collections";
 const inputClass =
   "mt-1 min-h-11 w-full min-w-0 rounded-lg border border-line bg-white px-3 py-2 text-base";
 type Office = Awaited<ReturnType<typeof getShopOffice>>;
@@ -154,6 +156,13 @@ export function ShopOffice({ changed }: { changed: () => void }) {
               </p>
             )}
           </details>
+          <ShopCollectionsEditor
+            key={data.settings.revision}
+            navigation={data.settings.navigation}
+            revision={data.settings.revision}
+            busy={busy}
+            run={run}
+          />
           <SupplierCatalog busy={busy} />
           <PricingSettings
             key={data.settings.revision}
@@ -235,8 +244,9 @@ export function ShopOffice({ changed }: { changed: () => void }) {
             .filter((p) => showArchived || !p.archived)
             .map((p) => (
               <ProductEditor
-                key={p.id + ":" + p.revision}
+                key={p.id + ":" + p.revision + ":" + data.settings.revision}
                 product={p}
+                navigation={data.settings.navigation}
                 defaultBps={data.settings.default_markup_bps}
                 busy={busy}
                 run={run}
@@ -318,11 +328,13 @@ function PricingSettings({
 function ProductEditor({
   product: p,
   defaultBps,
+  navigation,
   busy,
   run,
 }: {
   product: Product;
   defaultBps: number;
+  navigation: ShopNavigation;
   busy: boolean;
   run: Run;
 }) {
@@ -338,6 +350,8 @@ function ProductEditor({
     taxCode: p.tax_code,
     sampleApproved: p.sample_approved,
     published: p.published,
+    comingSoon: p.coming_soon ?? false,
+    collectionIds: p.collection_ids ?? [],
     pricingMode: p.pricing_mode,
     pricingBps: p.pricing_bps,
     variants: p.variants.map((v) => ({
@@ -368,7 +382,13 @@ function ProductEditor({
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h3 className="text-2xl">{p.title}</h3>
         <span className="rounded-full bg-paper-2 px-3 py-1 text-sm">
-          {p.archived ? "Archived" : p.published ? "Published" : "Draft"}
+          {p.archived
+            ? "Archived"
+            : p.published
+              ? p.coming_soon
+                ? "Coming soon"
+                : "Published"
+              : "Draft"}
         </span>
       </div>
       {!p.archived && (
@@ -594,6 +614,49 @@ function ProductEditor({
                 );
               })}
             </div>
+            <fieldset className="grid gap-3 rounded-xl border border-line p-4">
+              <legend className="px-1 font-semibold">Collections & filters for {p.title}</legend>
+              <p className="text-sm">
+                Choose all that apply. A product can appear in several collections and audiences.
+              </p>
+              {navigation.map((group) => (
+                <fieldset key={group.id} className="min-w-0">
+                  <legend className="font-semibold">{group.label}</legend>
+                  <div className="mt-2 flex flex-wrap gap-x-5 gap-y-3">
+                    {group.options.map((option) => (
+                      <label key={option.id} className="flex min-h-11 items-center gap-2">
+                        <input
+                          type="checkbox"
+                          checked={form.collectionIds.includes(option.id)}
+                          onChange={(e) =>
+                            setForm({
+                              ...form,
+                              collectionIds: e.target.checked
+                                ? [...form.collectionIds, option.id]
+                                : form.collectionIds.filter((id) => id !== option.id),
+                            })
+                          }
+                        />
+                        {option.label}
+                      </label>
+                    ))}
+                  </div>
+                </fieldset>
+              ))}
+            </fieldset>
+            <label className="flex min-h-11 items-center gap-3">
+              <input
+                type="checkbox"
+                checked={form.comingSoon}
+                onChange={(e) => setForm({ ...form, comingSoon: e.target.checked })}
+              />
+              Coming soon — show a preview and prevent orders
+            </label>
+            <p className="text-sm">
+              Publish a coming-soon product after adding its description and approved photo.
+              Supplier setup, sizes, prices and sample approval can be completed later. Turning off
+              coming soon requires the existing sale approvals.
+            </p>
             <label className="flex items-start gap-3">
               <input
                 type="checkbox"

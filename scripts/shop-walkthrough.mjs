@@ -241,6 +241,81 @@ try {
   assert.equal(savedDraft.image_approved, true);
   const privateImage = await handler(new Request(h.base + savedDraft.gallery[0].url));
   assert.equal(privateImage.status, 404, "draft product images stay private");
+  // Customize navigation and publish a display-only product through the real owner UI.
+  await page.getByLabel("Choice 1 in Collections", { exact: true }).fill("Headwear");
+  await page.getByRole("button", { name: "Save shop collections & filters", exact: true }).click();
+  await page.getByRole("status").filter({ hasText: "Saved." }).waitFor();
+  assert.equal(
+    (await h.sql`select navigation from shop_settings where id=1`)[0].navigation[0].options[0]
+      .label,
+    "Headwear",
+  );
+  await draft
+    .getByLabel("Description", { exact: true })
+    .fill("SYNTHETIC upcoming product preview.");
+  await draft.getByLabel("Headwear", { exact: true }).check();
+  await draft.getByLabel("Softball", { exact: true }).check();
+  await draft.getByLabel("Youth", { exact: true }).check();
+  await draft
+    .getByLabel("Coming soon — show a preview and prevent orders", { exact: true })
+    .check();
+  await draft.getByLabel("Publish this product", { exact: true }).check();
+  await draft.getByRole("button", { name: "Save product", exact: true }).click();
+  await page.getByRole("status").filter({ hasText: "Saved." }).waitFor();
+  const [previewProduct] = await h.sql`select * from shop_products where id=${savedDraft.id}`;
+  assert.equal(previewProduct.coming_soon, true);
+  assert.equal(previewProduct.published, true);
+  assert.equal(previewProduct.sample_approved, false);
+  assert.equal(previewProduct.variants.length, 0);
+  assert.equal(
+    (await handler(new Request(h.base + savedDraft.gallery[0].url))).status,
+    200,
+    "coming soon image is public",
+  );
+  await page.getByRole("button", { name: "Shop owner controls", exact: true }).click();
+  await page.getByRole("button", { name: /^Headwear \(1\)$/ }).click();
+  await page.getByLabel("Sport", { exact: true }).selectOption("softball");
+  await page.getByLabel("Age group", { exact: true }).selectOption("youth");
+  const previewCard = page
+    .locator("article")
+    .filter({ has: page.getByRole("heading", { name: "SYNTHETIC Photo Draft", exact: true }) });
+  await previewCard.getByText("Coming soon · Not available to order", { exact: true }).waitFor();
+  assert.equal(
+    await previewCard.getByRole("button", { name: "Coming soon", exact: true }).isDisabled(),
+    true,
+  );
+  assert.equal(await previewCard.getByLabel("Color / size", { exact: true }).count(), 0);
+  assert.equal(
+    await page.getByRole("heading", { name: "SYNTHETIC Test Hoodie", exact: true }).count(),
+    0,
+  );
+  await page.getByLabel("Sport", { exact: true }).selectOption("baseball");
+  await page
+    .getByText("No products match these filters. Try another collection or clear the filters.", {
+      exact: true,
+    })
+    .waitFor();
+  await page.getByRole("button", { name: "Clear filters", exact: true }).click();
+  await previewCard.getByRole("link", { name: "View product details", exact: true }).click();
+  await page.getByText("Coming soon · Not available to order", { exact: true }).waitFor();
+  assert.equal(
+    await page.getByRole("button", { name: "Coming soon", exact: true }).isDisabled(),
+    true,
+  );
+  assert.equal(
+    await page.getByText(/Infinity|NaN/).count(),
+    0,
+    "preview without variants has no invalid price",
+  );
+  for (const width of [320, 390, 768, 1280]) {
+    await page.setViewportSize({ width, height: 900 });
+    assert.ok(
+      await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),
+      "coming soon detail reflow " + width,
+    );
+  }
+  await page.getByRole("link", { name: "Back to the collection", exact: true }).click();
+  await page.getByRole("button", { name: "Shop owner controls", exact: true }).click();
   await draft.getByRole("button", { name: "Remove product from shop", exact: true }).click();
   await draft.getByRole("button", { name: "Confirm archive", exact: true }).click();
   await page.getByRole("status").filter({ hasText: "Saved." }).waitFor();
@@ -266,7 +341,7 @@ try {
   await page.screenshot({ path: output + "/owner-mobile.png", fullPage: true });
   assert.deepEqual(errors, []);
   console.log(
-    "PASS shop lookbook, variant/quantity/cart persistence, mobile reflow, guest privacy, owner CRUD/pricing, photo normalization/private images, product detail and disabled-payment guard.",
+    "PASS shop lookbook, variant/quantity/cart persistence, mobile reflow, guest privacy, owner CRUD/pricing, photo normalization/private images, product detail, custom collections, combined filters, coming-soon publication/images/detail and disabled-payment guard.",
   );
 } catch (e) {
   if (browser)

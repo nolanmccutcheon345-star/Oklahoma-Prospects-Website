@@ -2,6 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { paymentAuth, optionalPaymentAuth } from "../commerce/payment-auth";
 import { shopCheckoutSchema } from "./contracts";
+import { shopNavigationSchema, collectionIdsSchema } from "./collections";
 export const getShop = createServerFn({ method: "GET" }).handler(async () => {
   const { getSql } = await import("../db");
   return (await import("./store.server")).publicShop(await getSql());
@@ -95,6 +96,8 @@ export const saveShopProduct = createServerFn({ method: "POST" })
         taxCode: z.string().max(30),
         sampleApproved: z.boolean(),
         published: z.boolean(),
+        comingSoon: z.boolean().optional(),
+        collectionIds: collectionIdsSchema.optional(),
         title: z.string().trim().min(1).max(200),
         preparationNotes: z.string().max(5000).optional(),
         pricingMode: z.enum(["default", "markup", "margin", "fixed"]),
@@ -260,4 +263,19 @@ export const searchFulfillEngineCatalog = createServerFn({ method: "POST" })
     await (await import("./store.server")).owner(await getSql(), context.paymentUserId);
     await (await import("../commerce/checkout.server")).rateLimit("shop-catalog", 10);
     return (await import("./fulfill-engine.server")).browseFulfillEngineCatalog(data.query);
+  });
+
+export const saveShopNavigation = createServerFn({ method: "POST" })
+  .middleware([paymentAuth])
+  .validator(
+    z.object({ revision: z.number().int().positive(), navigation: shopNavigationSchema }).strict(),
+  )
+  .handler(async ({ context, data }) => {
+    const { getSql } = await import("../db");
+    return (await import("./management.server")).saveNavigation(
+      await getSql(),
+      context.paymentUserId,
+      data.revision,
+      data.navigation,
+    );
   });
