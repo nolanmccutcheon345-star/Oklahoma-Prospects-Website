@@ -1,3 +1,4 @@
+import { releasedMaster } from "./pricing-defaults";
 import { facilityMonthly, teamSeasonOverhead, initialFacilityCosts } from "./facility-overhead";
 import {
   masterSchema,
@@ -23,7 +24,14 @@ export async function loadBudgetMaster(sql: Sql, context?: FinancialContext) {
         revision: number;
       }>`select payload,revision from team_budget_master where id='master'`;
   if (!row) throw Error("Budget master is unavailable.");
-  return { value: normalizePOMaster(masterSchema.parse(row.payload)), revision: row.revision };
+  const [release] = await sql<{
+    payload: unknown;
+  }>`select payload from team_pricing_default_releases where version=1`;
+  if (!release) throw Error("Team pricing defaults are unavailable.");
+  return {
+    value: releasedMaster(normalizePOMaster(masterSchema.parse(row.payload)), release.payload),
+    revision: row.revision,
+  };
 }
 async function budgetPeople(sql: Sql, context: FinancialContext) {
   // Apply the same database collation to frozen names as the legacy profile
@@ -69,6 +77,9 @@ export async function saveBudgetMaster(
       });
     }
     const prior = await loadBudgetMaster(tx, context);
+    data.pricingDefaultsVersion = 1;
+    data.eventPaymentSchedule ??= prior.value.eventPaymentSchedule;
+    data.pricingPrevious = prior.value.pricingPrevious;
     data.facilityCosts ||= initialFacilityCosts(data.monthlyOverhead);
     if (
       JSON.stringify([

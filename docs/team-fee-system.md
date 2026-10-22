@@ -6,7 +6,7 @@ Assigned coaches use Coach Desk; linked guardians use their team family desk.
 ## Calculation and approval
 
 All money is calculated in integer cents. Defaults are ten full paying players,
-15% Team Contingency, a required $150 Team & Development Program Fee per player per Actual Billable Month, optional +$50 Individual Facility Access for full players, and a 50/50 owner split. The $80 standalone retail reference is excluded from pricing.
+12.5% Team Contingency, a required $80 Team & Development Program Fee per player per Actual Billable Month, optional +$50 Individual Facility Access for full players, and a 50/50 owner split. The $80 standalone retail reference is excluded from pricing.
 These are editable per team. Billing uses inclusive calendar months from actual team dates; fractional overrides require an admin reason.
 Uniform vendor cost, all baseline per-player costs, tournament costs, and all
 coaching / operating budgets are inside direct costs before contingency.
@@ -79,3 +79,5 @@ immutable agreements, partial deposits, uniform release, holds, reinstatement,
 late fees, one-time application, unpaid expense closeout rejection and actual
 distribution reconciliation. Existing recorded-payment and billing privacy
 tests cover overpayments and player-versus-parent billing projections.
+
+Current editable defaults, inheritance, payment dates and historical safeguards: [October 22 pricing defaults](team-pricing-defaults-2026-10-22.md). Legacy scheduling descriptions above apply only to retained historical/custom plans.

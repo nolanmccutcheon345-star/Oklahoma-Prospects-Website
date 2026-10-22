@@ -1,3 +1,4 @@
+import { EventPaymentEditor } from "./event-payment-editor";
 import { FinancialIdentityAdmission } from "@/components/finance/financial-identity-admission";
 import { facilityMonthly, initialFacilityCosts } from "@/lib/teams/facility-overhead";
 import { OverheadRuleEditor } from "./overhead-rule-editor";
@@ -142,9 +143,9 @@ export function BudgetMasterEditor({ teams }: { teams: Teams }) {
       <div className="mt-3 grid gap-4">
         <p>
           New 6U–17U teams receive the matching sport, age and season row. Changes here apply to
-          future team cost snapshots; overhead contribution defaults apply to teams using the master
-          rule. Existing team overrides and accepted fees stay intact. No match means manual admin
-          setup.
+          future team cost snapshots; inherited membership, contingency, payment and overhead
+          defaults apply to teams using the master rule. Existing team overrides and accepted fees
+          stay intact. No match means manual admin setup.
         </p>
         {error && <p role="alert">{error}</p>}
         {notice && <p role="status">{notice}</p>}
@@ -203,7 +204,7 @@ export function BudgetMasterEditor({ teams }: { teams: Teams }) {
           <p className="text-sm">
             Blank means inherit the saved common default. Enter an override only for this age, sport
             and season; zero is a real override. Saving changes future team defaults. Existing
-            drafts use Apply master defaults; accepted fees stay locked.
+            drafts inherit linked pricing settings; accepted fees stay locked.
           </p>
           <div className="grid gap-3 sm:grid-cols-2">
             {overrides.map(([k, label, scale]) => (
@@ -261,6 +262,41 @@ export function BudgetMasterEditor({ teams }: { teams: Teams }) {
           />
         </label>
         <h3>Common defaults</h3>
+        {m.eventPaymentSchedule && (
+          <EventPaymentEditor
+            value={m.eventPaymentSchedule}
+            onChange={(eventPaymentSchedule) => patch({ eventPaymentSchedule })}
+          />
+        )}
+        <p className="text-sm">
+          Membership and contingency inherit through each matrix row into team drafts. Payment rules
+          inherit from these common defaults. Explicit team overrides are preserved. Published
+          offers require deliberate review and republishing; accepted agreements stay locked.
+        </p>
+        {teams.filter(
+          (t) =>
+            t.private?.pricingRevisionNeeded ||
+            t.private?.plan.budget.pricingInheritance?.legacyReview,
+        ).length > 0 && (
+          <aside aria-label="Pricing review required" className="rounded-xl border p-3">
+            <h4>Teams requiring admin review</h4>
+            {teams
+              .filter(
+                (t) =>
+                  t.private?.pricingRevisionNeeded ||
+                  t.private?.plan.budget.pricingInheritance?.legacyReview,
+              )
+              .map((t) => (
+                <p key={t.id}>
+                  {t.name}:{" "}
+                  {t.private?.plan.budget.pricingInheritance?.legacyReview
+                    ? "Legacy settings retained because inheritance is unknown. Confirm overrides or reset to master."
+                    : "Published terms differ from current draft defaults. Review a revision; existing agreements stay locked."}
+                </p>
+              ))}
+          </aside>
+        )}
+
         <p className="text-sm">
           The common required {money(m.membershipMonthly)} / month Team & Development Program Fee
           includes scheduled team facility use and platform development programming, administered
@@ -464,7 +500,7 @@ export function BudgetMasterEditor({ teams }: { teams: Teams }) {
               window.dispatchEvent(new CustomEvent("budget-master-updated"));
               window.dispatchEvent(new CustomEvent("team-budget-updated"));
               setNotice(
-                "Master saved. New-team budgets and inherited overhead settings use these defaults.",
+                "Master saved. Inherited draft pricing and overhead use these defaults. Published fees and accepted agreements stay locked.",
               );
             } catch (e) {
               setError((e as Error).message);

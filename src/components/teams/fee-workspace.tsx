@@ -1,3 +1,6 @@
+import { EventPaymentEditor } from "./event-payment-editor";
+import { patchPricingDraft, teamPricingValues } from "@/lib/teams/pricing-defaults";
+import { pricingKeys, paymentReviewKey } from "@/lib/teams/fee-model";
 import { TeamPayment } from "./team-payment";
 import { serviceMonths } from "@/lib/teams/season-months";
 import { feeHealth } from "@/lib/teams/fee-health";
@@ -241,7 +244,9 @@ function TeamPlan({
     }
   }
   const update = (patch: Partial<FeeBudget>) =>
-    setPlan((p) => (p ? { ...p, budget: withBillableMonths({ ...p.budget, ...patch }) } : p));
+    setPlan((p) =>
+      p ? { ...p, budget: withBillableMonths(patchPricingDraft(p.budget, patch)) } : p,
+    );
   const canPO = plan?.budget.poEnabled ?? team.poEnabled ?? true;
   let health: ReturnType<typeof feeHealth> | null = null;
   try {
@@ -253,6 +258,12 @@ function TeamPlan({
         finalDue: deadline(plan.budget, team.events),
         full,
         po: canPO ? po : 0,
+        today: new Intl.DateTimeFormat("en-CA", {
+          timeZone: "America/Chicago",
+          year: "numeric",
+          month: "2-digit",
+          day: "2-digit",
+        }).format(new Date()),
       });
   } catch {
     // An incomplete draft has no valid preview; server validation still gates publication.
@@ -401,9 +412,94 @@ function TeamPlan({
             </p>
             <p>
               {plan.defaults
-                ? `Created from ${plan.defaults.key} · master revision ${plan.defaults.revision}. Team edits override this snapshot.`
+                ? `Created from ${plan.defaults.key} · master revision ${plan.defaults.revision}. Linked pricing inherits current defaults; explicit overrides remain.`
                 : "No master snapshot. Existing budgets are unchanged; choose a row to initialize an unpublished draft."}
             </p>
+            {plan.budget.pricingInheritance && master && (
+              <div className="grid gap-3 rounded-xl border p-3">
+                <h3>Team pricing inheritance</h3>
+                <p>
+                  Each setting follows the applicable master row unless overridden here. Editing a
+                  value makes it a team override. Save the draft to keep changes.
+                </p>
+                {plan.budget.pricingInheritance.legacyReview && (
+                  <p role="status">
+                    Legacy settings were retained because their original inheritance is unknown.
+                    Review each setting or reset it to master.
+                  </p>
+                )}
+                {team.private?.pricingRevisionNeeded && (
+                  <p role="status">
+                    Published pricing or dates differ from this draft. Review and publish a revision
+                    explicitly; accepted agreements remain locked.
+                  </p>
+                )}
+                {plan.budget.pricingInheritance.legacyReview && (
+                  <Button
+                    type="button"
+                    onClick={() =>
+                      update({
+                        pricingInheritance: {
+                          ...plan.budget.pricingInheritance!,
+                          legacyReview: false,
+                        },
+                      })
+                    }
+                  >
+                    Confirm these team overrides
+                  </Button>
+                )}
+                {pricingKeys.map((key) => (
+                  <div key={key} className="flex flex-wrap items-center justify-between gap-2">
+                    <span>
+                      {
+                        {
+                          membershipMonthly: "Full-player monthly membership",
+                          poMembershipMonthly: "Pitcher-only monthly membership",
+                          contingencyBps: "Contingency",
+                          eventPaymentSchedule: "Payment percentages and deadlines",
+                        }[key]
+                      }
+                      :{" "}
+                      {plan.budget.pricingInheritance!.overrides.includes(key)
+                        ? "Team override"
+                        : "Inherited from master"}
+                    </span>
+                    <Button
+                      type="button"
+                      disabled={busy}
+                      onClick={() => {
+                        const values = teamPricingValues(master, plan);
+                        update({
+                          [key]: values[key],
+                          ...(key === "eventPaymentSchedule"
+                            ? {
+                                paymentSchedule: undefined,
+                                deadlineOverride: "",
+                                secondDue: "",
+                                triggerEventId: "",
+                                pastDueReview: undefined,
+                              }
+                            : {}),
+                          pricingInheritance: {
+                            ...plan.budget.pricingInheritance!,
+                            overrides: plan.budget.pricingInheritance!.overrides.filter(
+                              (k) => k !== key,
+                            ),
+                            legacyReview: Boolean(
+                              plan.budget.pricingInheritance!.legacyReview &&
+                              plan.budget.pricingInheritance!.overrides.some((k) => k !== key),
+                            ),
+                          },
+                        });
+                      }}
+                    >
+                      Reset to master default
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            )}
             {!plan.published && master && (
               <>
                 <label>
@@ -1259,38 +1355,45 @@ function TeamPlan({
               poEnabled={canPO}
               final={deadline(plan.budget, team.events)}
             />
-            <Field
-              label="Days before first tournament that final payment is due"
-              type="number"
-              value={String(plan.budget.daysBeforeTournament ?? 28)}
-              onChange={(v) => update({ daysBeforeTournament: Number(v) })}
-            />
-            <p>
-              Uses the earliest tournament assigned to this team. Add the tournament to the team
-              schedule first, or enter an explicit final deadline override.
-            </p>
-            <label>
-              Legacy payment-trigger competition (used only for older schedules)
-              <select
-                className="office-control w-full"
-                value={plan.budget.triggerEventId}
-                onChange={(e) => update({ triggerEventId: e.target.value })}
-              >
-                <option value="">Select scheduled event</option>
-                {team.events.map((e) => (
-                  <option key={e.id} value={e.id}>
-                    {e.name} · {e.start}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <p>
-              Calculated final deadline:{" "}
-              {deadline({ ...plan.budget, deadlineOverride: "" }, team.events) || "Select an event"}
-            </p>
+            {!plan.budget.eventPaymentSchedule && (
+              <>
+                <Field
+                  label="Days before first tournament that final payment is due"
+                  type="number"
+                  value={String(plan.budget.daysBeforeTournament ?? 28)}
+                  onChange={(v) => update({ daysBeforeTournament: Number(v) })}
+                />
+                <p>
+                  Uses the earliest tournament assigned to this team. Add the tournament to the team
+                  schedule first, or enter an explicit final deadline override.
+                </p>
+                <label>
+                  Legacy payment-trigger competition (used only for older schedules)
+                  <select
+                    className="office-control w-full"
+                    value={plan.budget.triggerEventId}
+                    onChange={(e) => update({ triggerEventId: e.target.value })}
+                  >
+                    <option value="">Select scheduled event</option>
+                    {team.events.map((e) => (
+                      <option key={e.id} value={e.id}>
+                        {e.name} · {e.start}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <p>
+                  Calculated final deadline:{" "}
+                  {deadline({ ...plan.budget, deadlineOverride: "" }, team.events) ||
+                    "Select an event"}
+                </p>
+              </>
+            )}
             {(
               [
-                ["deadlineOverride", "Final deadline override"],
+                ...(!plan.budget.eventPaymentSchedule
+                  ? [["deadlineOverride", "Final deadline override"] as const]
+                  : []),
 
                 ["uniformCutoff", "Uniform order cutoff"],
               ] as const
@@ -2059,10 +2162,95 @@ function PaymentScheduleEditor({
   poEnabled?: boolean;
 }) {
   const schedule = budget.paymentSchedule;
+  if (budget.eventPaymentSchedule) {
+    let rows: ReturnType<typeof scheduleRows> = [];
+    let error = "";
+    try {
+      rows = scheduleRows(budget, full, "full", final);
+    } catch (e) {
+      error = (e as Error).message;
+    }
+    const today = new Intl.DateTimeFormat("en-CA", {
+      timeZone: "America/Chicago",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    }).format(new Date());
+    const past = rows.some((r) => r.due && r.due < today);
+    return (
+      <section className="grid gap-3">
+        <EventPaymentEditor
+          value={budget.eventPaymentSchedule}
+          onChange={(eventPaymentSchedule) =>
+            update({ eventPaymentSchedule, pastDueReview: undefined })
+          }
+        />
+        <p>
+          Uses the earliest non-canceled team event within the configured season. Missing event or
+          season dates leave the schedule incomplete. Event changes update drafts; published and
+          accepted schedules remain fixed until reviewed.
+        </p>
+        {error ? (
+          <p role="alert">{error}</p>
+        ) : (
+          rows.map((r) => (
+            <p key={r.label}>
+              {r.label}: {money(r.amount)} ·{" "}
+              {r.due || "Incomplete — set season dates and first event"}
+            </p>
+          ))
+        )}
+        {past && !error && (
+          <fieldset className="grid gap-2 rounded-xl border p-3">
+            <legend>Past-due schedule review</legend>
+            <p>
+              One or more dates have passed. Review before publishing. No automatic charge will be
+              made.
+            </p>
+            <label>
+              Admin review reason (at least 10 characters)
+              <textarea
+                className="office-control w-full"
+                value={budget.pastDueReview?.reason || ""}
+                onChange={(e) =>
+                  update({
+                    pastDueReview: { key: paymentReviewKey(budget, final), reason: e.target.value },
+                  })
+                }
+              />
+            </label>
+          </fieldset>
+        )}
+        <Button
+          type="button"
+          onClick={() =>
+            update({
+              eventPaymentSchedule: undefined,
+              paymentSchedule: {
+                mode: "percent",
+                rows: budget.eventPaymentSchedule!.percentages.map((n, i) => ({
+                  full: n,
+                  po: n,
+                  due: rows[i]?.due || "",
+                })),
+              },
+              secondDue: "",
+              deadlineOverride: final,
+            })
+          }
+        >
+          Use a custom team schedule
+        </Button>
+      </section>
+    );
+  }
   if (!schedule)
     return (
       <div className="grid gap-2">
-        <p>Current default: 40% deposit, 30% second payment, 30% final payment.</p>
+        <p>
+          Retained legacy team schedule: 40% deposit, 30% second payment, 30% final payment. Reset
+          to master to adopt the current defaults.
+        </p>
         <Field
           label="Second payment date override (leave blank for acceptance midpoint)"
           type="date"
