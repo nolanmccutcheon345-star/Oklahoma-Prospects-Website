@@ -646,9 +646,10 @@ function ProductEditor({
                 </fieldset>
               ))}
             </fieldset>
-            <label>
-              Shop status
+            <div>
+              <label htmlFor={`shop-${p.id}-status`}>Shop status</label>
               <select
+                id={`shop-${p.id}-status`}
                 className={inputClass}
                 value={form.shopStatus}
                 onChange={(e) => {
@@ -665,7 +666,7 @@ function ProductEditor({
                 <option value="coming-soon">Coming soon — visible, orders disabled</option>
                 <option value="for-sale">For sale — visible after sale approvals</option>
               </select>
-            </label>
+            </div>
             <p className="text-sm">
               Save Coming soon to show the product, approved photo and selected filters in the shop.
               A description is optional for previews. Supplier setup, sizes, prices and sample
