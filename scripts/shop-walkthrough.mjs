@@ -12,6 +12,15 @@ const output = "artifacts/shop";
 await mkdir(output, { recursive: true });
 let browser, socket;
 const errors = [];
+// PGlite's socket bridge shares prepared-statement state across virtual clients.
+// Queue synthetic HTTP handling; this walkthrough verifies UI flows, while the
+// PostgreSQL CI job separately exercises real concurrent transactions and locks.
+let requestQueue = Promise.resolve();
+function fixtureRequest(work) {
+  const next = requestQueue.then(work);
+  requestQueue = next.catch(() => {});
+  return next;
+}
 try {
   socket = new PGLiteSocketServer({ db: h.db, host: "127.0.0.1", port: 0, maxConnections: 20 });
   await socket.start();
@@ -53,12 +62,14 @@ try {
       } catch {
         /* Non-static paths are handled by the real application below. */
       }
-    const response = await handler(
-      new Request(req.url(), {
-        method: req.method(),
-        headers: { ...(await req.allHeaders()), "x-nf-client-connection-ip": "192.0.2.90" },
-        ...(!["GET", "HEAD"].includes(req.method()) ? { body: req.postDataBuffer() } : {}),
-      }),
+    const response = await fixtureRequest(async () =>
+      handler(
+        new Request(req.url(), {
+          method: req.method(),
+          headers: { ...(await req.allHeaders()), "x-nf-client-connection-ip": "192.0.2.90" },
+          ...(!["GET", "HEAD"].includes(req.method()) ? { body: req.postDataBuffer() } : {}),
+        }),
+      ),
     );
     const headers = Object.fromEntries(response.headers);
     if (response.headers.getSetCookie().length)
