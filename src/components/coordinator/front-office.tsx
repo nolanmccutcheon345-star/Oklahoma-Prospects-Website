@@ -1,3 +1,6 @@
+import { RegistrationProfileFilters } from "../registration-profile-filters";
+import type { RegistrationFilters } from "@/lib/registration-filters";
+import { RegistrationProfileSummary } from "@/components/registration-profile-summary";
 import { PlayerPublicationRequest } from "./player-publication";
 import { ScheduledCommunications } from "./communications";
 import { ContentDrafts } from "./content-drafts";
@@ -283,12 +286,13 @@ function CoordinatorModule({
     [],
   );
   const [occupied, setOccupied] = useState<Awaited<ReturnType<typeof api.getCoordinatorCages>>>([]);
+  const [athleteFilters,setAthleteFilters]=useState<RegistrationFilters>();
   const [before, setBefore] = useState<HistoryCursor>();
   const [nextCursor, setNextCursor] = useState<HistoryCursor | null>(null);
   const [loaded, setLoaded] = useState(false);
   const load = useCallback(async () => {
     if (tab === "recruiting" && (allowed("recruiting.read") || allowed("tryouts.read"))) {
-      const page = await api.getCoordinatorRecruiting({ data: { sport, teamId, before } });
+      const page = await api.getCoordinatorRecruiting({ data: { sport, teamId, before, athleteFilters } });
       setRecruits(page.items);
       setNextCursor(page.nextCursor);
     }
@@ -304,7 +308,7 @@ function CoordinatorModule({
     if (tab === "reports") setReport(await api.getCoordinatorReports({ data: { sport, teamId } }));
     if (tab === "activity")
       setActivity(await api.getCoordinatorActivity({ data: { sport, teamId } }));
-  }, [tab, teamId, sport, allowed, before]);
+  }, [tab, teamId, sport, allowed, before, athleteFilters]);
   useEffect(() => {
     let active = true;
     setLoaded(false);
@@ -367,7 +371,7 @@ function CoordinatorModule({
           <Button
             variant="outlineDark"
             disabled={!nextCursor || !loaded || busy}
-            onClick={() => nextCursor && setBefore(nextCursor)}
+            onClick={() => nextCursor && (setAthleteFilters(undefined),setBefore(nextCursor))}
           >
             Older records
           </Button>
@@ -379,7 +383,7 @@ function CoordinatorModule({
         <>
           {tab === "recruiting" && (
             <>
-              <h2 className="text-2xl">Recruiting & Tryout Registrations</h2>
+              <h2 className="text-2xl">Recruiting & Tryout Registrations</h2><RegistrationProfileFilters busy={busy} onApply={filters=>{setBefore(undefined);setAthleteFilters(filters);}}/>
               {loaded &&
                 (allowed("recruiting.read") || allowed("tryouts.read")) &&
                 !recruits.length && <p>No registrations in this scope.</p>}
@@ -390,7 +394,7 @@ function CoordinatorModule({
                   </h3>
                   <p>
                     {r.positions} · {r.status}
-                  </p>
+                  </p><RegistrationProfileSummary profile={r.profile||{}}/>
                   {r.email && (
                     <p>
                       Guardian: {r.parent} · {r.email} · {r.phone}

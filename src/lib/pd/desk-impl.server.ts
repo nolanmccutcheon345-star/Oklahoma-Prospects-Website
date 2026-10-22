@@ -173,6 +173,7 @@ export async function saveDeskForUser(userId: string, incoming: DevelopmentData)
     if(scope.birthdayIds?.has(athlete.id) && (athlete.birthDate||null)!==before) {
       const changed=await tx`update club_athletes set birth_date=${athlete.birthDate||null} where id=${athlete.id} and birth_date is not distinct from ${before}::date returning id`;
       if(!changed.length)throw new Error('This birthday changed. Reload the player profile before saving.');
+      await tx`insert into athlete_profile_changes(id,athlete_id,actor_id,fields,reason) values(${crypto.randomUUID()},${athlete.id},${userId},array['birthDate'],'Authorized private development profile correction')`;
     }
   }
   return { ok: true as const, revision };

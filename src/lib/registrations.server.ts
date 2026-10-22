@@ -1,3 +1,4 @@
+import { registrationFilters, registrationFilterSql, type RegistrationFilters } from "./registration-filters";
 import type { Sql } from "./db";
 import { resolveIdentity } from "./identity.server";
 
@@ -15,7 +16,7 @@ export async function registrationAccessFor(sql: Sql, userId: string) {
   };
 }
 
-export async function registrationRowsFor(sql: Sql, userId: string) {
+export async function registrationRowsFor(sql: Sql, userId: string, filters?: RegistrationFilters) {
   const access = await registrationAccessFor(sql, userId);
   if (!access.allowed)
     throw new Error("Registration viewing access is required. Ask a club owner.");
@@ -24,16 +25,19 @@ export async function registrationRowsFor(sql: Sql, userId: string) {
   const contactAccess = access.owner || Boolean(reader);
   // Allowlist both request kinds and payload fields. Billing/waiver/internal data
   // never reaches this endpoint, regardless of filters or future request kinds.
-  const rows = await sql<{
+  const f=registrationFilters.parse(filters||{});
+  const rows = await sql.query<{
     id: string;
     kind: string;
     status: string;
     created_at: Date;
+    revision: number;
     payload: Record<string, unknown>;
-  }>`
-    select id,kind,status,created_at,payload from club_requests
-    where kind in ('tryout','team-inquiry','contact') and (${contactAccess} or kind<>'contact') order by created_at desc,id desc limit 500`;
+  }>(`select r.id,r.kind,r.status,r.coordinator_revision as revision,r.created_at,r.payload from club_requests r
+    where r.kind in ('tryout','team-inquiry','contact') and ($1::boolean or r.kind<>'contact') and ${registrationFilterSql('$2')}
+    order by ${f.sort==='player'?"lower(r.payload->>'player'),":""} r.created_at desc,r.id desc limit 100 offset $3`,[contactAccess,JSON.stringify(f),f.page*100]);
   const fields = [
+  "athleteId", "birthMonthYear", "birthYear", "graduationYear", "school", "schoolStatus", "suggestedDivision", "eligibilityStatus", "eligibilityExplanation", "eligibilityRule", "eligibilitySource", "eligibilityCutoff", "currentGrade", "profileConfirmedAt",
     "player",
     "parent",
     "name",

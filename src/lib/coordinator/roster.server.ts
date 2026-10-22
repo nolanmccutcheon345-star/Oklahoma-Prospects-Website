@@ -250,6 +250,8 @@ export async function addEligibleRosterAthlete(
         person.household_id,
       );
       await tx`insert into recruiting_roster_links(athlete_id,team_id,roster_id,linked_by) values(${c.athlete_id},${team.id},${playerId},${c.reviewed_by})`;
+      const {syncAthleteEducation}=await import("../athlete-registration.server");
+      await syncAthleteEducation(tx,c.athlete_id);
       await tx`insert into coordinator_publication_controls(kind,target_id,team_id) values('roster',${playerId},${team.id}),('photo',${c.athlete_id},${team.id}) on conflict do nothing`;
       await tx`update coordinator_roster_clearances set status='used',roster_id=${playerId},revision=revision+1,updated_at=now() where id=${v.id}`;
       await audit(

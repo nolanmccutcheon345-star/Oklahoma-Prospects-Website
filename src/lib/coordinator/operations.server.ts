@@ -1,3 +1,4 @@
+import { registrationFilterSql } from "../registration-filters";
 import type { Sql } from "../db";
 import { randomUUID } from "node:crypto";
 import type { z } from "zod";
@@ -153,6 +154,7 @@ export async function editRoster(sql: Sql, userId: string, raw: z.infer<typeof r
   });
 }
 export type RequestRow = {
+  profile: import("../athlete-registration-contracts").RegistrationSummary;
   id: string;
   kind: string;
   player: string;
@@ -169,7 +171,7 @@ export type RequestRow = {
   phone: string | null;
 };
 function requestFields(contacts: string) {
-  return `r.id,r.kind,to_char(r.created_at at time zone 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"') as submitted_at,r.payload->>'player' as player,r.payload->>'age' as age,r.payload->>'positions' as positions,lower(r.payload->>'sport') as sport,coalesce(r.payload->>'preferredTeamId','') as team_id,coalesce(w.follow_up,'new') as status,r.coordinator_revision as revision,coalesce(w.revision,0) as work_revision,case when ${contacts} then r.payload->>'parent' end as parent,case when ${contacts} then r.payload->>'email' end as email,case when ${contacts} then r.payload->>'phone' end as phone`;
+  return `jsonb_strip_nulls(jsonb_build_object('athleteId',r.payload->>'athleteId','birthMonthYear',r.payload->>'birthMonthYear','birthYear',r.payload->>'birthYear','graduationYear',r.payload->>'graduationYear','school',r.payload->>'school','schoolStatus',r.payload->>'schoolStatus','suggestedDivision',r.payload->>'suggestedDivision','eligibilityStatus',r.payload->>'eligibilityStatus','eligibilityExplanation',r.payload->>'eligibilityExplanation','eligibilityRule',r.payload->>'eligibilityRule','eligibilitySource',r.payload->>'eligibilitySource','eligibilityCutoff',r.payload->>'eligibilityCutoff','currentGrade',r.payload->>'currentGrade','profileConfirmedAt',r.payload->>'profileConfirmedAt')) as profile,r.id,r.kind,to_char(r.created_at at time zone 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"') as submitted_at,r.payload->>'player' as player,r.payload->>'age' as age,r.payload->>'positions' as positions,lower(r.payload->>'sport') as sport,coalesce(r.payload->>'preferredTeamId','') as team_id,coalesce(w.follow_up,'new') as status,r.coordinator_revision as revision,coalesce(w.revision,0) as work_revision,case when ${contacts} then r.payload->>'parent' end as parent,case when ${contacts} then r.payload->>'email' end as email,case when ${contacts} then r.payload->>'phone' end as phone`;
 }
 // Intake payloads are untrusted classifications. A selected team must exist
 // in the authoritative club and agree with the claimed sport before disclosure.
@@ -200,7 +202,7 @@ export async function recruiting(
       input.teamId,
     );
     const rows = await tx.query<RequestRow>(
-      `select ${requestFields("$4::boolean")} from club_requests r left join office_request_work w on w.request_id=r.id where r.kind in ('tryout','team-inquiry') and lower(r.payload->>'sport')=$1 and ($2='' or r.payload->>'preferredTeamId'=$2) and exists(select 1 from coordinator_assignments g where g.user_id=$3 and g.status='active' and (case r.kind when 'tryout' then 'tryouts.read' else 'recruiting.read' end)=any(g.permissions) and ${requestScope}) and ${classifiedRequest} and ($5::timestamptz is null or (r.created_at,r.id)<($5::timestamptz,$6::text)) order by r.created_at desc,r.id desc limit 101`,
+      `select ${requestFields("$4::boolean")} from club_requests r left join office_request_work w on w.request_id=r.id where r.kind in ('tryout','team-inquiry') and lower(r.payload->>'sport')=$1 and ($2='' or r.payload->>'preferredTeamId'=$2) and exists(select 1 from coordinator_assignments g where g.user_id=$3 and g.status='active' and (case r.kind when 'tryout' then 'tryouts.read' else 'recruiting.read' end)=any(g.permissions) and ${requestScope}) and ${classifiedRequest} and ${registrationFilterSql("$7")} and ($5::timestamptz is null or (r.created_at,r.id)<($5::timestamptz,$6::text)) order by ${input.athleteFilters?.sort === "player" ? "lower(r.payload->>'player')," : ""} r.created_at desc,r.id desc limit 101 offset $8`,
       [
         input.sport,
         input.teamId,
@@ -208,6 +210,8 @@ export async function recruiting(
         contacts,
         input.before?.at || null,
         input.before?.id || "",
+        JSON.stringify(input.athleteFilters||{}),
+        (input.athleteFilters?.page||0)*100,
       ],
     );
     await audit(

@@ -1,3 +1,4 @@
+import { registrationFilters, registrationFilterSql, type RegistrationFilters } from "./registration-filters";
 import { randomUUID } from "node:crypto";
 import type { Sql } from "./db";
 import { lockFinancialExecution } from "./finance/execution.server";
@@ -24,6 +25,7 @@ type Intake = {
   status: string;
 };
 const fields = [
+  "athleteId", "birthMonthYear", "birthYear", "graduationYear", "school", "schoolStatus", "suggestedDivision", "eligibilityStatus", "eligibilityExplanation", "eligibilityRule", "eligibilitySource", "eligibilityCutoff", "currentGrade", "profileConfirmedAt",
   "player",
   "parent",
   "name",
@@ -83,7 +85,7 @@ export async function queueCenterNotice(
   }>`select email_enabled from tryout_center_preferences where user_id=${recipient.id}`;
   await tx`insert into tryout_center_notices(id,request_id,recipient_id,email,subject,body,dedupe_key,status) values(${randomUUID()},${requestId},${recipient.id},${recipient.email},${subject},${body},${key},${pref?.email_enabled === false ? "skipped" : "pending"}) on conflict(dedupe_key) do nothing`;
 }
-export async function centerWorkspaceFor(sql: Sql, userId: string) {
+export async function centerWorkspaceFor(sql: Sql, userId: string, filters?: RegistrationFilters) {
   const me = await centerAccessFor(sql, userId);
   const [state] = await sql<{
     payload: ClubRecord;
@@ -100,8 +102,8 @@ export async function centerWorkspaceFor(sql: Sql, userId: string) {
       seasonEnd: t.seasonEnd,
       mine: Boolean(club && coachHoldsTeam(club, me.email, t.id)),
     }));
-  const requests =
-    await sql<Intake>`select id,kind,payload,created_at,status from club_requests where kind in ('tryout','team-inquiry') order by created_at desc,id`;
+  const f=registrationFilters.parse(filters||{});
+  const requests = await sql.query<Intake>(`select r.id,r.kind,r.payload,r.created_at,r.status from club_requests r where kind in ('tryout','team-inquiry') and ${registrationFilterSql('$1')} order by ${f.sort==='player'?"lower(r.payload->>'player'),":""} r.created_at desc,r.id desc limit 100 offset $2`,[JSON.stringify(f),f.page*100]);
   const work = await sql<{
     request_id: string;
     assignee_id: string | null;

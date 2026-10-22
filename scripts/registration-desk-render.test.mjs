@@ -24,14 +24,14 @@ test('coordinator desk renders records and filters without owner or mutation con
  let root;
  try{
   const outfile=temp+'/desk.mjs';
-  await build({entryPoints:['src/components/registration-desk.tsx'],outfile,bundle:true,platform:'node',format:'esm',packages:'external',plugins:[{name:'test-api',setup(b){b.onResolve({filter:/registrations-api$/},()=>({path:'api',namespace:'test'}));b.onLoad({filter:/.*/,namespace:'test'},()=>({contents:`export const {getRegistrationAccess,getRegistrationRows,getRegistrationReaders,setRegistrationReader}=globalThis.__registrationTestApi;`,loader:'js'}));}}]});
+  await build({entryPoints:['src/components/registration-desk.tsx'],outfile,bundle:true,platform:'node',format:'esm',packages:'external',plugins:[{name:'test-api',setup(b){b.onResolve({filter:/registrations-api$/},()=>({path:'api',namespace:'test'}));b.onLoad({filter:/.*/,namespace:'test'},()=>({contents:`export const {getRegistrationAccess,getRegistrationRows,getRegistrationReaders,setRegistrationReader,reviewRegistrationEligibility}=globalThis.__registrationTestApi;`,loader:'js'}));}}]});
   const {RegistrationDesk}=await import(pathToFileURL(process.cwd()+'/'+outfile));
   root=createRoot(document.getElementById('root'));
   await act(async()=>{root.render(createElement(RegistrationDesk));});
   assert.match(document.body.textContent,/Softball Fixture/);assert.match(document.body.textContent,/Baseball Fixture/);assert.match(document.body.textContent,/Inquiry Fixture/);
   assert.match(document.body.textContent,/Player positions/);assert.match(document.body.textContent,/Pitcher, shortstop/);assert.match(document.body.textContent,/USSSA Player \/ Athlete ID/);assert.match(document.body.textContent,/00123456/);assert.match(document.body.textContent,/Copy USSSA ID/);
   assert.equal(readerCalls,0);assert.doesNotMatch(document.body.textContent,/Owner controls|Enable viewing access|Save registration stage|Mark request resolved|Refund/);
-  const sport=document.querySelectorAll('select')[0];
+  const sport=[...document.querySelectorAll('select')].find(el=>[...el.options].some(o=>o.textContent==='All sports & messages'));
   await act(async()=>{sport.value='Softball';sport.dispatchEvent(new dom.window.Event('change',{bubbles:true}));});
   assert.match(document.body.textContent,/Softball Fixture/);assert.doesNotMatch(document.body.textContent,/Baseball Fixture|Inquiry Fixture/);
   allowed=false;

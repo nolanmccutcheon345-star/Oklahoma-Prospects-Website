@@ -1,13 +1,15 @@
+import {registrationFilters} from "./registration-filters";
 import { createServerFn } from "@tanstack/react-start";
 import { authMiddleware } from "./auth/middleware";
 import { evaluationInput } from "./tryout-evaluation-contracts";
 
 export const getTryoutEvaluations = createServerFn({ method: "GET" })
   .middleware([authMiddleware])
-  .handler(async ({ context }) => {
+  .validator(registrationFilters.optional())
+  .handler(async ({ context, data }) => {
     const { getSql } = await import("./db");
     const { evaluationWorkspaceFor } = await import("./tryout-evaluations.server");
-    return evaluationWorkspaceFor(await getSql(), context.userId);
+    return evaluationWorkspaceFor(await getSql(), context.userId, data);
   });
 export const saveTryoutEvaluation = createServerFn({ method: "POST" })
   .middleware([authMiddleware])

@@ -4,8 +4,6 @@ import { build } from "esbuild";
 import { mkdtemp, rm } from "node:fs/promises";
 import { pathToFileURL } from "node:url";
 import { JSDOM } from "jsdom";
-import { act, createElement } from "react";
-import { createRoot } from "react-dom/client";
 
 test("three-step tryout retains mandatory player details; USSSA unknown and new-player choices remain usable", async () => {
   const temp = await mkdtemp("scripts/.tryout-render-");
@@ -14,12 +12,16 @@ test("three-step tryout retains mandatory player details; USSSA unknown and new-
   Object.assign(globalThis, { window: dom.window, document: dom.window.document, IS_REACT_ACT_ENVIRONMENT: true });
   globalThis.requestAnimationFrame = (fn) => fn();
   dom.window.HTMLElement.prototype.scrollIntoView = ()=>{};
+  const {act,createElement}=await import("react");
+  const {createRoot}=await import("react-dom/client");
   let root;
   try {
     const outfile = temp + "/form.mjs";
     await build({ entryPoints: ["src/components/inquiry-form.tsx"], outfile, bundle: true, platform: "node", format: "esm", packages: "external", plugins: [{ name: "test-api", setup(b) {
+      b.onResolve({filter:/use-current-user$/},()=>({path:'auth-state',namespace:'auth-test'}));
+      b.onLoad({filter:/.*/,namespace:'auth-test'},()=>({contents:'export const useCurrentUserState=()=>({user:null,isPending:false});',loader:'js'}));
       b.onResolve({ filter: /\/(portal-api|tryout-events-api)$/ }, (args) => ({ path: args.path, namespace: "test" }));
-      b.onLoad({ filter: /.*/, namespace: "test" }, () => ({ contents: "export const getPublicTryoutTeams=async()=>[]; export const sendInquiry=async()=>{throw new Error('No submissions expected');};", loader: "js" }));
+      b.onLoad({ filter: /.*/, namespace: "test" }, () => ({ contents: "export const getPublicTryoutTeams=async()=>[]; export const getRegistrationAthletes=async()=>[]; export const claimAthleteRegistration=async()=>({ok:true}); export const sendInquiry=async()=>{throw new Error('No submissions expected');};", loader: "js" }));
     } }] });
     const { TryoutForm } = await import(pathToFileURL(process.cwd() + "/" + outfile));
     root = createRoot(document.getElementById("root"));
@@ -31,11 +33,14 @@ test("three-step tryout retains mandatory player details; USSSA unknown and new-
       assert.match(document.querySelector('h3').textContent,/Step 1/,'empty first step cannot advance');
       await change(control('Age group'),'12U');
       await change(control('Player name'),'Test Player');
+      await change(control('Date of birth (private)'),'2014-09-01');
+      await change(control('Expected high-school graduation year'),'unknown');
+      await change(control('School status'),'homeschool');
       await change(control('Parent / Guardian'),'Test Guardian');
       await change(control('Phone'),'9185550123');
       await change(control('Email'),'test@example.invalid');
       await act(async()=>[...document.querySelectorAll('button')].find(b=>b.textContent==='Continue to player details').click());
-      assert.match(document.querySelector('h3').textContent,/Step 2/);
+      assert.match(document.querySelector('h3').textContent,/Step 2/,JSON.stringify([...document.querySelectorAll('input,select')].filter(e=>!e.checkValidity()).map(e=>({label:e.closest('label')?.textContent,value:e.value}))));
       assert.match(document.body.textContent, /Player details — mandatory/);
       for (const name of ["Player positions", "Player notes", "USSSA Player ID status"]) {
         const field = control(name);

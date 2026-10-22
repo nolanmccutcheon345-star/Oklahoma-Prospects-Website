@@ -70,6 +70,9 @@ try {
  assert.equal(await page.getByRole('heading',{name:/Step 1 of 3/}).count(),1);
  await page.getByLabel(/^Age group/).selectOption('12U');
  await page.getByLabel(/^Player name/).fill('Synthetic Audit Player');
+ await page.getByLabel('Date of birth (private)',{exact:true}).fill('2015-09-01');
+ await page.getByLabel('Expected high-school graduation year',{exact:true}).selectOption('unknown');
+ await page.getByLabel('School status',{exact:true}).selectOption('homeschool');
  await page.getByLabel(/^Parent \/ Guardian/).fill('Synthetic Audit Guardian');
  await page.locator('form').filter({has:page.getByRole('heading',{name:/Step 1 of 3/})}).getByLabel(/^Phone/).fill('9185550123');
  await page.locator('form').filter({has:page.getByRole('heading',{name:/Step 1 of 3/})}).getByLabel(/^Email/).fill('guardian@audit.example.invalid');

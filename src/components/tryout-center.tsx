@@ -1,3 +1,5 @@
+import { RegistrationProfileFilters } from "./registration-profile-filters";
+import { RegistrationProfileSummary } from "@/components/registration-profile-summary";
 import { useEffect, useState } from "react";
 import { RequestStageForm } from "./commerce/office-requests";
 import { Button } from "./ui/button";
@@ -250,7 +252,8 @@ export function TryoutCenter() {
                   My Teams / Assigned Players
                 </Button>
               </div>
-              <div className="grid min-w-0 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              <RegistrationProfileFilters onApply={async filters=>{try{setData(await getTryoutCenter({data:filters}));}catch(e){setData(undefined);setError(e instanceof Error?e.message:'Could not load registrations.');}}}/>
+<div className="grid min-w-0 gap-3 sm:grid-cols-2 lg:grid-cols-4">
                 <label className="text-sm font-semibold">
                   Search
                   <input
@@ -289,8 +292,9 @@ export function TryoutCenter() {
                 {rows.map((r) => (
                   <article key={r.id} className="min-w-0 rounded-xl border bg-paper-2 p-5">
                     <p className="text-sm font-semibold text-maroon">
-                      {r.payload.sport} · {r.payload.age} · {label(w(r.id)?.follow_up || "new")}
+                      {r.payload.sport} · Requested {r.payload.age} · {label(w(r.id)?.follow_up || "new")}
                     </p>
+<RegistrationProfileSummary profile={r.payload}/>
                     <h2 className="mt-1 break-words text-2xl">
                       {r.payload.player || "Player registration"}
                     </h2>

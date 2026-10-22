@@ -1,3 +1,6 @@
+import {RegistrationProfileFilters} from "./registration-profile-filters";
+import {emptyRegistrationFilters,type RegistrationFilters} from "@/lib/registration-filters";
+import { RegistrationProfileSummary } from "@/components/registration-profile-summary";
 import { getEvaluationReviews, markEvaluationReviewed } from "@/lib/front-office-api";
 import { CLUB } from "@/lib/club";
 import { cloneElement, useEffect, useId, useState, type ReactElement } from "react";
@@ -58,6 +61,7 @@ export function TryoutEvaluations({
   const [reviews, setReviews] = useState<Awaited<ReturnType<typeof getEvaluationReviews>>>([]);
   const [reviewError, setReviewError] = useState("");
   const [reviewsLoaded, setReviewsLoaded] = useState(false);
+  const [athleteFilters,setAthleteFilters]=useState(emptyRegistrationFilters);
   const [workspace, setWorkspace] = useState<EvaluationWorkspace>();
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
@@ -73,11 +77,11 @@ export function TryoutEvaluations({
     [dateFilter, setDateFilter] = useState(""),
     [coachFilter, setCoachFilter] = useState(""),
     [statusFilter, setStatusFilter] = useState("");
-  async function refresh() {
+  async function refresh(filters:RegistrationFilters=athleteFilters) {
     setLoading(true);
     setError("");
     try {
-      setWorkspace(await getTryoutEvaluations());
+      setWorkspace(await getTryoutEvaluations({data:filters}));
     } catch (e) {
       setWorkspace(undefined);
       setError(e instanceof Error ? e.message : "Could not load evaluations.");
@@ -262,6 +266,7 @@ export function TryoutEvaluations({
 
   return (
     <div className="grid gap-5">
+      {!form && <RegistrationProfileFilters onApply={f=>{setAthleteFilters(f);void refresh(f);}} busy={loading} />}
       {workspace.owner && !reviewsLoaded && !reviewError && (
         <p role="status">Loading review status…</p>
       )}
@@ -625,6 +630,7 @@ export function TryoutEvaluations({
                     }}
                   >
                     <option value="">Walk-in / enter a player</option>
+                    {candidate?.profile && <RegistrationProfileSummary profile={candidate.profile}/>}
                     {form.registrationId && !candidate ? (
                       <option value={form.registrationId}>
                         {form.playerName} · Saved registration

@@ -1,3 +1,4 @@
+import { AthleteRegistrationFields, emptyAthleteRegistration } from "./athlete-registration-fields";
 import { ACTIVE_SEASON } from "@/lib/active-season";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { sendInquiry } from "@/lib/portal-api";
@@ -147,6 +148,8 @@ export function TryoutForm({
     ),
   }));
   const initialEvent = events.find((e) => e.id === initialEventId);
+  const [athleteProfile,setAthleteProfile]=useState({...emptyAthleteRegistration});
+  const [claimToken,setClaimToken]=useState('');
   const [mode, setMode] = useState<"scheduled" | "individual">(
     initialEvent ? "scheduled" : "individual",
   );
@@ -247,6 +250,7 @@ export function TryoutForm({
     try {
       const data = inquiryInput.parse({
           ...values,
+          athleteProfile,
           kind: intent === "register" ? "tryout" : "team-inquiry",
           requestId,
           sport: values.sport as "Baseball" | "Softball",
@@ -259,7 +263,8 @@ export function TryoutForm({
               }
             : {}),
       });
-      await sendInquiry({ data });
+      const result=await sendInquiry({ data });
+      if('claimToken' in result)setClaimToken(String(result.claimToken||''));
       setSent(true);
     } catch (e) {
       setError(e && typeof e === "object" && "issues" in e
@@ -277,7 +282,7 @@ export function TryoutForm({
           Our staff will contact your family to confirm the next step. This request does not reserve
           an event spot, appointment, or roster place.
         </p>
-        <p className="mt-3 text-sm">Reference: {requestId}</p>
+        <p className="mt-3 text-sm">Reference: {requestId}</p>{claimToken&&<div className="mt-3 rounded border p-3"><p>Save this private code to link this request to your verified account later. Do not share it publicly.</p><code className="break-all">{claimToken}</code></div>}
         <p className="mt-2 text-sm">Your request is saved. Keep this reference; you do not need to submit again. Staff will contact you using the details you provided.</p>
       </div>
     );
@@ -300,6 +305,7 @@ export function TryoutForm({
         </p>
       )}
       <fieldset hidden={intent === "register" && step !== 0} disabled={intent === "register" && step !== 0} className="grid min-w-0 gap-4" aria-label="Player and contact information">
+      <AthleteRegistrationFields value={athleteProfile} onChange={setAthleteProfile} onName={player=>setValues(v=>({...v,player}))}/>
       {intent === "register" && (
         <fieldset className="grid gap-2 rounded-xl border bg-paper p-4 sm:grid-cols-2">
           <legend className="px-2 font-semibold">Choose your next step</legend>
@@ -557,7 +563,7 @@ export function TryoutForm({
       </fieldset>
       <fieldset hidden={intent === "register" && step !== 2} disabled={intent === "register" && step !== 2} className="grid min-w-0 gap-4" aria-label="Review tryout request">
       {intent === "register" && <div className="rounded-xl border bg-paper p-4">
-        <h4 className="text-xl">Review your request</h4>
+        <h4 className="text-xl">Review your request</h4><p>Birthdate (private): {athleteProfile.birthDate} · Graduation: {athleteProfile.graduationYear} · School: {athleteProfile.school||athleteProfile.schoolStatus} · Grade: {athleteProfile.currentGrade} · Rules reference: {athleteProfile.eligibilityOrganization}</p>
         <dl className="mt-3 grid gap-3 text-sm">
           <div><dt className="font-semibold">Player</dt><dd>{values.player} · {values.sport} · {values.age} · {values.season}</dd></div>
           <div><dt className="font-semibold">Evaluation</dt><dd>{scheduled && selectedEvent ? `${selectedEvent.date} · ${formatClockTime(selectedEvent.startTime)} Central · ${selectedEvent.location}` : "Individual evaluation — staff will confirm an appointment"}</dd></div>

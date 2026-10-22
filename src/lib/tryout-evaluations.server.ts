@@ -1,3 +1,5 @@
+import {registrationFilters,registrationFilterSql,type RegistrationFilters} from "./registration-filters";
+import { registrationSummary } from "./athlete-registration-contracts";
 import type { Sql } from "./db";
 import { centerAccessFor } from "./tryout-center-access.server";
 import { chicagoDate } from "./scheduling";
@@ -50,6 +52,7 @@ function candidateFor(row: RequestRow, teams: EvaluationTeam[]): EvaluationCandi
     )
     .map((t) => t.id);
   return {
+    profile: registrationSummary(row.payload),
     positions: text("positions"),
     id: row.id,
     name: text("player"),
@@ -101,10 +104,11 @@ function saved(row: EvaluationRow, userId: string): SavedEvaluation {
 export async function evaluationWorkspaceFor(
   sql: Sql,
   userId: string,
+  filters?: RegistrationFilters,
 ): Promise<EvaluationWorkspace> {
   const { me, teams } = await evaluationAccess(sql, userId);
-  const requests =
-    await sql<RequestRow>`select id,kind,payload from club_requests where kind in ('tryout','team-inquiry') order by created_at desc,id desc`;
+  const f=registrationFilters.parse(filters||{});
+  const requests=await sql.query<RequestRow>(`select r.id,r.kind,r.payload from club_requests r where r.kind in ('tryout','team-inquiry') and ${registrationFilterSql('$1')} order by ${f.sort==='player'?"lower(r.payload->>'player'),":""}r.created_at desc,r.id desc limit 100 offset $2`,[JSON.stringify(f),f.page*100]);
   const candidates = requests
     .map((row) => candidateFor(row, teams))
     .filter((c) => c.name && ["baseball", "softball"].includes(c.sport));

@@ -1,3 +1,6 @@
+import { RegistrationProfileFilters } from "../registration-profile-filters";
+import type { RegistrationFilters } from "@/lib/registration-filters";
+import { RegistrationProfileSummary } from "@/components/registration-profile-summary";
 import { useCallback, useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { Button } from "../ui/button";
 import { UserButton } from "@/lib/auth/gates";
@@ -167,6 +170,7 @@ function Form({
 }
 
 export function OrganizationOffice() {
+  const [athleteFilters,setAthleteFilters]=useState<RegistrationFilters>();
   const [workspace, setWorkspace] = useState<Workspace>();
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -209,14 +213,14 @@ export function OrganizationOffice() {
     setLoading(true);
     setError("");
     try {
-      setWorkspace(await api.getOrganizationWorkspace());
+      setWorkspace(await api.getOrganizationWorkspace({data:athleteFilters}));
     } catch (e) {
       setWorkspace(undefined);
       setError(e instanceof Error ? e.message : "Could not load organization operations.");
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [athleteFilters]);
   useEffect(() => {
     void refresh();
   }, [refresh]);
@@ -639,6 +643,7 @@ export function OrganizationOffice() {
                     run={run}
                   />
                 </details>
+                <RegistrationProfileFilters busy={busy||loading} onApply={filters=>{if(leaveForm())setAthleteFilters(filters);}}/>
                 {workspace.registrations
                   .filter(
                     (r) =>
@@ -652,8 +657,8 @@ export function OrganizationOffice() {
                     <article key={r.id} className="grid gap-2 rounded border border-line p-4">
                       <h3 className="text-xl">{r.player || "Unnamed registration"}</h3>
                       <p>
-                        {r.age} · {r.sport || "Unclassified sport"} · {r.workflow.status}
-                      </p>
+                        Requested {r.age} · {r.sport || "Unclassified sport"} · {r.workflow.status}
+                      </p><RegistrationProfileSummary profile={r.profile}/>
                       <p className="break-words">
                         {r.parent} · {r.email} · {r.phone}
                       </p>

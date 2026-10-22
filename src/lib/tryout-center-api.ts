@@ -1,3 +1,4 @@
+import { registrationFilters } from "./registration-filters";
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { authMiddleware } from "./auth/middleware";
@@ -9,11 +10,13 @@ import {
 } from "./tryout-center-contracts";
 export const getTryoutCenter = createServerFn({ method: "GET" })
   .middleware([authMiddleware])
-  .handler(async ({ context }) => {
+  .validator(registrationFilters.optional())
+  .handler(async ({ context, data }) => {
     const { getSql } = await import("./db");
     return (await import("./tryout-center.server")).centerWorkspaceFor(
       await getSql(),
       context.userId,
+      data,
     );
   });
 export const getTryoutDetail = createServerFn({ method: "GET" })
