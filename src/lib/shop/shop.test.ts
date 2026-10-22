@@ -930,13 +930,13 @@ test("coming soon: publishes photos without supplier setup, blocks quotes and pa
       saveManagedProduct(sql, "owner", {
         id,
         revision: p.revision,
-        description: "A preview of our new cap.",
+        description: "",
         sizeGuide: "",
         teamLabel: "",
         category: "Hats",
         taxCode: "",
         sampleApproved: false,
-        published: true,
+        published: false,
         comingSoon: true,
         collectionIds: ["hats", "softball", "youth"],
         ...overrides,
@@ -955,18 +955,25 @@ test("coming soon: publishes photos without supplier setup, blocks quotes and pa
     const shop = await publicShop(sql);
     const preview = shop.products.find((v) => v.id === id)!;
     assert.equal(preview.coming_soon, true);
+    assert.equal(p.published, true, "Coming soon alone publishes a legacy editor save");
     assert.equal(preview.variants.length, 0);
     assert.equal(shop.checkout, false);
     assert.deepEqual(preview.collection_ids, ["hats", "softball", "youth"]);
     assert.ok(!("preparation_notes" in preview));
     assert.equal((await shopImageResponse(sql, p.gallery[0].id, null)).status, 200);
-    await assert.rejects(() => save({ comingSoon: false }), /sample/);
+    await assert.rejects(() => save({ shopStatus: "for-sale" }), /sample/);
     assert.equal((await read()).coming_soon, true);
-    await save({ published: false });
+    await save({ shopStatus: "draft" });
     p = await read();
     assert.equal((await shopImageResponse(sql, p.gallery[0].id, null)).status, 404);
-    await save();
+    assert.equal(
+      (await publicShop(sql)).products.some((v) => v.id === id),
+      false,
+    );
+    await save({ shopStatus: "coming-soon", comingSoon: false });
     p = await read();
+    assert.equal(p.published, true);
+    assert.equal(p.coming_soon, true, "Explicit status overrides conflicting legacy flags");
     await editGallery(sql, "owner", { id, revision: p.revision, imageIds: [] });
     assert.equal((await read()).published, false);
     await seed(sql);

@@ -351,6 +351,8 @@ function ProductEditor({
     sampleApproved: p.sample_approved,
     published: p.published,
     comingSoon: p.coming_soon ?? false,
+    shopStatus: (p.published ? (p.coming_soon ? "coming-soon" : "for-sale") : "draft") as
+      "draft" | "coming-soon" | "for-sale",
     collectionIds: p.collection_ids ?? [],
     pricingMode: p.pricing_mode,
     pricingBps: p.pricing_bps,
@@ -644,18 +646,32 @@ function ProductEditor({
                 </fieldset>
               ))}
             </fieldset>
-            <label className="flex min-h-11 items-center gap-3">
-              <input
-                type="checkbox"
-                checked={form.comingSoon}
-                onChange={(e) => setForm({ ...form, comingSoon: e.target.checked })}
-              />
-              Coming soon — show a preview and prevent orders
-            </label>
+            <div>
+              <label htmlFor={`shop-${p.id}-status`}>Shop status</label>
+              <select
+                id={`shop-${p.id}-status`}
+                className={inputClass}
+                value={form.shopStatus}
+                onChange={(e) => {
+                  const shopStatus = e.target.value as typeof form.shopStatus;
+                  setForm({
+                    ...form,
+                    shopStatus,
+                    published: shopStatus !== "draft",
+                    comingSoon: shopStatus === "coming-soon",
+                  });
+                }}
+              >
+                <option value="draft">Draft — hidden from shop</option>
+                <option value="coming-soon">Coming soon — visible, orders disabled</option>
+                <option value="for-sale">For sale — visible after sale approvals</option>
+              </select>
+            </div>
             <p className="text-sm">
-              Publish a coming-soon product after adding its description and approved photo.
-              Supplier setup, sizes, prices and sample approval can be completed later. Turning off
-              coming soon requires the existing sale approvals.
+              Save Coming soon to show the product, approved photo and selected filters in the shop.
+              A description is optional for previews. Supplier setup, sizes, prices and sample
+              approval can be completed later. Choose Draft to hide it, or For sale when ready for
+              the existing sale approvals.
             </p>
             <label className="flex items-start gap-3">
               <input
@@ -665,15 +681,6 @@ function ProductEditor({
                 onChange={(e) => setForm({ ...form, sampleApproved: e.target.checked })}
               />
               I approved the physical sample and production artwork
-            </label>
-            <label className="flex items-start gap-3">
-              <input
-                type="checkbox"
-                className="mt-1"
-                checked={form.published}
-                onChange={(e) => setForm({ ...form, published: e.target.checked })}
-              />
-              Publish this product
             </label>
             <Button type="submit" disabled={busy}>
               Save product

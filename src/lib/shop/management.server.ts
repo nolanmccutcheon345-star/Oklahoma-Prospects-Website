@@ -104,6 +104,7 @@ export type ManagedProductInput = {
   sampleApproved: boolean;
   published: boolean;
   comingSoon?: boolean;
+  shopStatus?: "draft" | "coming-soon" | "for-sale";
   collectionIds?: string[];
   pricingMode?: PricingMode;
   pricingBps?: number;
@@ -121,20 +122,20 @@ export async function saveManagedProduct(sql: Sql, userId: string, input: Manage
     const [p] = await tx<ShopProduct>`select * from shop_products where id=${input.id} for update`;
     if (!p || p.revision !== input.revision)
       throw new Error("Product changed. Reload before saving.");
-    const comingSoon = input.comingSoon ?? p.coming_soon ?? false;
+    // One explicit status wins. Older editors also publish when Coming soon is selected.
+    const comingSoon = input.shopStatus
+      ? input.shopStatus === "coming-soon"
+      : (input.comingSoon ?? p.coming_soon ?? false);
+    const published = input.shopStatus
+      ? input.shopStatus !== "draft"
+      : input.published || input.comingSoon === true;
     const collectionIds = collectionIdsSchema.parse(input.collectionIds ?? p.collection_ids ?? []);
     const validIds = new Set(s.navigation.flatMap((g) => g.options.map((o) => o.id)));
     // Removed labels do not alter a product; unknown new assignments are rejected.
     if (collectionIds.some((id) => !validIds.has(id) && !p.collection_ids?.includes(id)))
       throw new Error("Shop collections changed. Reload before saving.");
-    if (
-      input.published &&
-      comingSoon &&
-      (p.archived || !input.description.trim() || !p.image_approved || !p.image_url)
-    )
-      throw new Error(
-        "Add a description and approved product photo before showing a coming-soon product.",
-      );
+    if (published && comingSoon && (p.archived || !p.image_approved || !p.image_url))
+      throw new Error("Add an approved product photo before showing a coming-soon product.");
     const mode = input.pricingMode || p.pricing_mode,
       bps = input.pricingBps ?? p.pricing_bps;
     if (
@@ -150,7 +151,7 @@ export async function saveManagedProduct(sql: Sql, userId: string, input: Manage
       return { ...next, priceCents: priceVariant(next, mode, bps, s.default_markup_bps) };
     });
     if (
-      input.published &&
+      published &&
       !comingSoon &&
       (p.archived ||
         !input.sampleApproved ||
@@ -165,15 +166,15 @@ export async function saveManagedProduct(sql: Sql, userId: string, input: Manage
       throw new Error(
         "Approve the physical sample and studio photo, link supplier variants, and add a description, size guide and tax category before publishing.",
       );
-    if (p.provider === "fulfill-engine" && input.published && !comingSoon)
+    if (p.provider === "fulfill-engine" && published && !comingSoon)
       throw new Error((await import("./fulfill-engine.server")).FULFILL_ENGINE_LAUNCH_BLOCKER);
     const title = (input.title ?? p.title).trim();
     if (!title) throw new Error("Product title is required.");
-    await tx`update shop_products set coming_soon=${comingSoon},collection_ids=${JSON.stringify(collectionIds)}::jsonb,preparation_notes=${input.preparationNotes ?? p.preparation_notes},title=${title},description=${input.description},size_guide=${input.sizeGuide},team_label=${input.teamLabel},category=${input.category},tax_code=${input.taxCode},sample_approved=${input.sampleApproved},published=${input.published},pricing_mode=${mode},pricing_bps=${bps},variants=${JSON.stringify(variants)}::jsonb,revision=revision+1,updated_by=${userId},updated_at=now() where id=${p.id}`;
+    await tx`update shop_products set coming_soon=${comingSoon},collection_ids=${JSON.stringify(collectionIds)}::jsonb,preparation_notes=${input.preparationNotes ?? p.preparation_notes},title=${title},description=${input.description},size_guide=${input.sizeGuide},team_label=${input.teamLabel},category=${input.category},tax_code=${input.taxCode},sample_approved=${input.sampleApproved},published=${published},pricing_mode=${mode},pricing_bps=${bps},variants=${JSON.stringify(variants)}::jsonb,revision=revision+1,updated_by=${userId},updated_at=now() where id=${p.id}`;
     await audit(tx, userId, "edit-product", p.id, {
       pricingMode: mode,
       pricingBps: bps,
-      published: input.published,
+      published,
       comingSoon,
       collectionIds,
       prices: variants.map((v) => ({
