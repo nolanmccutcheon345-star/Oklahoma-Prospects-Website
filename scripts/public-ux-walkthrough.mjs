@@ -70,6 +70,9 @@ try {
  assert.equal(await page.getByRole('heading',{name:/Step 1 of 3/}).count(),1);
  await page.getByLabel(/^Age group/).selectOption('12U');
  await page.getByLabel(/^Player name/).fill('Synthetic Audit Player');
+ await page.getByLabel('Date of birth (private)',{exact:true}).fill('2015-09-01');
+ await page.getByRole('combobox',{name:'Expected high-school graduation year',exact:true}).selectOption('unknown');
+ await page.getByRole('combobox',{name:'School status',exact:true}).selectOption('homeschool');
  await page.getByLabel(/^Parent \/ Guardian/).fill('Synthetic Audit Guardian');
  await page.locator('form').filter({has:page.getByRole('heading',{name:/Step 1 of 3/})}).getByLabel(/^Phone/).fill('9185550123');
  await page.locator('form').filter({has:page.getByRole('heading',{name:/Step 1 of 3/})}).getByLabel(/^Email/).fill('guardian@audit.example.invalid');
@@ -82,6 +85,7 @@ try {
  await page.getByLabel(/^USSSA Player ID status/).selectOption('unknown');
  await page.getByRole('button',{name:'Continue to review',exact:true}).click();
  await page.getByRole('heading',{name:/Step 3 of 3/}).waitFor();
+ assert.match(await page.getByRole('group',{name:'Review tryout request'}).innerText(),/2015-09-01/,'DOB survives review navigation');
  await page.getByRole('button',{name:'Back',exact:true}).click();
  assert.match(await page.getByLabel(/^Player positions/).inputValue(),/New player/);
  await page.getByRole('button',{name:'Continue to review',exact:true}).click();
@@ -91,6 +95,10 @@ try {
  await page.getByRole('heading',{name:'Request received',exact:true}).waitFor();
  const rows=await h.sql`select id from club_requests where kind='tryout'`;
  assert.equal(rows.length,1,'request persisted exactly once');
+ const [privateProfile]=await h.sql`select birth_date::text from athlete_registration_profiles where request_id=${rows[0].id}`;
+ assert.equal(privateProfile.birth_date,'2015-09-01');
+ const [safeRequest]=await h.sql`select payload from club_requests where id=${rows[0].id}`;
+ assert.equal(JSON.stringify(safeRequest.payload).includes('2015-09-01'),false,'no exact DOB in ordinary staff payload');
  await page.reload();
  assert.equal((await h.sql`select id from club_requests where kind='tryout'`).length,1,'reload does not resubmit');
  await page.goto(h.base+'/book');

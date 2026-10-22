@@ -1,3 +1,4 @@
+import { registrationFilters } from "../registration-filters";
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { operationalAuthMiddleware } from "../auth/middleware";
@@ -15,11 +16,13 @@ import {
 } from "./organization-contracts";
 export const getOrganizationWorkspace = createServerFn({ method: "GET" })
   .middleware([operationalAuthMiddleware])
-  .handler(async ({ context }) => {
+  .validator(registrationFilters.optional())
+  .handler(async ({ context,data }) => {
     const { getSql } = await import("../db");
     return (await import("./organization.server")).organizationWorkspace(
       await getSql(),
       context.userId,
+      data,
     );
   });
 export const saveOrganizationTeam = createServerFn({ method: "POST" })

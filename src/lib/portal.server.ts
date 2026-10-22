@@ -18,7 +18,16 @@ export async function submitInquiry(input:z.infer<typeof inquiryInput>) {
   validateTryoutRegistration(input,chicagoDate());
  }
  const {recordInquiryFor}=await import('./tryout-enrollment.server');
- return recordInquiryFor(await getSql(),input);
+ if(input.kind==='contact')return recordInquiryFor(await getSql(),input);
+ if(!input.athleteProfile)throw new Error('Complete the athlete profile before submitting.');
+ const {getSessionUser}=await import('./auth/verify.server');
+ const {prepareAthleteRegistration}=await import('./athlete-registration.server');
+ const {createHash}=await import('node:crypto');
+ const sql=await getSql(),user=await getSessionUser();
+ const prepared=await prepareAthleteRegistration(sql,user?.id||null,input.athleteProfile);
+ const {athleteProfile,...safe}=input;
+ if(athleteProfile.athleteId){const {familyAthletesFor}=await import('./athlete-registration.server');const a=(await familyAthletesFor(sql,user!.id)).find(a=>a.id===athleteProfile.athleteId);if(!a||a.name!==safe.player)throw new Error('The selected athlete name must match the saved profile.');}
+ return recordInquiryFor(sql,{...safe,profileFingerprint:createHash('sha256').update(JSON.stringify(athleteProfile)).digest('hex')},{userId:user?.id||null,data:prepared.data,householdEmail:prepared.me?.email||null});
 }
 export async function addAthlete(userId:string,input:z.infer<typeof athleteInput>){
  input=athleteInput.parse(input);
@@ -48,6 +57,6 @@ export async function signWaiver(userId:string,input:z.infer<typeof waiverInput>
 export async function officeRequests(userId:string){
  const me=await clubIdentity(userId);if(me.role!=='admin')throw new Error('Front-office access required.');const sql=await getSql();
  const rows=await sql<{id:string;kind:string;payload:Record<string,unknown>;status:string;created_at:Date}>`select id,kind,payload,status,created_at from club_requests order by created_at desc`;
- return rows.map(row=>({...row,payload:Object.fromEntries(Object.entries(row.payload).map(([key,value])=>[key,typeof value==='string'?value:JSON.stringify(value)??'']))}));
+ return rows.map(row=>({...row,payload:Object.fromEntries(Object.entries(row.payload).filter(([key])=>key!=='profileFingerprint').map(([key,value])=>[key,typeof value==='string'?value:JSON.stringify(value)??'']))}));
 }
 export async function resolveRequest(userId:string,id:string){const me=await clubIdentity(userId);if(me.role!=='admin')throw new Error('Front-office access required.');const sql=await getSql();const [request]=await sql<{kind:string}>`select kind from club_requests where id=${id}`;if(request&&['membership-pause','refund-review'].includes(request.kind))throw new Error('Billing requests require a confirmed provider outcome before resolution.');await sql`update club_requests set status='resolved' where id=${id}`;return {ok:true};}

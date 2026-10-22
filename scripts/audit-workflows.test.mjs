@@ -176,7 +176,7 @@ test('isolated full account and lesson journey through real server commands',asy
    assert.equal((await api.readWorkingFile()).lessons.some(l=>l.id==='forged'),false);
   });
   await t.test('softball registration submission persists once and rejects cross-origin requests',async()=>{
-   const input={kind:'tryout',requestId:randomUUID(),player:'Audit Softball Player',age:'12U',parent:'Audit Parent',phone:'555-0100',email:'parent@audit.example.invalid',positions:'Pitcher, shortstop',notes:'ISOLATED AUDIT ONLY',usssaStatus:'provided',usssaAthleteId:'00123456',sport:'Softball',session:'Individual tryout request'};
+   const input={kind:'tryout',requestId:randomUUID(),player:'Audit Softball Player',athleteProfile:{birthDate:'2014-09-01',graduationYear:'unknown',schoolStatus:'homeschool',school:''},age:'12U',parent:'Audit Parent',phone:'555-0100',email:'parent@audit.example.invalid',positions:'Pitcher, shortstop',notes:'ISOLATED AUDIT ONLY',usssaStatus:'provided',usssaAthleteId:'00123456',sport:'Softball',session:'Individual tryout request'};
    await api.submitInquiry(input);await api.submitInquiry(input);
    assert.equal((await sql`select id from club_requests where id=${input.requestId}`).length,1);
    for(const sport of ['Baseball','Softball']){

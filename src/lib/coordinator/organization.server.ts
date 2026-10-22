@@ -1,3 +1,5 @@
+import { registrationFilters, registrationFilterSql, type RegistrationFilters } from "../registration-filters";
+import { registrationSummary } from "../athlete-registration-contracts";
 /** Organization operations is a separate, allowlisted surface. It never returns a ClubRecord. */
 import { randomUUID } from "node:crypto";
 import type { z } from "zod";
@@ -263,10 +265,11 @@ async function assignableStaff(tx: Sql, options: { includeInactive?: boolean } =
     a.name.localeCompare(b.name),
   );
 }
-export async function organizationWorkspace(sql: Sql, userId: string) {
+export async function organizationWorkspace(sql: Sql, userId: string, filters?:RegistrationFilters) {
   return operate(sql, userId, "organization.read", async (tx) => {
     const { payload: club, rev } = await loadClub(tx);
-    const requests = await tx<{
+    const f=registrationFilters.parse(filters||{});
+    const requests = await tx.query<{
       id: string;
       kind: string;
       status: string;
@@ -278,7 +281,7 @@ export async function organizationWorkspace(sql: Sql, userId: string) {
       assignee_id: string | null;
       follow_up: string;
       follow_up_date: string | null;
-    }>`select r.id,r.kind,r.status,r.payload,r.coordinator_revision as revision,r.created_at,coalesce(w.revision,0) as work_revision,coalesce(w.team_id,'') as team_id,w.assignee_id,coalesce(w.follow_up,'new') as follow_up,w.follow_up_date::text from club_requests r left join office_request_work w on w.request_id=r.id where r.kind in ('tryout','team-inquiry') order by r.created_at desc,r.id`;
+    }>(`select r.id,r.kind,r.status,r.payload,r.coordinator_revision as revision,r.created_at,coalesce(w.revision,0) as work_revision,coalesce(w.team_id,'') as team_id,w.assignee_id,coalesce(w.follow_up,'new') as follow_up,w.follow_up_date::text from club_requests r left join office_request_work w on w.request_id=r.id where r.kind in ('tryout','team-inquiry') and ${registrationFilterSql('$1')} order by ${f.sort==='player'?"lower(r.payload->>'player'),":""} r.created_at desc,r.id desc limit 100 offset $2`,[JSON.stringify(f),f.page*100]);
     const evaluations = await tx<{
       id: string;
       registration_id: string | null;
@@ -331,6 +334,7 @@ export async function organizationWorkspace(sql: Sql, userId: string) {
           status: ["open", "accepted", "declined", "closed"].includes(r.status) ? r.status : "open",
           revision: r.revision,
           createdAt: iso(r.created_at),
+          profile: registrationSummary(p),
           player: string(p.player),
           parent: string(p.parent),
           email: string(p.email),
@@ -601,6 +605,11 @@ export async function savePlayerInTransaction(
       old.roleType === "po" ? "po" : "full",
       input.playerId,
     );
+  const [educationLink]=await tx<{athlete_id:string}>`select athlete_id from recruiting_roster_links where team_id=${input.teamId} and roster_id=${input.playerId}`;
+  if(educationLink && (input.changes.school!==undefined || input.changes.gradYear!==undefined)) {
+    await tx`update club_athletes set school=coalesce(${input.changes.school??null},school),graduation_year=case when ${input.changes.gradYear!==undefined} then ${input.changes.gradYear?Number(input.changes.gradYear):null}::integer else graduation_year end,school_status=case when ${Boolean(input.changes.school)} then 'school' else school_status end,education_confirmed_at=now(),registration_revision=registration_revision+1 where id=${educationLink.athlete_id}`;
+    await tx`insert into athlete_profile_changes(id,athlete_id,actor_id,fields,reason) values(${randomUUID()},${educationLink.athlete_id},${userId},array['school','graduationYear'],'Authorized roster education update')`;
+  }
   const next: Json = { ...(old || blankPlayer(input.playerId, input.teamId)), ...input.changes };
   if (!old && familyId) next.familyId = familyId;
   if (old && input.changes.withdrawn === withdrawn(old.withdrawn)) next.withdrawn = old.withdrawn;
@@ -617,6 +626,11 @@ export async function savePlayerInTransaction(
     next.parents = input.changes.parents.map((p, i) => ({ ...prior[i], ...p }));
   }
   team.roster = old ? roster.map((p) => (p.id === input.playerId ? next : p)) : [...roster, next];
+  if(educationLink) {
+    const [education]=await tx<{school:string;graduation_year:number|null;education_confirmed_at:unknown}>`select school,graduation_year,education_confirmed_at from club_athletes where id=${educationLink.athlete_id}`;
+    const linked=await tx<{team_id:string;roster_id:string}>`select team_id,roster_id from recruiting_roster_links where athlete_id=${educationLink.athlete_id}`;
+    for(const link of linked){const linkedTeam=objects(club.teams).find(t=>t.id===link.team_id);const linkedPlayer=objects(linkedTeam?.roster).find(p=>p.id===link.roster_id);if(linkedPlayer&&education?.education_confirmed_at){linkedPlayer.school=education.school;linkedPlayer.gradYear=education.graduation_year?.toString()||'';}}
+  }
   await writeClub(tx, club, rev);
   await audit(
     tx,

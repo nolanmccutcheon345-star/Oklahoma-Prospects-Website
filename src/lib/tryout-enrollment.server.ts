@@ -83,8 +83,10 @@ export async function matchTryoutApplicants(tx: Sql) {
 export async function recordInquiryFor(
   sql: Sql,
   input: { requestId: string; kind: string; [key: string]: unknown },
+  profile?: {userId:string|null;data:import("./athlete-registration-contracts").AthleteRegistrationInput;householdEmail:string|null},
 ) {
   return sql.transaction(async (tx) => {
+    if(profile){const {lockFinancialExecution}=await import("./finance/execution.server");await lockFinancialExecution(tx);}
     if (input.kind === "tryout") {
       if (input.requestType) {
         if (input.requestConsent !== true || input.autoEnroll === true)
@@ -142,7 +144,7 @@ export async function recordInquiryFor(
     }
     const [prior] = await tx<{
       same: boolean;
-    }>`select (payload-'requestedEvent'-'sourceForm')=(${JSON.stringify(input)}::jsonb-'requestedEvent'-'sourceForm') as same from club_requests where id=${input.requestId} for update`;
+    }>`select (payload-'requestedEvent'-'sourceForm'-'athleteId'-'birthMonthYear'-'birthYear'-'graduationYear'-'school'-'schoolStatus'-'suggestedDivision'-'eligibilityStatus'-'eligibilityExplanation'-'eligibilityRule'-'profileConfirmedAt'-'eligibilitySource'-'eligibilityCutoff'-'currentGrade')=(${JSON.stringify(input)}::jsonb-'requestedEvent'-'sourceForm') as same from club_requests where id=${input.requestId} for update`;
     if (prior) {
       if (!prior.same)
         throw new Error(
@@ -163,14 +165,19 @@ export async function recordInquiryFor(
       await tx`insert into club_requests(id,user_id,kind,payload) values(${input.requestId},null,${input.kind},${JSON.stringify(input)}::jsonb) on conflict(id) do nothing returning id`;
     if (!inserted.length) {
       const [same] =
-        await tx`select id from club_requests where id=${input.requestId} and (payload-'requestedEvent'-'sourceForm')=(${JSON.stringify(input)}::jsonb-'requestedEvent'-'sourceForm')`;
+        await tx`select id from club_requests where id=${input.requestId} and (payload-'requestedEvent'-'sourceForm'-'athleteId'-'birthMonthYear'-'birthYear'-'graduationYear'-'school'-'schoolStatus'-'suggestedDivision'-'eligibilityStatus'-'eligibilityExplanation'-'eligibilityRule'-'profileConfirmedAt'-'eligibilitySource'-'eligibilityCutoff'-'currentGrade')=(${JSON.stringify(input)}::jsonb-'requestedEvent'-'sourceForm')`;
       if (!same)
         throw new Error(
           "This registration reference was already used with different details. Start a new registration.",
         );
     }
+    let claimToken='';
+    if(profile && inserted.length) {
+      const {saveRegistrationProfile}=await import('./athlete-registration.server');
+      ({claimToken}=await saveRegistrationProfile(tx,input.requestId,profile.userId,profile.data,String(input.player),String(input.email),String(input.sport),String(input.season),String(input.age),profile.householdEmail));
+    }
     if (input.kind === "tryout") await matchTryoutApplicants(tx);
-    return { ok: true, reference: input.requestId };
+    return { ok: true, reference: input.requestId, claimToken };
   });
 }
 export async function adminTryoutEnrollmentsFor(sql: Sql, userId: string) {

@@ -356,7 +356,7 @@ export const reviewTeamInquiry=createServerFn({method:'POST'}).middleware([authM
   return sql.transaction(async tx=>{
    await lockFinancialExecution(tx);
    const financial=await loadFinancialContextInTransaction(tx,context.userId,"owner");
-   const [request]=await tx<{kind:string;payload:{player:string;parent:string;email:string;sport:string;age:string;preferredTeamId?:string;preferredCoachId?:string;rosterPlayerId?:string}}> `select kind,payload from club_requests where id=${data.id} for update`;
+   const [request]=await tx<{kind:string;payload:{player:string;parent:string;email:string;sport:string;age:string;preferredTeamId?:string;preferredCoachId?:string;rosterPlayerId?:string;athleteId?:string;school?:string;graduationYear?:string}}> `select kind,payload from club_requests where id=${data.id} for update`;
    if(!request||!['tryout','team-inquiry'].includes(request.kind))throw new Error('Choose a tryout or team inquiry.');
    const [row]=await tx<{payload:ClubRecord;rev:number}>`select payload,rev from club_state where id='oklahoma-prospects' for update`;
    if(!row)throw new Error('Open the club record first.');
@@ -377,6 +377,12 @@ export const reviewTeamInquiry=createServerFn({method:'POST'}).middleware([authM
     await tx`insert into club_households(id,primary_email) values(${'fam-'+randomUUID()},${email}) on conflict(primary_email) do nothing`;
     const [household]=await tx<{id:string}>`select id from club_households where primary_email=${email}`;
     const player=blankPlayer({teamId:team.id,familyId:household.id,name:request.payload.player,parentName:request.payload.parent,parentEmail:email,rosterRole:data.rosterRole!});
+    player.school=request.payload.school||'';player.gradYear=/^\d{4}$/.test(request.payload.graduationYear||'')?request.payload.graduationYear!:'';
+    if(request.payload.athleteId){
+     const [current]=await tx<{school:string;graduation_year:number|null;education_confirmed_at:unknown}>`select school,graduation_year,education_confirmed_at from club_athletes where id=${request.payload.athleteId}`;
+     if(current?.education_confirmed_at){player.school=current.school;player.gradYear=current.graduation_year?.toString()||'';}
+     await tx`insert into recruiting_roster_links(athlete_id,team_id,roster_id,linked_by) values(${request.payload.athleteId},${team.id},${player.id},${context.userId})`;
+    }
     team.roster.push(player);rosterPlayerId=player.id;
     await tx`insert into club_invites(id,token_hash,email,team_id,family_id,invited_by,role,expires_at) values(${randomUUID()},${randomUUID()},${email},${team.id},${household.id},${context.userId},'parent',now()+interval '7 days')`;
    }

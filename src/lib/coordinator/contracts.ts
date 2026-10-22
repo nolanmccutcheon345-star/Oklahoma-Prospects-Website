@@ -1,3 +1,4 @@
+import { registrationFilters } from "../registration-filters";
 import { z } from "zod";
 import { TRYOUT_STATUSES } from "../tryout-center-contracts";
 export const sports = ["baseball", "softball"] as const;
@@ -79,7 +80,7 @@ export const scopeInput = z
 // Keyset cursors preserve access to the full history without unbounded responses.
 export const historyCursor = z.object({ at: z.iso.datetime(), id }).strict();
 export const recruitingHistoryInput = scopeInput
-  .extend({ before: historyCursor.optional() })
+  .extend({ before: historyCursor.optional(), athleteFilters: registrationFilters.optional() })
   .strict();
 export const messageHistoryInput = z
   .object({ teamId: id, before: historyCursor.optional() })

@@ -99,6 +99,8 @@ export async function persistClubSave(
         financial.mode === "basis"
           ? mergeOperationalSave(stored, data.club, me.role, me)
           : mergeSave(stored, data.club, me.role, me);
+      const {reconcileRosterEducation}=await import("../athlete-registration.server");
+      await reconcileRosterEducation(tx,userId,stored,merged);
       await writeStoredClub(tx, merged, data.baseRev);
       await tx`insert into club_audit(user_id,action,detail) values(${userId},'save',${me.role})`;
       return scopedClubResult(merged, me, financial);

@@ -1,8 +1,9 @@
 import {z} from 'zod';
+import {athleteRegistrationInput} from './athlete-registration-contracts';
 const text=z.string().trim().max(120);
 export const inquiryInput=z.discriminatedUnion('kind',[
  z.object({kind:z.literal('contact'),requestId:z.string().uuid(),name:text.min(1),email:z.email(),phone:text,message:z.string().trim().min(3).max(5000)}).strict(),
- z.object({kind:z.enum(['tryout','team-inquiry']),requestId:z.string().uuid(),player:text.min(1),age:text.min(1),parent:text.min(1),phone:text.min(1),email:z.email(),positions:z.string().trim().max(200).default(''),notes:z.string().trim().max(5000),usssaStatus:z.enum(['','provided','unknown','not-registered']).default(''),usssaAthleteId:z.string().trim().max(30).default(''),sport:z.enum(['Baseball','Softball']),session:text,season:text.default(''),autoEnroll:z.boolean().default(false),preferredTeamId:text.default(''),preferredCoachId:text.default(''),requestType:z.enum(['scheduled','individual']).optional(),requestedEventId:z.union([z.literal(''),z.string().uuid()]).optional(),requestConsent:z.boolean().optional()}).strict(),
+ z.object({kind:z.enum(['tryout','team-inquiry']),requestId:z.string().uuid(),player:text.min(1),age:text.min(1),parent:text.min(1),phone:text.min(1),email:z.email(),positions:z.string().trim().max(200).default(''),notes:z.string().trim().max(5000),usssaStatus:z.enum(['','provided','unknown','not-registered']).default(''),usssaAthleteId:z.string().trim().max(30).default(''),sport:z.enum(['Baseball','Softball']),session:text,season:text.default(''),autoEnroll:z.boolean().default(false),preferredTeamId:text.default(''),preferredCoachId:text.default(''),requestType:z.enum(['scheduled','individual']).optional(),requestedEventId:z.union([z.literal(''),z.string().uuid()]).optional(),requestConsent:z.boolean().optional(),athleteProfile:athleteRegistrationInput.optional()}).strict(),
 ]).superRefine((input,ctx)=>{
  if(input.kind!=='tryout')return;
  if(!input.positions)ctx.addIssue({code:'custom',path:['positions'],message:'Enter your player’s positions, or enter New player / still learning.'});
