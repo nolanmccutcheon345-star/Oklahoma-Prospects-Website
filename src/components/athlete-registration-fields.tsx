@@ -114,6 +114,7 @@ export function AthleteRegistrationFields({
           required
           max={chicagoDate()}
           value={value.birthDate}
+          onInput={(e) => update({ birthDate: e.currentTarget.value })}
           onChange={(e) => update({ birthDate: e.target.value })}
         />
       </label>

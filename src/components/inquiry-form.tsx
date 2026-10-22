@@ -1,3 +1,4 @@
+import {athleteRegistrationInput} from "@/lib/athlete-registration-contracts";
 import { AthleteRegistrationFields, emptyAthleteRegistration } from "./athlete-registration-fields";
 import { ACTIVE_SEASON } from "@/lib/active-season";
 import { useEffect, useRef, useState, type FormEvent } from "react";
@@ -162,7 +163,9 @@ export function TryoutForm({
     requestAnimationFrame(() => { headingRef.current?.focus(); headingRef.current?.scrollIntoView({block:"start",behavior:"instant"}); });
   }
   function nextStep() {
-    if (formRef.current?.reportValidity()) goToStep(step + 1);
+    if (!formRef.current?.reportValidity()) return;
+    if(step===0){const checked=athleteRegistrationInput.safeParse(athleteProfile);if(!checked.success){setError(checked.error.issues.map(i=>i.message).join(' '));return;}}
+    setError('');goToStep(step + 1);
   }
   const [consent, setConsent] = useState(false);
   const [values, setValues] = useState<TryoutValues>({
