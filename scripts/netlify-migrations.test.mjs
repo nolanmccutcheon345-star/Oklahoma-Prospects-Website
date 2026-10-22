@@ -104,6 +104,7 @@ for (const baselineVersion of [66, 76, 79])
         await db.exec(wrapMigration(name, await readFile(new URL(name, source), "utf8")));
       await db.exec("update club_services set detail='preserved preview edit' where id='m1'");
       const before = (await db.query("select * from finance_state order by id")).rows;
+      const masterBefore = (await db.query("select * from team_budget_master order by id")).rows;
       const late = entries.filter(
         ({ name }) => Number(netlifyMigrationSlug(name).split("_")[0]) > baselineVersion,
       );
@@ -133,6 +134,7 @@ for (const baselineVersion of [66, 76, 79])
             "0096_coordinator_provider_backup_reviews.sql",
             "0097_shop_collections.sql",
             "0098_athlete_registration_profiles.sql",
+            "0099_team_pricing_defaults.sql",
           ],
         );
       for (const { name } of late) {
@@ -145,6 +147,21 @@ for (const baselineVersion of [66, 76, 79])
         entries.length,
       );
       assert.deepEqual((await db.query("select * from finance_state order by id")).rows, before);
+      assert.deepEqual(
+        (await db.query("select * from team_budget_master order by id")).rows,
+        masterBefore,
+        "release configuration must not rewrite saved master snapshots",
+      );
+      assert.deepEqual(
+        (await db.query("select payload from team_pricing_default_releases where version=1"))
+          .rows[0].payload,
+        {
+          membershipMonthly: 8000,
+          poMembershipMonthly: 8000,
+          contingencyBps: 1250,
+          eventPaymentSchedule: { percentages: [7000, 1500, 1500], weeksBefore: [14, 10, 6] },
+        },
+      );
       assert.equal(
         (await db.query("select detail from club_services where id='m1'")).rows[0].detail,
         "preserved preview edit",
