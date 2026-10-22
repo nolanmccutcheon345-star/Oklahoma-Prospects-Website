@@ -49,6 +49,8 @@ function adapter(query: PGlite["query"], inTransaction = false): Sql {
 function readyBudget() {
   return {
     ...defaultBudget(),
+    tournamentEstimate: 10000,
+    uniformEstimate: 0,
     start: "2027-04-01",
     end: "2027-06-15",
     months: 2.5,
@@ -897,4 +899,21 @@ test("transaction fee reads require issued contexts and ignore caller-mutated au
       await tx`update "user" set "disabledAt"=null where id='parent'`;
     });
   }
+});
+
+test("published-price projection follows the active financial source and withholds private plan fields", async () => {
+  const { sql } = await fixture();
+  const { publishedTeamPriceInTransaction } = await import("../finance/context.server");
+  const read = () =>
+    withFinancialContext(sql, "owner", "read", (tx) =>
+      publishedTeamPriceInTransaction(tx, "published"),
+    );
+  const original = await read();
+  assert.ok(original);
+  assert.deepEqual(Object.keys(original).sort(), ["at", "finalDue", "full", "po", "revision"]);
+  await capture(sql);
+  await sql`update team_fee_plans set payload=jsonb_set(payload,'{published,full}','222000') where team_id='published'`;
+  assert.equal((await read())!.full, 222000);
+  await activateFixture(sql);
+  assert.deepEqual(await read(), original);
 });

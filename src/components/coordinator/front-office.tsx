@@ -611,9 +611,8 @@ function CoordinatorModule({
               )}
               {(allowed("teams.openings") ||
                 allowed("teams.needs") ||
-                allowed("teams.statistics")) && (
-                <TeamOperations teamId={teamId} allowed={allowed} />
-              )}
+                allowed("teams.statistics") ||
+                allowed("rosters.read")) && <TeamOperations teamId={teamId} allowed={allowed} />}
               {allowed("rosters.read") && !roster.length && loaded && (
                 <p>No active roster players.</p>
               )}

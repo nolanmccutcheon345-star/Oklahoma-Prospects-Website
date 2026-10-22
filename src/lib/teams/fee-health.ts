@@ -1,5 +1,37 @@
 import { calendarBillableMonths, serviceMonths } from "./season-months";
 import { withBillableMonths, project, scheduleRows, type FeeBudget } from "./fee-model";
+import type { TeamActivity } from "./activity-contracts";
+
+export function publicationCostIssues(
+  b: FeeBudget,
+  activities: TeamActivity[],
+  catalog: { id: string; org: string; start: string; fee: number }[],
+  selected: string[],
+) {
+  const issues: string[] = [];
+  const inSeason = (date: string) => Boolean(date && date >= b.start && date <= b.end);
+  const scheduled = activities.filter(
+    (a) => a.kind !== "practice" && a.status !== "cancelled" && inSeason(a.date),
+  );
+  const events = catalog.filter(
+    (e) => selected.includes(e.id) && e.org !== "Team schedule" && inSeason(e.start),
+  );
+  if (
+    b.tournamentEstimate === undefined &&
+    (!b.scheduleCostsAutomatic ||
+      (!scheduled.length && !events.length) ||
+      scheduled.some((a) => !Number.isSafeInteger(a.entryFee) || a.entryFee! < 0) ||
+      events.some((e) => !Number.isFinite(e.fee) || e.fee < 0))
+  )
+    issues.push(
+      "Complete the team event schedule and entry fees, or enter an admin tournament-fee estimate (including an explicit $0 when appropriate).",
+    );
+  if (!b.uniformId && b.uniformEstimate === undefined)
+    issues.push(
+      "Select an active uniform package or enter an admin uniform fee per player (including an explicit $0 for reused uniforms).",
+    );
+  return issues;
+}
 export const offersPO = (b: FeeBudget, sport: string) => b.poEnabled ?? sport === "baseball";
 export function pendingGas(b: FeeBudget): FeeBudget {
   b = {
@@ -97,7 +129,11 @@ export function feeHealth(
   if (!b.readiness?.gas) pending.push("Review the gas stipend after the schedule.");
   if (!b.readiness?.hotels) pending.push("Review hotel stays and the nightly stipend.");
   if (!b.readiness?.other) pending.push("Review other direct costs.");
-  if (!b.uniformId && (!b.readiness?.noUniform || (b.noUniformReason || "").trim().length < 10))
+  if (
+    !b.uniformId &&
+    b.uniformEstimate === undefined &&
+    (!b.readiness?.noUniform || (b.noUniformReason || "").trim().length < 10)
+  )
     pending.push("Select a uniform package or explain why no purchase is required.");
   if (
     !b.readiness?.processing ||

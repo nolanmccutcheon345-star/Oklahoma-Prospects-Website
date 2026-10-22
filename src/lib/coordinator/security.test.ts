@@ -3681,3 +3681,52 @@ test("provider backup reviews require current owner authority and never claim an
     await db.close();
   }
 });
+
+test("coordinators see only explicitly published team prices within current roster scope", async () => {
+  const { db, sql, assign } = await fixture();
+  const { teamOperations } = await import("./team-operations.server");
+  const { feeWorkspace } = await import("../teams/fee.server");
+  const { publishedTeamFees } = await import("../teams/published-fees.server");
+  try {
+    await assign("zero", "softball", ["rosters.read"], "teams", ["soft"]);
+    await sql`insert into team_fee_plans(team_id,payload) values('soft','{"status":"draft","budget":{"privateCost":987654321},"players":{"secret":{"payments":987654321}}}')`;
+    assert.deepEqual(await teamOperations(sql, "zero", "soft"), {
+      revision: 0,
+      publishedFees: null,
+    });
+    const quote = {
+      full: 123456,
+      po: 98765,
+      fullAccess: 153456,
+      finalDue: "2027-03-01",
+      revision: 3,
+      at: "2026-10-21T12:00:00Z",
+      policy: "PRIVATE-POLICY",
+      future: "PRIVATE-FUTURE",
+    };
+    await sql`update team_fee_plans set payload=payload||${JSON.stringify({ published: quote, publishedBudget: { poEnabled: true } })}::jsonb where team_id='soft'`;
+    const view = await teamOperations(sql, "zero", "soft");
+    assert.deepEqual(view.publishedFees, {
+      full: 123456,
+      po: 98765,
+      fullAccess: 153456,
+      finalDue: quote.finalDue,
+      revision: 3,
+      at: quote.at,
+    });
+    assert.deepEqual(await publishedTeamFees(sql, "zero", "soft"), view.publishedFees);
+    assert.equal(await publishedTeamFees(sql, "zero", "base"), null);
+    assert.doesNotMatch(JSON.stringify(view), /PRIVATE|987654321|payments|budget|players/);
+    await assert.rejects(teamOperations(sql, "zero", "base"));
+    await assert.rejects(teamOperations(sql, "parent", "soft"));
+    await assert.rejects(teamOperations(sql, "anonymous", "soft"));
+    assert.deepEqual((await feeWorkspace(sql, "zero")).teams, []);
+    await assign("zero", "softball", ["teams.openings"], "teams", ["soft"]);
+    assert.equal(Object.hasOwn(await teamOperations(sql, "zero", "soft"), "publishedFees"), false);
+    await sql`update coordinator_assignments set status='suspended' where user_id='zero'`;
+    await assert.rejects(teamOperations(sql, "zero", "soft"));
+    assert.equal(await publishedTeamFees(sql, "zero", "soft"), null);
+  } finally {
+    await db.close();
+  }
+});

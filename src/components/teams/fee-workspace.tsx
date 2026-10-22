@@ -116,7 +116,9 @@ export function TeamFeeWorkspace({ teamId }: { teamId?: string }) {
   useEffect(() => {
     if (teamId) setSelected(teamId);
   }, [teamId]);
-  const team = data?.teams.find((t) => t.id === (teamId || selected)) || data?.teams[0];
+  const team = teamId
+    ? data?.teams.find((t) => t.id === teamId)
+    : data?.teams.find((t) => t.id === selected) || data?.teams[0];
   return (
     <section className="my-5 grid min-w-0 gap-4">
       <header>
@@ -313,6 +315,12 @@ function TeamPlan({
           </p>
         </Panel>
       )}
+      {!publication && team.access !== "admin" && (
+        <p role="status">
+          Player fees are awaiting Front Office publication for this team. The office must review
+          tournament fees and uniform costs before publishing.
+        </p>
+      )}
       {team.access === "coach" && team.choices && (
         <Panel title="Coach budget selections" open>
           <p className="text-sm font-semibold">
@@ -378,6 +386,11 @@ function TeamPlan({
         <>
           <Panel title="Budget defaults & approval checklist" open>
             <p>
+              Player fees stay private until an admin publishes this team's quote. Complete
+              scheduled event fees and a uniform selection, or save explicit admin estimates below.
+              Publishing another team never releases this team's fees.
+            </p>
+            <p>
               {plan.defaults
                 ? `Created from ${plan.defaults.key} · master revision ${plan.defaults.revision}. Team edits override this snapshot.`
                 : "No master snapshot. Existing budgets are unchanged; choose a row to initialize an unpublished draft."}
@@ -428,7 +441,10 @@ function TeamPlan({
                 </p>
                 {(
                   [
-                    ["schedule", "Tournament / league entries and event schedule reviewed"],
+                    [
+                      "schedule",
+                      "Tournament / league inputs (schedule or admin estimate) reviewed",
+                    ],
                     ["gas", "Season gas stipend reviewed"],
                     ["hotels", "Hotel nights and nightly stipend reviewed"],
                     ["other", "Umpires, extra coaching and other direct costs reviewed"],
@@ -448,6 +464,56 @@ function TeamPlan({
                   </label>
                 ))}
               </>
+            )}
+          </Panel>
+          <Panel title="Admin tournament & uniform estimates" open>
+            <p>
+              Use these estimates when coach selections are not ready. Each estimate replaces its
+              scheduled or package cost; it is never added twice. Save and review the calculated
+              player fees before publishing. Clear an estimate to use the completed schedule or
+              selected package.
+            </p>
+            {(
+              [
+                [
+                  "tournamentEstimate",
+                  "Use admin tournament-fee estimate",
+                  "Estimated tournament fees — team season total",
+                ],
+                [
+                  "uniformEstimate",
+                  "Use admin uniform fee per player",
+                  "Estimated uniform fee per player",
+                ],
+              ] as const
+            ).map(([key, label, amountLabel]) => (
+              <div key={key} className="grid gap-2">
+                <label className="flex min-h-11 items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={plan.budget[key] !== undefined}
+                    onChange={(e) => update({ [key]: e.target.checked ? 0 : undefined })}
+                  />
+                  {label}
+                </label>
+                {plan.budget[key] !== undefined && (
+                  <Dollars
+                    label={amountLabel}
+                    value={plan.budget[key]!}
+                    onChange={(value) => update({ [key]: value })}
+                  />
+                )}
+              </div>
+            ))}
+            <p className="text-sm">
+              An explicit $0 is allowed for no entry fees or reused uniforms. Required Team &amp;
+              Development Program Fees, organization fees, contingency and processing still apply.
+              Existing accepted agreements stay locked.
+            </p>
+            {!!team.private?.feeHealth?.pending.length && (
+              <p className="text-sm">
+                Saved draft review: {team.private.feeHealth.pending.join(" ")}
+              </p>
             )}
           </Panel>
           <label className="flex min-h-11 items-center gap-2">
@@ -1251,7 +1317,8 @@ function TeamPlan({
                     "Baseline direct team costs",
                     preview.fixed +
                       plan.budget.baseline *
-                        (plan.budget.uniformCost + plan.budget.fullIncremental),
+                        ((plan.budget.uniformEstimate ?? plan.budget.uniformCost) +
+                          plan.budget.fullIncremental),
                   ],
                   ["Protected baseline team budget", preview.protectedBudget],
                   ["Total player revenue", preview.totalRevenue],
@@ -1480,260 +1547,268 @@ function TeamPlan({
           </div>
         </>
       )}
-      <Panel title="Player payments & uniform readiness" open>
-        {!team.players.length ? (
-          <p>No roster players yet.</p>
-        ) : (
-          team.players.map((p) => (
-            <article key={p.id} className="grid gap-2 rounded-xl border p-3">
-              <h3 className="text-xl">{p.name}</h3>
-              <p>
-                {p.role === "po" ? "Pitcher only" : "Full player"} · {p.rosterStatus} · {p.status}
-                {p.signed ? " · Agreed fee" : " · Fee not yet accepted"}
-              </p>
-              <Numbers
-                rows={[
-                  ["Total fee", p.total],
-                  ["Paid", p.paid],
-                  ["Credits", p.credit],
-                  ["Remaining balance", p.balance],
-                ]}
-              />
-              {p.rows.map((r) => (
-                <p className="text-sm" key={r.label}>
-                  {r.label}: {money(r.amount)} · {r.due || "At roster acceptance"} ·{" "}
-                  {r.remaining ? money(r.remaining) + " remaining" : "Paid"}
+      {(team.access === "admin" || team.players.length > 0) && (
+        <Panel title="Player payments & uniform readiness" open>
+          {!team.players.length ? (
+            <p>No roster players yet.</p>
+          ) : (
+            team.players.map((p) => (
+              <article key={p.id} className="grid gap-2 rounded-xl border p-3">
+                <h3 className="text-xl">{p.name}</h3>
+                <p>
+                  {p.role === "po" ? "Pitcher only" : "Full player"} · {p.rosterStatus} · {p.status}
+                  {p.signed ? " · Agreed fee" : " · Fee not yet accepted"}
                 </p>
-              ))}
-              <p className="text-sm">
-                Uniform order:{" "}
-                {p.uniformReady
-                  ? "Deposit paid and roster confirmed"
-                  : "Withheld until deposit is paid and roster is confirmed"}
-                {p.uniformCutoff ? " · cutoff " + p.uniformCutoff : ""}
-              </p>
-              {team.access === "admin" &&
-                p.agreedLateFee > 0 &&
-                !p.lateFeeApplied &&
-                p.days > 0 && (
-                  <Button
-                    disabled={busy}
-                    variant="outlineDark"
-                    onClick={() => {
-                      if (
-                        window.confirm(
-                          "Apply the one-time late fee of " +
-                            money(p.agreedLateFee) +
-                            " from this family’s accepted policy?",
-                        )
-                      )
-                        void act({ ...base, action: "lateFee", playerId: p.id });
-                    }}
-                  >
-                    Review & apply agreed late fee
-                  </Button>
-                )}
-              {team.access === "admin" && p.signed && p.balance > 0 && (
-                <details>
-                  <summary className="min-h-11 cursor-pointer">
-                    Record payment received outside the website
-                  </summary>
-                  <form
-                    className="grid gap-2"
-                    onSubmit={async (e) => {
-                      e.preventDefault();
-                      const f = new FormData(e.currentTarget);
-                      setBusy(true);
-                      try {
-                        await recordTeamPayment({
-                          data: {
-                            teamId: team.id,
-                            playerId: p.id,
-                            ...(team.basisVersion === undefined
-                              ? {}
-                              : { expectedBasisVersion: team.basisVersion }),
-                            amount: Number(f.get("amount")),
-                            method: String(f.get("method")),
-                            label: String(f.get("reference")),
-                          },
-                        });
-                        await refresh();
-                        notify("External payment recorded. No card was charged.");
-                      } catch (err) {
-                        setError(err instanceof Error ? err.message : "Could not record payment.");
-                      } finally {
-                        setBusy(false);
-                      }
-                    }}
-                  >
-                    <p className="text-sm">
-                      Use only after verifying receipt. This records a payment; it does not charge a
-                      card or send an invoice.
-                    </p>
-                    <label>
-                      Amount received ($)
-                      <input
-                        name="amount"
-                        required
-                        type="number"
-                        min="0.01"
-                        step="0.01"
-                        max={p.balance / 100}
-                        className="office-control w-full"
-                      />
-                    </label>
-                    <label>
-                      Payment method
-                      <select name="method" className="office-control w-full">
-                        <option>Cash</option>
-                        <option>Check</option>
-                        <option>Square invoice</option>
-                        <option>Bank transfer</option>
-                      </select>
-                    </label>
-                    <label>
-                      Receipt / reference
-                      <input
-                        name="reference"
-                        required
-                        maxLength={200}
-                        className="office-control w-full"
-                      />
-                    </label>
-                    <Button type="submit" disabled={busy}>
-                      Record verified payment
-                    </Button>
-                  </form>
-                </details>
-              )}
-              {p.canPay && p.signed && p.balance > 0 && (
-                <TeamPayment
-                  teamId={team.id}
-                  playerId={p.id}
-                  balance={p.balance}
-                  next={p.rows.find((r) => r.remaining > 0)?.remaining || p.balance}
+                <Numbers
+                  rows={[
+                    ["Total fee", p.total],
+                    ["Paid", p.paid],
+                    ["Credits", p.credit],
+                    ["Remaining balance", p.balance],
+                  ]}
                 />
-              )}
-              {p.acceptedPolicy && (
-                <details>
-                  <summary>Accepted payment policy</summary>
-                  <p className="whitespace-pre-wrap text-sm">{p.acceptedPolicy}</p>
-                </details>
-              )}
-              {p.uniformReleasedAt ? (
-                <p>Uniform released for ordering: {p.uniformReleasedAt.slice(0, 10)}</p>
-              ) : (
-                team.access === "admin" && (
-                  <Button
-                    disabled={busy || !p.uniformReady || !p.signed}
-                    variant="outlineDark"
-                    onClick={() => void act({ ...base, action: "releaseUniform", playerId: p.id })}
-                  >
-                    Release uniform for ordering
-                  </Button>
-                )
-              )}
-              {team.access === "admin" && (
-                <label>
-                  Roster action
-                  <select
-                    className="office-control w-full"
-                    disabled={busy}
-                    value={p.rosterStatus}
-                    onChange={(e) => {
-                      const status = e.target.value as
-                        "Confirmed" | "Roster Hold" | "Removed" | "Invited";
-                      const note = window.prompt(
-                        "Reason for this roster action (recorded in the audit history)",
-                      );
-                      if (note)
-                        void act({ ...base, action: "roster", playerId: p.id, status, note });
-                    }}
-                  >
-                    <option>Invited</option>
-                    <option>Confirmed</option>
-                    <option>Roster Hold</option>
-                    <option>Removed</option>
-                  </select>
-                </label>
-              )}
-              {team.access === "admin" && !p.signed && (
-                <label>
-                  Player fee type
-                  <select
-                    className="office-control w-full"
-                    disabled={busy}
-                    value={p.role}
-                    onChange={(e) =>
-                      void act({
-                        ...base,
-                        action: "playerRole",
-                        playerId: p.id,
-                        role: e.target.value as "full" | "po",
-                      })
-                    }
-                  >
-                    <option value="full">Full player</option>
-                    {canPO && <option value="po">Pitcher only</option>}
-                  </select>
-                </label>
-              )}
-              {p.canAccept && !p.signed && publication && (
-                <div className="grid gap-2">
-                  {p.role === "full" && publication.fullAccess !== undefined && (
+                {p.rows.map((r) => (
+                  <p className="text-sm" key={r.label}>
+                    {r.label}: {money(r.amount)} · {r.due || "At roster acceptance"} ·{" "}
+                    {r.remaining ? money(r.remaining) + " remaining" : "Paid"}
+                  </p>
+                ))}
+                <p className="text-sm">
+                  Uniform order:{" "}
+                  {p.uniformReady
+                    ? "Deposit paid and roster confirmed"
+                    : "Withheld until deposit is paid and roster is confirmed"}
+                  {p.uniformCutoff ? " · cutoff " + p.uniformCutoff : ""}
+                </p>
+                {team.access === "admin" &&
+                  p.agreedLateFee > 0 &&
+                  !p.lateFeeApplied &&
+                  p.days > 0 && (
+                    <Button
+                      disabled={busy}
+                      variant="outlineDark"
+                      onClick={() => {
+                        if (
+                          window.confirm(
+                            "Apply the one-time late fee of " +
+                              money(p.agreedLateFee) +
+                              " from this family’s accepted policy?",
+                          )
+                        )
+                          void act({ ...base, action: "lateFee", playerId: p.id });
+                      }}
+                    >
+                      Review & apply agreed late fee
+                    </Button>
+                  )}
+                {team.access === "admin" && p.signed && p.balance > 0 && (
+                  <details>
+                    <summary className="min-h-11 cursor-pointer">
+                      Record payment received outside the website
+                    </summary>
+                    <form
+                      className="grid gap-2"
+                      onSubmit={async (e) => {
+                        e.preventDefault();
+                        const f = new FormData(e.currentTarget);
+                        setBusy(true);
+                        try {
+                          await recordTeamPayment({
+                            data: {
+                              teamId: team.id,
+                              playerId: p.id,
+                              ...(team.basisVersion === undefined
+                                ? {}
+                                : { expectedBasisVersion: team.basisVersion }),
+                              amount: Number(f.get("amount")),
+                              method: String(f.get("method")),
+                              label: String(f.get("reference")),
+                            },
+                          });
+                          await refresh();
+                          notify("External payment recorded. No card was charged.");
+                        } catch (err) {
+                          setError(
+                            err instanceof Error ? err.message : "Could not record payment.",
+                          );
+                        } finally {
+                          setBusy(false);
+                        }
+                      }}
+                    >
+                      <p className="text-sm">
+                        Use only after verifying receipt. This records a payment; it does not charge
+                        a card or send an invoice.
+                      </p>
+                      <label>
+                        Amount received ($)
+                        <input
+                          name="amount"
+                          required
+                          type="number"
+                          min="0.01"
+                          step="0.01"
+                          max={p.balance / 100}
+                          className="office-control w-full"
+                        />
+                      </label>
+                      <label>
+                        Payment method
+                        <select name="method" className="office-control w-full">
+                          <option>Cash</option>
+                          <option>Check</option>
+                          <option>Square invoice</option>
+                          <option>Bank transfer</option>
+                        </select>
+                      </label>
+                      <label>
+                        Receipt / reference
+                        <input
+                          name="reference"
+                          required
+                          maxLength={200}
+                          className="office-control w-full"
+                        />
+                      </label>
+                      <Button type="submit" disabled={busy}>
+                        Record verified payment
+                      </Button>
+                    </form>
+                  </details>
+                )}
+                {p.canPay && p.signed && p.balance > 0 && (
+                  <TeamPayment
+                    teamId={team.id}
+                    playerId={p.id}
+                    balance={p.balance}
+                    next={p.rows.find((r) => r.remaining > 0)?.remaining || p.balance}
+                  />
+                )}
+                {p.acceptedPolicy && (
+                  <details>
+                    <summary>Accepted payment policy</summary>
+                    <p className="whitespace-pre-wrap text-sm">{p.acceptedPolicy}</p>
+                  </details>
+                )}
+                {p.uniformReleasedAt ? (
+                  <p>Uniform released for ordering: {p.uniformReleasedAt.slice(0, 10)}</p>
+                ) : (
+                  team.access === "admin" && (
+                    <Button
+                      disabled={busy || !p.uniformReady || !p.signed}
+                      variant="outlineDark"
+                      onClick={() =>
+                        void act({ ...base, action: "releaseUniform", playerId: p.id })
+                      }
+                    >
+                      Release uniform for ordering
+                    </Button>
+                  )
+                )}
+                {team.access === "admin" && (
+                  <label>
+                    Roster action
+                    <select
+                      className="office-control w-full"
+                      disabled={busy}
+                      value={p.rosterStatus}
+                      onChange={(e) => {
+                        const status = e.target.value as
+                          "Confirmed" | "Roster Hold" | "Removed" | "Invited";
+                        const note = window.prompt(
+                          "Reason for this roster action (recorded in the audit history)",
+                        );
+                        if (note)
+                          void act({ ...base, action: "roster", playerId: p.id, status, note });
+                      }}
+                    >
+                      <option>Invited</option>
+                      <option>Confirmed</option>
+                      <option>Roster Hold</option>
+                      <option>Removed</option>
+                    </select>
+                  </label>
+                )}
+                {team.access === "admin" && !p.signed && (
+                  <label>
+                    Player fee type
+                    <select
+                      className="office-control w-full"
+                      disabled={busy}
+                      value={p.role}
+                      onChange={(e) =>
+                        void act({
+                          ...base,
+                          action: "playerRole",
+                          playerId: p.id,
+                          role: e.target.value as "full" | "po",
+                        })
+                      }
+                    >
+                      <option value="full">Full player</option>
+                      {canPO && <option value="po">Pitcher only</option>}
+                    </select>
+                  </label>
+                )}
+                {p.canAccept && !p.signed && publication && (
+                  <div className="grid gap-2">
+                    {p.role === "full" && publication.fullAccess !== undefined && (
+                      <label className="flex gap-2">
+                        <input
+                          type="checkbox"
+                          checked={Boolean(accessChoices[p.id])}
+                          onChange={(e) => {
+                            setAccessChoices({ ...accessChoices, [p.id]: e.target.checked });
+                            setConsent(false);
+                          }}
+                        />
+                        Optional Individual Facility Access Upgrade: +
+                        {money(publication.individualAccessMonthly || 0)}/month ×{" "}
+                        {publication.billableMonths} months. Season total with processing:{" "}
+                        {money(accessChoices[p.id] ? publication.fullAccess : publication.full)}.
+                      </label>
+                    )}
+                    {p.role === "full" && accessChoices[p.id] && p.upgradeRows?.length > 0 && (
+                      <p className="text-sm">
+                        Upgrade payment schedule:{" "}
+                        {p.upgradeRows
+                          .map(
+                            (r) => `${r.label}: ${money(r.amount)} · ${r.due || "at acceptance"}`,
+                          )
+                          .join("; ")}
+                      </p>
+                    )}
+                    <Field label="Guardian full name" value={name} onChange={setName} />
                     <label className="flex gap-2">
                       <input
                         type="checkbox"
-                        checked={Boolean(accessChoices[p.id])}
-                        onChange={(e) => {
-                          setAccessChoices({ ...accessChoices, [p.id]: e.target.checked });
-                          setConsent(false);
-                        }}
-                      />
-                      Optional Individual Facility Access Upgrade: +
-                      {money(publication.individualAccessMonthly || 0)}/month ×{" "}
-                      {publication.billableMonths} months. Season total with processing:{" "}
-                      {money(accessChoices[p.id] ? publication.fullAccess : publication.full)}.
+                        checked={consent}
+                        onChange={(e) => setConsent(e.target.checked)}
+                      />{" "}
+                      I accept the published fee, payment schedule, and payment/refund policy above.
                     </label>
-                  )}
-                  {p.role === "full" && accessChoices[p.id] && p.upgradeRows?.length > 0 && (
-                    <p className="text-sm">
-                      Upgrade payment schedule:{" "}
-                      {p.upgradeRows
-                        .map((r) => `${r.label}: ${money(r.amount)} · ${r.due || "at acceptance"}`)
-                        .join("; ")}
-                    </p>
-                  )}
-                  <Field label="Guardian full name" value={name} onChange={setName} />
-                  <label className="flex gap-2">
-                    <input
-                      type="checkbox"
-                      checked={consent}
-                      onChange={(e) => setConsent(e.target.checked)}
-                    />{" "}
-                    I accept the published fee, payment schedule, and payment/refund policy above.
-                  </label>
-                  <Button
-                    disabled={busy || !consent || name.trim().length < 3}
-                    onClick={() =>
-                      void act({
-                        ...base,
-                        action: "accept",
-                        playerId: p.id,
-                        consent: true,
-                        name,
-                        individualAccess: p.role === "full" && Boolean(accessChoices[p.id]),
-                      })
-                    }
-                  >
-                    Accept season fee
-                  </Button>
-                </div>
-              )}
-            </article>
-          ))
-        )}
-      </Panel>
+                    <Button
+                      disabled={busy || !consent || name.trim().length < 3}
+                      onClick={() =>
+                        void act({
+                          ...base,
+                          action: "accept",
+                          playerId: p.id,
+                          consent: true,
+                          name,
+                          individualAccess: p.role === "full" && Boolean(accessChoices[p.id]),
+                        })
+                      }
+                    >
+                      Accept season fee
+                    </Button>
+                  </div>
+                )}
+              </article>
+            ))
+          )}
+        </Panel>
+      )}
     </div>
   );
 }

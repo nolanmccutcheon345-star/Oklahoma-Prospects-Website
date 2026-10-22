@@ -29,6 +29,14 @@ export const seasonNames = {
 };
 export const matrixRow = z
   .object({
+    ...poAllocationFields,
+    membershipMonthly: money.optional(),
+    individualAccessMonthly: money.optional(),
+    standaloneAccessMonthly: money.optional(),
+    baseline: z.number().int().min(1).max(100).optional(),
+    contingencyBps: z.number().int().min(0).max(10000).optional(),
+    hotelNightly: money.optional(),
+    roundTo: money.optional(),
     sport: z.enum(["baseball", "softball"]),
     age: z.number().int().min(6).max(17),
     season: z.enum(seasons),
@@ -210,6 +218,29 @@ export function matchMatrix(
     master.rows.find((r) => r.age === age && r.sport === team.sport && r.season === season) || null
   );
 }
+// Row overrides take precedence; blank rows inherit saved common defaults.
+// These values seed new drafts only and never reprice a published agreement.
+export function resolveMatrixPricing(master: MasterMatrix, row: MatrixRow) {
+  const po = Object.fromEntries(
+    Object.keys(poDefaults).map((k) => [
+      k,
+      row[k as keyof typeof poDefaults] ??
+        master[k as keyof typeof poDefaults] ??
+        poDefaults[k as keyof typeof poDefaults],
+    ]),
+  ) as typeof poDefaults;
+  return {
+    ...po,
+    membershipMonthly: row.membershipMonthly ?? master.membershipMonthly,
+    individualAccessMonthly: row.individualAccessMonthly ?? master.individualAccessMonthly ?? 5000,
+    standaloneAccessMonthly: row.standaloneAccessMonthly ?? master.standaloneAccessMonthly ?? 8000,
+    baseline: row.baseline ?? master.baseline,
+    contingencyBps: row.contingencyBps ?? master.contingencyBps,
+    hotelNightly: row.hotelNightly ?? master.hotelNightly,
+    roundTo: row.roundTo ?? master.roundTo,
+    poOverrideReason: row.poOverrideReason ?? master.poOverrideReason,
+  };
+}
 export function budgetFromMatrix(team: Team, master: MasterMatrix, row: MatrixRow): FeeBudget {
   const b = defaultBudget();
   const amounts: Record<string, number> = {
@@ -229,22 +260,9 @@ export function budgetFromMatrix(team: Team, master: MasterMatrix, row: MatrixRo
     end: team.seasonEnd,
     months: row.months,
     defaultMonths: row.months,
-    individualAccessMonthly: master.individualAccessMonthly ?? 5000,
-    standaloneAccessMonthly: master.standaloneAccessMonthly ?? 8000,
-    baseline: master.baseline,
-    membershipMonthly: master.membershipMonthly,
-    contingencyBps: master.contingencyBps,
-    hotelNightly: master.hotelNightly,
-    roundTo: master.roundTo,
+    ...resolveMatrixPricing(master, row),
     fullOrg: row.organization,
     poOrg: row.poOrganization ?? defaultPOOrganization(row.organization),
-    ...Object.fromEntries(
-      Object.keys(poDefaults).map((k) => [
-        k,
-        master[k as keyof typeof poDefaults] ?? poDefaults[k as keyof typeof poDefaults],
-      ]),
-    ),
-    poOverrideReason: master.poOverrideReason,
     costs: b.costs.map((c) => ({
       ...c,
       id:

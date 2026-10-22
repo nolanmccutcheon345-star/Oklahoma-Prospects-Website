@@ -153,6 +153,26 @@ async function sourceInTransaction(tx: Sql): Promise<FinancialReadContext> {
   };
 }
 
+/** Internal projection for a caller that has locked current team-scoped access.
+ * Does not grant a financial principal or expose costs, policies or player accounts. */
+export async function publishedTeamPriceInTransaction(tx: Sql, teamId: string) {
+  const source = await sourceInTransaction(tx);
+  const team = source.club.teams.find((t) => t.id === teamId);
+  const plan = source.feePlans.find((p) => p.team_id === teamId)?.payload;
+  const published = plan?.published;
+  if (!team || !published) return null;
+  return {
+    full: published.full,
+    ...(published.fullAccess === undefined ? {} : { fullAccess: published.fullAccess }),
+    ...((plan.publishedBudget?.poEnabled ?? plan.budget.poEnabled ?? team.sport === "baseball")
+      ? { po: published.po }
+      : {}),
+    finalDue: published.finalDue,
+    revision: published.revision,
+    at: published.at,
+  };
+}
+
 export async function loadFinancialContextInTransaction(
   tx: Sql,
   userId: string,

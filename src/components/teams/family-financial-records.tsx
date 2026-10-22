@@ -10,14 +10,19 @@ export function FamilyFinancialRecords({
   financial: TeamFinancialView;
   familyId: string;
 }) {
-  const obligations = financial.owner
+  const visible = financial.owner
     ? financial.obligations.filter((p) => p.familyId === familyId)
     : financial.obligations;
+  const obligations = visible.filter((p) => p.feeLock);
   if (!obligations.length)
     return (
-      <p className="rounded-xl bg-paper-2 p-4 text-sm">
-        No team financial agreement is linked to this account.
-      </p>
+      <section className="grid gap-3">
+        <TeamFeeWorkspace />
+        <p className="rounded-xl bg-paper-2 p-4 text-sm">
+          No accepted team fee is on file. Player fees appear only after Front Office publishes them
+          for your team.
+        </p>
+      </section>
     );
   return (
     <section className="grid gap-3" aria-label="Family financial agreements">
@@ -33,7 +38,7 @@ export function FamilyFinancialRecords({
             <ul className="mt-2 text-sm">
               <li>Team and event costs {money(p.feeLock.components.teamAndEvents ?? 0)}</li>
               <li>Coaching and instruction {money(p.feeLock.components.coaching ?? 0)}</li>
-              <li>Program and membership {money(p.feeLock.components.program ?? 0)}</li>
+              <li>Organization + Team &amp; Development Program {money(p.feeLock.components.program ?? 0)}</li>
               <li>Uniform {money(p.feeLock.components.uniform ?? 0)}</li>
             </ul>
           )}

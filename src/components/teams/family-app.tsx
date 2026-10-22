@@ -20,7 +20,7 @@ const copy = {
     docs: "Documents",
     uniform: "Uniform",
     avail: "Availability",
-    member: "Membership includes",
+    member: "Team & Development Program includes",
     fund: "Fundraising",
     sib: "Siblings",
     cage: "Cage credits",
@@ -32,7 +32,7 @@ const copy = {
     docs: "Documentos",
     uniform: "Uniforme",
     avail: "Disponibilidad",
-    member: "La membresía incluye",
+    member: "El programa de equipo y desarrollo incluye",
     fund: "Recaudación",
     sib: "Hermanos",
     cage: "Créditos de jaula",
@@ -113,7 +113,7 @@ export function FamilyApp({
   return (
     <div className="grid gap-3">
       {financial&&<FamilyFinancialRecords financial={financial} familyId={familyId}/>}
-      {!financial&&!isPlayer&&<TeamFeeWorkspace teamId={team.id}/>}
+      {!financial&&<TeamFeeWorkspace teamId={team.id}/>}
       <TeamActivities key={team.id} teamId={team.id} onSaved={onReload}/>
       {mine.length > 1 ? (
         <div className="flex flex-wrap gap-2">
@@ -150,7 +150,7 @@ export function FamilyApp({
         ))}
       </div>
 
-      {!financial && (!isPlayer ? (
+      {!financial && player.feeLock && (!isPlayer ? (
         <Section title={t.pay} defaultOpen>
           <p className="font-display text-4xl">{money(due)}</p>
           <p className="text-sm text-muted">
@@ -160,7 +160,7 @@ export function FamilyApp({
             <ul className="mt-2 text-sm">
               <li>Team and event costs {money(player.feeLock.components.teamAndEvents ?? 0)}</li>
               <li>Coaching and instruction {money(player.feeLock.components.coaching ?? 0)}</li>
-              <li>Program and membership {money(player.feeLock.components.program ?? 0)}</li>
+              <li>Organization + Team &amp; Development Program {money(player.feeLock.components.program ?? 0)}</li>
               <li>Uniform {money(player.feeLock.components.uniform ?? 0)}</li>
             </ul>
           ) : null}
@@ -255,12 +255,12 @@ export function FamilyApp({
 
       <Section title={t.member}>
         <ul className="list-disc pl-5 text-sm">
-          <li>Weekly cage time</li>
-          <li>Development app access</li>
-          <li>Practices and instruction</li>
-          <li>Member pricing</li>
-          <li>Recruiting support</li>
+          <li>Scheduled team facility use</li>
+          <li>Strength, athletic development, throwing and arm-care programming through the platform</li>
+          <li>Player-, position- and age-specific programming when assigned</li>
+          <li>Drill assignments, tracking, coach access and development history</li>
         </ul>
+        <p className="mt-2 text-sm">Individual Facility Access is an optional upgrade for full players, shown separately in the published player fee.</p>
       </Section>
 
       {!financial&&<Section title={t.fund}>

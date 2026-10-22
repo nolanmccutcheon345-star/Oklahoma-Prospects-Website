@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { getBudgetMaster, saveBudgetMaster } from "@/lib/teams/fee-api";
 import {
   rowKey,
+  resolveMatrixPricing,
   seasonNames,
   allocateMonthlyBusiness,
   type MasterMatrix,
@@ -70,6 +71,35 @@ export function BudgetMasterEditor({ teams }: { teams: Teams }) {
       />
     </label>
   );
+  const inherited = resolveMatrixPricing(m, {
+    ...row,
+    membershipMonthly: undefined,
+    poMembershipMonthly: undefined,
+    individualAccessMonthly: undefined,
+    standaloneAccessMonthly: undefined,
+    baseline: undefined,
+    contingencyBps: undefined,
+    hotelNightly: undefined,
+    roundTo: undefined,
+    poTeamBps: undefined,
+    poUniformBps: undefined,
+    poContingencyBps: undefined,
+    poProcessingBps: undefined,
+  });
+  const overrides = [
+    ["membershipMonthly", "Team & Development Program Fee per full player per month ($)", 100],
+    ["poMembershipMonthly", "Team & Development Program Fee per PO per month ($)", 100],
+    ["individualAccessMonthly", "Optional Individual Facility Access Upgrade per month ($)", 100],
+    ["standaloneAccessMonthly", "Standalone individual access reference per month ($)", 100],
+    ["baseline", "Baseline full-paying players", 1],
+    ["contingencyBps", "Team Contingency (%)", 100],
+    ["hotelNightly", "Hotel stipend per night ($)", 100],
+    ["roundTo", "Round player fee upward to ($)", 100],
+    ["poTeamBps", "PO team-cost allocation (%)", 100],
+    ["poUniformBps", "PO uniform allocation (%)", 100],
+    ["poContingencyBps", "PO Team Contingency allocation (%)", 100],
+    ["poProcessingBps", "PO processing allocation (%)", 100],
+  ] as const;
   const eligible = teams.filter(
     (t) =>
       !t.closed &&
@@ -166,6 +196,49 @@ export function BudgetMasterEditor({ teams }: { teams: Teams }) {
             ),
           )}
         </div>
+        <fieldset className="grid gap-3 rounded-lg border border-line p-3">
+          <legend className="px-1 font-semibold">
+            Pricing overrides for {row.sport} · {row.age}U · {seasonNames[row.season]}
+          </legend>
+          <p className="text-sm">
+            Blank means inherit the saved common default. Enter an override only for this age, sport
+            and season; zero is a real override. Saving changes future team defaults. Existing
+            drafts use Apply master defaults; accepted fees stay locked.
+          </p>
+          <div className="grid gap-3 sm:grid-cols-2">
+            {overrides.map(([k, label, scale]) => (
+              <label key={k} className="grid gap-1 text-sm">
+                Row {label} — blank inherits common
+                <input
+                  className="office-control min-w-0 w-full"
+                  type="number"
+                  min={0}
+                  step={scale === 100 ? "0.01" : "1"}
+                  placeholder={String(inherited[k] / scale)}
+                  value={row[k] === undefined ? "" : String(row[k]! / scale)}
+                  onChange={(e) =>
+                    cell({
+                      [k]:
+                        e.target.value === ""
+                          ? undefined
+                          : Math.round(Number(e.target.value) * scale),
+                    })
+                  }
+                />
+                <span className="text-xs">Common default: {inherited[k] / scale}</span>
+              </label>
+            ))}
+          </div>
+          <label className="grid gap-1 text-sm">
+            Row reason for PO subsidy / allocation override
+            <textarea
+              className="office-control w-full"
+              value={row.poOverrideReason || ""}
+              placeholder={m.poOverrideReason || "Inherit common admin reason"}
+              onChange={(e) => cell({ poOverrideReason: e.target.value || undefined })}
+            />
+          </label>
+        </fieldset>
         {field(
           "PO organization fee for this age / season ($)",
           row.poOrganization ?? defaultPOOrganization(row.organization),
@@ -189,13 +262,16 @@ export function BudgetMasterEditor({ teams }: { teams: Teams }) {
         </label>
         <h3>Common defaults</h3>
         <p className="text-sm">
-          The required $150 Team & Development Program Fee includes scheduled team facility use and
-          platform development programming, administered through normal team coaching with no
-          automatic direct labor charge. The optional +$50 Individual Facility Access Upgrade is
-          separate and is not offered to PO players. The $80 standalone retail reference is excluded
-          from all team-price calculations. Pricing uses actual team dates and any authorized
-          billable-month override. Team Contingency is 15% of direct costs, separate from the
-          $24,000 business operating reserve.
+          The common required {money(m.membershipMonthly)} / month Team & Development Program Fee
+          includes scheduled team facility use and platform development programming, administered
+          through normal team coaching with no automatic direct labor charge. The optional +
+          {money(m.individualAccessMonthly ?? 5000)} / month Individual Facility Access Upgrade is
+          separate and is not offered to PO players. The {money(m.standaloneAccessMonthly ?? 8000)}{" "}
+          standalone retail reference is excluded from all team-price calculations. Pricing uses
+          actual team dates and any authorized billable-month override. Team Contingency is{" "}
+          {m.contingencyBps / 100}% of direct costs, separate from the
+          {money(m.reserveTarget)} business operating reserve target. All amounts here are editable;
+          row overrides take precedence over common defaults.
         </p>
         <div className="grid gap-3 sm:grid-cols-2">
           {field("Baseline full-paying players", m.baseline, (n) => patch({ baseline: n }), 1)}
@@ -414,8 +490,8 @@ export function BudgetMasterEditor({ teams }: { teams: Teams }) {
           team's season dates. Season contribution is spread across its configured months. Overhead
           uses each team’s override or the master contribution rule. Automatic shares use
           paying-player counts. Reserve uses positive contribution, is limited by net funds and the
-          remaining target, and is separate from 15% team contingency. Enter the actual reserve
-          balance above; these estimates do not transfer money.
+          remaining target, and is separate from {m.contingencyBps / 100}% Team Contingency. Enter
+          the actual reserve balance above; these estimates do not transfer money.
         </p>
         {report.rows.map((r) => (
           <p key={r.id}>

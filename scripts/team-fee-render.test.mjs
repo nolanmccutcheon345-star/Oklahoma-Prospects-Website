@@ -161,6 +161,16 @@ test(`team fee UI saves admin drafts and offers only permitted coach controls ($
         .click(),
     );
     assert.match(host.textContent, /Example Parent per month/);
+    assert.match(host.textContent, /Pricing overrides for softball · 14U · Spring/);
+    const override = [...host.querySelectorAll("label")].find(l => l.textContent.startsWith("Row Team & Development Program Fee per full player per month")).querySelector("input");
+    assert.equal(override.value, "");
+    assert.equal(override.placeholder, "150");
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(dom.window.HTMLInputElement.prototype, "value").set.call(override, "175");
+      override.dispatchEvent(new dom.window.Event("input", { bubbles: true }));
+      override.dispatchEvent(new dom.window.Event("change", { bubbles: true }));
+    });
+
 
     await act(async () =>
       [...host.querySelectorAll("button")]
@@ -168,6 +178,8 @@ test(`team fee UI saves admin drafts and offers only permitted coach controls ($
         .click(),
     );
     assert.equal(globalThis.__matrixSaved.value.rows.length, 120);
+    assert.equal(globalThis.__matrixSaved.value.rows.find(r => r.sport === "softball" && r.age === 14 && r.season === "springSummer").membershipMonthly, 17500);
+    assert.equal(globalThis.__matrixSaved.value.rows.find(r => r.sport === "baseball" && r.age === 14 && r.season === "springSummer").membershipMonthly, undefined);
     assert.equal(globalThis.__matrixSaved.value.overheadRule.monthly, 50000);
     assert.equal(globalThis.__matrixSaved.value.payroll[0].userId, "parent");
     assert.equal(Object.hasOwn(globalThis.__matrixSaved, "basisVersion"), basisVersion !== undefined);
@@ -186,12 +198,27 @@ test(`team fee UI saves admin drafts and offers only permitted coach controls ($
     assert.match(host.textContent, /Actual Billable Months/);
     assert.match(host.textContent, /Optional Individual Facility Access Upgrade/);
     assert.match(host.textContent, /Standard standalone individual access/);
+    for (const [toggle, label, dollars] of [
+      ["Use admin tournament-fee estimate", "Estimated tournament fees — team season total", "1500"],
+      ["Use admin uniform fee per player", "Estimated uniform fee per player", "125"],
+    ]) {
+      const checkbox = [...host.querySelectorAll("label")].find(l => l.textContent.trim() === toggle).querySelector("input");
+      await act(async () => checkbox.click());
+      const input = [...host.querySelectorAll("label")].find(l => l.textContent.startsWith(label)).querySelector("input");
+      await act(async () => {
+        Object.getOwnPropertyDescriptor(dom.window.HTMLInputElement.prototype, "value").set.call(input, dollars);
+        input.dispatchEvent(new dom.window.Event("input", { bubbles: true }));
+        input.dispatchEvent(new dom.window.Event("change", { bubbles: true }));
+      });
+    }
     const save = [...host.querySelectorAll("button")].find(
       (b) => b.textContent === "Save draft & expenses",
     );
     await act(async () => save.click());
     assert.equal(fixture.saved[0].action, "save");
     assert.equal(fixture.saved[0].budget.membershipMonthly, 15000);
+    assert.equal(fixture.saved[0].budget.tournamentEstimate, 150000);
+    assert.equal(fixture.saved[0].budget.uniformEstimate, 12500);
     assert.equal(Object.hasOwn(fixture.saved[0], "basisVersion"), basisVersion !== undefined);
     assert.equal(fixture.saved[0].basisVersion, basisVersion);
     const poToggle = [...host.querySelectorAll("label")]
@@ -273,6 +300,21 @@ test(`team fee UI saves admin drafts and offers only permitted coach controls ($
       });
       assert.doesNotMatch(host.textContent, /Master budget defaults|private pricing assumptions|Projected distributable|Nolan ownership|Vendor cost/);
     }
+    await act(async () => root.unmount());
+    fixture.data = {
+      admin: false,
+      teams: [{ ...team, access: "family", private: null, choices: null, players: [] }],
+      business: null,
+    };
+    root = createRoot(host);
+    await act(async () => root.render(createElement(TeamFeeWorkspace, { teamId: "other-team" })));
+    assert.match(host.textContent, /No assigned teams are available/);
+    assert.doesNotMatch(host.textContent, /Example team|\$[0-9]/);
+    await act(async () => root.unmount());
+    root = createRoot(host);
+    await act(async () => root.render(createElement(TeamFeeWorkspace, { teamId: "team" })));
+    assert.match(host.textContent, /Player fees are awaiting Front Office publication/);
+    assert.doesNotMatch(host.textContent, /\$[0-9]|Total fee|Admin tournament & uniform estimates/);
   } finally {
     await act(async () => root.unmount());
     dom.window.close();
