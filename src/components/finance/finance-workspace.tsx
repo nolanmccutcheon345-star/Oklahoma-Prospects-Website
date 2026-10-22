@@ -1184,8 +1184,8 @@ export function FinanceWorkspace() {
           {s.unverifiedReceivables > 0 && (
             <p role="status" className="rounded border p-3">
               {s.unverifiedReceivables} invoice balance(s) need provider review and are excluded
-              from the known-balance totals. Review the invoice in Square; financial certification
-              remains blocked until the balance is verified.
+              from the known-balance totals. Review the invoice with its original payment provider;
+              financial certification remains blocked until the balance is verified.
             </p>
           )}
           <Form
@@ -1226,7 +1226,8 @@ export function FinanceWorkspace() {
                   {r.customer} · {r.category}
                 </h3>
                 <p>
-                  {r.status} · Due {r.due || "Review date"} · Billed {money(r.amount)} · Cash paid{" "}
+                  {r.status} · Due {r.due || "Review date"} · Billed{" "}
+                  {r.amount == null ? "Needs verification" : money(r.amount)} · Cash paid{" "}
                   {r.paid == null ? "Needs verification" : money(r.paid)} · Credits / adjustments{" "}
                   {money(r.credits || 0)} · Remaining{" "}
                   {r.remaining == null ? "Needs verification" : money(r.remaining)}

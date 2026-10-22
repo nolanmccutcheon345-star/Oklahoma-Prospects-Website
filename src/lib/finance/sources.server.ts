@@ -28,7 +28,7 @@ export async function sourceData(
    coalesce((select sum(p.amount_cents) from square_payments p where p.order_id=o.id and p.status='COMPLETED'),0) as received,
    coalesce((select sum(p.refunded_cents) from square_payments p where p.order_id=o.id),0)+coalesce((select sum(r.amount_cents) from commerce_refunds r where r.order_id=o.id and r.external_status='reconciled'),0) as refunded
    from booking_records b left join contractor_earnings e on b.id=e.booking_id join commerce_orders o on o.id=b.order_id where (${context.mode === "basis"} or b.status='completed' or e.booking_id is not null) and (o.payment_provider<>'square' or o.payment_environment='production')`,
-      sql<any>`select i.*,coalesce(u.name,u.email,'Customer') as customer,
+      sql<any>`select i.*,o.payment_provider,coalesce(u.name,u.email,'Customer') as customer,
         coalesce((select sum(p.amount_cents) from square_payments p where p.invoice_id=i.id and p.order_id=o.id and p.environment='production' and p.status='COMPLETED'),0) as received,
         coalesce((select sum(p.refunded_cents) from square_payments p where p.invoice_id=i.id and p.order_id=o.id and p.environment='production'),0) as refunded
         from billing_invoices i
@@ -544,6 +544,7 @@ export async function sourceData(
     // Old partial invoices without verified payment detail remain unknown until
     // the provider is refreshed. Never claim their whole amount is still owed.
     const knownBalance =
+      i.payment_provider === "square" &&
       !refunded &&
       received <= i.amount_cents &&
       (["unpaid", "open", "failed", "payment_failed", "uncollectible"].includes(status) ||
@@ -557,7 +558,7 @@ export async function sourceData(
       customer: i.customer,
       category: "membership",
       teamId: "",
-      amount: i.amount_cents,
+      amount: i.payment_provider === "square" ? i.amount_cents : null,
       paid: knownBalance ? received : null,
       remaining: knownBalance ? i.amount_cents - received : null,
       needsReview: !knownBalance,

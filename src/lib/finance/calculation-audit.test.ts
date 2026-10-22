@@ -188,6 +188,13 @@ test("organization source calculations use cash, credits, actual roster costs an
         }
       },
     );
+    await t.test("legacy invoice amounts are not assumed to be unpaid balances", async () => {
+      await sql`update commerce_orders set payment_provider='stripe' where id='live'`;
+      await sql`update billing_invoices set amount_cents=0 where id='live'`;
+      const { receivables, warnings } = await view();
+      assert.equal(receivables.find((r) => r.id === "invoice:live")?.remaining, null);
+      assert.match(warnings.join(" "), /Invoice live.*review/);
+    });
   } finally {
     await db.close();
   }
