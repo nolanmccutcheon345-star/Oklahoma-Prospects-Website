@@ -18,6 +18,10 @@ Existing booking and subscription checkout remains on Square. Guardians can now 
 
 Existing invoices and accepted team schedules feed receivables. Abandoned checkouts are not debts. Other issued customer obligations can be recorded manually, with immutable credit/write-off adjustments. Recording an invoice here does not send a message or initiate a charge.
 
+Cash paid and credits/write-offs are shown separately. Sandbox and draft/scheduled subscription invoices do not enter production receivables. Verified partial subscription receipts reduce the invoice balance without granting benefits early. Older partial invoices with missing payment details remain explicitly unverified until refreshed from Square; they are excluded from known-balance totals and block financial certification.
+
+Square & Refunds includes collections by source: gross, recorded Square refunds, known processing fees and collections after fees. Missing processing fees are not treated as zero. These are provider collection totals, not profit; merchandise costs, taxes, external reimbursements, manual receipts and operating costs stay in their respective ledgers. Complete historical imports and bank reconciliation are still required.
+
 Family Billing can save a Square-tokenized backup card with explicit consent. The customer must separately authorize making it primary. **Automatic backup retries are not enabled.** Existing Square renewal and invoice recovery workflows remain responsible for collection. Login remains available during payment problems.
 
 ## Outgoing money

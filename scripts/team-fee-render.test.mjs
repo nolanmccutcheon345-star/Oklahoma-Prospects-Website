@@ -199,8 +199,8 @@ test(`team fee UI saves admin drafts and offers only permitted coach controls ($
     assert.match(host.textContent, /Optional Individual Facility Access Upgrade/);
     assert.match(host.textContent, /Standard standalone individual access/);
     for (const [toggle, label, dollars] of [
-      ["Use admin tournament-fee estimate", "Estimated tournament fees — team season total", "1500"],
-      ["Use admin uniform fee per player", "Estimated uniform fee per player", "125"],
+      ["Use admin tournament-fee estimate", "Estimated tournament fees — team season total", "7750"],
+      ["Use admin uniform fee per player", "Estimated uniform fee per player", "250"],
     ]) {
       const checkbox = [...host.querySelectorAll("label")].find(l => l.textContent.trim() === toggle).querySelector("input");
       await act(async () => checkbox.click());
@@ -211,14 +211,19 @@ test(`team fee UI saves admin drafts and offers only permitted coach controls ($
         input.dispatchEvent(new dom.window.Event("change", { bubbles: true }));
       });
     }
+    assert.match(host.textContent, /Live unsaved draft/);
+    assert.match(host.textContent, /Where the team-cost amount comes from/);
+    assert.match(host.textContent, /Tournament source: admin estimate/);
+    assert.match(host.textContent, /\$7,750\.00/);
+    assert.match(host.textContent, /\$250\.00/);
     const save = [...host.querySelectorAll("button")].find(
-      (b) => b.textContent === "Save draft & expenses",
+      (b) => b.textContent === "Save estimates & draft",
     );
     await act(async () => save.click());
     assert.equal(fixture.saved[0].action, "save");
     assert.equal(fixture.saved[0].budget.membershipMonthly, 15000);
-    assert.equal(fixture.saved[0].budget.tournamentEstimate, 150000);
-    assert.equal(fixture.saved[0].budget.uniformEstimate, 12500);
+    assert.equal(fixture.saved[0].budget.tournamentEstimate, 775000);
+    assert.equal(fixture.saved[0].budget.uniformEstimate, 25000);
     assert.equal(Object.hasOwn(fixture.saved[0], "basisVersion"), basisVersion !== undefined);
     assert.equal(fixture.saved[0].basisVersion, basisVersion);
     const poToggle = [...host.querySelectorAll("label")]
