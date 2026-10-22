@@ -33,7 +33,11 @@ export function releasedMaster(master: MasterMatrix, release: unknown): MasterMa
     },
   };
 }
-export function teamPricingValues(master: MasterMatrix, plan: FeePlan, team?: Team) {
+export function teamPricingValues(
+  master: MasterMatrix,
+  plan: FeePlan,
+  team?: Pick<Team, "age" | "sport" | "seasonLabel" | "seasons">,
+) {
   const row =
     master.rows.find((r) => rowKey(r) === plan.defaults?.key) ||
     (team ? matchMatrix(team, master) : undefined);

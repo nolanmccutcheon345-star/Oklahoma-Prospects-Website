@@ -421,6 +421,12 @@ export async function feeWorkspaceInTransaction(
         private: admin
           ? {
               plan: p,
+              pricingTeam: {
+                age: t.age,
+                sport: t.sport,
+                seasonLabel: t.seasonLabel,
+                seasons: t.seasons,
+              },
               pricingRevisionNeeded: pricingRevisionNeeded(p, p.budget, deadline(p.budget, events)),
               feeHealth: (() => {
                 const health = feeHealth(p.budget, {

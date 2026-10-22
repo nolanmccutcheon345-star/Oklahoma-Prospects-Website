@@ -3,7 +3,12 @@ import assert from "node:assert/strict";
 import { readFile, readdir } from "node:fs/promises";
 import { PGlite } from "@electric-sql/pglite";
 import { seedMasterMatrix, budgetFromMatrix, rowKey } from "./budget-matrix";
-import { releasedMaster, linkedPricingDraft, patchPricingDraft } from "./pricing-defaults";
+import {
+  releasedMaster,
+  linkedPricingDraft,
+  patchPricingDraft,
+  teamPricingValues,
+} from "./pricing-defaults";
 import {
   defaultBudget,
   calculateFees,
@@ -111,6 +116,12 @@ test("known inherited drafts follow masters while team overrides, row overrides 
     "unproven legacy values retained for owner review",
   );
   assert.equal(linkedPricingDraft(plan(), m, team()).pricingInheritance!.legacyReview, true);
+  const { age, sport, seasonLabel, seasons } = team();
+  assert.equal(
+    teamPricingValues(m, plan(), { age, sport, seasonLabel, seasons }).membershipMonthly,
+    12345,
+    "legacy reset preview uses the same applicable matrix row as the server",
+  );
 });
 
 test("event schedules use exact cents, Chicago calendar dates, leap days and fixed acceptance dates", () => {
@@ -275,6 +286,18 @@ test("persisted defaults propagate atomically; published offers, accepted agreem
     const published = structuredClone(v.publication),
       publishedBudget = structuredClone(v.private!.plan.publishedBudget);
     assert.equal(published!.schedules!.full[0].due, "2026-12-24");
+    club.catalog[0].start = "2027-04-08";
+    club.catalog[0].end = "2027-04-08";
+    await sql`update club_state set payload=${JSON.stringify(club)}::jsonb where id='oklahoma-prospects'`;
+    v = await read();
+    assert.equal(v.events[0].start, "2027-04-08");
+    assert.equal(deadline(v.private!.plan.budget, v.events), "2027-02-25");
+    assert.equal(
+      v.private!.pricingRevisionNeeded,
+      true,
+      "event changes require publication review",
+    );
+    assert.deepEqual(v.publication, published, "event edits cannot amend the published schedule");
     await mutateFeePlan(sql, "parent", {
       action: "accept",
       teamId: t.id,

@@ -469,7 +469,7 @@ function TeamPlan({
                       type="button"
                       disabled={busy}
                       onClick={() => {
-                        const values = teamPricingValues(master, plan);
+                        const values = teamPricingValues(master, plan, team.private?.pricingTeam);
                         update({
                           [key]: values[key],
                           ...(key === "eventPaymentSchedule"
