@@ -261,16 +261,11 @@ try {
       .label,
     "Headwear",
   );
-  await draft
-    .getByLabel("Description", { exact: true })
-    .fill("SYNTHETIC upcoming product preview.");
+  // Match a new photo-only product: no description or separate Publish checkbox.
   await draft.getByLabel("Headwear", { exact: true }).check();
   await draft.getByLabel("Softball", { exact: true }).check();
   await draft.getByLabel("Youth", { exact: true }).check();
-  await draft
-    .getByLabel("Coming soon — show a preview and prevent orders", { exact: true })
-    .check();
-  await draft.getByLabel("Publish this product", { exact: true }).check();
+  await draft.getByLabel("Shop status", { exact: true }).selectOption("coming-soon");
   await draft.getByRole("button", { name: "Save product", exact: true }).click();
   await page.getByRole("status").filter({ hasText: "Saved." }).waitFor();
   const [previewProduct] = await h.sql`select * from shop_products where id=${savedDraft.id}`;

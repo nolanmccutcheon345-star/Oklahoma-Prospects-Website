@@ -97,6 +97,7 @@ export const saveShopProduct = createServerFn({ method: "POST" })
         sampleApproved: z.boolean(),
         published: z.boolean(),
         comingSoon: z.boolean().optional(),
+        shopStatus: z.enum(["draft", "coming-soon", "for-sale"]).optional(),
         collectionIds: collectionIdsSchema.optional(),
         title: z.string().trim().min(1).max(200),
         preparationNotes: z.string().max(5000).optional(),
