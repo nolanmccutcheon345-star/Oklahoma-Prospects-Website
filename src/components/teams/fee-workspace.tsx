@@ -12,6 +12,8 @@ import { useEffect, useState, type ReactNode } from "react";
 import { getFeeWorkspace, changeFeePlan, saveFeeBusiness } from "@/lib/teams/fee-api";
 import {
   feeComposition,
+  feeCostTrace,
+  additionalPlayerContribution,
   withBillableMonths,
   project,
   businessProjection,
@@ -274,6 +276,13 @@ function TeamPlan({
     // An incomplete draft has no valid preview; server validation still gates publication.
   }
   const publication = team.publication;
+  const dirty = Boolean(plan && JSON.stringify(plan) !== JSON.stringify(team.private?.plan));
+  let trace: ReturnType<typeof feeCostTrace> | undefined;
+  try {
+    if (plan) trace = feeCostTrace(plan.budget);
+  } catch {
+    /* Incomplete input is explained below. */
+  }
   return (
     <div className="grid gap-4">
       <p className="rounded-lg bg-ink p-3 text-white">
@@ -469,9 +478,9 @@ function TeamPlan({
           <Panel title="Admin tournament & uniform estimates" open>
             <p>
               Use these estimates when coach selections are not ready. Each estimate replaces its
-              scheduled or package cost; it is never added twice. Save and review the calculated
-              player fees before publishing. Clear an estimate to use the completed schedule or
-              selected package.
+              scheduled or package cost; it is never added twice. The draft calculation updates as
+              you type. Save the draft before publishing. Clear an estimate to use the completed
+              schedule or selected package.
             </p>
             {(
               [
@@ -510,6 +519,28 @@ function TeamPlan({
               Development Program Fees, organization fees, contingency and processing still apply.
               Existing accepted agreements stay locked.
             </p>
+            <p role="status" className="rounded-lg border border-line p-3 font-semibold">
+              {dirty
+                ? "Unsaved changes — the draft totals below include your current edits."
+                : "Showing the saved draft calculation."}
+              {publication
+                ? " Published family fees remain at the last approved version."
+                : " No player fees have been published for this team."}
+            </p>
+            <Button
+              disabled={busy || photoUploads > 0 || plan.status === "closed"}
+              onClick={() =>
+                void act({
+                  ...base,
+                  action: "save",
+                  budget: plan.budget,
+                  uniforms: plan.uniforms,
+                  expenses: plan.expenses,
+                })
+              }
+            >
+              Save estimates & draft
+            </Button>
             {!!team.private?.feeHealth?.pending.length && (
               <p className="text-sm">
                 Saved draft review: {team.private.feeHealth.pending.join(" ")}
@@ -745,6 +776,39 @@ function TeamPlan({
             </p>
           </Panel>
           <Panel title="Fee Composition" open>
+            <p className="text-sm">
+              {dirty ? "Live unsaved draft" : "Saved draft"} · This is the proposed player price.
+              Saving does not publish it or change accepted agreements.
+            </p>
+            {trace && (
+              <section className="rounded-xl border border-line p-3">
+                <h3>Where the team-cost amount comes from</h3>
+                <p className="text-sm">
+                  {trace.baseline} baseline full-paying players. Tournament source:{" "}
+                  {trace.tournamentSource}. Uniform source: {trace.uniformSource}. Estimates replace
+                  the corresponding cost, including an explicit $0.
+                </p>
+                <Numbers
+                  rows={[
+                    ["Tournament / league fees — team season", trace.tournament],
+                    ["Uniform cost per player", trace.uniformEach],
+                    [`Uniforms for ${trace.baseline} baseline players`, trace.uniforms],
+                    ["Coaching, travel and other fixed team costs", trace.coachingAndOperations],
+                    ["Scheduled hotel costs", trace.hotels],
+                    ["Other baseline per-player costs — team total", trace.otherPerPlayer],
+                    ["Direct team-cost subtotal", trace.direct],
+                    ["Team contingency — team total", trace.contingency],
+                    ["Protected team budget", trace.protectedBudget],
+                    ["Team budget allocation per full player", trace.allocation],
+                  ]}
+                />
+                <p className="text-xs">
+                  Uniform cost per player is a reference; only the baseline uniform total enters the
+                  subtotal. Program and organization fees, processing and final-price rounding are
+                  added in the player breakdown below.
+                </p>
+              </section>
+            )}
             <div className="grid gap-4 md:grid-cols-2">
               {(canPO ? (["full", "po"] as const) : (["full"] as const)).map((role) => {
                 try {
@@ -787,26 +851,52 @@ function TeamPlan({
           {team.private?.additionalPlayers && team.private.additionalPlayers.length > 0 && (
             <Panel title="Net Additional Player Contribution — current roster">
               <p className="text-sm">
-                Current draft price projection for each additional roster spot; fixed team expenses
-                are funded by the baseline and are not deducted again. No automatic insurance or
+                Live draft price projection for each additional roster spot; fixed team expenses are
+                funded by the baseline and are not deducted again. No automatic insurance or
                 registration cost is added. This table is separate from actual collections.
               </p>
-              {team.private.additionalPlayers.map((p) => (
-                <section key={p.id}>
-                  <h3>{p.name}</h3>
-                  <Numbers
-                    rows={[
-                      ["Additional Player Fee", p.fee],
-                      ["Uniform", p.uniform],
-                      ["Processing", p.processing],
-                      ["Actual incremental registration", p.registration],
-                      ["Actual incremental insurance", p.insurance],
-                      ["Other true incremental expenses", p.other],
-                      ["Net Additional Player Contribution", p.contribution],
-                    ]}
-                  />
-                </section>
-              ))}
+              {team.private.additionalPlayers.map((saved) => {
+                const player = team.players.find((x) => x.id === saved.id);
+                let p = saved;
+                try {
+                  if (player)
+                    p = {
+                      ...saved,
+                      ...additionalPlayerContribution(
+                        plan.budget,
+                        player.role,
+                        plan.budget.additionalPlayerCosts?.find((c) => c.playerId === saved.id) || {
+                          insurance: 0,
+                          registration: 0,
+                          other: 0,
+                        },
+                        Boolean(plan.players[saved.id]?.individualAccess),
+                      ),
+                    };
+                } catch {
+                  return (
+                    <p key={saved.id}>
+                      Complete valid draft inputs to update {saved.name}’s projection.
+                    </p>
+                  );
+                }
+                return (
+                  <section key={p.id}>
+                    <h3>{p.name}</h3>
+                    <Numbers
+                      rows={[
+                        ["Additional Player Fee", p.fee],
+                        ["Uniform", p.uniform],
+                        ["Processing", p.processing],
+                        ["Actual incremental registration", p.registration],
+                        ["Actual incremental insurance", p.insurance],
+                        ["Other true incremental expenses", p.other],
+                        ["Net Additional Player Contribution", p.contribution],
+                      ]}
+                    />
+                  </section>
+                );
+              })}
             </Panel>
           )}
           <Panel title="Additional player insurance / registration exceptions">

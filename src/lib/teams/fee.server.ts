@@ -33,6 +33,7 @@ import {
 } from "./fee-contracts";
 import {
   budgetSchema,
+  budgetForRoster,
   defaultBudget,
   calculateFees,
   withBillableMonths,
@@ -268,7 +269,7 @@ export async function feeWorkspaceInTransaction(
           (!x.withdrawn && p.players[x.id]?.status !== "Removed"),
       );
       const forecast = project(
-        p.budget,
+        budgetForRoster(p.budget, active),
         active.filter((x) => x.roleType === "full").length,
         active.filter((x) => x.roleType === "po").length,
         p.expenses,

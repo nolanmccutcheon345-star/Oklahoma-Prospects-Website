@@ -316,7 +316,7 @@ export function FinanceWorkspace() {
             values={[
               ["Reconciled business cash", s.cash],
               ["Square transfers pending", s.squarePending],
-              ["Customer receivables", s.outstanding],
+              ["Customer receivables — known balances", s.outstanding],
               ["Protected team direct costs", s.teamDirect],
               ["Protected contingency", s.contingency],
               ["Deferred membership service", s.deferred],
@@ -341,10 +341,10 @@ export function FinanceWorkspace() {
               ],
               [
                 "Steve projected team contribution before facility overhead",
-                Math.floor(
-                  (total(s.teams.map((t) => t.projected || 0)) * (10000 - data.settings.nolanBps)) /
-                    10000,
-                ),
+                total(s.teams.map((t) => t.projected || 0)) -
+                  Math.floor(
+                    (total(s.teams.map((t) => t.projected || 0)) * data.settings.nolanBps) / 10000,
+                  ),
               ],
               [
                 "Nolan available distributable share",
@@ -357,6 +357,10 @@ export function FinanceWorkspace() {
               ["Reviewed undistributed profit ceiling", s.profitAvailable],
             ]}
           />
+          <p>
+            Team projections use current roster counts and published pricing. They are estimates,
+            not collected cash or earned profit.
+          </p>
           <h3 className="text-xl">Distribution readiness</h3>
           <p>
             No transfer is initiated here. Cash availability and reviewed earned profit must both
@@ -1131,7 +1135,7 @@ export function FinanceWorkspace() {
         <>
           <Amounts
             values={[
-              ["Total outstanding", s.outstanding],
+              ["Total outstanding — known balances", s.outstanding],
               [
                 "Due in next 7 days",
                 total(
@@ -1177,6 +1181,13 @@ export function FinanceWorkspace() {
             Abandoned checkout attempts are not debts. Other approved customer invoices can be
             recorded below.
           </p>
+          {s.unverifiedReceivables > 0 && (
+            <p role="status" className="rounded border p-3">
+              {s.unverifiedReceivables} invoice balance(s) need provider review and are excluded
+              from the known-balance totals. Review the invoice with its original payment provider;
+              financial certification remains blocked until the balance is verified.
+            </p>
+          )}
           <Form
             title="Create receivable"
             busy={busy}
@@ -1208,15 +1219,18 @@ export function FinanceWorkspace() {
             }
           />
           {s.receivables
-            .filter((r) => r.remaining > 0)
+            .filter((r) => r.remaining > 0 || r.needsReview)
             .map((r) => (
               <article key={r.id} className="rounded-xl border bg-white p-4">
                 <h3>
                   {r.customer} · {r.category}
                 </h3>
                 <p>
-                  {r.status} · Due {r.due || "Review date"} · Billed {money(r.amount)} · Applied{" "}
-                  {money(r.paid)} · Remaining {money(r.remaining)}
+                  {r.status} · Due {r.due || "Review date"} · Billed{" "}
+                  {r.amount == null ? "Needs verification" : money(r.amount)} · Cash paid{" "}
+                  {r.paid == null ? "Needs verification" : money(r.paid)} · Credits / adjustments{" "}
+                  {money(r.credits || 0)} · Remaining{" "}
+                  {r.remaining == null ? "Needs verification" : money(r.remaining)}
                 </p>
               </article>
             ))}
@@ -1258,12 +1272,42 @@ export function FinanceWorkspace() {
         <>
           <Amounts
             values={[
-              ["Production customer collections", s.squareReceived],
+              ["Production gross customer collections", s.squareReceived],
+              ["Recorded Square refunds", s.collections.refunds],
+              ["Collections after recorded Square refunds", s.collections.afterRefunds],
+              ["Known processing fees", s.collections.knownFees],
               ["Square deposits matched to bank", s.squareBankDeposits],
               ["Known pending Square transfers", s.squarePending],
               ["Outstanding refund obligations", s.refundObligations],
             ]}
           />
+          <section className="space-y-3 rounded border p-4">
+            <h3 className="text-xl">Collections by source</h3>
+            <p>
+              Completed production Square payments on record, including imported Square sales. Bank
+              deposits and team receipt copies are not counted again. This is not profit: taxes,
+              merchandise costs, payroll, external reimbursements, other expenses and manual
+              receipts require their separate ledgers. Sync historical date ranges to complete
+              provider coverage.
+            </p>
+            <p>
+              {s.collections.missingFees
+                ? `${s.collections.missingFees} payment(s) still need processing-fee details; the total after fees is not yet verified.`
+                : `Collections after recorded refunds and processing fees: ${money(s.collections.afterFees || 0)}.`}
+            </p>
+            {s.collections.rows.map((r) => (
+              <article key={r.category} className="rounded border p-3">
+                <h4>
+                  {r.category} · {r.count} payment(s)
+                </h4>
+                <p>
+                  Gross {money(r.gross)} · Refunds {money(r.refunds)} · Known fees{" "}
+                  {money(r.knownFees)} · After refunds and fees{" "}
+                  {r.afterFees === null ? "Needs fee details" : money(r.afterFees)}
+                </p>
+              </article>
+            ))}
+          </section>
           <Form
             title="Sync Square settlements"
             busy={busy}

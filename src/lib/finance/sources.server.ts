@@ -1,6 +1,12 @@
 import type { Sql } from "../db";
 import { createHash } from "node:crypto";
-import { calculateFees, membershipRecognition, project } from "../teams/fee-model";
+import {
+  budgetCost,
+  budgetForRoster,
+  calculateFees,
+  membershipRecognition,
+  project,
+} from "../teams/fee-model";
 import { accrual, compensation, total, type Payable, type RecordRow } from "./contracts";
 import { loadFinancialLessonsInTransaction, type FinancialContext } from "./context.server";
 export const personId = (email: string) =>
@@ -22,7 +28,13 @@ export async function sourceData(
    coalesce((select sum(p.amount_cents) from square_payments p where p.order_id=o.id and p.status='COMPLETED'),0) as received,
    coalesce((select sum(p.refunded_cents) from square_payments p where p.order_id=o.id),0)+coalesce((select sum(r.amount_cents) from commerce_refunds r where r.order_id=o.id and r.external_status='reconciled'),0) as refunded
    from booking_records b left join contractor_earnings e on b.id=e.booking_id join commerce_orders o on o.id=b.order_id where (${context.mode === "basis"} or b.status='completed' or e.booking_id is not null) and (o.payment_provider<>'square' or o.payment_environment='production')`,
-      sql<any>`select i.*,coalesce(u.name,u.email,'Customer') as customer from billing_invoices i left join "user" u on u.id=i.user_id`,
+      sql<any>`select i.*,o.payment_provider,coalesce(u.name,u.email,'Customer') as customer,
+        coalesce((select sum(p.amount_cents) from square_payments p where p.invoice_id=i.id and p.order_id=o.id and p.environment='production' and p.status='COMPLETED'),0) as received,
+        coalesce((select sum(p.refunded_cents) from square_payments p where p.invoice_id=i.id and p.order_id=o.id and p.environment='production'),0) as refunded
+        from billing_invoices i
+        join club_subscriptions s on s.id=i.subscription_id join commerce_orders o on o.id=s.order_id
+        left join "user" u on u.id=i.user_id
+        where o.payment_provider<>'square' or o.payment_environment='production'`,
       sql<any>`select p.id,p.order_id,p.amount_cents,p.refunded_cents,p.status,p.created_at,p.environment,o.email as customer,o.kind as category,o.product_id,o.snapshot from square_payments p join commerce_orders o on o.id=p.order_id`,
       sql<any>`select id,order_id,booking_id,square_payment_id,square_refund_id,amount_cents,status,reason,created_at,external_status from commerce_refunds r where exists(select 1 from commerce_orders o where o.id=r.order_id and (o.payment_provider<>'square' or o.payment_environment='production'))`,
       context.compensation
@@ -307,7 +319,12 @@ export async function sourceData(
         : [{ amount: p.feeLock.amount, date: p.planLock?.deadline || "", label: "Team fee" }];
       rows.forEach((row, i) => {
         const original = Math.round(row.amount * 100),
-          allocated = Math.min(original, Math.max(0, paid + credits - prior));
+          cashAllocated = Math.min(original, Math.max(0, paid - prior)),
+          creditAllocated = Math.min(
+            original - cashAllocated,
+            Math.max(0, credits - Math.max(0, prior - paid)),
+          ),
+          allocated = cashAllocated + creditAllocated;
         prior += original;
         receivables.push({
           id: `team:${t.id}:${p.id}:${i}`,
@@ -315,7 +332,8 @@ export async function sourceData(
           category: "team fees",
           teamId: t.id,
           amount: original,
-          paid: allocated,
+          paid: cashAllocated,
+          credits: creditAllocated,
           remaining: original - allocated,
           due: row.date || p.agreement.signedAt?.slice(0, 10) || date,
           status: p.withdrawn
@@ -352,21 +370,36 @@ export async function sourceData(
     const b = plan.publishedBudget,
       f = calculateFees(b),
       expenses = plan.expenses || [];
-    const financePaid = total(
-      records
-        .filter(
-          (r) =>
-            r.kind === "payable" &&
-            r.payload.teamId === t.id &&
-            !["owner", "refund"].includes(r.payload.category) &&
-            !expenses.some((e) => e.paid && r.id === `expense:${t.id}:${e.id}`),
-        )
-        .map((r) => r.payload.paid || 0),
+    const financePaid = records.filter(
+      (r) =>
+        r.kind === "payable" &&
+        r.payload.teamId === t.id &&
+        !["owner", "refund"].includes(r.payload.category) &&
+        !expenses.some((e) => e.paid && r.id === `expense:${t.id}:${e.id}`),
     );
+    const contingencyPayment = (r: RecordRow) =>
+      expenses.some((e) => e.contingency && r.id === `expense:${t.id}:${e.id}`);
     const directPaid =
-      financePaid + total(expenses.filter((e) => e.paid && !e.contingency).map((e) => e.cents));
-    const contingencyPaid = total(
-      expenses.filter((e) => e.paid && e.contingency).map((e) => e.cents),
+      total(financePaid.filter((r) => !contingencyPayment(r)).map((r) => r.payload.paid || 0)) +
+      total(expenses.filter((e) => e.paid && !e.contingency).map((e) => e.cents));
+    const contingencyPaid =
+      total(expenses.filter((e) => e.paid && e.contingency).map((e) => e.cents)) +
+      total(financePaid.filter(contingencyPayment).map((r) => r.payload.paid || 0));
+    const active = t.roster.filter(
+      (p) =>
+        plan.players[p.id]?.status === "Roster Hold" ||
+        (!p.withdrawn && plan.players[p.id]?.status !== "Removed"),
+    );
+    const fullPlayers = active.filter((p) => p.roleType === "full");
+    const poPlayers = active.filter((p) => p.roleType === "po");
+    const rosterProjection = project(
+      budgetForRoster(b, active),
+      fullPlayers.length,
+      poPlayers.length,
+      expenses,
+      plan.status === "closed",
+      fullPlayers.filter((p) => plan.players[p.id]?.individualAccess).length,
+      fullPlayers.slice(b.baseline).filter((p) => plan.players[p.id]?.individualAccess).length,
     );
     const deferred = total(
       Object.values(plan.players).map(
@@ -384,47 +417,41 @@ export async function sourceData(
       name: t.name,
       billed,
       collected,
-      protectedDirect: plan.status === "closed" ? 0 : Math.max(0, f.direct - directPaid),
-      contingency: plan.status === "closed" ? 0 : Math.max(0, f.contingency - contingencyPaid),
+      // Keep the approved baseline funded, and protect added-player obligations.
+      protectedDirect:
+        plan.status === "closed"
+          ? 0
+          : Math.max(0, Math.max(f.direct, rosterProjection.direct) - directPaid),
+      contingency:
+        plan.status === "closed" ? 0 : Math.max(0, rosterProjection.reserve - contingencyPaid),
       deferred,
-      projected: project(
-        b,
-        Math.max(b.baseline, t.roster.filter((p) => p.roleType === "full" && !p.withdrawn).length),
-        t.roster.filter((p) => p.roleType === "po" && !p.withdrawn).length,
-        expenses,
-        false,
-        t.roster.filter(
-          (p) => !p.withdrawn && p.roleType === "full" && plan.players[p.id]?.individualAccess,
-        ).length,
-        t.roster
-          .filter((p) => !p.withdrawn && p.roleType === "full")
-          .slice(b.baseline)
-          .filter((p) => plan.players[p.id]?.individualAccess).length,
-      ).beforeOverhead,
+      projected: rosterProjection.beforeOverhead,
       closed: plan.status === "closed",
     });
     const roles = [
       {
         title: "Head Coach",
         people: t.coachEmail ? [{ email: t.coachEmail, name: t.headCoach }] : [],
-        cost: b.costs.find((c) => c.id === "cost-0" || c.name === "Head coach")?.cents || 0,
-        premium: b.headPremiumBps,
+        cost: b.costs.find(
+          (c) => c.id === "matrix-head" || c.id === "cost-0" || c.name === "Head coach",
+        ),
       },
       {
         title: "Assistant Coach",
         people: t.staff.filter((s) => /assistant/i.test(s.role)),
-        cost: b.costs.find((c) => c.id === "cost-1" || c.name === "Assistant coach")?.cents || 0,
-        premium: b.assistantPremiumBps,
+        cost: b.costs.find(
+          (c) => c.id === "matrix-assistant" || c.id === "cost-1" || c.name === "Assistant coach",
+        ),
       },
     ];
     for (const role of roles) {
-      if (role.cost && !role.people.length) {
+      if (role.cost?.cents && !role.people.length) {
         warnings.push(
           `${t.name}: assign ${role.title.toLowerCase()} before compensation is accrued.`,
         );
         continue;
       }
-      const budget = Math.round(role.cost * (1 + (role.premium || 0) / 10000));
+      const budget = role.cost ? budgetCost(b, role.cost) : 0;
       role.people.forEach((c, i) => {
         const payeeId = addPerson(c.email, c.name || c.email, role.title);
         const amount =
@@ -498,18 +525,51 @@ export async function sourceData(
     }
   }
   for (const i of invoices) {
-    if (["paid", "canceled", "cancelled", "void", "refunded"].includes(i.status.toLowerCase()))
+    const status = i.status.toLowerCase();
+    if (
+      [
+        "paid",
+        "canceled",
+        "cancelled",
+        "void",
+        "refunded",
+        "partially_refunded",
+        "draft",
+        "scheduled",
+      ].includes(status)
+    )
       continue;
+    const received = Number(i.received),
+      refunded = Number(i.refunded);
+    // Old partial invoices without verified payment detail remain unknown until
+    // the provider is refreshed. Never claim their whole amount is still owed.
+    const knownBalance =
+      i.payment_provider === "square" &&
+      !refunded &&
+      received <= i.amount_cents &&
+      (["unpaid", "open", "failed", "payment_failed", "uncollectible"].includes(status) ||
+        (status === "partially_paid" && received > 0));
+    if (!knownBalance)
+      warnings.push(
+        `Invoice ${i.id}: ${status} balance needs provider review before financial certification.`,
+      );
     receivables.push({
       id: "invoice:" + i.id,
       customer: i.customer,
       category: "membership",
       teamId: "",
-      amount: i.amount_cents,
-      paid: 0,
-      remaining: i.amount_cents,
+      amount: i.payment_provider === "square" ? i.amount_cents : null,
+      paid: knownBalance ? received : null,
+      remaining: knownBalance ? i.amount_cents - received : null,
+      needsReview: !knownBalance,
       due: i.period_start ? new Date(i.period_start).toISOString().slice(0, 10) : "",
-      status: /fail|uncollect/.test(i.status) ? "PAYMENT FAILED" : "DUE",
+      status: !knownBalance
+        ? "BALANCE NEEDS REVIEW"
+        : /fail|uncollect/.test(status)
+          ? "PAYMENT FAILED"
+          : received
+            ? "PARTIALLY PAID"
+            : "DUE",
       source: "subscription",
     });
   }

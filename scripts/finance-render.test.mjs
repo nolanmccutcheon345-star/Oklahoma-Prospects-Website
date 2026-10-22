@@ -31,8 +31,31 @@ test("Finance renders cash protections, bank forms, approvals, receivables and a
       teams: [],
       warnings: [],
       refunds: [],
-      payments: [],
-      receivables: [],
+      payments: [
+        {
+          id: "fixture",
+          status: "COMPLETED",
+          environment: "production",
+          category: "cage-rental",
+          amount_cents: 5000,
+          refunded_cents: 1000,
+          processingFee: null,
+          created_at: "2027-01-01",
+        },
+      ],
+      receivables: [
+        {
+          id: "partial",
+          customer: "Synthetic customer",
+          category: "membership",
+          amount: 7900,
+          paid: null,
+          remaining: null,
+          needsReview: true,
+          status: "BALANCE NEEDS REVIEW",
+          due: "2027-01-01",
+        },
+      ],
       candidates: [],
       services: [],
       payees: [],
@@ -100,8 +123,13 @@ test("Finance renders cash protections, bank forms, approvals, receivables and a
     await act(async () => button("Receivables").click());
     assert.match(host.textContent, /Abandoned checkout attempts are not debts/);
     assert.match(host.textContent, /write-off/);
+    assert.match(host.textContent, /excluded from the known-balance totals/);
+    assert.match(host.textContent, /Cash paid Needs verification/);
     await act(async () => button("Square & Refunds").click());
     assert.match(host.textContent, /Sync Square settlements/);
+    assert.match(host.textContent, /Collections by source/);
+    assert.match(host.textContent, /cage-rental/);
+    assert.match(host.textContent, /Needs fee details/);
     await act(async () => button("Audit").click());
     assert.match(host.textContent, /append-only/);
     assert.equal(globalThis.financeCalls.length, 0);

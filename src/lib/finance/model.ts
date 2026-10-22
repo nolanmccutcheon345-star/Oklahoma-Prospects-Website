@@ -7,6 +7,7 @@ import {
   type Payment,
   type BankTxn,
 } from "./contracts";
+import { collectionTotals } from "./collections";
 export function financeSummary(
   records: RecordRow[],
   settings: Settings,
@@ -52,18 +53,20 @@ export function financeSummary(
     last4: String(a.last4),
     active: Boolean(a.active),
     balance:
-      a.opening +
+      (a.openingDate <= date ? a.opening : 0) +
       total(
         bank
-          .filter((t) => t.accountId === a.id && t.verified && t.date >= a.openingDate)
+          .filter(
+            (t) => t.accountId === a.id && t.verified && t.date >= a.openingDate && t.date <= date,
+          )
           .map((t) => t.amount),
       ),
     lastReconciled:
       bank
-        .filter((t) => t.accountId === a.id && t.verified)
+        .filter((t) => t.accountId === a.id && t.verified && t.date <= date)
         .map((t) => t.date)
         .sort()
-        .at(-1) || a.openingDate,
+        .at(-1) || (a.openingDate <= date ? a.openingDate : ""),
   }));
   const cash = total(accountBalances.filter((a) => a.active).map((a) => a.balance));
   const pendingPayments = total(
@@ -129,7 +132,9 @@ export function financeSummary(
     ...sources.receivables,
     ...values("invoice").map((i) => {
       const paid = total(
-        bank.filter((b) => b.verified && b.match === "invoice:" + i.id).map((b) => b.amount),
+        bank
+          .filter((b) => b.verified && b.date <= date && b.match === "invoice:" + i.id)
+          .map((b) => b.amount),
       );
       const credits = total(
         values("invoiceAdjustment")
@@ -182,7 +187,9 @@ export function financeSummary(
     payables,
     teams,
     receivables,
-    outstanding: total(receivables.map((r) => r.remaining)),
+    outstanding: total(receivables.map((r) => r.remaining ?? 0)),
+    unverifiedReceivables: receivables.filter((r) => r.needsReview).length,
+    collections: collectionTotals(sources.payments),
     unmatched: bank.filter((b) => !b.verified).length,
     squarePending: total(
       settlements
@@ -195,7 +202,9 @@ export function financeSummary(
         .map((p) => p.amount_cents),
     ),
     squareBankDeposits: total(
-      bank.filter((b) => b.verified && b.match?.startsWith("settlement:")).map((b) => b.amount),
+      bank
+        .filter((b) => b.verified && b.date <= date && b.match?.startsWith("settlement:"))
+        .map((b) => b.amount),
     ),
   };
 }

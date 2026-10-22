@@ -333,26 +333,21 @@ function gross(net: number, b: FeeBudget) {
   }
   return total;
 }
+/** The same cent rounding funds the budget and the coach payable. Legacy cost
+ * rows retain their agreed values; only matrix premium rows add a premium. */
+export function budgetCost(b: FeeBudget, c: FeeBudget["costs"][number]) {
+  const rate =
+    c.id === "matrix-head"
+      ? b.headPremiumBps || 0
+      : c.id === "matrix-assistant"
+        ? b.assistantPremiumBps || 0
+        : 0;
+  return c.cents + Math.ceil((c.cents * rate) / 10000);
+}
 export function calculateFees(input: FeeBudget, individualAccess = false) {
   const b = effectiveFeeBudget(budgetSchema.parse(input));
   const fixed =
-    sum(
-      b.costs.map(
-        (c) =>
-          c.cents +
-          Math.ceil(
-            (c.cents *
-              (c.id === "matrix-head"
-                ? b.headPremiumBps || 0
-                : c.id === "matrix-assistant"
-                  ? b.assistantPremiumBps || 0
-                  : 0)) /
-              10000,
-          ),
-      ),
-    ) +
-    b.tournament +
-    b.hotelNightly * b.hotelNights;
+    sum(b.costs.map((c) => budgetCost(b, c))) + b.tournament + b.hotelNightly * b.hotelNights;
   const each = b.uniformCost + b.fullIncremental,
     direct = fixed + b.baseline * each,
     contingency = Math.ceil((direct * b.contingencyBps) / 10000),
@@ -435,6 +430,19 @@ export function calculateFees(input: FeeBudget, individualAccess = false) {
     fullRounding: full - fullNet - processing(full, fullNet),
     poProcessing,
     poRounding: po - poNet - poProcessing,
+  };
+}
+/** Actual-roster reports match incremental exceptions by player identity. */
+export function budgetForRoster(b: FeeBudget, roster: { id: string; roleType: "full" | "po" }[]) {
+  const ids = new Set(
+    [
+      ...roster.filter((p) => p.roleType === "full").slice(b.baseline),
+      ...roster.filter((p) => p.roleType === "po"),
+    ].map((p) => p.id),
+  );
+  return {
+    ...b,
+    additionalPlayerCosts: b.additionalPlayerCosts?.filter((c) => ids.has(c.playerId)),
   };
 }
 export function project(
@@ -665,6 +673,30 @@ export function feeComposition(b: FeeBudget, role: "full" | "po", individualAcce
     adjustment,
     total,
     contribution,
+  };
+}
+
+/** Owner-only working draft trace. Component rounding is kept separate from costs. */
+export function feeCostTrace(input: FeeBudget) {
+  const b = effectiveFeeBudget(budgetSchema.parse(input));
+  const f = calculateFees(b);
+  const coachingAndOperations = f.fixed - b.tournament - b.hotelNightly * b.hotelNights;
+  return {
+    baseline: b.baseline,
+    tournamentSource:
+      input.tournamentEstimate === undefined ? "schedule / manual budget" : "admin estimate",
+    uniformSource: input.uniformEstimate === undefined ? "selected package" : "admin estimate",
+    tournament: b.tournament,
+    uniformEach: b.uniformCost,
+    uniforms: b.uniformCost * b.baseline,
+    otherPerPlayer: b.fullIncremental * b.baseline,
+    hotels: b.hotelNightly * b.hotelNights,
+    coachingAndOperations,
+    direct: f.direct,
+    contingency: f.contingency,
+    protectedBudget: f.protectedBudget,
+    allocation: f.allocation,
+    allocationRounding: f.allocation * b.baseline - f.protectedBudget,
   };
 }
 
