@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { TEAM_DEVELOPMENT_FAMILY_DISCLAIMER } from "@/lib/team-development/copy";
 import { getAthleteTeamDevelopment } from "@/lib/team-development/api";
 
 const TABS = ["TODAY","PROGRAM","STRENGTH","THROWING & ARM CARE","SKILLS/DRILLS","PROGRESS"] as const;
@@ -21,7 +22,7 @@ export function TeamDevelopmentAthletePanel({athleteId}:{athleteId:string}) {
       {tab==="TODAY"?<div className="grid gap-2">{(data.items as any[]).length?(data.items as any[]).map(item=><article className="rounded-lg bg-paper-2 p-3 text-sm" key={item.id}><strong>{item.due_date}</strong> · {item.state}{item.is_late?" · late":""}</article>):<p className="text-sm">No team-development items are due.</p>}</div>:null}
       {tab!=="TODAY"&&tab!=="PROGRESS"?<div className="grid gap-2">{visible.length?visible.map(a=><article className="rounded-lg bg-paper-2 p-3" key={a.id}><strong>{a.program_type.replace("_"," ")}</strong><p className="text-sm text-muted">{a.scope} assignment · team {a.teamId}</p></article>):<p className="text-sm">No active programs in this section.</p>}</div>:null}
       {tab==="PROGRESS"?<div className="grid gap-2"><p className="text-sm">{(data.items as any[]).filter(i=>i.state==="completed").length} completed development items recorded.</p>{(data.reassessments as any[]).filter(r=>r.scheduled_on||r.performed_on).map(r=><article key={r.id} className="rounded-lg bg-paper-2 p-3 text-sm">Reassessment {r.performed_on?"performed "+r.performed_on:r.scheduled_on?"scheduled "+r.scheduled_on:""}</article>)}</div>:null}
-      <p className="text-xs text-muted">Athletic development guidance is not medical care. If something hurts, stop the affected activity and tell your parent/guardian and coach.</p>
+      <p className="text-xs text-muted">{TEAM_DEVELOPMENT_FAMILY_DISCLAIMER}</p>
     </>}
   </section>;
 }
