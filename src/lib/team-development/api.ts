@@ -13,6 +13,8 @@ import { importTeamDevelopmentSeed } from "./store.server";
 import type { TeamDevSeedRecord } from "./contracts";
 import type { ClubRecord } from "@/lib/teams/types";
 import { randomUUID } from "node:crypto";
+import { chicagoDate } from "@/lib/scheduling";
+import { lateCompletionDecision } from "./states";
 
 const teamId = z.string().trim().min(1).max(150);
 const athleteId = z.string().trim().min(1).max(150);
@@ -120,7 +122,11 @@ export const getAthleteTeamDevelopment = createServerFn({ method: "POST" })
       "select id,assignment_id,scheduled_on::text,performed_on::text,note from team_dev_reassessments where athlete_id=$1 order by coalesce(performed_on,scheduled_on) desc nulls last",
       [data.athleteId],
     );
-    return { assignments: effective, items, notes, reassessments };
+    const [settings] = await sql.query<{self_complete_enabled:boolean}>(
+      "select self_complete_enabled from team_dev_player_settings where athlete_id=$1",
+      [data.athleteId],
+    );
+    return { assignments: effective, items, notes, reassessments, selfCompleteEnabled: settings?.self_complete_enabled === true };
   });
 
 export const getFamilyTeamDevelopment = createServerFn({ method: "POST" })
@@ -232,6 +238,98 @@ export const linkTeamDevelopmentRoster = createServerFn({ method: "POST" })
         ],
       );
       return { ok: true as const, id };
+    });
+  });
+
+export const setTeamDevelopmentSelfComplete = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
+  .validator(z.object({ athleteId, enabled: z.boolean() }).strict())
+  .handler(async ({ context, data }) => {
+    const sql = await getSql();
+    const me = await resolveIdentity(sql, context.userId);
+    if (me.role !== "admin") throw new Error("Front office only.");
+    await sql.query(
+      "insert into team_dev_player_settings(athlete_id,self_complete_enabled) values($1,$2) on conflict(athlete_id) do update set self_complete_enabled=excluded.self_complete_enabled",
+      [data.athleteId, data.enabled],
+    );
+    await sql.query(
+      "insert into team_dev_events(actor_id,athlete_id,entity_type,entity_id,action,after_json) values($1,$2,'player_settings',$2,'self_complete_changed',$3::jsonb)",
+      [context.userId, data.athleteId, JSON.stringify({ selfCompleteEnabled: data.enabled })],
+    );
+    return { ok: true as const };
+  });
+
+export const updateTeamDevelopmentItem = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
+  .validator(
+    z.object({
+      itemId: z.string().uuid(),
+      state: z.enum(["started","completed","skipped_by_coach","modified"]),
+      ceilingApproved: z.boolean().optional(),
+      restSatisfied: z.boolean().optional(),
+    }).strict(),
+  )
+  .handler(async ({ context, data }) => {
+    const sql = await getSql();
+    const scope = await devScope(context.userId);
+    return sql.transaction(async (tx) => {
+      const [item] = await tx.query<{
+        id:string; athlete_id:string; state:string; due_date:string; phase_end_date:string;
+        late_credit_window_end:string; paused_reason:string|null; assignment_scope:string;
+        payload:{programType?:string}; team_id:string;
+      }>(
+        "select i.id,i.athlete_id,i.state,i.due_date::text,i.phase_end_date::text,i.late_credit_window_end::text,i.paused_reason,i.assignment_scope,i.payload,a.team_id from team_dev_items i join team_dev_assignments a on a.id=i.assignment_id where i.id=$1 for update",
+        [data.itemId],
+      );
+      if (!item) throw new Error("Development item not found.");
+      const coach = scope.admin || scope.coachTeamIds.has(item.team_id);
+      const self = scope.selfAthleteId === item.athlete_id || scope.guardianAthleteIds.has(item.athlete_id);
+      if (!coach && !self) throw new Error("Forbidden");
+      if (item.paused_reason) throw new Error("This development item is on hold.");
+      if (["completed","expired"].includes(item.state)) throw new Error("This item is already closed.");
+
+      if (!coach) {
+        if (data.state !== "completed") throw new Error("Only coaches can change this item state.");
+        const [settings] = await tx.query<{self_complete_enabled:boolean}>(
+          "select self_complete_enabled from team_dev_player_settings where athlete_id=$1",
+          [item.athlete_id],
+        );
+        if (!settings?.self_complete_enabled) throw new Error("Self-completion is not enabled for this athlete.");
+      }
+
+      const today = chicagoDate();
+      const late = today > item.due_date;
+      if (late && data.state === "completed") {
+        const throwing = ["throwing","arm_care"].includes(item.payload?.programType || "");
+        const decision = lateCompletionDecision({
+          today,
+          phaseEndDate:item.phase_end_date,
+          lateCreditWindowEnd:item.late_credit_window_end,
+          throwing,
+          ceilingApproved:data.ceilingApproved === true,
+          restSatisfied:data.restSatisfied === true,
+        });
+        if (!decision.ok) throw new Error(
+          decision.reason === "ceiling_block"
+            ? "Late throwing completion requires explicit approved ceiling and rest checks."
+            : "The late-credit window for this item is closed.",
+        );
+      }
+
+      await tx.query(
+        "update team_dev_items set state=$1,is_late=$2,late_attempt_on=case when $2 then $3::date else late_attempt_on end,revision=revision+1,updated_at=now() where id=$4",
+        [data.state, late && data.state === "completed", today, item.id],
+      );
+      await tx.query(
+        "insert into team_dev_events(actor_id,athlete_id,team_id,entity_type,entity_id,action,before_json,after_json,metadata) values($1,$2,$3,'item',$4,'state_changed',$5::jsonb,$6::jsonb,$7::jsonb)",
+        [
+          context.userId,item.athlete_id,item.team_id,item.id,
+          JSON.stringify({state:item.state}),
+          JSON.stringify({state:data.state,isLate:late && data.state==="completed"}),
+          JSON.stringify({actorKind:coach?"coach":"athlete"}),
+        ],
+      );
+      return { ok:true as const, state:data.state, isLate:late && data.state==="completed" };
     });
   });
 
