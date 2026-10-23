@@ -25,12 +25,24 @@ export const getAdminTeamDevelopment = createServerFn({ method: "POST" })
     const me = await resolveIdentity(sql, context.userId);
     if (me.role !== "admin") throw new Error("Front office only.");
     const [programs, versions, exercises, drills, config, links, athletes] = await Promise.all([
-      sql.query("select id,name,sport,category,current_version,disabled_at from team_dev_programs order by category,name"),
-      sql.query("select program_id,version,status,data_label,blocked_fields,approved_by,approved_at from team_dev_program_versions order by program_id,version desc"),
-      sql.query("select id,version,name,category,status,data_label from team_dev_exercises order by category,name"),
-      sql.query("select id,version,name,sport,category,status,data_label from team_dev_drills order by sport,category,name"),
-      sql.query("select id,version,kind,label,active,data_label from team_dev_config_items order by kind,label"),
-      sql.query("select id,team_id,roster_player_id,athlete_id,linked_at,ended_at from team_dev_roster_links order by linked_at desc"),
+      sql.query<{id:string;name:string;sport:string;category:string;current_version:number;disabled_at:string|null}>(
+        "select id,name,sport,category,current_version,disabled_at::text from team_dev_programs order by category,name",
+      ),
+      sql.query<{program_id:string;version:number;status:string;data_label:string;blocked_fields:string[];approved_by:string|null;approved_at:string|null}>(
+        "select program_id,version,status,data_label,blocked_fields,approved_by,approved_at::text from team_dev_program_versions order by program_id,version desc",
+      ),
+      sql.query<{id:string;version:number;name:string;category:string;status:string;data_label:string}>(
+        "select id,version,name,category,status,data_label from team_dev_exercises order by category,name",
+      ),
+      sql.query<{id:string;version:number;name:string;sport:string;category:string;status:string;data_label:string}>(
+        "select id,version,name,sport,category,status,data_label from team_dev_drills order by sport,category,name",
+      ),
+      sql.query<{id:string;version:number;kind:string;label:string;active:boolean;data_label:string}>(
+        "select id,version,kind,label,active,data_label from team_dev_config_items order by kind,label",
+      ),
+      sql.query<{id:string;team_id:string;roster_player_id:string;athlete_id:string;linked_at:string;ended_at:string|null}>(
+        "select id,team_id,roster_player_id,athlete_id,linked_at::text,ended_at::text from team_dev_roster_links order by linked_at desc",
+      ),
       sql.query<{ id: string; profile: { firstName?: string; lastName?: string; sport?: string } }>(
         "select id,profile from club_athletes order by id",
       ),
@@ -57,14 +69,14 @@ export const getCoachTeamDevelopment = createServerFn({ method: "POST" })
     const scope = await devScope(context.userId);
     assertTeamDevelopmentCoach(scope, data.teamId);
     const sql = await getSql();
-    const templates = await sql.query(
-      "select p.id,p.name,p.sport,p.category,v.version,v.payload from team_dev_programs p join team_dev_program_versions v on v.program_id=p.id where v.status='ACTIVE' and p.disabled_at is null order by p.category,p.name",
+    const templates = await sql.query<{id:string;name:string;sport:string;category:string;version:number}>(
+      "select p.id,p.name,p.sport,p.category,v.version from team_dev_programs p join team_dev_program_versions v on v.program_id=p.id where v.status='ACTIVE' and p.disabled_at is null order by p.category,p.name",
     );
-    const assignments = await sql.query(
+    const assignments = await sql.query<{id:string;program_type:string;scope:string;program_id:string;program_version:number;start_date:string;end_date:string|null;status:string;inherit_new_players:boolean}>(
       "select id,program_type,scope,program_id,program_version,start_date::text,end_date::text,status,inherit_new_players from team_dev_assignments where team_id=$1 order by created_at desc",
       [data.teamId],
     );
-    const links = await sql.query(
+    const links = await sql.query<{athlete_id:string;roster_player_id:string}>(
       "select athlete_id,roster_player_id from team_dev_roster_links where team_id=$1 and ended_at is null",
       [data.teamId],
     );
@@ -89,17 +101,22 @@ export const getAthleteTeamDevelopment = createServerFn({ method: "POST" })
         link.team_id,
         data.athleteId,
       );
-      effective.push(...assignments.map((assignment) => ({ ...assignment, teamId: link.team_id })));
+      effective.push(...assignments.map((assignment) => ({
+        id: assignment.id,
+        program_type: assignment.program_type,
+        scope: assignment.scope,
+        teamId: link.team_id,
+      })));
     }
-    const items = await sql.query(
-      "select id,assignment_id,state,due_date::text,is_late,payload from team_dev_items where athlete_id=$1 order by due_date,id",
+    const items = await sql.query<{id:string;assignment_id:string;state:string;due_date:string;is_late:boolean}>(
+      "select id,assignment_id,state,due_date::text,is_late from team_dev_items where athlete_id=$1 order by due_date,id",
       [data.athleteId],
     );
-    const notes = await sql.query(
-      "select id,assignment_id,body,created_at from team_dev_notes where athlete_id=$1 and hidden=false order by created_at desc",
+    const notes = await sql.query<{id:string;assignment_id:string|null;body:string;created_at:string}>(
+      "select id,assignment_id,body,created_at::text from team_dev_notes where athlete_id=$1 and hidden=false order by created_at desc",
       [data.athleteId],
     );
-    const reassessments = await sql.query(
+    const reassessments = await sql.query<{id:string;assignment_id:string|null;scheduled_on:string|null;performed_on:string|null;note:string}>(
       "select id,assignment_id,scheduled_on::text,performed_on::text,note from team_dev_reassessments where athlete_id=$1 order by coalesce(performed_on,scheduled_on) desc nulls last",
       [data.athleteId],
     );
@@ -118,17 +135,22 @@ export const getFamilyTeamDevelopment = createServerFn({ method: "POST" })
     if (!link) return { linked: false as const, assignments: [], items: [], notes: [] };
     const scope = await devScope(context.userId);
     assertTeamDevelopmentAthlete(scope, link.athlete_id);
-    const assignments = await effectiveTeamDevelopmentForAthlete(
+    const resolved = await effectiveTeamDevelopmentForAthlete(
       context.userId,
       data.teamId,
       link.athlete_id,
     );
-    const items = await sql.query(
-      "select id,assignment_id,state,due_date::text,is_late,payload from team_dev_items where athlete_id=$1 order by due_date,id",
+    const assignments = resolved.map((assignment) => ({
+      id: assignment.id,
+      program_type: assignment.program_type,
+      scope: assignment.scope,
+    }));
+    const items = await sql.query<{id:string;assignment_id:string;state:string;due_date:string;is_late:boolean}>(
+      "select id,assignment_id,state,due_date::text,is_late from team_dev_items where athlete_id=$1 order by due_date,id",
       [link.athlete_id],
     );
-    const notes = await sql.query(
-      "select id,assignment_id,body,created_at from team_dev_notes where athlete_id=$1 and hidden=false order by created_at desc",
+    const notes = await sql.query<{id:string;assignment_id:string|null;body:string;created_at:string}>(
+      "select id,assignment_id,body,created_at::text from team_dev_notes where athlete_id=$1 and hidden=false order by created_at desc",
       [link.athlete_id],
     );
     return { linked: true as const, athleteId: link.athlete_id, assignments, items, notes };
