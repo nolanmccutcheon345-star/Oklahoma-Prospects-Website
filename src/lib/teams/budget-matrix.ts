@@ -8,6 +8,7 @@ import {
 } from "./facility-overhead";
 import { z } from "zod";
 import {
+  eventPaymentSchema,
   defaultBudget,
   programFields,
   programDraft,
@@ -58,6 +59,16 @@ export const masterSchema = z
   .object({
     ...poAllocationFields,
     ...programFields,
+    pricingDefaultsVersion: z.literal(1).optional(),
+    eventPaymentSchedule: eventPaymentSchema.optional(),
+    pricingPrevious: z
+      .object({
+        membershipMonthly: money,
+        poMembershipMonthly: money,
+        contingencyBps: z.number().int().min(0).max(10000),
+      })
+      .strict()
+      .optional(),
     baseline: z.number().int().min(1).max(100),
     membershipMonthly: money,
     contingencyBps: z.number().int().min(0).max(10000),
@@ -76,6 +87,10 @@ export const masterSchema = z
     rows: z.array(matrixRow).length(120),
   })
   .strict()
+  .refine(
+    (m) => !m.pricingDefaultsVersion || Boolean(m.eventPaymentSchedule),
+    "Configure the master event payment schedule.",
+  )
   .refine(
     (m) => new Set(m.rows.map(rowKey)).size === 120,
     "Each sport, age and season needs exactly one row.",
@@ -274,6 +289,12 @@ export function budgetFromMatrix(team: Team, master: MasterMatrix, row: MatrixRo
       name: c.name === "Baseballs" ? "Practice / game balls" : c.name,
       cents: amounts[c.name] || 0,
     })),
+    ...(master.pricingDefaultsVersion
+      ? {
+          pricingInheritance: { version: 1 as const, overrides: [] },
+          eventPaymentSchedule: master.eventPaymentSchedule,
+        }
+      : {}),
     poEnabled: false,
     scheduleCostsAutomatic: true,
     readiness: {

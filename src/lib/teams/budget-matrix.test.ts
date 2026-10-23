@@ -215,7 +215,10 @@ test("master admin permissions, durable revisions, draft initialization, review 
     });
     await sql`insert into club_state(id,payload,rev,demo) values('oklahoma-prospects',${JSON.stringify(club)}::jsonb,0,false)`;
     const master = await getBudgetMaster(sql, "admin");
-    assert.deepEqual(master.value, seedMasterMatrix());
+    assert.equal(master.value.membershipMonthly, 8000);
+    assert.equal(master.value.poMembershipMonthly, 8000);
+    assert.equal(master.value.contingencyBps, 1250);
+    assert.deepEqual(master.value.rows, seedMasterMatrix().rows);
     for (const id of ["coach", "parent"]) {
       await assert.rejects(() => getBudgetMaster(sql, id), /Admin/);
       await assert.rejects(() => saveBudgetMaster(sql, id, 1, master.value), /Admin/);
@@ -260,6 +263,8 @@ test("master admin permissions, durable revisions, draft initialization, review 
       revision: p.revision,
       budget: {
         ...p.budget,
+        eventPaymentSchedule: undefined,
+        pricingInheritance: { version: 1, overrides: ["eventPaymentSchedule"] },
         secondDue: "2098-02-01",
         deadlineOverride: "2098-03-01",
         policy: "Approved payment policy",

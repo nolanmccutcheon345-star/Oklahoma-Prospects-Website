@@ -1,5 +1,11 @@
 import { calendarBillableMonths, serviceMonths } from "./season-months";
-import { withBillableMonths, project, scheduleRows, type FeeBudget } from "./fee-model";
+import {
+  withBillableMonths,
+  pastDueReviewed,
+  project,
+  scheduleRows,
+  type FeeBudget,
+} from "./fee-model";
 import type { TeamActivity } from "./activity-contracts";
 
 export function publicationCostIssues(
@@ -85,11 +91,15 @@ export function feeHealth(
     pending.push("Explain the admin override for Actual Billable Months.");
   if (!b.policy.trim() || !b.reinstatement.trim())
     pending.push("Complete the payment/refund policy and reinstatement rules.");
-  if (!finalDue || (today && finalDue < today))
+  if (!finalDue || (!b.eventPaymentSchedule && today && finalDue < today))
     pending.push(
       "Set a future final payment deadline using the first tournament or an admin override.",
     );
-  if (b.secondDue && (b.secondDue > finalDue || (today && b.secondDue < today)))
+  if (
+    !b.eventPaymentSchedule &&
+    b.secondDue &&
+    (b.secondDue > finalDue || (today && b.secondDue < today))
+  )
     pending.push("Review the second payment date override.");
   if (!b.start || !b.end || b.end < b.start) pending.push("Set valid season dates.");
   if (b.programModel === 3 && b.start && b.end && calendarBillableMonths(b.start, b.end) === null)
@@ -157,12 +167,19 @@ export function feeHealth(
     pending.push(
       "Explain the explicit admin override for discounted PO cost allocations or a zero PO organization fee.",
     );
-  if (b.paymentSchedule && finalDue) {
+  if (b.eventPaymentSchedule && !finalDue)
+    pending.push("First scheduled event is missing; payment schedule is incomplete.");
+  if ((b.paymentSchedule || b.eventPaymentSchedule) && finalDue) {
     try {
       for (const role of (b.poEnabled ? ["full", "po"] : ["full"]) as ("full" | "po")[]) {
         const rows = scheduleRows(b, role === "full" ? p.full : p.po, role, finalDue);
-        let previous = today;
-        for (const r of rows.slice(1)) {
+        const past = Boolean(b.eventPaymentSchedule && today && rows.some((r) => r.due < today));
+        if (past && !pastDueReviewed(b, finalDue))
+          throw Error(
+            "Payment dates are already past. Admin review and a reason are required before publishing.",
+          );
+        let previous = b.eventPaymentSchedule && pastDueReviewed(b, finalDue) ? "" : today;
+        for (const r of b.eventPaymentSchedule ? rows : rows.slice(1)) {
           if (!r.due || r.due < previous || r.due > finalDue)
             throw Error("Complete the custom payment dates in order before publication.");
           previous = r.due;

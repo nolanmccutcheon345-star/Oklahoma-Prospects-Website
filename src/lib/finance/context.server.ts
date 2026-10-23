@@ -1,3 +1,4 @@
+import { releasedMaster, linkedPricingDraft } from "../teams/pricing-defaults";
 /** Internal financial authority selection. No endpoint, activation command, or
  * caller-controlled mode. Full contexts must never leave server consumers. */
 import type { Sql } from "../db";
@@ -5,7 +6,7 @@ import { randomUUID } from "node:crypto";
 import { newCoachId } from "../coach-id.server";
 import type { ClubRecord, Team } from "../teams/types";
 import { feeAction, businessSchema, type FeePlan, type FeeBusiness } from "../teams/fee-contracts";
-import { masterSchema, type MasterMatrix } from "../teams/budget-matrix";
+import { masterSchema, normalizePOMaster, type MasterMatrix } from "../teams/budget-matrix";
 import { activityInput, type TeamActivity } from "../teams/activity-contracts";
 import { seasonHotelNights, seasonEntryCosts } from "../teams/travel-budget";
 import type { z } from "zod";
@@ -465,9 +466,43 @@ export async function commitFinancialBudgetMasterInTransaction(
   if (!prior || prior.revision !== change.expectedRevision)
     throw new Error("The master changed. Reload before saving.");
   const revision = change.expectedRevision + 1;
+  const [release] = await tx<{
+    payload: unknown;
+  }>`select payload from team_pricing_default_releases where version=1`;
+  if (!release) throw Error("Team pricing defaults are unavailable.");
+  const previousMaster = releasedMaster(
+    normalizePOMaster(masterSchema.parse(prior.payload)),
+    release.payload,
+  );
+  // Classify legacy inheritance against the previous matrix, before an owner
+  // changes a row. Save draft propagation and the master as one atomic revision.
+  const nextPlans = initial.feePlans.map((row) => {
+    const team = initial.club.teams.find((t) => t.id === row.team_id);
+    if (!team || row.payload.status === "closed") return row;
+    const plan = clone(row.payload);
+    if (plan.published && !plan.publishedBudget) plan.publishedBudget = clone(plan.budget);
+    plan.budget = linkedPricingDraft(plan, previousMaster, team);
+    plan.budget = linkedPricingDraft(plan, value, team);
+    if (same(plan, row.payload)) return row;
+    plan.revision = row.revision + 1;
+    plan.history = [
+      ...plan.history,
+      {
+        at: new Date().toISOString(),
+        actor: principal.name,
+        action: `Master pricing revision ${revision}: inherited draft settings recalculated; published terms preserved.`,
+      },
+    ].slice(-500);
+    return {
+      ...row,
+      revision: plan.revision,
+      payload: JSON.parse(JSON.stringify(plan)) as FeePlan,
+    };
+  });
   let version: number | null = null;
   if (initial.basis) {
     const inputs = clone(initial.basis.inputs);
+    inputs.feePlans = clone(nextPlans);
     inputs.budgetMaster = inputs.budgetMaster.map((r) =>
       r.id === "master" ? { id: "master", revision, payload: value } : r,
     );
@@ -484,8 +519,12 @@ export async function commitFinancialBudgetMasterInTransaction(
       "Updated financial budget master",
     );
   }
+  for (const row of nextPlans) {
+    if (row.revision !== initial.feePlans.find((p) => p.team_id === row.team_id)!.revision)
+      await tx`update team_fee_plans set payload=${JSON.stringify(row.payload)}::jsonb,revision=${row.revision} where team_id=${row.team_id}`;
+  }
   await tx`update team_budget_master set payload=${JSON.stringify(value)}::jsonb,revision=${revision},updated_at=now() where id='master'`;
-  await tx`insert into club_audit(user_id,action,detail) values(${principal.userId},'budget-master','Updated new-team budget defaults')`;
+  await tx`insert into club_audit(user_id,action,detail) values(${principal.userId},'budget-master',${JSON.stringify({ before: prior.payload, after: value })})`;
   return { version, revision };
 }
 

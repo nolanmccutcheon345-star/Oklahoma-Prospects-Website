@@ -28,6 +28,34 @@ export const programFields = {
   individualAccessMonthly: cents.optional(),
   standaloneAccessMonthly: cents.optional(),
 };
+export const eventPaymentSchema = z
+  .object({
+    percentages: z.array(z.number().int().min(0).max(10000)).length(3),
+    weeksBefore: z.array(z.number().int().min(0).max(52)).length(3),
+  })
+  .strict()
+  .refine(
+    (v) => v.percentages.reduce((a, b) => a + b, 0) === 10000,
+    "Payment percentages must total 100%.",
+  )
+  .refine(
+    (v) => v.weeksBefore[0] >= v.weeksBefore[1] && v.weeksBefore[1] >= v.weeksBefore[2],
+    "Payment weeks must be in descending order.",
+  );
+export const pricingKeys = [
+  "membershipMonthly",
+  "poMembershipMonthly",
+  "contingencyBps",
+  "eventPaymentSchedule",
+] as const;
+export type PricingKey = (typeof pricingKeys)[number];
+export const pricingInheritanceSchema = z
+  .object({
+    version: z.literal(1),
+    overrides: z.array(z.enum(pricingKeys)),
+    legacyReview: z.boolean().optional(),
+  })
+  .strict();
 export const poAllocationFields = {
   poMembershipMonthly: cents.optional(),
   poTeamBps: z.number().int().min(0).max(10000).optional(),
@@ -48,6 +76,12 @@ export const budgetSchema = z
   .object({
     ...poAllocationFields,
     ...programFields,
+    pricingInheritance: pricingInheritanceSchema.optional(),
+    eventPaymentSchedule: eventPaymentSchema.optional(),
+    pastDueReview: z
+      .object({ key: z.string().max(4000), reason: z.string().max(1000) })
+      .strict()
+      .optional(),
     defaultMonths: z.number().positive().max(36).optional(),
     billableMonthsOverride: z.number().positive().max(36).optional(),
     billableMonthsReason: z.string().max(1000).optional(),
@@ -249,7 +283,26 @@ export const shiftDay = (date: string, days: number) => {
   d.setUTCDate(d.getUTCDate() + days);
   return d.toISOString().slice(0, 10);
 };
+// ISO timestamps are converted to the organization's calendar day; plain dates
+// already represent local calendar days. Arithmetic below never uses host timezone.
+export function organizationDay(value: string) {
+  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) return value;
+  if (!/[zZ]|[+-]\d{2}:\d{2}$/.test(value) || !Number.isFinite(Date.parse(value))) return "";
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Chicago",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date(value));
+}
 export function deadline(b: FeeBudget, events: { id: string; start: string }[]) {
+  if (b.eventPaymentSchedule) {
+    const dates = events
+      .map((e) => organizationDay(e.start))
+      .filter((d) => d && b.start && b.end && d >= b.start && d <= b.end)
+      .sort();
+    return dates[0] ? shiftDay(dates[0], -7 * b.eventPaymentSchedule.weeksBefore[2]) : "";
+  }
   const first = events.filter((e) => e.start).sort((a, b) => a.start.localeCompare(b.start))[0];
   const chosen = b.paymentSchedule ? first : events.find((e) => e.id === b.triggerEventId) || first;
   return (
@@ -273,6 +326,18 @@ export function scheduleRows(
   final: string,
   accepted = "",
 ) {
+  if (b.eventPaymentSchedule) {
+    const rule = eventPaymentSchema.parse(b.eventPaymentSchedule);
+    const amounts = rule.percentages.map((n) => Math.round((total * n) / 10000));
+    amounts[1] = Math.min(amounts[1], total - amounts[0]);
+    amounts[2] = total - amounts[0] - amounts[1];
+    if (!Number.isSafeInteger(total) || amounts.some((n) => n < 0)) throw Error("Invalid fee.");
+    return amounts.map((amount, i) => ({
+      amount,
+      due: final ? shiftDay(final, -7 * (rule.weeksBefore[i] - rule.weeksBefore[2])) : "",
+      label: ["Deposit", "Second payment", "Final payment"][i],
+    }));
+  }
   if (!b.paymentSchedule)
     return installments(total).map((amount, i) => ({
       amount,
@@ -295,11 +360,26 @@ export function scheduleRows(
     label: i === 0 ? "Deposit" : i === rows.length - 1 ? "Final payment" : `Payment ${i + 1}`,
   }));
 }
+export function paymentReviewKey(b: FeeBudget, final: string) {
+  return JSON.stringify([
+    b.start,
+    b.end,
+    b.eventPaymentSchedule,
+    scheduleRows(b, 10000, "full", final),
+  ]);
+}
+export function pastDueReviewed(b: FeeBudget, final: string) {
+  return (
+    b.pastDueReview?.key === paymentReviewKey(b, final) &&
+    b.pastDueReview.reason.trim().length >= 10
+  );
+}
 // Preserve the published installment dates and proportions for an optional upgrade,
 // including custom dollar schedules. The last installment absorbs cent rounding.
 export function individualAccessSchedule(b: FeeBudget, final: string, accepted = "") {
   const base = calculateFees(b).full,
     total = calculateFees(b, true).full;
+  if (b.eventPaymentSchedule) return scheduleRows(b, total, "full", final, accepted);
   const rows = scheduleRows(b, base, "full", final, accepted);
   let allocated = 0;
   return rows.map((r, i) => {
@@ -313,9 +393,9 @@ export function individualAccessSchedule(b: FeeBudget, final: string, accepted =
 }
 // Processing allowance follows the configured payment count, including per-charge rounding.
 function gross(net: number, b: FeeBudget) {
-  const count = b.paymentSchedule?.rows.length || 3;
+  const count = b.eventPaymentSchedule ? 3 : b.paymentSchedule?.rows.length || 3;
   let total = Math.ceil((net + count * b.processingFixed) / (1 - b.processingBps / 10000));
-  if (!b.paymentSchedule) {
+  if (!b.paymentSchedule && !b.eventPaymentSchedule) {
     while (
       total -
         sum(
@@ -390,15 +470,19 @@ export function calculateFees(input: FeeBudget, individualAccess = false) {
       ? Math.min(
           total - net,
           Math.ceil((total * b.processingBps) / 10000) +
-            (b.paymentSchedule?.rows.length || 3) * b.processingFixed +
-            (b.processingBps ? (b.paymentSchedule?.rows.length || 3) - 1 : 0),
+            (b.eventPaymentSchedule ? 3 : b.paymentSchedule?.rows.length || 3) * b.processingFixed +
+            (b.processingBps
+              ? (b.eventPaymentSchedule ? 3 : b.paymentSchedule?.rows.length || 3) - 1
+              : 0),
         )
       : total - net;
   const poProcessing = linked
-    ? b.paymentSchedule
+    ? b.paymentSchedule || b.eventPaymentSchedule
       ? Math.ceil((po * b.processingBps) / 10000) +
-        b.paymentSchedule.rows.length * b.processingFixed +
-        (b.processingBps ? b.paymentSchedule.rows.length - 1 : 0)
+        (b.eventPaymentSchedule ? 3 : b.paymentSchedule?.rows.length || 3) * b.processingFixed +
+        (b.processingBps
+          ? (b.eventPaymentSchedule ? 3 : b.paymentSchedule?.rows.length || 3) - 1
+          : 0)
       : sum(
           installments(po).map(
             (amount) => Math.ceil((amount * b.processingBps) / 10000) + b.processingFixed,

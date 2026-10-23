@@ -1,3 +1,4 @@
+import { linkedPricingDraft, pricingRevisionNeeded } from "./pricing-defaults";
 import { poRosterLimit } from "./po-roster";
 import { assertRosterAssignment, assertRosterCapacity } from "./po-roster.server";
 import { linkedPODraft } from "./budget-matrix";
@@ -32,6 +33,7 @@ import {
   type FeeBusiness,
 } from "./fee-contracts";
 import {
+  type FeeBudget,
   budgetSchema,
   budgetForRoster,
   defaultBudget,
@@ -43,6 +45,8 @@ import {
   deadline,
   scheduleRows,
   money,
+  pastDueReviewed,
+  organizationDay,
   paymentStatus,
   membershipRecognition,
   sum,
@@ -67,6 +71,7 @@ function initial(t: Team): FeePlan {
   return {
     budget: withBillableMonths({
       ...defaultBudget(),
+      pricingInheritance: { version: 1, overrides: [] },
       start: t.seasonStart,
       end: t.seasonEnd,
       months: t.months || 3,
@@ -78,6 +83,23 @@ function initial(t: Team): FeePlan {
     players: {},
     history: [],
   };
+}
+function paymentEvents(context: FinancialContext, team: Team, b: FeeBudget) {
+  const catalog = context.club.catalog.filter((e) => team.tournamentIds.includes(e.id));
+  if (!b.eventPaymentSchedule)
+    return catalog.map((e) => ({ id: e.id, name: e.name, start: e.start }));
+  const activities = context.activities
+    .filter((a) => a.team_id === team.id && a.payload.status !== "cancelled")
+    .map((a) => ({ id: a.id, name: a.payload.title || "Team event", start: a.payload.date }));
+  // Canceled scheduled events cannot re-enter through their catalog mirror.
+  const canceled = new Set(
+    context.activities
+      .filter((a) => a.team_id === team.id && a.payload.status === "cancelled")
+      .map((a) => a.id),
+  );
+  return [...catalog.filter((e) => e.org !== "Team schedule" && !canceled.has(e.id)), ...activities]
+    .map((e) => ({ id: e.id, name: e.name, start: organizationDay(e.start) }))
+    .filter((e) => e.start && e.start >= b.start && e.start <= b.end);
 }
 function checkBudget(p: FeePlan) {
   const b = withBillableMonths(budgetSchema.parse(p.budget));
@@ -243,7 +265,7 @@ export async function feeWorkspaceInTransaction(
       if (p.published && !p.publishedBudget) p.publishedBudget = structuredClone(p.budget);
       if (p.status !== "closed")
         p.budget = teamSeasonOverhead(
-          pendingGas(linkedPODraft(p.budget, overheadMaster, t)),
+          pendingGas(linkedPODraft(linkedPricingDraft(p, overheadMaster, t), overheadMaster, t)),
           overheadMaster,
         );
       const players = t.roster
@@ -260,9 +282,7 @@ export async function feeWorkspaceInTransaction(
             (x.roleType !== "po" ||
               (offersPO(p.budget, t.sport) && offersPO(p.publishedBudget || p.budget, t.sport))),
         }));
-      const events = club.catalog
-        .filter((e) => t.tournamentIds.includes(e.id))
-        .map((e) => ({ id: e.id, name: e.name, start: e.start }));
+      const events = paymentEvents(context, t, p.budget);
       const active = t.roster.filter(
         (x) =>
           p.players[x.id]?.status === "Roster Hold" ||
@@ -401,6 +421,13 @@ export async function feeWorkspaceInTransaction(
         private: admin
           ? {
               plan: p,
+              pricingTeam: {
+                age: t.age,
+                sport: t.sport,
+                seasonLabel: t.seasonLabel,
+                seasons: t.seasons,
+              },
+              pricingRevisionNeeded: pricingRevisionNeeded(p, p.budget, deadline(p.budget, events)),
               feeHealth: (() => {
                 const health = feeHealth(p.budget, {
                   key: p.defaults?.key,
@@ -510,6 +537,8 @@ export async function mutateFeePlan(sql: Sql, userId: string, raw: z.infer<typeo
       throw Error("Admin access required.");
     if (p.status === "closed") throw Error("This season is financially closed.");
     if (p.published && !p.publishedBudget) p.publishedBudget = structuredClone(p.budget);
+    const currentMaster = (await loadBudgetMaster(tx, context)).value;
+    if (input.action !== "accept") p.budget = linkedPricingDraft(p, currentMaster, t);
     p.budget = await withScheduledHotels(tx, t.id, p.budget, context);
     if (input.action === "applyDefaults") {
       if (p.published)
@@ -527,7 +556,6 @@ export async function mutateFeePlan(sql: Sql, userId: string, raw: z.infer<typeo
         end: p.budget.end || t.seasonEnd,
         uniformId: p.budget.uniformId,
         uniformCost: p.budget.uniformCost,
-        paymentSchedule: p.budget.paymentSchedule,
         policy: p.budget.policy,
         reinstatement: p.budget.reinstatement,
       };
@@ -577,8 +605,8 @@ export async function mutateFeePlan(sql: Sql, userId: string, raw: z.infer<typeo
         status: "pending",
       });
     }
-    const currentMaster = (await loadBudgetMaster(tx, context)).value;
-    if (input.action !== "accept") p.budget = linkedPODraft(p.budget, currentMaster, t);
+    if (input.action !== "accept")
+      p.budget = linkedPODraft(linkedPricingDraft(p, currentMaster, t), currentMaster, t);
     p.budget = teamSeasonOverhead(withBillableMonths(p.budget), currentMaster);
     if (input.action === "save") {
       const additional = t.roster.filter((x) => !x.withdrawn);
@@ -610,10 +638,7 @@ export async function mutateFeePlan(sql: Sql, userId: string, raw: z.infer<typeo
         key: p.defaults?.key,
         seasonLabel: t.seasonLabel,
         overheadReviewed: (await loadBudgetMaster(tx, context)).value.overheadReviewed,
-        finalDue: deadline(
-          p.budget,
-          club.catalog.filter((e) => t.tournamentIds.includes(e.id)),
-        ),
+        finalDue: deadline(p.budget, paymentEvents(context, t, p.budget)),
         today: today(),
       });
       if (!health.ready)
@@ -628,12 +653,13 @@ export async function mutateFeePlan(sql: Sql, userId: string, raw: z.infer<typeo
           "Resolve unaccepted pitcher-only roster assignments before publishing full-player-only fees.",
         );
       p.budget.poEnabled = poEnabled;
-      const final = deadline(
-          p.budget,
-          club.catalog.filter((e) => t.tournamentIds.includes(e.id)),
-        ),
+      const final = deadline(p.budget, paymentEvents(context, t, p.budget)),
         b = p.budget;
-      if (!final || (!b.paymentSchedule && b.secondDue && b.secondDue > final) || final < today())
+      if (
+        !final ||
+        (!b.eventPaymentSchedule &&
+          ((!b.paymentSchedule && b.secondDue && b.secondDue > final) || final < today()))
+      )
         throw Error("Set a future final deadline and a second payment date no later than it.");
       if (!b.policy.trim() || !b.reinstatement.trim())
         throw Error(
@@ -645,20 +671,22 @@ export async function mutateFeePlan(sql: Sql, userId: string, raw: z.infer<typeo
         ...(accessOffer
           ? {
               fullAccess: individualAccessSchedule(b, final, today()).map((r, i) =>
-                i ? r : { ...r, due: "" },
+                i || b.eventPaymentSchedule ? r : { ...r, due: "" },
               ),
             }
           : {}),
         full: scheduleRows(b, f.full, "full", final, today()).map((r, i) =>
-          i ? r : { ...r, due: "" },
+          i || b.eventPaymentSchedule ? r : { ...r, due: "" },
         ),
         po: poEnabled
-          ? scheduleRows(b, f.po, "po", final, today()).map((r, i) => (i ? r : { ...r, due: "" }))
+          ? scheduleRows(b, f.po, "po", final, today()).map((r, i) =>
+              i || b.eventPaymentSchedule ? r : { ...r, due: "" },
+            )
           : [],
       };
       for (const rows of Object.values(schedules)) {
-        let previous = today();
-        for (const row of rows.slice(1)) {
+        let previous = b.eventPaymentSchedule && pastDueReviewed(b, final) ? "" : today();
+        for (const row of b.eventPaymentSchedule ? rows : rows.slice(1)) {
           if (!row.due || row.due < previous || row.due > final)
             throw Error(
               "Payment dates must be in order, no earlier than today and no later than the final deadline.",
@@ -688,7 +716,7 @@ export async function mutateFeePlan(sql: Sql, userId: string, raw: z.infer<typeo
           schedules.full
             .map(
               (r, i) =>
-                `${r.label}: ${money(r.amount)} ${i === 1 && !b.paymentSchedule && !b.secondDue ? "at the acceptance midpoint" : r.due ? "by " + r.due : "at acceptance"}`,
+                `${r.label}: ${money(r.amount)} ${i === 1 && !b.eventPaymentSchedule && !b.paymentSchedule && !b.secondDue ? "at the acceptance midpoint" : r.due ? "by " + r.due : "at acceptance"}`,
             )
             .join("; ") +
           (poEnabled
@@ -700,7 +728,7 @@ export async function mutateFeePlan(sql: Sql, userId: string, raw: z.infer<typeo
                 )
                 .join("; ")
             : "") +
-          (!b.paymentSchedule && !b.secondDue
+          (!b.eventPaymentSchedule && !b.paymentSchedule && !b.secondDue
             ? "\nSecond payment is due midway between acceptance and the final deadline; the exact date is confirmed when you accept."
             : "") +
           ". Grace period: " +
@@ -811,7 +839,9 @@ export async function mutateFeePlan(sql: Sql, userId: string, raw: z.infer<typeo
         date = today();
       const agreedForDates = p.publishedBudget || p.budget;
       const acceptedSchedule =
-        !agreedForDates.paymentSchedule && !agreedForDates.secondDue
+        !agreedForDates.eventPaymentSchedule &&
+        !agreedForDates.paymentSchedule &&
+        !agreedForDates.secondDue
           ? individualAccess
             ? individualAccessSchedule(agreedForDates, p.published.finalDue, date)
             : scheduleRows(
@@ -833,7 +863,7 @@ export async function mutateFeePlan(sql: Sql, userId: string, raw: z.infer<typeo
         deadline: p.published.finalDue,
         planType: "custom",
         rows: acceptedSchedule.map((r) => ({
-          date: !r.due || r.due < date ? date : r.due,
+          date: agreedForDates.eventPaymentSchedule ? r.due : !r.due || r.due < date ? date : r.due,
           amount: r.amount / 100,
         })),
       };
@@ -922,7 +952,31 @@ export async function mutateFeePlan(sql: Sql, userId: string, raw: z.infer<typeo
     p.revision++;
     p.history = [
       ...p.history,
-      { at: new Date().toISOString(), actor: me.name, action: input.action },
+      {
+        at: new Date().toISOString(),
+        actor: me.name,
+        action:
+          input.action +
+          (input.action === "save"
+            ? " pricing " +
+              JSON.stringify({
+                before: {
+                  membershipMonthly: row?.payload.budget.membershipMonthly,
+                  poMembershipMonthly: row?.payload.budget.poMembershipMonthly,
+                  contingencyBps: row?.payload.budget.contingencyBps,
+                  eventPaymentSchedule: row?.payload.budget.eventPaymentSchedule,
+                  inheritance: row?.payload.budget.pricingInheritance,
+                },
+                after: {
+                  membershipMonthly: p.budget.membershipMonthly,
+                  poMembershipMonthly: p.budget.poMembershipMonthly,
+                  contingencyBps: p.budget.contingencyBps,
+                  eventPaymentSchedule: p.budget.eventPaymentSchedule,
+                  inheritance: p.budget.pricingInheritance,
+                },
+              })
+            : ""),
+      },
     ].slice(-500);
     if (context.mode === "basis") {
       // Read-time compatibility synthesis is never a financial amendment.
