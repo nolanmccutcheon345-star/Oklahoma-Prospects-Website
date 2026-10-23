@@ -29,6 +29,7 @@ import type {
   TrainingReviewInput,
 } from "@/lib/pd/training";
 import { chicagoDate } from "@/lib/scheduling";
+import { TeamDevelopmentAthletePanel } from "@/components/team-development/athlete-panel";
 const control = "w-full min-w-0 min-h-11 rounded-lg border border-line bg-white p-2 text-ink";
 const card = "rounded-xl border border-line bg-white p-4";
 function Field({ label, children }: { label: string; children: ReactNode }) {
@@ -112,6 +113,7 @@ export function MyTraining({
             </Problem>
           )}
           <DevelopmentContext data={data} />
+          {!compact && <TeamDevelopmentAthletePanel athleteId={athleteId} />}
           {data.admin && !compact && <TrainingQuality athleteId={athleteId} />}
           {compact ? (
             <>
