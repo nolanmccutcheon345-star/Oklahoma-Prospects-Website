@@ -71,6 +71,41 @@ export const getCoachTeamDevelopment = createServerFn({ method: "POST" })
     return { templates, assignments, links };
   });
 
+export const getAthleteTeamDevelopment = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
+  .validator(z.object({ athleteId }).strict())
+  .handler(async ({ context, data }) => {
+    const sql = await getSql();
+    const scope = await devScope(context.userId);
+    assertTeamDevelopmentAthlete(scope, data.athleteId);
+    const links = await sql.query<{ team_id: string }>(
+      "select distinct team_id from team_dev_roster_links where athlete_id=$1 and ended_at is null",
+      [data.athleteId],
+    );
+    const effective = [];
+    for (const link of links) {
+      const assignments = await effectiveTeamDevelopmentForAthlete(
+        context.userId,
+        link.team_id,
+        data.athleteId,
+      );
+      effective.push(...assignments.map((assignment) => ({ ...assignment, teamId: link.team_id })));
+    }
+    const items = await sql.query(
+      "select id,assignment_id,state,due_date::text,is_late,payload from team_dev_items where athlete_id=$1 order by due_date,id",
+      [data.athleteId],
+    );
+    const notes = await sql.query(
+      "select id,assignment_id,body,created_at from team_dev_notes where athlete_id=$1 and hidden=false order by created_at desc",
+      [data.athleteId],
+    );
+    const reassessments = await sql.query(
+      "select id,assignment_id,scheduled_on::text,performed_on::text,note from team_dev_reassessments where athlete_id=$1 order by coalesce(performed_on,scheduled_on) desc nulls last",
+      [data.athleteId],
+    );
+    return { assignments: effective, items, notes, reassessments };
+  });
+
 export const getFamilyTeamDevelopment = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
   .validator(z.object({ teamId, rosterPlayerId }).strict())
