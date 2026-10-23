@@ -33,7 +33,7 @@ test("age shorthand and ceiling placeholders normalize deterministically",()=>{
   );
 });
 
-const ctx=(ageBand,level,sport="baseball",phase="PHS-OFF",position="P")=>({ageBand,level,sport,phase,position});
+const ctx=(ageBand:TeamDevAgeBand,level:TeamDevLevel,sport:TeamDevSuggestionContext["sport"]="baseball",phase:TeamDevSuggestionContext["phase"]="PHS-OFF",position="P"):TeamDevSuggestionContext=>({ageBand,level,sport,phase,position});
 
 test("known cross-band mapping defects are corrected at resolution time",()=>{
   assert.deepEqual(
