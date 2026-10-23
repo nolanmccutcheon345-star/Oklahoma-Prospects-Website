@@ -142,6 +142,7 @@ CREATE TABLE IF NOT EXISTS team_dev_assignments (
   start_date date NOT NULL,
   end_date date,
   inherit_new_players boolean NOT NULL DEFAULT false,
+  schedule jsonb NOT NULL DEFAULT '{}'::jsonb,
   status text NOT NULL DEFAULT 'active' CHECK (status IN ('active','ended','paused')),
   revision integer NOT NULL DEFAULT 0,
   created_by text NOT NULL,
@@ -266,6 +267,10 @@ CREATE TABLE IF NOT EXISTS team_dev_deletion_queue (
   status text NOT NULL DEFAULT 'requested',
   payload jsonb NOT NULL DEFAULT '{}'::jsonb
 );
+
+INSERT INTO team_dev_config_items(id,version,kind,label,active,payload,data_label)
+VALUES ('late_credit_window_days',1,'runtime','Late credit window',true,'{"days":7}'::jsonb,'ESTIMATE')
+ON CONFLICT(id,version) DO NOTHING;
 
 CREATE TABLE IF NOT EXISTS team_dev_events (
   id bigserial PRIMARY KEY,
