@@ -1,13 +1,18 @@
 import type { Config } from "@netlify/functions";
+import { getSql } from "../../src/lib/db";
+import {
+  runTeamDevelopmentDaily,
+  shouldRunTeamDevelopmentDaily,
+} from "../../src/lib/team-development/daily.server";
+
 export default async () => {
   if (Netlify.env.get("CONTEXT") !== "production") return new Response("Disabled");
-  const secret=Netlify.env.get("TEAM_DEVELOPMENT_DAILY_SECRET");
-  if(!secret)return new Response("Not configured",{status:503});
-  try{
-    const result=await fetch("https://prospectssports.club/api/team-development-daily",{
-      method:"POST",headers:{Authorization:"Bearer "+secret},redirect:"error",signal:AbortSignal.timeout(25000),
-    });
-    return new Response(result.ok?"OK":"Retry pending",{status:result.ok?200:503});
-  }catch{return new Response("Retry pending",{status:503});}
+  if (!shouldRunTeamDevelopmentDaily()) return new Response("Skipped");
+  try {
+    const result = await runTeamDevelopmentDaily(await getSql());
+    return Response.json(result);
+  } catch {
+    return new Response("Retry pending", { status: 503 });
+  }
 };
-export const config: Config={schedule:"0 * * * *"};
+export const config: Config = { schedule: "0 * * * *" };
