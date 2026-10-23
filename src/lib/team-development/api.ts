@@ -26,7 +26,7 @@ export const getAdminTeamDevelopment = createServerFn({ method: "POST" })
     const sql = await getSql();
     const me = await resolveIdentity(sql, context.userId);
     if (me.role !== "admin") throw new Error("Front office only.");
-    const [programs, versions, exercises, drills, config, links, athletes] = await Promise.all([
+    const [programs, versions, exercises, drills, config, links, athletes, settings] = await Promise.all([
       sql.query<{id:string;name:string;sport:string;category:string;current_version:number;disabled_at:string|null}>(
         "select id,name,sport,category,current_version,disabled_at::text from team_dev_programs order by category,name",
       ),
@@ -48,6 +48,9 @@ export const getAdminTeamDevelopment = createServerFn({ method: "POST" })
       sql.query<{ id: string; profile: { firstName?: string; lastName?: string; sport?: string } }>(
         "select id,profile from club_athletes order by id",
       ),
+      sql.query<{athlete_id:string;self_complete_enabled:boolean}>(
+        "select athlete_id,self_complete_enabled from team_dev_player_settings order by athlete_id",
+      ),
     ]);
     return {
       programs,
@@ -56,6 +59,7 @@ export const getAdminTeamDevelopment = createServerFn({ method: "POST" })
       drills,
       config,
       links,
+      settings,
       athletes: athletes.map((a) => ({
         id: a.id,
         name: [a.profile?.firstName, a.profile?.lastName].filter(Boolean).join(" ") || a.id,
