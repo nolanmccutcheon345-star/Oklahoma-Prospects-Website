@@ -26,6 +26,7 @@ import { formatMoney } from "@/lib/pricing";
 import { useLiveCatalog } from "@/lib/use-catalog";
 import type { ClubRecord } from "@/lib/teams/types";
 import { Button } from "./ui/button";
+import { TeamDevelopmentAdminPanel } from "./team-development/admin-panel";
 export function OfficeWorkspace({
   club,
   financial,
@@ -152,6 +153,7 @@ export function OfficeWorkspace({
           </section>
         </div>
       )}
+      {section === "development" && <TeamDevelopmentAdminPanel club={club} />}
       {section === "tournaments" && <TournamentFinder club={club} financial={financial} onReload={onReload} admin onSave={onSave} />}
       {section === "events" && <EventOffice />}
       {section === "requests" && <OfficeRequests />}

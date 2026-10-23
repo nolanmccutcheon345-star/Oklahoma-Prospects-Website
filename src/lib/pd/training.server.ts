@@ -342,9 +342,13 @@ export async function reviewTrainingForUser(userId: string, raw: TrainingReviewI
       throw new Error("Training changed. Reload before reviewing.");
     if (a.status === "completed" || a.status === "discontinued")
       throw new Error("Closed programs are historical. Create a new reviewed assignment.");
+    if (a.status === "paused" && input.action === "discontinue")
+      throw new Error(
+        "Resolve the active training hold before discontinuing or replacing this program.",
+      );
     if (
       a.status === "paused" &&
-      !["pause", "discontinue"].includes(input.action) &&
+      input.action !== "pause" &&
       !input.safetyReviewed
     )
       throw new Error(

@@ -83,7 +83,7 @@ test("authenticated instructor walkthrough: both sports, 30/60/75, durable draft
         {
           name: "transport",
           setup(b) {
-            b.onResolve({ filter: /lesson-session-api$|recruiting-api$|training-api$/ }, (a) => ({
+            b.onResolve({ filter: /lesson-session-api$|recruiting-api$|training-api$|team-development\/api$/ }, (a) => ({
               path: a.path,
               namespace: "transport",
             }));
@@ -91,7 +91,9 @@ test("authenticated instructor walkthrough: both sports, 30/60/75, durable draft
               loader: "js",
               contents: a.path.endsWith("recruiting-api")
                 ? `export const getLessonMetrics=async()=>{throw Error('Separate recruiting verification is outside this walkthrough')};export const saveLessonMetric=getLessonMetrics;`
-                : `const call=async(name,input)=>{const r=await fetch('/test-api/'+name,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(input?.data||{})});const d=await r.json();if(!r.ok)throw Error(d.error);return d;};${["openBookedLesson", "saveBookedLesson", "reviewBookedLesson", "getBookedLessonHistory", "getLessonExceptions", "chooseLesson", "getLessonPresets", "reviewLessonPreset", "loadTraining", "assignTraining", "logTraining", "reviewTraining", "getTrainingContent", "submitTrainingDrill", "reviewTrainingDrill", "loadTrainingInbox", "loadTrainingQuality", "reviewTrainingQuality", "reviewAcademyCurriculum"].map((n) => `export const ${n}=input=>call('${n}',input);`).join("")}`,
+                : a.path.endsWith("team-development/api")
+                  ? `export const getAthleteTeamDevelopment=async()=>({assignments:[],items:[],notes:[],reassessments:[],selfCompleteEnabled:false});export const updateTeamDevelopmentItem=async()=>({ok:true,state:'completed',isLate:false});`
+                  : `const call=async(name,input)=>{const r=await fetch('/test-api/'+name,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(input?.data||{})});const d=await r.json();if(!r.ok)throw Error(d.error);return d;};${["openBookedLesson", "saveBookedLesson", "reviewBookedLesson", "getBookedLessonHistory", "getLessonExceptions", "chooseLesson", "getLessonPresets", "reviewLessonPreset", "loadTraining", "assignTraining", "logTraining", "reviewTraining", "getTrainingContent", "submitTrainingDrill", "reviewTrainingDrill", "loadTrainingInbox", "loadTrainingQuality", "reviewTrainingQuality", "reviewAcademyCurriculum"].map((n) => `export const ${n}=input=>call('${n}',input);`).join("")}`,
             }));
           },
         },

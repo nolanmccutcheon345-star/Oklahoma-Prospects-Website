@@ -20,6 +20,7 @@ test("front office sidebar and mobile More navigate to every workspace and prese
         "Dashboard",
         "Requests",
         "Teams & Players",
+        "Team Development",
         "Tournament Finder",
         "Evaluations",
         "Bookings",

@@ -4,6 +4,7 @@ export const OFFICE_SECTIONS = [
   ["dashboard", "Dashboard"],
   ["requests", "Requests"],
   ["teams", "Teams & Players"],
+  ["development", "Team Development"],
   ["tournaments", "Tournament Finder"],
   ["evaluations", "Evaluations"],
   ["bookings", "Bookings"],

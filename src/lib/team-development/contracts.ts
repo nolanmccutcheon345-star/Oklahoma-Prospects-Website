@@ -1,0 +1,41 @@
+export const TEAM_DEV_BLOCKED_TOKEN = "REQUIRES APPROVED AGE-BAND CEILING BEFORE ACTIVATION" as const;
+export const TEAM_DEV_STATUSES = ["DRAFT","SPORTS_SCIENCE_REVIEW","SAFETY_REVIEW","APPROVED","ACTIVE","RETIRED"] as const;
+export type TeamDevStatus = (typeof TEAM_DEV_STATUSES)[number];
+export type TeamDevDataLabel = "ESTIMATE" | "VERIFIED";
+export const TEAM_DEV_AGE_BANDS = ["agp_6u-8u","agp_9u-10u","agp_11u-12u","agp_13u-14u","agp_15u-17u"] as const;
+export type TeamDevAgeBand = (typeof TEAM_DEV_AGE_BANDS)[number];
+export const TEAM_DEV_LEVELS = ["LVL-FND","LVL-DEV","LVL-ADV","LVL-ELT"] as const;
+export type TeamDevLevel = (typeof TEAM_DEV_LEVELS)[number];
+export const TEAM_DEV_PHASES = ["PHS-OFF","PHS-PRE","PHS-EARLY","PHS-COMP","PHS-POST","ANY"] as const;
+export type TeamDevPhase = (typeof TEAM_DEV_PHASES)[number];
+export type TeamDevSport = "baseball" | "softball" | "both";
+export type TeamDevSeedRecord = {
+  id: string;
+  version?: number;
+  table?: string;
+  name?: string;
+  status?: TeamDevStatus | string;
+  data_label?: TeamDevDataLabel | string;
+  sport?: TeamDevSport | string;
+  age_band?: string | string[];
+  level?: string | string[];
+  position?: string | string[];
+  season_phase?: string | string[];
+  phase?: string | string[];
+  ceiling_ref?: string | string[];
+  suggest?: string[];
+  [key: string]: unknown;
+};
+export type NormalizedTeamDevSeedRecord = TeamDevSeedRecord & {
+  version: number;
+  status: "DRAFT";
+  data_label: "ESTIMATE";
+  blocked_fields: string[];
+};
+export type TeamDevSuggestionContext = {
+  sport: "baseball" | "softball";
+  ageBand: TeamDevAgeBand;
+  level: TeamDevLevel;
+  phase: Exclude<TeamDevPhase,"ANY">;
+  position: string;
+};

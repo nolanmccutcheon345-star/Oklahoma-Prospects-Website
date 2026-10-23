@@ -11,6 +11,7 @@ import { balance, docsComplete } from "@/lib/teams/pricing";
 import { Section } from "./ui";
 import { money } from "./ui";
 import { TeamRosterConsentForm } from './roster-consent-form';
+import { TeamDevelopmentFamilyPanel } from '@/components/team-development/family-panel';
 
 const copy = {
   en: {
@@ -115,6 +116,7 @@ export function FamilyApp({
       {financial&&<FamilyFinancialRecords financial={financial} familyId={familyId}/>}
       {!financial&&<TeamFeeWorkspace teamId={team.id}/>}
       <TeamActivities key={team.id} teamId={team.id} onSaved={onReload}/>
+      <TeamDevelopmentFamilyPanel teamId={team.id} rosterPlayerId={player.id} />
       {mine.length > 1 ? (
         <div className="flex flex-wrap gap-2">
           {mine.map((m) => (
