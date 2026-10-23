@@ -16,7 +16,7 @@ export function TeamDevelopmentFamilyPanel({teamId,rosterPlayerId}:{teamId:strin
       </div>
       {!data.assignments.length?<p className="mt-4 text-sm">No active team-development program is assigned.</p>:<div className="mt-4 grid gap-2">{data.assignments.map((a:any)=><article key={a.id} className="rounded-lg bg-paper-2 p-3"><strong>{a.program_type}</strong><p className="text-sm text-muted">Coach-assigned {a.scope} program.</p></article>)}</div>}
       {(data.items as any[]).length?<div className="mt-4"><h3 className="font-semibold">Today & upcoming</h3><ul className="mt-2 grid gap-2 text-sm">{(data.items as any[]).map(item=><li key={item.id} className="rounded-lg border p-3">{item.due_date} · {item.state}{item.is_late?" · late":""}</li>)}</ul></div>:null}
-      <p className="mt-4 text-xs text-muted">Training guidance is for athletic development and does not diagnose, treat, or clear an injury. If something hurts, stop the affected activity and tell your parent/guardian and coach.</p>
+      <p className="mt-4 text-xs text-muted">{TEAM_DEVELOPMENT_FAMILY_DISCLAIMER}</p>
     </>}
   </section>;
 }
