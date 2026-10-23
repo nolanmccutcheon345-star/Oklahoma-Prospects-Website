@@ -1,8 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { resolveEffectiveAssignments } from "./resolution";
+import { resolveEffectiveAssignments, type TeamDevAssignmentScope, type TeamDevResolvedAssignment } from "./resolution";
 
-const base = (id, program_type, scope, target) => ({
+const base = (id:string, program_type:string, scope:TeamDevAssignmentScope, target:{target_key:string;athlete_id?:string;position?:string}):TeamDevResolvedAssignment => ({
   id, program_type, scope, created_at: "2026-10-23T12:00:00Z",
   targets: [target],
 });
