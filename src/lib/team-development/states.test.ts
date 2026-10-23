@@ -1,9 +1,9 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { compliance, dailyTransition, lateCompletionDecision } from "./states";
+import { compliance, dailyTransition, lateCompletionDecision, type ComplianceItem } from "./states";
 
 test("compliance uses half-up integer rounding and eligibility exclusions",()=>{
-  const items=Array.from({length:8},(_,i)=>({state:i===0?"completed":"missed",dueDate:"2026-10-20",completedOn:i===0?"2026-10-20":null}));
+  const items:ComplianceItem[]=Array.from({length:8},(_,i)=>({state:i===0?"completed":"missed",dueDate:"2026-10-20",completedOn:i===0?"2026-10-20":null}));
   assert.equal(compliance(items).completionPct,13);
   assert.deepEqual(compliance([{state:"missed",dueDate:"2026-10-20",paused:true}]),{eligible:0,completed:0,onTime:0,completionPct:null,onTimePct:null});
 });
