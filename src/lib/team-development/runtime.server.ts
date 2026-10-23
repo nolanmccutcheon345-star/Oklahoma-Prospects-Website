@@ -18,6 +18,26 @@ function ageBand(age:number):TeamDevAgeBand {
 function parseClub(payload:ClubRecord|string):ClubRecord {
   return typeof payload==="string"?JSON.parse(payload) as ClubRecord:payload;
 }
+function isoAdd(date:string,days:number) {
+  const value=new Date(date+"T12:00:00Z"); value.setUTCDate(value.getUTCDate()+days);
+  return value.toISOString().slice(0,10);
+}
+function scheduledDates(startDate:string,endDate:string,daysOfWeek:number[]) {
+  const days=new Set(daysOfWeek);
+  const out:string[]=[];
+  for(let date=startDate;date<=endDate;date=isoAdd(date,1)) {
+    const dow=new Date(date+"T12:00:00Z").getUTCDay();
+    if(days.has(dow))out.push(date);
+  }
+  return out;
+}
+async function lateWindowDays(sql:Sql) {
+  const [row]=await sql<{payload:{days?:number}}>`
+    select payload from team_dev_config_items where id='late_credit_window_days' and active=true order by version desc limit 1
+  `;
+  const days=Number(row?.payload?.days);
+  return Number.isSafeInteger(days)&&days>=0&&days<=30?days:7;
+}
 async function activeLinks(sql:Sql,teamId:string) {
   return sql<{athlete_id:string;roster_player_id:string}>`
     select athlete_id,roster_player_id from team_dev_roster_links
@@ -41,7 +61,8 @@ export async function createTeamDevelopmentAssignment(userId:string,input:{
   programId:string;
   programVersion:number;
   startDate:string;
-  endDate?:string;
+  endDate:string;
+  daysOfWeek:number[];
   inheritNewPlayers?:boolean;
   position?:string;
   athleteIds?:string[];
@@ -58,6 +79,10 @@ export async function createTeamDevelopmentAssignment(userId:string,input:{
     const club=parseClub(clubRow.payload);
     const team=club.teams.find(t=>t.id===input.teamId&&!t.closed);
     if(!team)throw new Error("Team is not open.");
+    if(input.endDate<input.startDate)throw new Error("End date must be on or after start date.");
+    const daysOfWeek=[...new Set(input.daysOfWeek)].sort((a,b)=>a-b);
+    if(!daysOfWeek.length||daysOfWeek.some(day=>!Number.isInteger(day)||day<0||day>6))
+      throw new Error("Choose at least one weekly training day.");
     if(!scope.admin&&!coachHoldsTeam(club,(await import("../identity.server").then(m=>m.resolveIdentity(tx,userId))).email,team.id))
       throw new Error("Forbidden");
 
@@ -111,18 +136,36 @@ export async function createTeamDevelopmentAssignment(userId:string,input:{
       if(conflict.length)throw new Error("A same-tier program already exists for this target and program type.");
     }
 
-    const [version]=await tx<{payload:unknown}>`
+    const [version]=await tx<{payload:Record<string,unknown>}>`
       select payload from team_dev_program_versions where program_id=${input.programId} and version=${input.programVersion}
     `;
+    if(!version)throw new Error("Program version not found.");
     const id=randomUUID();
+    const schedule={daysOfWeek:[...new Set(input.daysOfWeek)].sort((a,b)=>a-b)};
     await tx`
-      insert into team_dev_assignments(id,team_id,program_type,scope,program_id,program_version,program_snapshot,start_date,end_date,inherit_new_players,created_by)
-      values(${id},${team.id},${input.programType},${input.scope},${input.programId},${input.programVersion},${JSON.stringify(version.payload)}::jsonb,${input.startDate},${input.endDate||null},${Boolean(input.inheritNewPlayers)},${userId})
+      insert into team_dev_assignments(id,team_id,program_type,scope,program_id,program_version,program_snapshot,start_date,end_date,inherit_new_players,schedule,created_by)
+      values(${id},${team.id},${input.programType},${input.scope},${input.programId},${input.programVersion},${JSON.stringify(version.payload)}::jsonb,${input.startDate},${input.endDate},${Boolean(input.inheritNewPlayers)},${JSON.stringify(schedule)}::jsonb,${userId})
     `;
     for(const target of targets)await tx`
       insert into team_dev_assignment_targets(assignment_id,athlete_id,position,target_key,program_type,scope,active)
       values(${id},${target.athleteId||null},${target.position||null},${target.targetKey},${input.programType},${input.scope},true)
     `;
+    const trainingDates=scheduledDates(input.startDate,input.endDate,input.daysOfWeek);
+    if(!trainingDates.length)throw new Error("The selected weekly days do not create any sessions inside the assignment dates.");
+    const lateDays=await lateWindowDays(tx);
+    for(const athleteId of concreteIds){
+      for(const dueDate of trainingDates){
+        const lateEnd=[input.endDate,isoAdd(dueDate,lateDays)].sort()[0];
+        await tx`
+          insert into team_dev_items(
+            id,assignment_id,athlete_id,state,due_date,phase_end_date,late_credit_window_end,assignment_scope,payload
+          ) values(
+            ${randomUUID()},${id},${athleteId},'assigned',${dueDate},${input.endDate},${lateEnd},${input.scope},
+            ${JSON.stringify({programId:input.programId,programVersion:input.programVersion,programType:input.programType,items:version.payload.items??[],phases:version.payload.phases??[]})}::jsonb
+          )
+        `;
+      }
+    }
     await tx`
       insert into team_dev_events(actor_id,team_id,entity_type,entity_id,action,after_json)
       values(${userId},${team.id},'assignment',${id},'assigned',${JSON.stringify({programId:input.programId,programVersion:input.programVersion,scope:input.scope,targets})}::jsonb)
