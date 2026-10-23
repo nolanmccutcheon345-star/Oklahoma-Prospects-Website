@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import type { TeamDevAgeBand, TeamDevLevel, TeamDevSuggestionContext } from "./contracts";
 import {
   expandAgeBands,
   mapAppliesToContext,
