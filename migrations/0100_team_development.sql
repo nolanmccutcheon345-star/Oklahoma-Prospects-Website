@@ -150,10 +150,14 @@ CREATE TABLE IF NOT EXISTS team_dev_assignment_targets (
   athlete_id text,
   position text,
   target_key text NOT NULL,
+  program_type text NOT NULL,
+  scope text NOT NULL CHECK (scope IN ('team','position','selected','override')),
+  active boolean NOT NULL DEFAULT true,
   PRIMARY KEY(assignment_id,target_key)
 );
 CREATE UNIQUE INDEX IF NOT EXISTS team_dev_assignment_same_tier_active_uq
-ON team_dev_assignment_targets(target_key,assignment_id);
+ON team_dev_assignment_targets(target_key,program_type,scope)
+WHERE active;
 
 CREATE TABLE IF NOT EXISTS team_dev_phases (
   id text PRIMARY KEY,
