@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { getSql, type Sql } from "../db";
-import { normalizeSeedRecord, normalizeCeilingRefs } from "./seed-normalize";
+import { expandAgeBands, normalizeSeedRecord, normalizeCeilingRefs } from "./seed-normalize";
 import type { NormalizedTeamDevSeedRecord, TeamDevAgeBand, TeamDevSeedRecord } from "./contracts";
 
 function hash(value: unknown) {
@@ -136,7 +136,7 @@ export async function activateProgramVersion(
     if(current.status!=="APPROVED")throw new Error("Template must reach APPROVED before activation.");
     const blocked=Array.isArray(current.blocked_fields)?current.blocked_fields:[];
     if(blocked.length)throw new Error("Blocked fields must be cleared before activation.");
-    const ageBands=(Array.isArray(current.payload.age_band)?current.payload.age_band:[current.payload.age_band]).filter(Boolean) as TeamDevAgeBand[];
+    const ageBands=expandAgeBands(current.payload.age_band);
     const refs=[...new Set(ageBands.flatMap(b=>normalizeCeilingRefs(current.payload.ceiling_ref,b)))];
     if(!(await approvedCeilings(tx,refs)))throw new Error("All required age-band ceilings must be APPROVED before activation.");
     await tx`
