@@ -133,12 +133,12 @@ export async function createTeamDevelopmentAssignment(userId:string,input:{
 
 export async function endTeamDevelopmentAssignment(userId:string,assignmentId:string) {
   const sql=await getSql();
+  const scope=await devScope(userId);
   return sql.transaction(async tx=>{
     const [assignment]=await tx<{id:string;team_id:string;status:string}>`
       select id,team_id,status from team_dev_assignments where id=${assignmentId} for update
     `;
     if(!assignment)throw new Error("Assignment not found.");
-    const scope=await devScope(userId);
     assertTeamDevelopmentCoach(scope,assignment.team_id);
     const athleteIds=(await tx<{athlete_id:string|null}>`
       select athlete_id from team_dev_assignment_targets where assignment_id=${assignmentId} and athlete_id is not null
