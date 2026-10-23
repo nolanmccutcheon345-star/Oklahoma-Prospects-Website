@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { TEAM_DEVELOPMENT_FAMILY_DISCLAIMER } from "@/lib/team-development/copy";
 import { getFamilyTeamDevelopment } from "@/lib/team-development/api";
 
 export function TeamDevelopmentFamilyPanel({teamId,rosterPlayerId}:{teamId:string;rosterPlayerId:string}) {
