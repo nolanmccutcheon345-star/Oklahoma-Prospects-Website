@@ -292,11 +292,12 @@ export const officeRemoveTeam = createServerFn({ method: "POST" })
   .handler(async ({context,data}) => {
     const me=await identity(context.userId);
     if(me.role!=="admin") throw new Error("Front office only.");
-    await mutateStoredClub(await getSql(),context.userId,'owner',data.baseRev,async(_tx,stored)=>{
+    await mutateStoredClub(await getSql(),context.userId,'owner',data.baseRev,async(tx,stored)=>{
       const team=stored.teams.find(t=>t.id===data.teamId);
       if(!team)throw new Error("Team not found.");
       if(team.roster.length||team.tournamentIds.length||team.practices.length||team.messages.length)
         throw new Error("This team has roster or activity records. Remove or transfer them before deleting the team.");
+      await tx`update team_dev_roster_links set ended_at=now(),ended_by=${context.userId} where team_id=${team.id} and ended_at is null`;
       stored.teams=stored.teams.filter(t=>t.id!==data.teamId);
       stored.audit.unshift({at:new Date().toISOString(),action:'team-delete',detail:`Removed ${team.name}`});
     });
@@ -336,12 +337,14 @@ export const coachRemoveRosterPlayer=createServerFn({method:'POST'}).middleware(
   .handler(async({context,data})=>{
     const me=await identity(context.userId);
     if(me.role!=='admin'&&me.role!=='coach')throw new Error("Coach access required.");
-    await mutateStoredClub(await getSql(),context.userId,me.role==='admin'?'owner':'read',undefined,async(_tx,club,financial)=>{
+    await mutateStoredClub(await getSql(),context.userId,me.role==='admin'?'owner':'read',undefined,async(tx,club,financial)=>{
       const team=club.teams.find(t=>t.id===data.teamId);
       if(!team||me.role!=='admin'&&!coachHoldsTeam(club,me.email,team.id))throw new Error("Not assigned to this team.");
       const player=team.roster.find(p=>p.id===data.playerId);
       if(!player)throw new Error("Player not found.");
       if(financial.mode==='legacy'&&(player.payments.length||player.feeLock||player.planLock||player.credits.length))throw new Error("Player has billing records. Contact Front Office to handle a transfer or withdrawal.");
+      const {endRosterDevelopmentLink}=await import("../team-development/runtime.server");
+      await endRosterDevelopmentLink(tx,{teamId:team.id,rosterPlayerId:player.id,actorId:context.userId});
       team.roster=team.roster.filter(p=>p.id!==data.playerId);
       club.audit.unshift({at:new Date().toISOString(),action:'coach-roster-remove',detail:`Removed player from ${team.name}`});
     });
