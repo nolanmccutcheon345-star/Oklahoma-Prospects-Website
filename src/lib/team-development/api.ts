@@ -1,18 +1,8 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { authMiddleware } from "@/lib/auth/middleware";
-import { getSql } from "@/lib/db";
-import { resolveIdentity } from "@/lib/identity.server";
-import { devScope, assertTeamDevelopmentCoach, assertTeamDevelopmentAthlete } from "./access.server";
-import {
-  createTeamDevelopmentAssignment,
-  effectiveTeamDevelopmentForAthlete,
-  endTeamDevelopmentAssignment,
-} from "./runtime.server";
-import { importTeamDevelopmentSeed } from "./store.server";
 import type { TeamDevSeedRecord } from "./contracts";
 import type { ClubRecord } from "@/lib/teams/types";
-import { randomUUID } from "node:crypto";
 import { chicagoDate } from "@/lib/scheduling";
 import { lateCompletionDecision } from "./states";
 
@@ -23,6 +13,8 @@ const rosterPlayerId = z.string().trim().min(1).max(150);
 export const getAdminTeamDevelopment = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
   .handler(async ({ context }) => {
+    const { getSql } = await import("@/lib/db");
+    const { resolveIdentity } = await import("@/lib/identity.server");
     const sql = await getSql();
     const me = await resolveIdentity(sql, context.userId);
     if (me.role !== "admin") throw new Error("Front office only.");
@@ -72,6 +64,8 @@ export const getCoachTeamDevelopment = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
   .validator(z.object({ teamId }).strict())
   .handler(async ({ context, data }) => {
+    const { devScope, assertTeamDevelopmentCoach } = await import("./access.server");
+    const { getSql } = await import("@/lib/db");
     const scope = await devScope(context.userId);
     assertTeamDevelopmentCoach(scope, data.teamId);
     const sql = await getSql();
@@ -93,6 +87,9 @@ export const getAthleteTeamDevelopment = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
   .validator(z.object({ athleteId }).strict())
   .handler(async ({ context, data }) => {
+    const { getSql } = await import("@/lib/db");
+    const { devScope, assertTeamDevelopmentAthlete } = await import("./access.server");
+    const { effectiveTeamDevelopmentForAthlete } = await import("./runtime.server");
     const sql = await getSql();
     const scope = await devScope(context.userId);
     assertTeamDevelopmentAthlete(scope, data.athleteId);
@@ -137,6 +134,9 @@ export const getFamilyTeamDevelopment = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
   .validator(z.object({ teamId, rosterPlayerId }).strict())
   .handler(async ({ context, data }) => {
+    const { getSql } = await import("@/lib/db");
+    const { devScope, assertTeamDevelopmentAthlete } = await import("./access.server");
+    const { effectiveTeamDevelopmentForAthlete } = await import("./runtime.server");
     const sql = await getSql();
     const [link] = await sql.query<{ athlete_id: string }>(
       "select athlete_id from team_dev_roster_links where team_id=$1 and roster_player_id=$2 and ended_at is null limit 1",
@@ -186,20 +186,23 @@ export const assignTeamDevelopment = createServerFn({ method: "POST" })
       .strict(),
   )
   .handler(async ({ context, data }) =>
-    createTeamDevelopmentAssignment(context.userId, data),
+    (await import("./runtime.server")).createTeamDevelopmentAssignment(context.userId, data),
   );
 
 export const endTeamDevelopment = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
   .validator(z.object({ assignmentId: z.string().uuid() }).strict())
   .handler(async ({ context, data }) =>
-    endTeamDevelopmentAssignment(context.userId, data.assignmentId),
+    (await import("./runtime.server")).endTeamDevelopmentAssignment(context.userId, data.assignmentId),
   );
 
 export const linkTeamDevelopmentRoster = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
   .validator(z.object({ teamId, rosterPlayerId, athleteId }).strict())
   .handler(async ({ context, data }) => {
+    const { getSql } = await import("@/lib/db");
+    const { resolveIdentity } = await import("@/lib/identity.server");
+    const { randomUUID } = await import("node:crypto");
     const sql = await getSql();
     const me = await resolveIdentity(sql, context.userId);
     if (me.role !== "admin") throw new Error("Front office only.");
@@ -249,6 +252,8 @@ export const setTeamDevelopmentSelfComplete = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
   .validator(z.object({ athleteId, enabled: z.boolean() }).strict())
   .handler(async ({ context, data }) => {
+    const { getSql } = await import("@/lib/db");
+    const { resolveIdentity } = await import("@/lib/identity.server");
     const sql = await getSql();
     const me = await resolveIdentity(sql, context.userId);
     if (me.role !== "admin") throw new Error("Front office only.");
@@ -274,6 +279,8 @@ export const updateTeamDevelopmentItem = createServerFn({ method: "POST" })
     }).strict(),
   )
   .handler(async ({ context, data }) => {
+    const { getSql } = await import("@/lib/db");
+    const { devScope } = await import("./access.server");
     const sql = await getSql();
     const scope = await devScope(context.userId);
     return sql.transaction(async (tx) => {
@@ -343,5 +350,8 @@ export const importTeamDevelopmentSeedRecords = createServerFn({ method: "POST" 
     z.object({ records: z.array(z.record(z.string(), z.unknown())).max(1000) }).strict(),
   )
   .handler(async ({ context, data }) =>
-    importTeamDevelopmentSeed(context.userId, data.records as TeamDevSeedRecord[]),
+    (await import("./store.server")).importTeamDevelopmentSeed(
+      context.userId,
+      data.records as TeamDevSeedRecord[],
+    ),
   );
