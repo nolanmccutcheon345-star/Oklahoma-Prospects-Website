@@ -3,6 +3,7 @@ import { publicPeopleFor } from "../person-public.server";
 import {
   articleDocument,
   documentText,
+  mediaIds,
   type ArticleDocument,
   type PublicArticle,
 } from "./contracts";
@@ -184,7 +185,7 @@ export async function publicArticleFor(sql: Sql, slug: string) {
   const credits = await sql<{
     id: string;
     credit: string;
-  }>`select id::text,credit from journal_media where article_id=${article.id}`;
+  }>`select id::text,credit from journal_media where article_id=${article.id} and id=any(${mediaIds(rows[0].document)}::uuid[])`;
   return { article, related: await projectPublic(sql, related, false), credits, links } as const;
 }
 export async function recordMetricFor(sql: Sql, id: string, event: "view" | "cta") {

@@ -241,9 +241,18 @@ test("Journal editorial lifecycle, grants, privacy, publication and revisions us
       await actionFor(sql, "journal-editor", { ...r, action: "submit" });
       await actionFor(sql, "journal-publisher", { ...r, action: "approve" });
       await actionFor(sql, "journal-publisher", { ...r, action: "publish" });
+      const privateMedia = await uploadFor(sql, "journal-editor", {
+        articleId: r.id,
+        revision: r.revision,
+        dataUrl: `data:image/png;base64,${png.toString("base64")}`,
+        credit: "Unapproved private image attribution",
+        rightsNote: "Private fixture for a future draft.",
+      });
       const a = await publicArticleFor(sql, d.slug);
       assert.ok(a && "article" in a);
       if (a?.article) {
+        assert.deepEqual(a.credits, [{ id: media.id, credit: "Synthetic test image" }]);
+        assert.equal((await mediaResponse(sql, privateMedia.id, null)).status, 404);
         assert.equal(a.article.author?.name, "Synthetic Journal Coach");
         for (const key of [
           "athleteIds",
