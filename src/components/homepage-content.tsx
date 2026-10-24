@@ -7,6 +7,7 @@ import { CLUB, LINKS } from "@/lib/club";
 import { CatalogStatus } from "./catalog-status";
 import { HoursChip } from "./hours-chip";
 import { Button } from "./ui/button";
+import { BrandImage } from "./brand-image";
 
 export function FeaturedCoachCard({ person }: { person: PublicPerson }) {
   return (
@@ -177,32 +178,41 @@ export function FacilityStrip() {
             </Button>
           </div>
         </div>
-        <div className="grid gap-5 sm:grid-cols-2">
-          <a href={LINKS.maps} className="flex gap-3 text-white">
-            <MapPin className="size-6 shrink-0 text-powder" aria-hidden />
-            <span>
-              {CLUB.addressLine1}
-              <br />
-              {CLUB.addressLine2}
-            </span>
-          </a>
-          <div className="flex gap-3">
-            <Clock className="size-6 shrink-0 text-powder" aria-hidden />
-            <div>
-              <p>{CLUB.hoursWeekday}</p>
-              <p>{CLUB.hoursWeekend}</p>
-              <p className="mt-1 text-sm text-fg-soft">
-                By paid booking. Closures and events may affect availability.
-              </p>
+        <div>
+          <BrandImage
+            src="/brand/facility.jpg"
+            alt="Indoor training lanes at Prospects Sports Facility"
+            width={1536}
+            height={1152}
+            className="mb-6 aspect-[4/3] w-full rounded-2xl object-cover"
+          />
+          <div className="grid gap-5 sm:grid-cols-2">
+            <a href={LINKS.maps} className="flex gap-3 text-white">
+              <MapPin className="size-6 shrink-0 text-powder" aria-hidden />
+              <span>
+                {CLUB.addressLine1}
+                <br />
+                {CLUB.addressLine2}
+              </span>
+            </a>
+            <div className="flex gap-3">
+              <Clock className="size-6 shrink-0 text-powder" aria-hidden />
+              <div>
+                <p>{CLUB.hoursWeekday}</p>
+                <p>{CLUB.hoursWeekend}</p>
+                <p className="mt-1 text-sm text-fg-soft">
+                  By paid booking. Closures and events may affect availability.
+                </p>
+              </div>
             </div>
-          </div>
-          <Link to="/waiver" className="flex min-h-11 items-center gap-3 font-semibold underline">
-            <ShieldCheck className="size-6 text-powder" aria-hidden />
-            Annual waiver & safety
-          </Link>
-          <div className="flex items-center gap-3">
-            <CalendarCheck className="size-6 shrink-0 text-powder" aria-hidden />
-            <HoursChip />
+            <Link to="/waiver" className="flex min-h-11 items-center gap-3 font-semibold underline">
+              <ShieldCheck className="size-6 text-powder" aria-hidden />
+              Annual waiver & safety
+            </Link>
+            <div className="flex items-center gap-3">
+              <CalendarCheck className="size-6 shrink-0 text-powder" aria-hidden />
+              <HoursChip />
+            </div>
           </div>
         </div>
       </div>

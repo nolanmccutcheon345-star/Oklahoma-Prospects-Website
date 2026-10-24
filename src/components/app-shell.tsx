@@ -15,6 +15,7 @@ import { CLUB } from "@/lib/club";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { useStickyHeight } from "@/lib/use-sticky-height";
 
 const headerAccountClass = "min-w-24 whitespace-nowrap px-2.5 tracking-normal max-[360px]:px-2";
 
@@ -23,7 +24,7 @@ function ClubWordmark({ name }: { name: string }) {
   const lines = splitAt > 0 ? [name.slice(0, splitAt), name.slice(splitAt + 1)] : [name];
   return (
     <span
-      className="club-wordmark max-[360px]:text-[0.94rem] max-[360px]:whitespace-nowrap"
+      className="club-wordmark max-[360px]:text-[0.94rem]"
       data-club-wordmark
     >
       {lines.map((line, index) => (
@@ -45,6 +46,8 @@ export function AppShell({ children }: { children: ReactNode }) {
   const { user, isPending } = useCurrentUserState();
   const [openMenu, setOpenMenu] = useState<"Teams" | "Train" | "Menu" | null>(null);
   const menuRef = useRef<HTMLDialogElement>(null);
+  const headerRef = useRef<HTMLElement>(null);
+  useStickyHeight(headerRef, "--header-height", pathname !== "/pay");
   useEffect(() => {
     setOpenMenu(null);
   }, [pathname]);
@@ -64,9 +67,7 @@ export function AppShell({ children }: { children: ReactNode }) {
     };
   }, [openMenu]);
   const privateWorkspace =
-    /^\/(office|coordinator|coach(?:\/|$)|family|instructor(?:\/|$)|account|my-profile)/.test(
-      pathname,
-    );
+    /^\/(office|coordinator|coach|family|instructor|account|my-profile)(?:\/|$)/.test(pathname);
   const tabs = [
     {
       to: "/",
@@ -133,6 +134,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       className={cn(
         "flex min-h-dvh flex-col bg-paper pb-[var(--bottom-nav-space)] text-fg lg:pb-0",
         !privateWorkspace && "public-site-shell",
+        pathname === "/pay" && "payment-site-shell",
       )}
     >
       <a
@@ -141,7 +143,10 @@ export function AppShell({ children }: { children: ReactNode }) {
       >
         Skip to content
       </a>
-      <header className="sticky top-0 z-40 border-b border-fg-inverse/10 bg-ink text-fg-inverse">
+      <header
+        ref={headerRef}
+        className="site-header sticky top-0 z-40 border-b border-fg-inverse/10 bg-ink text-fg-inverse"
+      >
         <div className="h-1 bg-maroon" />
         <div className="mx-auto flex min-h-16 max-w-6xl flex-wrap items-center justify-between gap-2 overflow-visible px-2.5 py-2 sm:gap-3 sm:px-4">
           <Link
@@ -166,18 +171,18 @@ export function AppShell({ children }: { children: ReactNode }) {
           </Link>
           <div
             className={cn(
-              "flex shrink-0 items-center gap-2",
+              "flex shrink-0 flex-wrap items-center gap-2",
               !privateWorkspace && "max-lg:w-full max-lg:justify-end",
             )}
           >
             {!privateWorkspace && (
               <>
-                <Button asChild size="sm" className="min-h-11 lg:hidden">
+                <Button asChild size="sm" className="min-h-11 max-w-full shrink-0">
                   <Link to="/book">Book a cage</Link>
                 </Button>
                 <button
                   type="button"
-                  className="flex min-h-11 items-center gap-2 rounded-md border border-fg-inverse/30 px-4 font-semibold lg:hidden"
+                  className="flex min-h-11 shrink-0 items-center gap-2 rounded-md border border-fg-inverse/30 px-4 font-semibold lg:hidden"
                   aria-controls="site-section-navigation"
                   aria-expanded={openMenu === "Menu"}
                   aria-haspopup="dialog"

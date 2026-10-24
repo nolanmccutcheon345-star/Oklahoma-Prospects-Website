@@ -161,11 +161,11 @@ test("public navigation, sport links and purchase availability agree with the li
     assert.match(css, /\.club-wordmark\s*\{[^}]*overflow:\s*visible;[^}]*text-overflow:\s*clip;/);
     const narrow = css.slice(css.indexOf("@media (max-width: 360px)")); // Later booking-specific media rules do not replace the wordmark rules.
     assert.match(narrow, /font-size:\s*0\.94rem/);
-    assert.match(narrow, /white-space:\s*nowrap/);
-    assert.match(narrow, /\.club-wordmark-line \{ display: block; white-space: nowrap; \}/);
+    assert.match(narrow, /white-space:\s*normal/);
+    assert.match(narrow, /\.club-wordmark-line \{ display: block; white-space: normal; \}/);
     assert.match(narrow, /\.club-wordmark-gap \{ display: none; \}/);
     assert.match(wordmark.className, /max-\[360px\]:text-\[0\.94rem\]/);
-    assert.match(wordmark.className, /max-\[360px\]:whitespace-nowrap/);
+    assert.doesNotMatch(wordmark.className, /whitespace-nowrap/);
     const auth = document.querySelector('header a[href^="/login"]');
     assert.match(auth?.className ?? "", /min-w-24/);
     assert.match(auth?.className ?? "", /whitespace-nowrap/);

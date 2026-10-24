@@ -26,3 +26,13 @@ The existing public Team Development plans remain on the memberships page. The s
 - Full regression suite and remaining release gates run in the pull request. Local PGlite security tests pass under the repository's Node 22 CI runtime. Screenshots contain synthetic fixtures, not current production prices or customer records.
 
 Release receipt belongs in the pull request after exact-head CI, isolated Netlify preview, production commit/release manifest, hosted checks, and both-domain checks. A build alone is not release evidence. No real payment, customer account or email delivery is used for validation.
+
+## Responsive layout follow-up
+
+The shared rental and membership cards, owner-managed coaches/testimonials and homepage integration already landed in PR #227. The follow-up retains those components, current catalog prices, resource IDs and booking links. It adds the existing approved facility photograph to the homepage facility section and exposes the header booking action on desktop as well as mobile.
+
+The old 4.25rem header assumption did not account for the new wrapped mobile header or desktop navigation row. Header and booking-review heights now update shared CSS offsets when their rendered size changes. Anchor/focus clearance, desktop menus and Front Office sticky headings use those offsets. Public routes reserve no staff tab-bar space; staff workspaces retain their existing navigation. Payment headers and short-viewport headers stay in document flow. The booking review action also stays in flow while a form field is focused, and its clearance is removed when leaving booking.
+
+Acceptance coverage extends the existing real-app browser walkthroughs: eight widths, enlarged text, actual header clearance, a completed synthetic booking selection, focus/short-viewport overlap checks, payment-route cleanup and preservation of the Front Office mobile controls. Provider charges and real customer records are not used.
+
+The narrow-screen wordmark may wrap at word boundaries instead of forcing enlarged fallback text offscreen. Booking step padding, space cards and summary totals adapt to the available width, keeping the review label readable at 320px/200% text. The browser regression reports overflowing elements on failure; both normal and wider fallback fonts were exercised locally.
