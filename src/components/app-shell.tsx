@@ -10,6 +10,7 @@ import {
   ChevronUp,
   Menu,
   Newspaper,
+  ChevronDown,
 } from "lucide-react";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { CLUB } from "@/lib/club";
@@ -17,6 +18,13 @@ import { useCurrentUserState } from "@/lib/auth/use-current-user";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useStickyHeight } from "@/lib/use-sticky-height";
+import {
+  publicNavigation,
+  navigationGroups,
+  navigationActive,
+  type NavigationGroupId,
+  type NavigationLink,
+} from "@/lib/site-navigation";
 
 const headerAccountClass = "min-w-24 whitespace-nowrap px-2.5 tracking-normal max-[360px]:px-2";
 
@@ -41,14 +49,19 @@ function ClubWordmark({ name }: { name: string }) {
 
 export function AppShell({ children }: { children: ReactNode }) {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const search = useRouterState({ select: (s) => s.location.searchStr });
   const { user, isPending } = useCurrentUserState();
-  const [openMenu, setOpenMenu] = useState<"Teams" | "Train" | "Menu" | null>(null);
+  const [openMenu, setOpenMenu] = useState<NavigationGroupId | "Menu" | null>(null);
+  const [expanded, setExpanded] = useState<NavigationGroupId | null>(null);
   const menuRef = useRef<HTMLDialogElement>(null);
   const headerRef = useRef<HTMLElement>(null);
   useStickyHeight(headerRef, "--header-height", pathname !== "/pay");
   useEffect(() => {
     setOpenMenu(null);
-  }, [pathname]);
+  }, [pathname, search]);
+  useEffect(() => {
+    setExpanded(null);
+  }, [openMenu]);
   useEffect(() => {
     const dialog = menuRef.current;
     if (!dialog) return;
@@ -132,6 +145,29 @@ export function AppShell({ children }: { children: ReactNode }) {
       match: (path: string) => path.startsWith("/articles"),
     },
   ] as const;
+  const navigation = publicNavigation(Boolean(user));
+  const utility = navigation.filter(
+    (item): item is NavigationLink =>
+      !("children" in item) && ["account", "contact", "about"].includes(item.id),
+  );
+  function menuLink(item: NavigationLink) {
+    return item.id === "account" && isPending ? (
+      <button key={item.id} type="button" disabled className="site-menu-link">
+        Account / Sign In
+      </button>
+    ) : (
+      <Link
+        key={item.id}
+        to={item.to}
+        search={item.search}
+        aria-current={navigationActive(item, pathname, search) ? "page" : undefined}
+        className="site-menu-link"
+        onClick={() => setOpenMenu(null)}
+      >
+        {item.label}
+      </Link>
+    );
+  }
 
   return (
     <div
@@ -214,6 +250,22 @@ export function AppShell({ children }: { children: ReactNode }) {
                 </Button>
               )}
             </div>
+            {!privateWorkspace && (
+              <nav aria-label="Utility" className="hidden items-center gap-4 lg:flex">
+                {utility
+                  .filter((item) => item.id !== "account")
+                  .map((item) => (
+                    <Link
+                      key={item.id}
+                      to={item.to}
+                      className="inline-flex min-h-11 items-center text-sm font-semibold"
+                      aria-current={navigationActive(item, pathname, search) ? "page" : undefined}
+                    >
+                      {item.label}
+                    </Link>
+                  ))}
+              </nav>
+            )}
           </div>
         </div>
         <nav
@@ -231,50 +283,94 @@ export function AppShell({ children }: { children: ReactNode }) {
               privateWorkspace ? "grid-cols-6" : "grid-cols-7",
             )}
           >
-            {(privateWorkspace ? tabs.filter((tab) => tab.to !== "/articles") : tabs).map((tab) => {
-              const active = tab.match(pathname);
-              const Icon = tab.icon;
-              const tabClass = cn(
-                "flex min-h-14 w-full flex-col items-center justify-center gap-1 px-0.5 text-[0.53rem] leading-none font-semibold tracking-normal whitespace-normal break-words no-underline uppercase focus-visible:outline-offset-[-3px] min-[380px]:text-[0.62rem] min-[440px]:text-[0.7rem] lg:min-h-12 lg:flex-row lg:gap-2 lg:text-sm",
-                active ? "text-powder" : "text-fg-soft",
-              );
-              return (
-                <li key={tab.label}>
-                  {tab.label === "Teams" || tab.label === "Train" ? (
-                    <button
-                      type="button"
-                      className={tabClass}
-                      aria-current={active ? "page" : undefined}
-                      aria-expanded={openMenu === tab.label}
-                      aria-haspopup="dialog"
-                      aria-controls={"site-section-navigation"}
-                      onClick={() => setOpenMenu((open) => (open === tab.label ? null : tab.label))}
-                    >
-                      <span className="relative">
-                        <Icon className="size-5" strokeWidth={active ? 2.4 : 2} />
-                        <ChevronUp
-                          aria-hidden="true"
-                          className={cn(
-                            "absolute -right-3 top-0 size-3 transition-transform",
-                            openMenu === tab.label && "rotate-180",
-                          )}
-                        />
-                      </span>
-                      {tab.label}
-                    </button>
-                  ) : (
-                    <Link
-                      to={tab.to}
-                      aria-current={active ? "page" : undefined}
-                      className={tabClass}
-                    >
-                      <Icon className="size-5" strokeWidth={active ? 2.4 : 2} />
-                      {tab.label}
-                    </Link>
-                  )}
-                </li>
-              );
-            })}
+            {!privateWorkspace
+              ? navigation
+                  .filter((item) => !utility.includes(item as NavigationLink))
+                  .map((item) => {
+                    const active = navigationActive(item, pathname, search);
+                    const className = cn(
+                      "flex min-h-12 w-full items-center justify-center gap-1 px-2 py-2 text-center text-sm font-semibold no-underline focus-visible:outline-offset-[-3px]",
+                      active ? "text-powder" : "text-fg-soft",
+                    );
+                    return (
+                      <li key={item.id}>
+                        {"children" in item ? (
+                          <button
+                            type="button"
+                            className={className}
+                            aria-current={active ? "page" : undefined}
+                            aria-expanded={openMenu === item.id}
+                            aria-haspopup="dialog"
+                            aria-controls="site-section-navigation"
+                            onClick={() => setOpenMenu(item.id)}
+                          >
+                            {item.label}
+                            <ChevronDown className="size-4 shrink-0" aria-hidden />
+                          </button>
+                        ) : (
+                          <Link
+                            to={item.to}
+                            search={item.search}
+                            className={className}
+                            aria-current={active ? "page" : undefined}
+                          >
+                            {item.label}
+                          </Link>
+                        )}
+                      </li>
+                    );
+                  })
+              : tabs
+                  .filter((tab) => tab.to !== "/articles")
+                  .map((tab) => {
+                    const active = tab.match(pathname);
+                    const Icon = tab.icon;
+                    const tabClass = cn(
+                      "flex min-h-14 w-full flex-col items-center justify-center gap-1 px-0.5 text-[0.53rem] leading-none font-semibold tracking-normal whitespace-normal break-words no-underline uppercase focus-visible:outline-offset-[-3px] min-[380px]:text-[0.62rem] min-[440px]:text-[0.7rem] lg:min-h-12 lg:flex-row lg:gap-2 lg:text-sm",
+                      active ? "text-powder" : "text-fg-soft",
+                    );
+                    return (
+                      <li key={tab.label}>
+                        {tab.label === "Teams" || tab.label === "Train" ? (
+                          <button
+                            type="button"
+                            className={tabClass}
+                            aria-current={active ? "page" : undefined}
+                            aria-expanded={
+                              openMenu === (tab.label === "Train" ? "Training" : "Teams")
+                            }
+                            aria-haspopup="dialog"
+                            aria-controls={"site-section-navigation"}
+                            onClick={() =>
+                              setOpenMenu(tab.label === "Train" ? "Training" : "Teams")
+                            }
+                          >
+                            <span className="relative">
+                              <Icon className="size-5" strokeWidth={active ? 2.4 : 2} />
+                              <ChevronUp
+                                aria-hidden="true"
+                                className={cn(
+                                  "absolute -right-3 top-0 size-3 transition-transform",
+                                  openMenu === (tab.label === "Train" ? "Training" : "Teams") &&
+                                    "rotate-180",
+                                )}
+                              />
+                            </span>
+                            {tab.label}
+                          </button>
+                        ) : (
+                          <Link
+                            to={tab.to}
+                            aria-current={active ? "page" : undefined}
+                            className={tabClass}
+                          >
+                            <Icon className="size-5" strokeWidth={active ? 2.4 : 2} />
+                            {tab.label}
+                          </Link>
+                        )}
+                      </li>
+                    );
+                  })}
           </ul>
         </nav>
       </header>
@@ -292,87 +388,57 @@ export function AppShell({ children }: { children: ReactNode }) {
         }}
         className="site-navigation-sheet"
       >
-        <div className="p-5 pb-[max(1.25rem,env(safe-area-inset-bottom))]">
-          <div className="mb-4 flex items-center justify-between gap-4">
-            <h2 id="site-menu-heading" className="text-3xl">
-              {openMenu === "Menu"
-                ? "Explore Prospects"
-                : openMenu === "Train"
-                  ? "Find your training"
-                  : "Find your team"}
-            </h2>
-            <button
-              type="button"
-              autoFocus
-              onClick={() => setOpenMenu(null)}
-              className="min-h-11 rounded-lg border border-line px-4 font-semibold"
-            >
-              Close
-            </button>
-          </div>
-          <nav
-            aria-label={`${openMenu || "Section"} destinations`}
-            className="grid gap-2 sm:grid-cols-2"
+        <div className="site-menu-header">
+          <h2 id="site-menu-heading" className="min-w-0 text-2xl sm:text-3xl">
+            {openMenu === "Menu" ? "Explore Prospects" : openMenu || "Explore Prospects"}
+          </h2>
+          <button
+            type="button"
+            autoFocus
+            onClick={() => setOpenMenu(null)}
+            className="min-h-11 shrink-0 rounded-lg border border-line px-4 font-semibold"
           >
-            {openMenu &&
-              (openMenu === "Menu"
-                ? [
-                    { label: "Home", to: "/" as const },
-                    { label: "Articles & News", to: "/articles" as const },
-                    { label: "Book a cage", to: "/book" as const },
-                    { label: "Facility & rates", to: "/facility" as const },
-                    { label: "Training & lessons", to: "/training" as const },
-                    { label: "Cage memberships", to: "/memberships" as const },
-                    { label: "Teams", to: "/teams" as const },
-                    { label: "Baseball", to: "/baseball" as const },
-                    { label: "Softball", to: "/softball" as const },
-                    { label: "Coaches", to: "/coaches" as const },
-                    { label: "Tryouts", to: "/tryouts" as const },
-                    { label: "Games", to: "/games" as const },
-                    { label: "Shop", to: "/merchandise" as const },
-                    { label: "Camps & clinics", to: "/events" as const },
-                    { label: "Players", to: "/players" as const },
-                    { label: "Account / sign in", to: "/account" as const },
-                    { label: "Contact", to: "/contact" as const },
-                  ]
-                : openMenu === "Train"
-                  ? [
-                      { label: "All training", to: "/training" as const },
-                      {
-                        label: "Private lessons",
-                        to: "/training" as const,
-                        search: { view: "lessons" as const },
-                      },
-                      {
-                        label: "Monthly training plans",
-                        to: "/training" as const,
-                        search: { view: "plans" as const },
-                      },
-                      { label: "Instructors", to: "/instructors" as const },
-                      { label: "Camps & clinics", to: "/events" as const },
-                      { label: "Cage memberships", to: "/memberships" as const },
-                    ]
-                  : [
-                      { label: "Browse all teams", to: "/teams" as const },
-                      { label: "Baseball", to: "/baseball" as const },
-                      { label: "Softball", to: "/softball" as const },
-                      { label: "Coaches", to: "/coaches" as const },
-                      { label: "Tryouts", to: "/tryouts" as const },
-                      { label: "Players", to: "/players" as const },
-                    ]
-              ).map((item) => (
-                <Link
-                  key={item.label}
-                  to={item.to}
-                  search={"search" in item ? item.search : undefined}
-                  className="flex min-h-12 items-center rounded-lg bg-paper-2 px-4 py-3 font-semibold text-ink no-underline"
-                  onClick={() => setOpenMenu(null)}
-                >
-                  {item.label}
-                </Link>
-              ))}
-          </nav>
+            Close
+          </button>
         </div>
+        <nav aria-label={`${openMenu || "Section"} destinations`} className="site-menu-content">
+          {openMenu === "Menu"
+            ? navigation.map((item) =>
+                "children" in item ? (
+                  <div key={item.id} className="site-menu-group">
+                    <button
+                      type="button"
+                      className="site-menu-link w-full justify-between"
+                      aria-expanded={expanded === item.id}
+                      aria-controls={`site-menu-${item.id}`}
+                      onClick={() =>
+                        setExpanded((current) => (current === item.id ? null : item.id))
+                      }
+                    >
+                      {item.label}
+                      <ChevronDown
+                        aria-hidden
+                        className={cn(
+                          "size-5 shrink-0 transition-transform",
+                          expanded === item.id && "rotate-180",
+                        )}
+                      />
+                    </button>
+                    <div
+                      id={`site-menu-${item.id}`}
+                      hidden={expanded !== item.id}
+                      className="site-menu-children"
+                      aria-label={`${item.label} subpages`}
+                    >
+                      {item.children.map(menuLink)}
+                    </div>
+                  </div>
+                ) : (
+                  menuLink(item)
+                ),
+              )
+            : openMenu && navigationGroups[openMenu].children.map(menuLink)}
+        </nav>
       </dialog>
     </div>
   );

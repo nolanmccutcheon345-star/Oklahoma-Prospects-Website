@@ -1,4 +1,33 @@
 import { z } from "zod";
+export const aboutContentInput = z
+  .object({
+    eyebrow: z.string().trim().min(1).max(100),
+    title: z.string().trim().min(1).max(140),
+    intro: z.string().trim().min(1).max(700),
+    storyTitle: z.string().trim().min(1).max(100),
+    story: z.string().trim().min(1).max(5000),
+    missionTitle: z.string().trim().min(1).max(100),
+    mission: z.string().trim().min(1).max(3000),
+    philosophyTitle: z.string().trim().min(1).max(100),
+    philosophy: z.string().trim().min(1).max(5000),
+    seoTitle: z.string().trim().min(1).max(100),
+    seoDescription: z.string().trim().min(1).max(300),
+  })
+  .strict();
+export const aboutSaveInput = z
+  .object({
+    revision: z.number().int().nonnegative(),
+    action: z.enum(["draft", "publish"]),
+    content: aboutContentInput,
+  })
+  .strict();
+export type AboutContent = z.infer<typeof aboutContentInput>;
+export type AboutEditorData = {
+  revision: number;
+  draft: AboutContent;
+  published: AboutContent | null;
+  publishedAt: string | null;
+};
 export const homepageInput = z
   .object({
     revision: z.number().int().nonnegative(),

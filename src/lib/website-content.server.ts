@@ -9,6 +9,9 @@ import {
   testimonialInput,
   type Testimonial,
   type PublicTestimonial,
+  aboutContentInput,
+  aboutSaveInput,
+  type AboutEditorData,
 } from "./website-content-contracts";
 
 async function owner<T>(sql: Sql, actor: string, work: (tx: Sql) => Promise<T>) {
@@ -17,6 +20,50 @@ async function owner<T>(sql: Sql, actor: string, work: (tx: Sql) => Promise<T>) 
     const me = await financialPrincipalInTransaction(tx, actor);
     if (!me.owner) throw new Error("Only an authorized owner can manage website publication.");
     return work(tx);
+  });
+}
+async function aboutPage(sql: Sql): Promise<AboutEditorData> {
+  const [row] =
+    await sql<AboutEditorData>`select revision,draft_content as draft,published_content as published,published_at::text as "publishedAt" from website_pages where id='about'`;
+  if (!row) throw new Error("About page settings are unavailable. Reload to try again.");
+  return {
+    ...row,
+    draft: aboutContentInput.parse(row.draft),
+    published: row.published ? aboutContentInput.parse(row.published) : null,
+  };
+}
+export async function publicAboutFor(sql: Sql) {
+  // Public responses never select draft content, editor identities or audit records.
+  const [row] = await sql<{
+    content: unknown;
+  }>`select published_content as content from website_pages where id='about'`;
+  return row?.content ? aboutContentInput.parse(row.content) : null;
+}
+export async function aboutEditorFor(sql: Sql, actor: string) {
+  return owner(sql, actor, (tx) => aboutPage(tx));
+}
+export async function saveAboutFor(sql: Sql, actor: string, raw: unknown) {
+  const input = aboutSaveInput.parse(raw);
+  return owner(sql, actor, async (tx) => {
+    const before = await aboutPage(tx);
+    const document = JSON.stringify(input.content);
+    const rows =
+      input.action === "publish"
+        ? await tx`update website_pages set draft_content=${document}::jsonb,published_content=${document}::jsonb,published_at=now(),revision=revision+1,updated_by=${actor},updated_at=now() where id='about' and revision=${input.revision} returning revision`
+        : await tx`update website_pages set draft_content=${document}::jsonb,revision=revision+1,updated_by=${actor},updated_at=now() where id='about' and revision=${input.revision} returning revision`;
+    if (!rows.length)
+      throw new Error(
+        "About page changed in another session. Reload before saving; your text has not been published.",
+      );
+    await record(
+      tx,
+      actor,
+      input.action === "publish" ? "about-published" : "about-draft",
+      "about",
+      before,
+      input.content,
+    );
+    return aboutPage(tx);
   });
 }
 async function people(sql: Sql) {

@@ -80,6 +80,19 @@ try {
     });
   });
 
+  for (const width of [375, 1280]) {
+    await page.setViewportSize({ width, height: 900 });
+    const response = await page.goto(h.base + "/about");
+    assert.equal(response.status(), 200);
+    assert.match(await response.text(), /Developing athletes/);
+    await page.waitForLoadState("networkidle");
+    assert.equal(
+      await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),
+      true,
+      "About page fits viewport",
+    );
+    await page.screenshot({ path: output + `/about-${width}.png`, fullPage: true });
+  }
   const password = randomUUID() + "Fixture!";
   const signup = await h.api.handleAuthRequest(
     new Request(h.base + "/api/auth/sign-up/email", {
@@ -169,6 +182,62 @@ try {
   await homepage.getByLabel("Publication status", { exact: true }).selectOption("published");
   await homepage.getByRole("button", { name: "Save testimonial", exact: true }).click();
   await homepage.getByText("Testimonial saved.", { exact: true }).waitFor();
+  await page.getByText("About page · Website content", { exact: true }).click();
+  const aboutEditor = page.getByRole("region", { name: "About page editor", exact: true });
+  await aboutEditor.getByLabel("Headline", { exact: true }).fill("Synthetic academy story");
+  await aboutEditor
+    .getByLabel("Search description", { exact: true })
+    .fill("Synthetic academy description for isolated verification only.");
+  await aboutEditor.getByRole("button", { name: "Save About draft", exact: true }).click();
+  await aboutEditor
+    .getByText("About draft saved. The live page has not changed.", { exact: true })
+    .waitFor();
+  await page.goto(h.base + "/about");
+  await page
+    .getByRole("heading", { name: "Developing athletes. Building confidence.", exact: true })
+    .waitFor();
+  assert.equal(
+    await page.getByText("Synthetic academy story", { exact: true }).count(),
+    0,
+    "Saved draft stays private",
+  );
+  await page.goto(h.base + "/office?section=services");
+  await page.getByText("About page · Website content", { exact: true }).click();
+  await aboutEditor.getByLabel("Headline", { exact: true }).waitFor();
+  assert.equal(
+    await aboutEditor.getByLabel("Headline", { exact: true }).inputValue(),
+    "Synthetic academy story",
+    "Draft survives route reload",
+  );
+  await aboutEditor.getByRole("button", { name: "Preview About page", exact: true }).click();
+  await page
+    .getByRole("region", { name: "About draft preview", exact: true })
+    .getByRole("heading", { name: "Synthetic academy story", exact: true })
+    .waitFor();
+  await page.setViewportSize({ width: 390, height: 844 });
+  assert.equal(
+    await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),
+    true,
+    "About editor and preview fit mobile",
+  );
+  await aboutEditor.getByRole("button", { name: "Hide About preview", exact: true }).click();
+  await aboutEditor.getByRole("button", { name: "Publish About page", exact: true }).click();
+  await aboutEditor
+    .getByText("About page published. The live page now uses this version.", { exact: true })
+    .waitFor();
+  await aboutEditor.screenshot({ path: output + "/about-editor-mobile.png" });
+  const aboutPublished = await page.goto(h.base + "/about");
+  const aboutHTML = await aboutPublished.text();
+  assert.match(aboutHTML, /Synthetic academy story/);
+  assert.match(aboutHTML, /Synthetic academy description for isolated verification only/);
+  await page.getByRole("heading", { name: "Synthetic academy story", exact: true }).waitFor();
+  const [aboutRow] =
+    await h.sql`select draft_content,published_content,revision from website_pages where id='about'`;
+  assert.equal(aboutRow.revision, 2);
+  assert.equal(aboutRow.published_content.title, "Synthetic academy story");
+  assert.deepEqual(aboutRow.draft_content, aboutRow.published_content);
+  await page.goto(h.base + "/office?section=services");
+  await page.getByRole("button", { name: "Add service", exact: true }).waitFor();
   await page.setViewportSize({ width: 390, height: 844 });
   assert.equal(
     await page.getByRole("navigation", { name: "Front Office mobile", exact: true }).isVisible(),
@@ -214,7 +283,7 @@ try {
   );
   assert.deepEqual(errors, []);
   console.log(
-    "PASS membership/homepage: SSR prices, five responsive widths, owner edits, unchanged pricing, profile selection, consent publication and withdrawal.",
+    "PASS membership/homepage: SSR prices, five responsive widths, owner edits, unchanged pricing, profile selection, consent publication and withdrawal; About drafts, preview, publication, SSR metadata and persistence.",
   );
 } catch (error) {
   if (page && !page.isClosed()) {

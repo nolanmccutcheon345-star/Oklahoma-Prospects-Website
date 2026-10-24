@@ -91,20 +91,40 @@ try {
         ) <= 1
       );
     });
-    const trigger = width < 1024 ? "Menu" : "Train";
+    const trigger = width < 1024 ? "Menu" : "Training";
     await page.getByRole("button", { name: trigger, exact: true }).click();
     const dialog = page.getByRole("dialog");
     await dialog.waitFor();
     assert.equal(await page.evaluate(() => document.body.style.overflow), "hidden");
+    if (width < 1024) {
+      assert.equal(await dialog.locator(".site-menu-content > *").count(), 10);
+      assert.equal(
+        await dialog.getByRole("link", { name: "Book a Cage", exact: true }).isVisible(),
+        false,
+      );
+      await dialog.getByRole("button", { name: "Training", exact: true }).click();
+    }
     assert.equal(
-      await dialog
-        .getByRole("link", {
-          name: width < 1024 ? "Training & lessons" : "All training",
-          exact: true,
-        })
-        .count(),
-      1,
+      await dialog.getByRole("link", { name: "Training & Lessons", exact: true }).isVisible(),
+      true,
     );
+    assert.equal(
+      await dialog.getByRole("link", { name: "Instructors", exact: true }).isVisible(),
+      true,
+    );
+    if (width < 1024) {
+      await dialog.getByRole("button", { name: "Memberships", exact: true }).click();
+      assert.equal(
+        await dialog.getByRole("link", { name: "Training & Lessons", exact: true }).isVisible(),
+        false,
+      );
+      assert.equal(
+        await dialog
+          .getByRole("link", { name: "Training Memberships", exact: true })
+          .getAttribute("href"),
+        "/training?view=plans",
+      );
+    }
     for (let i = 0; i < 10; i++) await page.keyboard.press("Tab");
     assert.equal(
       await dialog.evaluate((el) => el.contains(document.activeElement)),
@@ -122,9 +142,8 @@ try {
       "Escape restores trigger focus",
     );
     await page.getByRole("button", { name: width < 1024 ? "Menu" : "Teams", exact: true }).click();
-    await dialog
-      .getByRole("link", { name: width < 1024 ? "Teams" : "Browse all teams", exact: true })
-      .click();
+    if (width < 1024) await dialog.getByRole("button", { name: "Teams", exact: true }).click();
+    await dialog.getByRole("link", { name: "Explore all teams", exact: true }).click();
     await page.waitForURL("**/teams");
     await dialog.waitFor({ state: "hidden" });
     assert.equal(
@@ -292,9 +311,18 @@ try {
     elements: [...document.querySelectorAll("body *")]
       .filter((el) => {
         const r = el.getBoundingClientRect();
-        return r.width > 0 && (r.right > innerWidth + 1 || r.left < -1 || el.scrollWidth > el.clientWidth + 1);
+        return (
+          r.width > 0 &&
+          (r.right > innerWidth + 1 || r.left < -1 || el.scrollWidth > el.clientWidth + 1)
+        );
       })
-      .map((el) => ({ tag: el.tagName, class: el.className, text: el.textContent?.slice(0, 80), width: el.clientWidth, scroll: el.scrollWidth })),
+      .map((el) => ({
+        tag: el.tagName,
+        class: el.className,
+        text: el.textContent?.slice(0, 80),
+        width: el.clientWidth,
+        scroll: el.scrollWidth,
+      })),
   }));
   assert.equal(
     bookingOverflow.width <= bookingOverflow.viewport,
@@ -356,7 +384,7 @@ try {
     "booking clearance is cleaned up across routes",
   );
   // 200% root text-size check at a narrow viewport. This is not a real iOS/VoiceOver certification.
-  for (const routePath of ["/training", "/tryouts", "/book"]) {
+  for (const routePath of ["/training", "/tryouts", "/book", "/about"]) {
     await page.goto(h.base + routePath);
     await page.waitForLoadState("networkidle");
     await page.addStyleTag({ content: "html { font-size: 200% !important; }" });

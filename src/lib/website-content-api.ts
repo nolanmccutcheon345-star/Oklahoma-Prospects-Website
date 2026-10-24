@@ -1,7 +1,29 @@
 import { createServerFn } from "@tanstack/react-start";
 import { authMiddleware } from "./auth/middleware";
 import { getSql } from "./db";
-import { homepageInput, testimonialInput } from "./website-content-contracts";
+import { homepageInput, testimonialInput, aboutSaveInput } from "./website-content-contracts";
+
+export const getPublicAbout = createServerFn({ method: "GET" }).handler(async () => {
+  try {
+    const { publicAboutFor } = await import("./website-content.server");
+    return { content: await publicAboutFor(await getSql()), failed: false as const };
+  } catch {
+    return { content: null, failed: true as const };
+  }
+});
+export const getAboutEditor = createServerFn({ method: "GET" })
+  .middleware([authMiddleware])
+  .handler(async ({ context }) => {
+    const { aboutEditorFor } = await import("./website-content.server");
+    return aboutEditorFor(await getSql(), context.userId);
+  });
+export const saveAbout = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
+  .validator(aboutSaveInput)
+  .handler(async ({ context, data }) => {
+    const { saveAboutFor } = await import("./website-content.server");
+    return saveAboutFor(await getSql(), context.userId, data);
+  });
 
 export const getPublicHomepage = createServerFn({ method: "GET" }).handler(async () => {
   try {

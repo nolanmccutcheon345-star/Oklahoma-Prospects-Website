@@ -1,5 +1,6 @@
 import { JournalEditor } from "./journal/editor";
 import { WebsiteContentEditor } from "./website-content-editor";
+import { AboutPageEditor } from "./about-page-editor";
 import type { TeamFinancialView } from "@/lib/teams/financial-view";
 import { StaffRoleManagement } from "./coordinator/staff-management";
 import { OperationsHealth } from "./operations-health";
@@ -261,6 +262,12 @@ export function OfficeWorkspace({
       )}
       {section === "services" && (
         <div className="grid gap-6">
+          <details className="rounded-xl border border-line bg-white p-4" id="about-page-editor">
+            <summary className="min-h-11 cursor-pointer text-xl font-semibold">
+              About page · Website content
+            </summary>
+            <AboutPageEditor />
+          </details>
           <AdminServicesDesk />
           <WebsiteContentEditor />
           <details className="rounded-xl border border-line p-4">
