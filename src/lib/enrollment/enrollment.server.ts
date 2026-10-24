@@ -62,8 +62,13 @@ export async function packetFor(tx: Sql, teamId: string, sport: string): Promise
     blockers,
   };
 }
+export async function enrollmentTeams(tx: Sql): Promise<Pilot[]> {
+  const extra =
+    await tx<Pilot>`select sport,team_id as "teamId",season_key as "seasonKey",(signatures_open and (select mode='organization' from enrollment_rollout where id='academy')) as "signaturesOpen",false as "pilotPassed",'' as "pilotReview",revision from enrollment_additional_teams order by team_id for share`;
+  return [...(await pilots(tx)), ...extra];
+}
 export async function activePilot(tx: Sql, teamId: string) {
-  const p = (await pilots(tx)).find((p) => p.teamId === teamId);
+  const p = (await enrollmentTeams(tx)).find((p) => p.teamId === teamId);
   if (!p)
     throw Error(
       "This team is not part of the enrollment pilot. Existing team services remain available.",
@@ -100,7 +105,7 @@ export async function caseFor(tx: Sql, actor: string, raw: unknown, create = fal
 export async function enrollmentHome(sql: Sql, actor: string) {
   return secured(sql, actor, "enrollment.read", async (tx) => {
     const scope = await enrollmentScope(tx, actor),
-      allPilots = await pilots(tx),
+      allPilots = await enrollmentTeams(tx),
       settings = await rollout(tx);
     const relevant = allPilots.filter((p) => scope.teams.some((t) => t.id === p.teamId));
     const teams = scope.teams.filter((t) => relevant.some((p) => p.teamId === t.id));
@@ -109,6 +114,7 @@ export async function enrollmentHome(sql: Sql, actor: string) {
       playerId: string;
       playerName: string;
     }>`select t->>'id' as "teamId",p->>'id' as "playerId",p->>'name' as "playerName" from club_state c cross join lateral jsonb_array_elements(c.payload->'teams') t cross join lateral jsonb_array_elements(t->'roster') p where c.id='oklahoma-prospects' and not c.demo and t->>'id'=any(${teams.map((t) => t.id)}::text[]) and coalesce(p->>'withdrawn','false')<>'true'`;
+    const pilotIds = (await pilots(tx)).map((p) => p.teamId);
     return {
       owner: scope.owner,
       restricted: scope.restricted,
@@ -117,7 +123,8 @@ export async function enrollmentHome(sql: Sql, actor: string) {
         guardianPlayerIds: t.guardianPlayerIds,
         playerIds: t.playerIds,
       })),
-      pilots: relevant,
+      pilots: (await pilots(tx)).filter((p) => relevant.some((t) => t.teamId === p.teamId)),
+      additionalTeams: relevant.filter((p) => !pilotIds.includes(p.teamId)),
       settings,
       candidates: candidates.filter((p) => {
         const t = teamAccess(scope, p.teamId);
@@ -343,11 +350,10 @@ export async function requirePilotAcknowledgment(
   teamId: string,
   playerId: string,
 ) {
-  const [p] = await tx<{
-    signatures_open: boolean;
-    sport: string;
-    season_key: string;
-  }>`select signatures_open,sport,season_key from enrollment_pilots where team_id=${teamId} for share`;
+  const plan = (await enrollmentTeams(tx)).find((p) => p.teamId === teamId);
+  const p = plan
+    ? { signatures_open: plan.signaturesOpen, sport: plan.sport, season_key: plan.seasonKey }
+    : null;
   if (!p) return;
   if (!p.signatures_open) throw Error("New enrollment signatures are closed for this team.");
   const packet = await packetFor(tx, teamId, p.sport);
