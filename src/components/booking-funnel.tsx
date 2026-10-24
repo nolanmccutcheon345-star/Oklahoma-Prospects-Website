@@ -442,12 +442,12 @@ export function BookingFunnel({
                   <p className="text-xs text-muted">
                     {lanes.length} {lanes.length === 1 ? "space" : "spaces"} · {durationLabel}
                   </p>
-                  <p className="font-display text-3xl">{formatDollars(total)}</p>
+                  <p className="font-display text-2xl whitespace-nowrap sm:text-3xl">{formatDollars(total)}</p>
                 </div>
               )}
               <Button
                 type="submit"
-                className={complete ? "min-h-12 max-w-full shrink-0" : "w-full"}
+                className={complete ? "min-h-12 w-full min-w-0 max-w-full shrink-0 px-2 sm:w-auto" : "w-full"}
                 disabled={!complete}
                 aria-describedby="cage-total"
               >

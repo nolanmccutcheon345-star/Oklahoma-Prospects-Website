@@ -304,6 +304,13 @@ try {
     "static",
     "an enlarged header cannot occupy most of the viewport",
   );
+  assert.equal(
+    await page
+      .getByRole("button", { name: "Review Booking", exact: true })
+      .evaluate((el) => el.getBoundingClientRect().height < 150),
+    true,
+    "large-text action wraps by words, not individual letters",
+  );
   await zoomStyle.evaluate((el) => el.remove());
   await page.setViewportSize({ width: 844, height: 390 });
   assert.equal(

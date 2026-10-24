@@ -505,3 +505,6 @@ html:has(.payment-site-shell) { --header-height: 0px; }
 /* Enlarged text or a software keyboard must not let pinned chrome consume the
    viewport. The measured-height hook applies this only when it exceeds a third. */
 .site-header[data-layout-flow], .booking-review-bar[data-layout-flow] { position: static; box-shadow: none; }
+.booking-review-bar[data-layout-flow] > div,
+body:has(input:focus, select:focus, textarea:focus) .booking-review-bar > div { padding-inline: 0; }
+@media (max-height: 500px) { .booking-review-bar > div { padding-inline: 0; } }
