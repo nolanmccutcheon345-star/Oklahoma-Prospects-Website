@@ -75,7 +75,6 @@ test("admin estimates replace costs once across full, PO, contingency and extra-
     uniformEstimate: undefined,
   };
   assert.deepEqual(calculateFees(original), calculateFees(actual));
-  assert.deepEqual(calculateFees(original, true), calculateFees(actual, true));
   assert.deepEqual(project(original, 12, 1), project(actual, 12, 1));
   assert.deepEqual(
     additionalPlayerContribution(original, "full", { insurance: 0, registration: 0, other: 0 }),

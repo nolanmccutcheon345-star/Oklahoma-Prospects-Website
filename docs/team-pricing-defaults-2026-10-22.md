@@ -12,7 +12,7 @@ All new teams and known inherited draft settings use these saved configuration v
 | Second payment                               | 15%, 10 weeks before the first scheduled event |
 | Final payment                                | 15%, 6 weeks before the first scheduled event  |
 
-The initial values are database release data in migration 0099. The master editor saves owner changes in the existing versioned master matrix. Runtime calculations do not force prices back to release values after a master save. Existing age/sport/season row overrides are retained. Required team membership is included exactly once. Optional individual facility access, organization fees, coach costs, and the separate retail reference are unchanged.
+The initial values are database release data in migration 0099. The master editor saves owner changes in the existing versioned master matrix. Runtime calculations do not force prices back to release values after a master save. Existing age/sport/season row overrides are retained. Required team membership is included exactly once. Organization fees and coach costs are unchanged. As of the October 24 owner directive, personal memberships are purchased separately through the site at the full published price; team pricing has no membership add-on or retail-reference setting.
 
 Billing continues to count each calendar month touched by the configured season, including partial months. For example, February 15–May 31 is four billable months ($320 at $80/month). An explicit billable-month override requires its existing explanation. Service revenue recognition still uses prorated service dates; billing and recognition are separate.
 
@@ -30,7 +30,7 @@ The earliest non-canceled team activity (practice, game, or tournament), or inde
 
 Missing event or season dates leave the schedule incomplete and block publication. Past-due dates require an owner review reason bound to the current schedule. Changing the event date, season, percentages, or offsets invalidates that review. No charge, late fee, or roster action happens automatically. Existing final-deadline acceptance protection remains: an expired offer must be deliberately revised before a new family accepts it.
 
-Amounts use integer cents. The first two percentages are rounded to cents (bounded by remaining total); the final installment receives the exact remainder. $2,525 splits into $1,767.50, $378.75, and $378.75. Optional access uses the same configured percentages against its final total. Event-based dates are stored verbatim in the publication and accepted plan rather than moved to acceptance day. Legacy agreements retain their original scheduling behavior.
+Amounts use integer cents. The first two percentages are rounded to cents (bounded by remaining total); the final installment receives the exact remainder. $2,525 splits into $1,767.50, $378.75, and $378.75. Event-based dates are stored verbatim in the publication and accepted plan rather than moved to acceptance day. Legacy agreements retain their original scheduling behavior.
 
 ## Validation
 

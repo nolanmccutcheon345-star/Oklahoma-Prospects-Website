@@ -262,7 +262,7 @@ export function FamilyApp({
           <li>Player-, position- and age-specific programming when assigned</li>
           <li>Drill assignments, tracking, coach access and development history</li>
         </ul>
-        <p className="mt-2 text-sm">Individual Facility Access is an optional upgrade for full players, shown separately in the published player fee.</p>
+        <p className="mt-2 text-sm">Personal memberships are purchased separately through the Memberships page at the full published price. Team fees do not include a discounted membership.</p>
       </Section>
 
       {!financial&&<Section title={t.fund}>

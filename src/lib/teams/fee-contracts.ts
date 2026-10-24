@@ -34,13 +34,9 @@ export type FeePlan = {
   publishedBudget?: FeeBudget;
   published?: {
     full: number;
-    fullAccess?: number;
-    individualAccessMonthly?: number;
-    billableMonths?: number;
     po: number;
     schedules?: {
       full: { amount: number; due: string; label: string }[];
-      fullAccess?: { amount: number; due: string; label: string }[];
       po: { amount: number; due: string; label: string }[];
     };
     secondDue: string;
@@ -59,7 +55,7 @@ export type FeePlan = {
       uniformReleasedAt?: string;
       membershipAllocation?: number;
       organizationAllocation?: number;
-      individualAccess?: boolean;
+      // Read-only allocation retained on previously accepted agreements.
       accessAllocation?: number;
       contingencyAllocation?: number;
       serviceStart?: string;
@@ -168,7 +164,6 @@ export const feeAction = z.discriminatedUnion("action", [
       basisVersion: z.number().int().positive().optional(),
       playerId: id,
       consent: z.literal(true),
-      individualAccess: z.boolean().optional(),
       name: z.string().trim().min(3).max(150),
     })
     .strict(),

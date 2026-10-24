@@ -25,7 +25,7 @@ The reported estimate problem required tracing the combined team-cost line. The 
 
 ## Scenario coverage
 
-- All 120 master matrix rows; 4,320 combinations of roster count (0, 8, 9, 10, 11, 12), PO count (0, 1, 3), and zero/nonzero processing, with optional individual access. Independent expected direct-cost arithmetic, inclusive calendar billing, contribution identities and cent-exact owner splits.
+- All 120 master matrix rows; 4,320 combinations of roster count (0, 8, 9, 10, 11, 12), PO count (0, 1, 3), and zero/nonzero processing. The current suite excludes bundled personal memberships, which are purchased separately at the full published catalog price. Independent expected direct-cost arithmetic, inclusive calendar billing, contribution identities and cent-exact owner splits.
 - Admin estimate override, persistence through serialization, explicit zero, removing the override, uniform quantity, coaching premiums, hotel nights, program and organization fees, contingency and price rounding.
 - Existing suites cover custom installment percentages/dates, deposit/midpoint/final schedules, overdue/grace/hold boundaries, full/partial payments, overpayment rejection, credits, locked acceptance, access upgrades, roster limits, publication prerequisites and season close.
 - Finance regressions cover actual migrated SQL, owner/coach/parent boundaries, frozen financial contexts, stale revisions, atomic reconciliation, duplicate rejection, compensation accrual, protected funds, credit/write-off history, refund fallback reservations and settlement reconciliation.

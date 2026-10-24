@@ -122,6 +122,9 @@ try {
   }
   const guardian = await signedIn("guardian", 375),
     p = guardian.page;
+  await p.getByRole("link", { name: "View memberships", exact: true }).last().waitFor();
+  assert.match(await p.locator("body").innerText(), /full published price/);
+  assert.equal(await p.getByLabel(/Individual Facility Access/i).count(), 0);
   for (const teamId of ["base", "soft"]) {
     await p.getByLabel("Athlete and season").selectOption(teamId + ":" + teamId + "-player");
     await p.getByRole("button", { name: "Sign this packet", exact: true }).waitFor();
@@ -218,11 +221,9 @@ try {
   await coordinator.page.screenshot({ path: shots + "/coordinator-mobile.png", fullPage: false });
   const owner = await signedIn("owner", 1280);
   await owner.page.getByText("Organization enrollment controls", { exact: true }).click();
-  const controls = owner.page
-    .locator("details")
-    .filter({
-      has: owner.page.locator("summary").filter({ hasText: "Organization enrollment controls" }),
-    });
+  const controls = owner.page.locator("details").filter({
+    has: owner.page.locator("summary").filter({ hasText: "Organization enrollment controls" }),
+  });
   const openTeams = controls.locator('input[name="open"]');
   assert.equal(await openTeams.count(), 2);
   assert.equal(await openTeams.first().isChecked(), true);

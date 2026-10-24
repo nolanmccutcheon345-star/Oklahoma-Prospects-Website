@@ -1,3 +1,4 @@
+import { withoutRetiredMembershipPricing } from "../teams/retired-membership";
 import { releasedMaster, linkedPricingDraft } from "../teams/pricing-defaults";
 /** Internal financial authority selection. No endpoint, activation command, or
  * caller-controlled mode. Full contexts must never leave server consumers. */
@@ -164,7 +165,6 @@ export async function publishedTeamPriceInTransaction(tx: Sql, teamId: string) {
   if (!team || !published) return null;
   return {
     full: published.full,
-    ...(published.fullAccess === undefined ? {} : { fullAccess: published.fullAccess }),
     ...((plan.publishedBudget?.poEnabled ?? plan.budget.poEnabled ?? team.sport === "baseball")
       ? { po: published.po }
       : {}),
@@ -471,7 +471,7 @@ export async function commitFinancialBudgetMasterInTransaction(
   }>`select payload from team_pricing_default_releases where version=1`;
   if (!release) throw Error("Team pricing defaults are unavailable.");
   const previousMaster = releasedMaster(
-    normalizePOMaster(masterSchema.parse(prior.payload)),
+    normalizePOMaster(masterSchema.parse(withoutRetiredMembershipPricing(prior.payload))),
     release.payload,
   );
   // Classify legacy inheritance against the previous matrix, before an owner

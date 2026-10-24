@@ -398,8 +398,6 @@ export async function sourceData(
       poPlayers.length,
       expenses,
       plan.status === "closed",
-      fullPlayers.filter((p) => plan.players[p.id]?.individualAccess).length,
-      fullPlayers.slice(b.baseline).filter((p) => plan.players[p.id]?.individualAccess).length,
     );
     const deferred = total(
       Object.values(plan.players).map(

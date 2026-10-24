@@ -1,3 +1,4 @@
+import { withoutRetiredMembershipPricing } from "./retired-membership";
 import {
   overheadRuleSchema,
   facilityCostsSchema,
@@ -32,8 +33,6 @@ export const matrixRow = z
   .object({
     ...poAllocationFields,
     membershipMonthly: money.optional(),
-    individualAccessMonthly: money.optional(),
-    standaloneAccessMonthly: money.optional(),
     baseline: z.number().int().min(1).max(100).optional(),
     contingencyBps: z.number().int().min(0).max(10000).optional(),
     hotelNightly: money.optional(),
@@ -198,8 +197,6 @@ export function seedMasterMatrix(): MasterMatrix {
     baseline: 10,
     membershipMonthly: 15000,
     programModel: 3,
-    individualAccessMonthly: 5000,
-    standaloneAccessMonthly: 8000,
     contingencyBps: 1500,
     hotelNightly: 20000,
     roundTo: 2500,
@@ -247,8 +244,6 @@ export function resolveMatrixPricing(master: MasterMatrix, row: MatrixRow) {
   return {
     ...po,
     membershipMonthly: row.membershipMonthly ?? master.membershipMonthly,
-    individualAccessMonthly: row.individualAccessMonthly ?? master.individualAccessMonthly ?? 5000,
-    standaloneAccessMonthly: row.standaloneAccessMonthly ?? master.standaloneAccessMonthly ?? 8000,
     baseline: row.baseline ?? master.baseline,
     contingencyBps: row.contingencyBps ?? master.contingencyBps,
     hotelNightly: row.hotelNightly ?? master.hotelNightly,
@@ -391,6 +386,7 @@ export function linkedPODraft(b: FeeBudget, master: MasterMatrix, team: Team): F
   };
 }
 export function normalizePOMaster(m: MasterMatrix): MasterMatrix {
+  m = withoutRetiredMembershipPricing(m);
   return {
     ...poDefaults,
     ...m,
@@ -401,8 +397,6 @@ export function normalizePOMaster(m: MasterMatrix): MasterMatrix {
         : m.membershipMonthly === 20000
           ? 15000
           : m.membershipMonthly,
-    individualAccessMonthly: m.individualAccessMonthly ?? 5000,
-    standaloneAccessMonthly: m.standaloneAccessMonthly ?? 8000,
     rows: m.rows.map((r) => ({
       ...r,
       poOrganization: r.poOrganization ?? defaultPOOrganization(r.organization),

@@ -90,8 +90,6 @@ test("saved common values and per-age/sport/season overrides control every new q
   Object.assign(m, {
     membershipMonthly: 19000,
     poMembershipMonthly: 18000,
-    individualAccessMonthly: 6500,
-    standaloneAccessMonthly: 9500,
   });
   const selected = m.rows.find(
     (r) => r.sport === "softball" && r.age === 14 && r.season === "springSummer",
@@ -99,8 +97,6 @@ test("saved common values and per-age/sport/season overrides control every new q
   Object.assign(selected, {
     membershipMonthly: 17500,
     poMembershipMonthly: 16500,
-    individualAccessMonthly: 4000,
-    standaloneAccessMonthly: 9900,
     contingencyBps: 1800,
     baseline: 10,
     hotelNightly: 30000,
@@ -114,33 +110,22 @@ test("saved common values and per-age/sport/season overrides control every new q
     saved,
     saved.rows.find((r) => r.sport === "softball" && r.age === 14 && r.season === "springSummer")!,
   );
-  const f = calculateFees(b),
-    upgrade = calculateFees(b, true);
+  const f = calculateFees(b);
   assert.equal(f.member, 122500);
   assert.equal(f.poMember, 115500);
-  assert.equal(upgrade.access, 28000);
   assert.equal(b.contingencyBps, 1800);
   assert.equal(b.hotelNightly, 30000);
   assert.equal(b.roundTo, 1000);
   assert.equal(b.poProcessingBps, 9500);
-  assert.equal(b.standaloneAccessMonthly, 9900);
   const unmodified = saved.rows.find(
     (r) => r.sport === "baseball" && r.age === 14 && r.season === "springSummer",
   )!;
   assert.equal(calculateFees(budgetFromMatrix(team, saved, unmodified)).member, 133000);
-  assert.equal(calculateFees(budgetFromMatrix(team, saved, unmodified), true).access, 45500);
-  assert.equal(
-    resolveMatrixPricing(saved, { ...selected, individualAccessMonthly: 0 })
-      .individualAccessMonthly,
-    0,
-    "Zero disables an upgrade without reverting to a coded amount",
-  );
   assert.equal(
     resolveMatrixPricing(saved, { ...selected, membershipMonthly: undefined }).membershipMonthly,
     19000,
     "Clearing restores the editable common value",
   );
-  assert.deepEqual(calculateFees({ ...b, standaloneAccessMonthly: 0 }), f);
   m.membershipMonthly = 20000;
   assert.equal(
     masterSchema.parse(m).membershipMonthly,
@@ -465,19 +450,11 @@ test("master admin permissions, durable revisions, draft initialization, review 
     Object.assign(selected, {
       membershipMonthly: 17500,
       poMembershipMonthly: 16500,
-      individualAccessMonthly: 4000,
-      standaloneAccessMonthly: 9500,
     });
     rowOverrides.membershipMonthly = 20000;
     await saveBudgetMaster(sql, "admin", currentMaster.revision, rowOverrides);
     const persisted = await getBudgetMaster(sql, "admin");
     assert.equal(persisted.value.membershipMonthly, 20000);
-    assert.equal(
-      persisted.value.rows.find(
-        (r) => r.sport === "softball" && r.age === 14 && r.season === "springSummer",
-      )!.individualAccessMonthly,
-      4000,
-    );
     assert.equal(
       persisted.value.rows.find(
         (r) => r.sport === "softball" && r.age === 14 && r.season === "springSummer",

@@ -8,12 +8,12 @@ import { feeWorkspace, mutateFeePlan, setFeeBusiness, teamUniform } from "./fee.
 import { publishedTeamFees } from "./published-fees.server";
 import { defaultBudget, calculateFees } from "./fee-model";
 
-for (const { role, individualAccess } of [
-  { role: "full", individualAccess: false },
-  { role: "po", individualAccess: false },
-  { role: "full", individualAccess: true },
+for (const { role, retiredOffer } of [
+  { role: "full", retiredOffer: false },
+  { role: "po", retiredOffer: false },
+  { role: "full", retiredOffer: true },
 ] as const)
-  test(`team financial permissions, approvals, immutable ${role}${individualAccess ? " with access upgrade" : ""} fees, uniform release and concurrent edits`, async () => {
+  test(`team financial permissions, approvals, immutable ${role}${retiredOffer ? " with a retired saved offer" : ""} fees, uniform release and concurrent edits`, async () => {
     const db = new PGlite();
     const wrap = (query: PGlite["query"]): Sql => {
       const sql = (async (parts: TemplateStringsArray, ...values: unknown[]) =>
@@ -199,7 +199,7 @@ for (const { role, individualAccess } of [
       );
       assert.equal((await feeWorkspace(sql, "parent")).teams[0].publication, null);
       await sql`update team_fee_plans set payload=jsonb_set(payload,'{budget,tournamentEstimate}','10000') where team_id=${team.id}`;
-      if (role === "full" && !individualAccess) {
+      if (role === "full" && !retiredOffer) {
         // Exercise the coach schedule/package path as well as the admin estimate path.
         const eventId = "11111111-1111-4111-8111-111111111111";
         const event = {
@@ -252,7 +252,11 @@ for (const { role, individualAccess } of [
         );
       assert.equal(await publishedTeamFees(sql, "stranger", team.id), null);
       await assert.rejects(publishedTeamFees(sql, "anonymous", team.id));
+      if (retiredOffer) {
+        await sql`update team_fee_plans set payload=jsonb_set(jsonb_set(jsonb_set(payload,'{published,fullAccess}',to_jsonb((payload->'published'->>'full')::int+15000)),'{published,individualAccessMonthly}','5000'),'{publishedBudget,individualAccessMonthly}','5000') where team_id=${team.id}`;
+      }
       const parent = await feeWorkspace(sql, "parent");
+      assert.ok(!("fullAccess" in parent.teams[0].publication!));
       assert.equal(parent.teams[0].players.length, 1);
       assert.equal(parent.teams[0].choices, null);
       assert.equal(parent.teams[0].private, null);
@@ -263,13 +267,11 @@ for (const { role, individualAccess } of [
         playerId: player.id,
         consent: true as const,
         name: "Parent Person",
-        individualAccess,
       };
-      if (role === "po")
-        await assert.rejects(
-          () => mutateFeePlan(sql, "parent", { ...accept, individualAccess: true }),
-          /only with a published full-player option/,
-        );
+      for (const selected of [true, false]) {
+        const staleRequest = { ...accept, individualAccess: selected };
+        await assert.rejects(() => mutateFeePlan(sql, "parent", staleRequest), /Unrecognized key/);
+      }
       await assert.rejects(() => mutateFeePlan(sql, "stranger", accept), /guardian/);
       if (role === "po") {
         await sql`update team_fee_plans set payload=jsonb_set(payload,'{budget,poEnabled}','false') where team_id=${team.id}`;
@@ -302,15 +304,10 @@ for (const { role, individualAccess } of [
       assert.equal(allocationPlan.payload.players[player.id].membershipAllocation, 45000);
       assert.equal(
         Math.round(signed.feeLock!.amount * 100),
-        individualAccess
-          ? allocationPlan.payload.published!.fullAccess
-          : allocationPlan.payload.published![role],
+        allocationPlan.payload.published![role],
       );
-      assert.equal(allocationPlan.payload.players[player.id].individualAccess, individualAccess);
-      assert.equal(
-        allocationPlan.payload.players[player.id].accessAllocation,
-        individualAccess ? 15000 : 0,
-      );
+      assert.ok(!("individualAccess" in allocationPlan.payload.players[player.id]));
+      assert.equal(allocationPlan.payload.players[player.id].accessAllocation, undefined);
       assert.equal(
         allocationPlan.payload.players[player.id].organizationAllocation,
         role === "po" ? 20000 : 45678,
@@ -547,6 +544,32 @@ for (const { role, individualAccess } of [
       );
       assert.equal(actual.nolan + actual.steve, actual.actualDistributable);
       await assert.rejects(() => mutateFeePlan(sql, "owner", { ...save, revision: 11 }), /closed/);
+      if (retiredOffer) {
+        const originalTotal = (await feeWorkspace(sql, "parent")).teams[0].players[0].total;
+        // Synthetic historic accepted allocation: reads must never rewrite signed evidence.
+        const [legacy] = await sql<{
+          payload: import("./fee-contracts").FeePlan;
+        }>`select payload from team_fee_plans where team_id=${team.id}`;
+        legacy.payload.players[player.id].accessAllocation = 15000;
+        legacy.payload.players[player.id].acceptedPolicy =
+          "Historic signed personal access agreement";
+        await sql`update team_fee_plans set payload=${JSON.stringify(legacy.payload)}::jsonb where team_id=${team.id}`;
+        const beforePlan = JSON.stringify(
+          (await sql`select payload from team_fee_plans where team_id=${team.id}`)[0],
+        );
+        const beforeClub = JSON.stringify((await sql`select payload from club_state`)[0]);
+        const preserved = (await feeWorkspace(sql, "parent")).teams[0].players[0];
+        assert.equal(preserved.acceptedPolicy, "Historic signed personal access agreement");
+        assert.equal(preserved.total, originalTotal);
+        await feeWorkspace(sql, "owner");
+        assert.equal(
+          JSON.stringify(
+            (await sql`select payload from team_fee_plans where team_id=${team.id}`)[0],
+          ),
+          beforePlan,
+        );
+        assert.equal(JSON.stringify((await sql`select payload from club_state`)[0]), beforeClub);
+      }
     } finally {
       await db.close();
     }

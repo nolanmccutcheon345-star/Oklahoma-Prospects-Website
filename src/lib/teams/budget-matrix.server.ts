@@ -1,3 +1,4 @@
+import { withoutRetiredMembershipPricing } from "./retired-membership";
 import { releasedMaster } from "./pricing-defaults";
 import { facilityMonthly, teamSeasonOverhead, initialFacilityCosts } from "./facility-overhead";
 import {
@@ -29,7 +30,10 @@ export async function loadBudgetMaster(sql: Sql, context?: FinancialContext) {
   }>`select payload from team_pricing_default_releases where version=1`;
   if (!release) throw Error("Team pricing defaults are unavailable.");
   return {
-    value: releasedMaster(normalizePOMaster(masterSchema.parse(row.payload)), release.payload),
+    value: releasedMaster(
+      normalizePOMaster(masterSchema.parse(withoutRetiredMembershipPricing(row.payload))),
+      release.payload,
+    ),
     revision: row.revision,
   };
 }
