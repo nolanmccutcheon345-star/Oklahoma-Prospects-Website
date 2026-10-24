@@ -36,7 +36,7 @@ export const handbookSeeds: Record<string, z.infer<typeof documentContent>> = {
       },
       {
         title: "Season fees and optional services",
-        body: "Before acceptance, your account shows the owner-published team fee, included services, installment amounts and due dates. The usual new-season schedule is 70%, 15%, 15%, subject to the actual published plan and any retained agreement. The Team & Development Program amount comes from the owner-approved team configuration; this handbook sets no dollar amount and changes no pricing formula. Individual facility access is an optional selection with separate disclosed benefits and terms. Do not assume team enrollment includes unlimited cage use, private lessons or every membership product. Only verified payments and approved ledger credits affect the account.",
+        body: "Before acceptance, your account shows the owner-published team fee, included services, installment amounts and due dates. The usual new-season schedule is 70%, 15%, 15%, subject to the actual published plan and any retained agreement. The Team & Development Program amount comes from the owner-approved team configuration; this handbook sets no dollar amount and changes no pricing formula. Personal memberships must be purchased separately through the Memberships page at the full published price; team fees do not include a discounted personal membership. Do not assume team enrollment includes unlimited cage use, private lessons or every membership product. Only verified payments and approved ledger credits affect the account.",
       },
       {
         title: "Withdrawal, injury and cancellation",
@@ -64,7 +64,7 @@ export const handbookSeeds: Record<string, z.infer<typeof documentContent>> = {
       },
       {
         title: "Facility and equipment",
-        body: "Use the Prospects Sports Facility only for authorized bookings or scheduled team activity. Follow cage, pitching-machine, protective-screen and helmet instructions. Maintain appropriate adult supervision, keep spectators and siblings in designated areas, return equipment and keep exits clear. Report damaged equipment or hazards promptly. Every participating athlete needs a current facility waiver. Booking availability and the current catalog determine optional access. Cage, lesson and membership cancellation terms are distinct from seasonal team withdrawal terms; review the applicable agreement for each purchase.",
+        body: "Use the Prospects Sports Facility only for authorized bookings or scheduled team activity. Follow cage, pitching-machine, protective-screen and helmet instructions. Maintain appropriate adult supervision, keep spectators and siblings in designated areas, return equipment and keep exits clear. Report damaged equipment or hazards promptly. Every participating athlete needs a current facility waiver. Personal memberships are purchased separately through the Memberships page at the full published price, subject to the current catalog and booking availability. Cage, lesson and membership cancellation terms are distinct from seasonal team withdrawal terms; review the applicable agreement for each purchase.",
       },
       {
         title: "Travel and supervision",

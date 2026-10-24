@@ -127,7 +127,7 @@
 
 ## Linked PO pricing audit
 
-120/120 PO rows fund the identical shared/direct component. Discounts below exclude processing and final rounding. Team & Development Program Fee defaults: full and PO $150/month; optional full-player individual access +$50/month. Discounts come from organization fees. Example calculations use the fixture team dates; matrix months are templates only. Approved organization matrices are independently asserted in po-pricing.test.ts.
+120/120 PO rows fund the identical shared/direct component. Discounts below exclude processing and final rounding. Team & Development Program Fee defaults: full and PO $150/month; personal memberships are purchased separately through the site at the full published catalog price. Discounts come from organization fees. Example calculations use the fixture team dates; matrix months are templates only. Approved organization matrices are independently asserted in po-pricing.test.ts.
 
 | Row | PO organization | Full program fee | PO program fee | PO discount | Shared cost allocation |
 |---|---:|---:|---:|---:|---:|

@@ -45,12 +45,16 @@ export function PublishedTeamFees({ teamId }: { teamId: string }) {
     >
       <h2 className="text-2xl">Published player fees</h2>
       <p>Full player: {money(quote.full)}</p>
-      {quote.fullAccess !== undefined && (
-        <p>With optional Individual Facility Access Upgrade: {money(quote.fullAccess)}</p>
-      )}
       {quote.po !== undefined && <p>Pitcher only: {money(quote.po)}</p>}
       <p className="text-sm">
         Final payment due {quote.finalDue} · Front Office published version {quote.revision}
+      </p>
+      <p className="text-sm">
+        Personal memberships are purchased separately at the full published price on the{" "}
+        <a href="/memberships" className="underline">
+          Memberships page
+        </a>
+        .
       </p>
       <p className="text-sm">
         Your accepted agreement and payment history remain in your private account.

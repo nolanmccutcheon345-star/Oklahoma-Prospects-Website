@@ -386,8 +386,15 @@ function CaseWorkspace({
         <section className="rounded-xl border p-4">
           <h3 className="text-xl">3. Your published fee and payment</h3>
           <p className="my-3">
-            Review your actual season total, due dates and optional access here. The signed
-            financial offer controls these amounts.
+            Review your actual season total and due dates here. The signed financial offer controls
+            these amounts.
+          </p>
+          <p className="my-3">
+            Personal memberships are purchased separately at the full published price.{" "}
+            <a href="/memberships" className="underline">
+              View memberships
+            </a>
+            .
           </p>
           <TeamFeeWorkspace teamId={s.teamId} />
           <FinancialReadiness ids={ids} owner={data.owner} busy={busy} run={run} />

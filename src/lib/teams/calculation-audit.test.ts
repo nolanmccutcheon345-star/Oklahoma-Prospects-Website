@@ -53,7 +53,7 @@ test("itemized estimates reconcile to the proposed player fee, survive saving, a
   );
 });
 
-test("all 120 master rows reconcile across roster sizes, PO counts, processing and optional access", () => {
+test("all 120 master rows reconcile across roster sizes, PO counts, processing without bundled memberships", () => {
   const m = seedMasterMatrix();
   assert.equal(m.rows.length, 120);
   for (const row of m.rows) {
@@ -103,14 +103,9 @@ test("all 120 master rows reconcile across roster sizes, PO counts, processing a
       }
       for (const full of [0, 8, 9, 10, 11, 12])
         for (const po of [0, 1, 3]) {
-          const access = Math.min(2, full),
-            extraAccess = Math.min(access, Math.max(0, full - b.baseline));
-          const p = project(budget, full, po, [], false, access, extraAccess);
+          const p = project(budget, full, po);
           assert.equal(p.direct, fixed + (full + po) * (12345 + 321));
-          assert.equal(
-            p.totalRevenue,
-            full * f.full + po * f.po + access * (calculateFees(budget, true).full - f.full),
-          );
+          assert.equal(p.totalRevenue, full * f.full + po * f.po);
           assert.equal(p.teamOperatingRevenue + p.organizationAndProgramRevenue, p.totalRevenue);
           assert.equal(
             p.beforeOverhead,

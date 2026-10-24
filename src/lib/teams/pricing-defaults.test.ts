@@ -14,7 +14,6 @@ import {
   calculateFees,
   deadline,
   scheduleRows,
-  individualAccessSchedule,
   paymentReviewKey,
 } from "./fee-model";
 import { feeHealth } from "./fee-health";
@@ -150,8 +149,6 @@ test("event schedules use exact cents, Chicago calendar dates, leap days and fix
     );
     assert.ok(values.every((n) => Number.isSafeInteger(n) && n >= 0));
   }
-  const upgrade = individualAccessSchedule(b, final);
-  assert.deepEqual(upgrade, scheduleRows(b, calculateFees(b, true).full, "full", final));
   assert.equal(deadline(b, []), "");
   assert.equal(deadline({ ...b, start: "" }, [{ id: "e", start: "2027-04-01" }]), "");
   assert.ok(

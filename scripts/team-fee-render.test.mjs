@@ -133,6 +133,11 @@ for (const inherited of [false, true])
         assert.match(host.textContent, /2 players have overdue team payments/);
         assert.match(host.textContent, /Nightly hotel stipend/);
         assert.match(host.textContent, /Fee Composition/);
+        assert.match(host.textContent, /Personal memberships are purchased separately/);
+        assert.doesNotMatch(
+          host.textContent,
+          /Individual Facility Access Upgrade|standalone individual access/i,
+        );
         assert.match(host.textContent, /Projected business contribution per player/);
         const masterSelect = [...host.querySelectorAll("select")].find((s) =>
           s.parentElement.textContent.includes("Matrix row"),
@@ -265,8 +270,10 @@ for (const inherited of [false, true])
           assert.match(host.textContent, /\$450\.00/);
         }
         assert.match(host.textContent, /Actual Billable Months/);
-        assert.match(host.textContent, /Optional Individual Facility Access Upgrade/);
-        assert.match(host.textContent, /Standard standalone individual access/);
+        assert.doesNotMatch(
+          host.textContent,
+          /Optional Individual Facility Access Upgrade|Standard standalone individual access/,
+        );
         for (const [toggle, label, dollars] of [
           [
             "Use admin tournament-fee estimate",

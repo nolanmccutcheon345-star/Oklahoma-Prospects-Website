@@ -76,8 +76,6 @@ export function BudgetMasterEditor({ teams }: { teams: Teams }) {
     ...row,
     membershipMonthly: undefined,
     poMembershipMonthly: undefined,
-    individualAccessMonthly: undefined,
-    standaloneAccessMonthly: undefined,
     baseline: undefined,
     contingencyBps: undefined,
     hotelNightly: undefined,
@@ -90,8 +88,6 @@ export function BudgetMasterEditor({ teams }: { teams: Teams }) {
   const overrides = [
     ["membershipMonthly", "Team & Development Program Fee per full player per month ($)", 100],
     ["poMembershipMonthly", "Team & Development Program Fee per PO per month ($)", 100],
-    ["individualAccessMonthly", "Optional Individual Facility Access Upgrade per month ($)", 100],
-    ["standaloneAccessMonthly", "Standalone individual access reference per month ($)", 100],
     ["baseline", "Baseline full-paying players", 1],
     ["contingencyBps", "Team Contingency (%)", 100],
     ["hotelNightly", "Hotel stipend per night ($)", 100],
@@ -127,11 +123,6 @@ export function BudgetMasterEditor({ teams }: { teams: Teams }) {
             paying.filter((p) => p.role === "po").length,
             [],
             false,
-            paying.filter((p) => p.role === "full" && p.individualAccess).length,
-            paying
-              .filter((p) => p.role === "full")
-              .slice(b.baseline)
-              .filter((p) => p.individualAccess).length,
           ).beforeOverhead / b.months,
         ),
       };
@@ -300,10 +291,8 @@ export function BudgetMasterEditor({ teams }: { teams: Teams }) {
         <p className="text-sm">
           The common required {money(m.membershipMonthly)} / month Team & Development Program Fee
           includes scheduled team facility use and platform development programming, administered
-          through normal team coaching with no automatic direct labor charge. The optional +
-          {money(m.individualAccessMonthly ?? 5000)} / month Individual Facility Access Upgrade is
-          separate and is not offered to PO players. The {money(m.standaloneAccessMonthly ?? 8000)}{" "}
-          standalone retail reference is excluded from all team-price calculations. Pricing uses
+          through normal team coaching with no automatic direct labor charge. Personal memberships
+          are purchased separately on the Memberships page at the full published price. Pricing uses
           actual team dates and any authorized billable-month override. Team Contingency is{" "}
           {m.contingencyBps / 100}% of direct costs, separate from the
           {money(m.reserveTarget)} business operating reserve target. All amounts here are editable;
@@ -329,16 +318,6 @@ export function BudgetMasterEditor({ teams }: { teams: Teams }) {
               ["poProcessingBps", "PO processing allocation (%)"],
             ] as const
           ).map(([k, label]) => field(label, m[k] ?? 10000, (n) => patch({ [k]: n })))}
-          {field(
-            "Optional Individual Facility Access Upgrade per month ($)",
-            m.individualAccessMonthly ?? 5000,
-            (n) => patch({ individualAccessMonthly: n }),
-          )}
-          {field(
-            "Standard standalone individual access — reference only ($/month)",
-            m.standaloneAccessMonthly ?? 8000,
-            (n) => patch({ standaloneAccessMonthly: n }),
-          )}
           {field("Team Contingency (%)", m.contingencyBps, (n) => patch({ contingencyBps: n }))}
           {field("Hotel stipend per night — total, not per coach ($)", m.hotelNightly, (n) =>
             patch({ hotelNightly: n }),

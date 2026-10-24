@@ -266,6 +266,11 @@ try {
     .first()
     .click();
   await page.getByRole("button", { name: "Review this booking", exact: true }).click();
+  // Step navigation moves focus on the next animation frame. Let that finish
+  // before testing field focus so the navigation callback cannot steal it.
+  await page.waitForFunction(() =>
+    document.activeElement?.matches('[data-booking-step="2"] > summary'),
+  );
   await page.waitForFunction(() => {
     const bar = document.querySelector(".booking-review-bar");
     return (

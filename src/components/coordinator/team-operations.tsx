@@ -70,15 +70,6 @@ export function TeamOperations({
                       currency: "USD",
                     })}
                   </p>
-                  {data.publishedFees.fullAccess !== undefined && (
-                    <p>
-                      With optional individual access:{" "}
-                      {(data.publishedFees.fullAccess / 100).toLocaleString("en-US", {
-                        style: "currency",
-                        currency: "USD",
-                      })}
-                    </p>
-                  )}
                   {data.publishedFees.po !== undefined && (
                     <p>
                       Pitcher only:{" "}

@@ -205,8 +205,7 @@ function TeamPlan({
     [full, setFull] = useState(10),
     [po, setPo] = useState(0),
     [name, setName] = useState(""),
-    [consent, setConsent] = useState(false),
-    [accessChoices, setAccessChoices] = useState<Record<string, boolean>>({});
+    [consent, setConsent] = useState(false);
   useEffect(() => {
     if (team.access !== "admin") return;
     const load = () => {
@@ -310,14 +309,6 @@ function TeamPlan({
           <Numbers
             rows={[
               ["Full player", publication.full],
-              ...(publication.fullAccess !== undefined
-                ? [
-                    [
-                      "Full player with optional Individual Facility Access Upgrade",
-                      publication.fullAccess,
-                    ] as [string, number],
-                  ]
-                : []),
               ...(canPO ? [["Pitcher only", publication.po] as [string, number]] : []),
             ]}
           />
@@ -752,14 +743,6 @@ function TeamPlan({
                     "Other direct cost per player (full and PO; exclude uniform)",
                   ],
                   [
-                    "individualAccessMonthly",
-                    "Optional Individual Facility Access Upgrade per month",
-                  ],
-                  [
-                    "standaloneAccessMonthly",
-                    "Standard standalone individual access — reference only per month",
-                  ],
-                  [
                     "serviceCostMonthly",
                     "Other actual service expense per player per month (no automatic programming labor)",
                   ],
@@ -866,9 +849,9 @@ function TeamPlan({
               The Team & Development Program Fee includes scheduled team facility use, strength and
               athletic programming, throwing and arm care, assigned position/age-specific
               programming, drills, tracking, coach access and development history. Platform
-              programming adds no automatic labor charge. Individual access is optional for full
-              players; the standalone retail reference is excluded from pricing. Processing follows
-              the configured payment schedule.
+              programming adds no automatic labor charge. Personal memberships are purchased
+              separately through the Memberships page at the full published price. Processing
+              follows the configured payment schedule.
             </p>
           </Panel>
           <Panel title="Fee Composition" open>
@@ -966,7 +949,6 @@ function TeamPlan({
                           registration: 0,
                           other: 0,
                         },
-                        Boolean(plan.players[saved.id]?.individualAccess),
                       ),
                     };
                 } catch {
@@ -1945,32 +1927,13 @@ function TeamPlan({
                 )}
                 {p.canAccept && !p.signed && publication && (
                   <div className="grid gap-2">
-                    {p.role === "full" && publication.fullAccess !== undefined && (
-                      <label className="flex gap-2">
-                        <input
-                          type="checkbox"
-                          checked={Boolean(accessChoices[p.id])}
-                          onChange={(e) => {
-                            setAccessChoices({ ...accessChoices, [p.id]: e.target.checked });
-                            setConsent(false);
-                          }}
-                        />
-                        Optional Individual Facility Access Upgrade: +
-                        {money(publication.individualAccessMonthly || 0)}/month ×{" "}
-                        {publication.billableMonths} months. Season total with processing:{" "}
-                        {money(accessChoices[p.id] ? publication.fullAccess : publication.full)}.
-                      </label>
-                    )}
-                    {p.role === "full" && accessChoices[p.id] && p.upgradeRows?.length > 0 && (
-                      <p className="text-sm">
-                        Upgrade payment schedule:{" "}
-                        {p.upgradeRows
-                          .map(
-                            (r) => `${r.label}: ${money(r.amount)} · ${r.due || "at acceptance"}`,
-                          )
-                          .join("; ")}
-                      </p>
-                    )}
+                    <p className="text-sm">
+                      Personal memberships are separate from team fees.{" "}
+                      <a href="/memberships" className="underline">
+                        View memberships at the full published price
+                      </a>
+                      .
+                    </p>
                     <Field label="Guardian full name" value={name} onChange={setName} />
                     <label className="flex gap-2">
                       <input
@@ -1989,7 +1952,6 @@ function TeamPlan({
                           playerId: p.id,
                           consent: true,
                           name,
-                          individualAccess: p.role === "full" && Boolean(accessChoices[p.id]),
                         })
                       }
                     >

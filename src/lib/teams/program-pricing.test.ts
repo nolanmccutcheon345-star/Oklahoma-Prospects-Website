@@ -8,7 +8,7 @@ import {
   project,
   feeComposition,
   programDraft,
-  individualAccessSchedule,
+  scheduleRows,
   additionalPlayerContribution,
   membershipRecognition,
   budgetSchema,
@@ -39,8 +39,8 @@ test("all historic cost matrices and business reserve survive legacy master inte
   const normalized = normalizePOMaster(legacy);
   assert.equal(normalized.membershipMonthly, 15000);
   assert.equal(normalized.poMembershipMonthly, 15000);
-  assert.equal(normalized.individualAccessMonthly, 5000);
-  assert.equal(normalized.standaloneAccessMonthly, 8000);
+  assert.ok(!("individualAccessMonthly" in normalized));
+  assert.ok(!("standaloneAccessMonthly" in normalized));
   assert.equal(normalized.reserveTarget, 2400000);
   assert.equal(normalized.contingencyBps, 1500);
   assert.equal(normalized.baseline, 10);
@@ -84,30 +84,24 @@ test("calendar billing handles partial months, cross-year dates and explicit fra
   assert.equal(b.months, 7);
 });
 
-test("required program, optional access and retail reference stay outside direct cost/contingency", () => {
+test("required program stays outside direct cost and retired membership fields cannot affect a quote", () => {
   const b = budget(),
-    base = calculateFees(b),
-    upgraded = calculateFees(b, true);
+    base = calculateFees(b);
   assert.equal(base.direct, 925000);
   assert.equal(base.contingency, 138750);
   assert.equal(base.member, 105000);
   assert.equal(base.poMember, 105000);
   assert.equal(base.poDiscount, b.fullOrg - b.poOrg);
-  assert.equal(upgraded.access, 35000);
-  assert.equal(upgraded.fullNet - base.fullNet, 35000);
-  assert.equal(base.direct, upgraded.direct);
-  assert.equal(base.contingency, upgraded.contingency);
-  assert.equal(base.po, upgraded.po);
-  assert.deepEqual(calculateFees({ ...b, standaloneAccessMonthly: 99999999 }), base);
-  const c = feeComposition(b, "full", true);
+  const historic = { ...b, individualAccessMonthly: 99999999, standaloneAccessMonthly: 99999999 };
+  assert.deepEqual(calculateFees(historic), base);
   assert.equal(
-    c.teamCosts +
-      c.contingency +
-      c.membership +
-      c.access +
-      c.organization +
-      c.processing +
-      c.adjustment,
+    budgetSchema.safeParse(historic).success,
+    false,
+    "New pricing submissions reject retired fields",
+  );
+  const c = feeComposition(b, "full");
+  assert.equal(
+    c.teamCosts + c.contingency + c.membership + c.organization + c.processing + c.adjustment,
     c.total,
   );
   assert.equal(defaultBudget().serviceCostMonthly, 0);
@@ -119,7 +113,7 @@ test("players 11+ do not re-fund fixed costs or automatically incur insurance/re
     additionalPlayerCosts: [{ playerId: "11", insurance: 2500, registration: 4000, other: 500 }],
   };
   const base = project(budget(), 10, 0),
-    extra = project(b, 11, 1, [], false, 1, 1);
+    extra = project(b, 11, 1);
   assert.equal(extra.full, base.full);
   assert.equal(
     project(b, 10, 0).direct,
@@ -128,7 +122,7 @@ test("players 11+ do not re-fund fixed costs or automatically incur insurance/re
   );
   assert.equal(extra.reserve, base.reserve);
   assert.equal(extra.direct - base.direct, 2 * b.uniformCost + 7000);
-  const full = additionalPlayerContribution(b, "full", b.additionalPlayerCosts[0], true);
+  const full = additionalPlayerContribution(b, "full", b.additionalPlayerCosts[0]);
   const po = additionalPlayerContribution(b, "po", { insurance: 0, registration: 0, other: 0 });
   assert.equal(
     full.contribution,
@@ -144,7 +138,7 @@ test("players 11+ do not re-fund fixed costs or automatically incur insurance/re
     extra.totalTeamAssociatedContribution,
     extra.totalRevenue - extra.direct - extra.processing - extra.serviceCosts,
   );
-  assert.equal(extra.organizationAndProgramRevenue, extra.membership + extra.organization + 35000);
+  assert.equal(extra.organizationAndProgramRevenue, extra.membership + extra.organization);
   assert.equal(
     budgetSchema.safeParse({
       ...b,
@@ -172,7 +166,7 @@ test("legacy quotes remain exact; only working drafts acquire new program and da
   assert.equal(before.member, 120000);
 });
 
-test("optional upgrade installment totals, custom amount plans and processor costs reconcile", () => {
+test("standard installment totals, custom amount plans and processor costs reconcile", () => {
   for (const custom of [false, true]) {
     const b = budget();
     if (custom) {
@@ -196,8 +190,8 @@ test("optional upgrade installment totals, custom amount plans and processor cos
         },
       });
     }
-    const f = calculateFees(b, true);
-    const rows = individualAccessSchedule(b, "2027-07-01", "2027-01-01");
+    const f = calculateFees(b);
+    const rows = scheduleRows(b, f.full, "full", "2027-07-01", "2027-01-01");
     assert.equal(
       rows.reduce((s, r) => s + r.amount, 0),
       f.full,
@@ -207,7 +201,7 @@ test("optional upgrade installment totals, custom amount plans and processor cos
       0,
     );
     assert.ok(f.full - processing >= f.fullNet);
-    const recognition = membershipRecognition(f.member + f.access, b.start, b.end, "2026-12-01");
-    assert.equal(recognition.deferred, 140000);
+    const recognition = membershipRecognition(f.member, b.start, b.end, "2026-12-01");
+    assert.equal(recognition.deferred, 105000);
   }
 });

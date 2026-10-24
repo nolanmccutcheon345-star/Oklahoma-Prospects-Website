@@ -6,7 +6,7 @@ Assigned coaches use Coach Desk; linked guardians use their team family desk.
 ## Calculation and approval
 
 All money is calculated in integer cents. Defaults are ten full paying players,
-12.5% Team Contingency, a required $80 Team & Development Program Fee per player per Actual Billable Month, optional +$50 Individual Facility Access for full players, and a 50/50 owner split. The $80 standalone retail reference is excluded from pricing.
+12.5% Team Contingency, a required $80 Team & Development Program Fee per player per Actual Billable Month, and a 50/50 owner split. Personal memberships are purchased separately through the site at the full published catalog price; no player membership add-on is offered.
 These are editable per team. Billing uses inclusive calendar months from actual team dates; fractional overrides require an admin reason.
 Uniform vendor cost, all baseline per-player costs, tournament costs, and all
 coaching / operating budgets are inside direct costs before contingency.
@@ -27,7 +27,7 @@ offer stays available while a replacement draft is reviewed. A guardian's
 acceptance freezes the fee, installment amounts, policy and membership service
 allocation. Subsequent publications do not alter that agreement. Existing signed
 agreements are preserved; amendments require separate Front Office review.
-New fee agreements default to 40/30/30. Admin can customize a deposit plus 1–12 subsequent payments, using percentages or exact dollar amounts for full and pitcher-only players. Totals must reconcile before publishing; percentage schedules put cent rounding into the final installment. Second/final installments already overdue at late acceptance become
+New fee agreements default to 70/15/15 using the published event-based dates. Admin can customize a deposit plus 1–12 subsequent payments, using percentages or exact dollar amounts for full and pitcher-only players. Totals must reconcile before publishing; percentage schedules put cent rounding into the final installment. Second/final installments already overdue at late acceptance become
 due at acceptance. Customized plans use the earliest scheduled team tournament minus the admin-configured number of days (default 28), unless an explicit final-date override is set. Older published schedules and accepted agreements retain their original terms.
 
 ## Collections and actuals
