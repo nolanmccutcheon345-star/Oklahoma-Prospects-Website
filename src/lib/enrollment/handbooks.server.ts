@@ -86,13 +86,16 @@ export async function saveHandbook(sql: Sql, actor: string, raw: unknown) {
 export async function saveTeamStandards(sql: Sql, actor: string, raw: unknown) {
   const input = saveStandardsInput.parse(raw);
   return secured(sql, actor, "standards.save", async (tx) => {
-    const scope = await enrollmentScope(tx, actor),
-      team = teamAccess(scope, input.teamId);
+    const scope = await enrollmentScope(tx, actor);
+    if (input.organization && !scope.owner) throw Error("Owner access required.");
+    const team = input.organization
+      ? { id: "organization", name: "All Prospects teams", canDraft: scope.owner }
+      : teamAccess(scope, input.teamId);
     if (!team.canDraft) throw Error("Team standards permission required.");
     if (input.action === "publish" && !scope.owner)
       throw Error("An owner must approve team standards.");
-    const id = "team:" + team.id;
-    await tx`insert into handbook_documents(id,kind,team_id) values(${id},'team',${team.id}) on conflict do nothing`;
+    const id = input.organization ? "organization-standards" : "team:" + team.id;
+    await tx`insert into handbook_documents(id,kind,team_id) values(${id},${input.organization ? "standards" : "team"},${input.organization ? null : team.id}) on conflict do nothing`;
     await tx`select id from handbook_documents where id=${id} for update`;
     const s = input.standards;
     const content = {

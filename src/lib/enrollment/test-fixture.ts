@@ -128,3 +128,47 @@ export async function preparePilot(sql: Sql) {
     });
   }
 }
+
+/** Owner-directed rollout with genuine synthetic owner actions, no fake pilot/reviewer records. */
+export async function prepareOrganization(sql: Sql) {
+  const { handbookWorkspace, saveHandbook, saveTeamStandards } = await import("./handbooks.server");
+  const { saveRollout } = await import("./enrollment.server");
+  const { expandEnrollment } = await import("./progress.server");
+  const { organizationPolicies, organizationStandards } = await import("./organization-policy");
+  const { emptyReview } = await import("./contracts");
+  for (const d of (await handbookWorkspace(sql, "owner")).documents.filter(
+    (d) => d.kind !== "team" && d.kind !== "standards",
+  )) {
+    await saveHandbook(sql, "owner", {
+      documentId: d.documentId,
+      version: d.version,
+      revision: d.revision,
+      action: "publish",
+      effectiveOn: "2026-01-01",
+      content: organizationPolicies[d.documentId],
+      review: emptyReview,
+    });
+  }
+  await saveTeamStandards(sql, "owner", {
+    teamId: "organization",
+    organization: true,
+    version: 0,
+    revision: 0,
+    action: "publish",
+    effectiveOn: "2026-01-01",
+    standards: organizationStandards,
+  });
+  await saveRollout(sql, "owner", {
+    revision: 0,
+    safetyName: "Synthetic Primary",
+    safetyContact: "primary@example.invalid",
+    alternateName: "Synthetic Alternate",
+    alternateContact: "alternate@example.invalid",
+    emergencyPlanReference: "Synthetic emergency plan for isolated test venues",
+  });
+  await expandEnrollment(sql, "owner", {
+    revision: 1,
+    evidence: "Synthetic owner requested direct organization activation without pilots.",
+    enabled: true,
+  });
+}

@@ -6,7 +6,7 @@ import { resolve, extname } from "node:path";
 import { PGLiteSocketServer } from "@electric-sql/pglite-socket";
 import { chromium } from "playwright";
 import { hashPassword } from "better-auth/crypto";
-import { enrollmentFixture, preparePilot } from "../src/lib/enrollment/test-fixture.ts";
+import { enrollmentFixture, prepareOrganization } from "../src/lib/enrollment/test-fixture.ts";
 import { enrollmentCase } from "../src/lib/enrollment/enrollment.server.ts";
 for (const name of [
   "DATABASE_URL",
@@ -25,14 +25,14 @@ let socket,
 const shots = "artifacts/enrollment";
 await mkdir(shots, { recursive: true });
 try {
-  await preparePilot(h.sql);
+  await prepareOrganization(h.sql);
   for (const teamId of ["base", "soft"]) {
     await enrollmentCase(h.sql, "guardian", { teamId, playerId: teamId + "-player" });
     await h.sql`insert into team_activities(id,team_id,payload,updated_by) values(${randomUUID()},${teamId},${JSON.stringify({ kind: "practice", title: "Synthetic practice", date: "2026-01-01", startTime: "15:00", status: "scheduled" })}::jsonb,'owner')`;
   }
   const password = randomUUID() + "Aa9!",
     hashed = await hashPassword(password);
-  for (const id of ["guardian", "coach", "coordinator"])
+  for (const id of ["guardian", "coach", "coordinator", "owner"])
     await h.sql`insert into account(id,"accountId","providerId","userId",password,"createdAt","updatedAt") values(${id},${id},'credential',${id},${hashed},now(),now())`;
   await h.sql`update coordinator_assignments set permissions=array['enrollment.read','enrollment.manage'] where user_id='coordinator'`;
   socket = new PGLiteSocketServer({ db: h.db, host: "127.0.0.1", port: 0, maxConnections: 20 });
@@ -129,6 +129,9 @@ try {
       .locator("form")
       .filter({ has: p.getByRole("button", { name: "Sign this packet", exact: true }) });
     await form.getByLabel("Guardian’s full legal name").fill("Synthetic Guardian");
+    await form
+      .getByLabel("Athlete’s name — entered for their acknowledgment")
+      .fill("Synthetic athlete");
     for (const checkbox of await form.locator("input[type=checkbox]").all()) await checkbox.check();
     await form.getByRole("button", { name: "Sign this packet", exact: true }).click();
     await p.getByText("Saved.", { exact: true }).waitFor();
@@ -213,6 +216,32 @@ try {
     await coordinator.page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1),
   );
   await coordinator.page.screenshot({ path: shots + "/coordinator-mobile.png", fullPage: false });
+  const owner = await signedIn("owner", 1280);
+  await owner.page.getByText("Organization enrollment controls", { exact: true }).click();
+  const controls = owner.page
+    .locator("details")
+    .filter({
+      has: owner.page.locator("summary").filter({ hasText: "Organization enrollment controls" }),
+    });
+  const openTeams = controls.locator('input[name="open"]');
+  assert.equal(await openTeams.count(), 2);
+  assert.equal(await openTeams.first().isChecked(), true);
+  await owner.page
+    .getByRole("button", { name: "Pause organization signatures", exact: true })
+    .click();
+  await owner.page.getByText("Saved.", { exact: true }).waitFor();
+  await owner.page
+    .getByRole("button", { name: "Enable organization enrollment", exact: true })
+    .click();
+  await owner.page.getByText("Saved.", { exact: true }).waitFor();
+  await owner.page
+    .getByRole("button", { name: "Pause organization signatures", exact: true })
+    .waitFor();
+  assert.equal(
+    await openTeams.first().isChecked(),
+    true,
+    "Team checkbox reflects the resumed signature setting",
+  );
   assert.deepEqual(errors, []);
   console.log(
     "PASS: real compiled guardian signatures for baseball and softball, optional-media independence, medical privacy, assigned-coach scope, scoped coordinator attendance, mobile layouts. Synthetic payments only in domain tests; no live pilot certified.",

@@ -42,7 +42,7 @@ jobs:
         run: node scripts/check-reviewed-release.mjs
       - run: npm run verify:build
       - run: npx playwright install --with-deps chromium
-      - name: Isolated enrollment pilot walkthrough
+      - name: Isolated organization enrollment walkthrough
         run: node --import tsx scripts/check-enrollment.mjs
       - name: Isolated coordinator permissions walkthrough
         run: node scripts/check-coordinator.mjs

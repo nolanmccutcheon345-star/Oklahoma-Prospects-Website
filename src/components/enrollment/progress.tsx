@@ -415,7 +415,7 @@ function CheckpointForm({
     </form>
   );
 }
-export function PilotRollout({
+export function OrganizationRollout({
   home,
   busy,
   run,
@@ -424,141 +424,90 @@ export function PilotRollout({
   busy: boolean;
   run: (fn: () => Promise<unknown>) => Promise<void>;
 }) {
+  const enabled = home.settings.mode === "organization" && home.settings.allTeamsEnabled;
   return (
     <details className="rounded-xl border p-4">
       <summary className="min-h-11 cursor-pointer font-semibold">
-        Owner pilot review and organization rollout
+        Organization enrollment controls
       </summary>
       <p className="my-3">
-        Current scope: {home.settings.mode}. Before expansion, each pilot needs at least one cleared
-        athlete observed for 30 days, all checklist tasks, a completed development checkpoint and an
-        acknowledged attendance notice. Record the family and coach feedback, permissions check,
-        issues and resolution evidence. A test fixture does not count as a real pilot.
+        {enabled ? "Organization-wide enrollment is open." : "Organization enrollment is paused."}{" "}
+        No pilot or 30-day waiting period is required. The first-month checklist remains part of
+        each athlete’s onboarding.
       </p>
-      {home.pilots.map((p) => (
-        <form
-          className="my-4 grid gap-3 rounded border p-3"
-          key={p.teamId + ":" + p.revision}
-          onSubmit={(e) => {
-            e.preventDefault();
-            const f = new FormData(e.currentTarget);
-            void run(() =>
-              api.savePilotReview({
-                data: {
-                  teamId: p.teamId,
-                  revision: p.revision,
-                  passed: f.get("passed") === "on",
-                  evidence: text(f, "evidence"),
-                  permissionsVerified: true,
-                  familyAndCoachFeedback: true,
-                },
-              }),
-            );
-          }}
-        >
-          <h3 className="text-xl">
-            {p.sport} · {home.teams.find((t) => t.id === p.teamId)?.name}
-          </h3>
-          <label>
-            Results and evidence
-            <textarea
-              className={field}
-              required
-              minLength={30}
-              name="evidence"
-              defaultValue={p.pilotReview}
-            />
-          </label>
-          <label className="flex min-h-11 items-center gap-3">
-            <input required type="checkbox" />I verified the permissions and reviewed feedback with
-            the family and coach.
-          </label>
-          <label className="flex min-h-11 items-center gap-3">
-            <input type="checkbox" name="passed" defaultChecked={p.pilotPassed} />
-            Pilot passed; issues blocking expansion are resolved.
-          </label>
-          <button className={button} disabled={busy}>
-            Save pilot review
-          </button>
-        </form>
-      ))}
-      {home.settings.mode === "pilot" ? (
-        <form
-          className="grid gap-3"
-          onSubmit={(e) => {
-            e.preventDefault();
-            const f = new FormData(e.currentTarget);
-            void run(() =>
-              api.enableOrganizationEnrollment({
-                data: { revision: home.settings.revision, evidence: text(f, "evidence") },
-              }),
-            );
-          }}
-        >
-          <label>
-            Organization rollout decision
-            <textarea name="evidence" className={field} required minLength={30} />
-          </label>
-          <button
-            className={button}
-            disabled={busy || home.pilots.length !== 2 || home.pilots.some((p) => !p.pilotPassed)}
+      <p className="my-3">
+        Published organization team standards apply unless a team has its own published addendum.
+        Families still complete their own signatures, emergency information, annual requirements and
+        verified financial steps.
+      </p>
+      <button
+        className={button}
+        disabled={busy}
+        onClick={() =>
+          run(() =>
+            api.enableOrganizationEnrollment({
+              data: {
+                revision: home.settings.revision,
+                enabled: !enabled,
+                evidence: enabled
+                  ? "Owner paused organization enrollment through enrollment settings."
+                  : "Owner authorized direct organization-wide enrollment through enrollment settings; no pilot is required.",
+              },
+            }),
+          )
+        }
+      >
+        {enabled ? "Pause organization signatures" : "Enable organization enrollment"}
+      </button>
+      <h3 className="mt-5 text-xl">Team signature controls</h3>
+      {home.teams.map((t) => {
+        const p = [...home.pilots, ...home.additionalTeams].find((p) => p.teamId === t.id);
+        return (
+          <details
+            key={t.id + ":" + p?.revision + ":" + enabled}
+            className="my-3 rounded border p-3"
           >
-            Enable reviewed organization rollout
-          </button>
-        </form>
-      ) : (
-        <>
-          <p>
-            Enable each additional team only when its own published standards and packet are ready.
-          </p>
-          {home.teams
-            .filter((t) => !home.pilots.some((p) => p.teamId === t.id))
-            .map((t) => {
-              const p = home.additionalTeams.find((p) => p.teamId === t.id);
-              return (
-                <details key={t.id + ":" + p?.revision} className="my-3 rounded border p-3">
-                  <summary className="min-h-11 cursor-pointer">
-                    {t.name} · {p?.signaturesOpen ? "signatures open" : "closed"}
-                  </summary>
-                  <form
-                    className="grid gap-3"
-                    onSubmit={(e) => {
-                      e.preventDefault();
-                      const f = new FormData(e.currentTarget);
-                      void run(() =>
-                        api.setAdditionalEnrollmentTeam({
-                          data: {
-                            teamId: t.id,
-                            seasonKey: text(f, "season"),
-                            signaturesOpen: f.get("open") === "on",
-                            revision: p?.revision || 0,
-                          },
-                        }),
-                      );
-                    }}
-                  >
-                    <label>
-                      Season key
-                      <input
-                        name="season"
-                        className={field}
-                        required
-                        defaultValue={p?.seasonKey || t.season}
-                      />
-                    </label>
-                    <label className="flex min-h-11 items-center gap-3">
-                      <input name="open" type="checkbox" defaultChecked={p?.signaturesOpen} />
-                      Open this team’s signatures
-                    </label>
-                    <button className={button} disabled={busy}>
-                      Save team enrollment
-                    </button>
-                  </form>
-                </details>
-              );
-            })}
-        </>
-      )}
+            <summary className="min-h-11 cursor-pointer">
+              {t.name} · {enabled && p?.signaturesOpen ? "signatures open" : "paused"}
+            </summary>
+            <form
+              className="grid gap-3"
+              onSubmit={(e) => {
+                e.preventDefault();
+                const f = new FormData(e.currentTarget);
+                void run(() =>
+                  api.setAdditionalEnrollmentTeam({
+                    data: {
+                      teamId: t.id,
+                      seasonKey: text(f, "season"),
+                      signaturesOpen: f.get("open") === "on",
+                      revision: p?.revision || 0,
+                    },
+                  }),
+                );
+              }}
+            >
+              <label>
+                Enrollment season
+                <input
+                  name="season"
+                  className={field}
+                  required
+                  readOnly={Boolean(p)}
+                  defaultValue={p?.seasonKey || t.season || "2027"}
+                />
+              </label>
+              <label className="flex min-h-11 items-center gap-3">
+                <input name="open" type="checkbox" defaultChecked={p?.signaturesOpen} />
+                Open this team’s signatures
+              </label>
+              <button className={button} disabled={busy || !enabled}>
+                Save team enrollment
+              </button>
+            </form>
+          </details>
+        );
+      })}
     </details>
   );
 }

@@ -1,16 +1,13 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { enrollmentFixture, preparePilot } from "./test-fixture";
+import { enrollmentFixture, preparePilot, prepareOrganization } from "./test-fixture";
 import { enrollmentCase, enrollmentHome } from "./enrollment.server";
 import {
   seasonProgress,
   saveProgress,
-  reviewPilot,
   expandEnrollment,
   configureAdditionalTeam,
 } from "./progress.server";
-import { saveTeamStandards } from "./handbooks.server";
-import { standards } from "./test-fixture";
 
 test("attendance reuses the team calendar and attendance store; authorized operations cannot inspect private feedback or travel contacts", async () => {
   const { db, sql, club } = await enrollmentFixture();
@@ -147,107 +144,95 @@ test("attendance reuses the team calendar and attendance store; authorized opera
   }
 });
 
-test("organization expansion requires two observed pilots and owner evidence; additional teams retain individual signature gates", async () => {
+test("owner-directed rollout includes current and future teams without pilots and preserves per-team pauses and season identity", async () => {
   const { db, sql, club } = await enrollmentFixture();
   try {
-    await preparePilot(sql);
-    const expansion = {
-      revision: 1,
-      evidence: "Synthetic acceptance evidence for both isolated pilot teams.",
-    };
-    await assert.rejects(expandEnrollment(sql, "coach", expansion), /Owner/);
-    await assert.rejects(expandEnrollment(sql, "owner", expansion), /Both/);
-    await assert.rejects(
-      configureAdditionalTeam(sql, "owner", {
-        teamId: "base",
-        seasonKey: "2027",
-        revision: 0,
-        signaturesOpen: true,
-      }),
-      /both/,
-    );
-    for (const teamId of ["base", "soft"]) {
-      const key = { teamId, playerId: teamId + "-player" },
-        c = await enrollmentCase(sql, "guardian", key);
-      const review = {
-        teamId,
-        revision: 0,
-        passed: true,
-        evidence: "Synthetic feedback and role verification; never a real pilot.",
-        permissionsVerified: true,
-        familyAndCoachFeedback: true,
-      };
-      await assert.rejects(reviewPilot(sql, "owner", review), /30-day/);
-      // Age and complete synthetic records only, to exercise the server rollout gate.
-      await sql`update enrollment_cases set created_at=now()-interval '31 days',cleared_at=now(),cleared_by='owner' where id=${c.summary.id}`;
-      for (const task of ["uniform", "schedule", "orientation", "goals", "day30"])
-        await sql`insert into enrollment_checklist(case_id,task_key,completed,updated_by) values(${c.summary.id},${task},true,'owner')`;
-      await sql`insert into enrollment_checkpoints(id,case_id,kind,due_on,completed_on,feedback,athlete_id,updated_by) values(${teamId + "-checkpoint"},${c.summary.id},'baseline','2026-01-01','2026-01-01','Synthetic feedback','synthetic','owner')`;
-      await sql`insert into enrollment_absence_notices(case_id,activity_key,availability,notice_kind,direct_contact,submitted_by,acknowledged_by,acknowledged_at) values(${c.summary.id},'synthetic-event','going','planned',true,'guardian','owner',now())`;
-      club.teams.find((t) => t.id === teamId)!.attendance = {
-        "synthetic-event": { [key.playerId]: "present" },
-      };
-      await sql`update club_state set payload=${JSON.stringify(club)}::jsonb`;
-      await reviewPilot(sql, "owner", review);
-    }
-    await expandEnrollment(sql, "owner", expansion);
-    assert.equal((await enrollmentHome(sql, "owner")).settings.mode, "organization");
+    await prepareOrganization(sql);
+    let home = await enrollmentHome(sql, "owner");
+    assert.equal(home.settings.mode, "organization");
+    assert.equal(home.settings.activationBasis, "owner-directed");
+    assert.equal(home.settings.allTeamsEnabled, true);
+    assert.equal((await sql`select * from enrollment_pilots`).length, 0);
+    assert.equal((await sql`select * from enrollment_cases`).length, 0);
+    assert.equal(home.candidates.length, 2);
     const extra = structuredClone(club.teams[0]);
     extra.id = "additional";
     extra.name = "Additional synthetic team";
     extra.roster[0].id = "additional-player";
-    club.teams.push(extra);
+    const closed = structuredClone(extra);
+    closed.id = "closed";
+    closed.closed = true;
+    club.teams.push(extra, closed);
     await sql`update club_state set payload=${JSON.stringify(club)}::jsonb`;
-    await assert.rejects(
-      configureAdditionalTeam(sql, "owner", {
-        teamId: "additional",
-        seasonKey: "2027",
-        revision: 0,
-        signaturesOpen: true,
-      }),
-      /Publish/,
+    const key = { teamId: "additional", playerId: "additional-player" };
+    const c = await enrollmentCase(sql, "guardian", key);
+    assert.equal(c.packet.ready, true);
+    assert.equal(c.pilot.signaturesOpen, true);
+    assert.ok(c.packet.documents.some((d) => d.documentId === "organization-standards"));
+    assert.ok(
+      c.packet.documents.every((d) => !d.review.legalReviewer && !d.review.insuranceReviewer),
     );
-    await saveTeamStandards(sql, "owner", {
-      teamId: "additional",
-      version: 0,
-      revision: 0,
-      action: "publish",
-      effectiveOn: "2026-01-01",
-      standards,
-    });
+    assert.ok(!(await enrollmentHome(sql, "owner")).teams.some((t) => t.id === "closed"));
+    const season = c.summary.seasonKey;
+    extra.seasonLabel = "Changed calendar label";
+    await sql`update club_state set payload=${JSON.stringify(club)}::jsonb`;
+    assert.equal((await enrollmentCase(sql, "guardian", key)).summary.seasonKey, season);
+    await assert.rejects(
+      configureAdditionalTeam(sql, "coordinator", {
+        teamId: "additional",
+        seasonKey: season,
+        signaturesOpen: false,
+        revision: 0,
+      }),
+      /Owner/,
+    );
     await configureAdditionalTeam(sql, "owner", {
       teamId: "additional",
-      seasonKey: "2027",
+      seasonKey: season,
+      signaturesOpen: false,
       revision: 0,
-      signaturesOpen: true,
     });
+    assert.equal((await enrollmentCase(sql, "guardian", key)).pilot.signaturesOpen, false);
+    await assert.rejects(
+      expandEnrollment(sql, "coach", {
+        revision: home.settings.revision,
+        enabled: false,
+        evidence: "Unauthorized synthetic global enrollment pause attempt.",
+      }),
+      /Owner/,
+    );
+    await expandEnrollment(sql, "owner", {
+      revision: home.settings.revision,
+      enabled: false,
+      evidence: "Synthetic owner temporarily pauses organization signatures.",
+    });
+    assert.ok(
+      (await enrollmentHome(sql, "guardian")).additionalTeams.every((t) => !t.signaturesOpen),
+    );
+    // Opening a case during the global pause must not create a permanent team pause.
+    const pausedCase = await enrollmentCase(sql, "guardian", {
+      teamId: "soft",
+      playerId: "soft-player",
+    });
+    assert.equal(pausedCase.pilot.signaturesOpen, false);
+    home = await enrollmentHome(sql, "owner");
+    await expandEnrollment(sql, "owner", {
+      revision: home.settings.revision,
+      enabled: true,
+      evidence: "Synthetic owner resumes organization signatures without pilots.",
+    });
+    assert.equal((await enrollmentCase(sql, "guardian", key)).pilot.signaturesOpen, false);
     assert.equal(
-      (
-        await enrollmentCase(sql, "guardian", {
-          teamId: "additional",
-          playerId: "additional-player",
-        })
-      ).pilot.signaturesOpen,
+      (await enrollmentCase(sql, "guardian", { teamId: "base", playerId: "base-player" })).pilot
+        .signaturesOpen,
       true,
     );
-    await reviewPilot(sql, "owner", {
-      teamId: "soft",
-      revision: 1,
-      passed: false,
-      evidence: "Synthetic regression found; stop expansion until corrected.",
-      permissionsVerified: true,
-      familyAndCoachFeedback: true,
-    });
-    assert.equal((await enrollmentHome(sql, "owner")).settings.mode, "pilot");
     assert.equal(
-      (
-        await enrollmentCase(sql, "guardian", {
-          teamId: "additional",
-          playerId: "additional-player",
-        })
-      ).pilot.signaturesOpen,
-      false,
+      (await enrollmentCase(sql, "guardian", { teamId: "soft", playerId: "soft-player" })).pilot
+        .signaturesOpen,
+      true,
     );
+    assert.equal((await sql`select * from enrollment_pilots`).length, 0);
   } finally {
     await db.close();
   }

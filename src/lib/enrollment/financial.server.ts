@@ -68,7 +68,11 @@ export async function enrollmentFinance(sql: Sql, actor: string, raw: unknown) {
   });
 }
 export const clearInput = caseInput
-  .extend({ reason: z.string().trim().min(10).max(1000), medicalReviewed: z.literal(true) })
+  .extend({
+    reason: z.string().trim().min(10).max(1000),
+    medicalReviewed: z.literal(true),
+    staffSafetyReviewed: z.literal(true),
+  })
   .strict();
 export async function clearEnrollment(sql: Sql, actor: string, raw: unknown) {
   const i = clearInput.parse(raw);
@@ -80,6 +84,8 @@ export async function clearEnrollment(sql: Sql, actor: string, raw: unknown) {
     const [signed] =
       await tx`select id from enrollment_signatures where case_id=${c.row.id} and packet_digest=${packet.digest} limit 1`;
     const [medical] = await tx`select case_id from enrollment_medical where case_id=${c.row.id}`;
+    const [concussion] =
+      await tx`select id from enrollment_concussion_acknowledgments where case_id=${c.row.id} and acknowledged_at<=now() and acknowledged_at+interval '1 year'>now() limit 1`;
     const links = await tx<{
       athlete_id: string;
     }>`select athlete_id from team_dev_roster_links where team_id=${i.teamId} and roster_player_id=${i.playerId} and ended_at is null`;
@@ -92,15 +98,19 @@ export async function clearEnrollment(sql: Sql, actor: string, raw: unknown) {
       !packet.ready ||
       !signed ||
       !medical ||
+      !concussion ||
       !waiver ||
       !status.agreementSigned ||
       !status.depositSatisfied
     )
       throw Error(
-        "Complete the required packet, medical information, current waiver, accepted fee and verified deposit/fundraising credit before clearance.",
+        "Complete the packet, medical information, current annual concussion acknowledgment and waiver, accepted fee and verified deposit/fundraising credit before clearance.",
       );
     await tx`update enrollment_cases set financial_agreement_id=${status.agreementId},cleared_at=now(),cleared_by=${actor},clearance_reason=${i.reason} where id=${c.row.id}`;
-    await recordEnrollment(tx, actor, "enrollment.cleared", c.row.id);
+    await recordEnrollment(tx, actor, "enrollment.cleared", c.row.id, {
+      medicalReviewed: true,
+      staffSafetyReviewed: true,
+    });
     return { ok: true };
   });
 }
