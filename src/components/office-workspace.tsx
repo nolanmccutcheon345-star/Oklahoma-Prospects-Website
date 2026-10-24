@@ -269,6 +269,7 @@ export function OfficeWorkspace({
             <a href="/handbooks" className="inline-flex min-h-11 items-center underline">
               Handbooks & Team Standards
             </a>
+            <a href="/enrollment" className="inline-flex min-h-11 items-center underline">Enrollment pilot & season progress</a>
             <AboutPageEditor />
           </details>
           <AdminServicesDesk />

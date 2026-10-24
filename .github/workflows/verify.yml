@@ -42,6 +42,8 @@ jobs:
         run: node scripts/check-reviewed-release.mjs
       - run: npm run verify:build
       - run: npx playwright install --with-deps chromium
+      - name: Isolated enrollment pilot walkthrough
+        run: node --import tsx scripts/check-enrollment.mjs
       - name: Isolated coordinator permissions walkthrough
         run: node scripts/check-coordinator.mjs
       - name: Nonfinancial tournament finder component walkthrough
@@ -85,6 +87,7 @@ jobs:
             artifacts/shop
             artifacts/membership
             artifacts/journal
+            artifacts/enrollment
             artifacts/coordinator
             artifacts/tournament-finder
           if-no-files-found: ignore

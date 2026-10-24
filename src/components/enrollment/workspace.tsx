@@ -1,6 +1,7 @@
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
 import * as api from "@/lib/enrollment/enrollment-api";
 import { SIGNATURE_STATEMENT, MEDIA_STATEMENT } from "@/lib/enrollment/enrollment-contracts";
+import { SeasonProgress, PilotRollout } from "./progress";
 import { HandbookReader } from "./handbook-reader";
 import { TeamFeeWorkspace } from "../teams/fee-workspace";
 
@@ -21,6 +22,8 @@ export function EnrollmentWorkspace() {
     loadHome().catch((e) => setError(e.message));
   }, []);
   const candidate = home?.candidates.find((p) => p.teamId + ":" + p.playerId === selected);
+  const candidateTeamId = candidate?.teamId,
+    candidatePlayerId = candidate?.playerId;
   async function refresh() {
     if (candidate)
       setData(
@@ -33,9 +36,9 @@ export function EnrollmentWorkspace() {
     let active = true;
     setData(undefined);
     setError("");
-    if (candidate)
+    if (candidateTeamId && candidatePlayerId)
       api
-        .getEnrollmentCase({ data: { teamId: candidate.teamId, playerId: candidate.playerId } })
+        .getEnrollmentCase({ data: { teamId: candidateTeamId, playerId: candidatePlayerId } })
         .then((v) => {
           if (active) setData(v);
         })
@@ -45,7 +48,7 @@ export function EnrollmentWorkspace() {
     return () => {
       active = false;
     };
-  }, [candidate?.teamId, candidate?.playerId]);
+  }, [candidateTeamId, candidatePlayerId]);
   async function run(fn: () => Promise<unknown>) {
     setBusy(true);
     setError("");
@@ -74,8 +77,10 @@ export function EnrollmentWorkspace() {
       ) : (
         <>
           <p className="rounded-xl bg-paper-2 p-4">
-            Enrollment pilot · one baseball and one softball team. Your existing team, booking and
-            account services remain available.
+            {home.settings.mode === "pilot"
+              ? "Enrollment pilot · one baseball and one softball team."
+              : "Team enrollment"}{" "}
+            Your existing team, booking and account services remain available.
           </p>
           {home.owner && <PilotSettings home={home} busy={busy} run={run} />}
           <label>
@@ -104,13 +109,21 @@ export function EnrollmentWorkspace() {
           )}
           {data && (
             <CaseWorkspace
-              key={data.summary.id}
+              key={"case:" + data.summary.id}
               data={data}
               busy={busy}
               run={run}
               refresh={refresh}
             />
           )}
+          {data && (
+            <SeasonProgress
+              key={"progress:" + data.summary.id}
+              teamId={data.summary.teamId}
+              playerId={data.summary.playerId}
+            />
+          )}
+          {home.owner && <PilotRollout home={home} busy={busy} run={run} />}
           {home.owner && <SafetyInbox />}
         </>
       )}
@@ -258,7 +271,7 @@ function CaseWorkspace({
   refresh: () => Promise<void>;
 }) {
   const s = data.summary,
-    ids = { teamId: s.teamId, playerId: s.playerId };
+    ids = useMemo(() => ({ teamId: s.teamId, playerId: s.playerId }), [s.teamId, s.playerId]);
   return (
     <div className="grid gap-5">
       <section className="rounded-2xl bg-ink p-5 text-white">
@@ -418,7 +431,7 @@ function MedicalForm({
       .getEnrollmentMedical({ data: ids })
       .then(setRecord)
       .catch((e) => setError(e.message));
-  }, [ids.teamId, ids.playerId]);
+  }, [ids]);
   return (
     <details className="rounded-xl border p-4">
       <summary className="min-h-11 cursor-pointer text-xl font-semibold">
@@ -508,7 +521,7 @@ function FinancialReadiness({
       .getEnrollmentFinance({ data: ids })
       .then(setData)
       .catch((e) => setError(e.message));
-  }, [ids.teamId, ids.playerId, busy]);
+  }, [ids, busy]);
   return (
     <div className="mt-4 grid gap-3">
       {error && <p role="alert">{error}</p>}
@@ -573,7 +586,7 @@ function MediaForm({
       .getEnrollmentMedia({ data: ids })
       .then(setChoice)
       .catch((e) => setError(e.message));
-  }, [ids.teamId, ids.playerId, busy]);
+  }, [ids, busy]);
   return (
     <details className="rounded-xl border p-4">
       <summary className="min-h-11 cursor-pointer font-semibold">
