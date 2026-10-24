@@ -266,6 +266,9 @@ export function OfficeWorkspace({
             <summary className="min-h-11 cursor-pointer text-xl font-semibold">
               About page · Website content
             </summary>
+            <a href="/handbooks" className="inline-flex min-h-11 items-center underline">
+              Handbooks & Team Standards
+            </a>
             <AboutPageEditor />
           </details>
           <AdminServicesDesk />
