@@ -155,9 +155,9 @@ export function BookingFunnel({
   }
   if (householdHour === undefined || teamHour === undefined || fieldHour === undefined) return <p role="status" className="p-5">Loading current rental rates. If rates do not appear, refresh or contact Front Office.</p>;
   return (
-    <section ref={bookingRef} className="mx-auto max-w-3xl px-5 py-8" data-booking-ready={complete}>
+    <section ref={bookingRef} className="mx-auto max-w-3xl px-3 py-8 sm:px-5" data-booking-ready={complete}>
       <form id="cage-booking-form" onSubmit={onSubmit} className="grid min-w-0 gap-8">
-        <details data-booking-step="0" open={bookingStep === 0} className="rounded-2xl border border-line p-4">
+        <details data-booking-step="0" open={bookingStep === 0} className="rounded-2xl border border-line p-3 sm:p-4">
           <summary className="min-h-11 cursor-pointer text-2xl font-semibold">1. Choose your spaces</summary>
           <div className="mt-4">
           <h2 className="text-xl">Who’s training?</h2>
@@ -228,7 +228,7 @@ export function BookingFunnel({
                 <label
                   key={item.id}
                   className={cn(
-                    "booking-space flex min-h-20 cursor-pointer items-center gap-3 rounded-xl border-2 px-3 py-3 has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2",
+                    "booking-space flex flex-wrap min-h-20 cursor-pointer items-center gap-3 rounded-xl border-2 px-3 py-3 has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2",
                     on ? "border-maroon bg-maroon text-fg-inverse" : "border-line bg-paper-2",
                   )}
                 >
@@ -240,7 +240,7 @@ export function BookingFunnel({
                     data-cage-id={item.id}
                     aria-label={spaceName(item.id)}
                   />
-                  <span className="min-w-0 flex-1">
+                  <span className="min-w-0 flex-1 basis-28">
                     <span className="block font-display text-xl uppercase">
                       {spaceName(item.id)}
                     </span>
@@ -262,7 +262,7 @@ export function BookingFunnel({
         </div>
           <Button type="button" className="mt-4" disabled={!lanes.length} onClick={()=>goToBookingStep(1)}>Continue to date & time</Button>
         </details>
-        <details data-booking-step="1" open={bookingStep === 1} className="rounded-2xl border border-line p-4">
+        <details data-booking-step="1" open={bookingStep === 1} className="rounded-2xl border border-line p-3 sm:p-4">
           <summary className="min-h-11 cursor-pointer text-2xl font-semibold">2. Pick your date & time</summary>
           <div className="mt-4 grid min-w-0 gap-4">
           <label className="block min-w-0 text-sm font-semibold">
@@ -352,13 +352,13 @@ export function BookingFunnel({
         </div>
           <Button type="button" className="mt-4" disabled={!complete} onClick={()=>goToBookingStep(2)}>Review this booking</Button>
         </details>
-        <details data-booking-step="2" open={bookingStep === 2} className="rounded-2xl border border-line p-4">
+        <details data-booking-step="2" open={bookingStep === 2} className="rounded-2xl border border-line p-3 sm:p-4">
           <summary className="min-h-11 cursor-pointer text-2xl font-semibold">3. Review & continue</summary>
-          <div className="mt-4 grid gap-4">
+          <div className="mt-4 grid min-w-0 gap-4">
           <section
             id="cage-total"
             aria-label="Booking summary"
-            className="rounded-xl border border-line bg-paper-2 p-4"
+            className="rounded-xl border border-line bg-paper-2 p-3 sm:p-4"
             aria-live="polite"
           >
             <h3 className="text-2xl">Your booking</h3>
@@ -372,13 +372,13 @@ export function BookingFunnel({
                 </p>
                 <ul className="mt-4 grid gap-2 text-sm" data-cage-count={lanes.length}>
                   {quote!.lines.map((line, index) => (
-                    <li key={line.label} className="flex justify-between gap-4">
+                    <li key={line.label} className="flex flex-wrap justify-between gap-x-4 gap-y-1">
                       <span>{spaceName(lanes[index])}</span>
                       <span className="shrink-0 tabular-nums">{formatDollars(line.amount)}</span>
                     </li>
                   ))}
                 </ul>
-                <p className="mt-4 flex items-center justify-between gap-4 border-t border-line pt-3 font-semibold">
+                <p className="mt-4 flex flex-wrap items-center justify-between gap-x-4 gap-y-1 border-t border-line pt-3 font-semibold">
                   <span>Total</span>
                   <span className="font-display text-3xl" data-cage-total={total}>
                     {formatDollars(total)}

@@ -24,7 +24,7 @@ function ClubWordmark({ name }: { name: string }) {
   const lines = splitAt > 0 ? [name.slice(0, splitAt), name.slice(splitAt + 1)] : [name];
   return (
     <span
-      className="club-wordmark max-[360px]:text-[0.94rem] max-[360px]:whitespace-nowrap"
+      className="club-wordmark max-[360px]:text-[0.94rem]"
       data-club-wordmark
     >
       {lines.map((line, index) => (

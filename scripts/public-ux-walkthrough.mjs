@@ -286,10 +286,20 @@ try {
     .getByRole("button", { name: "Review Booking", exact: true })
     .evaluate((el) => el.scrollIntoView({ block: "center" }));
   await page.screenshot({ path: output + "/booking-review-large-text.png" });
+  const bookingOverflow = await page.evaluate(() => ({
+    width: document.documentElement.scrollWidth,
+    viewport: innerWidth,
+    elements: [...document.querySelectorAll("body *")]
+      .filter((el) => {
+        const r = el.getBoundingClientRect();
+        return r.width > 0 && (r.right > innerWidth + 1 || r.left < -1 || el.scrollWidth > el.clientWidth + 1);
+      })
+      .map((el) => ({ tag: el.tagName, class: el.className, text: el.textContent?.slice(0, 80), width: el.clientWidth, scroll: el.scrollWidth })),
+  }));
   assert.equal(
-    await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),
+    bookingOverflow.width <= bookingOverflow.viewport,
     true,
-    "completed booking review fits a 320px viewport at 200% text",
+    `completed booking review fits a 320px viewport at 200% text: ${JSON.stringify(bookingOverflow)}`,
   );
   assert.equal(
     await page.getByRole("button", { name: "Review Booking", exact: true }).evaluate((el) => {

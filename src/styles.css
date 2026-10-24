@@ -452,9 +452,9 @@
     font-size: 0.94rem;
     line-height: 0.95;
     letter-spacing: 0;
-    white-space: nowrap;
+    white-space: normal;
   }
-  .club-wordmark-line { display: block; white-space: nowrap; }
+  .club-wordmark-line { display: block; white-space: normal; }
   .club-wordmark-gap { display: none; }
 }
 
