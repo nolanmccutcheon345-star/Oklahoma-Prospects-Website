@@ -279,6 +279,7 @@ function AccountHome() {
               <Button asChild variant="outline">
                 <Link to="/family">Family app</Link>
               </Button>
+              <a href="/enrollment" className="inline-flex min-h-11 items-center underline">My season & enrollment</a>
               <div className="flex min-h-11 items-center rounded-md bg-navy px-3 text-fg-inverse">
                 <UserButton />
               </div>

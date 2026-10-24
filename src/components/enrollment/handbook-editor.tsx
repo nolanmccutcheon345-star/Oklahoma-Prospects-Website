@@ -75,6 +75,7 @@ export function HandbookEditor() {
               <option value="academy-2027">Organization handbook</option>
               <option value="baseball-2027">Baseball supplement</option>
               <option value="softball-2027">Softball supplement</option>
+              <option value="medical-2027">Emergency medical authorization</option>
               {data.teams.map((t) => (
                 <option key={t.id} value={"team:" + t.id}>
                   {t.name} — {t.season}
@@ -135,6 +136,7 @@ function DocumentForm({
       (e.nativeEvent as SubmitEvent).submitter?.getAttribute("value") === "publish"
         ? "publish"
         : "draft";
+    const reviewConfirmed = new FormData(e.currentTarget).get("reviewConfirmed") === "on";
     void run(() =>
       saveHandbookDocument({
         data: {
@@ -145,6 +147,7 @@ function DocumentForm({
           effectiveOn,
           content,
           review,
+          reviewConfirmed,
         },
       }),
     );
@@ -263,6 +266,10 @@ function DocumentForm({
           </label>
         ))}
       </fieldset>
+      <label className="flex min-h-11 items-center gap-3">
+        <input type="checkbox" name="reviewConfirmed" />
+        The review evidence above covers this exact text and effective date.
+      </label>
       <p className="text-sm">
         Publishing creates an immutable policy version. It does not change prices, charge families,
         or open enrollment signatures. Changes to reviewed text require review of the new version.

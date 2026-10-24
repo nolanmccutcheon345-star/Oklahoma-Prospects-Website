@@ -18,6 +18,7 @@ import { Route as CoachRouteImport } from './routes/coach'
 import { Route as CoachesRouteImport } from './routes/coaches'
 import { Route as ContactRouteImport } from './routes/contact'
 import { Route as CoordinatorRouteImport } from './routes/coordinator'
+import { Route as EnrollmentRouteImport } from './routes/enrollment'
 import { Route as EvaluationsRouteImport } from './routes/evaluations'
 import { Route as EventsRouteImport } from './routes/events'
 import { Route as FacilityRouteImport } from './routes/facility'
@@ -133,6 +134,11 @@ const ContactRoute = ContactRouteImport.update({
 const CoordinatorRoute = CoordinatorRouteImport.update({
   id: '/coordinator',
   path: '/coordinator',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const EnrollmentRoute = EnrollmentRouteImport.update({
+  id: '/enrollment',
+  path: '/enrollment',
   getParentRoute: () => rootRouteImport,
 } as any)
 const EvaluationsRoute = EvaluationsRouteImport.update({
@@ -502,6 +508,7 @@ export interface FileRoutesByFullPath {
   '/coaches': typeof CoachesRoute
   '/contact': typeof ContactRoute
   '/coordinator': typeof CoordinatorRoute
+  '/enrollment': typeof EnrollmentRoute
   '/evaluations': typeof EvaluationsRoute
   '/events': typeof EventsRoute
   '/facility': typeof FacilityRoute
@@ -584,6 +591,7 @@ export interface FileRoutesByTo {
   '/coaches': typeof CoachesRoute
   '/contact': typeof ContactRoute
   '/coordinator': typeof CoordinatorRoute
+  '/enrollment': typeof EnrollmentRoute
   '/evaluations': typeof EvaluationsRoute
   '/events': typeof EventsRoute
   '/facility': typeof FacilityRoute
@@ -667,6 +675,7 @@ export interface FileRoutesById {
   '/coaches': typeof CoachesRoute
   '/contact': typeof ContactRoute
   '/coordinator': typeof CoordinatorRoute
+  '/enrollment': typeof EnrollmentRoute
   '/evaluations': typeof EvaluationsRoute
   '/events': typeof EventsRoute
   '/facility': typeof FacilityRoute
@@ -751,6 +760,7 @@ export interface FileRouteTypes {
     | '/coaches'
     | '/contact'
     | '/coordinator'
+    | '/enrollment'
     | '/evaluations'
     | '/events'
     | '/facility'
@@ -833,6 +843,7 @@ export interface FileRouteTypes {
     | '/coaches'
     | '/contact'
     | '/coordinator'
+    | '/enrollment'
     | '/evaluations'
     | '/events'
     | '/facility'
@@ -915,6 +926,7 @@ export interface FileRouteTypes {
     | '/coaches'
     | '/contact'
     | '/coordinator'
+    | '/enrollment'
     | '/evaluations'
     | '/events'
     | '/facility'
@@ -998,6 +1010,7 @@ export interface RootRouteChildren {
   CoachesRoute: typeof CoachesRoute
   ContactRoute: typeof ContactRoute
   CoordinatorRoute: typeof CoordinatorRoute
+  EnrollmentRoute: typeof EnrollmentRoute
   EvaluationsRoute: typeof EvaluationsRoute
   EventsRoute: typeof EventsRoute
   FacilityRoute: typeof FacilityRoute
@@ -1131,6 +1144,13 @@ declare module '@tanstack/react-router' {
       path: '/coordinator'
       fullPath: '/coordinator'
       preLoaderRoute: typeof CoordinatorRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/enrollment': {
+      id: '/enrollment'
+      path: '/enrollment'
+      fullPath: '/enrollment'
+      preLoaderRoute: typeof EnrollmentRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/evaluations': {
@@ -1678,6 +1698,7 @@ const rootRouteChildren: RootRouteChildren = {
   CoachesRoute: CoachesRoute,
   ContactRoute: ContactRoute,
   CoordinatorRoute: CoordinatorRoute,
+  EnrollmentRoute: EnrollmentRoute,
   EvaluationsRoute: EvaluationsRoute,
   EventsRoute: EventsRoute,
   FacilityRoute: FacilityRoute,

@@ -25,7 +25,7 @@ function Page() {
         Organization standards, sport supplements and a clear start to your season. Your private
         team packet and signed agreements stay in your account.
       </p>
-      <a href="/family" className="mb-6 inline-flex min-h-11 items-center underline">
+      <a href="/enrollment" className="mb-6 inline-flex min-h-11 items-center underline">
         My season & enrollment
       </a>
       <HandbookReader documents={documents} />

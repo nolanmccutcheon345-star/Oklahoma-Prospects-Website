@@ -63,6 +63,7 @@ export const saveDocumentInput = z
     effectiveOn: z.iso.date(),
     content: documentContent,
     review: reviewSchema,
+    reviewConfirmed: z.boolean().default(false),
   })
   .strict();
 export const saveStandardsInput = z
@@ -79,7 +80,7 @@ export type HandbookVersion = {
   documentId: string;
   version: number;
   revision: number;
-  kind: "master" | "baseball" | "softball" | "team";
+  kind: "master" | "baseball" | "softball" | "medical" | "team";
   teamId: string | null;
   status: "draft" | "published";
   effectiveOn: string;

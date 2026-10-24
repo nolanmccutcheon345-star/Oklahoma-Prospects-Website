@@ -113,6 +113,7 @@ function FamilyPage() {
           : []),
         ...(state.role === "admin" ? [{ to: "/office", label: "Office" }] : []),
         { to: "/account", label: "Lessons" },
+        { to: "/enrollment", label: "My season & enrollment" },
       ]}
     >
       {state.role === "admin" && club ? (

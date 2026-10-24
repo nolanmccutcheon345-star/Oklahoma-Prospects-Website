@@ -115,6 +115,7 @@ export function CoachApp({
       {!financial||financialTeam?<TeamFeeWorkspace teamId={team.id}/>:<p className="text-sm">Financial setup is required before this team can offer fees.</p>}
       <TeamActivities key={team.id} teamId={team.id} onSaved={onReload}/>
       <a href="/handbooks" className="inline-flex min-h-11 items-center underline">Team standards & handbook</a>
+      <a href="/enrollment" className="inline-flex min-h-11 items-center underline">Enrollment & season progress</a>
       <TeamDevelopmentCoachPanel club={club} />
 
       <Section title="Roster" count={roster.length} defaultOpen>
