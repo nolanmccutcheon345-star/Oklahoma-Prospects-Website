@@ -1,7 +1,12 @@
+import {
+  concussionFacts,
+  concussionResources,
+  CONCUSSION_ACKNOWLEDGMENT,
+} from "@/lib/enrollment/organization-policy";
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import * as api from "@/lib/enrollment/enrollment-api";
 import { SIGNATURE_STATEMENT, MEDIA_STATEMENT } from "@/lib/enrollment/enrollment-contracts";
-import { SeasonProgress, PilotRollout } from "./progress";
+import { SeasonProgress, OrganizationRollout } from "./progress";
 import { HandbookReader } from "./handbook-reader";
 import { TeamFeeWorkspace } from "../teams/fee-workspace";
 
@@ -78,8 +83,10 @@ export function EnrollmentWorkspace() {
         <>
           <p className="rounded-xl bg-paper-2 p-4">
             {home.settings.mode === "pilot"
-              ? "Enrollment pilot · one baseball and one softball team."
-              : "Team enrollment"}{" "}
+              ? "Organization enrollment has not been enabled."
+              : home.settings.allTeamsEnabled
+                ? "Organization-wide enrollment is open."
+                : "Organization enrollment is paused."}{" "}
             Your existing team, booking and account services remain available.
           </p>
           {home.owner && <PilotSettings home={home} busy={busy} run={run} />}
@@ -100,7 +107,7 @@ export function EnrollmentWorkspace() {
           </label>
           {!home.candidates.length && (
             <p>
-              No pilot enrollment is assigned to your account yet.{" "}
+              No team enrollment is assigned to your account yet.{" "}
               <a href="/family" className="underline">
                 Open your family account
               </a>
@@ -123,7 +130,7 @@ export function EnrollmentWorkspace() {
               playerId={data.summary.playerId}
             />
           )}
-          {home.owner && <PilotRollout home={home} busy={busy} run={run} />}
+          {home.owner && <OrganizationRollout home={home} busy={busy} run={run} />}
           {home.owner && <SafetyInbox />}
         </>
       )}
@@ -142,74 +149,16 @@ function PilotSettings({
   return (
     <details className="rounded-xl border p-4">
       <summary className="min-h-11 cursor-pointer font-semibold">
-        Owner setup: pilot teams and safety contacts
+        Safety contacts and emergency-response plan
       </summary>
       <p className="my-3">
-        Choose one existing team per sport. Open signatures only after the exact policy versions
-        have completed review. Team and season identity cannot change once enrollment records exist.
+        These contacts are configured for nonurgent safety concerns. Use 911 for emergencies and
+        Oklahoma’s 1-800-522-3511 hotline for suspected child abuse. A concern involving an owner
+        goes to the other owner.
       </p>
       <a href="/handbooks" className="inline-flex min-h-11 items-center underline">
         Edit handbook and team standards
       </a>
-      {(["baseball", "softball"] as const).map((sport) => {
-        const p = home.pilots.find((p) => p.sport === sport);
-        return (
-          <form
-            key={sport + ":" + p?.revision}
-            className="my-4 grid gap-3 rounded border p-4"
-            onSubmit={(e) => {
-              e.preventDefault();
-              const f = new FormData(e.currentTarget);
-              void run(() =>
-                api.setEnrollmentPilot({
-                  data: {
-                    teamId: text(f, "team"),
-                    seasonKey: text(f, "season"),
-                    revision: p?.revision || 0,
-                    signaturesOpen: f.get("open") === "on",
-                  },
-                }),
-              );
-            }}
-          >
-            <h3 className="text-xl">{sport === "baseball" ? "Baseball" : "Softball"} pilot</h3>
-            <label>
-              Team
-              <select
-                required
-                name="team"
-                className={enrollmentField}
-                defaultValue={p?.teamId || ""}
-              >
-                <option value="">Select team</option>
-                {home.teams
-                  .filter((t) => t.sport === sport)
-                  .map((t) => (
-                    <option value={t.id} key={t.id}>
-                      {t.name} · {t.season}
-                    </option>
-                  ))}
-              </select>
-            </label>
-            <label>
-              Season label
-              <input
-                name="season"
-                required
-                defaultValue={p?.seasonKey || "2027"}
-                className={enrollmentField}
-              />
-            </label>
-            <label className="flex min-h-11 items-center gap-3">
-              <input type="checkbox" name="open" defaultChecked={p?.signaturesOpen} />
-              Enable reviewed enrollment signatures for this pilot
-            </label>
-            <button disabled={busy} className="min-h-11 rounded bg-ink px-4 text-white">
-              Save pilot
-            </button>
-          </form>
-        );
-      })}
       <form
         key={"contacts:" + home.settings.revision}
         className="grid gap-3"
@@ -253,7 +202,7 @@ function PilotSettings({
           </label>
         ))}
         <button disabled={busy} className="min-h-11 rounded border px-4">
-          Save confirmed contacts
+          Save safety contacts
         </button>
       </form>
     </details>
@@ -284,11 +233,12 @@ function CaseWorkspace({
           Handbook acknowledgment, payment and participation clearance are separate records.
         </p>
       </section>
-      <ol className="grid gap-2 sm:grid-cols-3">
+      <ol className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
         {[
           ["Packet", s.packetSigned],
           ["Emergency information", s.medicalComplete],
           ["Annual waiver", s.waiverCurrent],
+          ["Annual concussion acknowledgment", s.concussionCurrent],
         ].map(([label, done]) => (
           <li key={String(label)} className="rounded-xl border p-3">
             <strong>{label}</strong>
@@ -301,6 +251,25 @@ function CaseWorkspace({
           A newer packet is available. Your previously signed version remains preserved below; new
           acknowledgment does not rewrite your financial agreement.
         </p>
+      )}
+      {data.concussionAcknowledgments.length > 0 && (
+        <details className="rounded-xl border p-4">
+          <summary className="min-h-11 cursor-pointer font-semibold">
+            Annual concussion acknowledgment history
+          </summary>
+          {data.concussionAcknowledgments.map((a) => (
+            <article key={a.id} className="my-4 grid gap-2">
+              <p>
+                Guardian: {a.guardianName} · Athlete: {a.athleteName} ·{" "}
+                {new Date(a.acknowledgedAt).toLocaleDateString()}
+              </p>
+              <p>{a.statement}</p>
+              {a.materials.facts.map((f) => (
+                <p key={f}>{f}</p>
+              ))}
+            </article>
+          ))}
+        </details>
       )}
       <details className="rounded-xl border p-4" open>
         <summary className="min-h-11 cursor-pointer text-xl font-semibold">
@@ -315,7 +284,7 @@ function CaseWorkspace({
           </ul>
         )}
         {!data.pilot.signaturesOpen && (
-          <p className="my-3">Signatures are closed while the office completes policy review.</p>
+          <p className="my-3">The office has paused enrollment signatures for this team.</p>
         )}
         {s.guardian && data.packet.ready && data.pilot.signaturesOpen && (
           <form
@@ -333,11 +302,46 @@ function CaseWorkspace({
                     electronicConsent: true,
                     conductDiscussed: true,
                     medicalAuthorization: true,
+                    concussionAcknowledged: true,
+                    athleteAcknowledged: true,
+                    athleteSignerName: text(f, "athleteName"),
                   },
                 }),
               );
             }}
           >
+            <section className="grid gap-3 rounded border p-4">
+              <h3 className="text-xl">Annual concussion information — athlete and guardian</h3>
+              {concussionFacts.map((fact) => (
+                <p key={fact}>{fact}</p>
+              ))}
+              {concussionResources.map((resource) => (
+                <a
+                  key={resource.url}
+                  href={resource.url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="underline"
+                >
+                  {resource.label}
+                </a>
+              ))}
+              <p>{CONCUSSION_ACKNOWLEDGMENT}</p>
+              <label>
+                Athlete’s name — entered for their acknowledgment
+                <input name="athleteName" required maxLength={150} className={enrollmentField} />
+              </label>
+              <label className="flex min-h-11 items-center gap-3">
+                <input type="checkbox" required />
+                The athlete has reviewed or heard the information and gives their acknowledgment,
+                with age-appropriate assistance if needed.
+              </label>
+              <label className="flex min-h-11 items-center gap-3">
+                <input type="checkbox" required />
+                As guardian, I received and reviewed the concussion information and understand the
+                reporting and return requirements.
+              </label>
+            </section>
             <p>{SIGNATURE_STATEMENT}</p>
             <label>
               Guardian’s full legal name
@@ -549,7 +553,12 @@ function FinancialReadiness({
             const f = new FormData(e.currentTarget);
             void run(() =>
               api.approveEnrollment({
-                data: { ...ids, reason: text(f, "reason"), medicalReviewed: true },
+                data: {
+                  ...ids,
+                  reason: text(f, "reason"),
+                  medicalReviewed: true,
+                  staffSafetyReviewed: true,
+                },
               }),
             );
           }}
@@ -561,6 +570,11 @@ function FinancialReadiness({
           <label className="flex min-h-11 items-center gap-3">
             <input required type="checkbox" />I reviewed the private medical information and
             applicable participation restrictions.
+          </label>
+          <label className="flex min-h-11 items-center gap-3">
+            <input required type="checkbox" />I checked current annual concussion training, required
+            safeguarding records for team officials, and the venue emergency arrangements.
+            Enrollment activation does not complete these requirements.
           </label>
           <button disabled={busy} className="min-h-11 rounded bg-ink px-4 text-white">
             Record owner participation clearance

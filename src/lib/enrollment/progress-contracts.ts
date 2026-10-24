@@ -72,5 +72,9 @@ export const pilotReviewInput = z
   })
   .strict();
 export const expandInput = z
-  .object({ revision, evidence: z.string().trim().min(30).max(6000) })
+  .object({
+    revision,
+    evidence: z.string().trim().min(30).max(6000),
+    enabled: z.boolean().default(true),
+  })
   .strict();

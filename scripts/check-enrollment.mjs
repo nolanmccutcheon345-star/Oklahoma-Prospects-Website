@@ -6,7 +6,7 @@ import { resolve, extname } from "node:path";
 import { PGLiteSocketServer } from "@electric-sql/pglite-socket";
 import { chromium } from "playwright";
 import { hashPassword } from "better-auth/crypto";
-import { enrollmentFixture, preparePilot } from "../src/lib/enrollment/test-fixture.ts";
+import { enrollmentFixture, prepareOrganization } from "../src/lib/enrollment/test-fixture.ts";
 import { enrollmentCase } from "../src/lib/enrollment/enrollment.server.ts";
 for (const name of [
   "DATABASE_URL",
@@ -25,7 +25,7 @@ let socket,
 const shots = "artifacts/enrollment";
 await mkdir(shots, { recursive: true });
 try {
-  await preparePilot(h.sql);
+  await prepareOrganization(h.sql);
   for (const teamId of ["base", "soft"]) {
     await enrollmentCase(h.sql, "guardian", { teamId, playerId: teamId + "-player" });
     await h.sql`insert into team_activities(id,team_id,payload,updated_by) values(${randomUUID()},${teamId},${JSON.stringify({ kind: "practice", title: "Synthetic practice", date: "2026-01-01", startTime: "15:00", status: "scheduled" })}::jsonb,'owner')`;
@@ -129,6 +129,9 @@ try {
       .locator("form")
       .filter({ has: p.getByRole("button", { name: "Sign this packet", exact: true }) });
     await form.getByLabel("Guardian’s full legal name").fill("Synthetic Guardian");
+    await form
+      .getByLabel("Athlete’s name — entered for their acknowledgment")
+      .fill("Synthetic athlete");
     for (const checkbox of await form.locator("input[type=checkbox]").all()) await checkbox.check();
     await form.getByRole("button", { name: "Sign this packet", exact: true }).click();
     await p.getByText("Saved.", { exact: true }).waitFor();

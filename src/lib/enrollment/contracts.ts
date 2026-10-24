@@ -69,6 +69,7 @@ export const saveDocumentInput = z
 export const saveStandardsInput = z
   .object({
     teamId: scopeId,
+    organization: z.boolean().default(false),
     version: z.number().int().nonnegative(),
     revision: z.number().int().nonnegative(),
     action: z.enum(["draft", "publish"]),
@@ -80,7 +81,7 @@ export type HandbookVersion = {
   documentId: string;
   version: number;
   revision: number;
-  kind: "master" | "baseball" | "softball" | "medical" | "team";
+  kind: "master" | "baseball" | "softball" | "medical" | "team" | "standards";
   teamId: string | null;
   status: "draft" | "published";
   effectiveOn: string;

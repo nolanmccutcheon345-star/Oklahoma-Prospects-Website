@@ -118,7 +118,11 @@ export const approveEnrollment = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
   .validator(
     caseInput
-      .extend({ reason: z.string().trim().min(10).max(1000), medicalReviewed: z.literal(true) })
+      .extend({
+        reason: z.string().trim().min(10).max(1000),
+        medicalReviewed: z.literal(true),
+        staffSafetyReviewed: z.literal(true),
+      })
       .strict(),
   )
   .handler(async ({ context, data }) => {

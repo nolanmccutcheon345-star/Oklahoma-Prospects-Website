@@ -27,6 +27,9 @@ export const signatureInput = caseInput
     electronicConsent: z.literal(true),
     conductDiscussed: z.literal(true),
     medicalAuthorization: z.literal(true),
+    concussionAcknowledged: z.literal(true),
+    athleteAcknowledged: z.literal(true),
+    athleteSignerName: z.string().trim().min(1).max(150),
   })
   .strict();
 export const medicalInput = caseInput
@@ -77,6 +80,7 @@ export type CaseSummary = {
   guardian: boolean;
   medicalComplete: boolean;
   waiverCurrent: boolean;
+  concussionCurrent: boolean;
   athleteLinked: boolean;
   packetSigned: boolean;
   acknowledgmentUpdate: boolean;
@@ -98,4 +102,6 @@ export type Rollout = {
   alternateName: string;
   alternateContact: string;
   emergencyPlanReference: string;
+  activationBasis: "pilot" | "owner-directed";
+  allTeamsEnabled: boolean;
 };

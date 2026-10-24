@@ -43,7 +43,9 @@ export async function seasonProgress(sql: Sql, actor: string, raw: unknown) {
   return secured(sql, actor, "enrollment.progress.read", async (tx) => {
     const c = await caseFor(tx, actor, i),
       packet = await packetFor(tx, c.team.id, c.team.sport),
-      standards = packet.documents.find((d) => d.kind === "team")?.standards;
+      standards = packet.documents.find(
+        (d) => d.kind === "team" || d.kind === "standards",
+      )?.standards;
     const events = await activities(tx, i.teamId, i.playerId);
     const notices = await tx<{
       activityKey: string;
@@ -234,7 +236,7 @@ export async function reviewPilot(sql: Sql, actor: string, raw: unknown) {
     }
     await tx`update enrollment_pilots set pilot_passed=${i.passed},pilot_review=${i.evidence},revision=revision+1,updated_by=${actor},updated_at=now() where team_id=${i.teamId}`;
     // Withdrawing a pilot approval stops expansion and closes additional-team signatures.
-    if (!i.passed) {
+    if (!i.passed && (await rollout(tx)).activationBasis !== "owner-directed") {
       await tx`update enrollment_rollout set mode='pilot',revision=revision+1 where id='academy'`;
       await tx`update enrollment_additional_teams set signatures_open=false,revision=revision+1`;
     }
@@ -250,14 +252,21 @@ export async function expandEnrollment(sql: Sql, actor: string, raw: unknown) {
   return secured(sql, actor, "enrollment.expand", async (tx) => {
     if (!(await enrollmentScope(tx, actor)).owner) throw Error("Owner access required.");
     await tx`select id from enrollment_rollout where id='academy' for update`;
-    const p = await pilots(tx);
-    if (p.length !== 2 || p.some((p) => !p.pilotPassed))
-      throw Error("Both baseball and softball pilots must pass owner review first.");
-    for (const pilot of p) await requireObservedPilot(tx, pilot.teamId);
     const r =
-      await tx`update enrollment_rollout set mode='organization',revision=revision+1,updated_by=${actor},updated_at=now() where id='academy' and revision=${i.revision} returning id`;
+      await tx`update enrollment_rollout set mode='organization',activation_basis='owner-directed',all_teams_enabled=${i.enabled},revision=revision+1,updated_by=${actor},updated_at=now() where id='academy' and revision=${i.revision} returning id`;
     if (!r.length) throw Error("Rollout changed. Reload.");
-    await recordEnrollment(tx, actor, "rollout.organization", "academy", { evidence: i.evidence });
+    if (i.enabled) {
+      for (const sport of ["baseball", "softball"]) {
+        const packet = await packetFor(tx, "organization", sport);
+        if (!packet.ready) throw Error(packet.blockers.join(" "));
+      }
+    }
+    await recordEnrollment(tx, actor, "rollout.organization", "academy", {
+      evidence: i.evidence,
+      enabled: i.enabled,
+      basis: "owner-directed",
+      pilotRequired: false,
+    });
     return { ok: true };
   });
 }
@@ -269,20 +278,24 @@ export async function configureAdditionalTeam(sql: Sql, actor: string, raw: unkn
     const t = teamAccess(s, i.teamId);
     await tx`select id from enrollment_rollout where id='academy' for update`;
     if ((await rollout(tx)).mode !== "organization")
-      throw Error("Complete both pilots before adding teams.");
-    if ((await pilots(tx)).some((p) => p.teamId === t.id))
-      throw Error("Use the existing pilot controls for this team.");
+      throw Error("Enable organization enrollment before adding teams.");
+    const legacy = (await pilots(tx)).find((p) => p.teamId === t.id);
     const [old] = await tx<{
       revision: number;
       season_key: string;
     }>`select revision,season_key from enrollment_additional_teams where team_id=${t.id} for update`;
-    if ((old?.revision || 0) !== i.revision) throw Error("Team settings changed. Reload.");
-    if (old && old.season_key !== i.seasonKey) throw Error("Keep this enrollment season identity.");
+    const existing = legacy ? { revision: legacy.revision, season_key: legacy.seasonKey } : old;
+    if ((existing?.revision || 0) !== i.revision) throw Error("Team settings changed. Reload.");
+    if (existing && existing.season_key !== i.seasonKey)
+      throw Error("Keep this enrollment season identity.");
     if (i.signaturesOpen) {
       const p = await packetFor(tx, t.id, t.sport);
       if (!p.ready) throw Error(p.blockers.join(" "));
     }
-    await tx`insert into enrollment_additional_teams(team_id,sport,season_key,signatures_open,updated_by) values(${t.id},${t.sport},${i.seasonKey},${i.signaturesOpen},${actor}) on conflict(team_id) do update set signatures_open=excluded.signatures_open,revision=enrollment_additional_teams.revision+1,updated_by=excluded.updated_by,updated_at=now()`;
+    if (legacy)
+      await tx`update enrollment_pilots set signatures_open=${i.signaturesOpen},revision=revision+1,updated_by=${actor},updated_at=now() where team_id=${t.id}`;
+    else
+      await tx`insert into enrollment_additional_teams(team_id,sport,season_key,signatures_open,updated_by) values(${t.id},${t.sport},${i.seasonKey},${i.signaturesOpen},${actor}) on conflict(team_id) do update set signatures_open=excluded.signatures_open,revision=enrollment_additional_teams.revision+1,updated_by=excluded.updated_by,updated_at=now()`;
     await recordEnrollment(tx, actor, "rollout.team", t.id, { open: i.signaturesOpen });
     return { ok: true };
   });
