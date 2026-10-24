@@ -73,6 +73,24 @@ try {
     // The SSR menu is visible before React attaches its click handler. The
     // signed-out account link appears after the shared hydration/session gate.
     await page.waitForLoadState("networkidle");
+    assert.equal(
+      await page
+        .locator(".site-header")
+        .getByRole("link", { name: "Book a cage", exact: true })
+        .isVisible(),
+      true,
+      `header booking action at ${width}`,
+    );
+    await page.waitForFunction(() => {
+      const header = document.querySelector(".site-header");
+      return (
+        Math.abs(
+          parseFloat(
+            getComputedStyle(document.documentElement).getPropertyValue("--header-height"),
+          ) - header.getBoundingClientRect().height,
+        ) <= 1
+      );
+    });
     const trigger = width < 1024 ? "Menu" : "Train";
     await page.getByRole("button", { name: trigger, exact: true }).click();
     const dialog = page.getByRole("dialog");
@@ -207,11 +225,107 @@ try {
     () => document.activeElement?.textContent === "2. Pick your date & time",
   );
   await page.screenshot({ path: output + "/booking-mobile.png" });
+  assert.equal(
+    await page
+      .getByText("2. Pick your date & time", { exact: true })
+      .evaluate(
+        (el) =>
+          el.getBoundingClientRect().top >=
+          document.querySelector(".site-header").getBoundingClientRect().bottom,
+      ),
+    true,
+    "booking step is below the actual wrapped header",
+  );
+  const tomorrow = new Date(
+    (await page.getByLabel("Date", { exact: true }).getAttribute("min")) + "T12:00:00Z",
+  );
+  tomorrow.setUTCDate(tomorrow.getUTCDate() + 1);
+  await page.getByLabel("Date", { exact: true }).fill(tomorrow.toISOString().slice(0, 10));
+  await page
+    .getByRole("group", { name: "Start time", exact: true })
+    .locator("label")
+    .first()
+    .click();
+  await page.getByRole("button", { name: "Review this booking", exact: true }).click();
+  await page.waitForFunction(() => {
+    const bar = document.querySelector(".booking-review-bar");
+    return (
+      bar &&
+      Math.abs(
+        parseFloat(
+          getComputedStyle(document.documentElement).getPropertyValue("--booking-review-height"),
+        ) - bar.getBoundingClientRect().height,
+      ) <= 1
+    );
+  });
+  const consent = page.locator('[data-booking-step="2"] input[type="checkbox"]');
+  await consent.focus();
+  assert.equal(
+    await page.locator(".booking-review-bar").evaluate((el) => getComputedStyle(el).position),
+    "static",
+    "review action cannot float over a focused form control",
+  );
+  await page.getByRole("button", { name: "Review Booking", exact: true }).focus();
+  await page
+    .getByRole("button", { name: "Review Booking", exact: true })
+    .evaluate((el) => el.scrollIntoView({ block: "nearest" }));
+  assert.equal(
+    await page.getByRole("button", { name: "Review Booking", exact: true }).evaluate((el) => {
+      const r = el.getBoundingClientRect();
+      return (
+        r.bottom <= innerHeight &&
+        r.top >= document.querySelector(".site-header").getBoundingClientRect().bottom
+      );
+    }),
+    true,
+    "review action remains reachable",
+  );
+  await page.setViewportSize({ width: 844, height: 390 });
+  assert.equal(
+    await page.locator(".site-header").evaluate((el) => getComputedStyle(el).position),
+    "static",
+    "short viewports do not pin a tall header",
+  );
+  assert.equal(
+    await page.locator(".booking-review-bar").evaluate((el) => getComputedStyle(el).position),
+    "static",
+    "short viewports do not overlay the form",
+  );
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto(h.base + "/pay?kind=cage-plan&id=prospect");
+  await page.waitForLoadState("networkidle");
+  assert.equal(
+    await page.locator(".site-header").evaluate((el) => getComputedStyle(el).position),
+    "static",
+    "payment header stays in flow",
+  );
+  assert.equal(
+    await page.locator(".booking-review-bar").count(),
+    0,
+    "booking bar is removed after leaving booking",
+  );
+  assert.equal(
+    await page.evaluate(() =>
+      parseFloat(
+        getComputedStyle(document.documentElement).getPropertyValue("--booking-review-height"),
+      ),
+    ),
+    0,
+    "booking clearance is cleaned up across routes",
+  );
   // 200% root text-size check at a narrow viewport. This is not a real iOS/VoiceOver certification.
   for (const routePath of ["/training", "/tryouts", "/book"]) {
     await page.goto(h.base + routePath);
     await page.waitForLoadState("networkidle");
     await page.addStyleTag({ content: "html { font-size: 200% !important; }" });
+    await page.waitForFunction(
+      () =>
+        Math.abs(
+          parseFloat(
+            getComputedStyle(document.documentElement).getPropertyValue("--header-height"),
+          ) - document.querySelector(".site-header").getBoundingClientRect().height,
+        ) <= 1,
+    );
     await page.screenshot({ path: output + "/text-resize-" + routePath.slice(1) + ".png" });
     const overflow = await page.evaluate(() =>
       [...document.querySelectorAll("body *")]

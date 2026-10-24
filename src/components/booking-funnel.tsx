@@ -7,6 +7,7 @@ import type { PublicCatalog } from "@/lib/ops";
 import { reservationSlots, chicagoDateISO } from "@/lib/hours";
 import { cageBookingLastDate, validDate } from "@/lib/scheduling";
 import { cn } from "@/lib/utils";
+import { useStickyHeight } from "@/lib/use-sticky-height";
 
 const DURATIONS = [
   [30, "30 min"],
@@ -40,6 +41,7 @@ export function BookingFunnel({
     maxDate = cageBookingLastDate();
   const [bookingStep, setBookingStep] = useState(0);
   const bookingRef = useRef<HTMLElement>(null);
+  const reviewRef = useRef<HTMLDivElement>(null);
   function goToBookingStep(step: number) {
     setBookingStep(step);
     requestAnimationFrame(()=>{
@@ -105,6 +107,7 @@ export function BookingFunnel({
   const complete = Boolean(
     lanes.length && dateValid && time && !loadingSlots && quote && !quote.error,
   );
+  useStickyHeight(reviewRef, "--booking-review-height", complete);
   const householdHour =
     catalog.cages.find((row) => row.id === "individual")?.price;
   const teamHour = catalog.cages.find((row) => row.id === "team")?.price;
@@ -426,7 +429,7 @@ export function BookingFunnel({
           <p className="text-center text-xs text-muted">
             Your booking is confirmed only after successful payment.
           </p>
-          <div className={complete ? "booking-review-bar" : ""} data-booking-review={complete}>
+          <div ref={reviewRef} className={complete ? "booking-review-bar" : ""} data-booking-review={complete}>
             <div
               className={
                 complete

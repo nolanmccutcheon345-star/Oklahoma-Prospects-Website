@@ -89,7 +89,7 @@ export function FrontOfficeShell({
         <aside className="hidden lg:block">
           <nav
             aria-label="Front Office"
-            className="sticky top-24 grid gap-1 rounded-xl border border-line bg-white p-2"
+            className="sticky top-[calc(var(--header-height)+1rem)] grid gap-1 rounded-xl border border-line bg-white p-2"
           >
             {OFFICE_SECTIONS.map(([id, label]) => (
               <button
@@ -105,7 +105,7 @@ export function FrontOfficeShell({
         </aside>
         <div className="min-w-0">
           <p
-            className="office-page-title sticky top-16 z-10 mb-4 border-b border-line bg-paper py-3 text-sm font-semibold"
+            className="office-page-title sticky top-[var(--header-height)] z-10 mb-4 border-b border-line bg-paper py-3 text-sm font-semibold"
             aria-current="page"
           >
             {OFFICE_SECTIONS.find(([id]) => id === section)?.[1]}

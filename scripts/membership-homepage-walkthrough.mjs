@@ -171,12 +171,26 @@ try {
   await homepage.getByText("Testimonial saved.", { exact: true }).waitFor();
   await page.setViewportSize({ width: 390, height: 844 });
   assert.equal(
+    await page.getByRole("navigation", { name: "Front Office mobile", exact: true }).isVisible(),
+    true,
+    "staff navigation is preserved",
+  );
+  assert.equal(
+    await page.locator(".site-header").getByRole("button", { name: "Menu", exact: true }).count(),
+    0,
+    "public hamburger does not replace staff navigation",
+  );
+  assert.equal(
     await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),
     true,
     "owner editor mobile overflow",
   );
   await page.screenshot({ path: output + "/homepage-editor-mobile.png", fullPage: true });
   await page.goto(h.base + "/");
+  await page
+    .getByRole("region", { name: "Facility and safety", exact: true })
+    .getByRole("img", { name: "Indoor training lanes at Prospects Sports Facility", exact: true })
+    .waitFor();
   await page
     .getByRole("region", { name: "Featured coaches" })
     .getByText("Synthetic Featured Coach", { exact: true })
