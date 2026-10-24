@@ -7,17 +7,17 @@ Assigned coaches use Coach Desk; linked guardians use their team family desk.
 
 All money is calculated in integer cents. Defaults are ten full paying players,
 12.5% Team Contingency, a required $80 Team & Development Program Fee per player per Actual Billable Month, and a 50/50 owner split. Personal memberships are purchased separately through the site at the full published catalog price; no player membership add-on is offered.
-These are editable per team. Billing uses inclusive calendar months from actual team dates; fractional overrides require an admin reason.
+These are editable per team; approved owner overrides take precedence over release defaults. Billing uses inclusive calendar months from actual team dates unless an approved billing-term override is recorded with a reason. Such overrides never change the actual service dates.
 Uniform vendor cost, all baseline per-player costs, tournament costs, and all
 coaching / operating budgets are inside direct costs before contingency.
-Team & Development Program and organization allocations are outside direct cost and contingency.
+Working drafts include the required Team & Development Program allocation in direct costs before contingency (`programCostModel: 1`). Organization fees remain outside contingency. Frozen published budgets without that version retain the historical formula.
 PO pricing has its own direct allocation, incremental cost and organization fee.
 Processing gross-up covers the configured number of rounded transactions; no method-specific fee
 is added by this module.
 
 Extra-player contribution includes the extra players' membership and organization
 revenue. Consequently it must NOT be added to membership/organization revenue
-for the entire roster. Reports reconcile from total revenue less direct costs,
+for the entire roster. The program allocation is an internal team cost and academy revenue, not a second external expense. Reports reconcile from total revenue less external direct costs,
 processing, service costs, and protected contingency. The three-part contribution report separates team operations from organization/program revenue; contingency remains protected from distributions. Roster downside does not
 reduce published baseline fees. Company scenario overhead is counted once,
 instead of adding both allocated team overhead and full company overhead.

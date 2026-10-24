@@ -294,7 +294,8 @@ export function BudgetMasterEditor({ teams }: { teams: Teams }) {
           through normal team coaching with no automatic direct labor charge. Personal memberships
           are purchased separately on the Memberships page at the full published price. Pricing uses
           actual team dates and any authorized billable-month override. Team Contingency is{" "}
-          {m.contingencyBps / 100}% of direct costs, separate from the
+          {m.contingencyBps / 100}% of direct costs, including the required program allocation.
+          Organization fees are added afterward. This contingency is separate from the
           {money(m.reserveTarget)} business operating reserve target. All amounts here are editable;
           row overrides take precedence over common defaults.
         </p>

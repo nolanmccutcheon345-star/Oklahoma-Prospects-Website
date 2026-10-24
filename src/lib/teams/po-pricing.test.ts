@@ -69,13 +69,17 @@ test("team costs, premiums, uniforms, hotels and cents move both fees equally be
   }
   const roster = project(b, 10, 2);
   assert.equal(roster.full, before.full);
-  assert.equal(roster.direct, before.direct + 2 * (b.uniformCost + b.fullIncremental));
+  assert.equal(roster.direct, before.direct + 2 * (b.uniformCost + b.fullIncremental + 37500));
   assert.equal(roster.membership, 12 * 37500);
   assert.equal(roster.extraContribution, roster.extraRevenue - roster.extraCosts);
   assert.ok(roster.extraContribution < roster.extraRevenue);
   assert.equal(
     roster.totalRevenue,
-    roster.direct + roster.reserve + roster.processing + roster.serviceCosts + roster.contribution,
+    roster.externalDirect +
+      roster.reserve +
+      roster.processing +
+      roster.serviceCosts +
+      roster.contribution,
   );
 });
 test("PO processing funds its own card charges; subsidy overrides are explicit and cannot hide expense", () => {
@@ -111,6 +115,7 @@ test("legacy snapshots retain their exact fee; only working drafts upgrade and e
   const legacy = {
     ...defaultBudget(),
     poModel: undefined,
+    programCostModel: undefined,
     poOrg: 0,
     poSharedAllocation: 0,
     months: 2.5,

@@ -1,6 +1,7 @@
 import { z } from "zod";
 import {
   programDraft,
+  billableMonths,
   eventPaymentSchema,
   pricingKeys,
   type FeeBudget,
@@ -108,6 +109,8 @@ export function pricingRevisionNeeded(plan: FeePlan, draft: FeeBudget, final: st
   if (!plan.published) return false;
   const prior = plan.publishedBudget || plan.budget;
   return (
+    prior.programCostModel !== draft.programCostModel ||
+    billableMonths(prior) !== billableMonths(draft) ||
     pricingKeys.some((k) => JSON.stringify(prior[k]) !== JSON.stringify(draft[k])) ||
     (Boolean(draft.eventPaymentSchedule) &&
       (plan.published.finalDue !== final || prior.start !== draft.start || prior.end !== draft.end))

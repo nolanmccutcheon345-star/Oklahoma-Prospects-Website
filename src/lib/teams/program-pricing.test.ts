@@ -84,11 +84,13 @@ test("calendar billing handles partial months, cross-year dates and explicit fra
   assert.equal(b.months, 7);
 });
 
-test("required program stays outside direct cost and retired membership fields cannot affect a quote", () => {
+test("required program receives contingency inside direct cost and retired membership fields cannot affect a quote", () => {
   const b = budget(),
     base = calculateFees(b);
-  assert.equal(base.direct, 925000);
-  assert.equal(base.contingency, 138750);
+  assert.equal(base.externalDirect, 925000);
+  assert.equal(base.programDirect, 1050000);
+  assert.equal(base.direct, 1975000);
+  assert.equal(base.contingency, 296250);
   assert.equal(base.member, 105000);
   assert.equal(base.poMember, 105000);
   assert.equal(base.poDiscount, b.fullOrg - b.poOrg);
@@ -121,7 +123,8 @@ test("players 11+ do not re-fund fixed costs or automatically incur insurance/re
     "Additional roster exceptions cannot contaminate the ten-player baseline quote",
   );
   assert.equal(extra.reserve, base.reserve);
-  assert.equal(extra.direct - base.direct, 2 * b.uniformCost + 7000);
+  assert.equal(extra.externalDirect - base.externalDirect, 2 * b.uniformCost + 7000);
+  assert.equal(extra.direct - base.direct, 2 * b.uniformCost + 7000 + 2 * 105000);
   const full = additionalPlayerContribution(b, "full", b.additionalPlayerCosts[0]);
   const po = additionalPlayerContribution(b, "po", { insurance: 0, registration: 0, other: 0 });
   assert.equal(
@@ -136,7 +139,7 @@ test("players 11+ do not re-fund fixed costs or automatically incur insurance/re
   );
   assert.equal(
     extra.totalTeamAssociatedContribution,
-    extra.totalRevenue - extra.direct - extra.processing - extra.serviceCosts,
+    extra.totalRevenue - extra.externalDirect - extra.processing - extra.serviceCosts,
   );
   assert.equal(extra.organizationAndProgramRevenue, extra.membership + extra.organization);
   assert.equal(
@@ -149,7 +152,7 @@ test("players 11+ do not re-fund fixed costs or automatically incur insurance/re
 });
 
 test("a team funding loss stays visible even when organization/program revenue is positive", () => {
-  const p = project(budget(), 8, 0);
+  const p = project(budget(), 6, 0);
   assert.ok(p.teamOperatingContribution < 0);
   assert.ok(p.organizationAndProgramRevenue > 0);
   assert.ok(p.totalTeamAssociatedContribution > 0);
@@ -157,7 +160,13 @@ test("a team funding loss stays visible even when organization/program revenue i
 });
 
 test("legacy quotes remain exact; only working drafts acquire new program and date interpretation", () => {
-  const legacy = { ...budget(), programModel: undefined, membershipMonthly: 20000, months: 6 };
+  const legacy = {
+    ...budget(),
+    programModel: undefined,
+    programCostModel: undefined,
+    membershipMonthly: 20000,
+    months: 6,
+  };
   const before = calculateFees(legacy);
   const upgraded = programDraft(legacy);
   assert.equal(calculateFees(upgraded).member, 105000);

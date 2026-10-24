@@ -415,11 +415,12 @@ export async function sourceData(
       name: t.name,
       billed,
       collected,
-      // Keep the approved baseline funded, and protect added-player obligations.
+      // Fund external team obligations here. Program allocations are internal academy
+      // revenue; their unearned portion is protected separately in deferred.
       protectedDirect:
         plan.status === "closed"
           ? 0
-          : Math.max(0, Math.max(f.direct, rosterProjection.direct) - directPaid),
+          : Math.max(0, Math.max(f.externalDirect, rosterProjection.externalDirect) - directPaid),
       contingency:
         plan.status === "closed" ? 0 : Math.max(0, rosterProjection.reserve - contingencyPaid),
       deferred,

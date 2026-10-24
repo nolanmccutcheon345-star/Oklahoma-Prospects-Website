@@ -67,7 +67,10 @@ test("release data supplies editable defaults for every matrix row without chang
       assert.equal(f.member, 8000 * dates[2]);
       assert.equal(f.poMember, f.member);
       assert.equal(f.contingency, Math.ceil(f.direct * 0.125));
-      assert.equal(calculateFees({ ...b, membershipMonthly: 9000 }).contingency, f.contingency);
+      assert.equal(
+        calculateFees({ ...b, membershipMonthly: 9000 }).contingency,
+        Math.ceil((f.direct + b.baseline * 1000 * dates[2]) * 0.125),
+      );
       const rows = scheduleRows(b, f.full, "full", "2027-01-18");
       assert.equal(
         rows.reduce((s, r) => s + r.amount, 0),
