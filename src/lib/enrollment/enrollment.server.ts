@@ -3,7 +3,12 @@ import type { Sql } from "../db";
 import { secured } from "../coordinator/access.server";
 import { enrollmentScope, teamAccess } from "./access.server";
 import { versions, hashContent, recordEnrollment } from "./handbooks.server";
-import { reviewedForSignatures } from "./contracts";
+import {
+  CONCUSSION_ACKNOWLEDGMENT,
+  CONCUSSION_MATERIALS_VERSION,
+  concussionFacts,
+  concussionResources,
+} from "./organization-policy";
 import {
   caseInput,
   pilotInput,
@@ -30,17 +35,23 @@ const today = () =>
   }).format(new Date());
 export async function rollout(tx: Sql): Promise<Rollout> {
   const [r] =
-    await tx<Rollout>`select revision,mode,safety_name as "safetyName",safety_contact as "safetyContact",alternate_name as "alternateName",alternate_contact as "alternateContact",emergency_plan_reference as "emergencyPlanReference" from enrollment_rollout where id='academy' for share`;
+    await tx<Rollout>`select revision,mode,safety_name as "safetyName",safety_contact as "safetyContact",alternate_name as "alternateName",alternate_contact as "alternateContact",emergency_plan_reference as "emergencyPlanReference",activation_basis as "activationBasis",all_teams_enabled as "allTeamsEnabled" from enrollment_rollout where id='academy' for share`;
   return r;
 }
 export async function pilots(tx: Sql): Promise<Pilot[]> {
   return tx<Pilot>`select sport,team_id as "teamId",season_key as "seasonKey",signatures_open as "signaturesOpen",pilot_passed as "pilotPassed",pilot_review as "pilotReview",revision from enrollment_pilots order by sport for share`;
 }
 export async function packetFor(tx: Sql, teamId: string, sport: string): Promise<Packet> {
+  const settings = await rollout(tx);
   const all = (await versions(tx)).filter(
     (v) => v.status === "published" && v.effectiveOn <= today(),
   );
-  const docs = ["academy-2027", sport + "-2027", "medical-2027", "team:" + teamId]
+  const standardsId = all.some((v) => v.documentId === "team:" + teamId)
+    ? "team:" + teamId
+    : settings.activationBasis === "owner-directed"
+      ? "organization-standards"
+      : "team:" + teamId;
+  const docs = ["academy-2027", sport + "-2027", "medical-2027", standardsId]
     .map((id) => all.find((v) => v.documentId === id))
     .filter((v): v is NonNullable<typeof v> => Boolean(v));
   const blockers: string[] = [];
@@ -48,11 +59,7 @@ export async function packetFor(tx: Sql, teamId: string, sport: string): Promise
     blockers.push(
       "Publish an effective organization handbook, sport supplement, medical authorization and owner-approved team standards.",
     );
-  if (docs.some((v) => v.kind !== "team" && !reviewedForSignatures(v.review, today())))
-    blockers.push(
-      "Record completed legal and insurance review for the exact organization and sport versions.",
-    );
-  const settings = await rollout(tx);
+  // Publication is an owner action. Optional external review records never imply professional approval.
   if (!settings.safetyContact || !settings.alternateContact || !settings.emergencyPlanReference)
     blockers.push("Confirm the safety contact, alternate and emergency-response plan.");
   return {
@@ -63,16 +70,24 @@ export async function packetFor(tx: Sql, teamId: string, sport: string): Promise
   };
 }
 export async function enrollmentTeams(tx: Sql): Promise<Pilot[]> {
+  const settings = await rollout(tx);
+  if (settings.mode === "organization" && settings.activationBasis === "owner-directed") {
+    return tx<Pilot>`select t->>'sport' as sport,t->>'id' as "teamId",
+      coalesce(p.season_key,a.season_key,nullif(trim(t->>'seasonLabel'),''),'2027') as "seasonKey",
+      (coalesce(p.signatures_open,a.signatures_open,true) and ${settings.allTeamsEnabled}) as "signaturesOpen",
+      coalesce(p.pilot_passed,false) as "pilotPassed",coalesce(p.pilot_review,'') as "pilotReview",coalesce(p.revision,a.revision,0) as revision
+      from club_state c cross join lateral jsonb_array_elements(c.payload->'teams') t
+      left join enrollment_pilots p on p.team_id=t->>'id'
+      left join enrollment_additional_teams a on a.team_id=t->>'id'
+      where c.id='oklahoma-prospects' and not c.demo and coalesce(t->>'closed','false')<>'true' and t->>'sport' in ('baseball','softball') order by t->>'id'`;
+  }
   const extra =
     await tx<Pilot>`select sport,team_id as "teamId",season_key as "seasonKey",(signatures_open and (select mode='organization' from enrollment_rollout where id='academy')) as "signaturesOpen",false as "pilotPassed",'' as "pilotReview",revision from enrollment_additional_teams order by team_id for share`;
   return [...(await pilots(tx)), ...extra];
 }
 export async function activePilot(tx: Sql, teamId: string) {
   const p = (await enrollmentTeams(tx)).find((p) => p.teamId === teamId);
-  if (!p)
-    throw Error(
-      "This team is not part of the enrollment pilot. Existing team services remain available.",
-    );
+  if (!p) throw Error("Enrollment is not available for this team. Contact ownership.");
   return p;
 }
 export async function caseFor(tx: Sql, actor: string, raw: unknown, create = false) {
@@ -91,6 +106,12 @@ export async function caseFor(tx: Sql, actor: string, raw: unknown, create = fal
   if (create && (guardian || team.canManage)) {
     if (!guardian && !team.canManage)
       throw Error("Guardian or enrollment-management access required.");
+    // Freeze an automatically enrolled team's season before the first case; later calendar edits cannot move signed records.
+    if ((await rollout(tx)).activationBasis === "owner-directed") {
+      await tx`insert into enrollment_additional_teams(team_id,sport,season_key,signatures_open,updated_by)
+        select ${team.id},${team.sport},${pilot.seasonKey},true,${actor}
+        where not exists(select 1 from enrollment_pilots where team_id=${team.id}) on conflict do nothing`;
+    }
     await tx`insert into enrollment_cases(id,team_id,player_id,season_key,created_by) values(${randomUUID()},${team.id},${input.playerId},${pilot.seasonKey},${actor}) on conflict(team_id,player_id,season_key) do nothing`;
   }
   const [row] = await tx<{
@@ -152,6 +173,9 @@ export async function enrollmentCase(sql: Sql, actor: string, input: unknown) {
     const [waiver] = await tx<{
       current: boolean;
     }>`select exists(select 1 from club_waivers where athlete_id=${athleteId} and signed_at<=now() and signed_at+interval '1 year'>now()) as current`;
+    const [concussion] = await tx<{
+      current: boolean;
+    }>`select exists(select 1 from enrollment_concussion_acknowledgments where case_id=${c.row.id} and acknowledged_at<=now() and acknowledged_at+interval '1 year'>now()) as current`;
     const signatures = await tx<{
       id: string;
       actorId: string;
@@ -170,14 +194,33 @@ export async function enrollmentCase(sql: Sql, actor: string, input: unknown) {
       guardian: c.guardian,
       medicalComplete: health.present,
       waiverCurrent: waiver.current,
+      concussionCurrent: concussion.current,
       athleteLinked: Boolean(athleteId),
       packetSigned: signatures.length > 0,
       acknowledgmentUpdate:
         signatures.length > 0 && !signatures.some((s) => s.packetDigest === packet.digest),
-      clearedAt: c.row.cleared_at?.toISOString() || null,
+      clearedAt:
+        concussion.current &&
+        waiver.current &&
+        health.present &&
+        packet.ready &&
+        signatures.some((s) => s.packetDigest === packet.digest)
+          ? c.row.cleared_at?.toISOString() || null
+          : null,
       clearanceReason: c.scope.owner || c.guardian ? c.row.clearance_reason : "",
       createdAt: c.row.created_at.toISOString(),
     };
+    const concussionAcknowledgments =
+      c.guardian || c.scope.owner
+        ? await tx<{
+            id: string;
+            guardianName: string;
+            athleteName: string;
+            acknowledgedAt: string;
+            statement: string;
+            materials: { facts: string[]; resources: { label: string; url: string }[] };
+          }>`select id,guardian_name as "guardianName",athlete_name as "athleteName",acknowledged_at::text as "acknowledgedAt",statement,materials from enrollment_concussion_acknowledgments where case_id=${c.row.id} order by acknowledged_at desc`
+        : [];
     // Only the guardian/owner sees signed personal documents. Staff get completion booleans.
     return {
       summary,
@@ -187,6 +230,7 @@ export async function enrollmentCase(sql: Sql, actor: string, input: unknown) {
       canManage: c.team.canManage,
       canViewFinancial: !c.scope.restricted && (c.scope.owner || c.guardian),
       signatures: c.guardian || c.scope.owner ? signatures : [],
+      concussionAcknowledgments,
       settings: await rollout(tx),
     };
   });
@@ -239,6 +283,14 @@ export async function signPacket(sql: Sql, actor: string, raw: unknown) {
     if (packet.digest !== i.packetDigest)
       throw Error("The packet changed. Review the current version before signing.");
     await tx`insert into enrollment_signatures(id,case_id,actor_id,signer_name,packet_digest,packet,statement) values(${randomUUID()},${c.row.id},${actor},${i.signerName},${packet.digest},${JSON.stringify(packet.documents)}::jsonb,${SIGNATURE_STATEMENT}) on conflict(case_id,actor_id,packet_digest) do nothing`;
+    const [current] =
+      await tx`select id from enrollment_concussion_acknowledgments where case_id=${c.row.id} and guardian_id=${actor} and acknowledged_at<=now() and acknowledged_at+interval '1 year'>now() and materials_version=${CONCUSSION_MATERIALS_VERSION}`;
+    if (!current) {
+      await tx`insert into enrollment_concussion_acknowledgments(id,case_id,guardian_id,guardian_name,athlete_name,materials_version,materials,statement)
+      values(${randomUUID()},${c.row.id},${actor},${i.signerName},${i.athleteSignerName},${CONCUSSION_MATERIALS_VERSION},${JSON.stringify({ facts: concussionFacts, resources: concussionResources })}::jsonb,${CONCUSSION_ACKNOWLEDGMENT})`;
+      // Renewed annual requirements need a current owner review, not an old clearance revived by a signature.
+      await tx`update enrollment_cases set cleared_at=null,cleared_by=null,clearance_reason='' where id=${c.row.id}`;
+    }
     await recordEnrollment(tx, actor, "packet.signed", c.row.id, { digest: packet.digest });
     return { ok: true };
   });

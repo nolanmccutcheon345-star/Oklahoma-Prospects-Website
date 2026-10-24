@@ -43,8 +43,8 @@ export function HandbookEditor() {
     <div className="grid gap-5">
       <p>
         Organization standards apply to every team. Coaches prepare team addenda; an owner approves
-        publication. Legal and insurance review is recorded separately before enrollment signatures
-        can open.
+        publication. Optional legal and insurance reviews may be recorded when actually completed;
+        owner publication authorizes the operational policy.
       </p>
       {error && (
         <p role="alert" className="rounded border border-maroon p-3">
@@ -76,6 +76,7 @@ export function HandbookEditor() {
               <option value="baseball-2027">Baseball supplement</option>
               <option value="softball-2027">Softball supplement</option>
               <option value="medical-2027">Emergency medical authorization</option>
+              <option value="organization-standards">Organization team standards</option>
               {data.teams.map((t) => (
                 <option key={t.id} value={"team:" + t.id}>
                   {t.name} — {t.season}
@@ -83,7 +84,19 @@ export function HandbookEditor() {
               ))}
             </select>
           </label>
-          {selected.startsWith("team:") ? (
+          {selected === "organization-standards" ? (
+            data.owner && (
+              <StandardsForm
+                key={selected + ":" + latest?.version + ":" + latest?.revision}
+                teamId="organization"
+                organization
+                latest={latest}
+                owner
+                busy={busy}
+                run={work}
+              />
+            )
+          ) : selected.startsWith("team:") ? (
             (() => {
               const team = data.teams.find((t) => "team:" + t.id === selected);
               return team?.canDraft ? (
@@ -236,43 +249,47 @@ function DocumentForm({
       >
         Add section
       </button>
-      <fieldset className="grid gap-3 rounded border p-4">
-        <legend>Review evidence — record completed reviews only</legend>
-        {(
-          [
-            "legalReviewer",
-            "legalReviewedOn",
-            "insuranceReviewer",
-            "insuranceReviewedOn",
-            "reviewReference",
-          ] as const
-        ).map((k) => (
-          <label key={k}>
-            {
+      <details className="rounded border p-4">
+        <summary className="min-h-11 cursor-pointer">Optional outside review evidence</summary>
+        <fieldset className="grid gap-3">
+          <legend>Record completed reviews only</legend>
+          {(
+            [
+              "legalReviewer",
+              "legalReviewedOn",
+              "insuranceReviewer",
+              "insuranceReviewedOn",
+              "reviewReference",
+            ] as const
+          ).map((k) => (
+            <label key={k}>
               {
-                legalReviewer: "Legal reviewer",
-                legalReviewedOn: "Legal review date",
-                insuranceReviewer: "Insurance reviewer",
-                insuranceReviewedOn: "Insurance review date",
-                reviewReference: "Review reference / approval record",
-              }[k]
-            }
-            <input
-              type={k.endsWith("On") ? "date" : "text"}
-              className={field}
-              value={review[k]}
-              onChange={(e) => setReview({ ...review, [k]: e.target.value })}
-            />
-          </label>
-        ))}
-      </fieldset>
-      <label className="flex min-h-11 items-center gap-3">
-        <input type="checkbox" name="reviewConfirmed" />
-        The review evidence above covers this exact text and effective date.
-      </label>
+                {
+                  legalReviewer: "Legal reviewer",
+                  legalReviewedOn: "Legal review date",
+                  insuranceReviewer: "Insurance reviewer",
+                  insuranceReviewedOn: "Insurance review date",
+                  reviewReference: "Review reference / approval record",
+                }[k]
+              }
+              <input
+                type={k.endsWith("On") ? "date" : "text"}
+                className={field}
+                value={review[k]}
+                onChange={(e) => setReview({ ...review, [k]: e.target.value })}
+              />
+            </label>
+          ))}
+        </fieldset>
+        <label className="flex min-h-11 items-center gap-3">
+          <input type="checkbox" name="reviewConfirmed" />
+          The review evidence above covers this exact text and effective date.
+        </label>
+      </details>
       <p className="text-sm">
         Publishing creates an immutable policy version. It does not change prices, charge families,
-        or open enrollment signatures. Changes to reviewed text require review of the new version.
+        or certify legal or insurance approval. An effective published version becomes part of open
+        enrollment; earlier signatures remain preserved.
       </p>
       <div className="flex flex-wrap gap-3">
         <button disabled={busy} value="draft" className="min-h-11 rounded border px-4">
@@ -287,12 +304,14 @@ function DocumentForm({
 }
 function StandardsForm({
   teamId,
+  organization = false,
   latest,
   owner,
   busy,
   run,
 }: {
   teamId: string;
+  organization?: boolean;
   latest?: HandbookVersion;
   owner: boolean;
   busy: boolean;
@@ -310,6 +329,7 @@ function StandardsForm({
       saveStandards({
         data: {
           teamId,
+          organization,
           version: latest?.version || 0,
           revision: latest?.revision || 0,
           action,

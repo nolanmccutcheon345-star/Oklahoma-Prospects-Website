@@ -45,6 +45,9 @@ test("pilot enrollment preserves financial terms and enforces guardian signature
       electronicConsent: true,
       conductDiscussed: true,
       medicalAuthorization: true,
+      concussionAcknowledged: true,
+      athleteAcknowledged: true,
+      athleteSignerName: "Synthetic athlete",
     };
     await assert.rejects(signPacket(sql, "player", sign), /guardian/);
     await assert.rejects(signPacket(sql, "coach", sign), /guardian/);
@@ -133,6 +136,9 @@ test("readiness requires reconciled production Square evidence and current requi
       electronicConsent: true,
       conductDiscussed: true,
       medicalAuthorization: true,
+      concussionAcknowledged: true,
+      athleteAcknowledged: true,
+      athleteSignerName: "Synthetic athlete",
     });
     await saveMedical(sql, "guardian", {
       ...key,
@@ -192,7 +198,12 @@ test("readiness requires reconciled production Square evidence and current requi
     await sql`update commerce_orders set snapshot=jsonb_set(snapshot,'{teamFee,lockedAt}','"other-agreement"') where id='order'`;
     assert.equal((await enrollmentFinance(sql, "guardian", key)).verifiedCents, 0);
     await sql`update commerce_orders set snapshot=jsonb_set(snapshot,'{teamFee,lockedAt}',${JSON.stringify(p.feeLock.lockedAt)}::jsonb) where id='order'`;
-    const approval = { ...key, medicalReviewed: true, reason: "Synthetic owner checklist review" };
+    const approval = {
+      ...key,
+      medicalReviewed: true,
+      staffSafetyReviewed: true,
+      reason: "Synthetic owner checklist review",
+    };
     await assert.rejects(clearEnrollment(sql, "coach", approval), /Steve|Nolan/);
     await clearEnrollment(sql, "owner", approval);
     assert.ok((await enrollmentCase(sql, "coach", key)).summary.clearedAt);
