@@ -282,6 +282,9 @@ try {
   );
   await page.setViewportSize({ width: 320, height: 844 });
   const zoomStyle = await page.addStyleTag({ content: "html { font-size: 200% !important; }" });
+  await page
+    .getByRole("button", { name: "Review Booking", exact: true })
+    .evaluate((el) => el.scrollIntoView({ block: "center" }));
   await page.screenshot({ path: output + "/booking-review-large-text.png" });
   assert.equal(
     await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),
