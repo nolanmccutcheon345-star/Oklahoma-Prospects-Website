@@ -1,24 +1,29 @@
+import { cageIncludedMinutes, calculateMembershipValue } from "./membership-value";
+import {
+  readServicePresentation,
+  currentCageBenefit,
+  type ServicePresentation,
+} from "./service-presentation";
 import type { PurchaseAvailability } from "./purchase-availability";
 import { publishedServices } from "./public-services";
 import { formatMoney, eligibility } from "./pricing";
 import { createServerFn, createServerOnlyFn } from "@tanstack/react-start";
 import { authMiddleware } from "@/lib/auth/middleware";
-import {
-  DEVELOPMENT_PLANS,
-  type LessonService,
-} from "@/lib/catalog";
+import { DEVELOPMENT_PLANS, type LessonService } from "@/lib/catalog";
 import type { ClubRole } from "@/lib/club-data";
 import { getSql, type Sql } from "@/lib/db";
 import { isOwnerEmail } from "@/lib/owners";
 import { clubIdentity } from "./identity.server";
-import { accountInput, lessonTermIdInput, serviceInput, staffInput, userIdInput } from "./ops-contracts";
+import {
+  accountInput,
+  lessonTermIdInput,
+  serviceInput,
+  staffInput,
+  userIdInput,
+} from "./ops-contracts";
 
 export type ServiceKind =
-  | "lesson"
-  | "package"
-  | "membership"
-  | "cage"
-  | "cage_plan" | "fee" | "team_plan";
+  "lesson" | "package" | "membership" | "cage" | "cage_plan" | "fee" | "team_plan";
 
 export const SERVICE_KINDS: { id: ServiceKind; label: string }[] = [
   { id: "fee", label: "Fee" },
@@ -31,6 +36,8 @@ export const SERVICE_KINDS: { id: ServiceKind; label: string }[] = [
 ];
 
 export type ClubService = {
+  presentation?: ServicePresentation;
+  presentationRevision?: number;
   id: string;
   kind: ServiceKind;
   name: string;
@@ -60,6 +67,8 @@ export type ClubService = {
 };
 
 export type ServiceInput = {
+  presentation?: ServicePresentation;
+  presentationRevision?: number;
   operationalDraftRevision?: number;
   operationalDraftConfirmed?: true;
   basisVersion?: number;
@@ -125,7 +134,7 @@ export type StaffInput = {
 };
 
 export type ClubAccount = {
-  instructor?:boolean;
+  instructor?: boolean;
   status?: "active" | "inactive" | "invited";
   assignments?: string;
   expires_at?: string;
@@ -180,6 +189,8 @@ export type PublicCatalog = {
     lanes: string;
   }[];
   cagePlans: {
+    presentation?: ServicePresentation;
+    comparisonNote?: string;
     id: string;
     name: string;
     price: number;
@@ -194,6 +205,8 @@ export type PublicCatalog = {
 };
 
 type ServiceRow = {
+  presentation?: unknown;
+  presentation_revision?: number;
   id: string;
   kind: string;
   name: string;
@@ -231,7 +244,9 @@ function asKind(value: string): ServiceKind {
     value === "package" ||
     value === "membership" ||
     value === "cage" ||
-    value === "cage_plan" || value === "fee" || value === "team_plan"
+    value === "cage_plan" ||
+    value === "fee" ||
+    value === "team_plan"
   ) {
     return value;
   }
@@ -291,6 +306,12 @@ function mapService(row: ServiceRow): ClubService {
   const extra = parseExtra(row.extra_json || "{}");
   return {
     id: row.id,
+    ...(row.kind === "cage_plan"
+      ? {
+          presentation: readServicePresentation(row.presentation),
+          presentationRevision: Number(row.presentation_revision || 0),
+        }
+      : {}),
     kind: asKind(row.kind),
     name: row.name,
     discipline: row.discipline || "",
@@ -334,9 +355,7 @@ export function defaultCoachSplit(service: {
 
 function toLesson(row: ClubService): LessonService {
   const discipline =
-    row.discipline === "Hitting" ||
-    row.discipline === "Catching" ||
-    row.discipline === "Fielding"
+    row.discipline === "Hitting" || row.discipline === "Catching" || row.discipline === "Fielding"
       ? row.discipline
       : "Pitching";
   return {
@@ -354,23 +373,105 @@ function toLesson(row: ClubService): LessonService {
 }
 
 export function buildPublicCatalog(rows: ClubService[]): PublicCatalog {
-  const active = rows.filter(row => row.active);
+  const active = rows.filter(
+    (row) => row.active && readServicePresentation(row.presentation).status === "published",
+  );
   const lessons = active.filter((row) => row.kind === "lesson");
   const packages = active.filter((row) => row.kind === "package");
   const memberships = active.filter((row) => row.kind === "membership");
   const cages = active.filter((row) => row.kind === "cage");
   const cagePlans = active.filter((row) => row.kind === "cage_plan");
-  const individual = cages.find(r => r.id === "individual")?.price;
+
   return {
-    setupFee: active.find(r => r.id === "assessment-setup")?.price ?? 0,
-    teamPlans: active.filter(r => r.kind === "team_plan"),
+    setupFee: active.find((r) => r.id === "assessment-setup")?.price ?? 0,
+    teamPlans: active.filter((r) => r.kind === "team_plan"),
     lessons: lessons.map(toLesson),
-    packages: packages.map(r => ({id:r.id,name:r.name,credits:r.credits,minutes:r.minutes,price:r.price,expiresDays:r.expires_days})),
-    memberships: memberships.map(r => ({id:r.id,name:r.name,price:r.price,lessons:r.credits,minutes:r.minutes,remote:r.remote,detail:r.detail||r.purpose,includes:r.includes,tier:DEVELOPMENT_PLANS.find(p=>p.id===r.id)?.tier})),
-    cages: cages.map(r => ({id:r.id,name:r.name,price:r.price,unit:r.unit||"/ hour",summary:r.purpose||r.detail,lanes:r.lanes})),
-    cagePlans: cagePlans.map(r => ({id:r.id,name:r.name,price:r.price,period:r.period||"/ month",hours:r.hours||r.credits,
-      hourly:(r.hours||r.credits)>0 ? `${formatMoney(Math.round(r.price*100/(r.hours||r.credits)))} / included hour` : "",
-      bestFor:r.bestFor,savings:individual === undefined ? "" : `${formatMoney(Math.max(0,Math.round(((r.hours||r.credits)*individual-r.price)*100)))} vs ${r.hours||r.credits} drop-in hours`,featured:r.featured,perks:r.perks.length?r.perks:r.includes})),
+    packages: packages.map((r) => ({
+      id: r.id,
+      name: r.name,
+      credits: r.credits,
+      minutes: r.minutes,
+      price: r.price,
+      expiresDays: r.expires_days,
+    })),
+    memberships: memberships.map((r) => ({
+      id: r.id,
+      name: r.name,
+      price: r.price,
+      lessons: r.credits,
+      minutes: r.minutes,
+      remote: r.remote,
+      detail: r.detail || r.purpose,
+      includes: r.includes,
+      tier: DEVELOPMENT_PLANS.find((p) => p.id === r.id)?.tier,
+    })),
+    cages: cages.map((r) => ({
+      id: r.id,
+      name: r.name,
+      price: r.price,
+      unit: r.unit || "/ hour",
+      summary: r.purpose || r.detail,
+      lanes: r.lanes,
+    })),
+    cagePlans: cagePlans.map((r) => {
+      const presentation = readServicePresentation(r.presentation);
+      const includedMinutes = cageIncludedMinutes(r.credits);
+      const monthlyMinutes =
+        presentation.calculationBasis === "assumed"
+          ? presentation.assumedMonthlyMinutes
+          : includedMinutes;
+      // Household cage credits cannot redeem team cages or the combined fielding area.
+      const comparison = cages.find(
+        (c) =>
+          c.id === presentation.comparisonResourceId && c.id === "individual" && c.minutes === 60,
+      );
+      const validUsage = monthlyMinutes > 0 && monthlyMinutes <= includedMinutes;
+      const value =
+        validUsage && comparison
+          ? calculateMembershipValue({
+              monthlyPriceCents: Math.round(r.price * 100),
+              monthlyMinutes,
+              dropInRateCents: Math.round(comparison.price * 100),
+            })
+          : null;
+      const effective =
+        includedMinutes > 0
+          ? calculateMembershipValue({
+              monthlyPriceCents: Math.round(r.price * 100),
+              monthlyMinutes: includedMinutes,
+              dropInRateCents: 0,
+            })
+          : null;
+      const perks =
+        (r.presentationRevision || 0) > 0 || presentation.benefits.length
+          ? presentation.benefits.map((b) => b.text)
+          : r.perks.length
+            ? r.perks
+            : r.includes;
+      return {
+        id: r.id,
+        name: r.name,
+        price: r.price,
+        period: "/ month",
+        hours: includedMinutes / 60,
+        presentation,
+        hourly:
+          presentation.showEffectiveRate && effective
+            ? `${formatMoney(effective.effectiveHourlyRateCents)} / included hour`
+            : "",
+        bestFor: r.purpose || r.bestFor,
+        savings:
+          presentation.showSavings && value && value.savingsCents > 0
+            ? `${presentation.calculationBasis === "assumed" ? "Potential savings" : "Save"} ${formatMoney(value.savingsCents)} / month`
+            : "",
+        comparisonNote:
+          presentation.showSavings && value && value.savingsCents > 0
+            ? `Compared with ${monthlyMinutes / 60} hours at the current individual cage rate. ${presentation.calculationBasis === "assumed" ? "Assumes this monthly usage." : "Uses all included hours."} Subject to availability.`
+            : "",
+        featured: r.featured,
+        perks: perks.map(currentCageBenefit),
+      };
+    }),
   };
 }
 
@@ -397,7 +498,7 @@ export async function loadServices(sql: Sql) {
   const rows = await sql<ServiceRow>`
     select id, kind, name, discipline, price, minutes, purpose, entry, group_session,
            requires_assessment, credits, remote, expires_days, hours, featured, detail,
-           includes_json, extra_json, active, sort_order
+           includes_json, extra_json, active, sort_order, presentation, presentation_revision
     from club_services
     order by sort_order, name
   `;
@@ -408,42 +509,72 @@ export const getServices = createServerFn({ method: "GET" }).handler(async () =>
   const sql = await getSql();
   // Signed-out callers must never receive inactive or unpublished catalog items.
   // Office editors use their authenticated mutation/editor paths, not this public API.
-  const { availableOperationalServices } = await import("./coordinator/organization-services.server");
+  const { availableOperationalServices } =
+    await import("./coordinator/organization-services.server");
   return publishedServices(await availableOperationalServices(sql, await loadServices(sql)));
 });
 
-export const getAdminServices = createServerFn({ method: "GET" }).middleware([authMiddleware]).handler(async ({context}) => {
-  await requireAdmin(context.userId);
-  return loadServices(await getSql());
-});
+export const getAdminServices = createServerFn({ method: "GET" })
+  .middleware([authMiddleware])
+  .handler(async ({ context }) => {
+    await requireAdmin(context.userId);
+    return loadServices(await getSql());
+  });
 
-export const getPurchaseAvailability = createServerFn({ method: "GET" }).handler(async (): Promise<PurchaseAvailability> => {
-  const { squarePublicConfig, ensureOwnerLaunchCatalog } = await import("./commerce/square.server");
-  const config = squarePublicConfig();
-  let unavailableProductIds: string[] = [];
-  if(config?.environment==='production' && config.checkoutScope==='all') {
-    try { unavailableProductIds=(await ensureOwnerLaunchCatalog())?.filter(p=>!p.ready).map(p=>p.id)||[]; }
-    catch { unavailableProductIds=['prospect','all-star','elite-family','m1','m2','m3','m4','m5']; }
-  }
-  return { ready: true, scope: config?.checkoutScope ?? "disabled", unavailableProductIds };
-});
+export const getPurchaseAvailability = createServerFn({ method: "GET" }).handler(
+  async (): Promise<PurchaseAvailability> => {
+    const { squarePublicConfig, ensureOwnerLaunchCatalog } =
+      await import("./commerce/square.server");
+    const config = squarePublicConfig();
+    let unavailableProductIds: string[] = [];
+    if (config?.environment === "production" && config.checkoutScope === "all") {
+      try {
+        unavailableProductIds =
+          (await ensureOwnerLaunchCatalog())?.filter((p) => !p.ready).map((p) => p.id) || [];
+      } catch {
+        unavailableProductIds = [
+          "prospect",
+          "all-star",
+          "elite-family",
+          "m1",
+          "m2",
+          "m3",
+          "m4",
+          "m5",
+        ];
+      }
+    }
+    return { ready: true, scope: config?.checkoutScope ?? "disabled", unavailableProductIds };
+  },
+);
 
 export const loadPublicCatalog = createServerOnlyFn(async () => {
   const sql = await getSql();
-  const { availableOperationalServices } = await import("./coordinator/organization-services.server");
+  const { availableOperationalServices } =
+    await import("./coordinator/organization-services.server");
   return buildPublicCatalog(await availableOperationalServices(sql, await loadServices(sql)));
+});
+
+export const getPublicCatalogSnapshot = createServerFn({ method: "GET" }).handler(async () => {
+  try {
+    return { catalog: await loadPublicCatalog(), failed: false as const };
+  } catch {
+    return { catalog: null, failed: true as const };
+  }
 });
 
 /** Owner catalog changes approve future lesson terms in the same transaction. */
 export const saveService = createServerFn({ method: "POST" })
-  .middleware([authMiddleware]).validator(serviceInput)
+  .middleware([authMiddleware])
+  .validator(serviceInput)
   .handler(async ({ context, data }) => {
     const { saveServiceFor } = await import("./ops-owner.server");
     return saveServiceFor(await getSql(), context.userId, data);
   });
 
 export const deleteService = createServerFn({ method: "POST" })
-  .middleware([authMiddleware]).validator(lessonTermIdInput)
+  .middleware([authMiddleware])
+  .validator(lessonTermIdInput)
   .handler(async ({ context, data }) => {
     const { deleteServiceFor } = await import("./ops-owner.server");
     return deleteServiceFor(await getSql(), context.userId, data);
@@ -515,7 +646,8 @@ async function upsertProfile(input: {
 }) {
   const sql = await getSql();
   const email = input.email.toLowerCase();
-  if (input.role === 'admin' && !await isOwnerEmail(email)) throw new Error('Only the approved owners may receive admin access.');
+  if (input.role === "admin" && !(await isOwnerEmail(email)))
+    throw new Error("Only the approved owners may receive admin access.");
   const role = asRole(input.role, email);
   const familyId = `fam-${input.userId}`;
   await sql`
@@ -537,7 +669,8 @@ async function upsertProfile(input: {
 }
 
 export const saveStaff = createServerFn({ method: "POST" })
-  .middleware([authMiddleware]).validator(staffInput)
+  .middleware([authMiddleware])
+  .validator(staffInput)
   .handler(async ({ context, data }) => {
     const { saveStaffFor } = await import("./ops-owner.server");
     const result = await saveStaffFor(await getSql(), context.userId, data);
@@ -545,23 +678,27 @@ export const saveStaff = createServerFn({ method: "POST" })
     if (data.createLogin) {
       if (!data.email) throw new Error("Email is required for an invitation.");
       const { issueInvitation } = await import("./invitations.server");
-      invitation = (await issueInvitation(context.userId, data.email, data.role || "coach")).message;
+      invitation = (await issueInvitation(context.userId, data.email, data.role || "coach"))
+        .message;
     }
     return { ...result, invitation };
   });
 
 export const deleteStaff = createServerFn({ method: "POST" })
-  .middleware([authMiddleware]).validator(lessonTermIdInput)
+  .middleware([authMiddleware])
+  .validator(lessonTermIdInput)
   .handler(async ({ context, data }) => {
     const { deleteStaffFor } = await import("./ops-owner.server");
     return deleteStaffFor(await getSql(), context.userId, data);
   });
 
 export const getAdminLessonTerms = createServerFn({ method: "GET" })
-  .middleware([authMiddleware]).handler(async ({ context }) => {
+  .middleware([authMiddleware])
+  .handler(async ({ context }) => {
     const { withFinancialContext } = await import("./finance/context.server");
     return withFinancialContext(await getSql(), context.userId, "owner", async (tx, financial) => ({
-      services: await loadServices(tx), staff: await loadStaff(tx),
+      services: await loadServices(tx),
+      staff: await loadStaff(tx),
       ...(financial.mode === "basis" ? { basisVersion: financial.version! } : {}),
     }));
   });
@@ -579,7 +716,8 @@ export const listAccounts = createServerFn({ method: "GET" })
       player_name: string;
       assessment_complete: boolean | string | null;
       disabled_at: Date | null;
-      assignments:string; instructor:boolean;
+      assignments: string;
+      instructor: boolean;
     }>`
       select
         u.id as user_id,
@@ -595,22 +733,44 @@ export const listAccounts = createServerFn({ method: "GET" })
 
       order by u.email
     `;
-    const accounts=await Promise.all(rows.map(async (row) => {
-      const email = row.email.toLowerCase();
-      return {
-        status: row.disabled_at ? "inactive" as const : "active" as const,
-        assignments:row.assignments,instructor:row.instructor,
-        user_id: row.user_id,
-        name: row.name,
-        email,
-        role: asRole(row.role, email),
-        player_name: row.player_name || "",
-        assessment_complete: asBool(row.assessment_complete),
-        owner: await isOwnerEmail(email),
-      } satisfies ClubAccount;
-    }));
-    const invites=await sql<{id:string;email:string;role:string;expires_at:Date}>`select id,email,role,expires_at from club_invites where status='pending' and expires_at>now() order by email`;
-    return [...accounts,...invites.map(i=>({user_id:`invite:${i.id}`,name:i.email,email:i.email,role:asRole(i.role,i.email),player_name:'',assessment_complete:false,owner:false,status:'invited' as const,expires_at:new Date(i.expires_at).toISOString(),assignments:''}))] satisfies ClubAccount[];
+    const accounts = await Promise.all(
+      rows.map(async (row) => {
+        const email = row.email.toLowerCase();
+        return {
+          status: row.disabled_at ? ("inactive" as const) : ("active" as const),
+          assignments: row.assignments,
+          instructor: row.instructor,
+          user_id: row.user_id,
+          name: row.name,
+          email,
+          role: asRole(row.role, email),
+          player_name: row.player_name || "",
+          assessment_complete: asBool(row.assessment_complete),
+          owner: await isOwnerEmail(email),
+        } satisfies ClubAccount;
+      }),
+    );
+    const invites = await sql<{
+      id: string;
+      email: string;
+      role: string;
+      expires_at: Date;
+    }>`select id,email,role,expires_at from club_invites where status='pending' and expires_at>now() order by email`;
+    return [
+      ...accounts,
+      ...invites.map((i) => ({
+        user_id: `invite:${i.id}`,
+        name: i.email,
+        email: i.email,
+        role: asRole(i.role, i.email),
+        player_name: "",
+        assessment_complete: false,
+        owner: false,
+        status: "invited" as const,
+        expires_at: new Date(i.expires_at).toISOString(),
+        assignments: "",
+      })),
+    ] satisfies ClubAccount[];
   });
 
 export const saveAccount = createServerFn({ method: "POST" })
@@ -629,19 +789,19 @@ export const saveAccount = createServerFn({ method: "POST" })
       `;
       const currentEmail = (current[0]?.email ?? "").toLowerCase();
       if (!current[0]) throw new Error("Account not found.");
-      if (current[0] && await isOwnerEmail(currentEmail) && email !== currentEmail) {
+      if (current[0] && (await isOwnerEmail(currentEmail)) && email !== currentEmail) {
         throw new Error("Owner emails stay locked.");
       }
-      await sql.transaction(async tx => {
+      await sql.transaction(async (tx) => {
         await tx`update "user" set name = ${name}, email = ${email},
           "emailVerified" = case when lower(email) = ${email} then "emailVerified" else false end,
           "updatedAt" = now() where id = ${userId}`;
         if (email !== currentEmail) await tx`delete from "session" where "userId" = ${userId}`;
       });
     } else {
-      const {issueInvitation}=await import('./invitations.server');
-      const invitation=await issueInvitation(context.userId,email,data.role);
-      return {id:invitation.id,invitation:invitation.message};
+      const { issueInvitation } = await import("./invitations.server");
+      const invitation = await issueInvitation(context.userId, email, data.role);
+      return { id: invitation.id, invitation: invitation.message };
     }
     const savedEmail = email;
     await upsertProfile({
@@ -677,7 +837,7 @@ export const saveAccount = createServerFn({ method: "POST" })
         `;
       }
     }
-    return { id: userId, invitation:undefined as string|undefined };
+    return { id: userId, invitation: undefined as string | undefined };
   });
 
 export const deleteAccount = createServerFn({ method: "POST" })
@@ -696,7 +856,7 @@ export const deleteAccount = createServerFn({ method: "POST" })
     if (await isOwnerEmail(users[0].email)) {
       throw new Error("Owner accounts stay locked.");
     }
-    await sql.transaction(async tx => {
+    await sql.transaction(async (tx) => {
       await tx`update "user" set "disabledAt"=now(), "updatedAt"=now() where id=${data.userId}`;
       await tx`update club_staff set active=false where user_id=${data.userId}`;
       await tx`delete from "session" where "userId"=${data.userId}`;

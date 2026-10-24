@@ -36,10 +36,21 @@ export function PeopleDirectory({
       </div>
       <div className="grid gap-5 md:grid-cols-2">
         {visible.map((p) => (
-          <article key={p.id} className="flex flex-col rounded-xl border border-line bg-white p-5">
+          <article
+            id={`person-${p.id}`}
+            key={p.id}
+            className="flex flex-col rounded-xl border border-line bg-white p-5"
+          >
             <div className="mb-4 flex h-48 items-center justify-center overflow-hidden rounded-lg bg-paper-2">
               {p.photo ? (
-                <img src={p.photo} alt={p.name} loading="lazy" width={480} height={320} className="h-full w-full object-contain" />
+                <img
+                  src={p.photo}
+                  alt={p.name}
+                  loading="lazy"
+                  width={480}
+                  height={320}
+                  className="h-full w-full object-contain"
+                />
               ) : (
                 <span className="text-5xl font-semibold text-navy" aria-hidden="true">
                   {p.name
@@ -55,14 +66,18 @@ export function PeopleDirectory({
             <p className="mt-2 font-semibold">
               {kind === "instructors"
                 ? "Lesson Instructor"
-                : [...new Set([...p.teams.map((t) => t.role), ...(p.title ? [p.title] : [])])].join(" · ") || "Coach"}
+                : [...new Set([...p.teams.map((t) => t.role), ...(p.title ? [p.title] : [])])].join(
+                    " · ",
+                  ) || "Coach"}
             </p>
             <p className="mt-1 capitalize text-muted">
               {[...new Set([...p.sports, ...p.teams.map((t) => t.sport)])].join(" · ")}
             </p>
             {kind === "instructors" && (
               <>
-                <p className="mt-3">{p.specialties.join(" · ") || "Contact the office to discuss coaching focus."}</p>
+                <p className="mt-3">
+                  {p.specialties.join(" · ") || "Contact the office to discuss coaching focus."}
+                </p>
                 {p.ages && <p className="mt-1 text-sm">Ages & experience: {p.ages}</p>}
               </>
             )}

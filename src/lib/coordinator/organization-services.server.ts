@@ -1,3 +1,4 @@
+import { readServicePresentation } from "../service-presentation";
 /** Operational drafts never create commercial rows. Availability applies to new purchases only. */
 import { randomUUID } from "node:crypto";
 import type { Sql } from "../db";
@@ -207,7 +208,14 @@ export async function availableOperationalServices<T extends { id: string }>(
   const unavailable = await sql<{
     id: string;
   }>`select id from operational_service_catalog where id=any(${rows.map((r) => r.id)}::text[]) and status<>'active'`;
-  const ids = new Set(unavailable.map((r) => r.id));
+  const presentations = await sql<{
+    id: string;
+    presentation: unknown;
+  }>`select id,presentation from club_services where id=any(${rows.map((r) => r.id)}::text[])`;
+  const presentationHidden = presentations.filter(
+    (r) => readServicePresentation(r.presentation).status !== "published",
+  );
+  const ids = new Set([...unavailable, ...presentationHidden].map((r) => r.id));
   return rows.filter((r) => !ids.has(r.id));
 }
 export async function assertOperationalServiceForNewPurchase(
@@ -217,7 +225,13 @@ export async function assertOperationalServiceForNewPurchase(
   const [row] = await tx<{
     status: string;
   }>`select status from operational_service_catalog where id=${serviceId} for share`;
-  if (row && row.status !== "active")
+  const [presentation] = await tx<{
+    presentation: unknown;
+  }>`select presentation from club_services where id=${serviceId} for share`;
+  if (
+    (row && row.status !== "active") ||
+    (presentation && readServicePresentation(presentation.presentation).status !== "published")
+  )
     throw new Error("This service is unavailable for new purchases.");
 }
 /** Called only inside the existing true-owner service save transaction. */

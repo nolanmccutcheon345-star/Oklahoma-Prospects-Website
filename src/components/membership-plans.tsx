@@ -1,69 +1,57 @@
-import { CatalogStatus } from "./catalog-status";
-import {formatDollars} from "@/lib/pricing";
-import { canPurchase } from "@/lib/purchase-availability";
-import { cn } from "@/lib/utils";
-import { Button } from "@/components/ui/button";
 import { Link } from "@tanstack/react-router";
+import { CatalogStatus } from "./catalog-status";
+import { MembershipCard, PricingSkeleton } from "./pricing-cards";
+import { canPurchase } from "@/lib/purchase-availability";
 import { useLiveCatalog } from "@/lib/use-catalog";
 
-export function MembershipPlans({
-  cta: _cta = "Start All-Star",
-}: {
-  cta?: string;
-}) {
-  const { cagePlans, purchaseAvailability, status, retry } = useLiveCatalog();
-  if (status === "loading" || status === "error") return <CatalogStatus label="cage memberships" error={status === "error"} retry={retry} />;
+export function MembershipPlans({ cta: _cta }: { cta?: string }) {
+  const { cagePlans, purchaseAvailability, status, checkoutStatus, retry } = useLiveCatalog();
+  if (status === "loading") return <PricingSkeleton label="cage memberships" />;
+  if (status === "error") return <CatalogStatus label="cage memberships" error retry={retry} />;
+  if (!cagePlans.length)
+    return (
+      <p role="status" className="rounded-xl border border-line p-5">
+        No cage memberships are currently published.{" "}
+        <Link to="/contact" className="underline">
+          Contact the front desk
+        </Link>{" "}
+        for options.
+      </p>
+    );
   return (
     <div>
-      {!canPurchase(purchaseAvailability, "cage-plan", "prospect") ? <p role="status" className="mb-4 text-fg-soft">Online cage-pass checkout is temporarily unavailable. Plan details and prices are shown for comparison; booking a one-time cage rental is still available on Book when checkout permits it.</p> : null}
-      {!cagePlans.length && <p role="status">No cage memberships are currently published. Contact the front desk for options.</p>}
-      <div className="grid gap-3 md:grid-cols-3">
+      {checkoutStatus === "error" ? (
+        <div role="alert" className="mb-5 rounded-xl border border-line p-4">
+          Prices are available, but checkout readiness could not be checked.{" "}
+          <button type="button" onClick={retry} className="min-h-11 px-3 font-semibold underline">
+            Try again
+          </button>
+        </div>
+      ) : purchaseAvailability &&
+        cagePlans.every((plan) => !canPurchase(purchaseAvailability, "cage-plan", plan.id)) ? (
+        <p role="status" className="mb-4">
+          Online cage-pass checkout is temporarily unavailable. Current plan details remain
+          available for comparison.
+        </p>
+      ) : null}
+      <div className="grid items-stretch gap-5 md:grid-cols-3">
         {cagePlans.map((plan) => (
-          <article
-            key={plan.id}
-            className={cn(
-              "rounded-2xl p-5",
-              plan.featured ? "bg-maroon" : "bg-ink",
-            )}
-          >
-            {plan.featured ? (
-              <p className="text-xs font-semibold tracking-widest text-powder uppercase">
-                Best value
-              </p>
-            ) : null}
-            <h3 className="mt-1 text-2xl text-powder">{plan.name}</h3>
-            <p className="mt-1 font-display text-4xl font-extrabold">
-              {formatDollars(plan.price)}
-              <span className="ml-1 font-sans text-sm font-medium text-fg-soft">
-                {plan.period}
-              </span>
-            </p>
-            {plan.hourly ? <p className="mt-2 text-sm text-powder">{plan.hourly}</p> : null}
-            <p className="mt-2 text-sm text-fg-soft">{plan.bestFor}</p>
-            {plan.savings ? <p className="mt-2 text-sm text-powder">{plan.savings}</p> : null}
-            <ul className="mt-3 grid gap-1 text-sm text-fg-soft">
-              {plan.perks.map((perk) => (
-                <li key={perk}>+ {perk}</li>
-              ))}
-            </ul>
-            {canPurchase(purchaseAvailability, "cage-plan", plan.id)
-              ? <Button asChild className="mt-4 w-full" variant={plan.featured ? "primary" : "outline"}>
-                  <Link to="/pay" search={{ kind: "cage-plan", id: plan.id }}>Start {plan.name} · {formatDollars(plan.price)}</Link>
-                </Button>
-              : <Button disabled className="mt-4 w-full" variant={plan.featured ? "primary" : "outline"}>
-                  {purchaseAvailability ? "Checkout unavailable" : "Loading checkout…"}
-                </Button>}
-          </article>
+          <MembershipCard key={plan.id} plan={plan} availability={purchaseAvailability} />
         ))}
       </div>
-      <div className="mt-6 grid gap-2">
-        <p className="text-sm text-fg-soft">
-          Household athletes only. Team practices use team cage rates.
-        </p>
-        <Button asChild variant="outlineDark" className="w-full">
-          <Link to="/training" search={{view:"plans"}}>Lesson memberships</Link>
-        </Button>
-      </div>
+      <p className="mt-6 text-sm">
+        Household athletes only. Team practices use team cage rates. All households may book up to
+        14 days ahead, subject to availability.
+      </p>
+      <p className="mt-3">
+        <Link
+          to="/training"
+          search={{ view: "plans" }}
+          className="inline-flex min-h-11 items-center font-semibold underline"
+        >
+          Explore lesson memberships
+        </Link>
+      </p>
     </div>
   );
 }

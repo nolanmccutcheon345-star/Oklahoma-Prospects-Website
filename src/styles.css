@@ -492,3 +492,8 @@ body:has(.front-office) [data-site-nav], body:has(.front-office) footer {display
 @media (min-width: 1024px) { :root { --bottom-nav-height: 0px; --bottom-nav-space: 0px; } }
 
 @media (min-width: 1024px) { .booking-page summary { scroll-margin-top: 9rem; } }
+
+/* Public navigation lives in the header; workspace tab bars retain their own space. */
+html:has(.public-site-shell) { --bottom-nav-space: 0px; }
+.public-site-shell .booking-review-bar { padding-bottom: env(safe-area-inset-bottom, 0px); }
+[id^="person-"] { scroll-margin-top: 10rem; }
