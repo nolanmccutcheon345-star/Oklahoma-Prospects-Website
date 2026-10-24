@@ -30,6 +30,7 @@ test("front office sidebar and mobile More navigate to every workspace and prese
         "Services & Pricing",
         "Shop",
         "Staff & Access",
+        "Articles & News",
         "Reports",
       ];
       assert.deepEqual(
@@ -53,6 +54,18 @@ test("front office sidebar and mobile More navigate to every workspace and prese
           .click(),
       );
       assert.equal(selected.at(-1), "tournaments");
+      assert.equal(host.querySelector("#office-more"), null);
+      await act(async () =>
+        [...mobile.querySelectorAll("button")]
+          .find((b) => b.textContent.startsWith("More"))
+          .click(),
+      );
+      await act(async () =>
+        [...host.querySelectorAll("#office-more button")]
+          .find((b) => b.textContent === "Articles & News")
+          .click(),
+      );
+      assert.equal(selected.at(-1), "articles");
       assert.equal(host.querySelector("#office-more"), null);
     },
   );

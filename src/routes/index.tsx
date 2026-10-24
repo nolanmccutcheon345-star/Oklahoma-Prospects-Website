@@ -1,3 +1,5 @@
+import { getHomepageJournal } from "@/lib/journal/api";
+import { JournalStrip } from "@/components/journal/public";
 import { getPublicCatalogSnapshot } from "@/lib/ops";
 import { getPublicHomepage } from "@/lib/website-content-api";
 import { FacilityStrip, HomepagePeople } from "@/components/homepage-content";
@@ -27,11 +29,12 @@ export const Route = createFileRoute("/")({
       false,
     ),
   loader: async () => {
-    const [catalog, homepage] = await Promise.all([
+    const [catalog, homepage, journal] = await Promise.all([
       getPublicCatalogSnapshot(),
       getPublicHomepage(),
+      getHomepageJournal(),
     ]);
-    return { catalog, homepage };
+    return { catalog, homepage, journal };
   },
   component: HomeRoute,
 });
@@ -40,12 +43,12 @@ function HomeRoute() {
   const data = Route.useLoaderData();
   return (
     <CatalogProvider initial={data.catalog}>
-      <Home homepage={data.homepage} />
+      <Home homepage={data.homepage} journal={data.journal} />
     </CatalogProvider>
   );
 }
 
-function Home({ homepage }: { homepage: Awaited<ReturnType<typeof getPublicHomepage>> }) {
+function Home({ homepage, journal }: { homepage: Awaited<ReturnType<typeof getPublicHomepage>>; journal: Awaited<ReturnType<typeof getHomepageJournal>> }) {
   const catalog = useLiveCatalog();
   return (
     <main id="main">
@@ -253,6 +256,7 @@ function Home({ homepage }: { homepage: Awaited<ReturnType<typeof getPublicHomep
           </div>
         </div>
       </section>
+      <JournalStrip articles={journal.feed?.articles || []} />
     </main>
   );
 }

@@ -97,7 +97,7 @@ test("public navigation, sport links and purchase availability agree with the li
               loader: "js",
               resolveDir: process.cwd(),
               contents: {
-                router: `import {createElement} from 'react';export const Link=({to,search,hash,children,...props})=>createElement('a',{...props,href:to+(search?'?'+new URLSearchParams(Object.entries(search).filter(([,v])=>v!==undefined&&v!==null)):'')+(hash?'#'+hash:'')},children);export const Outlet=()=>null;export const createFileRoute=()=>options=>({...options,useSearch:()=>({view:'watch',game:undefined}),useLoaderData:()=>globalThis.__auditNav.path==='/games'?{games:globalThis.__auditNav.gameRows,loaded:true}:globalThis.__auditNav.path==='/'?{catalog:{catalog:globalThis.__auditNav.catalog,failed:false},homepage:{content:{coaches:[],testimonials:[]},failed:false}}:globalThis.__auditNav.events});export const useNavigate=()=>value=>{globalThis.__auditNav.navigate=value;return Promise.resolve();};export const useRouterState=({select})=>select({location:{pathname:globalThis.__auditNav.path}});`,
+                router: `import {createElement} from 'react';export const Link=({to,search,hash,children,...props})=>createElement('a',{...props,href:to+(search?'?'+new URLSearchParams(Object.entries(search).filter(([,v])=>v!==undefined&&v!==null)):'')+(hash?'#'+hash:'')},children);export const Outlet=()=>null;export const createFileRoute=()=>options=>({...options,useSearch:()=>({view:'watch',game:undefined}),useLoaderData:()=>globalThis.__auditNav.path==='/games'?{games:globalThis.__auditNav.gameRows,loaded:true}:globalThis.__auditNav.path==='/'?{catalog:{catalog:globalThis.__auditNav.catalog,failed:false},homepage:{content:{coaches:[],testimonials:[]},failed:false},journal:{feed:null,failed:false}}:globalThis.__auditNav.events});export const useNavigate=()=>value=>{globalThis.__auditNav.navigate=value;return Promise.resolve();};export const useRouterState=({select})=>select({location:{pathname:globalThis.__auditNav.path}});`,
                 user: "export const useCurrentUser=()=>globalThis.__auditNav.user;export const useCurrentUserState=()=>({user:globalThis.__auditNav.user,isPending:false});",
                 gates:
                   "export const SignedIn=({children})=>globalThis.__auditNav.user?children:null;export const SignedOut=({children})=>globalThis.__auditNav.user?null:children;",
@@ -126,16 +126,17 @@ test("public navigation, sport links and purchase availability agree with the li
     ];
     assert.deepEqual(
       primary.map((a) => a.textContent?.trim()),
-      ["Home", "Train", "Teams", "Book", "Games", "Shop"],
+      ["Home", "Train", "Teams", "Book", "Games", "Shop", "Articles & News"],
     );
-    assert.equal(primary.length, 6);
+    assert.equal(primary.length, 7);
     assert.equal(
-      document.querySelector('nav[aria-label="Primary"] ul')?.className.includes("grid-cols-6"),
+      document.querySelector('nav[aria-label="Primary"] ul')?.className.includes("grid-cols-7"),
       true,
     );
     assert.equal(primary[1].getAttribute("aria-current"), "page");
     assert.equal(primary[4].getAttribute("href"), "/games");
     assert.equal(primary[5].getAttribute("href"), "/merchandise");
+    assert.equal(primary[6].getAttribute("href"), "/articles");
     assert.equal(primary[2].getAttribute("aria-expanded"), "false");
     assert.equal(document.querySelector('footer a[href^="/games"]')?.textContent, "Games");
     assert.equal(document.querySelector('footer a[href*="prospects-live"]'), null);
@@ -453,6 +454,20 @@ test("public navigation, sport links and purchase availability agree with the li
         (a) => !String(a.getAttribute("href")).startsWith("http"),
       ),
       true,
+    );
+    state.path = "/office/journal";
+    await act(async () => root.render(createElement(ui.AppShell)));
+    assert.deepEqual(
+      [
+        ...document.querySelectorAll(
+          'nav[aria-label="Primary"] ul > li > a, nav[aria-label="Primary"] ul > li > button',
+        ),
+      ].map((node) => node.textContent.trim()),
+      ["Home", "Train", "Teams", "Book", "Games", "Shop"],
+      "Private workspaces preserve the existing staff navigation",
+    );
+    assert.ok(
+      document.querySelector('nav[aria-label="Primary"] ul')?.className.includes("grid-cols-6"),
     );
   } finally {
     if (root) await act(async () => root.unmount());
