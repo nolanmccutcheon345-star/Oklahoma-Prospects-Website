@@ -6,7 +6,7 @@ import { Button } from "./ui/button";
 
 function Paragraphs({ text }: { text: string }) {
   return (
-    <div className="mt-4 grid gap-4 leading-relaxed text-muted">
+    <div className="mt-4 grid min-w-0 grid-cols-1 gap-4 leading-relaxed text-muted">
       {text
         .split(/\n\s*\n/)
         .filter(Boolean)
@@ -29,12 +29,12 @@ export function AboutContent({ content }: { content: AboutDocument }) {
         copy={content.intro}
         image="/brand/facility.jpg"
       />
-      <section className="mx-auto grid max-w-6xl items-start gap-8 px-5 py-12 lg:grid-cols-2">
-        <div>
+      <section className="mx-auto grid max-w-6xl grid-cols-1 items-start gap-8 px-5 py-12 lg:grid-cols-2">
+        <div className="min-w-0">
           <h2 className="text-4xl">{content.storyTitle}</h2>
           <Paragraphs text={content.story} />
         </div>
-        <figure className="overflow-hidden rounded-2xl border border-line bg-paper-2">
+        <figure className="min-w-0 overflow-hidden rounded-2xl border border-line bg-paper-2">
           <BrandImage
             src="/brand/facility.jpg"
             alt="Indoor practice lanes at Prospects Sports Facility"
