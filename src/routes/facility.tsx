@@ -1,6 +1,7 @@
-import {useLiveCatalog} from "@/lib/use-catalog";
-import {formatDollars} from "@/lib/pricing";
-import {pageHead} from "@/lib/seo";
+import { CatalogProvider } from "@/lib/use-catalog";
+import { getPublicCatalogSnapshot } from "@/lib/ops";
+import { RentalCards } from "@/components/pricing-cards";
+import { pageHead } from "@/lib/seo";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { ArrowUpRight } from "lucide-react";
 import { FacilityLanes } from "@/components/facility-lanes";
@@ -9,10 +10,28 @@ import { PageHero } from "@/components/page-hero";
 import { Button } from "@/components/ui/button";
 import { CLUB, FAQ, LINKS } from "@/lib/club";
 
-export const Route = createFileRoute("/facility")({head:()=>pageHead("/facility","Visit the Facility","Seven indoor lanes for baseball and softball at 3804 S. Elm Pl., Suite A, Broken Arrow.",false), component: FacilityPage });
+export const Route = createFileRoute("/facility")({
+  head: () =>
+    pageHead(
+      "/facility",
+      "Visit the Facility",
+      "Seven indoor lanes for baseball and softball at 3804 S. Elm Pl., Suite A, Broken Arrow.",
+      false,
+    ),
+  loader: () => getPublicCatalogSnapshot(),
+  component: FacilityRoute,
+});
+
+function FacilityRoute() {
+  const initial = Route.useLoaderData();
+  return (
+    <CatalogProvider initial={initial}>
+      <FacilityPage />
+    </CatalogProvider>
+  );
+}
 
 function FacilityPage() {
-  const catalog = useLiveCatalog();
   return (
     <main id="main">
       <PageHero
@@ -45,24 +64,11 @@ function FacilityPage() {
       </section>
 
       <section className="bg-paper-2 py-10">
-        <div className="mx-auto max-w-3xl px-5">
+        <div className="mx-auto max-w-6xl px-5">
           <h2 className="text-3xl">A space for every workout</h2>
           <p className="mt-2 text-muted">Current cage and field-area rental rates.</p>
-          <div className="mt-6 grid gap-4 md:grid-cols-3">
-            {catalog.cages.map((rental) => (
-              <article key={rental.id} className="rounded-2xl p-5 shadow-border">
-                <p className="text-xs font-semibold tracking-[0.16em] text-maroon uppercase">
-                  {rental.name}
-                </p>
-                <p className="mt-2 font-display text-5xl font-extrabold">
-                  {formatDollars(rental.price)}
-                  <span className="ml-1 font-sans text-sm font-medium text-muted">
-                    {rental.unit}
-                  </span>
-                </p>
-                <p className="mt-3 text-sm text-muted">{rental.summary}</p>
-              </article>
-            ))}
+          <div className="mt-6">
+            <RentalCards />
           </div>
         </div>
       </section>
@@ -70,8 +76,7 @@ function FacilityPage() {
       <section className="mx-auto max-w-3xl px-5 py-10">
         <h2 className="text-3xl">Know your space</h2>
         <p className="mt-2 mb-6 text-muted">
-          Mound lanes, hitting lanes, and a combined fielding area. Tap a lane
-          for details.
+          Mound lanes, hitting lanes, and a combined fielding area. Tap a lane for details.
         </p>
         <FacilityLanes />
       </section>
@@ -89,15 +94,8 @@ function FacilityPage() {
               { src: "/brand/team.jpg", cap: "Quality repetitions" },
               { src: "/brand/wordmark.png", cap: "A place to grow" },
             ].map((shot) => (
-              <figure
-                key={shot.cap}
-                className="overflow-hidden rounded-xl bg-navy"
-              >
-                <img
-                  src={shot.src}
-                  alt={shot.cap}
-                  className="aspect-4/3 w-full object-cover"
-                />
+              <figure key={shot.cap} className="overflow-hidden rounded-xl bg-navy">
+                <img src={shot.src} alt={shot.cap} className="aspect-4/3 w-full object-cover" />
                 <figcaption className="px-4 py-3 text-xs font-semibold tracking-widest uppercase">
                   {shot.cap}
                 </figcaption>

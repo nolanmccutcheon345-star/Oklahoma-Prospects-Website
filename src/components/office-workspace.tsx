@@ -1,8 +1,9 @@
+import { WebsiteContentEditor } from "./website-content-editor";
 import type { TeamFinancialView } from "@/lib/teams/financial-view";
-import { StaffRoleManagement } from './coordinator/staff-management';
+import { StaffRoleManagement } from "./coordinator/staff-management";
 import { OperationsHealth } from "./operations-health";
-import {FinanceWorkspace} from "./finance/finance-workspace";
-import {EventOffice} from "./event-office";
+import { FinanceWorkspace } from "./finance/finance-workspace";
+import { EventOffice } from "./event-office";
 import { useEffect, useState } from "react";
 import { useNavigate, useSearch } from "@tanstack/react-router";
 import { FrontOfficeShell, type OfficeSection } from "./front-office-shell";
@@ -42,9 +43,14 @@ export function OfficeWorkspace({
   onReload?: () => Promise<void>;
   name: string;
 }) {
-  const { section = "dashboard", filter, person } = useSearch({ strict: false }) as {
+  const {
+    section = "dashboard",
+    filter,
+    person,
+  } = useSearch({ strict: false }) as {
     section?: OfficeSection;
-    filter?: string; person?:string;
+    filter?: string;
+    person?: string;
   };
   const navigate = useNavigate();
   const [data, setData] = useState<Awaited<ReturnType<typeof getFrontOffice>>>(),
@@ -154,14 +160,34 @@ export function OfficeWorkspace({
         </div>
       )}
       {section === "development" && <TeamDevelopmentAdminPanel club={club} />}
-      {section === "tournaments" && <TournamentFinder club={club} financial={financial} onReload={onReload} admin onSave={onSave} />}
+      {section === "tournaments" && (
+        <TournamentFinder
+          club={club}
+          financial={financial}
+          onReload={onReload}
+          admin
+          onSave={onSave}
+        />
+      )}
       {section === "events" && <EventOffice />}
       {section === "requests" && <OfficeRequests />}
       {section === "teams" && (
         <>
-          <a href="/player-profiles" className="my-3 inline-flex min-h-11 items-center rounded bg-maroon px-4 text-white">Recruiting profiles & metric approvals</a>
+          <a
+            href="/player-profiles"
+            className="my-3 inline-flex min-h-11 items-center rounded bg-maroon px-4 text-white"
+          >
+            Recruiting profiles & metric approvals
+          </a>
           <TeamFeeWorkspace />
-          <OfficeApp onReload={onReload} financial={financial} club={club} onChange={onChange} onSave={onSave} initialTab="teams" />
+          <OfficeApp
+            onReload={onReload}
+            financial={financial}
+            club={club}
+            onChange={onChange}
+            onSave={onSave}
+            initialTab="teams"
+          />
           <a
             className="my-4 inline-flex min-h-11 items-center underline"
             href="/account?desk=athletes"
@@ -171,7 +197,12 @@ export function OfficeWorkspace({
         </>
       )}
       {section === "evaluations" && (
-        <><a href="/player-profiles" className="my-3 inline-flex min-h-11 items-center underline">Review recruiting metric requests</a><TryoutEvaluations key={filter || "all"} pendingOnly={filter === "pending"} /></>
+        <>
+          <a href="/player-profiles" className="my-3 inline-flex min-h-11 items-center underline">
+            Review recruiting metric requests
+          </a>
+          <TryoutEvaluations key={filter || "all"} pendingOnly={filter === "pending"} />
+        </>
       )}
       {section === "bookings" && (
         <div className="grid gap-5">
@@ -194,7 +225,7 @@ export function OfficeWorkspace({
         </div>
       )}
       {section === "shop" && <ShopOffice changed={() => {}} />}
-      {section === "finance" && <FinanceWorkspace/>}
+      {section === "finance" && <FinanceWorkspace />}
       {section === "payments" && (
         <div className="grid gap-5">
           {filter === "issues" ? (
@@ -229,6 +260,7 @@ export function OfficeWorkspace({
       {section === "services" && (
         <div className="grid gap-6">
           <AdminServicesDesk />
+          <WebsiteContentEditor />
           <details className="rounded-xl border border-line p-4">
             <summary className="min-h-11 cursor-pointer font-semibold">
               Discounts & Promotions
@@ -240,7 +272,8 @@ export function OfficeWorkspace({
       {section === "staff" && (
         <div className="grid gap-6">
           <StaffRoleManagement />
-          <AdminAccountsDesk initialPerson={person}
+          <AdminAccountsDesk
+            initialPerson={person}
             assignments={Object.fromEntries(
               club.teams
                 .flatMap((t) => [
@@ -279,7 +312,13 @@ export function OfficeWorkspace({
         <div className="grid gap-6">
           <TeamFeeWorkspace />
           <OfficeOperations view="reports" />
-          <OfficeApp onReload={onReload} financial={financial} club={club} onChange={onChange} onSave={onSave} />
+          <OfficeApp
+            onReload={onReload}
+            financial={financial}
+            club={club}
+            onChange={onChange}
+            onSave={onSave}
+          />
         </div>
       )}
     </FrontOfficeShell>

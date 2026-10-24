@@ -46,6 +46,8 @@ const existing = {
   perks: [],
 };
 const mocks = {
+  "@/components/membership-presentation-editor":
+    "export const MembershipPresentationEditor = () => null;",
   "@/lib/coordinator/organization-services-api":
     "export const getOwnerServiceDrafts = () => globalThis.ownerServiceUi.drafts();",
   "@/lib/ops": `

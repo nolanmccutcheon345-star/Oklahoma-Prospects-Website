@@ -1,4 +1,14 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  createContext,
+  createElement,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 import {
   buildPublicCatalog,
   getServices,
@@ -8,47 +18,82 @@ import {
 } from "@/lib/ops";
 export type LiveCatalog = PublicCatalog & {
   status: "loading" | "ready" | "error";
+  checkoutStatus: "loading" | "ready" | "error";
   retry: () => void;
 };
-export function useLiveCatalog(): LiveCatalog {
-  const [rows, setRows] = useState<ClubService[]>([]);
+export type CatalogSnapshot = { catalog: PublicCatalog | null; failed: boolean };
+const CatalogContext = createContext<LiveCatalog | null>(null);
+function useCatalogResource(enabled: boolean, initial?: CatalogSnapshot): LiveCatalog {
+  const [catalog, setCatalog] = useState<PublicCatalog>(
+    () => initial?.catalog || buildPublicCatalog([]),
+  );
   const [availability, setAvailability] = useState<PublicCatalog["purchaseAvailability"]>();
-  const [status, setStatus] = useState<LiveCatalog["status"]>("loading");
+  const [status, setStatus] = useState<LiveCatalog["status"]>(
+    initial?.catalog ? "ready" : initial?.failed ? "error" : "loading",
+  );
+  const [checkoutStatus, setCheckoutStatus] = useState<LiveCatalog["checkoutStatus"]>("loading");
   const requestId = useRef(0);
-  const refresh = useCallback(() => {
+  const refresh = useCallback((catalogToo = true) => {
     const id = ++requestId.current;
-    setStatus("loading");
+    if (catalogToo) {
+      setStatus("loading");
+      void getServices()
+        .then((rows: ClubService[]) => {
+          if (requestId.current === id) {
+            setCatalog(buildPublicCatalog(rows));
+            setStatus("ready");
+          }
+        })
+        .catch(() => {
+          if (requestId.current === id) setStatus("error");
+        });
+    }
     setAvailability(undefined);
-    // A failed request is not an empty catalog or a verified checkout outage.
-    void Promise.all([getServices(), getPurchaseAvailability()])
-      .then(([services, purchase]) => {
-        if (requestId.current !== id) return;
-        setRows(services);
-        setAvailability(purchase);
-        setStatus("ready");
+    setCheckoutStatus("loading");
+    // Square readiness never hides successfully loaded prices or enables checkout on failure.
+    void getPurchaseAvailability()
+      .then((purchase) => {
+        if (requestId.current === id) {
+          setAvailability(purchase);
+          setCheckoutStatus("ready");
+        }
       })
       .catch(() => {
-        if (requestId.current === id) {
-          setAvailability(undefined);
-          setStatus("error");
-        }
+        if (requestId.current === id) setCheckoutStatus("error");
       });
   }, []);
+  const retry = useCallback(() => refresh(), [refresh]);
   useEffect(() => {
-    refresh();
-    window.addEventListener("focus", refresh);
+    if (!enabled) return;
+    if (initial?.catalog) {
+      setCatalog(initial.catalog);
+      setStatus("ready");
+    }
+    refresh(!initial?.catalog);
+    window.addEventListener("focus", retry);
+    const generation = requestId;
     return () => {
-      requestId.current++;
-      window.removeEventListener("focus", refresh);
+      generation.current++;
+      window.removeEventListener("focus", retry);
     };
-  }, [refresh]);
+  }, [enabled, initial, refresh, retry]);
   return useMemo(
-    () => ({
-      ...buildPublicCatalog(rows),
-      purchaseAvailability: availability,
-      status,
-      retry: refresh,
-    }),
-    [rows, availability, status, refresh],
+    () => ({ ...catalog, purchaseAvailability: availability, status, checkoutStatus, retry }),
+    [catalog, availability, status, checkoutStatus, retry],
   );
+}
+export function CatalogProvider({
+  initial,
+  children,
+}: {
+  initial: CatalogSnapshot;
+  children: ReactNode;
+}) {
+  const catalog = useCatalogResource(true, initial);
+  return createElement(CatalogContext.Provider, { value: catalog }, children);
+}
+export function useLiveCatalog(): LiveCatalog {
+  const shared = useContext(CatalogContext);
+  const fallback = useCatalogResource(!shared);
+  return shared || fallback;
 }

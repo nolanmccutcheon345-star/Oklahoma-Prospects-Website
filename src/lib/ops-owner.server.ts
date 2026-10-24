@@ -1,5 +1,10 @@
+import { randomUUID } from "node:crypto";
+import { servicePresentationInput } from "./service-presentation";
 /** Raw owner mutations stay behind the server-function transport boundary. */
-import { reviewOperationalServiceAdoption, finishOperationalServiceAdoption } from "./coordinator/organization-services.server";
+import {
+  reviewOperationalServiceAdoption,
+  finishOperationalServiceAdoption,
+} from "./coordinator/organization-services.server";
 import type { Sql } from "./db";
 import type { ClubRole } from "./club-data";
 import type { ServiceInput, StaffInput } from "./ops";
@@ -47,6 +52,8 @@ export async function saveServiceFor(sql: Sql, userId: string, raw: ServiceInput
     const name = data.name.trim();
     if (!name) throw new Error("Name is required.");
     const kind = data.kind;
+    if (data.presentation && kind !== "cage_plan")
+      throw new Error("Membership presentation settings apply only to cage memberships.");
     const prefix =
       kind === "cage_plan"
         ? "plan"
@@ -58,10 +65,45 @@ export async function saveServiceFor(sql: Sql, userId: string, raw: ServiceInput
               ? "p"
               : "s";
     const id = data.id?.trim() || newId(prefix, name);
-    const adopting = await reviewOperationalServiceAdoption(tx,id,data.operationalDraftRevision,data.operationalDraftConfirmed,kind,data.price);
+    const adopting = await reviewOperationalServiceAdoption(
+      tx,
+      id,
+      data.operationalDraftRevision,
+      data.operationalDraftConfirmed,
+      kind,
+      data.price,
+    );
     if (kind !== "fee" && data.price <= 0)
       throw new Error("Enter a customer price greater than zero.");
-    const [existing] = await tx<{ kind: string }>`select kind from club_services where id=${id}`;
+    const [existing] = await tx<{
+      kind: string;
+      presentation: unknown;
+      presentation_revision: number;
+    }>`select kind,presentation,presentation_revision from club_services where id=${id} for update`;
+    if (
+      data.presentation &&
+      existing &&
+      data.presentationRevision !== existing.presentation_revision
+    )
+      throw new Error("This service changed. Reload Services & Pricing before saving.");
+    if (kind === "cage_plan" && data.presentation) {
+      if (data.credits <= 0 || data.hours !== data.credits || data.minutes !== data.credits * 60)
+        throw new Error("Included cage hours must match the credits delivered to the household.");
+      if (
+        data.presentation.calculationBasis === "assumed" &&
+        (data.presentation.assumedMonthlyMinutes <= 0 ||
+          data.presentation.assumedMonthlyMinutes > data.credits * 60)
+      )
+        throw new Error("Assumed usage must be positive and no greater than included cage time.");
+      if (
+        data.presentation.comparisonResourceId !== "" &&
+        data.presentation.comparisonResourceId !== "individual"
+      )
+        throw new Error(
+          "Household cage memberships can only be compared with individual cage rentals.",
+        );
+      if (data.period !== "/ month") throw new Error("Cage memberships use monthly billing.");
+    }
     if (existing && existing.kind !== kind)
       throw new Error(
         "An existing service’s category cannot be changed. Create a new service instead.",
@@ -120,12 +162,17 @@ export async function saveServiceFor(sql: Sql, userId: string, raw: ServiceInput
         sort_order = excluded.sort_order,
         updated_at = now()
     `;
+    if (data.presentation) {
+      const presentation = servicePresentationInput.parse(data.presentation);
+      await tx`update club_services set presentation=${JSON.stringify(presentation)}::jsonb,presentation_revision=presentation_revision+1 where id=${id}`;
+      await tx`insert into website_content_audit(id,actor_id,entity,target_id,before_value,after_value) values(${randomUUID()},${userId},'service-presentation',${id},${JSON.stringify(existing?.presentation ?? null)}::jsonb,${JSON.stringify(presentation)}::jsonb)`;
+    }
     await commitFinancialLessonTermsInTransaction(tx, financial, {
       expectedBasisVersion: data.basisVersion,
       command: { type: "service", serviceId: id },
       reason: "Owner updated service terms for future bookings",
     });
-    if(adopting)await finishOperationalServiceAdoption(tx,userId,id,data.active);
+    if (adopting) await finishOperationalServiceAdoption(tx, userId, id, data.active);
     return { id };
   });
 }

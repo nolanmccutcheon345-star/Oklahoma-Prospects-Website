@@ -49,6 +49,7 @@ test("admin service assignments persist, control exact booking services, and fai
       "0028_staff_directory.sql",
       "0072_operational_people.sql",
       "0075_operational_services.sql",
+      "0101_membership_presentation_homepage.sql",
     ])
       await db.exec(
         await readFile(new URL("../../../migrations/" + file, import.meta.url), "utf8"),
