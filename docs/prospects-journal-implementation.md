@@ -43,12 +43,14 @@ Gaps: no `/articles` newsroom or article-detail route, rich editorial document m
 - [x] Inspect the existing code and identify reusable systems before edits.
 - [x] Create an isolated branch from current main and record this plan.
 - [x] Complete the implementation and launch drafts.
-- [ ] Pass acceptance and existing release gates on the final head.
-- [ ] Commit/upload, verify exact preview, and complete the authorized production release when publishing access is available.
+- [x] Pass acceptance and existing release gates for the initial Journal release (1,368 regression tests, no failures/skips).
+- [x] Commit/upload, verify exact isolated preview, and publish the initial Journal release in #229.
 
 ## Implemented operator flow
 
 Owners open **Front Office → Articles & News**. Delegated editors use `/office/journal` with their existing verified accounts and explicit Journal capabilities. Access settings start empty; sport/team scope remains intersected with current coordinator assignments. Existing billing, booking, fees and staff grants are not rewritten.
+
+The editorial overview summarizes the current workflow state of authorized articles: total, published, draft, pending review, scheduled, active featured selections, editorial attention and updates within seven days. Attention includes pending review or missing author/rights/fact verification. These counts describe draft workflow state; editing a published story still preserves its earlier public snapshot until another explicit publication.
 
 The initial additive migration installs eight editable categories and twenty private assignments. Six contain original draft manuscripts; none has an author, reviewer approval, fact-check attestation, rights confirmation or publication snapshot. The import control is idempotent and never overwrites an existing draft. Owners assign real published staff bylines, complete source/organization verification, save, submit, approve the exact revision, and explicitly publish or schedule. Restoring a revision creates a new unapproved draft. A published snapshot stays unchanged while a revision is edited; Unpublish/Archive withdraw it.
 
@@ -67,6 +69,8 @@ Local isolated regression suite: 12 passing tests covering default-deny grants, 
 Built-app browser walkthrough: synthetic owner creates an article, uploads an image, chooses a category, previews privately, submits, approves, publishes, verifies public SSR/SEO/sitemap and 375/390/768/1024/1440 layouts, then unpublishes. Anonymous draft and image URLs return 404. Screenshots contain fixtures only. `scripts/journal-walkthrough.mjs` is added to required CI without removing existing gates.
 
 Typecheck, build and built-SSR nonce/cache checks were exercised locally. Full required CI and the exact hosted preview/production receipt must be recorded on the release PR before claiming deployment. The previously released main commit `5dcac40` was verified published on 2026-10-24 at 03:16:19 UTC; the Journal is a separate release.
+
+Initial production receipt: PR #229 merged as `1e33c7bf3cac833ab11ab621ae31909add0a2538`, with the same source tree as the successful CI merge. Netlify production deploy `6adc3b69c6e5806d766e4104` published at 2026-10-24 05:01:28 UTC; live `/release.json` matched, hosted HTTP checks passed, and the existing owner account could open Articles & News and see all twenty private assignments. Required CI passed 1,368 regression tests with zero failures/skips; lint had zero errors (98 existing warnings), and npm audit found zero vulnerabilities. The dashboard overview is a follow-up presentation change; its final checks and deployment receipt belong on its release PR.
 
 ## Editorial and measurement handoff
 

@@ -251,6 +251,40 @@ export function JournalEditor() {
     );
   const allow = (p: (typeof journalPermissions)[number]) =>
     desk.owner || desk.permissions.includes(p);
+  const overview = [
+    ["Total articles", desk.articles.length],
+    ["Published", desk.articles.filter((a) => a.status === "published").length],
+    ["Drafts", desk.articles.filter((a) => a.status === "draft").length],
+    ["Pending review", desk.articles.filter((a) => a.status === "pending").length],
+    ["Scheduled", desk.articles.filter((a) => a.status === "scheduled").length],
+    [
+      "Featured selections",
+      desk.articles.filter(
+        (a) =>
+          a.status !== "archived" &&
+          (a.document.featured.homepage ||
+            a.document.featured.newsroom ||
+            a.document.featured.category) &&
+          (!a.document.featured.expiresAt ||
+            Date.parse(a.document.featured.expiresAt) > Date.now()),
+      ).length,
+    ],
+    [
+      "Needs attention",
+      desk.articles.filter(
+        (a) =>
+          a.status !== "archived" &&
+          (a.status === "pending" ||
+            !a.document.authorId ||
+            !a.document.factsVerified ||
+            !a.document.rightsConfirmed),
+      ).length,
+    ],
+    [
+      "Updated in 7 days",
+      desk.articles.filter((a) => Date.parse(a.updated_at) >= Date.now() - 7 * 86400000).length,
+    ],
+  ] as const;
   const filtered = desk.articles.filter(
     (a) =>
       (!status || a.status === status) &&
@@ -300,6 +334,22 @@ export function JournalEditor() {
       </p>
       {(tab === "articles" || tab === "calendar") && (
         <>
+          {!doc && (
+            <section aria-label="Editorial overview" className="space-y-2">
+              <p className="text-sm text-muted">
+                Current workflow status for articles you can access. Needs attention includes
+                missing bylines, rights or fact checks, and pending reviews.
+              </p>
+              <dl className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+                {overview.map(([label, count]) => (
+                  <div key={label} className="min-w-0 rounded-xl border border-line bg-white p-4">
+                    <dt className="text-sm text-muted">{label}</dt>
+                    <dd className="mt-2 text-3xl font-bold text-ink">{count}</dd>
+                  </div>
+                ))}
+              </dl>
+            </section>
+          )}
           <div className="flex flex-wrap gap-3">
             {allow("create") && (
               <button
