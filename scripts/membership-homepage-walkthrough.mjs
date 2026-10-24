@@ -237,6 +237,7 @@ try {
   assert.equal(aboutRow.published_content.title, "Synthetic academy story");
   assert.deepEqual(aboutRow.draft_content, aboutRow.published_content);
   await page.goto(h.base + "/office?section=services");
+  await page.getByRole("button", { name: "Add service", exact: true }).waitFor();
   await page.setViewportSize({ width: 390, height: 844 });
   assert.equal(
     await page.getByRole("navigation", { name: "Front Office mobile", exact: true }).isVisible(),
