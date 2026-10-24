@@ -122,12 +122,12 @@ try {
   }
   const guardian = await signedIn("guardian", 375),
     p = guardian.page;
-  await p.getByRole("link", { name: "View memberships", exact: true }).last().waitFor();
-  assert.match(await p.locator("body").innerText(), /full published price/);
-  assert.equal(await p.getByLabel(/Individual Facility Access/i).count(), 0);
   for (const teamId of ["base", "soft"]) {
     await p.getByLabel("Athlete and season").selectOption(teamId + ":" + teamId + "-player");
     await p.getByRole("button", { name: "Sign this packet", exact: true }).waitFor();
+    await p.getByRole("link", { name: "View memberships", exact: true }).waitFor();
+    assert.match(await p.locator("body").innerText(), /full published price/);
+    assert.equal(await p.getByLabel(/Individual Facility Access/i).count(), 0);
     const form = p
       .locator("form")
       .filter({ has: p.getByRole("button", { name: "Sign this packet", exact: true }) });

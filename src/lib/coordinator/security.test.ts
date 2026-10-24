@@ -3709,7 +3709,6 @@ test("coordinators see only explicitly published team prices within current rost
     assert.deepEqual(view.publishedFees, {
       full: 123456,
       po: 98765,
-      fullAccess: 153456,
       finalDue: quote.finalDue,
       revision: 3,
       at: quote.at,
