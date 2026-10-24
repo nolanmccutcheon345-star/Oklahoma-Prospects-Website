@@ -146,10 +146,12 @@ export function AboutPageEditor() {
             <fieldset disabled={busy} className="grid min-w-0 gap-4">
               <legend className="sr-only">About page content</legend>
               {fields.map((field) => (
-                <label key={field.key} className="grid min-w-0 gap-1 font-semibold">
-                  {field.label}
+                <div key={field.key} className="grid min-w-0 gap-1 font-semibold">
+                  <label htmlFor={`about-${field.key}`}>{field.label}</label>
                   {field.multiline ? (
                     <textarea
+                      id={`about-${field.key}`}
+                      name={field.key}
                       className="office-control font-normal"
                       required
                       rows={field.max > 700 ? 6 : 3}
@@ -162,6 +164,8 @@ export function AboutPageEditor() {
                     />
                   ) : (
                     <input
+                      id={`about-${field.key}`}
+                      name={field.key}
                       className="office-control font-normal"
                       required
                       maxLength={field.max}
@@ -172,7 +176,7 @@ export function AboutPageEditor() {
                       }}
                     />
                   )}
-                </label>
+                </div>
               ))}
               <div className="flex flex-wrap gap-3">
                 <Button type="submit" name="action" value="draft" variant="outlineDark">
