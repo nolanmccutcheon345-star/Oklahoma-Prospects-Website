@@ -14,6 +14,7 @@ export const OFFICE_SECTIONS = [
   ["services", "Services & Pricing"],
   ["shop", "Shop"],
   ["staff", "Staff & Access"],
+  ["articles", "Articles & News"],
   ["reports", "Reports"],
 ] as const;
 export type OfficeSection = (typeof OFFICE_SECTIONS)[number][0];

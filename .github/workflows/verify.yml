@@ -63,6 +63,10 @@ jobs:
         run: node scripts/membership-homepage-walkthrough.mjs
         env:
           NETLIFY: "true"
+      - name: Isolated Journal publishing walkthrough
+        run: node scripts/journal-walkthrough.mjs
+        env:
+          NETLIFY: "true"
       - name: Isolated coach tryout center walkthrough
         run: node scripts/check-tryout-center.mjs
       - name: Isolated shop walkthrough
@@ -80,6 +84,7 @@ jobs:
             artifacts/tryout-center
             artifacts/shop
             artifacts/membership
+            artifacts/journal
             artifacts/coordinator
             artifacts/tournament-finder
           if-no-files-found: ignore

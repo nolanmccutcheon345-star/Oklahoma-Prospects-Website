@@ -1,3 +1,4 @@
+import { JournalEditor } from "./journal/editor";
 import { WebsiteContentEditor } from "./website-content-editor";
 import type { TeamFinancialView } from "@/lib/teams/financial-view";
 import { StaffRoleManagement } from "./coordinator/staff-management";
@@ -170,6 +171,7 @@ export function OfficeWorkspace({
         />
       )}
       {section === "events" && <EventOffice />}
+      {section === "articles" && <JournalEditor />}
       {section === "requests" && <OfficeRequests />}
       {section === "teams" && (
         <>

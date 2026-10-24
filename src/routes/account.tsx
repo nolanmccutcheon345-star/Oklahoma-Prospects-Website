@@ -240,6 +240,7 @@ function AccountHome() {
   return (
     <main id="main">
       <CoordinatorAccountLink />
+      <nav aria-label="Journal account tools" className="mx-auto flex max-w-3xl flex-wrap gap-4 px-5 py-3"><a href="/account/journal-consent" className="min-h-11 underline">Journal publication consent</a><a href="/office/journal" className="min-h-11 underline">Editorial workspace (authorized staff)</a></nav>
       {(profile.role==='admin'||profile.role==='coach'||profile.canInstruct||profile.canOperateInstruction||profile.canTeamCoach)&&<nav aria-label="My workspaces" className="mx-auto flex max-w-3xl flex-wrap gap-4 px-5 py-3">{(profile.role==='admin'||profile.role==='coach'||profile.canInstruct||profile.canTeamCoach)&&<a className="min-h-11 underline" href="/my-profile">My Shared Profile</a>}{(profile.canInstruct||profile.canOperateInstruction||profile.role==='admin')&&<a className="min-h-11 underline" href="/instructor">Instructor Workspace</a>}{(profile.canTeamCoach||profile.role==='admin')&&<a className="min-h-11 underline" href="/coach">Team Coach Workspace</a>}<a className="min-h-11 underline" href="/family">Family</a></nav>}
       {profile.role === "admin" ? (
         <header className="bg-ink p-5 text-white">

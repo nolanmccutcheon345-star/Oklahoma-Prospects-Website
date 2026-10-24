@@ -9,6 +9,7 @@ import {
   ShoppingBag,
   ChevronUp,
   Menu,
+  Newspaper,
 } from "lucide-react";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { CLUB } from "@/lib/club";
@@ -23,10 +24,7 @@ function ClubWordmark({ name }: { name: string }) {
   const splitAt = name.lastIndexOf(" ");
   const lines = splitAt > 0 ? [name.slice(0, splitAt), name.slice(splitAt + 1)] : [name];
   return (
-    <span
-      className="club-wordmark max-[360px]:text-[0.94rem]"
-      data-club-wordmark
-    >
+    <span className="club-wordmark max-[360px]:text-[0.94rem]" data-club-wordmark>
       {lines.map((line, index) => (
         <span className="club-wordmark-line" key={line}>
           {index > 0 ? (
@@ -127,6 +125,12 @@ export function AppShell({ children }: { children: ReactNode }) {
       icon: ShoppingBag,
       match: (path: string) => path.startsWith("/merchandise"),
     },
+    {
+      to: "/articles",
+      label: "Articles & News",
+      icon: Newspaper,
+      match: (path: string) => path.startsWith("/articles"),
+    },
   ] as const;
 
   return (
@@ -221,8 +225,13 @@ export function AppShell({ children }: { children: ReactNode }) {
           )}
           style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
         >
-          <ul className="relative mx-auto grid max-w-6xl grid-cols-6">
-            {tabs.map((tab) => {
+          <ul
+            className={cn(
+              "relative mx-auto grid max-w-6xl",
+              privateWorkspace ? "grid-cols-6" : "grid-cols-7",
+            )}
+          >
+            {(privateWorkspace ? tabs.filter((tab) => tab.to !== "/articles") : tabs).map((tab) => {
               const active = tab.match(pathname);
               const Icon = tab.icon;
               const tabClass = cn(
@@ -309,6 +318,7 @@ export function AppShell({ children }: { children: ReactNode }) {
               (openMenu === "Menu"
                 ? [
                     { label: "Home", to: "/" as const },
+                    { label: "Articles & News", to: "/articles" as const },
                     { label: "Book a cage", to: "/book" as const },
                     { label: "Facility & rates", to: "/facility" as const },
                     { label: "Training & lessons", to: "/training" as const },

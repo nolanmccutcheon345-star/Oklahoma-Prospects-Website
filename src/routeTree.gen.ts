@@ -41,6 +41,7 @@ import { Route as PlayersRouteImport } from './routes/players'
 import { Route as PrivacyRouteImport } from './routes/privacy'
 import { Route as RecruitingRouteImport } from './routes/recruiting'
 import { Route as RegistrationsRouteImport } from './routes/registrations'
+import { Route as SitemapDotxmlRouteImport } from './routes/sitemap[.]xml'
 import { Route as SoftballRouteImport } from './routes/softball'
 import { Route as TeamsRouteImport } from './routes/teams'
 import { Route as TermsRouteImport } from './routes/terms'
@@ -50,9 +51,12 @@ import { Route as TwoFactorRouteImport } from './routes/two-factor'
 import { Route as VisitRouteImport } from './routes/visit'
 import { Route as VisitsRouteImport } from './routes/visits'
 import { Route as WaiverRouteImport } from './routes/waiver'
+import { Route as AccountJournalConsentRouteImport } from './routes/account_.journal-consent'
 import { Route as ApiHealthRouteImport } from './routes/api/health'
 import { Route as ApiSiteAlertsRouteImport } from './routes/api/site-alerts'
 import { Route as ApiTryoutNotificationsRouteImport } from './routes/api/tryout-notifications'
+import { Route as ArticlesIndexRouteImport } from './routes/articles.index'
+import { Route as ArticlesSlugRouteImport } from './routes/articles.$slug'
 import { Route as FundraisingIndexRouteImport } from './routes/fundraising.index'
 import { Route as FundraisingExampleRouteImport } from './routes/fundraising.example'
 import { Route as FundraisingMyRouteImport } from './routes/fundraising.my'
@@ -60,6 +64,7 @@ import { Route as FundraisingOfficeRouteImport } from './routes/fundraising.offi
 import { Route as FundraisingThankYouRouteImport } from './routes/fundraising.thank-you'
 import { Route as GoDestRouteImport } from './routes/go.$dest'
 import { Route as MerchandiseProductIdRouteImport } from './routes/merchandise_.$productId'
+import { Route as OfficeJournalRouteImport } from './routes/office_.journal'
 import { Route as PlayerPlayerIdRouteImport } from './routes/player.$playerId'
 import { Route as TeamsTeamIdRouteImport } from './routes/teams.$teamId'
 import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
@@ -75,8 +80,10 @@ import { Route as ApiShopFulfillRouteImport } from './routes/api/shop/fulfill'
 import { Route as ApiSquareReconcileRouteImport } from './routes/api/square/reconcile'
 import { Route as ApiSquareWebhookRouteImport } from './routes/api/square/webhook'
 import { Route as ApiStripeWebhookRouteImport } from './routes/api/stripe/webhook'
+import { Route as ArticlesAuthorsAuthorIdRouteImport } from './routes/articles.authors.$authorId'
 import { Route as FundraisingPIdRouteImport } from './routes/fundraising.p.$id'
 import { Route as ApiFundraisingPlayersIdRouteImport } from './routes/api/fundraising/players.$id'
+import { Route as ApiJournalImagesImageIdRouteImport } from './routes/api/journal/images/$imageId'
 import { Route as ApiShopImagesImageIdRouteImport } from './routes/api/shop/images/$imageId'
 import { Route as TeamsTeamIdPlayersRosterPlayerIdRouteImport } from './routes/teams.$teamId.players.$rosterPlayerId'
 
@@ -240,6 +247,11 @@ const RegistrationsRoute = RegistrationsRouteImport.update({
   path: '/registrations',
   getParentRoute: () => rootRouteImport,
 } as any)
+const SitemapDotxmlRoute = SitemapDotxmlRouteImport.update({
+  id: '/sitemap.xml',
+  path: '/sitemap.xml',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const SoftballRoute = SoftballRouteImport.update({
   id: '/softball',
   path: '/softball',
@@ -285,6 +297,11 @@ const WaiverRoute = WaiverRouteImport.update({
   path: '/waiver',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AccountJournalConsentRoute = AccountJournalConsentRouteImport.update({
+  id: '/account_/journal-consent',
+  path: '/account/journal-consent',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiHealthRoute = ApiHealthRouteImport.update({
   id: '/api/health',
   path: '/api/health',
@@ -298,6 +315,16 @@ const ApiSiteAlertsRoute = ApiSiteAlertsRouteImport.update({
 const ApiTryoutNotificationsRoute = ApiTryoutNotificationsRouteImport.update({
   id: '/api/tryout-notifications',
   path: '/api/tryout-notifications',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ArticlesIndexRoute = ArticlesIndexRouteImport.update({
+  id: '/articles/',
+  path: '/articles/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ArticlesSlugRoute = ArticlesSlugRouteImport.update({
+  id: '/articles/$slug',
+  path: '/articles/$slug',
   getParentRoute: () => rootRouteImport,
 } as any)
 const FundraisingIndexRoute = FundraisingIndexRouteImport.update({
@@ -333,6 +360,11 @@ const GoDestRoute = GoDestRouteImport.update({
 const MerchandiseProductIdRoute = MerchandiseProductIdRouteImport.update({
   id: '/merchandise_/$productId',
   path: '/merchandise/$productId',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const OfficeJournalRoute = OfficeJournalRouteImport.update({
+  id: '/office_/journal',
+  path: '/office/journal',
   getParentRoute: () => rootRouteImport,
 } as any)
 const PlayerPlayerIdRoute = PlayerPlayerIdRouteImport.update({
@@ -410,6 +442,11 @@ const ApiStripeWebhookRoute = ApiStripeWebhookRouteImport.update({
   path: '/api/stripe/webhook',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ArticlesAuthorsAuthorIdRoute = ArticlesAuthorsAuthorIdRouteImport.update({
+  id: '/articles/authors/$authorId',
+  path: '/articles/authors/$authorId',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const FundraisingPIdRoute = FundraisingPIdRouteImport.update({
   id: '/fundraising/p/$id',
   path: '/fundraising/p/$id',
@@ -419,6 +456,11 @@ const ApiFundraisingPlayersIdRoute = ApiFundraisingPlayersIdRouteImport.update({
   id: '/$id',
   path: '/$id',
   getParentRoute: () => ApiFundraisingPlayersRoute,
+} as any)
+const ApiJournalImagesImageIdRoute = ApiJournalImagesImageIdRouteImport.update({
+  id: '/api/journal/images/$imageId',
+  path: '/api/journal/images/$imageId',
+  getParentRoute: () => rootRouteImport,
 } as any)
 const ApiShopImagesImageIdRoute = ApiShopImagesImageIdRouteImport.update({
   id: '/api/shop/images/$imageId',
@@ -465,6 +507,7 @@ export interface FileRoutesByFullPath {
   '/privacy': typeof PrivacyRoute
   '/recruiting': typeof RecruitingRoute
   '/registrations': typeof RegistrationsRoute
+  '/sitemap.xml': typeof SitemapDotxmlRoute
   '/softball': typeof SoftballRoute
   '/teams': typeof TeamsRouteWithChildren
   '/terms': typeof TermsRoute
@@ -474,17 +517,21 @@ export interface FileRoutesByFullPath {
   '/visit': typeof VisitRoute
   '/visits': typeof VisitsRoute
   '/waiver': typeof WaiverRoute
+  '/account/journal-consent': typeof AccountJournalConsentRoute
   '/api/health': typeof ApiHealthRoute
   '/api/site-alerts': typeof ApiSiteAlertsRoute
   '/api/tryout-notifications': typeof ApiTryoutNotificationsRoute
+  '/articles/$slug': typeof ArticlesSlugRoute
   '/fundraising/example': typeof FundraisingExampleRoute
   '/fundraising/my': typeof FundraisingMyRoute
   '/fundraising/office': typeof FundraisingOfficeRoute
   '/fundraising/thank-you': typeof FundraisingThankYouRoute
   '/go/$dest': typeof GoDestRoute
   '/merchandise/$productId': typeof MerchandiseProductIdRoute
+  '/office/journal': typeof OfficeJournalRoute
   '/player/$playerId': typeof PlayerPlayerIdRoute
   '/teams/$teamId': typeof TeamsTeamIdRouteWithChildren
+  '/articles/': typeof ArticlesIndexRoute
   '/fundraising/': typeof FundraisingIndexRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/fundraising/checkout': typeof ApiFundraisingCheckoutRoute
@@ -499,8 +546,10 @@ export interface FileRoutesByFullPath {
   '/api/square/reconcile': typeof ApiSquareReconcileRoute
   '/api/square/webhook': typeof ApiSquareWebhookRoute
   '/api/stripe/webhook': typeof ApiStripeWebhookRoute
+  '/articles/authors/$authorId': typeof ArticlesAuthorsAuthorIdRoute
   '/fundraising/p/$id': typeof FundraisingPIdRoute
   '/api/fundraising/players/$id': typeof ApiFundraisingPlayersIdRoute
+  '/api/journal/images/$imageId': typeof ApiJournalImagesImageIdRoute
   '/api/shop/images/$imageId': typeof ApiShopImagesImageIdRoute
   '/teams/$teamId/players/$rosterPlayerId': typeof TeamsTeamIdPlayersRosterPlayerIdRoute
 }
@@ -537,6 +586,7 @@ export interface FileRoutesByTo {
   '/privacy': typeof PrivacyRoute
   '/recruiting': typeof RecruitingRoute
   '/registrations': typeof RegistrationsRoute
+  '/sitemap.xml': typeof SitemapDotxmlRoute
   '/softball': typeof SoftballRoute
   '/teams': typeof TeamsRouteWithChildren
   '/terms': typeof TermsRoute
@@ -546,17 +596,21 @@ export interface FileRoutesByTo {
   '/visit': typeof VisitRoute
   '/visits': typeof VisitsRoute
   '/waiver': typeof WaiverRoute
+  '/account/journal-consent': typeof AccountJournalConsentRoute
   '/api/health': typeof ApiHealthRoute
   '/api/site-alerts': typeof ApiSiteAlertsRoute
   '/api/tryout-notifications': typeof ApiTryoutNotificationsRoute
+  '/articles/$slug': typeof ArticlesSlugRoute
   '/fundraising/example': typeof FundraisingExampleRoute
   '/fundraising/my': typeof FundraisingMyRoute
   '/fundraising/office': typeof FundraisingOfficeRoute
   '/fundraising/thank-you': typeof FundraisingThankYouRoute
   '/go/$dest': typeof GoDestRoute
   '/merchandise/$productId': typeof MerchandiseProductIdRoute
+  '/office/journal': typeof OfficeJournalRoute
   '/player/$playerId': typeof PlayerPlayerIdRoute
   '/teams/$teamId': typeof TeamsTeamIdRouteWithChildren
+  '/articles': typeof ArticlesIndexRoute
   '/fundraising': typeof FundraisingIndexRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/fundraising/checkout': typeof ApiFundraisingCheckoutRoute
@@ -571,8 +625,10 @@ export interface FileRoutesByTo {
   '/api/square/reconcile': typeof ApiSquareReconcileRoute
   '/api/square/webhook': typeof ApiSquareWebhookRoute
   '/api/stripe/webhook': typeof ApiStripeWebhookRoute
+  '/articles/authors/$authorId': typeof ArticlesAuthorsAuthorIdRoute
   '/fundraising/p/$id': typeof FundraisingPIdRoute
   '/api/fundraising/players/$id': typeof ApiFundraisingPlayersIdRoute
+  '/api/journal/images/$imageId': typeof ApiJournalImagesImageIdRoute
   '/api/shop/images/$imageId': typeof ApiShopImagesImageIdRoute
   '/teams/$teamId/players/$rosterPlayerId': typeof TeamsTeamIdPlayersRosterPlayerIdRoute
 }
@@ -610,6 +666,7 @@ export interface FileRoutesById {
   '/privacy': typeof PrivacyRoute
   '/recruiting': typeof RecruitingRoute
   '/registrations': typeof RegistrationsRoute
+  '/sitemap.xml': typeof SitemapDotxmlRoute
   '/softball': typeof SoftballRoute
   '/teams': typeof TeamsRouteWithChildren
   '/terms': typeof TermsRoute
@@ -619,17 +676,21 @@ export interface FileRoutesById {
   '/visit': typeof VisitRoute
   '/visits': typeof VisitsRoute
   '/waiver': typeof WaiverRoute
+  '/account_/journal-consent': typeof AccountJournalConsentRoute
   '/api/health': typeof ApiHealthRoute
   '/api/site-alerts': typeof ApiSiteAlertsRoute
   '/api/tryout-notifications': typeof ApiTryoutNotificationsRoute
+  '/articles/$slug': typeof ArticlesSlugRoute
   '/fundraising/example': typeof FundraisingExampleRoute
   '/fundraising/my': typeof FundraisingMyRoute
   '/fundraising/office': typeof FundraisingOfficeRoute
   '/fundraising/thank-you': typeof FundraisingThankYouRoute
   '/go/$dest': typeof GoDestRoute
   '/merchandise_/$productId': typeof MerchandiseProductIdRoute
+  '/office_/journal': typeof OfficeJournalRoute
   '/player/$playerId': typeof PlayerPlayerIdRoute
   '/teams/$teamId': typeof TeamsTeamIdRouteWithChildren
+  '/articles/': typeof ArticlesIndexRoute
   '/fundraising/': typeof FundraisingIndexRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/fundraising/checkout': typeof ApiFundraisingCheckoutRoute
@@ -644,8 +705,10 @@ export interface FileRoutesById {
   '/api/square/reconcile': typeof ApiSquareReconcileRoute
   '/api/square/webhook': typeof ApiSquareWebhookRoute
   '/api/stripe/webhook': typeof ApiStripeWebhookRoute
+  '/articles/authors/$authorId': typeof ArticlesAuthorsAuthorIdRoute
   '/fundraising/p/$id': typeof FundraisingPIdRoute
   '/api/fundraising/players/$id': typeof ApiFundraisingPlayersIdRoute
+  '/api/journal/images/$imageId': typeof ApiJournalImagesImageIdRoute
   '/api/shop/images/$imageId': typeof ApiShopImagesImageIdRoute
   '/teams/$teamId/players/$rosterPlayerId': typeof TeamsTeamIdPlayersRosterPlayerIdRoute
 }
@@ -684,6 +747,7 @@ export interface FileRouteTypes {
     | '/privacy'
     | '/recruiting'
     | '/registrations'
+    | '/sitemap.xml'
     | '/softball'
     | '/teams'
     | '/terms'
@@ -693,17 +757,21 @@ export interface FileRouteTypes {
     | '/visit'
     | '/visits'
     | '/waiver'
+    | '/account/journal-consent'
     | '/api/health'
     | '/api/site-alerts'
     | '/api/tryout-notifications'
+    | '/articles/$slug'
     | '/fundraising/example'
     | '/fundraising/my'
     | '/fundraising/office'
     | '/fundraising/thank-you'
     | '/go/$dest'
     | '/merchandise/$productId'
+    | '/office/journal'
     | '/player/$playerId'
     | '/teams/$teamId'
+    | '/articles/'
     | '/fundraising/'
     | '/api/auth/$'
     | '/api/fundraising/checkout'
@@ -718,8 +786,10 @@ export interface FileRouteTypes {
     | '/api/square/reconcile'
     | '/api/square/webhook'
     | '/api/stripe/webhook'
+    | '/articles/authors/$authorId'
     | '/fundraising/p/$id'
     | '/api/fundraising/players/$id'
+    | '/api/journal/images/$imageId'
     | '/api/shop/images/$imageId'
     | '/teams/$teamId/players/$rosterPlayerId'
   fileRoutesByTo: FileRoutesByTo
@@ -756,6 +826,7 @@ export interface FileRouteTypes {
     | '/privacy'
     | '/recruiting'
     | '/registrations'
+    | '/sitemap.xml'
     | '/softball'
     | '/teams'
     | '/terms'
@@ -765,17 +836,21 @@ export interface FileRouteTypes {
     | '/visit'
     | '/visits'
     | '/waiver'
+    | '/account/journal-consent'
     | '/api/health'
     | '/api/site-alerts'
     | '/api/tryout-notifications'
+    | '/articles/$slug'
     | '/fundraising/example'
     | '/fundraising/my'
     | '/fundraising/office'
     | '/fundraising/thank-you'
     | '/go/$dest'
     | '/merchandise/$productId'
+    | '/office/journal'
     | '/player/$playerId'
     | '/teams/$teamId'
+    | '/articles'
     | '/fundraising'
     | '/api/auth/$'
     | '/api/fundraising/checkout'
@@ -790,8 +865,10 @@ export interface FileRouteTypes {
     | '/api/square/reconcile'
     | '/api/square/webhook'
     | '/api/stripe/webhook'
+    | '/articles/authors/$authorId'
     | '/fundraising/p/$id'
     | '/api/fundraising/players/$id'
+    | '/api/journal/images/$imageId'
     | '/api/shop/images/$imageId'
     | '/teams/$teamId/players/$rosterPlayerId'
   id:
@@ -828,6 +905,7 @@ export interface FileRouteTypes {
     | '/privacy'
     | '/recruiting'
     | '/registrations'
+    | '/sitemap.xml'
     | '/softball'
     | '/teams'
     | '/terms'
@@ -837,17 +915,21 @@ export interface FileRouteTypes {
     | '/visit'
     | '/visits'
     | '/waiver'
+    | '/account_/journal-consent'
     | '/api/health'
     | '/api/site-alerts'
     | '/api/tryout-notifications'
+    | '/articles/$slug'
     | '/fundraising/example'
     | '/fundraising/my'
     | '/fundraising/office'
     | '/fundraising/thank-you'
     | '/go/$dest'
     | '/merchandise_/$productId'
+    | '/office_/journal'
     | '/player/$playerId'
     | '/teams/$teamId'
+    | '/articles/'
     | '/fundraising/'
     | '/api/auth/$'
     | '/api/fundraising/checkout'
@@ -862,8 +944,10 @@ export interface FileRouteTypes {
     | '/api/square/reconcile'
     | '/api/square/webhook'
     | '/api/stripe/webhook'
+    | '/articles/authors/$authorId'
     | '/fundraising/p/$id'
     | '/api/fundraising/players/$id'
+    | '/api/journal/images/$imageId'
     | '/api/shop/images/$imageId'
     | '/teams/$teamId/players/$rosterPlayerId'
   fileRoutesById: FileRoutesById
@@ -901,6 +985,7 @@ export interface RootRouteChildren {
   PrivacyRoute: typeof PrivacyRoute
   RecruitingRoute: typeof RecruitingRoute
   RegistrationsRoute: typeof RegistrationsRoute
+  SitemapDotxmlRoute: typeof SitemapDotxmlRoute
   SoftballRoute: typeof SoftballRoute
   TeamsRoute: typeof TeamsRouteWithChildren
   TermsRoute: typeof TermsRoute
@@ -910,16 +995,20 @@ export interface RootRouteChildren {
   VisitRoute: typeof VisitRoute
   VisitsRoute: typeof VisitsRoute
   WaiverRoute: typeof WaiverRoute
+  AccountJournalConsentRoute: typeof AccountJournalConsentRoute
   ApiHealthRoute: typeof ApiHealthRoute
   ApiSiteAlertsRoute: typeof ApiSiteAlertsRoute
   ApiTryoutNotificationsRoute: typeof ApiTryoutNotificationsRoute
+  ArticlesSlugRoute: typeof ArticlesSlugRoute
   FundraisingExampleRoute: typeof FundraisingExampleRoute
   FundraisingMyRoute: typeof FundraisingMyRoute
   FundraisingOfficeRoute: typeof FundraisingOfficeRoute
   FundraisingThankYouRoute: typeof FundraisingThankYouRoute
   GoDestRoute: typeof GoDestRoute
   MerchandiseProductIdRoute: typeof MerchandiseProductIdRoute
+  OfficeJournalRoute: typeof OfficeJournalRoute
   PlayerPlayerIdRoute: typeof PlayerPlayerIdRoute
+  ArticlesIndexRoute: typeof ArticlesIndexRoute
   FundraisingIndexRoute: typeof FundraisingIndexRoute
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
   ApiFundraisingCheckoutRoute: typeof ApiFundraisingCheckoutRoute
@@ -934,7 +1023,9 @@ export interface RootRouteChildren {
   ApiSquareReconcileRoute: typeof ApiSquareReconcileRoute
   ApiSquareWebhookRoute: typeof ApiSquareWebhookRoute
   ApiStripeWebhookRoute: typeof ApiStripeWebhookRoute
+  ArticlesAuthorsAuthorIdRoute: typeof ArticlesAuthorsAuthorIdRoute
   FundraisingPIdRoute: typeof FundraisingPIdRoute
+  ApiJournalImagesImageIdRoute: typeof ApiJournalImagesImageIdRoute
   ApiShopImagesImageIdRoute: typeof ApiShopImagesImageIdRoute
 }
 
@@ -1164,6 +1255,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof RegistrationsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/sitemap.xml': {
+      id: '/sitemap.xml'
+      path: '/sitemap.xml'
+      fullPath: '/sitemap.xml'
+      preLoaderRoute: typeof SitemapDotxmlRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/softball': {
       id: '/softball'
       path: '/softball'
@@ -1227,6 +1325,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof WaiverRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/account_/journal-consent': {
+      id: '/account_/journal-consent'
+      path: '/account/journal-consent'
+      fullPath: '/account/journal-consent'
+      preLoaderRoute: typeof AccountJournalConsentRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/health': {
       id: '/api/health'
       path: '/api/health'
@@ -1246,6 +1351,20 @@ declare module '@tanstack/react-router' {
       path: '/api/tryout-notifications'
       fullPath: '/api/tryout-notifications'
       preLoaderRoute: typeof ApiTryoutNotificationsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/articles/': {
+      id: '/articles/'
+      path: '/articles'
+      fullPath: '/articles/'
+      preLoaderRoute: typeof ArticlesIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/articles/$slug': {
+      id: '/articles/$slug'
+      path: '/articles/$slug'
+      fullPath: '/articles/$slug'
+      preLoaderRoute: typeof ArticlesSlugRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/fundraising/': {
@@ -1295,6 +1414,13 @@ declare module '@tanstack/react-router' {
       path: '/merchandise/$productId'
       fullPath: '/merchandise/$productId'
       preLoaderRoute: typeof MerchandiseProductIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/office_/journal': {
+      id: '/office_/journal'
+      path: '/office/journal'
+      fullPath: '/office/journal'
+      preLoaderRoute: typeof OfficeJournalRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/player/$playerId': {
@@ -1402,6 +1528,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiStripeWebhookRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/articles/authors/$authorId': {
+      id: '/articles/authors/$authorId'
+      path: '/articles/authors/$authorId'
+      fullPath: '/articles/authors/$authorId'
+      preLoaderRoute: typeof ArticlesAuthorsAuthorIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/fundraising/p/$id': {
       id: '/fundraising/p/$id'
       path: '/fundraising/p/$id'
@@ -1415,6 +1548,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/api/fundraising/players/$id'
       preLoaderRoute: typeof ApiFundraisingPlayersIdRouteImport
       parentRoute: typeof ApiFundraisingPlayersRoute
+    }
+    '/api/journal/images/$imageId': {
+      id: '/api/journal/images/$imageId'
+      path: '/api/journal/images/$imageId'
+      fullPath: '/api/journal/images/$imageId'
+      preLoaderRoute: typeof ApiJournalImagesImageIdRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/api/shop/images/$imageId': {
       id: '/api/shop/images/$imageId'
@@ -1501,6 +1641,7 @@ const rootRouteChildren: RootRouteChildren = {
   PrivacyRoute: PrivacyRoute,
   RecruitingRoute: RecruitingRoute,
   RegistrationsRoute: RegistrationsRoute,
+  SitemapDotxmlRoute: SitemapDotxmlRoute,
   SoftballRoute: SoftballRoute,
   TeamsRoute: TeamsRouteWithChildren,
   TermsRoute: TermsRoute,
@@ -1510,16 +1651,20 @@ const rootRouteChildren: RootRouteChildren = {
   VisitRoute: VisitRoute,
   VisitsRoute: VisitsRoute,
   WaiverRoute: WaiverRoute,
+  AccountJournalConsentRoute: AccountJournalConsentRoute,
   ApiHealthRoute: ApiHealthRoute,
   ApiSiteAlertsRoute: ApiSiteAlertsRoute,
   ApiTryoutNotificationsRoute: ApiTryoutNotificationsRoute,
+  ArticlesSlugRoute: ArticlesSlugRoute,
   FundraisingExampleRoute: FundraisingExampleRoute,
   FundraisingMyRoute: FundraisingMyRoute,
   FundraisingOfficeRoute: FundraisingOfficeRoute,
   FundraisingThankYouRoute: FundraisingThankYouRoute,
   GoDestRoute: GoDestRoute,
   MerchandiseProductIdRoute: MerchandiseProductIdRoute,
+  OfficeJournalRoute: OfficeJournalRoute,
   PlayerPlayerIdRoute: PlayerPlayerIdRoute,
+  ArticlesIndexRoute: ArticlesIndexRoute,
   FundraisingIndexRoute: FundraisingIndexRoute,
   ApiAuthSplatRoute: ApiAuthSplatRoute,
   ApiFundraisingCheckoutRoute: ApiFundraisingCheckoutRoute,
@@ -1534,7 +1679,9 @@ const rootRouteChildren: RootRouteChildren = {
   ApiSquareReconcileRoute: ApiSquareReconcileRoute,
   ApiSquareWebhookRoute: ApiSquareWebhookRoute,
   ApiStripeWebhookRoute: ApiStripeWebhookRoute,
+  ArticlesAuthorsAuthorIdRoute: ArticlesAuthorsAuthorIdRoute,
   FundraisingPIdRoute: FundraisingPIdRoute,
+  ApiJournalImagesImageIdRoute: ApiJournalImagesImageIdRoute,
   ApiShopImagesImageIdRoute: ApiShopImagesImageIdRoute,
 }
 export const routeTree = rootRouteImport
