@@ -5,6 +5,9 @@ export const sports = ["baseball", "softball"] as const;
 export type Sport = (typeof sports)[number];
 // This allowlist is the complete grantable surface. Never accept wildcards or arbitrary strings.
 export const capabilities = {
+  "enrollment.read": "View authorized operational enrollment checklists",
+  "enrollment.manage": "Manage authorized operational enrollment tasks",
+  "standards.draft": "Draft team standards for owner approval",
   "recruiting.read": "View recruiting prospects",
   "tryouts.read": "View tryout registrations",
   "tryouts.create": "Create scoped tryout drafts",

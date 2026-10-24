@@ -22,7 +22,8 @@ export type NavigationLink = {
     | "/account"
     | "/login"
     | "/contact"
-    | "/about";
+    | "/about"
+    | "/handbook";
   search?: { view: "plans" } | { next: "/account" };
 };
 export type NavigationGroup = {
@@ -59,6 +60,7 @@ export const navigationGroups: Record<NavigationGroupId, NavigationGroup> = {
       { id: "coaches", label: "Coaches", to: "/coaches" },
       { id: "tryouts", label: "Tryouts", to: "/tryouts" },
       { id: "players", label: "Players", to: "/players" },
+      { id: "handbook", label: "Parent & Player Handbook", to: "/handbook" },
       { id: "all-teams", label: "Explore all teams", to: "/teams" },
     ],
   },

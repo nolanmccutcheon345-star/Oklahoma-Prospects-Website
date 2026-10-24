@@ -15,6 +15,7 @@ export default tseslint.config(
       // Generated bundle emitted by the checkout render test; source is linted below.
       "artifacts/discount-checkout-render.mjs",
       "artifacts/team-fee-render.mjs",
+      "artifacts/front-office-render.mjs",
       "scripts/.lesson-ui-*/**",
       "scripts/.render-component-*/**",
       ".output/**",

@@ -23,6 +23,8 @@ import { Route as EventsRouteImport } from './routes/events'
 import { Route as FacilityRouteImport } from './routes/facility'
 import { Route as FamilyRouteImport } from './routes/family'
 import { Route as GamesRouteImport } from './routes/games'
+import { Route as HandbookRouteImport } from './routes/handbook'
+import { Route as HandbooksRouteImport } from './routes/handbooks'
 import { Route as InstructorRouteImport } from './routes/instructor'
 import { Route as InstructorsRouteImport } from './routes/instructors'
 import { Route as InvitationsRouteImport } from './routes/invitations'
@@ -156,6 +158,16 @@ const FamilyRoute = FamilyRouteImport.update({
 const GamesRoute = GamesRouteImport.update({
   id: '/games',
   path: '/games',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const HandbookRoute = HandbookRouteImport.update({
+  id: '/handbook',
+  path: '/handbook',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const HandbooksRoute = HandbooksRouteImport.update({
+  id: '/handbooks',
+  path: '/handbooks',
   getParentRoute: () => rootRouteImport,
 } as any)
 const InstructorRoute = InstructorRouteImport.update({
@@ -495,6 +507,8 @@ export interface FileRoutesByFullPath {
   '/facility': typeof FacilityRoute
   '/family': typeof FamilyRoute
   '/games': typeof GamesRoute
+  '/handbook': typeof HandbookRoute
+  '/handbooks': typeof HandbooksRoute
   '/instructor': typeof InstructorRoute
   '/instructors': typeof InstructorsRoute
   '/invitations': typeof InvitationsRoute
@@ -575,6 +589,8 @@ export interface FileRoutesByTo {
   '/facility': typeof FacilityRoute
   '/family': typeof FamilyRoute
   '/games': typeof GamesRoute
+  '/handbook': typeof HandbookRoute
+  '/handbooks': typeof HandbooksRoute
   '/instructor': typeof InstructorRoute
   '/instructors': typeof InstructorsRoute
   '/invitations': typeof InvitationsRoute
@@ -656,6 +672,8 @@ export interface FileRoutesById {
   '/facility': typeof FacilityRoute
   '/family': typeof FamilyRoute
   '/games': typeof GamesRoute
+  '/handbook': typeof HandbookRoute
+  '/handbooks': typeof HandbooksRoute
   '/instructor': typeof InstructorRoute
   '/instructors': typeof InstructorsRoute
   '/invitations': typeof InvitationsRoute
@@ -738,6 +756,8 @@ export interface FileRouteTypes {
     | '/facility'
     | '/family'
     | '/games'
+    | '/handbook'
+    | '/handbooks'
     | '/instructor'
     | '/instructors'
     | '/invitations'
@@ -818,6 +838,8 @@ export interface FileRouteTypes {
     | '/facility'
     | '/family'
     | '/games'
+    | '/handbook'
+    | '/handbooks'
     | '/instructor'
     | '/instructors'
     | '/invitations'
@@ -898,6 +920,8 @@ export interface FileRouteTypes {
     | '/facility'
     | '/family'
     | '/games'
+    | '/handbook'
+    | '/handbooks'
     | '/instructor'
     | '/instructors'
     | '/invitations'
@@ -979,6 +1003,8 @@ export interface RootRouteChildren {
   FacilityRoute: typeof FacilityRoute
   FamilyRoute: typeof FamilyRoute
   GamesRoute: typeof GamesRoute
+  HandbookRoute: typeof HandbookRoute
+  HandbooksRoute: typeof HandbooksRoute
   InstructorRoute: typeof InstructorRoute
   InstructorsRoute: typeof InstructorsRoute
   InvitationsRoute: typeof InvitationsRoute
@@ -1140,6 +1166,20 @@ declare module '@tanstack/react-router' {
       path: '/games'
       fullPath: '/games'
       preLoaderRoute: typeof GamesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/handbook': {
+      id: '/handbook'
+      path: '/handbook'
+      fullPath: '/handbook'
+      preLoaderRoute: typeof HandbookRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/handbooks': {
+      id: '/handbooks'
+      path: '/handbooks'
+      fullPath: '/handbooks'
+      preLoaderRoute: typeof HandbooksRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/instructor': {
@@ -1643,6 +1683,8 @@ const rootRouteChildren: RootRouteChildren = {
   FacilityRoute: FacilityRoute,
   FamilyRoute: FamilyRoute,
   GamesRoute: GamesRoute,
+  HandbookRoute: HandbookRoute,
+  HandbooksRoute: HandbooksRoute,
   InstructorRoute: InstructorRoute,
   InstructorsRoute: InstructorsRoute,
   InvitationsRoute: InvitationsRoute,

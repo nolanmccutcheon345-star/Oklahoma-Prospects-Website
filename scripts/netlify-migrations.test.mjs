@@ -140,6 +140,7 @@ for (const baselineVersion of [66, 76, 79])
             "0102_prospects_journal.sql",
             "0103_journal_launch_drafts.sql",
             "0104_website_about.sql",
+            "0105_handbook_versions.sql",
           ],
         );
       for (const { name } of late) {

@@ -244,12 +244,12 @@ test("public navigation, sport links and purchase availability agree with the li
       [...document.querySelectorAll('[aria-label="Teams destinations"] a')].map(
         (a) => a.textContent,
       ),
-      ["Baseball", "Softball", "Coaches", "Tryouts", "Players", "Explore all teams"],
+      ["Baseball", "Softball", "Coaches", "Tryouts", "Players", "Parent & Player Handbook", "Explore all teams"],
     );
     const choices = [...document.querySelectorAll('[aria-label="Teams destinations"] a')];
     assert.deepEqual(
       choices.map((a) => a.getAttribute("href")),
-      ["/baseball", "/softball", "/coaches", "/tryouts", "/players", "/teams"],
+      ["/baseball", "/softball", "/coaches", "/tryouts", "/players", "/handbook", "/teams"],
     );
     await act(async () => choices[1].click());
     assert.equal(primary[3].getAttribute("aria-expanded"), "false");
