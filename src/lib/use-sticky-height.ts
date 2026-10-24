@@ -11,6 +11,11 @@ export function useStickyHeight(
     if (!element || !active) return;
     const root = document.documentElement;
     const measure = () => {
+      const viewportHeight = window.visualViewport?.height || window.innerHeight;
+      element.toggleAttribute(
+        "data-layout-flow",
+        element.getBoundingClientRect().height > viewportHeight / 3,
+      );
       const style = window.getComputedStyle(element);
       const pinned = style.position === "sticky" || style.position === "fixed";
       const height = pinned ? Math.ceil(element.getBoundingClientRect().height) : 0;
@@ -19,6 +24,7 @@ export function useStickyHeight(
     const observer = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(measure);
     observer?.observe(element);
     window.addEventListener("resize", measure);
+    window.visualViewport?.addEventListener("resize", measure);
     // Editing a field puts the booking action back in document flow, including
     // on mobile keyboards whose visual viewport differs from the layout viewport.
     document.addEventListener("focusin", measure);
@@ -27,9 +33,11 @@ export function useStickyHeight(
     return () => {
       observer?.disconnect();
       window.removeEventListener("resize", measure);
+      window.visualViewport?.removeEventListener("resize", measure);
       document.removeEventListener("focusin", measure);
       document.removeEventListener("focusout", measure);
       root.style.removeProperty(property);
+      element.removeAttribute("data-layout-flow");
     };
   }, [ref, property, active]);
 }

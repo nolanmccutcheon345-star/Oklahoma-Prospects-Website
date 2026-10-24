@@ -433,7 +433,7 @@ export function BookingFunnel({
             <div
               className={
                 complete
-                  ? "mx-auto flex max-w-3xl items-center justify-between gap-4 px-5 py-3"
+                  ? "mx-auto flex max-w-3xl flex-wrap items-center justify-between gap-4 px-5 py-3"
                   : ""
               }
             >
@@ -447,7 +447,7 @@ export function BookingFunnel({
               )}
               <Button
                 type="submit"
-                className={complete ? "min-h-12 shrink-0" : "w-full"}
+                className={complete ? "min-h-12 max-w-full shrink-0" : "w-full"}
                 disabled={!complete}
                 aria-describedby="cage-total"
               >

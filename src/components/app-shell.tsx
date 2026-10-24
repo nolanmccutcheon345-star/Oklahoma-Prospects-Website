@@ -171,18 +171,18 @@ export function AppShell({ children }: { children: ReactNode }) {
           </Link>
           <div
             className={cn(
-              "flex shrink-0 items-center gap-2",
+              "flex shrink-0 flex-wrap items-center gap-2",
               !privateWorkspace && "max-lg:w-full max-lg:justify-end",
             )}
           >
             {!privateWorkspace && (
               <>
-                <Button asChild size="sm" className="min-h-11">
+                <Button asChild size="sm" className="min-h-11 max-w-full shrink-0">
                   <Link to="/book">Book a cage</Link>
                 </Button>
                 <button
                   type="button"
-                  className="flex min-h-11 items-center gap-2 rounded-md border border-fg-inverse/30 px-4 font-semibold lg:hidden"
+                  className="flex min-h-11 shrink-0 items-center gap-2 rounded-md border border-fg-inverse/30 px-4 font-semibold lg:hidden"
                   aria-controls="site-section-navigation"
                   aria-expanded={openMenu === "Menu"}
                   aria-haspopup="dialog"

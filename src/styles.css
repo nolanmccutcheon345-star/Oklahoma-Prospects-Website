@@ -502,3 +502,6 @@ html:has(.public-site-shell) { --bottom-nav-space: 0px; }
    normal-flow header; no promotional floating action sits over payment inputs. */
 .payment-site-shell .site-header { position: static; }
 html:has(.payment-site-shell) { --header-height: 0px; }
+/* Enlarged text or a software keyboard must not let pinned chrome consume the
+   viewport. The measured-height hook applies this only when it exceeds a third. */
+.site-header[data-layout-flow], .booking-review-bar[data-layout-flow] { position: static; box-shadow: none; }

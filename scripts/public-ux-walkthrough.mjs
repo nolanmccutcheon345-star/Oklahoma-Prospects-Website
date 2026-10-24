@@ -280,6 +280,28 @@ try {
     true,
     "review action remains reachable",
   );
+  await page.setViewportSize({ width: 320, height: 844 });
+  const zoomStyle = await page.addStyleTag({ content: "html { font-size: 200% !important; }" });
+  await page.screenshot({ path: output + "/booking-review-large-text.png" });
+  assert.equal(
+    await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),
+    true,
+    "completed booking review fits a 320px viewport at 200% text",
+  );
+  assert.equal(
+    await page.getByRole("button", { name: "Review Booking", exact: true }).evaluate((el) => {
+      const r = el.getBoundingClientRect();
+      return r.left >= 0 && r.right <= innerWidth;
+    }),
+    true,
+    "the fixed review button itself is not clipped offscreen",
+  );
+  assert.equal(
+    await page.locator(".site-header").evaluate((el) => getComputedStyle(el).position),
+    "static",
+    "an enlarged header cannot occupy most of the viewport",
+  );
+  await zoomStyle.evaluate((el) => el.remove());
   await page.setViewportSize({ width: 844, height: 390 });
   assert.equal(
     await page.locator(".site-header").evaluate((el) => getComputedStyle(el).position),
@@ -323,7 +345,10 @@ try {
         Math.abs(
           parseFloat(
             getComputedStyle(document.documentElement).getPropertyValue("--header-height"),
-          ) - document.querySelector(".site-header").getBoundingClientRect().height,
+          ) -
+            (getComputedStyle(document.querySelector(".site-header")).position === "static"
+              ? 0
+              : document.querySelector(".site-header").getBoundingClientRect().height),
         ) <= 1,
     );
     await page.screenshot({ path: output + "/text-resize-" + routePath.slice(1) + ".png" });
