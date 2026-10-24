@@ -65,6 +65,10 @@ export async function saveHandbook(sql: Sql, actor: string, raw: unknown) {
     const [doc] =
       await tx`select id from handbook_documents where id=${input.documentId} and kind<>'team' for update`;
     if (!doc) throw Error("Handbook unavailable.");
+    if (Object.values(input.review).some(Boolean) && !input.reviewConfirmed)
+      throw Error(
+        "Confirm that the recorded reviews cover the exact text and effective date being saved.",
+      );
     return writeVersion(
       tx,
       actor,

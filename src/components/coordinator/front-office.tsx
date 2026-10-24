@@ -143,6 +143,7 @@ export function CoordinatorFrontOffice() {
           <h1 className="text-3xl">Coordinator Front Office</h1>
           <p>Recruiting, teams, and operations within your approved access.</p>
           {(allowed("standards.draft") || allowed("enrollment.read")) && <a href="/handbooks" className="inline-flex min-h-11 items-center underline">Handbooks & Team Standards</a>}
+          {(allowed("enrollment.read") || allowed("enrollment.manage")) && <a href="/enrollment" className="inline-flex min-h-11 items-center underline">Operational enrollment</a>}
         </div>
       </header>
       <div className="mx-auto grid max-w-6xl gap-5 p-5">

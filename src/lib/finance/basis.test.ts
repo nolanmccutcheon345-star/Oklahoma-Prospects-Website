@@ -584,6 +584,8 @@ test("only reviewed internal financial consumers import the basis; migrations do
     "lib/coordinator/organization-access.server.ts",
     "lib/finance/cutover-api.ts",
     "lib/finance/identity-admission.server.ts",
+    // Guardian/owner-only enrollment readiness; coordinator projections never import it.
+    "lib/enrollment/financial.server.ts",
   ]);
   for (const file of await readdir("src", { recursive: true })) {
     if (!/\.(tsx?|mjs)$/.test(file) || /\.test(?:[.-])/.test(file)) continue;

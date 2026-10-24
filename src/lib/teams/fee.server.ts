@@ -802,6 +802,8 @@ export async function mutateFeePlan(sql: Sql, userId: string, raw: z.infer<typeo
       if (!player || !isFinancialGuardian(context, t.id, player.id))
         throw Error("Only this player’s guardian can accept the fee.");
       if (!p.published) throw Error("Front Office has not published fees.");
+      const { requirePilotAcknowledgment } = await import("../enrollment/enrollment.server");
+      await requirePilotAcknowledgment(tx, userId, t.id, player.id);
       if (player.feeLock)
         throw Error(
           "An agreed fee already exists. Front Office must review amendments separately.",

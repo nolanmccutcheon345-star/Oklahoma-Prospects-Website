@@ -1,9 +1,6 @@
+import { enrollmentFixture, standards } from "./test-fixture";
 import test from "node:test";
 import assert from "node:assert/strict";
-import { readFile, readdir } from "node:fs/promises";
-import { PGlite } from "@electric-sql/pglite";
-import type { Sql } from "../db";
-import { sampleClub } from "../teams/seed";
 import {
   seedHandbooks,
   handbookWorkspace,
@@ -11,83 +8,7 @@ import {
   saveTeamStandards,
   publicHandbooks,
 } from "./handbooks.server";
-import { defaultStandards, emptyReview, reviewedForSignatures } from "./contracts";
-
-export async function enrollmentFixture() {
-  const db = new PGlite();
-  for (const n of (await readdir("migrations")).filter((n) => n.endsWith(".sql")).sort())
-    await db.exec(await readFile("migrations/" + n, "utf8"));
-  function wrap(query: PGlite["query"]): Sql {
-    const sql = (async (p: TemplateStringsArray, ...v: unknown[]) =>
-      (
-        await query(
-          p.reduce((s, x, i) => s + (i ? "$" + i : "") + x, ""),
-          v,
-        )
-      ).rows) as Sql;
-    sql.query = (async (q: string, v: unknown[] = []) => (await query(q, v)).rows) as Sql["query"];
-    sql.transaction = (fn) =>
-      db.transaction((tx) => fn(wrap(tx.query.bind(tx) as PGlite["query"])));
-    return sql;
-  }
-  const sql = wrap(db.query.bind(db));
-  for (const [id, role] of [
-    ["owner", "admin"],
-    ["fake", "admin"],
-    ["coach", "coach"],
-    ["othercoach", "coach"],
-    ["guardian", "parent"],
-    ["stranger", "parent"],
-    ["coordinator", "parent"],
-    ["player", "player"],
-  ]) {
-    await sql`insert into "user"(id,name,email,"emailVerified") values(${id},${id},${id + "@example.invalid"},true)`;
-    await sql`insert into profiles(user_id,name,email,role,family_id) values(${id},${id},${id + "@example.invalid"},${role},${"home-" + id})`;
-  }
-  await sql`insert into owner_grants(email,user_id) values('owner@example.invalid','owner')`;
-  await sql`insert into club_households(id,primary_email) values('home-guardian','guardian@example.invalid')`;
-  await sql`insert into household_members(household_id,user_id) values('home-guardian','guardian')`;
-  const club = sampleClub();
-  club._demo = false;
-  const base = structuredClone(club.teams[0]);
-  const soft = structuredClone(club.teams[0]);
-  for (const [team, id, sport] of [
-    [base, "base", "baseball"],
-    [soft, "soft", "softball"],
-  ] as const) {
-    team.id = id;
-    team.name = "Synthetic " + sport;
-    team.sport = sport;
-    team.closed = false;
-    team.coachEmail = id === "base" ? "coach@example.invalid" : "othercoach@example.invalid";
-    team.staff = [];
-    team.roster = team.roster.slice(0, 1);
-    const p = team.roster[0];
-    p.id = id + "-player";
-    p.name = "Synthetic athlete";
-    p.familyId = "home-guardian";
-    p.withdrawn = false;
-    p.feeLock = null;
-    p.planLock = null;
-    p.payments = [];
-    p.credits = [];
-    p.agreement = { version: "", signedBy: "", signedAt: "" };
-    p.parents = [{ name: "Guardian", email: "guardian@example.invalid", rel: "parent", phone: "" }];
-  }
-  club.teams = [base, soft];
-  await sql`insert into club_state(id,payload,rev,demo) values('oklahoma-prospects',${JSON.stringify(club)}::jsonb,1,false)`;
-  await sql`insert into person_player_links(user_id,player_id) values('player','base-player')`;
-  await sql`insert into coordinator_assignments(user_id,sport,status,coverage,team_ids,permissions,updated_by) values('coordinator','softball','active','teams',array['soft'],array['enrollment.read','standards.draft'],'owner')`;
-  return { db, sql, club };
-}
-export const standards = {
-  ...defaultStandards,
-  playingTime: "Meaningful skill-development opportunities; equal playing time is not guaranteed.",
-  practiceExpectations: "Arrive prepared and communicate planned absences.",
-  tournamentCommitment: "Attend the published schedule subject to organizer updates.",
-  evaluationMethod:
-    "Coach records observed skills, goals, one midseason update and a final review.",
-};
+import { emptyReview, reviewedForSignatures } from "./contracts";
 
 test("handbook drafts, ownership, scoped team standards, immutable publication and conflict handling", async () => {
   const { db, sql } = await enrollmentFixture();
@@ -95,7 +16,7 @@ test("handbook drafts, ownership, scoped team standards, immutable publication a
     await assert.rejects(seedHandbooks(sql, "fake"), /Owner/);
     await seedHandbooks(sql, "owner");
     await seedHandbooks(sql, "owner");
-    assert.equal((await handbookWorkspace(sql, "owner")).documents.length, 3);
+    assert.equal((await handbookWorkspace(sql, "owner")).documents.length, 4);
     assert.deepEqual(await publicHandbooks(sql), []);
     const draft = (await handbookWorkspace(sql, "owner")).documents.find(
       (d) => d.documentId === "academy-2027",
