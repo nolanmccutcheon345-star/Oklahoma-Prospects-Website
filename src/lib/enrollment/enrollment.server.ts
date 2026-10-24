@@ -285,9 +285,12 @@ export async function signPacket(sql: Sql, actor: string, raw: unknown) {
     await tx`insert into enrollment_signatures(id,case_id,actor_id,signer_name,packet_digest,packet,statement) values(${randomUUID()},${c.row.id},${actor},${i.signerName},${packet.digest},${JSON.stringify(packet.documents)}::jsonb,${SIGNATURE_STATEMENT}) on conflict(case_id,actor_id,packet_digest) do nothing`;
     const [current] =
       await tx`select id from enrollment_concussion_acknowledgments where case_id=${c.row.id} and guardian_id=${actor} and acknowledged_at<=now() and acknowledged_at+interval '1 year'>now() and materials_version=${CONCUSSION_MATERIALS_VERSION}`;
-    if (!current)
+    if (!current) {
       await tx`insert into enrollment_concussion_acknowledgments(id,case_id,guardian_id,guardian_name,athlete_name,materials_version,materials,statement)
       values(${randomUUID()},${c.row.id},${actor},${i.signerName},${i.athleteSignerName},${CONCUSSION_MATERIALS_VERSION},${JSON.stringify({ facts: concussionFacts, resources: concussionResources })}::jsonb,${CONCUSSION_ACKNOWLEDGMENT})`;
+      // Renewed annual requirements need a current owner review, not an old clearance revived by a signature.
+      await tx`update enrollment_cases set cleared_at=null,cleared_by=null,clearance_reason='' where id=${c.row.id}`;
+    }
     await recordEnrollment(tx, actor, "packet.signed", c.row.id, { digest: packet.digest });
     return { ok: true };
   });

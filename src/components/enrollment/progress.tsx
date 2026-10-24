@@ -463,7 +463,10 @@ export function OrganizationRollout({
       {home.teams.map((t) => {
         const p = [...home.pilots, ...home.additionalTeams].find((p) => p.teamId === t.id);
         return (
-          <details key={t.id + ":" + p?.revision} className="my-3 rounded border p-3">
+          <details
+            key={t.id + ":" + p?.revision + ":" + enabled}
+            className="my-3 rounded border p-3"
+          >
             <summary className="min-h-11 cursor-pointer">
               {t.name} · {enabled && p?.signaturesOpen ? "signatures open" : "paused"}
             </summary>

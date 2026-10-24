@@ -84,7 +84,12 @@ test("annual concussion acknowledgment requires guardian and athlete action, exc
     };
     await assert.rejects(signPacket(sql, "guardian", { ...sign, athleteAcknowledged: false }));
     await assert.rejects(signPacket(sql, "coach", sign), /guardian/);
+    await sql`update enrollment_cases set cleared_at=now()-interval '366 days',cleared_by='owner',clearance_reason='Synthetic historical clearance' where id=${c.summary.id}`;
     await signPacket(sql, "guardian", sign);
+    assert.equal(
+      (await sql`select cleared_at from enrollment_cases where id=${c.summary.id}`)[0].cleared_at,
+      null,
+    );
     await signPacket(sql, "guardian", sign);
     const own = await enrollmentCase(sql, "guardian", key);
     assert.equal(own.summary.concussionCurrent, true);
