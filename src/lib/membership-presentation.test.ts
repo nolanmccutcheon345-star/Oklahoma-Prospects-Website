@@ -17,6 +17,9 @@ import {
   saveTestimonialFor,
   publicHomepageFor,
   websiteEditorFor,
+  aboutEditorFor,
+  publicAboutFor,
+  saveAboutFor,
 } from "./website-content.server";
 import { emptySharedProfile } from "./person-contracts";
 import { publicPeopleFor } from "./person-public.server";
@@ -257,8 +260,63 @@ test("editable membership and homepage publication preserve financial records an
     for (let i = 0; i < 4; i++) await saveTestimonialFor(sql, "owner", { ...quote, sortOrder: i });
     assert.equal((await publicHomepageFor(sql)).testimonials.length, 3);
     assert.ok((await websiteEditorFor(sql, "owner")).audit.length >= 8);
+    const initialAbout = await aboutEditorFor(sql, "owner");
+    assert.deepEqual(await publicAboutFor(sql), initialAbout.published);
+    const aboutInput = {
+      revision: initialAbout.revision,
+      action: "draft",
+      content: {
+        ...initialAbout.draft,
+        title: "Unpublished synthetic draft",
+        story: "Synthetic draft only.",
+      },
+    };
+    for (const actor of ["parent", "coach-a", "ordinary-admin"]) {
+      await assert.rejects(aboutEditorFor(sql, actor), /authorized owner/);
+      await assert.rejects(saveAboutFor(sql, actor, aboutInput), /authorized owner/);
+    }
+    const draft = await saveAboutFor(sql, "owner", aboutInput);
+    assert.equal(draft.draft.title, "Unpublished synthetic draft");
+    assert.deepEqual(
+      await publicAboutFor(sql),
+      initialAbout.published,
+      "Saving drafts never changes public content",
+    );
+    await assert.rejects(
+      saveAboutFor(sql, "owner", { ...aboutInput, action: "publish" }),
+      /changed/,
+    );
+    await assert.rejects(
+      saveAboutFor(sql, "owner", {
+        ...aboutInput,
+        revision: draft.revision,
+        content: { ...draft.draft, title: "" },
+      }),
+    );
+    const published = await saveAboutFor(sql, "owner", {
+      revision: draft.revision,
+      action: "publish",
+      content: draft.draft,
+    });
+    assert.equal(published.revision, draft.revision + 1);
+    assert.deepEqual(await publicAboutFor(sql), draft.draft);
+    assert.ok(published.publishedAt);
+    assert.doesNotMatch(
+      JSON.stringify(await publicAboutFor(sql)),
+      /publishedAt|updated_by|revision|draft_content/,
+    );
+    const audit = (await websiteEditorFor(sql, "owner")).audit;
+    assert.ok(audit.some((a) => a.entity === "about-draft"));
+    assert.ok(audit.some((a) => a.entity === "about-published"));
+    // Reapplying the additive migration must never replace an owner's published edits.
+    await db.exec(await readFile("migrations/0104_website_about.sql", "utf8"));
+    assert.deepEqual(await publicAboutFor(sql), published.published);
     await sql`update owner_grants set revoked_at=now() where user_id='owner'`;
     await assert.rejects(saveHomepageFor(sql, "owner", { revision: 1, featuredCoachIds: [] }));
+    await assert.rejects(
+      saveAboutFor(sql, "owner", { ...aboutInput, revision: published.revision }),
+      /authorized owner/,
+    );
   } finally {
     await db.close();
   }

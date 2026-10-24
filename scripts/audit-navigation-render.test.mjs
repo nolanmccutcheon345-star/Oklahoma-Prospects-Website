@@ -126,18 +126,18 @@ test("public navigation, sport links and purchase availability agree with the li
     ];
     assert.deepEqual(
       primary.map((a) => a.textContent?.trim()),
-      ["Home", "Train", "Teams", "Book", "Games", "Shop", "Articles & News"],
+      ["Home", "Articles & News", "Training", "Teams", "Memberships", "Shop", "Games"],
     );
     assert.equal(primary.length, 7);
     assert.equal(
       document.querySelector('nav[aria-label="Primary"] ul')?.className.includes("grid-cols-7"),
       true,
     );
-    assert.equal(primary[1].getAttribute("aria-current"), "page");
-    assert.equal(primary[4].getAttribute("href"), "/games");
+    assert.equal(primary[2].getAttribute("aria-current"), "page");
+    assert.equal(primary[6].getAttribute("href"), "/games");
     assert.equal(primary[5].getAttribute("href"), "/merchandise");
-    assert.equal(primary[6].getAttribute("href"), "/articles");
-    assert.equal(primary[2].getAttribute("aria-expanded"), "false");
+    assert.equal(primary[1].getAttribute("href"), "/articles");
+    assert.equal(primary[3].getAttribute("aria-expanded"), "false");
     assert.equal(document.querySelector('footer a[href^="/games"]')?.textContent, "Games");
     assert.equal(document.querySelector('footer a[href*="prospects-live"]'), null);
     assert.equal(document.querySelector('a[href*="chatgpt.site"]'), null);
@@ -200,6 +200,35 @@ test("public navigation, sport links and purchase availability agree with the li
       document.querySelector("#memberships").textContent,
       /one-time \$50(?:\.00)? (?:assessment |first-month )?fee/i,
     );
+    const menuTrigger = [...document.querySelectorAll("header button")].find(
+      (b) => b.textContent.trim() === "Menu",
+    );
+    await act(async () => menuTrigger.click());
+    const menu = document.querySelector('[aria-label="Menu destinations"]');
+    assert.equal(menu.children.length, 10, "Mobile menu has ten primary rows");
+    const groupButton = (name) =>
+      [...menu.querySelectorAll("button")].find((b) => b.textContent.trim() === name);
+    for (const name of ["Training", "Teams", "Memberships"])
+      assert.equal(groupButton(name).getAttribute("aria-expanded"), "false");
+    await act(async () => groupButton("Training").click());
+    assert.equal(document.getElementById("site-menu-Training").hidden, false);
+    assert.equal(document.getElementById("site-menu-Training").querySelectorAll("a").length, 6);
+    await act(async () => groupButton("Memberships").click());
+    assert.equal(document.getElementById("site-menu-Training").hidden, true);
+    const memberships = document.getElementById("site-menu-Memberships");
+    assert.equal(memberships.hidden, false);
+    assert.equal(
+      memberships.querySelector('a[href="/training?view=plans"]').textContent,
+      "Training Memberships",
+    );
+    assert.equal(menu.querySelector('a[href="/login?next=%2Faccount"]').textContent, "Sign In");
+    assert.equal(menu.querySelector('a[href="/about"]').textContent, "About");
+    await act(async () => memberships.querySelector('a[href="/training?view=plans"]').click());
+    assert.equal(
+      document.querySelector("dialog").open,
+      false,
+      "Selecting a same-route view closes the menu",
+    );
     state.path = "/teams";
     await act(async () =>
       root.render(createElement(ui.AppShell, null, createElement(ui.Teams.component))),
@@ -209,21 +238,21 @@ test("public navigation, sport links and purchase availability agree with the li
       null,
       "No duplicate sports navbar above Teams",
     );
-    await act(async () => primary[2].click());
-    assert.equal(primary[2].getAttribute("aria-expanded"), "true");
+    await act(async () => primary[3].click());
+    assert.equal(primary[3].getAttribute("aria-expanded"), "true");
     assert.deepEqual(
       [...document.querySelectorAll('[aria-label="Teams destinations"] a')].map(
         (a) => a.textContent,
       ),
-      ["Browse all teams", "Baseball", "Softball", "Coaches", "Tryouts", "Players"],
+      ["Baseball", "Softball", "Coaches", "Tryouts", "Players", "Explore all teams"],
     );
     const choices = [...document.querySelectorAll('[aria-label="Teams destinations"] a')];
     assert.deepEqual(
       choices.map((a) => a.getAttribute("href")),
-      ["/teams", "/baseball", "/softball", "/coaches", "/tryouts", "/players"],
+      ["/baseball", "/softball", "/coaches", "/tryouts", "/players", "/teams"],
     );
-    await act(async () => choices[2].click());
-    assert.equal(primary[2].getAttribute("aria-expanded"), "false");
+    await act(async () => choices[1].click());
+    assert.equal(primary[3].getAttribute("aria-expanded"), "false");
     assert.equal(document.querySelector('a[href*="sport=Softball"][href*="age="]'), null);
     assert.equal(
       document.querySelector('#softball a[href="/tryouts?sport=Softball#register"]')?.textContent,
