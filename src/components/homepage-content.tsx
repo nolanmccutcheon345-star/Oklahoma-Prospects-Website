@@ -73,14 +73,19 @@ export function HomepagePeople({
 }: {
   initial: Awaited<ReturnType<typeof getPublicHomepage>>;
 }) {
-  const [data, setData] = useState(initial);
+  const [retried, setRetried] = useState<{ source: typeof initial; result: typeof initial } | null>(
+    null,
+  );
+  // A fresh route load must immediately replace withdrawn public content, even if
+  // this component stays mounted. A retry from an old route cannot restore it.
+  const data = retried?.source === initial ? retried.result : initial;
   const [busy, setBusy] = useState(false);
   async function retry() {
     setBusy(true);
     try {
-      setData(await getPublicHomepage());
+      setRetried({ source: initial, result: await getPublicHomepage() });
     } catch {
-      setData({ content: null, failed: true });
+      setRetried({ source: initial, result: { content: null, failed: true } });
     } finally {
       setBusy(false);
     }
