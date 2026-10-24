@@ -39,17 +39,17 @@ test("itemized estimates reconcile to the proposed player fee, survive saving, a
     trace = feeCostTrace(b);
   assert.deepEqual(
     [c.teamCosts, c.contingency, c.membership, c.organization, c.processing, c.adjustment, c.total],
-    [149550, 22433, 45000, 35000, 0, 517, 252500],
+    [149550, 29183, 45000, 35000, 0, 1267, 260000],
   );
   assert.deepEqual(
     [trace.tournament, trace.uniformEach, trace.uniforms, trace.direct, trace.protectedBudget],
-    [775000, 25000, 250000, 1495500, 1719825],
+    [775000, 25000, 250000, 1945500, 2237325],
   );
   assert.deepEqual(feeComposition(JSON.parse(JSON.stringify(b)), "full"), c);
-  assert.equal(feeCostTrace({ ...b, tournamentEstimate: 0, uniformEstimate: 0 }).direct, 470500);
+  assert.equal(feeCostTrace({ ...b, tournamentEstimate: 0, uniformEstimate: 0 }).direct, 920500);
   assert.equal(
     feeCostTrace({ ...b, tournamentEstimate: undefined, uniformEstimate: undefined }).direct,
-    2450500,
+    2900500,
   );
 });
 
@@ -82,7 +82,7 @@ test("all 120 master rows reconcile across roster sizes, PO counts, processing w
       ) +
       456789 +
       60000;
-    const direct = fixed + b.baseline * (12345 + 321);
+    const direct = fixed + b.baseline * (12345 + 321 + 3 * b.membershipMonthly);
     for (const processingBps of [0, 290]) {
       const budget = { ...b, processingBps, processingFixed: processingBps ? 30 : 0 };
       const f = calculateFees(budget);
@@ -104,12 +104,17 @@ test("all 120 master rows reconcile across roster sizes, PO counts, processing w
       for (const full of [0, 8, 9, 10, 11, 12])
         for (const po of [0, 1, 3]) {
           const p = project(budget, full, po);
-          assert.equal(p.direct, fixed + (full + po) * (12345 + 321));
+          assert.equal(p.externalDirect, fixed + (full + po) * (12345 + 321));
+          assert.equal(
+            p.programDirect,
+            full * 3 * b.membershipMonthly + po * 3 * b.poMembershipMonthly!,
+          );
+          assert.equal(p.direct, p.externalDirect + p.programDirect);
           assert.equal(p.totalRevenue, full * f.full + po * f.po);
           assert.equal(p.teamOperatingRevenue + p.organizationAndProgramRevenue, p.totalRevenue);
           assert.equal(
             p.beforeOverhead,
-            p.totalRevenue - p.direct - p.processing - p.serviceCosts - p.reserve,
+            p.totalRevenue - p.externalDirect - p.processing - p.serviceCosts - p.reserve,
           );
           assert.equal(p.nolan + p.steve, p.distributable);
           assert.ok(Number.isSafeInteger(p.beforeOverhead));

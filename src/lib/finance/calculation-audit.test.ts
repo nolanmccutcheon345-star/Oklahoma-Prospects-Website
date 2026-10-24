@@ -143,6 +143,31 @@ test("organization source calculations use cash, credits, actual roster costs an
         assert.equal(candidates.find((p) => p.category === "coach")?.amount, 10003);
       },
     );
+    await t.test(
+      "program allocations do not double-protect cash already held as deferred revenue",
+      async () => {
+        const revised = {
+          ...plan,
+          publishedBudget: { ...budget, membershipMonthly: 10000, poMembershipMonthly: 10000 },
+          players: {
+            "athlete-0": {
+              membershipAllocation: 10000,
+              serviceStart: "2027-03-01",
+              serviceEnd: "2027-03-31",
+            },
+          },
+        };
+        await sql`update team_fee_plans set payload=${JSON.stringify(revised)}::jsonb where team_id=${team.id}`;
+        try {
+          const { teams } = await view();
+          assert.equal(teams[0].protectedDirect, 10003 + 12 * 1200);
+          assert.equal(teams[0].contingency, 12201 - 500);
+          assert.equal(teams[0].deferred, 10000);
+        } finally {
+          await sql`update team_fee_plans set payload=${JSON.stringify(plan)}::jsonb where team_id=${team.id}`;
+        }
+      },
+    );
     for (const [id, environment, status] of [
       ["live", "production", "unpaid"],
       ["test", "sandbox", "unpaid"],

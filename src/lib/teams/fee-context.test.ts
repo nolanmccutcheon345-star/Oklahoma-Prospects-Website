@@ -143,6 +143,8 @@ async function fixture() {
       status: "draft",
     };
     if (team.id !== "draft") {
+      // Real pre-release publications have no program-cost model marker.
+      delete plan.budget.programCostModel;
       plan.status = "published";
       plan.published = {
         full: 100000,

@@ -726,8 +726,10 @@ function TeamPlan({
               <p className="text-sm">
                 Default Months: {plan.budget.defaultMonths ?? "—"} (template only) · Actual Billable
                 Months: {plan.budget.months} · Pricing Uses: Actual Billable Months. Each calendar
-                month with program access is billed, including partial months. Prorated service
-                duration: {serviceMonths(plan.budget.start, plan.budget.end) ?? "—"} months.
+                month with program access is billed, including partial months, unless an approved
+                billing-term override is entered above. An override changes the billing term, not
+                the season dates. Prorated service duration:{" "}
+                {serviceMonths(plan.budget.start, plan.budget.end) ?? "—"} months.
               </p>
               {(
                 [
@@ -875,6 +877,15 @@ function TeamPlan({
                     ["Coaching, travel and other fixed team costs", trace.coachingAndOperations],
                     ["Scheduled hotel costs", trace.hotels],
                     ["Other baseline per-player costs — team total", trace.otherPerPlayer],
+                    ["External team costs before program allocation", trace.externalDirect],
+                    ...(trace.programInDirect
+                      ? [
+                          [
+                            "Team & Development Program — baseline team total",
+                            trace.programDirect,
+                          ] as [string, number],
+                        ]
+                      : []),
                     ["Direct team-cost subtotal", trace.direct],
                     ["Team contingency — team total", trace.contingency],
                     ["Protected team budget", trace.protectedBudget],
@@ -883,8 +894,10 @@ function TeamPlan({
                 />
                 <p className="text-xs">
                   Uniform cost per player is a reference; only the baseline uniform total enters the
-                  subtotal. Program and organization fees, processing and final-price rounding are
-                  added in the player breakdown below.
+                  subtotal.{" "}
+                  {trace.programInDirect
+                    ? "The required program allocation is included once in direct costs and receives contingency. Organization fees, processing and final-price rounding follow afterward."
+                    : "This historical calculation adds program and organization fees after contingency."}
                 </p>
               </section>
             )}
@@ -904,7 +917,7 @@ function TeamPlan({
                             role === "po" ? "PO organization fee" : "Organization fee",
                             c.organization,
                           ],
-                          ["Processing", c.processing],
+                          ["Processing reserve on final fee", c.processing],
                           [
                             c.adjustment < 0 ? "Admin processing subsidy" : "Rounding adjustment",
                             c.adjustment,
@@ -924,7 +937,9 @@ function TeamPlan({
               Contribution is after the standard full-player team-cost allocation, contingency,
               processing and other actual service expenses; before facility overhead, business
               reserves and owner distributions. Extra roster spots are reported separately under
-              Additional Player Contribution.
+              Additional Player Contribution. The program allocation is an internal team cost and
+              academy revenue; business contribution deducts external costs once. Processing
+              reserves cover the final rounded price and possible installment cent rounding.
             </p>
           </Panel>
           {team.private?.additionalPlayers && team.private.additionalPlayers.length > 0 && (
@@ -1488,16 +1503,15 @@ function TeamPlan({
                       ] as [string, number][])
                     : []),
 
-                  [
-                    "Baseline direct team costs",
-                    preview.fixed +
-                      plan.budget.baseline *
-                        ((plan.budget.uniformEstimate ?? plan.budget.uniformCost) +
-                          plan.budget.fullIncremental),
-                  ],
+                  ["Baseline direct team costs", preview.protectedBudget - preview.contingency],
                   ["Protected baseline team budget", preview.protectedBudget],
                   ["Total player revenue", preview.totalRevenue],
-                  ["Direct costs for projected roster", preview.direct],
+                  [
+                    "Direct costs for projected roster (including program allocation)",
+                    preview.direct,
+                  ],
+                  ["External costs for projected roster", preview.externalDirect],
+                  ["Program allocation within direct costs", preview.programDirect],
                   ["Contingency reserve", preview.reserve],
                   ["Team & Development Program revenue — all players", preview.membership],
                   ["Organization revenue — all players", preview.organization],
@@ -2072,7 +2086,9 @@ function BusinessModel({
                     r.totalTeamAssociatedContribution,
                   ],
                   ["Organization revenue", r.organization],
-                  ["Direct costs", r.direct],
+                  ["Direct costs (including program allocation)", r.direct],
+                  ["External direct costs", r.externalDirect],
+                  ["Internal program allocation", r.programDirect],
                   ["Contingencies", r.contingency],
                   ["Facility overhead", r.overhead],
                   ["Net business profit", r.net],

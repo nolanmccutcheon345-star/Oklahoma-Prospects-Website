@@ -26,9 +26,9 @@ test("composition reconciles every cent for full and PO, including processing an
   const b = budgetFromMatrix(sampleClub().teams[0], m, r);
   const full = feeComposition(b, "full"),
     po = feeComposition(b, "po");
-  assert.equal(full.total, 245000);
+  assert.equal(full.total, 257500);
   assert.equal(full.teamCosts, 85050);
-  assert.equal(full.contingency, 12758);
+  assert.equal(full.contingency, 26258);
   assert.equal(full.membership, 90000);
   assert.equal(po.membership, 90000);
   assert.equal(full.teamCosts, po.teamCosts);

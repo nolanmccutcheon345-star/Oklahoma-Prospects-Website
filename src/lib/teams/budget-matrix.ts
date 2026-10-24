@@ -197,6 +197,7 @@ export function seedMasterMatrix(): MasterMatrix {
     baseline: 10,
     membershipMonthly: 15000,
     programModel: 3,
+    programCostModel: 1,
     contingencyBps: 1500,
     hotelNightly: 20000,
     roundTo: 2500,
@@ -391,6 +392,7 @@ export function normalizePOMaster(m: MasterMatrix): MasterMatrix {
     ...poDefaults,
     ...m,
     programModel: 3,
+    programCostModel: 1,
     membershipMonthly:
       m.programModel === 3
         ? m.membershipMonthly

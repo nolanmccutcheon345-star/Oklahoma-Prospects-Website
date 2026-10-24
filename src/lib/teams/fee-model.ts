@@ -26,6 +26,8 @@ export const expenseSchema = z
   .strict();
 export const programFields = {
   programModel: z.literal(3).optional(),
+  // Absent on frozen historical budgets: program was added after contingency.
+  programCostModel: z.literal(1).optional(),
 };
 export const eventPaymentSchema = z
   .object({
@@ -184,6 +186,7 @@ export const defaultBudget = (): FeeBudget => ({
   ...poDefaults,
   poModel: 2,
   programModel: 3,
+  programCostModel: 1,
   start: "",
   end: "",
   months: 3,
@@ -256,7 +259,7 @@ export function effectiveFeeBudget(b: FeeBudget): FeeBudget {
 }
 // An upgrade changes only the new offer. Historical published snapshots stay legacy.
 export function programDraft(b: FeeBudget): FeeBudget {
-  b = withoutRetiredMembershipPricing(b);
+  b = { ...withoutRetiredMembershipPricing(b), programCostModel: 1 };
   if (b.programModel === 3) return withBillableMonths(b);
   return withBillableMonths({
     ...b,
@@ -407,29 +410,44 @@ export function calculateFees(input: FeeBudget) {
   const b = effectiveFeeBudget(budgetSchema.parse(withoutRetiredMembershipPricing(input)));
   const fixed =
     sum(b.costs.map((c) => budgetCost(b, c))) + b.tournament + b.hotelNightly * b.hotelNights;
+  const programInDirect = b.programCostModel === 1;
+  const member = Math.round(b.membershipMonthly * b.months);
   const each = b.uniformCost + b.fullIncremental,
-    direct = fixed + b.baseline * each,
+    externalDirect = fixed + b.baseline * each,
+    programDirect = programInDirect ? b.baseline * member : 0,
+    direct = externalDirect + programDirect,
     contingency = Math.ceil((direct * b.contingencyBps) / 10000),
     protectedBudget = direct + contingency;
-  const member = Math.round(b.membershipMonthly * b.months),
-    allocation = Math.ceil(protectedBudget / b.baseline);
-  const fullNet = allocation + member + b.fullOrg;
+  const allocation = Math.ceil(protectedBudget / b.baseline);
+  const fullNet = allocation + (programInDirect ? 0 : member) + b.fullOrg;
   // Only frozen legacy agreements retain the independent PO calculation.
   const linked = b.poModel === 2;
   const teamComponent = Math.ceil(fixed / b.baseline) + b.fullIncremental;
   const uniformComponent = b.uniformCost;
   // Assign rounding remainder to contingency so 100% shares equal allocation exactly.
-  const contingencyComponent = allocation - teamComponent - uniformComponent;
+  const contingencyComponent =
+    allocation - teamComponent - uniformComponent - (programInDirect ? member : 0);
   const share = (n: number, rate: number | undefined) => Math.ceil((n * (rate ?? 10000)) / 10000);
-  const poDirect = linked
-    ? share(teamComponent, b.poTeamBps) + share(uniformComponent, b.poUniformBps)
-    : b.poSharedAllocation + b.uniformCost + b.poIncremental;
-  const poContingency = linked
-    ? share(contingencyComponent, b.poContingencyBps)
-    : Math.ceil((poDirect * b.contingencyBps) / 10000);
   const poMember = linked ? Math.round((b.poMembershipMonthly ?? 15000) * b.months) : member;
+  const poDirect =
+    (linked
+      ? share(teamComponent, b.poTeamBps) + share(uniformComponent, b.poUniformBps)
+      : b.poSharedAllocation + b.uniformCost + b.poIncremental) + (programInDirect ? poMember : 0);
+  // A PO player funds their own program rate, including its contingency. Equal
+  // rates and 100% shares still reconcile exactly to the full-player allocation.
+  const poStandardContingency =
+    contingencyComponent +
+    (programInDirect
+      ? Math.ceil((poMember * b.contingencyBps) / 10000) -
+        Math.ceil((member * b.contingencyBps) / 10000)
+      : 0);
+  const poContingency = linked
+    ? share(poStandardContingency, b.poContingencyBps)
+    : Math.ceil((poDirect * b.contingencyBps) / 10000);
   const poAllocation = poDirect + poContingency;
-  const poNet = poAllocation + poMember + b.poOrg;
+  const poStandardAllocation =
+    teamComponent + uniformComponent + poStandardContingency + (programInDirect ? poMember : 0);
+  const poNet = poAllocation + (programInDirect ? 0 : poMember) + b.poOrg;
   const rounded = (n: number) => (b.roundTo ? Math.ceil(n / b.roundTo) * b.roundTo : n);
   const full = rounded(gross(fullNet, b)),
     po = rounded(
@@ -472,8 +490,11 @@ export function calculateFees(input: FeeBudget) {
     uniformComponent,
     contingencyComponent,
     poDiscount: fullNet - poNet,
-    poSubsidy: Math.max(0, allocation - poAllocation) + Math.max(0, poProcessing - (po - poNet)),
+    poSubsidy:
+      Math.max(0, poStandardAllocation - poAllocation) + Math.max(0, poProcessing - (po - poNet)),
     fixed,
+    externalDirect,
+    programDirect,
     direct,
     contingency,
     protectedBudget,
@@ -529,7 +550,7 @@ export function project(
     poCount * (b.uniformCost + poIncremental + service + f.poProcessing) +
     incrementalSurcharges;
   const reserve = f.contingency + (b.programModel === 3 ? 0 : poCount * f.poContingency);
-  const direct =
+  const externalDirect =
     f.fixed +
     fullCount * (b.uniformCost + b.fullIncremental) +
     poCount * (b.uniformCost + poIncremental) +
@@ -537,11 +558,14 @@ export function project(
   const totalRevenue = fullCount * f.full + poCount * f.po,
     membership = fullCount * f.member + poCount * f.poMember,
     organization = fullCount * b.fullOrg + poCount * b.poOrg;
+  const programDirect = b.programCostModel === 1 ? membership : 0;
+  const direct = externalDirect + programDirect;
   const processing = fullCount * f.fullProcessing + poCount * f.poProcessing,
     serviceCosts = (fullCount + poCount) * service;
   const organizationAndProgramRevenue = membership + organization;
   const teamOperatingRevenue = totalRevenue - organizationAndProgramRevenue;
-  const teamOperatingContribution = teamOperatingRevenue - direct - processing - serviceCosts;
+  const teamOperatingContribution =
+    teamOperatingRevenue - externalDirect - processing - serviceCosts;
   const totalTeamAssociatedContribution = teamOperatingContribution + organizationAndProgramRevenue;
   // Protected contingency is a restriction on available funds, never a profit expense.
   const contribution = totalTeamAssociatedContribution - reserve;
@@ -568,6 +592,8 @@ export function project(
     teamOperatingContribution,
     totalTeamAssociatedContribution,
     incrementalSurcharges,
+    externalDirect,
+    programDirect,
     direct,
     reserve,
     membership,
@@ -677,6 +703,8 @@ export function businessProjection(
     totalTeamAssociatedContribution: sum(teams.map((t) => t.totalTeamAssociatedContribution)),
     membership: sum(teams.map((t) => t.membership)),
     organization: sum(teams.map((t) => t.organization)),
+    externalDirect: sum(teams.map((t) => t.externalDirect)),
+    programDirect: sum(teams.map((t) => t.programDirect)),
     direct: sum(teams.map((t) => t.direct)),
     contingency: sum(teams.map((t) => t.reserve)),
     contribution,
@@ -692,7 +720,9 @@ export function feeComposition(b: FeeBudget, role: "full" | "po") {
   b = withBillableMonths(b);
   const f = calculateFees(b),
     po = role === "po";
-  const teamCosts = po ? f.poAllocation - f.poContingency : f.teamComponent + f.uniformComponent;
+  const teamCosts = po
+    ? f.poAllocation - f.poContingency - (b.programCostModel === 1 ? f.poMember : 0)
+    : f.teamComponent + f.uniformComponent;
   const contingency = po ? f.poContingency : f.contingencyComponent;
   const membership = po ? f.poMember : f.member;
   const organization = po ? b.poOrg : b.fullOrg;
@@ -701,7 +731,11 @@ export function feeComposition(b: FeeBudget, role: "full" | "po") {
   const total = po ? f.po : f.full;
   // Standard baseline allocation, not marginal contribution from extra roster spots.
   const contribution =
-    total - f.allocation - processing - Math.round(b.serviceCostMonthly * b.months);
+    total -
+    f.allocation +
+    (b.programCostModel === 1 ? f.member : 0) -
+    processing -
+    Math.round(b.serviceCostMonthly * b.months);
   return {
     teamCosts,
     contingency,
@@ -730,6 +764,9 @@ export function feeCostTrace(input: FeeBudget) {
     otherPerPlayer: b.fullIncremental * b.baseline,
     hotels: b.hotelNightly * b.hotelNights,
     coachingAndOperations,
+    externalDirect: f.externalDirect,
+    programDirect: f.programDirect,
+    programInDirect: b.programCostModel === 1,
     direct: f.direct,
     contingency: f.contingency,
     protectedBudget: f.protectedBudget,
