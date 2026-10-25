@@ -12,7 +12,7 @@ import { Button } from "@/components/ui/button";
 import type { ClubRecord, StaffMember } from "@/lib/teams/types";
 import { officeAddPlayer, officeAddTeam, officeRemoveTeam, officeSaveTeamSeasons } from "@/lib/teams/store";
 import { AGE_GROUPS } from "@/lib/club";
-import { balance, docsComplete, fundingCount } from "@/lib/teams/pricing";
+import { balance, docsComplete } from "@/lib/teams/pricing";
 import { Section } from "./ui";
 import { money } from "./ui";
 

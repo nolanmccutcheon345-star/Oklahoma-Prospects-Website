@@ -1,5 +1,5 @@
 /** Operating instructions, not a retroactive amendment to an accepted agreement. */
-export const operatingPolicyVersion = "team-operations-2026-10-24";
+export const operatingPolicyVersion = "team-operations-2026-10-25";
 export const minimumCommittedRoster = 9;
 export const operatingGuides = {
   family: [
@@ -36,6 +36,10 @@ export const operatingGuides = {
     [
       "Stay within the offer",
       "Promise only organization-approved services, prices, deadlines and withdrawal terms. Do not promise discounts, scholarships, extensions or late-fee waivers. Route financial matters privately to ownership without identifying or blaming families to the team.",
+    ],
+    [
+      "Private payment follow-up",
+      "Assigned coaches can see which athletes and listed guardians have overdue payments, without balances, card details or financial exports. Parents see only whether a team payment is overdue, without names or counts. Keep the staff list private and refer disputed or uncertain status to Front Office.",
     ],
     [
       "Operational handoffs",
