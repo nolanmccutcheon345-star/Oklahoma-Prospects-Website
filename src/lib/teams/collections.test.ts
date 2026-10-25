@@ -80,7 +80,7 @@ async function fixture(environment: "production" | "sandbox" = "production") {
   const calls: {
     idempotencyKey: string;
     sourceId: string;
-    amountMoney: { amount: bigint; currency: string };
+    amountMoney: { amount: bigint; currency: "USD" };
     referenceId: string;
     customerId: string;
   }[] = [];
@@ -154,7 +154,7 @@ async function fixture(environment: "production" | "sandbox" = "production") {
     },
   } as unknown as SquareClient;
   const c = { ...config, environment };
-  const save = (purpose: "primary" | "backup", sourceId = purpose) =>
+  const save = (purpose: "primary" | "backup", sourceId: string = purpose) =>
     saveCollectionCard(h.sql, client, c, "guardian", {
       ...ids,
       purpose,
