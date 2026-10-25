@@ -73,7 +73,7 @@ export function teamExpenseTotals(plan: FeePlan, records: RecordRow[], teamId: s
         r.payload.teamId === teamId &&
         !["owner", "refund"].includes(r.payload.category),
     )
-    .map((r) => r.payload as Payable);
+    .map((r) => ({ ...r.payload, id: r.id }) as Payable);
   let paid = 0,
     unpaid = 0,
     unverifiedPaid = 0,
@@ -82,7 +82,10 @@ export function teamExpenseTotals(plan: FeePlan, records: RecordRow[], teamId: s
   for (const p of payables) {
     const mirror = expenses.find((e) => p.id === `expense:${teamId}:${e.id}`);
     const recordedPaid = Math.max(p.paid, mirror?.paid ? mirror.cents : 0);
-    const amount = p.state === "canceled" ? recordedPaid : Math.max(p.amount, recordedPaid);
+    const amount =
+      p.state === "canceled"
+        ? recordedPaid
+        : Math.max(p.amount ?? mirror?.cents ?? p.earned ?? recordedPaid, recordedPaid);
     const line =
       records.find(
         (r) =>
@@ -149,7 +152,7 @@ export function teamBudgetLedger(plan: FeePlan | undefined, records: RecordRow[]
         r.payload.teamId === teamId &&
         !["owner", "refund"].includes(r.payload.category),
     )
-    .map((r) => r.payload as Payable);
+    .map((r) => ({ ...r.payload, id: r.id }) as Payable);
   const payments = records.filter((r) => r.kind === "payment" && r.payload.state === "in progress");
   const rows = published.map((line) => {
     const adjustment = transfers.reduce(
