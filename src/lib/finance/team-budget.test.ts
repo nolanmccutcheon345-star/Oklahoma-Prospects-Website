@@ -2,7 +2,13 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { defaultBudget, calculateFees } from "../teams/fee-model";
 import type { FeePlan } from "../teams/fee-contracts";
-import { pinSpendingBudget, publishedSpendingLines, teamBudgetLedger } from "./team-budget";
+import {
+  pinSpendingBudget,
+  publishedSpendingLines,
+  teamBudgetLedger,
+  teamExpenseTotals,
+} from "./team-budget";
+import { feeWorkspace } from "../teams/fee.server";
 import { enrollmentFixture } from "../enrollment/test-fixture";
 import { financeWorkspace, mutateFinance } from "./store.server";
 import { today } from "./contracts";
@@ -123,7 +129,7 @@ test("owners track exact budget lines, audited contingency and shared-invoice ba
       const plan = {
         budget: b,
         publishedBudget: b,
-        published: { at: today(), revision: 1 },
+        published: { at: today(), revision: 1, policy: "Synthetic accepted terms" },
         players: {},
         expenses: [],
         uniforms: [],
@@ -277,6 +283,9 @@ test("owners track exact budget lines, audited contingency and shared-invoice ba
     assert.equal((await view("base")).ledger!.rows.find((l) => l.id === "base:hotel")!.paid, 30000);
     assert.equal((await view("soft")).ledger!.rows.find((l) => l.id === "base:hotel")!.paid, 20000);
     assert.equal((await view("base")).ledger!.rows.find((l) => l.id === "base:hotel")!.sent, 0);
+    const fees = await feeWorkspace(f.sql, "owner");
+    assert.equal(fees.teams.find((t) => t.id === "base")!.private!.actual.expensesPaid, 30000);
+    assert.equal(fees.teams.find((t) => t.id === "soft")!.private!.actual.expensesPaid, 20000);
     await assert.rejects(
       () =>
         act({ action: "matchPayments", bankId: "debit", paymentIds: ["sent-base", "sent-soft"] }),
@@ -386,4 +395,77 @@ test("owners track exact budget lines, audited contingency and shared-invoice ba
   } finally {
     await f.db.close();
   }
+});
+
+test("team expense summaries deduplicate fee-plan mirrors and preserve pending and historical evidence", () => {
+  const plan = {
+    expenses: [
+      { id: "mirror", name: "Mirrored hotel", cents: 50000, paid: false, contingency: false },
+      { id: "history", name: "Old receipt", cents: 2000, paid: true, contingency: false },
+    ],
+  } as unknown as FeePlan;
+  const rs = [
+    {
+      id: "expense:base:mirror",
+      kind: "payable",
+      payload: {
+        id: "expense:base:mirror",
+        teamId: "base",
+        category: "hotel",
+        amount: 50000,
+        paid: 30000,
+        approved: 50000,
+        state: "approved",
+      },
+    },
+    {
+      id: "gas",
+      kind: "payable",
+      payload: {
+        id: "gas",
+        teamId: "base",
+        category: "gas",
+        amount: 10000,
+        paid: 10000,
+        approved: 10000,
+        state: "approved",
+        budgetLineId: "reserve:contingency",
+      },
+    },
+    {
+      id: "other-team",
+      kind: "payable",
+      payload: { id: "other-team", teamId: "soft", category: "gas", amount: 5000, paid: 5000 },
+    },
+    {
+      id: "pending",
+      kind: "payment",
+      payload: { payableId: "expense:base:mirror", state: "in progress", amount: 20000 },
+    },
+  ];
+  assert.deepEqual(teamExpenseTotals(plan, rs, "base"), {
+    paid: 42000,
+    unpaid: 20000,
+    unverifiedPaid: 2000,
+    verifiedPaid: 40000,
+    sent: 20000,
+    contingencyCommitted: 10000,
+    contingencyPaid: 10000,
+    directPaid: 32000,
+  });
+  const reclassified = teamExpenseTotals(
+    plan,
+    [
+      ...rs,
+      {
+        id: "assignment",
+        kind: "budgetAssignment",
+        payload: { payableId: "gas", teamId: "base", lineId: "cost:gas" },
+      },
+    ],
+    "base",
+  );
+  assert.equal(reclassified.contingencyPaid, 0);
+  assert.equal(reclassified.directPaid, 42000);
+  assert.equal(reclassified.paid, 42000, "classification cannot change total recorded spending");
 });

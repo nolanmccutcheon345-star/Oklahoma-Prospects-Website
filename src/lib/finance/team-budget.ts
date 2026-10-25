@@ -63,6 +63,73 @@ export function pinSpendingBudget(plan: FeePlan) {
       publicationRevision: plan.published.revision,
     };
 }
+/** One expense source for the legacy fee summary and the detailed Finance ledger. */
+export function teamExpenseTotals(plan: FeePlan, records: RecordRow[], teamId: string) {
+  const expenses = plan.expenses || [];
+  const payables = records
+    .filter(
+      (r) =>
+        r.kind === "payable" &&
+        r.payload.teamId === teamId &&
+        !["owner", "refund"].includes(r.payload.category),
+    )
+    .map((r) => r.payload as Payable);
+  let paid = 0,
+    unpaid = 0,
+    unverifiedPaid = 0,
+    contingencyPaid = 0,
+    contingencyCommitted = 0;
+  for (const p of payables) {
+    const mirror = expenses.find((e) => p.id === `expense:${teamId}:${e.id}`);
+    const recordedPaid = Math.max(p.paid, mirror?.paid ? mirror.cents : 0);
+    const amount = p.state === "canceled" ? recordedPaid : Math.max(p.amount, recordedPaid);
+    const line =
+      records.find(
+        (r) =>
+          r.kind === "budgetAssignment" &&
+          r.payload.payableId === p.id &&
+          r.payload.teamId === teamId,
+      )?.payload.lineId || p.budgetLineId;
+    paid += recordedPaid;
+    unpaid += amount - recordedPaid;
+    unverifiedPaid += (p.legacyPaid ? p.paid : 0) + Math.max(0, recordedPaid - p.paid);
+    if (line === "reserve:contingency" || (!line && mirror?.contingency)) {
+      contingencyCommitted += amount;
+      contingencyPaid += recordedPaid;
+    }
+  }
+  for (const e of expenses.filter(
+    (e) => !payables.some((p) => p.id === `expense:${teamId}:${e.id}`),
+  )) {
+    if (e.paid) {
+      paid += e.cents;
+      unverifiedPaid += e.cents;
+      if (e.contingency) contingencyPaid += e.cents;
+    } else unpaid += e.cents;
+    if (e.contingency) contingencyCommitted += e.cents;
+  }
+  contingencyCommitted += records
+    .filter((r) => r.kind === "teamBudgetTransfer" && r.payload.teamId === teamId)
+    .reduce((n, r) => n + r.payload.cents, 0);
+  const sent = records
+    .filter(
+      (r) =>
+        r.kind === "payment" &&
+        r.payload.state === "in progress" &&
+        payables.some((p) => p.id === r.payload.payableId),
+    )
+    .reduce((n, r) => n + r.payload.amount, 0);
+  return {
+    paid,
+    unpaid,
+    unverifiedPaid,
+    verifiedPaid: paid - unverifiedPaid,
+    sent,
+    contingencyCommitted,
+    contingencyPaid,
+    directPaid: paid - contingencyPaid,
+  };
+}
 export function teamBudgetLedger(plan: FeePlan | undefined, records: RecordRow[], teamId: string) {
   const source = plan?.spendingBudget?.budget || plan?.publishedBudget;
   if (!source) return null;

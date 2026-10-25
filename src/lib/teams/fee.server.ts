@@ -1,5 +1,5 @@
 import { teamCollectionsEnabled } from "./collections.server";
-import { pinSpendingBudget } from "../finance/team-budget";
+import { pinSpendingBudget, teamExpenseTotals, teamBudgetLedger } from "../finance/team-budget";
 import {
   collectionConsent,
   installmentRemaining,
@@ -34,7 +34,7 @@ import {
 } from "../finance/context.server";
 import { resolveFinancialTeam, resolveFinancialAgreement } from "../finance/basis.server";
 import type { FinancialPrincipal } from "../finance/principal.server";
-import { day } from "../finance/contracts";
+import { day, type RecordRow } from "../finance/contracts";
 import { teamPaymentDisclosure } from "./payment-policy";
 import type { TeamActivity } from "./activity-contracts";
 import type { Team, Player } from "./types";
@@ -267,6 +267,9 @@ export async function feeWorkspaceInTransaction(
       };
   const overheadMaster = (await loadBudgetMaster(tx, context)).value;
   const admin = me.role === "admin";
+  const expenseRecords = admin
+    ? await tx<RecordRow>`select id,kind,payload from finance_records where kind in ('payable','payment','budgetAssignment','teamBudgetTransfer')`
+    : [];
   const teams = club.teams
     .filter((t) => admin || canCoach(t) || t.roster.some((p) => canViewPlayer(p)))
     .map((t) => {
@@ -332,8 +335,9 @@ export async function feeWorkspaceInTransaction(
       );
       const totalCollected = sum(t.roster.map(paid)),
         totalCredits = sum(t.roster.map(credit)),
-        expensesPaid = sum(p.expenses.filter((e) => e.paid).map((e) => e.cents)),
-        expensesUnpaid = sum(p.expenses.filter((e) => !e.paid).map((e) => e.cents));
+        expenseTotals = teamExpenseTotals(p, expenseRecords, t.id),
+        expensesPaid = expenseTotals.paid,
+        expensesUnpaid = expenseTotals.unpaid;
       const recognition = Object.values(p.players).reduce(
         (r, x) => {
           if (!x.serviceStart || !x.serviceEnd) return r;
@@ -374,7 +378,12 @@ export async function feeWorkspaceInTransaction(
         p.budget.reserve -
         recognition.deferred;
       const actualDistributable =
-        p.status === "closed" && expensesUnpaid === 0 ? Math.max(0, realized) : 0;
+        p.status === "closed" &&
+        expensesUnpaid === 0 &&
+        expenseTotals.unverifiedPaid === 0 &&
+        expenseTotals.sent === 0
+          ? Math.max(0, realized)
+          : 0;
       const contingencyFunded = Math.min(
         forecast.reserve,
         sum(
@@ -489,10 +498,15 @@ export async function feeWorkspaceInTransaction(
                 totalCredits,
                 expensesPaid,
                 expensesUnpaid,
+                expensesUnverifiedPaid: expenseTotals.unverifiedPaid,
+                expensesSent: expenseTotals.sent,
                 ...recognition,
                 actualDistributable,
                 contingencyFunded,
-                fundedContingencyRemaining: Math.max(0, contingencyFunded - forecast.used),
+                fundedContingencyRemaining: Math.max(
+                  0,
+                  contingencyFunded - expenseTotals.contingencyCommitted,
+                ),
                 nolan: Math.floor((actualDistributable * p.budget.nolanBps) / 10000),
                 steve:
                   actualDistributable -
@@ -1035,14 +1049,22 @@ export async function mutateFeePlan(sql: Sql, userId: string, raw: z.infer<typeo
         throw Error(
           "Review actual facility costs and staffing before closing the season financially.",
         );
+      const closingRecords =
+        await tx<RecordRow>`select id,kind,payload from finance_records where kind in ('payable','payment','budgetAssignment','teamBudgetTransfer')`;
+      const expenses = teamExpenseTotals(p, closingRecords, t.id);
+      const spending = teamBudgetLedger(p, closingRecords, t.id);
       if (
         !p.published ||
         today() <= p.budget.end ||
-        p.expenses.some((e) => !e.paid) ||
+        expenses.unpaid > 0 ||
+        expenses.unverifiedPaid > 0 ||
+        expenses.sent > 0 ||
+        spending?.unallocated.some((e) => e.amount > 0 && (e.state !== "canceled" || e.paid > 0)) ||
+        spending?.rows.some((line) => line.remaining < 0) ||
         t.roster.some((x) => x.feeLock && Math.round(x.feeLock.amount * 100) > paid(x) + credit(x))
       )
         throw Error(
-          "Close only after the season ends, expenses are paid, and player balances are reconciled.",
+          "Close only after the season ends, all Finance and fee-plan expenses are assigned and bank-reconciled within budget, and player balances are reconciled.",
         );
       p.status = "closed";
     }

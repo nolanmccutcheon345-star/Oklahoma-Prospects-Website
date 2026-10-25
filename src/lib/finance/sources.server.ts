@@ -1,5 +1,5 @@
 import type { Sql } from "../db";
-import { budgetCategory } from "./team-budget";
+import { budgetCategory, teamBudgetLedger, teamExpenseTotals } from "./team-budget";
 import { createHash } from "node:crypto";
 import {
   budgetCost,
@@ -371,21 +371,14 @@ export async function sourceData(
     const b = plan.spendingBudget?.budget || plan.publishedBudget,
       f = calculateFees(b),
       expenses = plan.expenses || [];
-    const financePaid = records.filter(
-      (r) =>
-        r.kind === "payable" &&
-        r.payload.teamId === t.id &&
-        !["owner", "refund"].includes(r.payload.category) &&
-        !expenses.some((e) => e.paid && r.id === `expense:${t.id}:${e.id}`),
-    );
-    const contingencyPayment = (r: RecordRow) =>
-      expenses.some((e) => e.contingency && r.id === `expense:${t.id}:${e.id}`);
-    const directPaid =
-      total(financePaid.filter((r) => !contingencyPayment(r)).map((r) => r.payload.paid || 0)) +
-      total(expenses.filter((e) => e.paid && !e.contingency).map((e) => e.cents));
-    const contingencyPaid =
-      total(expenses.filter((e) => e.paid && e.contingency).map((e) => e.cents)) +
-      total(financePaid.filter(contingencyPayment).map((r) => r.payload.paid || 0));
+    const ledger = teamBudgetLedger(plan, records, t.id)!;
+    const expenseTotals = teamExpenseTotals(plan, records, t.id);
+    if (expenseTotals.unverifiedPaid)
+      warnings.push(`${t.name}: reconcile historical paid expenses with bank evidence.`);
+    if (ledger.unallocated.some((p) => p.amount > 0 && (p.state !== "canceled" || p.paid > 0)))
+      warnings.push(`${t.name}: assign all team expenses to published budget lines.`);
+    const contingencyAllocated = ledger.transfers.reduce((n, r) => n + r.cents, 0);
+    const { directPaid, contingencyPaid } = expenseTotals;
     const active = t.roster.filter(
       (p) =>
         plan.players[p.id]?.status === "Roster Hold" ||
@@ -421,9 +414,16 @@ export async function sourceData(
       protectedDirect:
         plan.status === "closed"
           ? 0
-          : Math.max(0, Math.max(f.externalDirect, rosterProjection.externalDirect) - directPaid),
+          : Math.max(
+              0,
+              Math.max(f.externalDirect, rosterProjection.externalDirect) +
+                contingencyAllocated -
+                directPaid,
+            ),
       contingency:
-        plan.status === "closed" ? 0 : Math.max(0, rosterProjection.reserve - contingencyPaid),
+        plan.status === "closed"
+          ? 0
+          : Math.max(0, rosterProjection.reserve - contingencyAllocated - contingencyPaid),
       deferred,
       projected: rosterProjection.beforeOverhead,
       closed: plan.status === "closed",
