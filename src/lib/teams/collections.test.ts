@@ -9,7 +9,11 @@ import {
   authorizeTeamCollection,
   collectionStatus,
 } from "./collection-authorization.server";
-import { runTeamCollections, teamCollectionsEnabled } from "./collections.server";
+import {
+  nextCollectionReviewBatch,
+  runTeamCollections,
+  teamCollectionsEnabled,
+} from "./collections.server";
 import {
   backupDueAt,
   installmentRemaining,
@@ -185,6 +189,42 @@ async function fixture(environment: "production" | "sandbox" = "production") {
     },
   };
 }
+test("bounded collection scans rotate past 100 unresolved installments without changing consent or retrying cards", async () => {
+  const f = await fixture();
+  try {
+    await f.setup();
+    const [original] = await f.sql<{
+      id: string;
+      authorized_at: Date;
+      updated_at: Date;
+    }>`select id,authorized_at,updated_at from team_collection_authorizations`;
+    await f.sql`update team_collection_authorizations set last_checked_at='2001-01-01T00:00:00Z'`;
+    await f.sql`insert into team_collection_authorizations(id,environment,agreement_key,team_id,player_id,locked_at,user_id,customer_id,primary_card_id,backup_card_id,status,terms,authorized_at) select gen_random_uuid(),environment,'blocked-'||n,team_id,player_id,locked_at,user_id,customer_id,primary_card_id,backup_card_id,status,terms,authorized_at from team_collection_authorizations cross join generate_series(1,100) n where id=${original.id}`;
+    await f.sql`insert into team_collection_runs(id,authorization_id,installment_index,due_date,amount_cents,status,request_id,backup_request_id,primary_attempt_id,backup_attempt_id,primary_card_id,backup_card_id,next_attempt_at) select gen_random_uuid(),id,0,'2026-01-01',70000,'failed',gen_random_uuid(),gen_random_uuid(),gen_random_uuid(),gen_random_uuid(),primary_card_id,backup_card_id,now() from team_collection_authorizations where id<>${original.id}`;
+    const now = new Date("2030-01-02T18:00:00Z");
+    const first = await nextCollectionReviewBatch(f.sql, "production", now);
+    assert.equal(first.length, 100);
+    assert.ok(first.every((a) => a.id !== original.id));
+    const second = await nextCollectionReviewBatch(f.sql, "production", now);
+    assert.equal(second.length, 100);
+    assert.ok(second.some((a) => a.id === original.id));
+    const [unchanged] = await f.sql<{
+      authorized_at: Date;
+      updated_at: Date;
+    }>`select authorized_at,updated_at from team_collection_authorizations where id=${original.id}`;
+    assert.deepEqual(unchanged, {
+      authorized_at: original.authorized_at,
+      updated_at: original.updated_at,
+    });
+    const [failed] = await f.sql<{
+      count: number;
+    }>`select count(*)::int as count from team_collection_runs where status='failed'`;
+    assert.equal(failed.count, 100);
+    assert.equal(f.calls.length, 0);
+  } finally {
+    await f.db.close();
+  }
+});
 test("collection consent is guardian scoped, requires different cards, is revocable and cannot charge while globally paused", async () => {
   const f = await fixture();
   try {

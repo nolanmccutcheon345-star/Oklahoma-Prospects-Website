@@ -77,6 +77,10 @@ async function markReview(sql: Sql, run: CollectionRun) {
     await sql`insert into payment_notifications(id,order_id,kind) values(${"team-review:" + run.order_id},${run.order_id},'team-collection-review') on conflict do nothing`;
   }
 }
+/** Rotate bounded scans so unresolved earlier installments cannot starve other households. */
+export async function nextCollectionReviewBatch(sql: Sql, environment: string, now: Date) {
+  return sql<CollectionAuthorization>`update team_collection_authorizations a set last_checked_at=now() where a.id in (select candidate.id from team_collection_authorizations candidate where candidate.environment=${environment} and candidate.status='active' and exists(select 1 from jsonb_array_elements(candidate.terms->'rows') with ordinality schedule(row,num) where schedule.row->>'date'<=${now.toISOString().slice(0, 10)} and not exists(select 1 from team_collection_runs r where r.authorization_id=candidate.id and r.installment_index=schedule.num-1)) order by candidate.last_checked_at,candidate.id limit 100 for update of candidate skip locked) returning a.*`;
+}
 /** One bounded collection per invocation. No browser or scheduler may supply a charge amount. */
 export async function runTeamCollections(
   sql: Sql,
@@ -100,8 +104,7 @@ export async function runTeamCollections(
   const interrupted =
     await sql<CollectionRun>`update team_collection_runs r set status='review',updated_at=now() from team_collection_authorizations a where r.authorization_id=a.id and a.environment=${c.environment} and r.status in ('primary_pending','backup_pending') and r.attempted_at<${new Date(+now - 120000).toISOString()}::timestamptz returning r.*`;
   for (const run of interrupted) await markReview(sql, run);
-  const authorizations =
-    await sql<CollectionAuthorization>`select * from team_collection_authorizations where environment=${c.environment} and status='active' and exists(select 1 from jsonb_array_elements(terms->'rows') with ordinality schedule(row,num) where schedule.row->>'date'<=${now.toISOString().slice(0, 10)} and not exists(select 1 from team_collection_runs r where r.authorization_id=team_collection_authorizations.id and r.installment_index=schedule.num-1)) order by updated_at,id limit 100`;
+  const authorizations = await nextCollectionReviewBatch(sql, c.environment, now);
   for (const auth of authorizations) {
     if (!auth.primary_card_id || !auth.backup_card_id || !auth.authorized_at) continue;
     let rows;
