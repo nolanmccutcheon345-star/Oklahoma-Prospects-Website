@@ -1,3 +1,4 @@
+import { teamFundingReviewInput } from "./team-spending";
 import { z } from "zod";
 export const cents = z.number().int().min(0).max(1_000_000_000);
 const signed = z.number().int().min(-1_000_000_000).max(1_000_000_000);
@@ -169,6 +170,10 @@ const base = {
   reason: safeText.refine((s) => s.length >= 5, "Explain this financial change."),
 };
 export const financeAction = z.discriminatedUnion("action", [
+  z.object({ ...base, action: z.literal("fundraisingCredit"), contributionId: id }).strict(),
+  z
+    .object({ ...base, action: z.literal("teamFundingReview"), value: teamFundingReviewInput })
+    .strict(),
   z.object({ ...base, action: z.literal("recognizeLesson"), bookingId: id }).strict(),
   z.object({ ...base, action: z.literal("facility") }).strict(),
   z

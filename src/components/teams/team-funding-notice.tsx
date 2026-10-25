@@ -35,7 +35,13 @@ export function TeamFundingNotice({ teamId }: { teamId: string }) {
       <h3 className="text-xl">
         {data.overduePlayers ? "Team funding at risk" : "Team payment status"}
       </h3>
-      {data.overduePlayers ? (
+      {data.overduePlayers === null ? (
+        <p className="mt-2 text-sm">
+          Team purchases depend on that team’s settled player-fee funding and owner approval. Check
+          confirmed event and reservation notices before making plans. Review your own account
+          privately with Front Office; other families’ payment status is private.
+        </p>
+      ) : data.overduePlayers ? (
         <>
           <p className="mt-2 font-semibold">
             {data.overduePlayers} {data.overduePlayers === 1 ? "player has" : "players have"}{" "}

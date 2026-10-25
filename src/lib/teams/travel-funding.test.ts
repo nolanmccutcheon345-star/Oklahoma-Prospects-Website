@@ -183,11 +183,13 @@ test("scheduled stays calculate admin-priced hotel costs; aggregate arrears excl
       players[i].agreement = { version: "agreed", signedBy: "Guardian", signedAt: "2020-01-01" };
     }
     await sql`update club_state set payload=${JSON.stringify(stored.payload)}::jsonb where id='oklahoma-prospects'`;
-    for (const who of ["admin", "coach", "parent"])
+    for (const who of ["admin"])
       assert.deepEqual(await teamFundingStatus(sql, who, team.id), {
         overduePlayers: 2,
         tracking: true,
       });
+    for (const who of ["coach", "parent"])
+      assert.deepEqual(await teamFundingStatus(sql, who, team.id), { overduePlayers: null, tracking: null });
     for (const who of ["player", "stranger"])
       assert.equal(await teamFundingStatus(sql, who, team.id), null);
     assert.equal(await teamFundingStatus(sql, "coach", "other-team"), null);
@@ -205,8 +207,8 @@ test("scheduled stays calculate admin-priced hotel costs; aggregate arrears excl
     ];
     await sql`update club_state set payload=${JSON.stringify(stored.payload)}::jsonb where id='oklahoma-prospects'`;
     assert.deepEqual(await teamFundingStatus(sql, "parent", team.id), {
-      overduePlayers: 0,
-      tracking: true,
+      overduePlayers: null,
+      tracking: null,
     });
     const game = (await teamActivityWorkspace(sql, "coach", team.id)).activities.find(
       (a) => a.kind === "game",

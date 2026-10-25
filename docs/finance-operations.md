@@ -22,7 +22,7 @@ Cash paid and credits/write-offs are shown separately. Sandbox and draft/schedul
 
 Square & Refunds includes collections by source: gross, recorded Square refunds, known processing fees and collections after fees. Missing processing fees are not treated as zero. These are provider collection totals, not profit; merchandise costs, taxes, external reimbursements, manual receipts and operating costs stay in their respective ledgers. Complete historical imports and bank reconciliation are still required.
 
-Family Billing can save a Square-tokenized backup card with explicit consent. The customer must separately authorize making it primary. **Automatic backup retries are not enabled.** Existing Square renewal and invoice recovery workflows remain responsible for collection. Login remains available during payment problems.
+Family Billing can save a Square-tokenized backup card with explicit consent. The customer must separately authorize making it primary. This membership workflow is separate from team collection. Team agreements with the new automatic-installment terms support a consented primary attempt and one backup attempt after a confirmed decline, subject to the deployment verification gates. One-card families use individual checkout; saving a card does not authorize charges. Existing Square membership renewal and invoice recovery workflows retain their own authorization. Login remains available during payment problems.
 
 ## Outgoing money
 
@@ -47,3 +47,7 @@ Bank balances and liabilities must be reviewed through today; unmatched movement
 Finance records cannot be deleted. Changes retain actor, reason, before/after values in append-only audit history. Revision checks reject stale editors. Existing club/commerce audit continues to record team-fee and refund changes.
 
 Automated coverage includes full database migration execution, role/household isolation, approval/payment/reconciliation, duplicate rejection, exact Square settlement totals, refund fallback reservations, owner split/cash protection, credits/write-offs, team checkout/refund idempotency and rendered Finance/team controls. Live bank integration and automatic outgoing payouts remain intentionally unconfigured; real bank balances, payee instructions, and reviewed profit must be entered by authorized admins.
+
+## Current team operating controls
+
+See [team-operating-controls.md](team-operating-controls.md) for owner funding reviews, locked spending ceilings, fundraising applications, privacy, and the manual procedures that accompany these controls.

@@ -1,3 +1,4 @@
+import { TeamOperatingGuide } from "./operating-guide";
 import { CollectionOperations } from "./collection-operations";
 import { EventPaymentEditor } from "./event-payment-editor";
 import { patchPricingDraft, teamPricingValues } from "@/lib/teams/pricing-defaults";
@@ -142,6 +143,7 @@ export function TeamFeeWorkspace({ teamId }: { teamId?: string }) {
       {notice && <p role="status">{notice}</p>}
       {data?.admin && <BudgetMasterEditor teams={data.teams} />}
       {data?.admin && <CollectionOperations />}
+      {data && <TeamOperatingGuide audience={data.admin ? "owner" : team?.access === "coach" ? "staff" : "family"} />}
       {data?.admin && (
         <details className="rounded-xl border p-4">
           <summary className="min-h-11 cursor-pointer font-bold">
@@ -1669,7 +1671,7 @@ function TeamPlan({
                         })
                       }
                     />
-                    {key === "paid" ? "Paid" : "Unexpected expense charged against contingency"}
+                    {key === "paid" ? "Paid — requires Finance bank reconciliation" : "Unexpected expense charged against contingency"}
                   </label>
                 ))}
               </div>

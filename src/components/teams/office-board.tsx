@@ -113,7 +113,7 @@ export function OfficeCollections() {
       <DeskCard
         eyebrow="Collections"
         title="Open balances, past-due first."
-        copy="Record a payment. Waive a uniform. Chase the group."
+        copy="Review verified payments and follow up privately on outstanding accounts."
       >
         <div className="flex gap-1 overflow-x-auto rounded-xl bg-ink p-1">
           {filters.map((f) => (
@@ -199,15 +199,7 @@ export function OfficeCollections() {
                   >
                     Record payment
                   </Button>
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="ghost"
-                    onClick={() => os.waiveUniform(row.team.id, row.player.id)}
-                    disabled={row.player.uniformWaived}
-                  >
-                    Waive uniform
-                  </Button>
+
                 </div>
               </li>
             ))}

@@ -1,3 +1,12 @@
+import { fundraisingCreditQueue } from "../fundraising/fee-credit.server";
+import { applyFundraisingCreditInTransaction } from "./context.server";
+import { teamSpendingContext, teamSpendingViews } from "./team-spending.server";
+import {
+  assertTeamApproval,
+  remainingTeamApprovalCash,
+  spendingCategories,
+  type TeamFundingReview,
+} from "./team-spending";
 import type { Sql } from "../db";
 import {
   withFinancialContext,
@@ -67,6 +76,8 @@ export async function financeWorkspaceInTransaction(
     records: rs,
     sources,
     summary: financeSummary(rs, state.payload, sources, asOf),
+    teamSpending: teamSpendingViews(context, rs, asOf),
+    fundraisingCredits: await fundraisingCreditQueue(tx),
     audit: audit.map((a) => ({ ...a, created_at: new Date(a.created_at).toISOString() })),
   };
 }
@@ -134,7 +145,63 @@ export async function mutateFinance(
       rs = rs.filter((r) => r.id !== id).concat({ id, kind, payload: value });
     };
     const source = await sourceData(tx, date, rs, context);
-    if (a.action === "recognizeLesson") {
+    if (a.action === "fundraisingCredit") {
+      await applyFundraisingCreditInTransaction(tx, a.contributionId, context, a.basisVersion);
+    } else if (a.action === "teamFundingReview") {
+      const v = a.value,
+        team = teamSpendingContext(context, rs, v.teamId);
+      if (!team.published || team.closed || !team.formationReady)
+        throw Error(
+          "Publish the approved budget and confirm at least nine accepted, deposit-funded players, with deposits from every final-roster player, before spending.",
+        );
+      const old = rs.find((r) => r.kind === "teamFundingReview" && r.payload.teamId === v.teamId)
+        ?.payload as TeamFundingReview | undefined;
+      const ceiling = spendingCategories.reduce((n, c) => n + v.limits[c], 0);
+      if (
+        ceiling > team.ceiling ||
+        (old && spendingCategories.some((c) => v.limits[c] > old.limits[c]))
+      )
+        throw Error(
+          "Allocations cannot exceed the published preseason external-cost and contingency budget or increase a previously locked category limit.",
+        );
+      if (v.availableCents > team.recordedFundingCents)
+        throw Error(
+          "Available team cash cannot exceed this team's recorded fee receipts and verified fundraising. Other teams' collections cannot fund this review.",
+        );
+      const summary = financeSummary(rs, state.payload, source, date);
+      if (rs.some((r) => r.kind === "bank" && !r.payload.verified))
+        throw Error("Reconcile bank movements before certifying team cash.");
+      const otherReserved = rs
+        .filter(
+          (r) =>
+            r.kind === "teamFundingReview" &&
+            r.payload.teamId !== v.teamId &&
+            r.payload.asOf === date,
+        )
+        .reduce((n, r) => n + remainingTeamApprovalCash(r.payload as TeamFundingReview, rs), 0);
+      if (
+        v.availableCents + otherReserved >
+        Math.max(
+          0,
+          summary.cash - state.payload.tax - state.payload.reserve - state.payload.restricted,
+        )
+      )
+        throw Error(
+          "Team cash certifications exceed reconciled bank cash after organization protections. Do not allocate the same cash twice.",
+        );
+      await save("teamFundingReview", "team-funding:" + v.teamId, {
+        ...v,
+        actor: userId,
+        asOf: date,
+        evidenceKey: team.evidenceKey,
+        reservedSinceReview: 0,
+        approvedAtReview: Object.fromEntries(
+          rs
+            .filter((r) => r.kind === "payable" && r.payload.teamId === v.teamId)
+            .map((r) => [r.id, Math.max(r.payload.approved || 0, r.payload.paid || 0)]),
+        ),
+      });
+    } else if (a.action === "recognizeLesson") {
       if (context.mode !== "basis")
         throw Error("Independent financial recognition requires the reviewed financial cutover.");
       const { recognizeFinancialLessonInTransaction } = await import("./compensation.server");
@@ -328,6 +395,26 @@ export async function mutateFinance(
           throw Error("Lesson funding or refunds require review before approval.");
         if (current && !p.manualOverride && current.earned !== p.earned)
           throw Error("Refresh accruals before approving.");
+        if (p.teamId) {
+          const team = teamSpendingContext(context, rs, p.teamId);
+          if (team.closed || !team.formationReady)
+            throw Error("Team formation or deposit funding needs owner review before approval.");
+          const review = rs.find(
+            (r) => r.kind === "teamFundingReview" && r.payload.teamId === p.teamId,
+          )?.payload;
+          assertTeamApproval(
+            review as TeamFundingReview | undefined,
+            rs,
+            p,
+            date,
+            team.evidenceKey,
+          );
+          await save("teamFundingReview", "team-funding:" + p.teamId, {
+            ...review,
+            reservedSinceReview:
+              (review?.reservedSinceReview || 0) + Math.max(0, p.earned - p.approved),
+          });
+        }
         await save("payable", p.id, { ...p, approved: p.earned, state: "approved" });
       }
     } else if (a.action === "hold") {

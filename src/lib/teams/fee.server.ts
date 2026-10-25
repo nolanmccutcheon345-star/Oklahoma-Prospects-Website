@@ -599,6 +599,16 @@ export async function mutateFeePlan(sql: Sql, userId: string, raw: z.infer<typeo
       p.status = "draft";
     }
     if (input.action === "save") {
+      for (const expense of input.expenses) {
+        const old = p.expenses.find(e => e.id === expense.id);
+        if (expense.paid && (!old?.paid || old.cents !== expense.cents)) {
+          const [verified] = await tx<{payload:{paid:number;legacyPaid?:boolean}}>`select payload from finance_records where kind='payable' and id=${"expense:" + t.id + ":" + expense.id}`;
+          if (!verified || verified.payload.legacyPaid || verified.payload.paid < expense.cents)
+            throw Error("Record and reconcile this expense in Finance before marking it paid. A budget checkbox cannot verify payment.");
+        }
+      }
+      if (p.publishedBudget && sum(input.expenses.map(e => e.cents)) > calculateFees(p.publishedBudget).externalDirect + calculateFees(p.publishedBudget).contingency)
+        throw Error("Recorded expenses exceed the published preseason external-cost and contingency budget.");
       p = checkBudget({
         ...p,
         budget: await withScheduledHotels(tx, t.id, pendingGas(input.budget), context),
@@ -1146,6 +1156,7 @@ export async function teamFundingStatus(sql: Sql, userId: string, teamId: string
     )
       return null;
     const row = context.feePlans.find((row) => row.team_id === resolvedId);
+    if (me.role !== "admin") return { overduePlayers: null, tracking: null };
     if (!row) return { overduePlayers: 0, tracking: false };
     const players = t.roster.filter(
       (p) =>

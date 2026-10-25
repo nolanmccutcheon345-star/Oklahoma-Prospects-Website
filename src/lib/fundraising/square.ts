@@ -48,6 +48,13 @@ export async function syncPayment(paymentId: string, deps = { square, db, config
     )
     .bind(checked.status, checked.refunded, p.id, receipt, new Date().toISOString(), row.id, p.id)
     .run();
+  // Revoke only previously owner-applied credit after a verified production refund.
+  // Test doubles do not operate a second database connection.
+  if (deps.db === db && deps.config().SQUARE_ENVIRONMENT === "production") {
+    const { getSql } = await import("../db");
+    const { applyFundraisingCreditInTransaction } = await import("../finance/context.server");
+    await (await getSql()).transaction(tx => applyFundraisingCreditInTransaction(tx, row.id));
+  }
 }
 export async function syncContribution(id: string, deps = { square, db, config }) {
   const row = await deps

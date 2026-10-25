@@ -66,6 +66,8 @@ test("Finance renders cash protections, bank forms, approvals, receivables and a
     sources,
     records: [],
     audit: [],
+    teamSpending: [],
+    fundraisingCredits: [],
     summary: financeSummary([], settings, sources, today()),
   };
   globalThis.financeCalls = [];
@@ -113,6 +115,10 @@ test("Finance renders cash protections, bank forms, approvals, receivables and a
     assert.match(host.textContent, /Available distributable cash/);
     assert.match(host.textContent, /Add the business account/);
     const button = (t) => [...host.querySelectorAll("button")].find((b) => b.textContent === t);
+    await act(async () => button("Team spending").click());
+    assert.match(host.textContent, /No financial team records/);
+    await act(async () => button("Fundraising credits").click());
+    assert.match(host.textContent, /No completed linked contributions/);
     await act(async () => button("Business Banking").click());
     assert.match(host.textContent, /manual bank ledger, not a live bank connection/);
     assert.ok([...host.querySelectorAll("input")].filter((i) => i.name === "last4").length === 2);
