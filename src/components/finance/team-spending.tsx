@@ -26,6 +26,7 @@ export function TeamSpending({
         Team
         <select
           className="office-control"
+          aria-label="Team"
           value={team?.teamId || ""}
           onChange={(e) => setSelected(e.target.value)}
         >
@@ -232,7 +233,7 @@ function TeamBudgetDetails({
           budget.
         </p>
       </div>
-      <Button variant="outline" onClick={exportCsv}>
+      <Button variant="outlineDark" onClick={exportCsv}>
         Export this team's budget ledger
       </Button>
       <div className="overflow-x-auto" tabIndex={0} aria-label="Budget ledger table">
@@ -254,7 +255,7 @@ function TeamBudgetDetails({
                 "Historical unverified paid",
                 "Remaining unallocated",
               ].map((h) => (
-                <th key={h} className="p-2 text-left">
+                <th key={h} className="min-w-24 p-2 text-left">
                   {h}
                 </th>
               ))}
@@ -290,7 +291,8 @@ function TeamBudgetDetails({
       <p className="text-sm">
         Allocated payables include requests and full compensation/invoice amounts. Approved is the
         authorized amount to date. Sent payments are not counted as bank-reconciled until matched.
-        Negative remaining amounts require owner resolution before approval.
+        Negative remaining amounts require owner resolution before approval. Scroll the table
+        sideways on smaller screens to view all columns.
       </p>
       <p className="text-sm">
         Internal program allocation: {money(ledger.internalProgram)}. Organization allocation:{" "}
