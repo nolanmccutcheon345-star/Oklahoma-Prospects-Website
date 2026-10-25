@@ -1,4 +1,5 @@
 import { teamCollectionsEnabled } from "./collections.server";
+import { pinSpendingBudget, teamExpenseTotals, teamBudgetLedger } from "../finance/team-budget";
 import {
   collectionConsent,
   installmentRemaining,
@@ -33,7 +34,7 @@ import {
 } from "../finance/context.server";
 import { resolveFinancialTeam, resolveFinancialAgreement } from "../finance/basis.server";
 import type { FinancialPrincipal } from "../finance/principal.server";
-import { day } from "../finance/contracts";
+import { day, type RecordRow } from "../finance/contracts";
 import { teamPaymentDisclosure } from "./payment-policy";
 import type { TeamActivity } from "./activity-contracts";
 import type { Team, Player } from "./types";
@@ -266,6 +267,9 @@ export async function feeWorkspaceInTransaction(
       };
   const overheadMaster = (await loadBudgetMaster(tx, context)).value;
   const admin = me.role === "admin";
+  const expenseRecords = admin
+    ? await tx<RecordRow>`select id,kind,payload from finance_records where kind in ('payable','payment','budgetAssignment','teamBudgetTransfer')`
+    : [];
   const teams = club.teams
     .filter((t) => admin || canCoach(t) || t.roster.some((p) => canViewPlayer(p)))
     .map((t) => {
@@ -331,8 +335,9 @@ export async function feeWorkspaceInTransaction(
       );
       const totalCollected = sum(t.roster.map(paid)),
         totalCredits = sum(t.roster.map(credit)),
-        expensesPaid = sum(p.expenses.filter((e) => e.paid).map((e) => e.cents)),
-        expensesUnpaid = sum(p.expenses.filter((e) => !e.paid).map((e) => e.cents));
+        expenseTotals = teamExpenseTotals(p, expenseRecords, t.id),
+        expensesPaid = expenseTotals.paid,
+        expensesUnpaid = expenseTotals.unpaid;
       const recognition = Object.values(p.players).reduce(
         (r, x) => {
           if (!x.serviceStart || !x.serviceEnd) return r;
@@ -373,7 +378,12 @@ export async function feeWorkspaceInTransaction(
         p.budget.reserve -
         recognition.deferred;
       const actualDistributable =
-        p.status === "closed" && expensesUnpaid === 0 ? Math.max(0, realized) : 0;
+        p.status === "closed" &&
+        expensesUnpaid === 0 &&
+        expenseTotals.unverifiedPaid === 0 &&
+        expenseTotals.sent === 0
+          ? Math.max(0, realized)
+          : 0;
       const contingencyFunded = Math.min(
         forecast.reserve,
         sum(
@@ -488,10 +498,15 @@ export async function feeWorkspaceInTransaction(
                 totalCredits,
                 expensesPaid,
                 expensesUnpaid,
+                expensesUnverifiedPaid: expenseTotals.unverifiedPaid,
+                expensesSent: expenseTotals.sent,
                 ...recognition,
                 actualDistributable,
                 contingencyFunded,
-                fundedContingencyRemaining: Math.max(0, contingencyFunded - forecast.used),
+                fundedContingencyRemaining: Math.max(
+                  0,
+                  contingencyFunded - expenseTotals.contingencyCommitted,
+                ),
                 nolan: Math.floor((actualDistributable * p.budget.nolanBps) / 10000),
                 steve:
                   actualDistributable -
@@ -558,6 +573,7 @@ export async function mutateFeePlan(sql: Sql, userId: string, raw: z.infer<typeo
       throw Error("Admin access required.");
     if (p.status === "closed") throw Error("This season is financially closed.");
     if (p.published && !p.publishedBudget) p.publishedBudget = structuredClone(p.budget);
+    if (admin) pinSpendingBudget(p);
     const currentMaster = (await loadBudgetMaster(tx, context)).value;
     if (input.action !== "accept") p.budget = linkedPricingDraft(p, currentMaster, t);
     p.budget = await withScheduledHotels(tx, t.id, p.budget, context);
@@ -599,6 +615,27 @@ export async function mutateFeePlan(sql: Sql, userId: string, raw: z.infer<typeo
       p.status = "draft";
     }
     if (input.action === "save") {
+      for (const expense of input.expenses) {
+        const old = p.expenses.find((e) => e.id === expense.id);
+        if (expense.paid && (!old?.paid || old.cents !== expense.cents)) {
+          const [verified] = await tx<{
+            payload: { paid: number; legacyPaid?: boolean };
+          }>`select payload from finance_records where kind='payable' and id=${"expense:" + t.id + ":" + expense.id}`;
+          if (!verified || verified.payload.legacyPaid || verified.payload.paid < expense.cents)
+            throw Error(
+              "Record and reconcile this expense in Finance before marking it paid. A budget checkbox cannot verify payment.",
+            );
+        }
+      }
+      if (
+        p.publishedBudget &&
+        sum(input.expenses.map((e) => e.cents)) >
+          calculateFees(p.publishedBudget).externalDirect +
+            calculateFees(p.publishedBudget).contingency
+      )
+        throw Error(
+          "Recorded expenses exceed the published preseason external-cost and contingency budget.",
+        );
       p = checkBudget({
         ...p,
         budget: await withScheduledHotels(tx, t.id, pendingGas(input.budget), context),
@@ -767,6 +804,7 @@ export async function mutateFeePlan(sql: Sql, userId: string, raw: z.infer<typeo
       };
       p.status = "published";
       p.publishedBudget = structuredClone(b);
+      pinSpendingBudget(p);
       const uniform = p.uniforms.find((u) => u.id === b.uniformId);
       if (uniform) {
         const prior = club.uniforms.find((u) => u.id === uniform.id);
@@ -1011,14 +1049,22 @@ export async function mutateFeePlan(sql: Sql, userId: string, raw: z.infer<typeo
         throw Error(
           "Review actual facility costs and staffing before closing the season financially.",
         );
+      const closingRecords =
+        await tx<RecordRow>`select id,kind,payload from finance_records where kind in ('payable','payment','budgetAssignment','teamBudgetTransfer')`;
+      const expenses = teamExpenseTotals(p, closingRecords, t.id);
+      const spending = teamBudgetLedger(p, closingRecords, t.id);
       if (
         !p.published ||
         today() <= p.budget.end ||
-        p.expenses.some((e) => !e.paid) ||
+        expenses.unpaid > 0 ||
+        expenses.unverifiedPaid > 0 ||
+        expenses.sent > 0 ||
+        spending?.unallocated.some((e) => e.amount > 0 && (e.state !== "canceled" || e.paid > 0)) ||
+        spending?.rows.some((line) => line.remaining < 0) ||
         t.roster.some((x) => x.feeLock && Math.round(x.feeLock.amount * 100) > paid(x) + credit(x))
       )
         throw Error(
-          "Close only after the season ends, expenses are paid, and player balances are reconciled.",
+          "Close only after the season ends, all Finance and fee-plan expenses are assigned and bank-reconciled within budget, and player balances are reconciled.",
         );
       p.status = "closed";
     }
@@ -1126,7 +1172,7 @@ export async function teamUniform(sql: Sql, userId: string, teamId: string) {
   });
 }
 
-/** Aggregate payment status only; never expose families, amounts or budget detail. */
+/** Assigned coaches see named overdue status; families receive only a team-level boolean. */
 export async function teamFundingStatus(sql: Sql, userId: string, teamId: string) {
   return withFinancialContext(sql, userId, "read", async (_tx, context) => {
     if (!context.clubExists) throw Error("Team records are unavailable.");
@@ -1146,23 +1192,38 @@ export async function teamFundingStatus(sql: Sql, userId: string, teamId: string
     )
       return null;
     const row = context.feePlans.find((row) => row.team_id === resolvedId);
-    if (!row) return { overduePlayers: 0, tracking: false };
-    const players = t.roster.filter(
-      (p) =>
-        p.feeLock &&
-        row.payload.players[p.id]?.status !== "Removed" &&
-        (!p.withdrawn || row.payload.players[p.id]?.status === "Roster Hold"),
-    );
-    const overduePlayers = players.filter((p) => {
-      const v = playerView(t, p, row.payload);
+    const canSeeNames = me.role === "admin" || isFinancialCoach(context, t);
+    const players = row
+      ? t.roster.filter(
+          (p) =>
+            p.feeLock &&
+            p.agreement.signedAt &&
+            row.payload.players[p.id]?.status !== "Removed" &&
+            (!p.withdrawn || row.payload.players[p.id]?.status === "Roster Hold"),
+        )
+      : [];
+    const overdue = players.filter((p) => {
+      const v = playerView(t, p, row!.payload);
       return v.rows.some(
         (r, i) =>
           r.remaining > 0 &&
           (r.due || (i === 0 ? v.accepted : "")) &&
           (r.due || v.accepted) < today(),
       );
-    }).length;
-    return { overduePlayers, tracking: players.length > 0 };
+    });
+    return {
+      overduePlayers: canSeeNames ? overdue.length : null,
+      tracking: players.length > 0,
+      hasOverduePayments: overdue.length > 0,
+      overdueRoster: canSeeNames
+        ? overdue.map((p) => ({
+            playerId: p.id,
+            playerName: p.name,
+            guardianNames: [...new Set(p.parents.map((g) => g.name.trim()).filter(Boolean))],
+            status: "Overdue" as const,
+          }))
+        : null,
+    };
   });
 }
 

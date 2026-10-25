@@ -99,6 +99,11 @@ export async function persistClubSave(
         financial.mode === "basis"
           ? mergeOperationalSave(stored, data.club, me.role, me)
           : mergeSave(stored, data.club, me.role, me);
+      if (financial.mode === "legacy" && me.role === "admin") for (const team of merged.teams) for (const player of team.roster) {
+        const old = stored.teams.find(t => t.id === team.id)?.roster.find(p => p.id === player.id);
+        if (JSON.stringify(player.credits || []) !== JSON.stringify(old?.credits || []) || (player.uniformWaived && !old?.uniformWaived))
+          throw Error("New discretionary credits and uniform waivers are unavailable. Apply verified fundraising through Finance; preserve historical credits.");
+      }
       const {reconcileRosterEducation}=await import("../athlete-registration.server");
       await reconcileRosterEducation(tx,userId,stored,merged);
       await writeStoredClub(tx, merged, data.baseRev);

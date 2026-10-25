@@ -1,3 +1,4 @@
+import { teamFundingReviewInput } from "./team-spending";
 import { z } from "zod";
 export const cents = z.number().int().min(0).max(1_000_000_000);
 const signed = z.number().int().min(-1_000_000_000).max(1_000_000_000);
@@ -83,6 +84,8 @@ export const payableSchema = z
     payeeId: id,
     category,
     teamId: z.string().max(150),
+    budgetLineId: z.string().max(150).optional(),
+    invoiceReference: safeText.optional(),
     reason: safeText,
     amount: cents,
     earned: cents,
@@ -169,6 +172,29 @@ const base = {
   reason: safeText.refine((s) => s.length >= 5, "Explain this financial change."),
 };
 export const financeAction = z.discriminatedUnion("action", [
+  z.object({ ...base, action: z.literal("budgetAssignment"), payableId: id, lineId: id }).strict(),
+  z
+    .object({
+      ...base,
+      action: z.literal("teamBudgetTransfer"),
+      id,
+      teamId: id,
+      lineId: id,
+      cents: signed.refine((n) => n !== 0),
+    })
+    .strict(),
+  z
+    .object({
+      ...base,
+      action: z.literal("matchPayments"),
+      bankId: id,
+      paymentIds: z.array(id).min(2).max(100),
+    })
+    .strict(),
+  z.object({ ...base, action: z.literal("fundraisingCredit"), contributionId: id }).strict(),
+  z
+    .object({ ...base, action: z.literal("teamFundingReview"), value: teamFundingReviewInput })
+    .strict(),
   z.object({ ...base, action: z.literal("recognizeLesson"), bookingId: id }).strict(),
   z.object({ ...base, action: z.literal("facility") }).strict(),
   z

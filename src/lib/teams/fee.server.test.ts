@@ -530,6 +530,56 @@ for (const { role, retiredOffer } of [
         (await feeWorkspace(sql, "owner")).teams[0].private!.actual.actualDistributable,
         0,
       );
+      await assert.rejects(
+        () =>
+          mutateFeePlan(sql, "owner", {
+            action: "close",
+            teamId: team.id,
+            revision: 10,
+            confirmed: true,
+          }),
+        /bank-reconciled/,
+        "a historical paid checkbox alone cannot close a season",
+      );
+      const mirroredPayable = {
+        id: `expense:${team.id}:expense`,
+        teamId: team.id,
+        payeeId: "synthetic-vendor",
+        category: "vendor",
+        budgetLineId: "cost:private",
+        amount: 15000,
+        earned: 15000,
+        approved: 15000,
+        paid: 15000,
+        legacyPaid: false,
+        state: "approved",
+        reason: "Synthetic bank-reconciled actual expense",
+        source: "manual",
+      };
+      await sql`insert into finance_records(id,kind,payload) values(${mirroredPayable.id},'payable',${JSON.stringify(mirroredPayable)}::jsonb)`;
+      const unpaidFinanceExpense = {
+        ...mirroredPayable,
+        id: "pending-finance-only",
+        amount: 1000,
+        earned: 1000,
+        approved: 0,
+        paid: 0,
+        state: "pending approval",
+      };
+      await sql`insert into finance_records(id,kind,payload) values(${unpaidFinanceExpense.id},'payable',${JSON.stringify(unpaidFinanceExpense)}::jsonb)`;
+      await assert.rejects(
+        () =>
+          mutateFeePlan(sql, "owner", {
+            action: "close",
+            teamId: team.id,
+            revision: 10,
+            confirmed: true,
+          }),
+        /all Finance/,
+        "unpaid Finance-only expenses must block season close",
+      );
+      unpaidFinanceExpense.state = "canceled";
+      await sql`update finance_records set payload=${JSON.stringify(unpaidFinanceExpense)}::jsonb where id=${unpaidFinanceExpense.id}`;
       await mutateFeePlan(sql, "owner", {
         action: "close",
         teamId: team.id,

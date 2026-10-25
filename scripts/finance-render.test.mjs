@@ -7,6 +7,8 @@ import { build } from "esbuild";
 import { JSDOM } from "jsdom";
 import { financeSummary } from "../src/lib/finance/model.ts";
 import { today } from "../src/lib/finance/contracts.ts";
+import { teamBudgetLedger } from "../src/lib/finance/team-budget.ts";
+import { defaultBudget } from "../src/lib/teams/fee-model.ts";
 test("Finance renders cash protections, bank forms, approvals, receivables and audit without making transfers", async () => {
   const dom = new JSDOM('<div id="root"></div>', {
     url: "https://fixture.invalid/office?section=finance",
@@ -66,6 +68,8 @@ test("Finance renders cash protections, bank forms, approvals, receivables and a
     sources,
     records: [],
     audit: [],
+    teamSpending: [],
+    fundraisingCredits: [],
     summary: financeSummary([], settings, sources, today()),
   };
   globalThis.financeCalls = [];
@@ -113,6 +117,58 @@ test("Finance renders cash protections, bank forms, approvals, receivables and a
     assert.match(host.textContent, /Available distributable cash/);
     assert.match(host.textContent, /Add the business account/);
     const button = (t) => [...host.querySelectorAll("button")].find((b) => b.textContent === t);
+    await act(async () => button("Team spending").click());
+    assert.match(host.textContent, /No financial team records/);
+    const publishedBudget = {
+      ...defaultBudget(),
+      costs: [
+        { id: "coach", name: "Head coach", cents: 100000 },
+        { id: "gas", name: "Coach gas", cents: 10000 },
+        { id: "equipment", name: "Team equipment", cents: 20000 },
+      ],
+      tournament: 50000,
+      hotelNightly: 15000,
+      hotelNights: 2,
+    };
+    globalThis.financeFixture.teamSpending.push({
+      teamId: "base",
+      name: "Synthetic baseball",
+      committed: 9,
+      roster: 9,
+      ceiling: 250000,
+      formationReady: true,
+      published: true,
+      closed: false,
+      current: false,
+      remaining: 0,
+      review: null,
+      usage: {},
+      ledger: teamBudgetLedger(
+        { publishedBudget, published: { at: "2026-10-25", revision: 1 }, expenses: [] },
+        [],
+        "base",
+      ),
+    });
+    await act(async () => button("Fundraising credits").click());
+    assert.match(host.textContent, /No completed linked contributions/);
+    await act(async () => button("Team spending").click());
+    for (const label of [
+      "Published budget ledger",
+      "Tournament entries",
+      "Head coach",
+      "Coach gas",
+      "Team equipment",
+      "Scheduled coach hotel stipends",
+      "Bank reconciled paid",
+      "Allocate contingency to a budget line",
+    ])
+      assert.ok(host.textContent.includes(label), label);
+    assert.equal(host.querySelectorAll("table tbody tr").length, 8);
+    assert.ok(
+      [...host.querySelectorAll("button")].find(
+        (b) => b.textContent === "Save today's funding review",
+      ).disabled,
+    );
     await act(async () => button("Business Banking").click());
     assert.match(host.textContent, /manual bank ledger, not a live bank connection/);
     assert.ok([...host.querySelectorAll("input")].filter((i) => i.name === "last4").length === 2);

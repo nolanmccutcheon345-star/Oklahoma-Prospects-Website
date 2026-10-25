@@ -30,16 +30,17 @@ export function TeamFundingNotice({ teamId }: { teamId: string }) {
   return (
     <section
       aria-label="Team funding status"
-      className={`my-4 rounded-xl border p-4 ${data.overduePlayers ? "border-maroon bg-white" : "border-line bg-paper"}`}
+      className={`my-4 rounded-xl border p-4 ${data.hasOverduePayments ? "border-maroon bg-white" : "border-line bg-paper"}`}
     >
       <h3 className="text-xl">
-        {data.overduePlayers ? "Team funding at risk" : "Team payment status"}
+        {data.hasOverduePayments ? "Team funding at risk" : "Team payment status"}
       </h3>
-      {data.overduePlayers ? (
+      {data.hasOverduePayments ? (
         <>
           <p className="mt-2 font-semibold">
-            {data.overduePlayers} {data.overduePlayers === 1 ? "player has" : "players have"}{" "}
-            overdue team payments.
+            {data.overduePlayers === null
+              ? "One or more team payments are overdue."
+              : `${data.overduePlayers} ${data.overduePlayers === 1 ? "player has" : "players have"} overdue team payments.`}
           </p>
           <p className="mt-2 text-sm">
             Unpaid fees put planned team activities at risk. Prospects does not advance funds to
@@ -48,8 +49,29 @@ export function TeamFundingNotice({ teamId }: { teamId: string }) {
           </p>
           <p className="mt-2 text-sm">
             Please review your own payment schedule and contact Front Office about any outstanding
-            payment. This notice shows a team total only; individual payment details remain private.
+            payment. Other families do not receive names, individual statuses or an overdue-player
+            count.
           </p>
+          {data.overdueRoster !== null && (
+            <div className="mt-4">
+              <h4 className="font-semibold">Private staff payment follow-up</h4>
+              <p className="mt-1 text-sm">
+                Assigned coaches and financial administrators only. Confirm collection questions
+                with Front Office; do not share this list with other families.
+              </p>
+              <ul className="mt-2 space-y-2">
+                {data.overdueRoster.map((player) => (
+                  <li key={player.playerId} className="rounded-lg border border-line p-3 text-sm">
+                    <strong>{player.playerName}</strong> — Payment overdue
+                    <div>
+                      Listed parent/guardian:{" "}
+                      {player.guardianNames.join(", ") || "Contact Front Office"}
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
         </>
       ) : (
         <p className="mt-2 text-sm">

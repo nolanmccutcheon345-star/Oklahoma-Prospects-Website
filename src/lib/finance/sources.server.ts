@@ -1,4 +1,5 @@
 import type { Sql } from "../db";
+import { budgetCategory, teamBudgetLedger, teamExpenseTotals } from "./team-budget";
 import { createHash } from "node:crypto";
 import {
   budgetCost,
@@ -367,24 +368,17 @@ export async function sourceData(
       });
       continue;
     }
-    const b = plan.publishedBudget,
+    const b = plan.spendingBudget?.budget || plan.publishedBudget,
       f = calculateFees(b),
       expenses = plan.expenses || [];
-    const financePaid = records.filter(
-      (r) =>
-        r.kind === "payable" &&
-        r.payload.teamId === t.id &&
-        !["owner", "refund"].includes(r.payload.category) &&
-        !expenses.some((e) => e.paid && r.id === `expense:${t.id}:${e.id}`),
-    );
-    const contingencyPayment = (r: RecordRow) =>
-      expenses.some((e) => e.contingency && r.id === `expense:${t.id}:${e.id}`);
-    const directPaid =
-      total(financePaid.filter((r) => !contingencyPayment(r)).map((r) => r.payload.paid || 0)) +
-      total(expenses.filter((e) => e.paid && !e.contingency).map((e) => e.cents));
-    const contingencyPaid =
-      total(expenses.filter((e) => e.paid && e.contingency).map((e) => e.cents)) +
-      total(financePaid.filter(contingencyPayment).map((r) => r.payload.paid || 0));
+    const ledger = teamBudgetLedger(plan, records, t.id)!;
+    const expenseTotals = teamExpenseTotals(plan, records, t.id);
+    if (expenseTotals.unverifiedPaid)
+      warnings.push(`${t.name}: reconcile historical paid expenses with bank evidence.`);
+    if (ledger.unallocated.some((p) => p.amount > 0 && (p.state !== "canceled" || p.paid > 0)))
+      warnings.push(`${t.name}: assign all team expenses to published budget lines.`);
+    const contingencyAllocated = ledger.transfers.reduce((n, r) => n + r.cents, 0);
+    const { directPaid, contingencyPaid } = expenseTotals;
     const active = t.roster.filter(
       (p) =>
         plan.players[p.id]?.status === "Roster Hold" ||
@@ -420,9 +414,16 @@ export async function sourceData(
       protectedDirect:
         plan.status === "closed"
           ? 0
-          : Math.max(0, Math.max(f.externalDirect, rosterProjection.externalDirect) - directPaid),
+          : Math.max(
+              0,
+              Math.max(f.externalDirect, rosterProjection.externalDirect) +
+                contingencyAllocated -
+                directPaid,
+            ),
       contingency:
-        plan.status === "closed" ? 0 : Math.max(0, rosterProjection.reserve - contingencyPaid),
+        plan.status === "closed"
+          ? 0
+          : Math.max(0, rosterProjection.reserve - contingencyAllocated - contingencyPaid),
       deferred,
       projected: rosterProjection.beforeOverhead,
       closed: plan.status === "closed",
@@ -459,6 +460,7 @@ export async function sourceData(
           id: `season:${t.id}:${role.title}:${payeeId}`,
           payeeId,
           category: "coach",
+          budgetLineId: role.cost ? "cost:" + role.cost.id : undefined,
           teamId: t.id,
           reason: `${t.name} · ${role.title} · ${b.start}–${b.end}`,
           amount,
@@ -473,15 +475,17 @@ export async function sourceData(
     }
     if (t.coachEmail) {
       const payeeId = addPerson(t.coachEmail, t.headCoach || t.coachEmail, "Head Coach");
-      for (const [category, amount] of [
-        ["gas", b.costs.find((c) => c.id === "cost-3" || c.name === "Coach travel")?.cents || 0],
-        ["hotel", b.hotelNightly * b.hotelNights],
+      const gasCost = b.costs.find((c) => budgetCategory(c.name) === "gas");
+      for (const [category, amount, budgetLineId] of [
+        ["gas", gasCost ? budgetCost(b, gasCost) : 0, gasCost ? "cost:" + gasCost.id : ""],
+        ["hotel", b.hotelNightly * b.hotelNights, "base:hotel"],
       ] as const) {
         if (!amount) continue;
         candidates.push({
           id: `stipend:${t.id}:${category}`,
           payeeId,
           category,
+          budgetLineId,
           teamId: t.id,
           reason: `${t.name} · ${category} stipend budget; verify completed travel before accruing`,
           amount,
@@ -495,7 +499,6 @@ export async function sourceData(
       }
     }
     for (const e of expenses) {
-      if (e.paid) continue;
       const payeeId = "vendor:unassigned";
       if (!payees.some((p) => p.id === payeeId))
         payees.push({
@@ -511,6 +514,7 @@ export async function sourceData(
         id: `expense:${t.id}:${e.id}`,
         payeeId,
         category: "vendor",
+        budgetLineId: e.contingency ? "reserve:contingency" : undefined,
         teamId: t.id,
         reason: e.name,
         amount: e.cents,
@@ -518,7 +522,8 @@ export async function sourceData(
         due: e.date || date,
         source: `expense:${t.id}:${e.id}`,
         approved: 0,
-        paid: 0,
+        paid: e.paid ? e.cents : 0,
+        legacyPaid: e.paid,
         state: "pending approval",
       });
     }

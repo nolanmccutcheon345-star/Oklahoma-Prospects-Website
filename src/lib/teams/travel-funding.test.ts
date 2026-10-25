@@ -10,7 +10,7 @@ import { saveTeamActivity, teamActivityWorkspace } from "./activity.server";
 import { activityInput, type TeamActivity } from "./activity-contracts";
 import { seasonHotelNights } from "./travel-budget";
 
-test("scheduled stays calculate admin-priced hotel costs; aggregate arrears exclude players and private financial data", async () => {
+test("scheduled stays calculate admin-priced hotel costs; named arrears stay with assigned staff and parents receive only a boolean", async () => {
   const db = new PGlite();
   const wrap = (q: PGlite["query"]): Sql => {
     const s = (async (p: TemplateStringsArray, ...v: unknown[]) =>
@@ -28,9 +28,9 @@ test("scheduled stays calculate admin-priced hotel costs; aggregate arrears excl
     for (const f of (await readdir("migrations")).filter((f) => f.endsWith(".sql")).sort())
       await db.exec(await readFile("migrations/" + f, "utf8"));
     const sql = wrap(db.query.bind(db));
-    for (const id of ["admin", "coach", "parent", "player", "stranger"]) {
+    for (const id of ["admin", "coach", "parent", "player", "stranger", "other-coach"]) {
       await sql`insert into "user"(id,email,name,"emailVerified","createdAt","updatedAt") values(${id},${id + "@example.invalid"},${id},true,now(),now())`;
-      await sql`insert into profiles(user_id,email,name,role,family_id) values(${id},${id + "@example.invalid"},${id},${id === "stranger" ? "parent" : id},${"fam-" + id})`;
+      await sql`insert into profiles(user_id,email,name,role,family_id) values(${id},${id + "@example.invalid"},${id},${id === "stranger" ? "parent" : id === "other-coach" ? "coach" : id},${"fam-" + id})`;
     }
     await sql`insert into owner_grants(email,user_id) values('admin@example.invalid','admin')`;
     const club = sampleClub();
@@ -183,12 +183,25 @@ test("scheduled stays calculate admin-priced hotel costs; aggregate arrears excl
       players[i].agreement = { version: "agreed", signedBy: "Guardian", signedAt: "2020-01-01" };
     }
     await sql`update club_state set payload=${JSON.stringify(stored.payload)}::jsonb where id='oklahoma-prospects'`;
-    for (const who of ["admin", "coach", "parent"])
+    for (const who of ["admin", "coach"])
       assert.deepEqual(await teamFundingStatus(sql, who, team.id), {
         overduePlayers: 2,
         tracking: true,
+        hasOverduePayments: true,
+        overdueRoster: players.slice(0, 2).map((p) => ({
+          playerId: p.id,
+          playerName: p.name,
+          guardianNames: p.parents.map((g) => g.name),
+          status: "Overdue",
+        })),
       });
-    for (const who of ["player", "stranger"])
+    assert.deepEqual(await teamFundingStatus(sql, "parent", team.id), {
+      overduePlayers: null,
+      tracking: true,
+      hasOverduePayments: true,
+      overdueRoster: null,
+    });
+    for (const who of ["player", "stranger", "other-coach"])
       assert.equal(await teamFundingStatus(sql, who, team.id), null);
     assert.equal(await teamFundingStatus(sql, "coach", "other-team"), null);
     players[0].credits = [{ label: "Approved credit", amount: 400 }];
@@ -205,9 +218,21 @@ test("scheduled stays calculate admin-priced hotel costs; aggregate arrears excl
     ];
     await sql`update club_state set payload=${JSON.stringify(stored.payload)}::jsonb where id='oklahoma-prospects'`;
     assert.deepEqual(await teamFundingStatus(sql, "parent", team.id), {
-      overduePlayers: 0,
+      overduePlayers: null,
       tracking: true,
+      hasOverduePayments: false,
+      overdueRoster: null,
     });
+    assert.deepEqual(
+      await teamFundingStatus(sql, "coach", team.id),
+      {
+        overduePlayers: 0,
+        tracking: true,
+        hasOverduePayments: false,
+        overdueRoster: [],
+      },
+      "future unpaid installments must not be labeled overdue",
+    );
     const game = (await teamActivityWorkspace(sql, "coach", team.id)).activities.find(
       (a) => a.kind === "game",
     )!;

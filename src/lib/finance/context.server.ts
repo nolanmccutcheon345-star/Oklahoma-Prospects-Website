@@ -1093,6 +1093,10 @@ export async function commitFinancialClubTermsInTransaction(
         : entry.playerId;
       const player = team.roster.find((p) => p.id === playerId);
       if (!player) throw new Error("Financial player agreement is unavailable.");
+      if (entry.uniformWaived && !player.uniformWaived)
+        throw Error(
+          "New discretionary uniform waivers are unavailable. Historical agreements remain unchanged.",
+        );
       player.uniformWaived = entry.uniformWaived;
     }
     for (const entry of edit.staff || []) {
@@ -1960,4 +1964,112 @@ export async function admitFinancialSelfIdentityInTransaction(
   await appendHuman(tx, initial.basis, inputs, principal, "owner", request.reason);
   await tx`insert into finance_audit(actor_id,record_id,action,reason,after_state) values(${principal.userId},${id},'Financial self identity admission',${request.reason},${JSON.stringify({ selection: request.selection, version, reviewDigest: review.reviewDigest })}::jsonb)`;
   return { id, version };
+}
+
+/** Owner applies settled fundraising to one accepted agreement. Provider reconciliation can only reduce an existing application. */
+export async function applyFundraisingCreditInTransaction(
+  tx: Sql,
+  contributionId: string,
+  context?: FinancialContext,
+  expectedBasisVersion?: number,
+) {
+  await lockFinancialExecution(tx);
+  const human = context ? await humanBaseline(tx, context, expectedBasisVersion) : null;
+  if (human && !human.principal.owner) throw Error("Financial owner access required.");
+  const initial = human?.initial || (await sourceInTransaction(tx));
+  const { fundraisingCreditEvidence } = await import("../fundraising/fee-credit.server");
+  const { contribution: c, eligibleCents } = await fundraisingCreditEvidence(tx, contributionId);
+  const id = "fundraising-credit:" + contributionId;
+  const [saved] = await tx<{
+    payload: import("../fundraising/fee-credit.server").FundraisingCredit;
+  }>`select payload from finance_records where id=${id} and kind='fundraisingCredit' for update`;
+  const prior = saved?.payload;
+  if (!human && !prior) return;
+  if (!prior && (!c.team_id || !c.roster_player_id || !eligibleCents))
+    throw Error(
+      "Verify the completed contribution and match its production Square payout to the bank before applying it to a player fee.",
+    );
+  const inputs = initial.basis ? clone(initial.basis.inputs) : null;
+  const club = inputs?.club || clone(initial.club);
+  const ids = {
+    teamId: prior?.teamId || c.team_id,
+    playerId: prior?.playerId || c.roster_player_id,
+  };
+  const resolved = initial.basis ? resolveFinancialAgreement(initial.basis, ids) : null;
+  const teamId = resolved?.team.id || ids.teamId,
+    playerId = resolved?.player.id || ids.playerId;
+  const team = club.teams.find((t) => t.id === teamId),
+    player = team?.roster.find((p) => p.id === playerId);
+  if (!player?.feeLock || !player.planLock || !player.agreement.signedAt)
+    throw Error("An accepted player fee agreement is required.");
+  if (prior && prior.lockedAt !== player.feeLock.lockedAt)
+    throw Error("Original fundraising agreement changed. Owner review is required.");
+  if (!prior && (team?.closed || player.withdrawn))
+    throw Error("Fundraising cannot be applied to a withdrawn player or closed team.");
+  const label = prior?.label || "Verified fundraising: " + contributionId;
+  const others = player.credits.filter((x) => x.label !== label);
+  const remaining = Math.max(
+    0,
+    Math.round(
+      (player.feeLock.amount -
+        player.payments.reduce((n, x) => n + x.amount, 0) -
+        others.reduce((n, x) => n + x.amount, 0)) *
+        100,
+    ),
+  );
+  const cents = human ? Math.min(eligibleCents, remaining) : Math.min(prior!.cents, eligibleCents);
+  if (human && (team?.closed || player.withdrawn) && cents > (prior?.cents || 0))
+    throw Error(
+      "Unused fundraising does not transfer or become a new credit after withdrawal or season close.",
+    );
+  if (prior?.cents === cents) return;
+  if (!prior && !cents)
+    throw Error(
+      "No unpaid fee remains. Excess proceeds stay unapplied for owner review under fundraiser terms.",
+    );
+  const value = {
+    contributionId,
+    teamId,
+    playerId,
+    agreementId: resolved?.identity.id || null,
+    lockedAt: player.feeLock.lockedAt,
+    cents,
+    label,
+  };
+  player.credits = [...others, ...(cents ? [{ label, amount: cents / 100 }] : [])];
+  player.depositPaid =
+    Math.round(
+      (player.payments.reduce((n, x) => n + x.amount, 0) +
+        player.credits.reduce((n, x) => n + x.amount, 0)) *
+        100,
+    ) >= Math.round(player.planLock.dep * 100);
+  if (initial.basis && inputs) {
+    if (human)
+      await appendHuman(
+        tx,
+        initial.basis,
+        inputs,
+        human.principal,
+        "owner",
+        "Applied verified settled fundraising to accepted player fee",
+      );
+    else {
+      const version = initial.basis.version + 1;
+      await tx`insert into financial_basis_versions(basis_id,version,payload,payload_digest,changed_by,reason,actor_kind,provider_order_id,provider_payment_id,provider_environment,provider_observation_digest) values(${ID},${version},${JSON.stringify(inputs)}::jsonb,${financialBasisDigest(inputs)},null,'Fundraising refund credit reconciliation','provider',${c.order_id!},${c.payment_id!},'production',${financialBasisDigest({ value, refunded: c.refunded, previousVersion: initial.basis.version })})`;
+      const changed =
+        await tx`update financial_basis_state set current_version=${version},active_version=${version} where id=${ID} and activation_state='active' and current_version=${initial.basis.version} and active_version=${initial.basis.version} returning id`;
+      if (changed.length !== 1) throw Error("Financial basis changed. Reconcile again.");
+    }
+  } else {
+    club._rev = initial.club._rev + 1;
+    club._savedAt = new Date().toISOString();
+    const changed =
+      await tx`update club_state set payload=${JSON.stringify(club)}::jsonb,rev=${club._rev},updated_at=now() where id=${ID} and rev=${initial.club._rev} returning id`;
+    if (changed.length !== 1) throw Error("Financial records changed. Refresh and retry.");
+  }
+  await tx`insert into finance_records(id,kind,payload) values(${id},'fundraisingCredit',${JSON.stringify(value)}::jsonb) on conflict(id) do update set payload=excluded.payload,updated_at=now()`;
+  await tx`insert into finance_audit(actor_id,record_id,action,reason,before_state,after_state) values(${human?.principal.userId || "provider:square"},${id},'Fundraising fee credit','Verified settled proceeds; separate from fee cash receipts',${prior ? JSON.stringify(prior) : null}::jsonb,${JSON.stringify(value)}::jsonb)`;
+  await tx`update enrollment_cases set cleared_at=null,cleared_by=null,clearance_reason='Review required after fundraising credit changed.' where (team_id=${teamId} and player_id=${playerId}) or (${value.agreementId}::text is not null and financial_agreement_id=${value.agreementId})`;
+  if (prior && cents < prior.cents)
+    await tx`update team_collection_authorizations set status='paused',updated_at=now() where team_id=${teamId} and player_id=${playerId} and status='active'`;
 }

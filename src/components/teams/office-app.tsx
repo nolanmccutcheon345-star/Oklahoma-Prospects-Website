@@ -12,7 +12,7 @@ import { Button } from "@/components/ui/button";
 import type { ClubRecord, StaffMember } from "@/lib/teams/types";
 import { officeAddPlayer, officeAddTeam, officeRemoveTeam, officeSaveTeamSeasons } from "@/lib/teams/store";
 import { AGE_GROUPS } from "@/lib/club";
-import { balance, docsComplete, fundingCount } from "@/lib/teams/pricing";
+import { balance, docsComplete } from "@/lib/teams/pricing";
 import { Section } from "./ui";
 import { money } from "./ui";
 
@@ -42,7 +42,7 @@ export function OfficeApp({
     ),
     paper: players.filter((x) => !docsComplete(x.player)),
     sizes: players.filter((x) => !x.player.order.submitted),
-    thin: club.teams.filter((t) => fundingCount(t) < 10),
+    thin: club.teams.filter((t) => t.roster.filter(p => !p.withdrawn).length < 9),
     noSched: club.teams.filter((t) => t.tournamentIds.length === 0),
   };
   const revenue = billingPlayers.reduce((s, x) => s + (x.player.feeLock?.amount ?? 0), 0);
@@ -81,7 +81,7 @@ export function OfficeApp({
           <li>Balances remaining {attention.pastDue.length}</li>
           <li>Missing paperwork {attention.paper.length}</li>
           <li>Missing sizes {attention.sizes.length}</li>
-          <li>Teams under ten {attention.thin.map((t) => t.name).join(", ") || "none"}</li>
+          <li>Teams under nine rostered players {attention.thin.map((t) => t.name).join(", ") || "none"}</li>
           <li>No schedule {attention.noSched.map((t) => t.name).join(", ") || "none"}</li>
         </ul>
       </Section>
@@ -104,7 +104,7 @@ export function OfficeApp({
           <article key={t.id} className="mb-2 rounded-lg bg-paper-2 p-3 text-sm">
             <p className="font-semibold">{t.headCoach}</p>
             <p>
-              Fill {fundingCount(t)}/10 · record {t.record.w}-{t.record.l} · events {t.tournamentIds.length}
+              Rostered {t.roster.filter(p => !p.withdrawn).length} · minimum 9 (deposit commitment reviewed in Finance) · record {t.record.w}-{t.record.l} · events {t.tournamentIds.length}
             </p>
           </article>
         ))}

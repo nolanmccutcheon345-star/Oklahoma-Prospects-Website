@@ -1,3 +1,13 @@
+import { fundraisingCreditQueue } from "../fundraising/fee-credit.server";
+import { applyFundraisingCreditInTransaction } from "./context.server";
+import { teamSpendingContext, teamSpendingViews } from "./team-spending.server";
+import { teamBudgetLedger, assertBudgetAssignment } from "./team-budget";
+import {
+  assertTeamApproval,
+  remainingTeamApprovalCash,
+  spendingCategories,
+  type TeamFundingReview,
+} from "./team-spending";
 import type { Sql } from "../db";
 import {
   withFinancialContext,
@@ -67,6 +77,8 @@ export async function financeWorkspaceInTransaction(
     records: rs,
     sources,
     summary: financeSummary(rs, state.payload, sources, asOf),
+    teamSpending: teamSpendingViews(context, rs, asOf),
+    fundraisingCredits: await fundraisingCreditQueue(tx),
     audit: audit.map((a) => ({ ...a, created_at: new Date(a.created_at).toISOString() })),
   };
 }
@@ -134,7 +146,146 @@ export async function mutateFinance(
       rs = rs.filter((r) => r.id !== id).concat({ id, kind, payload: value });
     };
     const source = await sourceData(tx, date, rs, context);
-    if (a.action === "recognizeLesson") {
+    if (a.action === "teamBudgetTransfer") {
+      const plan = context.feePlans.find((p) => p.team_id === a.teamId)?.payload;
+      const ledger = teamBudgetLedger(plan, rs, a.teamId);
+      if (
+        !ledger ||
+        plan?.status === "closed" ||
+        context.club.teams.find((t) => t.id === a.teamId)?.closed
+      )
+        throw Error("Choose an open team with a published budget.");
+      if (rs.some((r) => r.id === a.id)) throw Error("This budget adjustment is already recorded.");
+      if (a.lineId === "reserve:contingency" || !ledger.rows.some((l) => l.id === a.lineId))
+        throw Error("Choose a published expense line to receive contingency.");
+      if (
+        a.cents > 0 &&
+        a.cents > (ledger.rows.find((l) => l.id === "reserve:contingency")?.remaining || 0)
+      )
+        throw Error("Contingency allocation exceeds its uncommitted balance.");
+      const target = ledger.rows.find((l) => l.id === a.lineId)!;
+      if (a.cents < 0 && -a.cents > Math.min(target.adjustment, target.remaining))
+        throw Error("Only unused prior contingency allocations can return to the reserve.");
+      await save("teamBudgetTransfer", a.id, {
+        teamId: a.teamId,
+        lineId: a.lineId,
+        cents: a.cents,
+        actor: userId,
+        at: new Date().toISOString(),
+        reason: a.reason,
+      });
+    } else if (a.action === "budgetAssignment") {
+      const p = get(a.payableId, "payable") as Payable;
+      const plan = context.feePlans.find((row) => row.team_id === p.teamId)?.payload;
+      const ledger = teamBudgetLedger(plan, rs, p.teamId);
+      if (!p.teamId || !ledger || ["owner", "refund"].includes(p.category))
+        throw Error("Choose a team expense payable.");
+      if (!ledger.rows.some((l) => l.id === a.lineId))
+        throw Error("Choose a line from this team's published budget.");
+      // Reclassification preserves the original payment evidence, amount and team.
+      await save("budgetAssignment", "budget-assignment:" + p.id, {
+        teamId: p.teamId,
+        payableId: p.id,
+        lineId: a.lineId,
+        actor: userId,
+        at: new Date().toISOString(),
+      });
+    } else if (a.action === "matchPayments") {
+      const bank = get(a.bankId, "bank") as BankTxn;
+      if (bank.verified || bank.amount >= 0 || new Set(a.paymentIds).size !== a.paymentIds.length)
+        throw Error("Choose one unmatched bank debit and distinct pending payments.");
+      const group = a.paymentIds.map((id) => get(id, "payment") as Payment);
+      if (
+        group.some((p) => p.state !== "in progress" || p.accountId !== bank.accountId) ||
+        total(group.map((p) => p.amount)) !== -bank.amount
+      )
+        throw Error(
+          "Pending payment allocations must match the bank account and exact debit total.",
+        );
+      const allocations = group.map((p) => get(p.payableId, "payable") as Payable);
+      if (
+        new Set(allocations.map((p) => p.payeeId)).size !== 1 ||
+        new Set(allocations.map((p) => p.invoiceReference)).size !== 1 ||
+        !allocations[0].invoiceReference?.trim()
+      )
+        throw Error(
+          "Shared invoice payments need one vendor and the same recorded invoice reference.",
+        );
+      for (const payment of group) {
+        const p = get(payment.payableId, "payable") as Payable;
+        if (["owner", "refund", "instructor"].includes(p.category) || !p.teamId)
+          throw Error("Group matching is for allocated team expense payments only.");
+        if (bank.teamId && bank.teamId !== p.teamId)
+          throw Error("Use an organization-level bank debit for a shared invoice across teams.");
+        if (bank.payeeId && bank.payeeId !== p.payeeId)
+          throw Error("Bank payee does not match the expense allocation.");
+        if (p.paid + payment.amount > p.approved)
+          throw Error("A payment allocation exceeds approved spending.");
+        await save("payment", payment.id, { ...payment, state: "reconciled", bankId: bank.id });
+        await save("payable", p.id, { ...p, paid: p.paid + payment.amount, legacyPaid: false });
+      }
+      await save("bank", bank.id, { ...bank, verified: true, match: "payment-group:" + bank.id });
+      await save("paymentGroup", "payment-group:" + bank.id, {
+        bankId: bank.id,
+        paymentIds: a.paymentIds,
+        amount: -bank.amount,
+      });
+    } else if (a.action === "fundraisingCredit") {
+      await applyFundraisingCreditInTransaction(tx, a.contributionId, context, a.basisVersion);
+    } else if (a.action === "teamFundingReview") {
+      const v = a.value,
+        team = teamSpendingContext(context, rs, v.teamId);
+      if (!team.published || team.closed || !team.formationReady)
+        throw Error(
+          "Publish the approved budget and confirm at least nine accepted, deposit-funded players, with deposits from every final-roster player, before spending.",
+        );
+      const ledger = teamBudgetLedger(
+        context.feePlans.find((p) => p.team_id === v.teamId)?.payload,
+        rs,
+        v.teamId,
+      )!;
+      if (spendingCategories.some((c) => v.limits[c] !== ledger.limits[c]))
+        throw Error(
+          "Category limits must match the published budget lines and recorded contingency allocations. Refresh before saving.",
+        );
+      if (v.availableCents > team.recordedFundingCents)
+        throw Error(
+          "Available team cash cannot exceed this team's recorded fee receipts and verified fundraising. Other teams' collections cannot fund this review.",
+        );
+      const summary = financeSummary(rs, state.payload, source, date);
+      if (rs.some((r) => r.kind === "bank" && !r.payload.verified))
+        throw Error("Reconcile bank movements before certifying team cash.");
+      const otherReserved = rs
+        .filter(
+          (r) =>
+            r.kind === "teamFundingReview" &&
+            r.payload.teamId !== v.teamId &&
+            r.payload.asOf === date,
+        )
+        .reduce((n, r) => n + remainingTeamApprovalCash(r.payload as TeamFundingReview, rs), 0);
+      if (
+        v.availableCents + otherReserved >
+        Math.max(
+          0,
+          summary.cash - state.payload.tax - state.payload.reserve - state.payload.restricted,
+        )
+      )
+        throw Error(
+          "Team cash certifications exceed reconciled bank cash after organization protections. Do not allocate the same cash twice.",
+        );
+      await save("teamFundingReview", "team-funding:" + v.teamId, {
+        ...v,
+        actor: userId,
+        asOf: date,
+        evidenceKey: team.evidenceKey,
+        reservedSinceReview: 0,
+        approvedAtReview: Object.fromEntries(
+          rs
+            .filter((r) => r.kind === "payable" && r.payload.teamId === v.teamId)
+            .map((r) => [r.id, Math.max(r.payload.approved || 0, r.payload.paid || 0)]),
+        ),
+      });
+    } else if (a.action === "recognizeLesson") {
       if (context.mode !== "basis")
         throw Error("Independent financial recognition requires the reviewed financial cutover.");
       const { recognizeFinancialLessonInTransaction } = await import("./compensation.server");
@@ -278,6 +429,26 @@ export async function mutateFinance(
           throw Error("Use the protected owner-distribution or refund workflow.");
         if (
           prior &&
+          ((prior.paid && v.teamId !== prior.teamId) ||
+            ((prior.approved || (prior.paid && !prior.legacyPaid)) &&
+              (v.teamId !== prior.teamId ||
+                v.payeeId !== prior.payeeId ||
+                v.budgetLineId !== prior.budgetLineId)))
+        )
+          throw Error(
+            "Preserve the paid/approved team, payee and budget line. Use the audited budget assignment action to reclassify an existing expense.",
+          );
+        if (v.teamId && v.budgetLineId) {
+          const ledger = teamBudgetLedger(
+            context.feePlans.find((p) => p.team_id === v.teamId)?.payload,
+            rs,
+            v.teamId,
+          );
+          if (!ledger?.rows.some((l) => l.id === v.budgetLineId))
+            throw Error("Choose a line from this team's published budget.");
+        }
+        if (
+          prior &&
           (prior.paid > v.earned ||
             rs.some(
               (r) =>
@@ -292,6 +463,7 @@ export async function mutateFinance(
           source: prior?.source || "manual",
           approved: 0,
           paid: prior?.paid || 0,
+          legacyPaid: prior?.legacyPaid || false,
           state: "pending approval",
           manualOverride: true,
         });
@@ -328,6 +500,31 @@ export async function mutateFinance(
           throw Error("Lesson funding or refunds require review before approval.");
         if (current && !p.manualOverride && current.earned !== p.earned)
           throw Error("Refresh accruals before approving.");
+        if (p.teamId) {
+          const team = teamSpendingContext(context, rs, p.teamId);
+          if (team.closed || !team.formationReady)
+            throw Error("Team formation or deposit funding needs owner review before approval.");
+          assertBudgetAssignment(
+            context.feePlans.find((row) => row.team_id === p.teamId)?.payload,
+            rs,
+            p,
+          );
+          const review = rs.find(
+            (r) => r.kind === "teamFundingReview" && r.payload.teamId === p.teamId,
+          )?.payload;
+          assertTeamApproval(
+            review as TeamFundingReview | undefined,
+            rs,
+            p,
+            date,
+            team.evidenceKey,
+          );
+          await save("teamFundingReview", "team-funding:" + p.teamId, {
+            ...review,
+            reservedSinceReview:
+              (review?.reservedSinceReview || 0) + Math.max(0, p.earned - p.approved),
+          });
+        }
         await save("payable", p.id, { ...p, approved: p.earned, state: "approved" });
       }
     } else if (a.action === "hold") {
