@@ -539,16 +539,25 @@ function FinancialReadiness({
       {data && (
         <>
           <p>
+            {data.collectionRequired && (
+              <>
+                Automatic installment authorization:{" "}
+                {data.collectionReady ? "active" : "required before clearance"}.{" "}
+              </>
+            )}
             Financial agreement: {data.agreementSigned ? "accepted" : "not yet accepted"}. Deposit
             requirement:{" "}
             {data.depositSatisfied
-              ? "satisfied by verified Square funds / approved credits"
+              ? "satisfied by verified Square funds, owner-verified offline funds or approved credits"
               : "awaiting verified funds or owner financial review"}
             .
           </p>
           <p className="text-sm">
-            This status excludes unverified or sandbox payments. Refunds reduce the verified amount.
-            A payment-return page alone cannot confirm payment.
+            This status excludes unverified or sandbox payments. An offline ledger entry counts only
+            after an owner verifies received funds against this accepted agreement. Refunds and
+            recorded reversals reduce the verified amount. Unresolved or lost disputed payments do
+            not count toward clearance and require owner review. A payment-return page alone cannot
+            confirm payment.
           </p>
         </>
       )}

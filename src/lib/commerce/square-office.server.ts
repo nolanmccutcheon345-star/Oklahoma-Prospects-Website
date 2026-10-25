@@ -292,7 +292,11 @@ export async function verifySquareLocation(userId: string) {
 }
 
 /** Read-only configuration check; signing keys never leave the server. */
-export async function verifySquareWebhooks(userId: string, prepareMemberships = false, requireMemberships = false) {
+export async function verifySquareWebhooks(
+  userId: string,
+  prepareMemberships = false,
+  requireMemberships = false,
+) {
   await requirePaymentOwner(userId);
   const c = squareConfig();
   if (prepareMemberships) {
@@ -316,6 +320,7 @@ export async function verifySquareWebhooks(userId: string, prepareMemberships = 
         "invoice.payment_made",
         "invoice.scheduled_charge_failed",
         "dispute.created",
+        "dispute.state.updated",
         "card.automatically_updated",
       );
     if (prepareMemberships && required.some((type) => !subscription?.eventTypes?.includes(type))) {

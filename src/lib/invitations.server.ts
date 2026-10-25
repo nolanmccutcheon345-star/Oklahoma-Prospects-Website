@@ -3,6 +3,7 @@ import { randomUUID, createHash } from "node:crypto";
 import { getSql } from "./db";
 import { clubIdentity } from "./identity.server";
 import { isOwnerEmail } from "./owners";
+import { invitationIssuerAuthorized } from "./invitation-delivery.server";
 
 const invitationInput = z
   .object({
@@ -37,6 +38,9 @@ export async function issueInvitation(
   const id = randomUUID(),
     hash = createHash("sha256").update(randomUUID()).digest("hex");
   await sql.transaction(async (tx) => {
+    await tx.query("select pg_advisory_xact_lock(hashtext($1))", [
+      `account-invite:${normalized}:${role}:${familyId || ""}`,
+    ]);
     if (familyId) {
       const homes = await tx`select id from club_households where id=${familyId} for update`;
       if (!homes.length) throw new Error("Choose an existing household for this invitation.");
@@ -48,7 +52,7 @@ export async function issueInvitation(
     id,
     path: "/invitations",
     message:
-      "Invitation saved. Ask the recipient to sign in with this exact email and open Invitations within seven days.",
+      "Invitation saved; email has not been sent. Use Send invitation email when ready. The recipient must sign in with this exact email and open Invitations within seven days.",
   };
 }
 export async function pendingInvitations(userId: string) {
@@ -76,11 +80,16 @@ export async function acceptInvitation(userId: string, id: string) {
     const [invite] = await tx<{
       role: string;
       family_id: string | null;
-    }>`select role,family_id from club_invites where id=${id} and lower(email)=${me.email} and status='pending' and expires_at>now() for update`;
+      invited_by: string;
+    }>`select role,family_id,invited_by from club_invites where id=${id} and lower(email)=${me.email} and status='pending' and expires_at>now() for update`;
     if (!invite)
       throw new Error("This invitation is unavailable. Sign in with the invited, verified email.");
     if (!["admin", "coach", "parent", "player"].includes(invite.role))
       throw new Error("Invalid invitation role.");
+    if (!(await invitationIssuerAuthorized(tx, invite)))
+      throw new Error(
+        "The inviter no longer has authority to grant this access. Contact an owner.",
+      );
     if (invite.role === "admin") {
       const grants =
         await tx`select email from owner_grants where email=${me.email} and revoked_at is null and (user_id is null or user_id=${userId})`;
@@ -95,7 +104,10 @@ export async function acceptInvitation(userId: string, id: string) {
         );
     }
     // A guardian invitation adds household access without demoting a coach or owner.
-    const role = invite.family_id && invite.role === "parent" ? me.role : invite.role;
+    const role =
+      invite.role === "parent" && (invite.family_id || me.role === "admin" || me.role === "coach")
+        ? me.role
+        : invite.role;
     await tx`insert into profiles(user_id,name,email,role,family_id) values(${userId},${me.name},${me.email},${role},${invite.family_id || me.familyId}) on conflict(user_id) do update set role=excluded.role`;
     if (invite.family_id)
       await tx`insert into household_members(household_id,user_id) values(${invite.family_id},${userId}) on conflict do nothing`;

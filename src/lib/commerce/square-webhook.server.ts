@@ -206,6 +206,35 @@ export async function syncSquareRefund(id: string, dependencies?: SquareSyncDepe
       where square_refund_id=${id} and status<>'completed' and external_status is null`;
   });
 }
+export async function syncSquareDispute(id: string, dependencies?: SquareSyncDependencies) {
+  const client = dependencies?.client || squareClient(),
+    c = dependencies?.config || squareConfig(),
+    sql = dependencies?.sql || (await getSql());
+  const { dispute: d } = await client.disputes.get({ disputeId: id });
+  if (!d || d.id !== id || !d.disputedPayment?.paymentId || d.locationId !== c.locationId)
+    throw new Error("Dispute identity verification failed.");
+  const version = Number(d.version ?? 0),
+    amount = Number(d.amountMoney?.amount);
+  if (
+    !Number.isSafeInteger(version) ||
+    version < 1 ||
+    !Number.isSafeInteger(amount) ||
+    amount < 0 ||
+    d.amountMoney?.currency !== "USD"
+  )
+    throw new Error("Dispute response is incomplete; reconciliation requires provider review.");
+  await sql.transaction(async (tx) => {
+    await lockFinancialExecution(tx);
+    const [payment] = await tx<{
+      order_id: string;
+    }>`select order_id from square_payments where id=${d.disputedPayment!.paymentId!} and environment=${c.environment}`;
+    if (!payment) return;
+    const saved =
+      await tx`insert into square_disputes(id,payment_id,state,amount_cents,due_at,provider_version) values(${d.id!},${d.disputedPayment!.paymentId!},${d.state || "unknown"},${amount},${d.dueAt || null},${version}) on conflict(id) do update set state=excluded.state,amount_cents=excluded.amount_cents,due_at=excluded.due_at,provider_version=excluded.provider_version,updated_at=now() where square_disputes.provider_version<excluded.provider_version and square_disputes.payment_id=excluded.payment_id returning id`;
+    if (saved.length)
+      await tx`insert into payment_notifications(id,order_id,kind) values(${"dispute:" + d.id + ":" + version},${payment.order_id},'dispute') on conflict do nothing`;
+  });
+}
 export async function processSquareEvent(
   event: { id: string; type: string; object_id: string },
   providedSql?: Sql,
@@ -234,18 +263,9 @@ export async function processSquareEvent(
     if (card?.id && card.customerId)
       await sql`update commerce_orders set updated_at=now() where square_card_id=${card.id} and square_customer_id=${card.customerId} and payment_environment=${squareConfig().environment}`;
   } else if (event.type.startsWith("refund.")) await syncSquareRefund(event.object_id);
-  else if (event.type.startsWith("dispute.")) {
-    const { dispute: d } = await client.disputes.get({ disputeId: event.object_id });
-    if (d?.id && d.disputedPayment?.paymentId) {
-      const [payment] = await sql<{
-        order_id: string;
-      }>`select order_id from square_payments where id=${d.disputedPayment.paymentId} and environment=${squareConfig().environment}`;
-      if (payment) {
-        await sql`insert into payment_notifications(id,order_id,kind) values(${"dispute:" + d.id},${payment.order_id},'dispute') on conflict do nothing`;
-        await sql`insert into square_disputes(id,payment_id,state,amount_cents,due_at) values(${d.id},${d.disputedPayment.paymentId},${d.state || "unknown"},${Number(d.amountMoney?.amount || 0)},${d.dueAt || null}) on conflict(id) do update set state=excluded.state,due_at=excluded.due_at,updated_at=now()`;
-      }
-    }
-  }
+  else if (event.type.startsWith("dispute."))
+    await syncSquareDispute(event.object_id, { client, config: squareConfig(), sql });
+
   await sql`update square_events set status='processed',processed_at=now() where id=${event.id}`;
 }
 export async function squareWebhook(

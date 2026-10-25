@@ -586,6 +586,10 @@ test("only reviewed internal financial consumers import the basis; migrations do
     "lib/finance/identity-admission.server.ts",
     // Guardian/owner-only enrollment readiness; coordinator projections never import it.
     "lib/enrollment/financial.server.ts",
+    // Owner-only offline verification and guardian-bound consent; no raw snapshot reaches the browser.
+    "lib/teams/offline-payment-api.ts",
+    "lib/teams/offline-payments.server.ts",
+    "lib/teams/collection-authorization.server.ts",
   ]);
   for (const file of await readdir("src", { recursive: true })) {
     if (!/\.(tsx?|mjs)$/.test(file) || /\.test(?:[.-])/.test(file)) continue;

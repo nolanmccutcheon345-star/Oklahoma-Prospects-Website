@@ -1,4 +1,5 @@
 import { MembershipPresentationEditor } from "@/components/membership-presentation-editor";
+import { InvitationDelivery } from "@/components/invitation-delivery";
 import { readServicePresentation, currentCageBenefit } from "@/lib/service-presentation";
 import { FinancialIdentityAdmission } from "@/components/finance/financial-identity-admission";
 import { PersonEditor } from "@/components/staff/person-editor";
@@ -1044,8 +1045,9 @@ export function AdminAccountsDesk({
         <div>
           <h3 className="text-2xl">Users & Permissions</h3>
           <p className="mt-1 text-sm text-muted">
-            New accounts receive a pending invitation at /invitations. Share that link with the
-            recipient; they choose their own password and verify their email.
+            Save the invitation, then use Send invitation email when the offer and access are ready.
+            Recipients choose their own password and verify their email. Saving alone sends no
+            email.
           </p>
         </div>
         <Button
@@ -1178,6 +1180,9 @@ export function AdminAccountsDesk({
                   {row.expires_at ? ` before ${new Date(row.expires_at).toLocaleDateString()}` : ""}
                   .
                 </p>
+              )}
+              {row.status === "invited" && (
+                <InvitationDelivery id={row.user_id.slice("invite:".length)} />
               )}
               {row.status !== "invited" && (
                 <div className="mt-3 flex flex-wrap gap-2">
