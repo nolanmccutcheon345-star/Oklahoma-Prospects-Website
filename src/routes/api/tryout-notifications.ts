@@ -30,6 +30,9 @@ export const Route = createFileRoute("/api/tryout-notifications")({
             ...process.env,
             SQUARE_DEPLOY_CONTEXT: process.env.SQUARE_DEPLOY_CONTEXT,
           };
+          const invitations = await (
+            await import("@/lib/invitation-delivery.server")
+          ).deliverInvitationEmails(sql, env);
           const teamNotices = await (
             await import("@/lib/coordinator/communications.server")
           ).deliverTeamNotices(sql);
@@ -41,8 +44,11 @@ export const Route = createFileRoute("/api/tryout-notifications")({
             await import("@/lib/coordinator/program-notices.server")
           ).deliverProgramEventNotices(sql, env);
           return Response.json(
-            { group: summary, center, teamNotices, program },
-            { status: summary.failed || center.failed || program.failed ? 503 : 200 },
+            { group: summary, center, teamNotices, program, invitations },
+            {
+              status:
+                summary.failed || center.failed || program.failed || invitations.failed ? 503 : 200,
+            },
           );
         } catch {
           return new Response("Retry pending", { status: 503 });

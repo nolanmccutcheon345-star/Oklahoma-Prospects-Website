@@ -828,9 +828,37 @@ export async function recordFinancialTeamPaymentInTransaction(
     amount: number;
     method: string;
     label: string;
+    verifiedReceived?: true;
+    requestId?: string;
     expectedBasisVersion?: number;
   },
 ) {
+  if (change.requestId) {
+    await financialReadSnapshotInTransaction(tx, context, "owner");
+    await tx`select pg_advisory_xact_lock(hashtextextended(${"manual-payment:" + change.requestId},0))`;
+    const [prior] = await tx<{
+      record_id: string;
+      after_state: {
+        teamId: string;
+        playerId: string;
+        amount: number;
+        method: string;
+        label: string;
+        requestId: string;
+      };
+    }>`select record_id,after_state from finance_audit where action='Manual team payment' and after_state->>'requestId'=${change.requestId} order by id desc limit 1`;
+    if (prior) {
+      if (
+        ["teamId", "playerId", "amount", "method", "label"].some(
+          (key) =>
+            prior.after_state[key as keyof typeof prior.after_state] !==
+            change[key as keyof typeof change],
+        )
+      )
+        throw new Error("Payment request changed. Refresh and review the recorded receipt.");
+      return { version: context.version, receipt: prior.record_id };
+    }
+  }
   const { initial, principal } = await humanBaseline(tx, context, change.expectedBasisVersion);
   if (!principal.owner) throw new Error("Admin financial owner access required.");
   if (
@@ -850,8 +878,17 @@ export async function recordFinancialTeamPaymentInTransaction(
   const { assertRecordableTeamPayment, newRecordedTeamPaymentReceipt } =
     await import("../teams/recorded-payment-policy");
   assertRecordableTeamPayment(player, change.amount);
+  if (
+    change.verifiedReceived &&
+    (!player.agreement.signedAt || !player.feeLock || !player.planLock)
+  )
+    throw new Error("An accepted fee agreement and payment schedule are required to verify funds.");
   if (change.method === "Square website")
     throw new Error("Square website entries require verified provider reconciliation.");
+  const pending =
+    await tx`select id from commerce_orders o where kind='team-fee' and payment_environment='production' and ((snapshot->'teamFee'->>'teamId'=${teamId} and snapshot->'teamFee'->>'playerId'=${playerId}) or (${resolved?.identity.id || null}::text is not null and snapshot->'teamFee'->>'financialAgreementId'=${resolved?.identity.id || null})) and (status='payment_review' or (status='pending' and hold_until>now()) or exists(select 1 from square_payment_attempts a where a.order_id=o.id and a.status in ('pending','unknown'))) limit 1`;
+  if (pending.length)
+    throw Error("Reconcile the pending Square attempt before recording another payment.");
   const receipt = newRecordedTeamPaymentReceipt();
   player.payments.push({
     date: new Date().toISOString().slice(0, 10),
@@ -864,8 +901,11 @@ export async function recordFinancialTeamPaymentInTransaction(
   });
   if (player.planLock?.dep !== undefined)
     player.depositPaid =
-      Math.round(player.payments.reduce((sum, p) => sum + p.amount, 0) * 100) >=
-      Math.round(player.planLock.dep * 100);
+      Math.round(
+        (player.payments.reduce((sum, p) => sum + p.amount, 0) +
+          player.credits.reduce((sum, c) => sum + c.amount, 0)) *
+          100,
+      ) >= Math.round(player.planLock.dep * 100);
   let version: number | null = null;
   if (initial.basis && inputs) {
     version = await appendHuman(
@@ -888,8 +928,118 @@ export async function recordFinancialTeamPaymentInTransaction(
       await tx`update club_state set payload=${JSON.stringify(club)}::jsonb,rev=${club._rev},updated_at=now() where id=${ID} and rev=${initial.club._rev} returning id`;
     if (changed.length !== 1) throw new Error("Club changed. Refresh before saving.");
   }
-  await tx`insert into finance_audit(actor_id,record_id,action,reason,after_state) values(${principal.userId},${receipt},'Manual team payment','Owner recorded received funds',${JSON.stringify({ teamId, playerId, amount: change.amount, method: change.method, label: change.label })}::jsonb)`;
+  await tx`insert into finance_audit(actor_id,record_id,action,reason,after_state) values(${principal.userId},${receipt},'Manual team payment','Owner recorded received funds',${JSON.stringify({ teamId, playerId, amount: change.amount, method: change.method, label: change.label, requestId: change.requestId })}::jsonb)`;
+  if (change.verifiedReceived) {
+    const { isOfflineMethod, writeOfflineVerification } =
+      await import("../teams/offline-payments.server");
+    if (!isOfflineMethod(change.method))
+      throw new Error("Choose a supported offline payment method.");
+    await writeOfflineVerification(
+      tx,
+      principal.userId,
+      {
+        version: 1,
+        teamId,
+        playerId,
+        financialAgreementId: resolved?.identity.id || null,
+        lockedAt: player.feeLock!.lockedAt,
+        receipt,
+        amount: change.amount,
+        method: change.method,
+        label: change.label,
+        verified: true,
+        requestId: change.requestId,
+      },
+      "Owner confirmed receipt of settled funds: " + change.label,
+    );
+  }
   return { version, receipt };
+}
+
+/** Review an existing external receipt, or record money already returned outside this website. Never initiates a refund. */
+export async function reviewFinancialOfflinePaymentInTransaction(
+  tx: Sql,
+  context: FinancialContext,
+  change: {
+    teamId: string;
+    playerId: string;
+    receipt: string;
+    action: "verify" | "revoke" | "reverse";
+    reason: string;
+    remainingAmount?: number;
+    expectedBasisVersion?: number;
+  },
+) {
+  const { initial, principal } = await humanBaseline(tx, context, change.expectedBasisVersion);
+  if (!principal.owner) throw new Error("Admin financial owner access required.");
+  if (change.reason.trim().length < 10)
+    throw new Error("Explain the payment evidence or correction.");
+  const inputs = initial.basis ? clone(initial.basis.inputs) : null;
+  const club = inputs?.club || clone(initial.club);
+  const resolved = initial.basis ? resolveFinancialAgreement(initial.basis, change) : null;
+  const teamId = resolved?.team.id || change.teamId,
+    playerId = resolved?.player.id || change.playerId;
+  const player = club.teams.find((t) => t.id === teamId)?.roster.find((p) => p.id === playerId);
+  const rows = player?.payments.filter((p) => p.receipt === change.receipt) || [];
+  const payment = rows[0];
+  const { isOfflineMethod, writeOfflineVerification } =
+    await import("../teams/offline-payments.server");
+  if (
+    !player?.feeLock ||
+    !player.agreement.signedAt ||
+    rows.length !== 1 ||
+    !isOfflineMethod(payment.method)
+  )
+    throw new Error("A unique offline receipt on an accepted agreement is required.");
+  if (change.action === "verify" && payment.amount <= 0)
+    throw new Error("A fully returned payment cannot be verified as received funds.");
+  if (change.action === "reverse") {
+    const amount = change.remainingAmount;
+    if (
+      amount === undefined ||
+      !Number.isFinite(amount) ||
+      amount < 0 ||
+      amount >= payment.amount ||
+      Math.abs(amount * 100 - Math.round(amount * 100)) > 1e-6
+    )
+      throw new Error("Enter the smaller net amount still received, in dollars and cents.");
+    const before = clone(payment);
+    payment.amount = amount;
+    player.depositPaid =
+      Math.round(
+        (player.payments.reduce((n, p) => n + p.amount, 0) +
+          player.credits.reduce((n, c) => n + c.amount, 0)) *
+          100,
+      ) >= Math.round((player.planLock?.dep ?? Infinity) * 100);
+    if (initial.basis && inputs)
+      await appendHuman(tx, initial.basis, inputs, principal, "owner", change.reason);
+    else {
+      club._rev = initial.club._rev + 1;
+      club._savedAt = new Date().toISOString();
+      const updated =
+        await tx`update club_state set payload=${JSON.stringify(club)}::jsonb,rev=${club._rev},updated_at=now() where id=${ID} and rev=${initial.club._rev} returning id`;
+      if (updated.length !== 1) throw new Error("Club changed. Refresh before saving.");
+    }
+    await tx`insert into finance_audit(actor_id,record_id,action,reason,before_state,after_state) values(${principal.userId},${payment.receipt},'Offline team payment reversal',${change.reason},${JSON.stringify(before)}::jsonb,${JSON.stringify(payment)}::jsonb)`;
+  }
+  await writeOfflineVerification(
+    tx,
+    principal.userId,
+    {
+      version: 1,
+      teamId,
+      playerId,
+      financialAgreementId: resolved?.identity.id || null,
+      lockedAt: player.feeLock.lockedAt,
+      receipt: payment.receipt,
+      amount: payment.amount,
+      method: payment.method,
+      label: payment.label,
+      verified: change.action !== "revoke" && payment.amount > 0,
+    },
+    change.reason,
+  );
+  return { ok: true };
 }
 
 export type FinancialClubTermsChange = {

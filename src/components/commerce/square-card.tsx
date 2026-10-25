@@ -184,16 +184,20 @@ export function SquareCard({
         {busy
           ? "Confirming with Square…"
           : attempt.current
-            ? "Retry payment confirmation"
+            ? intent === "STORE"
+              ? "Retry card confirmation"
+              : "Retry payment confirmation"
             : intent === "STORE"
               ? "Save payment card"
               : `Pay ${formatMoney(amountCents)}${recurring ? " & start membership" : ""}`}
       </Button>
       <p className="text-sm">
         Card details are entered directly into Square’s secure fields.{" "}
-        {merchandise
-          ? "Your order enters fulfillment after payment is verified."
-          : "A booking appears as confirmed only after successful payment."}
+        {intent === "STORE"
+          ? "Saving a card does not charge it. The authorization you accept controls future payments."
+          : merchandise
+            ? "Your order enters fulfillment after payment is verified."
+            : "A booking appears as confirmed only after successful payment."}
       </p>
     </section>
   );

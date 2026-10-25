@@ -145,6 +145,10 @@ for (const baselineVersion of [66, 76, 79])
             "0107_season_progress.sql",
             "0108_organization_enrollment.sql",
             "0109_separate_personal_memberships.sql",
+            "0110_invitation_delivery.sql",
+            "0111_enrollment_disputes.sql",
+            "0112_team_collections.sql",
+            "0113_collection_queue.sql",
           ],
         );
       for (const { name } of late) {

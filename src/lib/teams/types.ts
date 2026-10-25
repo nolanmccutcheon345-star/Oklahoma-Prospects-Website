@@ -68,7 +68,14 @@ export type Player = {
   joinedOn: string;
   withdrawn: boolean;
   agreement: { version: string; signedBy: string; signedAt: string };
-  rosterConsent?: {version: string; text: string; signedBy: string; signerEmail: string; signedAt: string; revokedAt?: string};
+  rosterConsent?: {
+    version: string;
+    text: string;
+    signedBy: string;
+    signerEmail: string;
+    signedAt: string;
+    revokedAt?: string;
+  };
   feeLock: {
     amount: number;
     lockedAt: string;
@@ -79,7 +86,7 @@ export type Player = {
     dep: number;
     deadline: string;
     planType: string;
-    rows: { date: string; amount: number }[];
+    rows: { date: string; amount: number; label?: string }[];
   } | null;
   credits: { label: string; amount: number }[];
   payments: {

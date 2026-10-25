@@ -1,3 +1,10 @@
+import { teamCollectionsEnabled } from "./collections.server";
+import {
+  collectionConsent,
+  installmentRemaining,
+  installmentLateFee,
+  type CollectionTerms,
+} from "./collection-policy";
 import {
   currentMembershipOffer,
   separateMembershipPolicy,
@@ -27,6 +34,7 @@ import {
 import { resolveFinancialTeam, resolveFinancialAgreement } from "../finance/basis.server";
 import type { FinancialPrincipal } from "../finance/principal.server";
 import { day } from "../finance/contracts";
+import { teamPaymentDisclosure } from "./payment-policy";
 import type { TeamActivity } from "./activity-contracts";
 import type { Team, Player } from "./types";
 import {
@@ -176,6 +184,9 @@ function playerView(t: Team, p: Player, plan: FeePlan, asOf = today()) {
     acceptedPolicy: plan.players[p.id]?.acceptedPolicy || "",
     uniformReleasedAt: plan.players[p.id]?.uniformReleasedAt || "",
     agreedLateFee: plan.players[p.id]?.latePolicy?.fee || 0,
+    agreedLateFeeBps: terms?.bps || 0,
+    automaticPayments: Boolean(plan.players[p.id]?.automaticPayments),
+    acceptedSeasonFee: plan.players[p.id]?.acceptedFeeCents ?? total,
     lateFeeApplied: plan.players[p.id]?.lateFeeApplied || 0,
     accepted,
     total,
@@ -196,7 +207,8 @@ function playerView(t: Team, p: Player, plan: FeePlan, asOf = today()) {
             amount: Math.round(r.amount * 100),
             due: r.date,
             label:
-              i === 0 ? "Deposit" : i === rows.length - 1 ? "Final payment" : `Payment ${i + 1}`,
+              r.label ||
+              (i === 0 ? "Deposit" : i === rows.length - 1 ? "Final payment" : `Payment ${i + 1}`),
           }))
         : previewSchedule,
     ),
@@ -273,7 +285,7 @@ export async function feeWorkspaceInTransaction(
         )
         .map((x) => ({
           ...playerView(t, x, p, asOf),
-          canPay: guardian(x, me),
+          canPay: me.role !== "player" && canGuard(x),
           canAccept:
             me.role !== "player" &&
             canGuard(x) &&
@@ -437,6 +449,16 @@ export async function feeWorkspaceInTransaction(
                 });
                 const pending = [
                   ...health.pending,
+                  ...(p.budget.automaticPayments &&
+                  process.env.SQUARE_DEPLOY_CONTEXT === "production" &&
+                  !teamCollectionsEnabled(
+                    { ...process.env, SQUARE_DEPLOY_CONTEXT: process.env.SQUARE_DEPLOY_CONTEXT },
+                    "production",
+                  )
+                    ? [
+                        "Automatic installments remain paused until Sandbox transactions and delivery checks are verified.",
+                      ]
+                    : []),
                   ...publicationCostIssues(
                     p.budget,
                     activities.filter((a) => a.team_id === t.id).map((a) => a.payload),
@@ -627,6 +649,17 @@ export async function mutateFeePlan(sql: Sql, userId: string, raw: z.infer<typeo
       await assertRosterCapacity(tx, t, p.budget, context);
     if (input.action === "publish") {
       checkBudget(p);
+      if (
+        p.budget.automaticPayments &&
+        process.env.SQUARE_DEPLOY_CONTEXT === "production" &&
+        !teamCollectionsEnabled(
+          { ...process.env, SQUARE_DEPLOY_CONTEXT: process.env.SQUARE_DEPLOY_CONTEXT },
+          "production",
+        )
+      )
+        throw Error(
+          "Automatic installments remain paused until Sandbox transactions and delivery checks are verified.",
+        );
       const costIssues = publicationCostIssues(
         p.budget,
         context.activities.filter((a) => a.team_id === t.id).map((a) => a.payload),
@@ -693,6 +726,8 @@ export async function mutateFeePlan(sql: Sql, userId: string, raw: z.infer<typeo
         finalDue: final,
         policy:
           b.policy +
+          "\n\n" +
+          (b.automaticPayments ? collectionConsent : teamPaymentDisclosure) +
           (b.programModel === 3
             ? `\n\nRequired Team & Development Program Fee: ${money(b.membershipMonthly)}/month per full player${poEnabled ? `; ${money(b.poMembershipMonthly ?? 15000)}/month per PO player` : ""} × ${b.months} Actual Billable Months.${b.programCostModel === 1 ? ` Approved billing term: ${b.months} months; season dates ${b.start} through ${b.end}. The program allocation is included in direct costs before contingency.` : ""} Scheduled team facility use and platform programming are included. ${separateMembershipPolicy}`
             : "") +
@@ -717,13 +752,15 @@ export async function mutateFeePlan(sql: Sql, userId: string, raw: z.infer<typeo
             : "") +
           ". Grace period: " +
           b.graceDays +
-          " days. One-time late fee after grace: $" +
-          (b.lateFee / 100).toFixed(2) +
+          " calendar days overdue. One-time late fee after grace: " +
+          (b.lateFeeBps === 2000
+            ? "20% of the unpaid overdue installment after confirmed primary and backup card failures; no compounding"
+            : "$" + (b.lateFee / 100).toFixed(2)) +
           ", subject to admin review. Roster hold review after " +
           b.holdDays +
-          " days; removal review after " +
+          " calendar days overdue; removal review after " +
           b.removalDays +
-          " days.\n\nReinstatement: " +
+          " calendar days overdue.\n\nReinstatement: " +
           b.reinstatement,
         at: new Date().toISOString(),
         revision: p.revision + 1,
@@ -852,6 +889,16 @@ export async function mutateFeePlan(sql: Sql, userId: string, raw: z.infer<typeo
         status: "Confirmed",
         note: "Guardian accepted the published fee and policy.",
         acceptedPolicy: offer.policy,
+        ...(agreed.automaticPayments
+          ? {
+              automaticPayments: true as const,
+              acceptedFeeCents: amount,
+              acceptedSchedule: player.planLock.rows.map((r) => ({
+                date: r.date,
+                amountCents: Math.round(r.amount * 100),
+              })),
+            }
+          : {}),
         organizationAllocation: player.roleType === "po" ? agreed.poOrg : agreed.fullOrg,
         membershipAllocation:
           player.roleType === "po" ? calculateFees(agreed).poMember : calculateFees(agreed).member,
@@ -863,6 +910,7 @@ export async function mutateFeePlan(sql: Sql, userId: string, raw: z.infer<typeo
         serviceEnd: agreed.end,
         latePolicy: {
           fee: agreed.lateFee,
+          ...(agreed.lateFeeBps ? { bps: agreed.lateFeeBps } : {}),
           grace: agreed.graceDays,
           hold: agreed.holdDays,
           removal: agreed.removalDays,
@@ -872,17 +920,74 @@ export async function mutateFeePlan(sql: Sql, userId: string, raw: z.infer<typeo
     if (input.action === "lateFee") {
       const player = t.roster.find((x) => x.id === input.playerId),
         record = p.players[input.playerId];
-      if (!player?.feeLock || !player.planLock || !record?.latePolicy || !record.latePolicy.fee)
+      if (
+        !player?.feeLock ||
+        !player.planLock ||
+        !record?.latePolicy ||
+        (!record.latePolicy.fee && !record.latePolicy.bps)
+      )
         throw Error("No agreed late fee is available.");
-      if (record.lateFeeApplied) throw Error("The one-time late fee has already been applied.");
-      if (playerView(t, player, p).days <= record.latePolicy.grace)
-        throw Error("The agreed grace period has not elapsed.");
-      const fee = record.latePolicy.fee;
-      player.feeLock.amount = (Math.round(player.feeLock.amount * 100) + fee) / 100;
-      const last = player.planLock.rows.at(-1);
-      if (!last) throw Error("Payment schedule missing.");
-      last.amount = (Math.round(last.amount * 100) + fee) / 100;
-      record.lateFeeApplied = fee;
+      if (record.latePolicy.bps === 2000) {
+        if (!record.acceptedSchedule || !record.acceptedFeeCents)
+          throw Error("Original accepted fee schedule is missing.");
+        const terms: CollectionTerms = {
+          version: 1,
+          acceptedFeeCents: record.acceptedFeeCents,
+          rows: record.acceptedSchedule,
+          graceDays: record.latePolicy.grace,
+          lateFeeBps: 2000,
+        };
+        const rows = installmentRemaining(
+          terms,
+          paid(player) + credit(player),
+          record.lateFeeInstallments,
+        );
+        const eligible = rows.find(
+          (r) =>
+            (input.installmentIndex === undefined || r.index === input.installmentIndex) &&
+            r.remainingCents > 0 &&
+            (Date.parse(today() + "T12:00:00Z") - Date.parse(r.date + "T12:00:00Z")) / 86400000 >
+              terms.graceDays &&
+            !record.lateFeeInstallments?.some((f) => f.index === r.index),
+        );
+        if (!eligible)
+          throw Error("No unassessed overdue installment is past its agreed grace period.");
+        const failed =
+          await tx`select r.id from team_collection_runs r join team_collection_authorizations a on a.id=r.authorization_id where a.environment='production' and a.team_id=${t.id} and a.player_id=${player.id} and a.locked_at=${player.feeLock.lockedAt} and r.installment_index=${eligible.index} and r.status='failed' and r.primary_failure is not null and r.backup_failure is not null`;
+        if (!failed.length)
+          throw Error(
+            "Confirmed primary and backup card failures are required before this late fee can be assessed.",
+          );
+        const fee = installmentLateFee(eligible.remainingCents);
+        if (fee <= 0) throw Error("No late fee is due.");
+        record.lateFeeInstallments = [
+          ...(record.lateFeeInstallments || []),
+          {
+            index: eligible.index,
+            cents: fee,
+            baseCents: eligible.remainingCents,
+            at: new Date().toISOString(),
+          },
+        ];
+        record.lateFeeApplied = (record.lateFeeApplied || 0) + fee;
+        player.feeLock.amount = (Math.round(player.feeLock.amount * 100) + fee) / 100;
+        player.planLock.rows.push({
+          date: today(),
+          amount: fee / 100,
+          label: `20% late fee - installment ${eligible.index + 1}`,
+        });
+        player.planLock.rows.sort((a, b) => a.date.localeCompare(b.date));
+      } else {
+        if (record.lateFeeApplied) throw Error("The one-time late fee has already been applied.");
+        if (playerView(t, player, p).days <= record.latePolicy.grace)
+          throw Error("The agreed grace period has not elapsed.");
+        const fee = record.latePolicy.fee;
+        player.feeLock.amount = (Math.round(player.feeLock.amount * 100) + fee) / 100;
+        const last = player.planLock.rows.at(-1);
+        if (!last) throw Error("Payment schedule missing.");
+        last.amount = (Math.round(last.amount * 100) + fee) / 100;
+        record.lateFeeApplied = fee;
+      }
     }
     if (input.action === "releaseUniform") {
       const player = t.roster.find((x) => x.id === input.playerId);

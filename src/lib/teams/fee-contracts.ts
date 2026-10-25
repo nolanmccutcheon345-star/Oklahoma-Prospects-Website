@@ -60,7 +60,11 @@ export type FeePlan = {
       contingencyAllocation?: number;
       serviceStart?: string;
       serviceEnd?: string;
-      latePolicy?: { fee: number; grace: number; hold: number; removal: number };
+      latePolicy?: { fee: number; grace: number; hold: number; removal: number; bps?: 2000 };
+      automaticPayments?: true;
+      acceptedFeeCents?: number;
+      acceptedSchedule?: { date: string; amountCents: number }[];
+      lateFeeInstallments?: { index: number; cents: number; baseCents: number; at: string }[];
       lateFeeApplied?: number;
     }
   >;
@@ -150,6 +154,7 @@ export const feeAction = z.discriminatedUnion("action", [
   z
     .object({
       action: z.literal("lateFee"),
+      installmentIndex: z.number().int().min(0).max(12).optional(),
       teamId: id,
       revision: z.number().int(),
       basisVersion: z.number().int().positive().optional(),

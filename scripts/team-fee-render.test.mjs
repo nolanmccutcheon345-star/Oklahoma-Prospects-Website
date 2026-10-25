@@ -93,6 +93,9 @@ for (const inherited of [false, true])
         people: [{ userId: "parent", name: "Example Parent", role: "parent" }],
       };
       const mocks = {
+        "@/lib/teams/collection-operations-api": `export const getCollectionOperations=async()=>({rows:[],enabled:false,sandboxConfigured:false,sandboxVerified:false});export const pauseCollectionAuthorization=async()=>{throw Error("Unexpected collection pause")};`,
+        "@/lib/teams/offline-payment-api": `export const getOfflineTeamPayments=async()=>({payments:[]});export const reviewOfflineTeamPayment=async()=>{throw Error("Unexpected offline review")};`,
+        "@/lib/teams/collection-api": `export const getTeamCollection=async()=>{throw Error("Unexpected collection setup")};export const saveTeamCollectionCard=async()=>{throw Error("Unexpected card save")};export const changeTeamCollection=async()=>{throw Error("Unexpected collection authorization")};`,
         "@/lib/finance/identity-admission-api": `export const getFinancialIdentityAdmissionOptions=async()=>({mode:globalThis.__matrixFixture.basisVersion?'basis':'legacy',basisVersion:globalThis.__matrixFixture.basisVersion||null,accounts:[],instructors:[]});export const previewFinancialIdentityAdmission=async()=>{throw Error("Unexpected identity preview")};export const admitFinancialIdentity=async()=>{throw Error("Unexpected identity admission")};`,
         "@/lib/teams/payment-api": `export const startTeamCheckout=async()=>{throw Error("Unexpected checkout")};`,
         "@/lib/commerce/api": `export const submitSquarePayment=async()=>{throw Error("Unexpected payment")};`,

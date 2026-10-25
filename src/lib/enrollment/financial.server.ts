@@ -9,6 +9,7 @@ import { caseInput } from "./enrollment-contracts";
 import { caseFor, packetFor } from "./enrollment.server";
 import { recordEnrollment } from "./handbooks.server";
 import { z } from "zod";
+import { offlinePaymentEvidence } from "../teams/offline-payments.server";
 
 async function financialState(
   tx: Sql,
@@ -30,6 +31,7 @@ async function financialState(
   }>`select p.id,greatest(0,p.amount_cents-p.refunded_cents-coalesce((select sum(r.amount_cents) from commerce_refunds r where r.square_payment_id=p.id and r.external_status='reconciled'),0))::int as net
     from square_payments p join commerce_orders o on o.id=p.order_id and o.square_payment_id=p.id
     where p.environment='production' and o.payment_environment='production' and p.status='COMPLETED' and o.kind='team-fee' and o.status='paid' and p.amount_cents=o.total_cents and o.snapshot->'teamFee'->>'lockedAt'=${p.feeLock?.lockedAt || null}
+    and not exists(select 1 from square_disputes d where d.payment_id=p.id and upper(d.state) not in ('WON','INQUIRY_CLOSED'))
     and ((${agreementId}::text is not null and o.snapshot->'teamFee'->>'financialAgreementId'=${agreementId}) or (o.snapshot->'teamFee'->>'financialAgreementId' is null and exists(select 1 from jsonb_to_recordset(${JSON.stringify(aliases)}::jsonb) a("teamId" text,"playerId" text) where a."teamId"=o.snapshot->'teamFee'->>'teamId' and a."playerId"=o.snapshot->'teamFee'->>'playerId')))`;
   // Require both provider verification and existing reconciliation. Neither a client redirect nor an unreconciled payment qualifies.
   const verifiedCents = provider.reduce(
@@ -48,15 +50,29 @@ async function financialState(
     0,
   );
   const creditCents = Math.max(0, Math.round(p.credits.reduce((n, c) => n + c.amount, 0) * 100));
+  const offline = await offlinePaymentEvidence(tx, context, teamId, p);
   const depositCents = p.planLock ? Math.round(p.planLock.dep * 100) : null;
+  const record = context.feePlans.find((r) => r.team_id === teamId)?.payload.players[playerId];
+  const collectionRequired = Boolean(
+    record?.automaticPayments &&
+    Math.round(p.feeLock!.amount * 100) >
+      Math.round(p.payments.reduce((n, r) => n + r.amount, 0) * 100) + creditCents,
+  );
+  const [authorization] = collectionRequired
+    ? await tx`select id from team_collection_authorizations where environment='production' and status='active' and authorized_at is not null and primary_card_id is not null and backup_card_id is not null and primary_fingerprint<>backup_fingerprint and locked_at=${p.feeLock?.lockedAt || null} and ((team_id=${teamId} and player_id=${playerId}) or (${agreementId}::text is not null and financial_agreement_id=${agreementId})) limit 1`
+    : [];
   return {
+    collectionRequired,
+    collectionReady: !collectionRequired || Boolean(authorization),
     agreementId,
     agreementSigned: Boolean(p.feeLock && p.planLock && p.agreement.signedAt),
     agreementVersion: p.agreement.version,
     depositCents,
     verifiedCents,
+    offlineVerifiedCents: offline.cents,
     creditCents,
-    depositSatisfied: depositCents !== null && verifiedCents + creditCents >= depositCents,
+    depositSatisfied:
+      depositCents !== null && verifiedCents + offline.cents + creditCents >= depositCents,
   };
 }
 export async function enrollmentFinance(sql: Sql, actor: string, raw: unknown) {
@@ -101,6 +117,7 @@ export async function clearEnrollment(sql: Sql, actor: string, raw: unknown) {
       !concussion ||
       !waiver ||
       !status.agreementSigned ||
+      !status.collectionReady ||
       !status.depositSatisfied
     )
       throw Error(

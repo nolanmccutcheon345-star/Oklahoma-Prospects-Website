@@ -58,6 +58,7 @@ import { Route as WaiverRouteImport } from './routes/waiver'
 import { Route as AccountJournalConsentRouteImport } from './routes/account_.journal-consent'
 import { Route as ApiHealthRouteImport } from './routes/api/health'
 import { Route as ApiSiteAlertsRouteImport } from './routes/api/site-alerts'
+import { Route as ApiTeamCollectionsRouteImport } from './routes/api/team-collections'
 import { Route as ApiTryoutNotificationsRouteImport } from './routes/api/tryout-notifications'
 import { Route as ArticlesIndexRouteImport } from './routes/articles.index'
 import { Route as ArticlesSlugRouteImport } from './routes/articles.$slug'
@@ -336,6 +337,11 @@ const ApiSiteAlertsRoute = ApiSiteAlertsRouteImport.update({
   path: '/api/site-alerts',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiTeamCollectionsRoute = ApiTeamCollectionsRouteImport.update({
+  id: '/api/team-collections',
+  path: '/api/team-collections',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiTryoutNotificationsRoute = ApiTryoutNotificationsRouteImport.update({
   id: '/api/tryout-notifications',
   path: '/api/tryout-notifications',
@@ -548,6 +554,7 @@ export interface FileRoutesByFullPath {
   '/account/journal-consent': typeof AccountJournalConsentRoute
   '/api/health': typeof ApiHealthRoute
   '/api/site-alerts': typeof ApiSiteAlertsRoute
+  '/api/team-collections': typeof ApiTeamCollectionsRoute
   '/api/tryout-notifications': typeof ApiTryoutNotificationsRoute
   '/articles/$slug': typeof ArticlesSlugRoute
   '/fundraising/example': typeof FundraisingExampleRoute
@@ -631,6 +638,7 @@ export interface FileRoutesByTo {
   '/account/journal-consent': typeof AccountJournalConsentRoute
   '/api/health': typeof ApiHealthRoute
   '/api/site-alerts': typeof ApiSiteAlertsRoute
+  '/api/team-collections': typeof ApiTeamCollectionsRoute
   '/api/tryout-notifications': typeof ApiTryoutNotificationsRoute
   '/articles/$slug': typeof ArticlesSlugRoute
   '/fundraising/example': typeof FundraisingExampleRoute
@@ -715,6 +723,7 @@ export interface FileRoutesById {
   '/account_/journal-consent': typeof AccountJournalConsentRoute
   '/api/health': typeof ApiHealthRoute
   '/api/site-alerts': typeof ApiSiteAlertsRoute
+  '/api/team-collections': typeof ApiTeamCollectionsRoute
   '/api/tryout-notifications': typeof ApiTryoutNotificationsRoute
   '/articles/$slug': typeof ArticlesSlugRoute
   '/fundraising/example': typeof FundraisingExampleRoute
@@ -800,6 +809,7 @@ export interface FileRouteTypes {
     | '/account/journal-consent'
     | '/api/health'
     | '/api/site-alerts'
+    | '/api/team-collections'
     | '/api/tryout-notifications'
     | '/articles/$slug'
     | '/fundraising/example'
@@ -883,6 +893,7 @@ export interface FileRouteTypes {
     | '/account/journal-consent'
     | '/api/health'
     | '/api/site-alerts'
+    | '/api/team-collections'
     | '/api/tryout-notifications'
     | '/articles/$slug'
     | '/fundraising/example'
@@ -966,6 +977,7 @@ export interface FileRouteTypes {
     | '/account_/journal-consent'
     | '/api/health'
     | '/api/site-alerts'
+    | '/api/team-collections'
     | '/api/tryout-notifications'
     | '/articles/$slug'
     | '/fundraising/example'
@@ -1050,6 +1062,7 @@ export interface RootRouteChildren {
   AccountJournalConsentRoute: typeof AccountJournalConsentRoute
   ApiHealthRoute: typeof ApiHealthRoute
   ApiSiteAlertsRoute: typeof ApiSiteAlertsRoute
+  ApiTeamCollectionsRoute: typeof ApiTeamCollectionsRoute
   ApiTryoutNotificationsRoute: typeof ApiTryoutNotificationsRoute
   ArticlesSlugRoute: typeof ArticlesSlugRoute
   FundraisingExampleRoute: typeof FundraisingExampleRoute
@@ -1426,6 +1439,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiSiteAlertsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/team-collections': {
+      id: '/api/team-collections'
+      path: '/api/team-collections'
+      fullPath: '/api/team-collections'
+      preLoaderRoute: typeof ApiTeamCollectionsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/tryout-notifications': {
       id: '/api/tryout-notifications'
       path: '/api/tryout-notifications'
@@ -1738,6 +1758,7 @@ const rootRouteChildren: RootRouteChildren = {
   AccountJournalConsentRoute: AccountJournalConsentRoute,
   ApiHealthRoute: ApiHealthRoute,
   ApiSiteAlertsRoute: ApiSiteAlertsRoute,
+  ApiTeamCollectionsRoute: ApiTeamCollectionsRoute,
   ApiTryoutNotificationsRoute: ApiTryoutNotificationsRoute,
   ArticlesSlugRoute: ArticlesSlugRoute,
   FundraisingExampleRoute: FundraisingExampleRoute,

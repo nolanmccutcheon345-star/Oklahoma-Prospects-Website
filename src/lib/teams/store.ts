@@ -81,7 +81,7 @@ export const saveTeamsClub=createServerFn({method:"POST"}).middleware([authMiddl
   .handler(async({context,data})=>saveClub(context.userId,await identity(context.userId),data));
 
 export const recordTeamPayment=createServerFn({method:"POST"}).middleware([authMiddleware])
-  .validator(z.object({teamId:z.string().min(1).max(150),playerId:z.string().min(1).max(150),amount:z.number().finite().positive().max(100000),method:z.string().min(1).max(80),label:z.string().min(1).max(200),expectedBasisVersion:z.number().int().positive().optional()}).strict())
+  .validator(z.object({teamId:z.string().min(1).max(150),playerId:z.string().min(1).max(150),amount:z.number().finite().positive().max(100000),method:z.enum(["Cash","Check","Square invoice","Bank transfer"]),label:z.string().trim().min(1).max(200),verifiedReceived:z.literal(true),requestId:z.string().uuid(),expectedBasisVersion:z.number().int().positive().optional()}).strict())
   .handler(async({context,data})=>{
     const me=await identity(context.userId);
     await withFinancialContext(await getSql(),context.userId,"owner",(tx,financial)=>recordFinancialTeamPaymentInTransaction(tx,financial,data));

@@ -20,6 +20,7 @@ import {
   commitFinancialFeePlanInTransaction,
   commitFinancialFeeBusinessInTransaction,
   recordFinancialTeamPaymentInTransaction,
+  reviewFinancialOfflinePaymentInTransaction,
   commitFinancialClubTermsInTransaction,
   isFinancialGuardian,
   reconcileFinancialTeamPaymentInTransaction,
@@ -700,4 +701,53 @@ test("explicit new-team admission scopes new coach identity and does not auto-ad
   });
   assert.equal((await f.sql`select * from financial_team_seasons`).length, 2);
   assert.equal((await f.sql`select * from financial_player_agreements`).length, 1);
+});
+
+test("verified external receipts and returns preserve an active financial basis and frozen agreement", async () => {
+  const f = await fixture();
+  await applyFutureActiveSchemaForTest(f.sql);
+  const before = (await f.sql`select payload,rev from club_state`)[0];
+  const requestId = "a1a7f332-244b-4771-8842-2015b7f553de";
+  const change = {
+    teamId: f.team.id,
+    playerId: f.player.id,
+    amount: 25,
+    method: "Check",
+    label: "Synthetic settled check",
+    verifiedReceived: true as const,
+    requestId,
+    expectedBasisVersion: 1,
+  };
+  const record = () =>
+    withFinancialContext(f.sql, "owner", "owner", (tx, c) =>
+      recordFinancialTeamPaymentInTransaction(tx, c, change),
+    );
+  const first = await record();
+  assert.equal((await record()).receipt, first.receipt);
+  const { offlinePaymentEvidence } = await import("../teams/offline-payments.server");
+  await withFinancialContext(f.sql, "owner", "owner", async (tx, c) => {
+    assert.equal(
+      (await offlinePaymentEvidence(tx, c, f.team.id, c.club.teams[0].roster[0])).cents,
+      2500,
+    );
+    await reviewFinancialOfflinePaymentInTransaction(tx, c, {
+      teamId: f.team.id,
+      playerId: f.player.id,
+      receipt: first.receipt,
+      action: "reverse",
+      remainingAmount: 10,
+      reason: "Synthetic bank return reviewed",
+      expectedBasisVersion: c.version!,
+    });
+  });
+  await withFinancialContext(f.sql, "parent", "read", async (tx, c) => {
+    const p = c.club.teams[0].roster[0];
+    assert.equal((await offlinePaymentEvidence(tx, c, f.team.id, p)).cents, 1000);
+    assert.equal(p.payments[0].amount, 10);
+    assert.equal(p.payments[0].charged, 25);
+    assert.deepEqual(p.feeLock, f.player.feeLock);
+    assert.deepEqual(p.planLock, f.player.planLock);
+  });
+  assert.deepEqual((await f.sql`select payload,rev from club_state`)[0], before);
+  assert.equal((await f.sql`select * from financial_basis_versions`).length, 3);
 });

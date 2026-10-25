@@ -1,7 +1,10 @@
+import { CollectionOperations } from "./collection-operations";
 import { EventPaymentEditor } from "./event-payment-editor";
 import { patchPricingDraft, teamPricingValues } from "@/lib/teams/pricing-defaults";
 import { pricingKeys, paymentReviewKey } from "@/lib/teams/fee-model";
+import { TeamCollectionSetup } from "./team-collection-setup";
 import { TeamPayment } from "./team-payment";
+import { OfflinePaymentReview } from "./offline-payments";
 import { serviceMonths } from "@/lib/teams/season-months";
 import { feeHealth } from "@/lib/teams/fee-health";
 import { OverheadRuleEditor } from "./overhead-rule-editor";
@@ -11,7 +14,7 @@ import { getBudgetMaster } from "@/lib/teams/fee-api";
 import { rowKey, seasonNames, type MasterMatrix } from "@/lib/teams/budget-matrix";
 import { TeamFundingNotice } from "./team-funding-notice";
 import { UniformGallery, UniformPhotoEditor } from "./uniform-photos";
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { getFeeWorkspace, changeFeePlan, saveFeeBusiness } from "@/lib/teams/fee-api";
 import {
   feeComposition,
@@ -138,6 +141,47 @@ export function TeamFeeWorkspace({ teamId }: { teamId?: string }) {
       {error && <p role="alert">{error}</p>}
       {notice && <p role="status">{notice}</p>}
       {data?.admin && <BudgetMasterEditor teams={data.teams} />}
+      {data?.admin && <CollectionOperations />}
+      {data?.admin && (
+        <details className="rounded-xl border p-4">
+          <summary className="min-h-11 cursor-pointer font-bold">
+            Organization fee readiness —{" "}
+            {data.teams.filter((t) => !t.closed && t.private?.feeHealth?.ready).length} of{" "}
+            {data.teams.filter((t) => !t.closed).length} open teams ready
+          </summary>
+          <p className="my-3 text-sm">
+            Review every team before publishing offers or sending family invitations. Draft amounts
+            are estimates until these checks pass. Dates, costs and review confirmations must
+            reflect actual team plans.
+          </p>
+          <div className="grid gap-3">
+            {data.teams
+              .filter((t) => !t.closed)
+              .map((t) => (
+                <article key={t.id} className="rounded-lg border p-3">
+                  <p className="font-semibold">
+                    {t.name} · {t.private?.feeHealth?.status}
+                  </p>
+                  <p className="text-sm">
+                    {t.publication
+                      ? "Published offer exists; accepted agreements retain their original terms."
+                      : "No published fee."}
+                  </p>
+                  <ul className="mt-2 list-disc pl-5 text-sm">
+                    {t.private?.feeHealth?.pending.map((issue) => (
+                      <li key={issue}>{issue}</li>
+                    ))}
+                  </ul>
+                  {!teamId && (
+                    <Button type="button" variant="outline" onClick={() => setSelected(t.id)}>
+                      Review this team
+                    </Button>
+                  )}
+                </article>
+              ))}
+          </div>
+        </details>
+      )}
       {!data ? (
         <Button onClick={() => void load()}>Load team fee plans</Button>
       ) : !team ? (
@@ -206,6 +250,10 @@ function TeamPlan({
     [po, setPo] = useState(0),
     [name, setName] = useState(""),
     [consent, setConsent] = useState(false);
+  const paymentRequests = useRef(new Map<string, string>());
+  for (const player of team.players)
+    if (!paymentRequests.current.has(player.id))
+      paymentRequests.current.set(player.id, crypto.randomUUID());
   useEffect(() => {
     if (team.access !== "admin") return;
     const load = () => {
@@ -1418,11 +1466,18 @@ function TeamPlan({
                 onChange={(v) => update({ [key]: Number(v) })}
               />
             ))}
-            <Dollars
-              label="Policy late fee (requires admin review)"
-              value={plan.budget.lateFee}
-              onChange={(lateFee) => update({ lateFee })}
-            />
+            {plan.budget.lateFeeBps === 2000 ? (
+              <p>
+                Late fee: 20% of the unpaid overdue installment, once after both card failures and
+                the grace period; owner review required.
+              </p>
+            ) : (
+              <Dollars
+                label="Policy late fee (requires admin review)"
+                value={plan.budget.lateFee}
+                onChange={(lateFee) => update({ lateFee })}
+              />
+            )}
             <label>
               Approved payment / refund policy
               <textarea
@@ -1442,8 +1497,12 @@ function TeamPlan({
               />
             </label>
             <p className="text-sm">
-              Overdue status never automatically removes a player or charges a late fee. Front
-              Office reviews and applies roster actions.
+              New automatic-payment agreements require two different Square-stored cards and the
+              guardian's explicit authorization. Scheduled collection is at 9 a.m. Central; a
+              confirmed primary decline permits one backup attempt the following morning. Uncertain
+              results require review. Processing is included in the accepted fee. Grace, hold and
+              removal thresholds use calendar days overdue. Front Office reviews roster actions and
+              late fees.
             </p>
           </Panel>
           {preview && (
@@ -1750,7 +1809,9 @@ function TeamPlan({
                 </p>
                 <Numbers
                   rows={[
-                    ["Total fee", p.total],
+                    ["Accepted season fee", p.acceptedSeasonFee],
+                    ["Assessed late fees", p.lateFeeApplied],
+                    ["Total obligation", p.total],
                     ["Paid", p.paid],
                     ["Credits", p.credit],
                     ["Remaining balance", p.balance],
@@ -1810,10 +1871,14 @@ function TeamPlan({
                                 ? {}
                                 : { expectedBasisVersion: team.basisVersion }),
                               amount: Number(f.get("amount")),
-                              method: String(f.get("method")),
+                              method: String(f.get("method")) as
+                                "Cash" | "Check" | "Square invoice" | "Bank transfer",
                               label: String(f.get("reference")),
+                              verifiedReceived: true,
+                              requestId: String(f.get("requestId")),
                             },
                           });
+                          paymentRequests.current.set(p.id, crypto.randomUUID());
                           await refresh();
                           notify("External payment recorded. No card was charged.");
                         } catch (err) {
@@ -1826,9 +1891,18 @@ function TeamPlan({
                       }}
                     >
                       <p className="text-sm">
-                        Use only after verifying receipt. This records a payment; it does not charge
-                        a card or send an invoice.
+                        Use only after verifying settled funds. This records a payment; it does not
+                        charge a card or send an invoice.
                       </p>
+                      <input
+                        type="hidden"
+                        name="requestId"
+                        value={paymentRequests.current.get(p.id) || ""}
+                      />
+                      <label className="flex gap-2">
+                        <input type="checkbox" required />I verified that these funds were received
+                        and settled for this player’s accepted agreement.
+                      </label>
                       <label>
                         Amount received ($)
                         <input
@@ -1864,6 +1938,28 @@ function TeamPlan({
                       </Button>
                     </form>
                   </details>
+                )}
+                {team.access === "admin" && p.signed && (
+                  <OfflinePaymentReview teamId={team.id} playerId={p.id} refresh={refresh} />
+                )}
+                {team.access === "admin" && p.signed && p.agreedLateFeeBps === 2000 && (
+                  <Button
+                    type="button"
+                    disabled={busy}
+                    onClick={() => {
+                      if (
+                        window.confirm(
+                          "Review and assess 20% of the eligible unpaid overdue installment after verified primary and backup failures?",
+                        )
+                      )
+                        void act({ ...base, action: "lateFee", playerId: p.id });
+                    }}
+                  >
+                    Review 20% installment late fee
+                  </Button>
+                )}
+                {p.canPay && p.signed && p.automaticPayments && (
+                  <TeamCollectionSetup teamId={team.id} playerId={p.id} />
                 )}
                 {p.canPay && p.signed && p.balance > 0 && (
                   <TeamPayment

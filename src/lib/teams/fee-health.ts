@@ -7,6 +7,7 @@ import {
   type FeeBudget,
 } from "./fee-model";
 import type { TeamActivity } from "./activity-contracts";
+import { unsupportedTeamPaymentPolicy } from "./payment-policy";
 
 export function publicationCostIssues(
   b: FeeBudget,
@@ -91,6 +92,7 @@ export function feeHealth(
     pending.push("Explain the admin override for Actual Billable Months.");
   if (!b.policy.trim() || !b.reinstatement.trim())
     pending.push("Complete the payment/refund policy and reinstatement rules.");
+  pending.push(...unsupportedTeamPaymentPolicy(b.policy, b.automaticPayments));
   if (!finalDue || (!b.eventPaymentSchedule && today && finalDue < today))
     pending.push(
       "Set a future final payment deadline using the first tournament or an admin override.",
@@ -102,6 +104,10 @@ export function feeHealth(
   )
     pending.push("Review the second payment date override.");
   if (!b.start || !b.end || b.end < b.start) pending.push("Set valid season dates.");
+  if (today && b.end && b.end < today)
+    pending.push(
+      "This season has ended. Set the correct upcoming season dates before publishing a new offer; historical agreements remain unchanged.",
+    );
   if (b.programModel === 3 && b.start && b.end && calendarBillableMonths(b.start, b.end) === null)
     pending.push("Set valid program dates spanning no more than 36 billable calendar months.");
   const duration =
