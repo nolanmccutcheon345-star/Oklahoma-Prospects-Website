@@ -49,7 +49,13 @@ test("team approval requires owner-reviewed formation, locked category budgets a
       ],
     }));
     await f.sql`update club_state set payload=${JSON.stringify(f.club)}::jsonb`;
-    const b = { ...defaultBudget(), start: "2026-10-01", end: "2027-06-30" };
+    const b = {
+      ...defaultBudget(),
+      start: "2026-10-01",
+      end: "2027-06-30",
+      tournament: 60000,
+      costs: [],
+    };
     await f.sql`insert into team_fee_plans(team_id,revision,payload) values('base',1,${JSON.stringify({ budget: b, publishedBudget: b, published: { at: today(), revision: 1 }, players: {}, expenses: [], uniforms: [], status: "published", revision: 1, history: [] })}::jsonb)`;
     await f.sql`update finance_state set payload=jsonb_set(jsonb_set(jsonb_set(payload,'{reserve}','0'),'{tax}','0'),'{restricted}','0')`;
     let rev = 0;
@@ -93,6 +99,7 @@ test("team approval requires owner-reviewed formation, locked category budgets a
           id,
           payeeId: "vendor",
           category: "tournament",
+          budgetLineId: "base:tournament",
           teamId: "base",
           reason: "Approved season event",
           amount: 30000,
@@ -108,7 +115,9 @@ test("team approval requires owner-reviewed formation, locked category budgets a
     const value = {
       teamId: "base",
       availableCents: 50000,
-      limits: { coach: 0, tournament: 60000, uniform: 0, hotel: 0, gas: 0, facility: 0, other: 0 },
+      limits: (await financeWorkspace(f.sql, "owner")).teamSpending.find(
+        (t) => t.teamId === "base",
+      )!.ledger!.limits,
       evidence:
         "Synthetic statement reconciliation; all final-roster deposits checked; no borrowed funds",
       formationVerified: true,
@@ -140,7 +149,7 @@ test("team approval requires owner-reviewed formation, locked category budgets a
           action: "teamFundingReview",
           value: { ...value, limits: { ...value.limits, tournament: 70000 } },
         }),
-      /locked category/,
+      /Category limits/,
     );
     await assert.rejects(
       () => act({ action: "teamFundingReview", value: { ...value, availableCents: 300000 } }),
@@ -152,6 +161,7 @@ test("team approval requires owner-reviewed formation, locked category budgets a
         id: "three",
         payeeId: "vendor",
         category: "hotel",
+        budgetLineId: "base:hotel",
         teamId: "base",
         reason: "Unbudgeted hotel request",
         amount: 100,
@@ -162,7 +172,7 @@ test("team approval requires owner-reviewed formation, locked category budgets a
     });
     await assert.rejects(
       () => act({ action: "approve", ids: ["three"], total: 100 }),
-      /hotel commitments/,
+      /hotel.*exceeds/i,
     );
     await f.sql`update club_state set payload=jsonb_set(payload,'{teams,0,roster,0,withdrawn}','true')`;
     await assert.rejects(() => act({ action: "approve", ids: ["two"], total: 30000 }), /formation/);

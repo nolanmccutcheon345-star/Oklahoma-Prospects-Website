@@ -32,6 +32,7 @@ export type FeePlan = {
   status: "draft" | "pending" | "published" | "closed";
   revision: number;
   publishedBudget?: FeeBudget;
+  spendingBudget?: { budget: FeeBudget; publishedAt: string; publicationRevision: number };
   published?: {
     full: number;
     po: number;

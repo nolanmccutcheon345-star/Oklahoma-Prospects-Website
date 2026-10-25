@@ -1,4 +1,5 @@
 import type { Sql } from "../db";
+import { budgetCategory } from "./team-budget";
 import { createHash } from "node:crypto";
 import {
   budgetCost,
@@ -367,7 +368,7 @@ export async function sourceData(
       });
       continue;
     }
-    const b = plan.publishedBudget,
+    const b = plan.spendingBudget?.budget || plan.publishedBudget,
       f = calculateFees(b),
       expenses = plan.expenses || [];
     const financePaid = records.filter(
@@ -459,6 +460,7 @@ export async function sourceData(
           id: `season:${t.id}:${role.title}:${payeeId}`,
           payeeId,
           category: "coach",
+          budgetLineId: role.cost ? "cost:" + role.cost.id : undefined,
           teamId: t.id,
           reason: `${t.name} · ${role.title} · ${b.start}–${b.end}`,
           amount,
@@ -473,15 +475,17 @@ export async function sourceData(
     }
     if (t.coachEmail) {
       const payeeId = addPerson(t.coachEmail, t.headCoach || t.coachEmail, "Head Coach");
-      for (const [category, amount] of [
-        ["gas", b.costs.find((c) => c.id === "cost-3" || c.name === "Coach travel")?.cents || 0],
-        ["hotel", b.hotelNightly * b.hotelNights],
+      const gasCost = b.costs.find((c) => budgetCategory(c.name) === "gas");
+      for (const [category, amount, budgetLineId] of [
+        ["gas", gasCost ? budgetCost(b, gasCost) : 0, gasCost ? "cost:" + gasCost.id : ""],
+        ["hotel", b.hotelNightly * b.hotelNights, "base:hotel"],
       ] as const) {
         if (!amount) continue;
         candidates.push({
           id: `stipend:${t.id}:${category}`,
           payeeId,
           category,
+          budgetLineId,
           teamId: t.id,
           reason: `${t.name} · ${category} stipend budget; verify completed travel before accruing`,
           amount,
@@ -495,7 +499,6 @@ export async function sourceData(
       }
     }
     for (const e of expenses) {
-      if (e.paid) continue;
       const payeeId = "vendor:unassigned";
       if (!payees.some((p) => p.id === payeeId))
         payees.push({
@@ -511,6 +514,7 @@ export async function sourceData(
         id: `expense:${t.id}:${e.id}`,
         payeeId,
         category: "vendor",
+        budgetLineId: e.contingency ? "reserve:contingency" : undefined,
         teamId: t.id,
         reason: e.name,
         amount: e.cents,
@@ -518,7 +522,8 @@ export async function sourceData(
         due: e.date || date,
         source: `expense:${t.id}:${e.id}`,
         approved: 0,
-        paid: 0,
+        paid: e.paid ? e.cents : 0,
+        legacyPaid: e.paid,
         state: "pending approval",
       });
     }

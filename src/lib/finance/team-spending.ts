@@ -83,12 +83,7 @@ export function assertTeamApproval(
     throw Error(
       "Complete today's team funding review in Team spending before approving this expense. Changed roster, payments or bank evidence requires a new review.",
     );
-  const usage = teamBudgetUsage(records, payable.teamId);
-  for (const category of spendingCategories)
-    if (usage[category] > review.limits[category])
-      throw Error(
-        `Team ${category} commitments exceed the preseason allocation. Reduce or cancel unapproved requests; do not borrow from another team.`,
-      );
+  // Per-line budget caps are checked by assertBudgetAssignment before cash approval.
   if (Math.max(0, payable.earned - payable.approved) > remainingTeamApprovalCash(review, records))
     throw Error(
       "This commitment exceeds this team's reviewed available settled cash. Wait for its own player fees to settle and reconcile.",

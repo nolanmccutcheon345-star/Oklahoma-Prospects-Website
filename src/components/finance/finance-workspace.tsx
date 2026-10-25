@@ -1,4 +1,5 @@
 import { TeamSpending } from "./team-spending";
+import { SharedPaymentMatch } from "./shared-payment-match";
 import { useEffect, useState, type ReactNode } from "react";
 import { FinancialCutover } from "./financial-cutover";
 import { getFinance, changeFinance, syncFinanceSquare } from "@/lib/finance/api";
@@ -34,6 +35,7 @@ function Form({
   busy: boolean;
   children?: ReactNode;
 }) {
+  const [selections, setSelections] = useState<Record<string, string>>({});
   return (
     <details className="rounded-xl border border-line bg-white p-4">
       <summary className="min-h-11 cursor-pointer font-semibold">{title}</summary>
@@ -53,15 +55,35 @@ function Form({
               <select
                 name={f.key}
                 required={!f.optional}
-                defaultValue={f.value ?? ""}
+                defaultValue={f.key === "budgetLineId" ? undefined : (f.value ?? "")}
+                value={
+                  f.key === "budgetLineId" ? (selections.budgetLineId ?? f.value ?? "") : undefined
+                }
+                onChange={(e) =>
+                  setSelections((s) => ({
+                    ...s,
+                    [f.key]: e.target.value,
+                    ...(f.key === "teamId" ? { budgetLineId: "" } : {}),
+                  }))
+                }
                 className="min-h-11 w-full rounded-lg border p-2"
               >
                 <option value="">Choose…</option>
-                {f.options.map(([v, n]) => (
-                  <option key={v} value={v}>
-                    {n}
-                  </option>
-                ))}
+                {f.options
+                  .filter(
+                    ([v]) =>
+                      f.key !== "budgetLineId" ||
+                      v.startsWith(
+                        (selections.teamId ||
+                          String(fields.find((x) => x.key === "teamId")?.value || "organization")) +
+                          "|",
+                      ),
+                  )
+                  .map(([v, n]) => (
+                    <option key={v} value={v}>
+                      {n}
+                    </option>
+                  ))}
               </select>
             ) : (
               <input
@@ -211,6 +233,23 @@ export function FinanceWorkspace() {
       ].map((x) => [x, x]),
     ),
     options("teamId", "Team", teamOptions, "organization"),
+    {
+      ...options(
+        "budgetLineId",
+        "Published team budget line",
+        data.teamSpending.flatMap((t) =>
+          (t.ledger?.rows || []).map(
+            (l) =>
+              [t.teamId + "|" + l.id, `${l.name} · ${money(l.currentBudget)}`] as [string, string],
+          ),
+        ),
+      ),
+      optional: true,
+    },
+    {
+      ...field("invoiceReference", "Shared invoice / receipt reference (optional)"),
+      optional: true,
+    },
     field("reason", "What is this payment for?"),
     field("amount", "Total compensation / invoice budget ($)", "number"),
     field("earned", "Earned / incurred to date ($)", "number"),
@@ -730,6 +769,34 @@ export function FinanceWorkspace() {
                     await save({ action: "match", bankId: b.id, targetKind, targetId }, v.reason);
                   }}
                 />
+                <SharedPaymentMatch
+                  bank={{ id: b.id, amount: b.amount }}
+                  busy={busy}
+                  save={save}
+                  candidates={payments
+                    .filter(
+                      (payment) =>
+                        payment.state === "in progress" &&
+                        payment.accountId === b.accountId &&
+                        rs.some(
+                          (r) =>
+                            r.kind === "payable" &&
+                            r.id === payment.payableId &&
+                            r.payload.teamId &&
+                            !["owner", "refund", "instructor"].includes(r.payload.category),
+                        ),
+                    )
+                    .map((payment) => {
+                      const p = rs.find(
+                        (r) => r.kind === "payable" && r.id === payment.payableId,
+                      )!.payload;
+                      return {
+                        id: payment.id,
+                        amount: payment.amount,
+                        label: `${s.teams.find((t) => t.id === p.teamId)?.name || p.teamId} · ${p.reason} · ${p.invoiceReference || "No invoice reference"}`,
+                      };
+                    })}
+                />
               </article>
             ))}
           <details>
@@ -814,6 +881,8 @@ export function FinanceWorkspace() {
                     reason: v.reason,
                     amount: amount(v, "amount"),
                     earned: amount(v, "earned"),
+                    budgetLineId: v.budgetLineId?.split("|")[1] || undefined,
+                    invoiceReference: v.invoiceReference || "",
                     due: v.due,
                     source: "manual",
                   },
@@ -1060,7 +1129,11 @@ export function FinanceWorkspace() {
                           ? p.earned / 100
                           : f.key === "teamId"
                             ? p.teamId || "organization"
-                            : String((p as any)[f.key] ?? ""),
+                            : f.key === "budgetLineId"
+                              ? p.budgetLineId
+                                ? p.teamId + "|" + p.budgetLineId
+                                : ""
+                              : String((p as any)[f.key] ?? ""),
                   }))}
                   onSave={async (v) =>
                     save(
@@ -1071,6 +1144,8 @@ export function FinanceWorkspace() {
                           payeeId: v.payeeId,
                           category: v.category,
                           teamId: v.teamId === "organization" ? "" : v.teamId,
+                          budgetLineId: v.budgetLineId?.split("|")[1] || undefined,
+                          invoiceReference: v.invoiceReference || "",
                           reason: v.reason,
                           amount: amount(v, "amount"),
                           earned: amount(v, "earned"),

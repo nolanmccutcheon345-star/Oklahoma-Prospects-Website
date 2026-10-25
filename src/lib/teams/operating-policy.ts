@@ -57,7 +57,7 @@ export const operatingGuides = {
     ],
     [
       "Spending",
-      "Confirm formation, the published preseason budget, category limits, current bank evidence and protected obligations before approving a commitment. Review cash again before paying externally. Split shared invoices into exact team allocations; each allocation must fit that team's budget and funding. Recording payment does not transfer money.",
+      "Confirm formation, the published preseason budget, individual budget-line limits, current bank evidence and protected obligations before approving a commitment. Review cash again before paying externally. Split shared invoices into exact team allocations; each allocation must fit that team's budget and funding. Recording payment does not transfer money.",
     ],
     [
       "Daily and weekly",

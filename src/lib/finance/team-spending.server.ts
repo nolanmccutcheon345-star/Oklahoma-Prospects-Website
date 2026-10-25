@@ -3,6 +3,7 @@ import type { FinancialContext } from "./context.server";
 import type { RecordRow } from "./contracts";
 import { calculateFees } from "../teams/fee-model";
 import { minimumCommittedRoster } from "../teams/operating-policy";
+import { teamBudgetLedger } from "./team-budget";
 import {
   remainingTeamApprovalCash,
   teamBudgetUsage,
@@ -31,7 +32,8 @@ export function teamSpendingContext(
           100,
       ) >= Math.round(p.planLock.dep * 100),
   ).length;
-  const f = plan?.publishedBudget ? calculateFees(plan.publishedBudget) : null;
+  const budget = plan?.spendingBudget?.budget || plan?.publishedBudget;
+  const f = budget ? calculateFees(budget) : null;
   // Budget ceiling is frozen by the first owner review; later draft budgets cannot increase it.
   const evidenceKey = createHash("sha256")
     .update(
@@ -45,7 +47,12 @@ export function teamSpendingContext(
           payments: p.payments,
           credits: p.credits,
         })),
-        publishedBudget: plan?.publishedBudget,
+        publishedBudget: budget,
+        allocations: records.filter(
+          (r) =>
+            ["teamBudgetTransfer", "budgetAssignment"].includes(r.kind) &&
+            r.payload.teamId === teamId,
+        ),
         closed: team.closed || plan?.status === "closed",
         bank: records.filter((r) => ["bank", "account", "settlement", "payment"].includes(r.kind)),
       }),
@@ -78,6 +85,11 @@ export function teamSpendingViews(context: FinancialContext, records: RecordRow[
     )?.payload as TeamFundingReview | undefined;
     return {
       ...state,
+      ledger: teamBudgetLedger(
+        context.feePlans.find((p) => p.team_id === team.id)?.payload,
+        records,
+        team.id,
+      ),
       usage: teamBudgetUsage(records, team.id),
       review: review || null,
       current: Boolean(review && review.asOf === asOf && review.evidenceKey === state.evidenceKey),

@@ -100,7 +100,7 @@ for (const inherited of [false, true])
         "@/lib/teams/payment-api": `export const startTeamCheckout=async()=>{throw Error("Unexpected checkout")};`,
         "@/lib/commerce/api": `export const submitSquarePayment=async()=>{throw Error("Unexpected payment")};`,
         "@/lib/auth/use-current-user": `export const useCurrentUserState=()=>({user:{id:"fixture"}});`,
-        "@/lib/teams/fee-api": `export const getBudgetMaster=async()=>globalThis.__matrixFixture;export const saveBudgetMaster=async({data})=>{globalThis.__matrixSaved=data;return {saved:true};};export const getTeamUniform=async()=>null;export const getTeamFundingStatus=async()=>({overduePlayers:2,tracking:true});export const getFeeWorkspace=async()=>globalThis.__feeFixture.data;export const changeFeePlan=async({data})=>{globalThis.__feeFixture.saved.push(data);return {ok:true};};export const saveFeeBusiness=async()=>({ok:true});`,
+        "@/lib/teams/fee-api": `export const getBudgetMaster=async()=>globalThis.__matrixFixture;export const saveBudgetMaster=async({data})=>{globalThis.__matrixSaved=data;return {saved:true};};export const getTeamUniform=async()=>null;export const getTeamFundingStatus=async()=>({overduePlayers:2,tracking:true,hasOverduePayments:true,overdueRoster:[{playerId:"synthetic-one",playerName:"Synthetic Athlete One",guardianNames:["Synthetic Guardian One"],status:"Overdue"},{playerId:"synthetic-two",playerName:"Synthetic Athlete Two",guardianNames:[],status:"Overdue"}]});export const getFeeWorkspace=async()=>globalThis.__feeFixture.data;export const changeFeePlan=async({data})=>{globalThis.__feeFixture.saved.push(data);return {ok:true};};export const saveFeeBusiness=async()=>({ok:true});`,
         "@/lib/teams/store": `export const recordTeamPayment=async()=>({ok:true});`,
       };
       const out = resolve("artifacts/team-fee-render.mjs");
@@ -134,6 +134,8 @@ for (const inherited of [false, true])
       try {
         await act(async () => root.render(createElement(TeamFeeWorkspace)));
         assert.match(host.textContent, /2 players have overdue team payments/);
+        assert.match(host.textContent, /Private staff payment follow-up/);
+        assert.match(host.textContent, /Synthetic Guardian One/);
         assert.match(host.textContent, /Nightly hotel stipend/);
         assert.match(host.textContent, /Fee Composition/);
         assert.match(host.textContent, /Personal memberships are purchased separately/);

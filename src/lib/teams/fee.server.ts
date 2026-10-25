@@ -1,4 +1,5 @@
 import { teamCollectionsEnabled } from "./collections.server";
+import { pinSpendingBudget } from "../finance/team-budget";
 import {
   collectionConsent,
   installmentRemaining,
@@ -558,6 +559,7 @@ export async function mutateFeePlan(sql: Sql, userId: string, raw: z.infer<typeo
       throw Error("Admin access required.");
     if (p.status === "closed") throw Error("This season is financially closed.");
     if (p.published && !p.publishedBudget) p.publishedBudget = structuredClone(p.budget);
+    if (admin) pinSpendingBudget(p);
     const currentMaster = (await loadBudgetMaster(tx, context)).value;
     if (input.action !== "accept") p.budget = linkedPricingDraft(p, currentMaster, t);
     p.budget = await withScheduledHotels(tx, t.id, p.budget, context);
@@ -788,6 +790,7 @@ export async function mutateFeePlan(sql: Sql, userId: string, raw: z.infer<typeo
       };
       p.status = "published";
       p.publishedBudget = structuredClone(b);
+      pinSpendingBudget(p);
       const uniform = p.uniforms.find((u) => u.id === b.uniformId);
       if (uniform) {
         const prior = club.uniforms.find((u) => u.id === uniform.id);
