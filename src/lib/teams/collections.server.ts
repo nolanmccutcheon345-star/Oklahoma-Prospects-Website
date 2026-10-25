@@ -165,7 +165,7 @@ export async function runTeamCollections(
     );
     orderId = prepared.orderId;
     const attemptId = backup ? run.backup_attempt_id : run.primary_attempt_id;
-    await sql.transaction(async (tx) => {
+    const receiptEmail = await sql.transaction(async (tx) => {
       await lockFinancialExecution(tx);
       const [current] =
         await tx<CollectionAuthorization>`select * from team_collection_authorizations where id=${auth.id} and status='active' for update`;
@@ -180,6 +180,7 @@ export async function runTeamCollections(
       await tx`update commerce_orders set square_customer_id=${auth.customer_id} where id=${order.id}`;
       await tx`insert into square_payment_attempts(id,order_id,token_hash) values(${attemptId},${order.id},${createHash("sha256").update(sourceId).digest("hex")})`;
       await tx`update team_collection_runs set order_id=${order.id},primary_order_id=case when ${backup} then primary_order_id else ${order.id} end,amount_cents=${remaining},updated_at=now() where id=${run.id}`;
+      return order.email;
     });
     let payment: Square.Payment | undefined;
     try {
@@ -191,7 +192,7 @@ export async function runTeamCollections(
         locationId: c.locationId,
         customerId: auth.customer_id,
         referenceId: orderId,
-        buyerEmailAddress: customer?.emailAddress ?? undefined,
+        buyerEmailAddress: receiptEmail,
         note: "Prospects agreed team installment",
       }));
     } catch (error) {

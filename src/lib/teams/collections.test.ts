@@ -83,6 +83,7 @@ async function fixture(environment: "production" | "sandbox" = "production") {
     amountMoney: { amount: bigint; currency: "USD" };
     referenceId: string;
     customerId: string;
+    buyerEmailAddress?: string;
   }[] = [];
   let fail: "primary" | "both" | "unknown" | "none" = "none";
   const payments = new Map<string, Square.Payment>();
@@ -104,14 +105,14 @@ async function fixture(environment: "production" | "sandbox" = "production") {
         customer: {
           id: "customer",
           referenceId: "guardian",
-          emailAddress: "guardian@example.invalid",
+          emailAddress: "outdated-square-address@example.invalid",
         },
       }),
       get: async () => ({
         customer: {
           id: "customer",
           referenceId: "guardian",
-          emailAddress: "guardian@example.invalid",
+          emailAddress: "outdated-square-address@example.invalid",
         },
       }),
     },
@@ -215,6 +216,7 @@ test("automatic installment settles once in the original ledger; subsequent runs
     await f.run();
     assert.equal(f.calls.length, 1);
     assert.equal(f.calls[0].amountMoney.amount, 70000n);
+    assert.equal(f.calls[0].buyerEmailAddress, "guardian@example.invalid");
     const [s] = await f.sql<{ payload: typeof f.club }>`select payload from club_state`;
     assert.equal(s.payload.teams[0].roster[0].payments[0].amount, 700);
     assert.deepEqual(s.payload.teams[0].roster[0].feeLock, f.player.feeLock);
