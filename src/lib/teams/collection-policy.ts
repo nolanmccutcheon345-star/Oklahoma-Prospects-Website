@@ -17,8 +17,17 @@ export function installmentRemaining(
   const rows = terms.rows.map((row, index) => ({ ...row, index, remainingCents: row.amountCents }));
   const schedule = [
     ...rows.map((r) => ({ date: r.date, amount: r.amountCents, index: r.index })),
-    ...fees.map((f) => ({ date: f.at.slice(0, 10), amount: f.cents, index: -1 })),
-  ].sort((a, b) => a.date.localeCompare(b.date) || b.index - a.index);
+    ...fees.map((f) => ({
+      date: f.at.includes("T") ? chicagoDate(new Date(f.at)) : f.at.slice(0, 10),
+      amount: f.cents,
+      index: -1,
+    })),
+  ].sort(
+    (a, b) =>
+      a.date.localeCompare(b.date) ||
+      (a.index < 0 ? Number.MAX_SAFE_INTEGER : a.index) -
+        (b.index < 0 ? Number.MAX_SAFE_INTEGER : b.index),
+  );
   for (const row of schedule) {
     const applied = Math.min(row.amount, available);
     available -= applied;

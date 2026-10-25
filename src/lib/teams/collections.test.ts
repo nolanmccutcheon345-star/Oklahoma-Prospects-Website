@@ -480,3 +480,28 @@ test("provider dispute versions cannot roll back newer state, cross environments
     await f.db.close();
   }
 });
+
+test("same-day installments retain acceptance order and late-fee allocation uses Central dates", () => {
+  const terms = {
+    version: 1 as const,
+    acceptedFeeCents: 100000,
+    rows: [
+      { date: "2026-10-24", amountCents: 70000 },
+      { date: "2026-10-24", amountCents: 15000 },
+      { date: "2026-10-25", amountCents: 15000 },
+    ],
+    graceDays: 5,
+    lateFeeBps: 2000 as const,
+  };
+  assert.deepEqual(
+    installmentRemaining(terms, 70000).map((r) => r.remainingCents),
+    [0, 15000, 15000],
+  );
+  // 01:00 UTC is still the prior calendar day in Central; the assessed fee follows that day's installments.
+  assert.deepEqual(
+    installmentRemaining(terms, 88000, [{ at: "2026-10-25T01:00:00Z", cents: 3000 }]).map(
+      (r) => r.remainingCents,
+    ),
+    [0, 0, 15000],
+  );
+});
