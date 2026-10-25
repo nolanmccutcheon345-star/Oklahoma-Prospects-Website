@@ -93,6 +93,8 @@ for (const inherited of [false, true])
         people: [{ userId: "parent", name: "Example Parent", role: "parent" }],
       };
       const mocks = {
+        "@/lib/teams/invitation-api": `export const getTeamInvitations=async()=>({name:"Synthetic team",published:false,players:[]});export const createTeamInvitation=async()=>{throw Error("Unexpected invitation")};`,
+        "@/lib/invitation-delivery-api": `export const sendInvitationEmail=async()=>{throw Error("Unexpected send")};export const checkInvitationDelivery=async()=>{throw Error("Unexpected delivery check")};`,
         "@/lib/teams/collection-operations-api": `export const getCollectionOperations=async()=>({rows:[],enabled:false,sandboxConfigured:false,sandboxVerified:false});export const pauseCollectionAuthorization=async()=>{throw Error("Unexpected collection pause")};`,
         "@/lib/teams/offline-payment-api": `export const getOfflineTeamPayments=async()=>({payments:[]});export const reviewOfflineTeamPayment=async()=>{throw Error("Unexpected offline review")};`,
         "@/lib/teams/collection-api": `export const getTeamCollection=async()=>{throw Error("Unexpected collection setup")};export const saveTeamCollectionCard=async()=>{throw Error("Unexpected card save")};export const changeTeamCollection=async()=>{throw Error("Unexpected collection authorization")};`,
@@ -237,9 +239,22 @@ for (const inherited of [false, true])
         assert.doesNotMatch(host.textContent, /Pitcher-only fee|Projected pitcher-only players/);
         assert.equal(
           [...host.querySelectorAll("button")].find(
-            (b) => b.textContent === "Approve & publish fees",
+            (b) => b.textContent === "Review & publish fees",
           ).disabled,
-          true,
+          false,
+        );
+        dom.window.HTMLElement.prototype.scrollIntoView = () => {};
+        await act(async () =>
+          [...host.querySelectorAll("button")]
+            .find((b) => b.textContent === "Review & publish fees")
+            .click(),
+        );
+        assert.match(host.textContent, /Review & publish this team's fees/);
+        assert.match(host.textContent, /Automatic collection is currently paused/);
+        assert.match(host.textContent, /Required: Complete the payment/);
+        assert.equal(
+          host.querySelector('[aria-label="Fee publication review"]'),
+          document.activeElement,
         );
         if (inherited) {
           assert.match(host.textContent, /Inherited from master/);
@@ -318,6 +333,15 @@ for (const inherited of [false, true])
         assert.equal(fixture.saved[0].budget.uniformEstimate, 25000);
         assert.equal(Object.hasOwn(fixture.saved[0], "basisVersion"), basisVersion !== undefined);
         assert.equal(fixture.saved[0].basisVersion, basisVersion);
+        dom.window.confirm = () => true;
+        await act(async () =>
+          [...host.querySelectorAll("button")]
+            .find((b) => b.textContent === "Save & publish approved fees")
+            .click(),
+        );
+        assert.equal(fixture.saved.at(-1).action, "publish");
+        assert.equal(fixture.saved.at(-1).draft.budget.tournamentEstimate, 775000);
+        assert.equal(fixture.saved.at(-1).basisVersion, basisVersion);
         const poToggle = [...host.querySelectorAll("label")]
           .find((l) => l.textContent.includes("pitcher-only roster spots"))
           ?.querySelector("input");

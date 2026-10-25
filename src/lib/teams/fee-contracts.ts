@@ -130,6 +130,24 @@ export const feeAction = z.discriminatedUnion("action", [
       revision: z.number().int(),
       basisVersion: z.number().int().positive().optional(),
       confirmed: z.literal(true),
+      draft: z
+        .object({
+          budget: budgetSchema,
+          uniforms: z
+            .array(uniformSchema)
+            .max(100)
+            .refine(
+              (rows) =>
+                rows.reduce(
+                  (total, u) => total + (u.photos || []).reduce((n, p) => n + p.src.length, 0),
+                  0,
+                ) <= 3000000,
+              "Uniform photos exceed the save limit.",
+            ),
+          expenses: z.array(expenseSchema).max(2000),
+        })
+        .strict()
+        .optional(),
     })
     .strict(),
   z

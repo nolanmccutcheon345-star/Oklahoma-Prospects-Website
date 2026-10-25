@@ -626,6 +626,38 @@ test("frozen guardian acceptance follows an explicit historical transfer alias w
   );
 });
 
+test("atomic save and publication records one frozen revision and rolls back invalid drafts", async () => {
+  const { sql } = await fixture();
+  await sql`delete from team_fee_plans where team_id='draft'`;
+  await capture(sql);
+  await activateFixture(sql);
+  const before = await saved(sql);
+  const request = {
+    action: "publish" as const,
+    teamId: "draft",
+    revision: 0,
+    basisVersion: before.version!,
+    confirmed: true as const,
+    draft: { budget: readyBudget(), uniforms: [], expenses: [] },
+  };
+  await assert.rejects(
+    mutateFeePlan(sql, "owner", {
+      ...request,
+      draft: { ...request.draft, budget: { ...readyBudget(), policy: "" } },
+    }),
+    /policy/,
+  );
+  assert.deepEqual(await saved(sql), before);
+  await mutateFeePlan(sql, "owner", request);
+  const after = await saved(sql);
+  const plan = after.feePlans.find((p) => p.team_id === "draft")!;
+  assert.equal(after.version, before.version! + 1);
+  assert.equal(plan.revision, 1);
+  assert.equal(plan.payload.status, "published");
+  assert.ok(plan.payload.spendingBudget);
+  await assert.rejects(mutateFeePlan(sql, "owner", request), /changed/);
+});
+
 test("Owner operational schedule edits stay financially inert; explicit owner event amendment and admission use reviewed revisions", async () => {
   const { sql, club } = await fixture();
   const id = "22222222-2222-4222-8222-222222222222";

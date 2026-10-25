@@ -15,7 +15,7 @@ import { linkedPricingDraft, pricingRevisionNeeded } from "./pricing-defaults";
 import { poRosterLimit } from "./po-roster";
 import { assertRosterAssignment, assertRosterCapacity } from "./po-roster.server";
 import { linkedPODraft } from "./budget-matrix";
-import { feeHealth, offersPO, pendingGas, publicationCostIssues } from "./fee-health";
+import { publicationHealth, offersPO, pendingGas, publicationCostIssues } from "./fee-health";
 import { teamSeasonOverhead } from "./facility-overhead";
 import { loadBudgetMaster } from "./budget-matrix.server";
 import { budgetFromMatrix, rowKey } from "./budget-matrix";
@@ -35,7 +35,7 @@ import {
 import { resolveFinancialTeam, resolveFinancialAgreement } from "../finance/basis.server";
 import type { FinancialPrincipal } from "../finance/principal.server";
 import { day, type RecordRow } from "../finance/contracts";
-import { teamPaymentDisclosure } from "./payment-policy";
+import { teamPaymentDisclosure, collectionActivationDisclosure } from "./payment-policy";
 import type { TeamActivity } from "./activity-contracts";
 import type { Team, Player } from "./types";
 import {
@@ -449,26 +449,19 @@ export async function feeWorkspaceInTransaction(
                 seasons: t.seasons,
               },
               pricingRevisionNeeded: pricingRevisionNeeded(p, p.budget, deadline(p.budget, events)),
+              automaticCollectionsAvailable: teamCollectionsEnabled(
+                { ...process.env, SQUARE_DEPLOY_CONTEXT: process.env.SQUARE_DEPLOY_CONTEXT },
+                "production",
+              ),
               feeHealth: (() => {
-                const health = feeHealth(p.budget, {
+                const health = publicationHealth(p.budget, {
                   key: p.defaults?.key,
                   seasonLabel: t.seasonLabel,
-                  overheadReviewed: overheadMaster.overheadReviewed,
                   finalDue: deadline(p.budget, events),
                   today: asOf,
                 });
                 const pending = [
                   ...health.pending,
-                  ...(p.budget.automaticPayments &&
-                  process.env.SQUARE_DEPLOY_CONTEXT === "production" &&
-                  !teamCollectionsEnabled(
-                    { ...process.env, SQUARE_DEPLOY_CONTEXT: process.env.SQUARE_DEPLOY_CONTEXT },
-                    "production",
-                  )
-                    ? [
-                        "Automatic installments remain paused until Sandbox transactions and delivery checks are verified.",
-                      ]
-                    : []),
                   ...publicationCostIssues(
                     p.budget,
                     activities.filter((a) => a.team_id === t.id).map((a) => a.payload),
@@ -562,7 +555,12 @@ export async function mutateFeePlan(sql: Sql, userId: string, raw: z.infer<typeo
     if (
       context.mode === "basis" &&
       !row &&
-      !(me.owner && (input.action === "save" || input.action === "applyDefaults"))
+      !(
+        me.owner &&
+        (input.action === "save" ||
+          input.action === "applyDefaults" ||
+          (input.action === "publish" && input.draft))
+      )
     )
       throw Error("Financial fee plan requires explicit owner enrollment.");
     if (context.mode === "basis" && input.basisVersion !== context.version)
@@ -614,8 +612,12 @@ export async function mutateFeePlan(sql: Sql, userId: string, raw: z.infer<typeo
       }
       p.status = "draft";
     }
-    if (input.action === "save") {
-      for (const expense of input.expenses) {
+    if (input.action === "close" && input.draft)
+      throw Error("Save draft changes before closing the season.");
+    const draft =
+      input.action === "save" ? input : input.action === "publish" ? input.draft : undefined;
+    if (draft) {
+      for (const expense of draft.expenses) {
         const old = p.expenses.find((e) => e.id === expense.id);
         if (expense.paid && (!old?.paid || old.cents !== expense.cents)) {
           const [verified] = await tx<{
@@ -629,7 +631,7 @@ export async function mutateFeePlan(sql: Sql, userId: string, raw: z.infer<typeo
       }
       if (
         p.publishedBudget &&
-        sum(input.expenses.map((e) => e.cents)) >
+        sum(draft.expenses.map((e) => e.cents)) >
           calculateFees(p.publishedBudget).externalDirect +
             calculateFees(p.publishedBudget).contingency
       )
@@ -638,9 +640,9 @@ export async function mutateFeePlan(sql: Sql, userId: string, raw: z.infer<typeo
         );
       p = checkBudget({
         ...p,
-        budget: await withScheduledHotels(tx, t.id, pendingGas(input.budget), context),
-        uniforms: input.uniforms,
-        expenses: input.expenses,
+        budget: await withScheduledHotels(tx, t.id, pendingGas(draft.budget), context),
+        uniforms: draft.uniforms,
+        expenses: draft.expenses,
         status: "draft",
       });
     }
@@ -666,7 +668,7 @@ export async function mutateFeePlan(sql: Sql, userId: string, raw: z.infer<typeo
     if (input.action !== "accept")
       p.budget = linkedPODraft(linkedPricingDraft(p, currentMaster, t), currentMaster, t);
     p.budget = teamSeasonOverhead(withBillableMonths(p.budget), currentMaster);
-    if (input.action === "save") {
+    if (draft) {
       const additional = t.roster.filter((x) => !x.withdrawn);
       const extraIds = new Set(
         [
@@ -686,27 +688,15 @@ export async function mutateFeePlan(sql: Sql, userId: string, raw: z.infer<typeo
       await assertRosterCapacity(tx, t, p.budget, context);
     if (input.action === "publish") {
       checkBudget(p);
-      if (
-        p.budget.automaticPayments &&
-        process.env.SQUARE_DEPLOY_CONTEXT === "production" &&
-        !teamCollectionsEnabled(
-          { ...process.env, SQUARE_DEPLOY_CONTEXT: process.env.SQUARE_DEPLOY_CONTEXT },
-          "production",
-        )
-      )
-        throw Error(
-          "Automatic installments remain paused until Sandbox transactions and delivery checks are verified.",
-        );
       const costIssues = publicationCostIssues(
         p.budget,
         context.activities.filter((a) => a.team_id === t.id).map((a) => a.payload),
         club.catalog,
         t.tournamentIds,
       );
-      const health = feeHealth(p.budget, {
+      const health = publicationHealth(p.budget, {
         key: p.defaults?.key,
         seasonLabel: t.seasonLabel,
-        overheadReviewed: (await loadBudgetMaster(tx, context)).value.overheadReviewed,
         finalDue: deadline(p.budget, paymentEvents(context, t, p.budget)),
         today: today(),
       });
@@ -764,7 +754,11 @@ export async function mutateFeePlan(sql: Sql, userId: string, raw: z.infer<typeo
         policy:
           b.policy +
           "\n\n" +
-          (b.automaticPayments ? collectionConsent : teamPaymentDisclosure) +
+          (b.automaticPayments
+            ? collectionActivationDisclosure +
+              "\n\nSeparate automatic-payment authorization terms: " +
+              collectionConsent
+            : teamPaymentDisclosure) +
           (b.programModel === 3
             ? `\n\nRequired Team & Development Program Fee: ${money(b.membershipMonthly)}/month per full player${poEnabled ? `; ${money(b.poMembershipMonthly ?? 15000)}/month per PO player` : ""} × ${b.months} Actual Billable Months.${b.programCostModel === 1 ? ` Approved billing term: ${b.months} months; season dates ${b.start} through ${b.end}. The program allocation is included in direct costs before contingency.` : ""} Scheduled team facility use and platform programming are included. ${separateMembershipPolicy}`
             : "") +

@@ -40,6 +40,16 @@ export function publicationCostIssues(
   return issues;
 }
 export const offersPO = (b: FeeBudget, sport: string) => b.poEnabled ?? sport === "baseball";
+/** Fee publication uses the priced baseline, not an exploratory roster or business-profit review. */
+export function publicationHealth(
+  b: FeeBudget,
+  options: Omit<
+    NonNullable<Parameters<typeof feeHealth>[1]>,
+    "full" | "po" | "overheadReviewed"
+  > = {},
+) {
+  return feeHealth(b, { ...options, full: b.baseline, po: 0, overheadReviewed: true });
+}
 export function pendingGas(b: FeeBudget): FeeBudget {
   b = {
     ...b,

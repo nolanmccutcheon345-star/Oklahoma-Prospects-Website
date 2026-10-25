@@ -80,8 +80,10 @@ export async function acceptInvitation(userId: string, id: string) {
     const [invite] = await tx<{
       role: string;
       family_id: string | null;
+      team_id: string | null;
+      email: string;
       invited_by: string;
-    }>`select role,family_id,invited_by from club_invites where id=${id} and lower(email)=${me.email} and status='pending' and expires_at>now() for update`;
+    }>`select role,family_id,team_id,email,invited_by from club_invites where id=${id} and lower(email)=${me.email} and status='pending' and expires_at>now() for update`;
     if (!invite)
       throw new Error("This invitation is unavailable. Sign in with the invited, verified email.");
     if (!["admin", "coach", "parent", "player"].includes(invite.role))
