@@ -96,18 +96,19 @@ export function TeamInvitations({ teamId }: { teamId: string }) {
                     . Email: {g.invitation.emailStatus}; delivery: {g.invitation.delivery}.
                   </p>
                 )}
-                <Button
-                  type="button"
-                  size="sm"
-                  disabled={busy}
-                  onClick={() => void invite(p.id, g.email)}
-                >
-                  {g.invitation?.status === "pending" &&
-                  new Date(g.invitation.expiresAt).getTime() > Date.now()
-                    ? "Send pending invitation"
-                    : "Create & send invitation"}
-                </Button>
-                {g.invitation && <InvitationDelivery id={g.invitation.id} />}
+                {(!g.invitation ||
+                  g.invitation.status !== "pending" ||
+                  new Date(g.invitation.expiresAt).getTime() <= Date.now()) && (
+                  <Button
+                    type="button"
+                    size="sm"
+                    disabled={busy}
+                    onClick={() => void invite(p.id, g.email)}
+                  >
+                    Create & send invitation
+                  </Button>
+                )}
+                {g.invitation && <InvitationDelivery id={g.invitation.id} onUpdate={load} />}
               </div>
             ))}
           </article>
