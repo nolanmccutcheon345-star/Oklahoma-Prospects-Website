@@ -8,6 +8,7 @@ export function InvitationDelivery({ id }: { id: string }) {
   async function run(send: boolean) {
     setBusy(true);
     setError("");
+    setNotice("");
     try {
       if (send) {
         const r = await sendInvitationEmail({ data: { id } });

@@ -16,7 +16,10 @@ export function OfflinePaymentReview({
   const [busy, setBusy] = useState(false),
     [error, setError] = useState(""),
     [notice, setNotice] = useState("");
-  const load = async () => setData(await getOfflineTeamPayments({ data: { teamId, playerId } }));
+  const load = async () => {
+    setData(undefined);
+    setData(await getOfflineTeamPayments({ data: { teamId, playerId } }));
+  };
   return (
     <details className="rounded-xl border p-3">
       <summary className="min-h-11 cursor-pointer font-bold">
