@@ -282,10 +282,26 @@ try {
       () => {},
     );
   }
+  console.error("Synthetic walkthrough failure:", error);
   console.error("Synthetic browser errors:", errors);
   throw error;
 } finally {
+  await queue.catch(() => {});
+  for (const context of browser?.contexts() || [])
+    await context.unrouteAll({ behavior: "ignoreErrors" });
   await browser?.close();
-  await socket?.stop();
+  if (socket) {
+    // Match the existing enrollment walkthrough: let the compiled application's
+    // idle pg clients drain before stopping their synthetic database server.
+    const deadline = Date.now() + 15000;
+    while (socket.getStats().activeConnections && Date.now() < deadline)
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    assert.equal(
+      socket.getStats().activeConnections,
+      0,
+      "Synthetic database clients must drain before closing",
+    );
+    await socket.stop();
+  }
   await h.db.close();
 }
