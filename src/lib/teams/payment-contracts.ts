@@ -17,4 +17,6 @@ export type TeamFeeSnapshot = {
   /** Server-written financial references. Historical orders retain their aliases. */
   financialAgreementId?: string;
   financialTeamSeasonId?: string;
+  /** Server-written accepted independent agreement identity. */
+  independent?: { seasonKey: string; agreementVersion: number; acceptedFeeCents: number };
 };

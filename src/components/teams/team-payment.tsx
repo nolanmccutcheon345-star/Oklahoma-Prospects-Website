@@ -9,11 +9,13 @@ export function TeamPayment({
   playerId,
   balance,
   next,
+  label = "Pay team fee securely",
 }: {
   teamId: string;
   playerId: string;
   balance: number;
   next: number;
+  label?: string;
 }) {
   const [prepared, setPrepared] = useState<Awaited<ReturnType<typeof startTeamCheckout>>>(),
     [error, setError] = useState(""),
@@ -23,7 +25,7 @@ export function TeamPayment({
     [requestId] = useState(() => crypto.randomUUID());
   return (
     <details className="rounded-xl border p-3">
-      <summary className="min-h-11 cursor-pointer font-bold">Pay team fee securely</summary>
+      <summary className="min-h-11 cursor-pointer font-bold">{label}</summary>
       <p className="text-sm">
         Remaining accepted fee: {money(balance)}. Pay an installment or your remaining balance. This
         is a one-time payment through Square; it does not set up automatic charges.

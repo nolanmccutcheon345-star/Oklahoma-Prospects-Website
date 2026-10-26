@@ -1,3 +1,4 @@
+import { isIndependent, independentDraft, independentIssues } from "./independent-model";
 import { calendarBillableMonths, serviceMonths } from "./season-months";
 import {
   withBillableMonths,
@@ -15,6 +16,7 @@ export function publicationCostIssues(
   catalog: { id: string; org: string; start: string; fee: number }[],
   selected: string[],
 ) {
+  if (isIndependent(b)) return [];
   const issues: string[] = [];
   const inSeason = (date: string) => Boolean(date && date >= b.start && date <= b.end);
   const scheduled = activities.filter(
@@ -41,6 +43,7 @@ export function publicationCostIssues(
 }
 export const offersPO = (b: FeeBudget, sport: string) => b.poEnabled ?? sport === "baseball";
 export function pendingGas(b: FeeBudget): FeeBudget {
+  if (isIndependent(b)) return independentDraft(b);
   b = {
     ...b,
     readiness: b.readiness || {
@@ -82,6 +85,17 @@ export function feeHealth(
     today?: string;
   } = {},
 ) {
+  if (isIndependent(b)) {
+    const pending = independentIssues(b, today);
+    return {
+      pending,
+      shortfall: 0,
+      funded: true,
+      targetMet: true,
+      ready: !pending.length,
+      status: pending.length ? "INCOMPLETE" : "READY TO PUBLISH",
+    };
+  }
   b = withBillableMonths(b);
   const pending: string[] = [];
   if (

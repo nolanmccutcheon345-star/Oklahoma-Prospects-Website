@@ -4,7 +4,9 @@ export type CollectionTerms = {
   acceptedFeeCents: number;
   rows: { date: string; amountCents: number }[];
   graceDays: number;
-  lateFeeBps: 2000;
+  lateFeeBps: 0 | 2000;
+  fundingModel?: "independent";
+  agreementVersion?: number;
 };
 export const collectionConsent =
   "I authorize Prospects Sports Academy to store my primary and backup cards securely with Square and automatically collect each unpaid installment of this athlete's accepted fee on its due date, beginning at 9:00 a.m. America/Chicago. Already overdue installments may be collected after I activate this authorization. After a confirmed primary-card decline, the backup card may be attempted beginning at 9:00 a.m. the following calendar day. An uncertain payment result stops collection for review. Payments and approved credits reduce the amount collected. If both cards fail and the agreed grace period expires, a one-time late fee of 20% of that installment's unpaid overdue amount may be assessed after owner review; future installments and prior late fees are excluded. I can revoke future automatic charges in my account; revocation does not cancel the accepted fee or excuse missed payments. No processing surcharge is added at checkout.";

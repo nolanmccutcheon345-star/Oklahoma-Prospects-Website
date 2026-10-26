@@ -2,6 +2,13 @@ import { withoutRetiredMembershipPricing } from "./retired-membership";
 import { overheadRuleSchema } from "./facility-overhead";
 import { z } from "zod";
 import { calendarBillableMonths } from "./season-months";
+import {
+  independentTermsSchema,
+  independentDraft,
+  independentCalculation,
+  independentSchedule,
+  isIndependent,
+} from "./independent-model";
 
 // All monetary inputs and outputs are integer cents. Rates are basis points.
 const cents = z.number().int().min(0).max(1_000_000_000);
@@ -75,6 +82,8 @@ export const poDefaults = {
 export const defaultPOOrganization = (full: number) => Math.ceil((full * 0.6) / 2500) * 2500;
 export const budgetSchema = z
   .object({
+    fundingModel: z.enum(["organization", "independent"]).optional(),
+    independent: independentTermsSchema.optional(),
     ...poAllocationFields,
     ...programFields,
     pricingInheritance: pricingInheritanceSchema.optional(),
@@ -246,6 +255,8 @@ export const defaultBudget = (): FeeBudget => ({
   coachUniform: true,
 });
 export function billableMonths(b: FeeBudget) {
+  if (isIndependent(b))
+    return Math.max(1, independentSchedule(b).filter((r) => r.kind === "monthly").length);
   return b.programModel === 3
     ? (b.billableMonthsOverride ?? calendarBillableMonths(b.start, b.end) ?? b.months)
     : b.months;
@@ -255,6 +266,7 @@ export function withBillableMonths(b: FeeBudget): FeeBudget {
 }
 /** Explicit owner estimates replace, rather than add to, schedule/package costs. */
 export function effectiveFeeBudget(b: FeeBudget): FeeBudget {
+  if (isIndependent(b)) return independentDraft(b);
   return {
     ...withBillableMonths(b),
     tournament: b.tournamentEstimate ?? b.tournament,
@@ -263,6 +275,7 @@ export function effectiveFeeBudget(b: FeeBudget): FeeBudget {
 }
 // An upgrade changes only the new offer. Historical published snapshots stay legacy.
 export function programDraft(b: FeeBudget): FeeBudget {
+  if (isIndependent(b)) return independentDraft(b);
   b = { ...withoutRetiredMembershipPricing(b), programCostModel: 1 };
   if (b.programModel === 3) return withBillableMonths(b);
   return withBillableMonths({
@@ -299,6 +312,7 @@ export function organizationDay(value: string) {
   }).format(new Date(value));
 }
 export function deadline(b: FeeBudget, events: { id: string; start: string }[]) {
+  if (isIndependent(b)) return b.independent?.lastDue || "";
   if (b.eventPaymentSchedule) {
     const dates = events
       .map((e) => organizationDay(e.start))
@@ -329,6 +343,7 @@ export function scheduleRows(
   final: string,
   accepted = "",
 ) {
+  if (isIndependent(b)) return independentSchedule(b);
   if (b.eventPaymentSchedule) {
     const rule = eventPaymentSchema.parse(b.eventPaymentSchedule);
     const amounts = rule.percentages.map((n) => Math.round((total * n) / 10000));
@@ -411,6 +426,7 @@ export function budgetCost(b: FeeBudget, c: FeeBudget["costs"][number]) {
   return c.cents + Math.ceil((c.cents * rate) / 10000);
 }
 export function calculateFees(input: FeeBudget) {
+  if (isIndependent(input)) return independentCalculation(budgetSchema.parse(input));
   const b = effectiveFeeBudget(budgetSchema.parse(withoutRetiredMembershipPricing(input)));
   const fixed =
     sum(b.costs.map((c) => budgetCost(b, c))) + b.tournament + b.hotelNightly * b.hotelNights;

@@ -149,6 +149,9 @@ export function planFinancialTeamCheckout(
 ) {
   const a = teamCheckoutSchema.parse(input.request);
   const { identity, team, player } = resolveFinancialAgreement(basis, a);
+  const independent = basis.inputs.feePlans.find((p) => p.team_id === team.id)?.payload.players[
+    player.id
+  ]?.independent;
   assertFinancialTeamPayer(basis, identity.id, input.payer);
   const at = time(input.now, "checkout");
   const matching = input.orders.filter((o) => o.request_key === a.requestId);
@@ -172,8 +175,8 @@ export function planFinancialTeamCheckout(
     !player.agreement.signedAt ||
     !player.planLock ||
     !player.feeLock ||
-    team.closed ||
-    player.withdrawn
+    (team.closed && !independent) ||
+    (player.withdrawn && !independent)
   )
     throw new Error(
       "Accept the published team fee before paying. Contact the office for a closed roster.",
@@ -198,11 +201,20 @@ export function planFinancialTeamCheckout(
     role: player.roleType,
     financialAgreementId: identity.id,
     financialTeamSeasonId: identity.teamSeasonId,
+    ...(independent
+      ? {
+          independent: {
+            seasonKey: independent.seasonKey,
+            agreementVersion: independent.version,
+            acceptedFeeCents: Math.round(player.feeLock.amount * 100),
+          },
+        }
+      : {}),
   };
   const quote: SquareOrder["snapshot"] & { consentAt: string; teamFee: StableTeamFeeSnapshot } = {
     productId: team.id,
     kind: "team-fee",
-    title: `${team.name} · ${player.name} · team fee`,
+    title: `${team.name} · ${player.name} · ${independent ? "Payments to Prospects" : "team fee"}`,
     totalCents: a.amount,
     regularCents: a.amount,
     setupCents: 0,
@@ -215,7 +227,14 @@ export function planFinancialTeamCheckout(
     expiresDays: 365,
     discipline: team.sport,
     resources: [],
-    lines: [{ label: "Payment toward accepted season fee", cents: a.amount }],
+    lines: [
+      {
+        label: independent
+          ? "Accepted uniform deposit and monthly Prospects dues"
+          : "Payment toward accepted season fee",
+        cents: a.amount,
+      },
+    ],
     teamRate: false,
     needsSlot: false,
     consentAt: new Date(at).toISOString(),
@@ -236,12 +255,16 @@ export function validateFinancialTeamPayment(
 ) {
   const m = snapshot(order);
   const { identity, player, team } = resolveFinancialTeamPayment(basis, order);
+  const independent = basis.inputs.feePlans.find((p) => p.team_id === team.id)?.payload.players[
+    player.id
+  ]?.independent;
   if (payer.userId !== order.user_id) throw new Error("Payment account changed.");
   assertFinancialTeamPayer(basis, identity.id, payer);
   integerCents(order.total_cents, "team payment", true);
   if (
-    team.closed ||
-    player.withdrawn ||
+    (team.closed && !independent) ||
+    (player.withdrawn && !independent) ||
+    (independent && m.independent?.agreementVersion !== independent.version) ||
     !player.agreement.signedAt ||
     !player.feeLock ||
     player.feeLock.lockedAt !== m.lockedAt ||
@@ -259,13 +282,23 @@ export function validateFinancialTeamPayment(
  */
 export function financialTeamFulfillmentDecision(basis: FinancialBasis, order: SquareOrder) {
   const m = snapshot(order);
-  const { identity, player } = resolveFinancialTeamPayment(basis, order);
+  const { identity, player, team } = resolveFinancialTeamPayment(basis, order);
+  const independent = basis.inputs.feePlans.find((p) => p.team_id === team.id)?.payload.players[
+    player.id
+  ]?.independent;
   integerCents(order.total_cents, "team payment", true);
   const review =
     !player.feeLock ||
     player.feeLock.lockedAt !== m.lockedAt ||
     player.roleType !== m.role ||
-    order.total_cents > remainingTeamPaymentCents(player);
+    (independent && m.independent
+      ? m.independent.seasonKey !== independent.seasonKey ||
+        !independent.agreements.some(
+          (a) =>
+            a.version === m.independent!.agreementVersion &&
+            order.total_cents <= a.installments.reduce((s, r) => s + r.amount, 0),
+        )
+      : order.total_cents > remainingTeamPaymentCents(player));
   return {
     agreementId: identity.id,
     expectedVersion: basis.version,

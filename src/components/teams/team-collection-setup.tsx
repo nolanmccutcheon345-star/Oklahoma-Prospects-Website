@@ -1,3 +1,4 @@
+import { independentCollectionConsent } from "@/lib/teams/independent-model";
 import { useState } from "react";
 import { Button } from "../ui/button";
 import { SquareCard } from "../commerce/square-card";
@@ -45,7 +46,9 @@ export function TeamCollectionSetup({ teamId, playerId }: { teamId: string; play
       </summary>
       <p>
         Cards are stored by Square. Revoking authorization stops future attempts; a payment already
-        submitted may still finish. Your accepted season obligation remains due. With only one valid saved card, pay each installment through individual checkout by its agreed due date. Two different cards are needed to enable automatic installments and the backup retry.
+        submitted may still finish. Your accepted season obligation remains due. With only one valid
+        saved card, pay each installment through individual checkout by its agreed due date. Two
+        different cards are needed to enable automatic installments and the backup retry.
       </p>
       <Button type="button" disabled={busy} onClick={() => void run(load)}>
         Review automatic payment setup
@@ -124,12 +127,18 @@ export function TeamCollectionSetup({ teamId, playerId }: { teamId: string; play
                   }}
                 />
               )}
-              <p>{collectionConsent}</p>
               <p>
-                Grace period: {data.terms.graceDays} calendar days overdue. A 20% late fee requires
-                both confirmed card failures and owner review. Late fees are shown separately and
-                never compound.
+                {data.terms.fundingModel === "independent"
+                  ? independentCollectionConsent
+                  : collectionConsent}
               </p>
+              {data.terms.fundingModel !== "independent" && (
+                <p>
+                  Grace period: {data.terms.graceDays} calendar days overdue. A 20% late fee
+                  requires both confirmed card failures and owner review. Late fees are shown
+                  separately and never compound.
+                </p>
+              )}
               <label className="flex gap-2">
                 <input
                   type="checkbox"

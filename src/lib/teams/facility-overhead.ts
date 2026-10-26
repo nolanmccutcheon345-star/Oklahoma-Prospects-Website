@@ -57,8 +57,14 @@ export function monthlyTeamOverhead(m: FacilityConfig, override?: OverheadRule) 
       : null;
 }
 export function teamSeasonOverhead<
-  T extends { months: number; overhead: number; overheadRule?: OverheadRule },
+  T extends {
+    months: number;
+    overhead: number;
+    overheadRule?: OverheadRule;
+    fundingModel?: string;
+  },
 >(b: T, m: FacilityConfig): T {
+  if (b.fundingModel === "independent") return { ...b, overhead: 0 };
   const monthly = monthlyTeamOverhead(m, b.overheadRule);
   if (monthly === null) return b;
   const overhead = Math.round(monthly * b.months);

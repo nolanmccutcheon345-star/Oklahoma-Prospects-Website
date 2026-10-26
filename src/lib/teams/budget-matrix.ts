@@ -1,3 +1,4 @@
+import { isIndependent, independentDraft } from "./independent-model";
 import { withoutRetiredMembershipPricing } from "./retired-membership";
 import {
   overheadRuleSchema,
@@ -369,6 +370,7 @@ export function allocateMonthlyBusiness(
 
 // Upgrade working drafts, never publishedBudget or accepted player locks.
 export function linkedPODraft(b: FeeBudget, master: MasterMatrix, team: Team): FeeBudget {
+  if (isIndependent(b)) return independentDraft(b);
   b = { ...b, poEnabled: b.poEnabled ?? team.sport === "baseball" };
   b = programDraft(b);
   if (b.poModel === 2) return b;

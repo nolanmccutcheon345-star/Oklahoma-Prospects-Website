@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { budgetSchema, expenseSchema, type FeeBudget, type Expense } from "./fee-model";
+import type { IndependentInstallment } from "./independent-model";
 const cents = z.number().int().min(0).max(1_000_000_000),
   id = z.string().min(1).max(150);
 export const uniformPhotoSchema = z
@@ -47,6 +48,7 @@ export type FeePlan = {
     revision: number;
   };
   expenses: Expense[];
+  independentCancellation?: { at: string; reason: string; actorId: string };
   players: Record<
     string,
     {
@@ -65,6 +67,24 @@ export type FeePlan = {
       automaticPayments?: true;
       acceptedFeeCents?: number;
       acceptedSchedule?: { date: string; amountCents: number }[];
+      independent?: {
+        seasonKey: string;
+        payerUserId: string;
+        version: number;
+        installments: IndependentInstallment[];
+        agreements: {
+          version: number;
+          publicationRevision: number;
+          actorId: string;
+          name: string;
+          at: string;
+          policy: string;
+          installments: IndependentInstallment[];
+        }[];
+        offer?: { budget: FeeBudget; reason: string; revision: number; payerUserId: string };
+        uniformCommitted?: { at: string; reference: string; actorId: string };
+        cancellation?: { at: string; reason: string; actorId: string; originalTotal: number };
+      };
       lateFeeInstallments?: { index: number; cents: number; baseCents: number; at: string }[];
       lateFeeApplied?: number;
     }
@@ -72,6 +92,57 @@ export type FeePlan = {
   history: { at: string; actor: string; action: string }[];
 };
 export const feeAction = z.discriminatedUnion("action", [
+  z
+    .object({
+      action: z.literal("publishIndependent"),
+      teamId: id,
+      revision: z.number().int(),
+      basisVersion: z.number().int().positive().optional(),
+      budget: budgetSchema,
+      confirmed: z.literal(true),
+    })
+    .strict(),
+  z
+    .object({
+      action: z.literal("independentOffer"),
+      teamId: id,
+      playerId: id,
+      revision: z.number().int(),
+      basisVersion: z.number().int().positive().optional(),
+      budget: budgetSchema,
+      payerUserId: id,
+      reason: z.string().trim().min(10).max(2000),
+    })
+    .strict(),
+  z
+    .object({
+      action: z.literal("independentWithdraw"),
+      teamId: id,
+      playerId: id,
+      revision: z.number().int(),
+      basisVersion: z.number().int().positive().optional(),
+      reason: z.string().trim().min(10).max(2000),
+    })
+    .strict(),
+  z
+    .object({
+      action: z.literal("independentSeasonCancel"),
+      teamId: id,
+      revision: z.number().int(),
+      basisVersion: z.number().int().positive().optional(),
+      reason: z.string().trim().min(10).max(2000),
+    })
+    .strict(),
+  z
+    .object({
+      action: z.literal("independentUniform"),
+      teamId: id,
+      playerId: id,
+      revision: z.number().int(),
+      basisVersion: z.number().int().positive().optional(),
+      reference: z.string().trim().min(5).max(2000),
+    })
+    .strict(),
   z
     .object({
       action: z.literal("applyDefaults"),
@@ -165,6 +236,10 @@ export const feeAction = z.discriminatedUnion("action", [
   z
     .object({
       action: z.literal("accept"),
+      independentOfferDigest: z
+        .string()
+        .regex(/^[a-f0-9]{64}$/)
+        .optional(),
       teamId: id,
       revision: z.number().int(),
       basisVersion: z.number().int().positive().optional(),

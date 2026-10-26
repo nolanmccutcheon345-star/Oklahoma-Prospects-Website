@@ -73,7 +73,11 @@ export function teamSpendingContext(
     formationReady: roster.length >= minimumCommittedRoster && committed === roster.length,
     published: Boolean(f),
     closed: Boolean(team.closed || plan?.status === "closed"),
-    ceiling: f ? f.externalDirect + f.contingency : 0,
+    ceiling: f
+      ? budget?.fundingModel === "independent"
+        ? f.fullNet * budget.baseline
+        : f.externalDirect + f.contingency
+      : 0,
     evidenceKey,
   };
 }

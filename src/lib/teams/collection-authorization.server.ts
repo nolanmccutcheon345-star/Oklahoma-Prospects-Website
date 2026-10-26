@@ -1,3 +1,4 @@
+import { independentCollectionConsent } from "./independent-model";
 import { createHash, randomUUID } from "node:crypto";
 import type { SquareClient } from "square";
 import type { Sql } from "../db";
@@ -34,7 +35,10 @@ export type CollectionAuthorization = {
 };
 export async function collectionAgreement(tx: Sql, actor: string, ids: CollectionIds) {
   const context = await loadFinancialContextInTransaction(tx, actor);
-  if (!isFinancialGuardian(context, ids.teamId, ids.playerId))
+  if (
+    context.principal.role === "player" ||
+    !isFinancialGuardian(context, ids.teamId, ids.playerId)
+  )
     throw Error("Only this athlete's authorized guardian can authorize saved-card collection.");
   const resolved = context.basis ? resolveFinancialAgreement(context.basis, ids) : null;
   const team = resolved?.team || context.club.teams.find((t) => t.id === ids.teamId);
@@ -44,13 +48,14 @@ export async function collectionAgreement(tx: Sql, actor: string, ids: Collectio
   ];
   if (
     !team ||
-    team.closed ||
+    (team.closed && !record?.independent) ||
     !player?.feeLock ||
     !player.planLock ||
     !player.agreement.signedAt ||
-    player.withdrawn ||
+    (player.withdrawn && !record?.independent) ||
     !record?.automaticPayments ||
-    record.latePolicy?.bps !== 2000 ||
+    (!record.independent && record.latePolicy?.bps !== 2000) ||
+    record.independent?.cancellation ||
     !record.acceptedSchedule ||
     !record.acceptedFeeCents
   )
@@ -59,15 +64,23 @@ export async function collectionAgreement(tx: Sql, actor: string, ids: Collectio
     version: 1,
     acceptedFeeCents: record.acceptedFeeCents,
     rows: record.acceptedSchedule,
-    graceDays: record.latePolicy.grace,
-    lateFeeBps: 2000,
+    graceDays: record.latePolicy?.grace || 0,
+    lateFeeBps: record.independent ? 0 : 2000,
+    ...(record.independent
+      ? { fundingModel: "independent" as const, agreementVersion: record.independent.version }
+      : {}),
   };
   if (terms.rows.reduce((n, r) => n + r.amountCents, 0) !== terms.acceptedFeeCents)
     throw Error("Accepted installment schedule does not reconcile.");
   const agreementId = resolved?.identity.id || null;
   const key = createHash("sha256")
     .update(
-      JSON.stringify([agreementId || team.id, agreementId || player.id, player.feeLock.lockedAt]),
+      JSON.stringify([
+        agreementId || team.id,
+        agreementId || player.id,
+        player.feeLock.lockedAt,
+        ...(record.independent ? [record.independent.version] : []),
+      ]),
     )
     .digest("hex");
   return { context, team, player, record, terms, agreementId, key };
@@ -82,9 +95,12 @@ export async function collectionStatus(
     const a = await collectionAgreement(tx, actor, ids);
     const [row] =
       await tx<CollectionAuthorization>`select * from team_collection_authorizations where agreement_key=${a.key} and environment=${environment}`;
-    if (row && row.user_id !== actor)
+    if (
+      (row && row.user_id !== actor) ||
+      (a.record.independent && a.record.independent.payerUserId !== actor)
+    )
       return {
-        status: `managed by another guardian (${row.status})`,
+        status: `managed by designated payer (${row?.status || "not authorized"})`,
         terms: a.terms,
         primary: null,
         backup: null,
@@ -113,6 +129,8 @@ export async function saveCollectionCard(
 ) {
   const initial = await withFinancialContext(sql, actor, "read", async (tx) => {
     const a = await collectionAgreement(tx, actor, input);
+    if (a.record.independent && a.record.independent.payerUserId !== actor)
+      throw Error("Only the designated payer can save or authorize cards.");
     const [existing] =
       await tx<CollectionAuthorization>`select * from team_collection_authorizations where agreement_key=${a.key} and environment=${c.environment} for update`;
     if (existing && existing.user_id !== actor)
@@ -195,6 +213,9 @@ export async function authorizeTeamCollection(
       return { ok: true };
     }
     const a = await collectionAgreement(tx, actor, ids);
+    if (a.record.independent && a.record.independent.payerUserId !== actor)
+      throw Error("Only the designated payer can authorize collection.");
+    const consent = a.record.independent ? independentCollectionConsent : collectionConsent;
     const [row] =
       await tx<CollectionAuthorization>`select * from team_collection_authorizations where agreement_key=${a.key} and environment=${environment} for update`;
     if (
@@ -205,8 +226,8 @@ export async function authorizeTeamCollection(
       row.primary_fingerprint === row.backup_fingerprint
     )
       throw Error("Save two different verified cards before authorizing collection.");
-    await tx`update team_collection_authorizations set status='active',terms=${JSON.stringify(a.terms)}::jsonb,consent_text=${collectionConsent},authorized_at=now(),updated_at=now() where id=${row.id}`;
-    await tx`insert into finance_audit(actor_id,record_id,action,reason,after_state) values(${actor},${row.id},'Team collection authorized','Guardian authorized the accepted installment schedule',${JSON.stringify({ terms: a.terms, consent: collectionConsent, primary: row.primary_display, backup: row.backup_display })}::jsonb)`;
+    await tx`update team_collection_authorizations set status='active',terms=${JSON.stringify(a.terms)}::jsonb,consent_text=${consent},authorized_at=now(),updated_at=now() where id=${row.id}`;
+    await tx`insert into finance_audit(actor_id,record_id,action,reason,after_state) values(${actor},${row.id},'Team collection authorized','Guardian authorized the accepted installment schedule',${JSON.stringify({ terms: a.terms, consent, primary: row.primary_display, backup: row.backup_display })}::jsonb)`;
     return { ok: true };
   });
 }

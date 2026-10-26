@@ -1,3 +1,4 @@
+import { IndependentWorkspace } from "./independent-workspace";
 import { TeamOperatingGuide } from "./operating-guide";
 import { CollectionOperations } from "./collection-operations";
 import { EventPaymentEditor } from "./event-payment-editor";
@@ -213,13 +214,18 @@ export function TeamFeeWorkspace({ teamId }: { teamId?: string }) {
               </select>
             </label>
           )}
-          <TeamFundingNotice teamId={team.id} />
-          <TeamPlan
-            key={team.id + ":" + team.revision + (team.basisVersion ? ":" + team.basisVersion : "")}
-            team={team}
-            refresh={load}
-            notify={setNotice}
-          />
+          <IndependentWorkspace teamId={team.id} />
+          {!team.independent && <TeamFundingNotice teamId={team.id} />}
+          {!team.independent && (
+            <TeamPlan
+              key={
+                team.id + ":" + team.revision + (team.basisVersion ? ":" + team.basisVersion : "")
+              }
+              team={team}
+              refresh={load}
+              notify={setNotice}
+            />
+          )}
           {data.admin && data.business && (
             <BusinessModel
               key={data.business.basisVersion ? "basis:" + data.business.basisVersion : undefined}

@@ -1,3 +1,4 @@
+import { IndependentWorkspace } from "@/components/teams/independent-workspace";
 import { getCoordinatorEntry } from "@/lib/coordinator/api";
 import { CoordinatorAccountLink } from "@/components/coordinator/account-link";
 import {MyFinance} from "@/components/finance/my-finance";
@@ -223,6 +224,7 @@ function AccountHome() {
 
   if (profile.role === "admin" && !desk)
     return <Navigate to="/office" search={{ section: "dashboard" }} />;
+  if (desk === "team-finances") return <main id="main" className="mx-auto max-w-5xl px-5 py-8"><a href="/account" className="min-h-11 underline">Back to Account</a><h1 className="text-3xl">Team finances</h1><IndependentWorkspace/></main>;
   if (desk === "compensation") return <main id="main" className="mx-auto max-w-3xl px-5 py-8"><a href="/account" className="min-h-11 underline">Back to Account</a><h1 className="text-3xl">My compensation</h1><MyFinance/></main>;
   if (desk === "security")
     return (
@@ -299,6 +301,7 @@ function AccountHome() {
           Your invitations
         </Link>
         <Link to="/account" search={{desk:"compensation"}} className="ml-4 inline-flex min-h-11 items-center underline">My compensation</Link>
+        <Link to="/account" search={{desk:"team-finances"}} className="ml-4 inline-flex min-h-11 items-center underline">Team finances</Link>
         <PdErrorBoundary section="Train · account">
           <PlayerBirthdays><Suspense fallback={<p role="status">Loading your workspace…</p>}>
             <PdWorkspace profile={profile} />

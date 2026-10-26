@@ -342,7 +342,8 @@ export const coachRemoveRosterPlayer=createServerFn({method:'POST'}).middleware(
       if(!team||me.role!=='admin'&&!coachHoldsTeam(club,me.email,team.id))throw new Error("Not assigned to this team.");
       const player=team.roster.find(p=>p.id===data.playerId);
       if(!player)throw new Error("Player not found.");
-      if(financial.mode==='legacy'&&(player.payments.length||player.feeLock||player.planLock||player.credits.length))throw new Error("Player has billing records. Contact Front Office to handle a transfer or withdrawal.");
+      const independent=financial.feePlans.some(p=>p.team_id===team.id&&p.payload.budget.fundingModel==='independent');
+      if(financial.mode==='legacy'&&!independent&&(player.payments.length||player.feeLock||player.planLock||player.credits.length))throw new Error("Player has billing records. Contact Front Office to handle a transfer or withdrawal.");
       const {endRosterDevelopmentLink}=await import("../team-development/runtime.server");
       await endRosterDevelopmentLink(tx,{teamId:team.id,rosterPlayerId:player.id,actorId:context.userId});
       team.roster=team.roster.filter(p=>p.id!==data.playerId);

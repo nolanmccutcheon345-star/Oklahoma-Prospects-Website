@@ -1,4 +1,5 @@
 import type { Sql } from "../db";
+import { isDeepStrictEqual } from "node:util";
 import {
   financialSourceModeInTransaction,
   withFinancialContext,
@@ -35,6 +36,20 @@ export async function writeStoredClub(tx: Sql, club: ClubRecord, expectedRev?: n
     const previous = await readStoredClub(tx, true);
     if (!previous || previous._rev !== expectedRev)
       throw new Error("The club changed. Reload before saving.");
+    if (mode === "legacy") {
+      const independent = await tx<{ team_id: string }>`select team_id from team_fee_plans where payload->'budget'->>'fundingModel'='independent'`;
+      for (const { team_id } of independent) {
+        const before = previous.teams.find(t => t.id === team_id), after = club.teams.find(t => t.id === team_id);
+        if (!before) continue;
+        if (!after) throw Error("This team has an independent financial season. Close the season and retain its records instead of deleting the team.");
+        for (const player of before.roster) {
+          const next = after.roster.find(p => p.id === player.id);
+          if (!next) { after.roster.push({ ...player, withdrawn: true }); continue; }
+          for (const key of ["feeLock", "planLock", "agreement"] as const)
+            if (!isDeepStrictEqual(next[key], player[key])) throw Error("Use the independent Prospects agreement controls to change accepted financial terms. Roster edits cannot change the agreement.");
+        }
+      }
+    }
     for (const team of club.teams) {
       const old = previous.teams.find((t) => t.id === team.id);
       for (const player of team.roster) {
