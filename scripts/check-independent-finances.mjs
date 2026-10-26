@@ -17,7 +17,8 @@ for (const name of [
   if (process.env[name]) throw Error("Isolated enrollment check refuses " + name);
 const h = await enrollmentFixture(),
   origin = "https://audit.example.invalid",
-  errors = [];
+  errors = [],
+  sessions = [];
 let socket,
   browser,
   queue = Promise.resolve();
@@ -108,6 +109,7 @@ try {
       return route.fulfill({ status: response.status, headers, body });
     });
     const page = await context.newPage();
+    sessions.push({ id, page });
     page.setDefaultTimeout(20000);
     page.on("pageerror", (e) => errors.push(e.message));
     await page.goto(origin + "/account?desk=team-finances");
@@ -117,11 +119,9 @@ try {
   const owner = await signedIn("owner", 1280),
     page = owner.page;
   await page.getByText("Synthetic baseball · Funding model", { exact: true }).click();
-  const config = page
-    .locator("details")
-    .filter({
-      has: page.locator("summary").filter({ hasText: "Synthetic baseball · Funding model" }),
-    });
+  const config = page.locator("details").filter({
+    has: page.locator("summary").filter({ hasText: "Synthetic baseball · Funding model" }),
+  });
   await config.getByLabel("Uniform deposit due", { exact: true }).fill("2098-01-01");
   await config.getByLabel("First monthly due date", { exact: true }).fill("2098-01-31");
   await config.getByLabel("Monthly billing day (1–31)", { exact: true }).fill("31");
@@ -273,6 +273,17 @@ try {
   console.log(
     "Independent financial workflow passed in the compiled application; no live payments or notices.",
   );
+} catch (error) {
+  // These pages contain only the synthetic fixture above, never customer records.
+  for (const { id, page } of sessions) {
+    if (page.isClosed()) continue;
+    await page.screenshot({ path: `${shots}/failure-${id}.png`, fullPage: true }).catch(() => {});
+    await writeFile(`${shots}/failure-${id}.txt`, await page.locator("body").innerText()).catch(
+      () => {},
+    );
+  }
+  console.error("Synthetic browser errors:", errors);
+  throw error;
 } finally {
   await browser?.close();
   await socket?.stop();

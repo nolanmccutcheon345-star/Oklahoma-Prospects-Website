@@ -70,6 +70,7 @@ function Select({
     <label className="grid gap-1 text-sm">
       {label}
       <select
+        aria-label={label}
         className="office-control min-w-0 w-full"
         value={value}
         onChange={(e) => onChange(e.target.value)}
