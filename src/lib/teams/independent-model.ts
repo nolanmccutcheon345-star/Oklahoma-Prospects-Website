@@ -42,6 +42,11 @@ export type IndependentInstallment = {
   label: string;
 };
 
+/** Present historical installment labels without changing accepted financial records. */
+export function independentInstallmentLabel(row: { kind?: string; label: string }) {
+  return row.kind === "uniform" || row.label === "Uniform deposit" ? "Initial deposit" : row.label;
+}
+
 export function independentSchedule(b: IndependentBudget): IndependentInstallment[] {
   const t = independentTermsSchema.parse(b.independent);
   if (!t.uniformDue || !t.firstDue || !t.lastDue || !t.seasonEnd) return [];
@@ -67,7 +72,7 @@ export function independentSchedule(b: IndependentBudget): IndependentInstallmen
       : 0;
     return { id, kind, base, amount, processing: amount - base, due, label };
   };
-  const rows = [row("uniform", "uniform", t.uniformDeposit, t.uniformDue, "Uniform deposit")];
+  const rows = [row("uniform", "uniform", t.uniformDeposit, t.uniformDue, "Initial deposit")];
   const [year, month] = t.firstDue.split("-").map(Number);
   for (let i = 0; i < 36; i++) {
     const start = new Date(Date.UTC(year, month - 1 + i, 1, 12));
@@ -113,7 +118,7 @@ export function independentIssues(b: IndependentBudget & { policy: string }, tod
     if (t.lastDue && t.seasonEnd && t.lastDue > t.seasonEnd)
       issues.push("Billing must end on or before the season end date.");
     if (t.uniformDue && t.firstDue && t.uniformDue > t.firstDue)
-      issues.push("The uniform deposit must be due on or before the first monthly installment.");
+      issues.push("The initial deposit must be due on or before the first monthly installment.");
     if (!b.policy.trim()) issues.push("Enter the payment/refund and enrollment policy.");
     if (!t.processingExplanation.trim())
       issues.push(
@@ -206,7 +211,7 @@ export function independentCalculation(b: IndependentBudget) {
 }
 
 export const independentCollectionConsent =
-  "I authorize Prospects Sports Academy to collect only this player's accepted uniform deposit and monthly Prospects dues, including the processing fees disclosed in that schedule, using my Square payment methods. Collection begins at 9 a.m. America/Chicago on each due date. Short months use the last valid day. A confirmed decline may use my authorized backup card the next day; uncertain outcomes stop for review. No team-managed expense, legacy organization fee, contingency or late fee is authorized. New scheduled charges stop at the final billing date. I may revoke future automatic collection; existing accepted obligations are not forgiven. An admin withdrawal or season cancellation stops future installments and automatic collection; amounts already owed and the accepted deposit for uniforms already purchased or paid for remain due. A payment already submitted may still complete and will be reconciled.";
+  "I authorize Prospects Sports Academy to collect only this player's accepted initial deposit and monthly Prospects dues, including the processing fees disclosed in that schedule, using my Square payment methods. Collection begins at 9 a.m. America/Chicago on each due date. Short months use the last valid day. A confirmed decline may use my authorized backup card the next day; uncertain outcomes stop for review. No team-managed expense, legacy organization fee, contingency or late fee is authorized. New scheduled charges stop at the final billing date. I may revoke future automatic collection; existing accepted obligations are not forgiven. An admin withdrawal or season cancellation stops future installments and automatic collection; amounts already owed and the accepted deposit for uniforms already purchased or paid for remain due. A payment already submitted may still complete and will be reconciled.";
 
 export function independentPublishedPolicy(
   b: IndependentBudget & { policy: string },
@@ -221,7 +226,7 @@ export function independentPublishedPolicy(
     rows
       .map(
         (r) =>
-          `${r.label}: $${(r.base / 100).toFixed(2)} + $${(r.processing / 100).toFixed(2)} processing = $${(r.amount / 100).toFixed(2)}, due ${r.due}.`,
+          `${independentInstallmentLabel(r)}: $${(r.base / 100).toFixed(2)} + $${(r.processing / 100).toFixed(2)} processing = $${(r.amount / 100).toFixed(2)}, due ${r.due}.`,
       )
       .join("\n") +
     "\n\nPublication and acceptance do not activate autopay. Separate payer authorization is required. " +

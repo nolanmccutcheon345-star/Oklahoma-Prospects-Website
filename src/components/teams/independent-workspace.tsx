@@ -21,6 +21,10 @@ import {
   type IndependentSettings,
 } from "@/lib/teams/independent-ledger";
 import { money, organizationDay, type FeeBudget } from "@/lib/teams/fee-model";
+import {
+  emptyIndependentAdminBudget,
+  type IndependentAdminBudget,
+} from "@/lib/teams/independent-admin-budget";
 import { Button } from "../ui/button";
 import { TeamPayment } from "./team-payment";
 import { TeamCollectionSetup } from "./team-collection-setup";
@@ -84,15 +88,18 @@ function Text({
   label,
   value,
   onChange,
+  maxLength,
 }: {
   label: string;
   value: string;
   onChange: (v: string) => void;
+  maxLength?: number;
 }) {
   return (
     <label className="grid gap-1 text-sm">
       {label}
       <textarea
+        maxLength={maxLength}
         className="office-control min-h-24 w-full"
         value={value}
         onChange={(e) => onChange(e.target.value)}
@@ -154,9 +161,13 @@ function Schedule({ budget }: { budget: FeeBudget }) {
 function TermsFields({
   budget: b,
   setBudget,
+  adminBudget,
+  setAdminBudget,
 }: {
   budget: FeeBudget;
   setBudget: (b: FeeBudget) => void;
+  adminBudget: IndependentAdminBudget;
+  setAdminBudget: (b: IndependentAdminBudget) => void;
 }) {
   const t = b.independent!;
   const update = (patch: Partial<IndependentTerms>) =>
@@ -164,12 +175,24 @@ function TermsFields({
   return (
     <>
       <div className="grid gap-3 sm:grid-cols-2">
-        <Field
-          label="Uniform deposit per player ($)"
-          type="number"
-          value={t.uniformDeposit / 100}
-          onChange={(v) => update({ uniformDeposit: Math.round(Number(v) * 100) })}
-        />
+        <div className="grid gap-3">
+          <Field
+            label="Initial deposit per player ($)"
+            type="number"
+            value={t.uniformDeposit / 100}
+            onChange={(v) => update({ uniformDeposit: Math.round(Number(v) * 100) })}
+          />
+          <Text
+            label="Initial deposit includes (admin note)"
+            value={adminBudget.depositNote}
+            maxLength={2000}
+            onChange={(v) => setAdminBudget({ ...adminBudget, depositNote: v })}
+          />
+          <p className="text-sm text-muted">
+            Admins only. For example: uniforms; uniforms and coaching; or uniforms, coaching and
+            coach travel.
+          </p>
+        </div>
         <Field
           label="Monthly Prospects dues per player ($)"
           type="number"
@@ -177,7 +200,7 @@ function TermsFields({
           onChange={(v) => update({ monthlyDues: Math.round(Number(v) * 100) })}
         />
         <Field
-          label="Uniform deposit due"
+          label="Initial deposit due"
           type="date"
           value={t.uniformDue}
           onChange={(v) => update({ uniformDue: v })}
@@ -237,6 +260,124 @@ function TermsFields({
     </>
   );
 }
+function AdminCosts({
+  value,
+  onChange,
+  onSave,
+  busy,
+}: {
+  value: IndependentAdminBudget;
+  onChange: (value: IndependentAdminBudget) => void;
+  onSave?: () => void;
+  busy: boolean;
+}) {
+  return (
+    <section
+      className="grid gap-3 rounded-xl border bg-paper-2 p-4"
+      aria-label="Admin-only Prospects budget"
+    >
+      <h4 className="font-bold">Admin-only Prospects budget</h4>
+      <p className="text-sm">
+        Actual cost totals for this entire team and season, not per player. Enter 0 when there is no
+        cost; leave blank until known. Update these totals as costs change.
+      </p>
+      <div className="grid gap-3 sm:grid-cols-3">
+        {(
+          [
+            ["uniforms", "Actual uniform cost — team season ($)"],
+            ["coaching", "Actual coaching pay cost — team season ($)"],
+            ["coachTravel", "Actual coach travel cost — team season ($)"],
+          ] as const
+        ).map(([key, label]) => (
+          <Field
+            key={key}
+            label={label}
+            type="number"
+            value={value[key] === null ? "" : value[key] / 100}
+            onChange={(v) =>
+              onChange({ ...value, [key]: v.trim() === "" ? null : Math.round(Number(v) * 100) })
+            }
+          />
+        ))}
+      </div>
+      <p className="text-sm">
+        These costs are counted once in this worksheet. Saving does not post another expense, send a
+        payment, change player fees or share the note or costs with families or coaches.
+      </p>
+      {onSave && (
+        <Button type="button" disabled={busy} onClick={onSave}>
+          Save admin budget and note
+        </Button>
+      )}
+    </section>
+  );
+}
+function AdminProfitSummary({ summary: s }: { summary: Space["adminFinance"] }) {
+  if (!s) return null;
+  const rows: [string, number | null][] = [
+    ["Projected initial deposits", s.initialDeposits],
+    ["Projected monthly Prospects dues", s.monthlyDues],
+    ["Disclosed processing allowances", s.disclosedProcessing],
+    ["Credits reducing projected collections", s.credits],
+    ["Projected season collections", s.projectedRevenue],
+    ["Entered season costs", s.costsComplete ? s.totalCosts : null],
+    ["Projected profit before processing and other overhead", s.projectedMarginBeforeProcessing],
+    ["Gross verified Square collections", s.grossCollected],
+    ["Refunds", s.refunded],
+    ["Verified external Prospects receipts (net)", s.verifiedOffline],
+    ["Net collections after refunds", s.netCollected],
+    ["Reserved credits or unreconciled collections", s.reservedOrUnreconciled],
+    ["Applied Prospects revenue", s.appliedRevenue],
+    ["Known actual processing costs", s.processingFees],
+    ["Collected profit before other costs", s.collectedMargin],
+  ];
+  return (
+    <section
+      className="grid gap-3 rounded-xl border p-4"
+      aria-label="Admin-only Prospects profit estimate"
+    >
+      <h4 className="font-bold">Prospects season profit estimate · admins only</h4>
+      <p className="text-sm">
+        {s.acceptedPlayers} accepted player agreement(s); {s.pendingPlayers} player(s) projected
+        from published terms awaiting acceptance. Projections use current accepted schedules and
+        published offers, not unsaved fee edits. Independent team funds are excluded.
+      </p>
+      <dl className="grid gap-3 sm:grid-cols-2">
+        {rows.map(([label, value]) => (
+          <div key={label} className="rounded-lg bg-paper-2 p-3">
+            <dt className="text-sm">{label}</dt>
+            <dd className="font-bold">{value === null ? "Incomplete" : money(value)}</dd>
+          </div>
+        ))}
+      </dl>
+      {!s.costsComplete && (
+        <p className="text-sm">
+          Enter all three actual cost totals, including explicit zeros, to calculate profit.
+        </p>
+      )}
+      {s.missingProcessingFees > 0 && (
+        <p className="text-sm">
+          Processing costs are missing for {s.missingProcessingFees} payment(s). Sync Square in
+          Front Office Finance before calculating collected profit.
+        </p>
+      )}
+      {s.needsReconciliation && (
+        <p className="text-sm">
+          Verified receipts and the player payment records need reconciliation. Review Square
+          reconciliation and any unverified external receipts. Collected profit is withheld until
+          they agree.
+        </p>
+      )}
+      <p className="text-sm">
+        Projected profit = projected collections − entered costs, before processing and other
+        overhead. Collected profit = applied collections after refunds − entered costs − known
+        processing costs. Unpaid dues and refundable credits are not collected profit. External
+        payment fees and other overhead are not included. These estimates reflect the costs entered
+        here; they are not bank balances or funds approved for distribution.
+      </p>
+    </section>
+  );
+}
 function Configure({
   team,
   run,
@@ -247,6 +388,7 @@ function Configure({
   busy: boolean;
 }) {
   const [open, setOpen] = useState(false);
+  const [adminBudget, setAdminBudget] = useState(team.adminBudget || emptyIndependentAdminBudget());
   const [b, setB] = useState<FeeBudget>(() => ({
     ...team.budget,
     fundingModel: "independent",
@@ -282,10 +424,16 @@ function Configure({
       ) : (
         <div className="mt-3 grid gap-3">
           <p>
-            Select Independently Funded Team to collect only the published uniform deposit and
+            Select Independently Funded Team to collect only the published initial deposit and
             monthly Prospects dues. Suggested amounts below are drafts.
           </p>
-          <TermsFields budget={b} setBudget={setB} />
+          <TermsFields
+            budget={b}
+            setBudget={setB}
+            adminBudget={adminBudget}
+            setAdminBudget={setAdminBudget}
+          />
+          <AdminCosts value={adminBudget} onChange={setAdminBudget} busy={busy} />
           <Button
             disabled={busy}
             onClick={() =>
@@ -298,6 +446,7 @@ function Configure({
                       revision: team.revision,
                       basisVersion: team.basisVersion,
                       budget: independentDraft(b),
+                      adminBudget,
                       uniforms: team.uniforms,
                       expenses: team.expenses,
                     },
@@ -315,6 +464,9 @@ function Configure({
 }
 
 function ProspectsSettings({ space: s, run, busy }: { space: Space; run: Run; busy: boolean }) {
+  const [adminBudget, setAdminBudget] = useState(
+    s.plan!.independentAdmin || emptyIndependentAdminBudget(),
+  );
   const [b, setB] = useState(s.plan!.budget),
     [playerId, setPlayerId] = useState(""),
     [payerId, setPayerId] = useState(""),
@@ -331,14 +483,38 @@ function ProspectsSettings({ space: s, run, busy }: { space: Space; run: Run; bu
           not authorize a payment. Existing accepted terms remain in place until an individual
           amendment is accepted.
         </p>
-        <TermsFields budget={b} setBudget={setB} />
+        <TermsFields
+          budget={b}
+          setBudget={setB}
+          adminBudget={adminBudget}
+          setAdminBudget={setAdminBudget}
+        />
+        <AdminCosts
+          value={adminBudget}
+          onChange={setAdminBudget}
+          busy={busy}
+          onSave={() =>
+            void run(
+              () =>
+                changeFeePlan({ data: { ...base, action: "independentAdminBudget", adminBudget } }),
+              "Admin budget and note saved. Player fees and accepted agreements are unchanged.",
+            )
+          }
+        />
+        <AdminProfitSummary summary={s.adminFinance} />
         <Button
           disabled={busy || Boolean(s.plan!.independentCancellation)}
           onClick={() =>
             void run(
               () =>
                 changeFeePlan({
-                  data: { ...base, action: "publishIndependent", budget: b, confirmed: true },
+                  data: {
+                    ...base,
+                    action: "publishIndependent",
+                    budget: b,
+                    adminBudget,
+                    confirmed: true,
+                  },
                 }),
               "Prospects terms published. Families must accept and authorize collection separately.",
             )
@@ -398,6 +574,7 @@ function ProspectsSettings({ space: s, run, busy }: { space: Space; run: Run; bu
                         playerId,
                         payerUserId: payerId,
                         budget: b,
+                        adminBudget,
                         reason,
                       },
                     }),
@@ -413,7 +590,7 @@ function ProspectsSettings({ space: s, run, busy }: { space: Space; run: Run; bu
           <summary className="min-h-11 cursor-pointer">Withdrawal or season cancellation</summary>
           <p className="my-2">
             Stops future installments and automatic retries. Existing due balances and documented
-            committed uniform deposits remain due within the accepted amounts. Submitted payments
+            uniform commitments within the accepted initial deposit remain due. Submitted payments
             may still complete and will be reconciled.
           </p>
           <Select
@@ -1260,7 +1437,7 @@ function SpaceView({
         <section className="grid gap-3">
           <h3 className="text-xl font-bold">Payments to Prospects</h3>
           <p className="text-sm">
-            Uniform deposit and monthly Prospects dues, per player. Managed by Prospects.
+            Initial deposit and monthly Prospects dues, per player. Managed by Prospects.
           </p>
           {s.prospects.map((p) => (
             <PlayerProspects

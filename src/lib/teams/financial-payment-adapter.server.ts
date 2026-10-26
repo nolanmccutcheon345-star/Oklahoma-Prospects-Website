@@ -230,7 +230,7 @@ export function planFinancialTeamCheckout(
     lines: [
       {
         label: independent
-          ? "Accepted uniform deposit and monthly Prospects dues"
+          ? "Accepted initial deposit and monthly Prospects dues"
           : "Payment toward accepted season fee",
         cents: a.amount,
       },

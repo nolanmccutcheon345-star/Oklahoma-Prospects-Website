@@ -1,6 +1,10 @@
 import { z } from "zod";
 import { budgetSchema, expenseSchema, type FeeBudget, type Expense } from "./fee-model";
 import type { IndependentInstallment } from "./independent-model";
+import {
+  independentAdminBudgetSchema,
+  type IndependentAdminBudget,
+} from "./independent-admin-budget";
 const cents = z.number().int().min(0).max(1_000_000_000),
   id = z.string().min(1).max(150);
 export const uniformPhotoSchema = z
@@ -27,6 +31,8 @@ export const uniformSchema = z
   .strict();
 export type FeeUniform = z.infer<typeof uniformSchema>;
 export type FeePlan = {
+  /** Owner-only worksheet, separate from published budgets and accepted agreements. */
+  independentAdmin?: IndependentAdminBudget;
   defaults?: { key: string; revision: number; appliedAt: string };
   budget: FeeBudget;
   uniforms: FeeUniform[];
@@ -94,7 +100,17 @@ export type FeePlan = {
 export const feeAction = z.discriminatedUnion("action", [
   z
     .object({
+      action: z.literal("independentAdminBudget"),
+      teamId: id,
+      revision: z.number().int(),
+      basisVersion: z.number().int().positive().optional(),
+      adminBudget: independentAdminBudgetSchema,
+    })
+    .strict(),
+  z
+    .object({
       action: z.literal("publishIndependent"),
+      adminBudget: independentAdminBudgetSchema.optional(),
       teamId: id,
       revision: z.number().int(),
       basisVersion: z.number().int().positive().optional(),
@@ -105,6 +121,7 @@ export const feeAction = z.discriminatedUnion("action", [
   z
     .object({
       action: z.literal("independentOffer"),
+      adminBudget: independentAdminBudgetSchema.optional(),
       teamId: id,
       playerId: id,
       revision: z.number().int(),
@@ -166,6 +183,7 @@ export const feeAction = z.discriminatedUnion("action", [
   z
     .object({
       action: z.literal("save"),
+      adminBudget: independentAdminBudgetSchema.optional(),
       teamId: id,
       revision: z.number().int(),
       basisVersion: z.number().int().positive().optional(),
