@@ -439,7 +439,7 @@ function AdminPlanningSummary({
   ];
   const amount = (v: number | null) => (v === null ? "Incomplete" : money(v));
   return (
-    <section className="grid gap-3 rounded-xl border p-4" aria-label="Admin budget forecast">
+    <section className="grid min-w-0 gap-3 rounded-xl border p-4" aria-label="Admin budget forecast">
       <h4 className="font-bold">Deposit calculator and budget forecast · admins only</h4>
       <dl className="grid gap-3 sm:grid-cols-2">
         <div>
@@ -497,16 +497,22 @@ function AdminPlanningSummary({
         {s.monthlyInstallments ?? "Incomplete"} monthly installments from the billing dates above.
         This preview updates while you edit, before publication or family acceptance.
       </p>
-      <div className="overflow-x-auto">
-        <table className="w-full text-left text-sm">
+      <p className="text-sm sm:hidden">Scroll the comparison sideways to see both player counts.</p>
+      <div
+        className="min-w-0 overflow-x-auto"
+        role="region"
+        aria-label="Budget comparison"
+        tabIndex={0}
+      >
+        <table className="w-full min-w-[36rem] text-left text-sm [overflow-wrap:normal]">
           <caption className="sr-only">
             Pricing baseline and expected team revenue and profit
           </caption>
           <thead>
             <tr>
               <th className="p-2">Budget item</th>
-              <th className="p-2">{s.basisPlayers ?? "—"}-player basis</th>
-              <th className="p-2">{s.expectedPlayers ?? "—"}-player forecast</th>
+              <th className="whitespace-nowrap p-2">{s.basisPlayers ?? "—"}-player basis</th>
+              <th className="whitespace-nowrap p-2">{s.expectedPlayers ?? "—"}-player forecast</th>
             </tr>
           </thead>
           <tbody>
@@ -515,8 +521,8 @@ function AdminPlanningSummary({
                 <th scope="row" className="p-2 font-medium">
                   {label}
                 </th>
-                <td className="p-2">{amount(s.baseline[key])}</td>
-                <td className="p-2 font-bold">{amount(s.expected[key])}</td>
+                <td className="whitespace-nowrap p-2">{amount(s.baseline[key])}</td>
+                <td className="whitespace-nowrap p-2 font-bold">{amount(s.expected[key])}</td>
               </tr>
             ))}
           </tbody>

@@ -230,9 +230,22 @@ try {
   await page.setViewportSize({ width: 375, height: 900 });
   await forecast.scrollIntoViewIfNeeded();
   assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1));
+  const comparison = forecast.getByRole("region", { name: "Budget comparison", exact: true });
+  assert.ok(await comparison.evaluate((el) => el.scrollWidth > el.clientWidth));
+  await comparison.evaluate((el) => {
+    el.scrollLeft = el.scrollWidth;
+  });
+  const expectedProfit = forecast
+    .getByRole("row", { name: /Initial deposit profit/ })
+    .getByText("$2,500.00", { exact: true });
+  assert.equal(await expectedProfit.evaluate((el) => getComputedStyle(el).whiteSpace), "nowrap");
+  await expectedProfit.scrollIntoViewIfNeeded();
   await page.screenshot({ path: shots + "/admin-planned-profit-mobile.png", fullPage: false });
-  await forecast.getByRole("table").screenshot({ path: shots + "/admin-planned-profit-table.png" });
   await page.setViewportSize({ width: 1280, height: 900 });
+  await comparison.evaluate((el) => {
+    el.scrollLeft = 0;
+  });
+  await forecast.getByRole("table").screenshot({ path: shots + "/admin-planned-profit-table.png" });
   // Continue the existing per-player agreement/independent-ledger walkthrough.
   await settings.getByLabel("Initial deposit per player ($)", { exact: true }).fill("250");
   await settings.getByLabel("Monthly Prospects dues per player ($)", { exact: true }).fill("125");
