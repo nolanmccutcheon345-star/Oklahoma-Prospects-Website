@@ -23,6 +23,8 @@ import {
 } from "./independent-ledger";
 import { defaultBudget, organizationDay } from "./fee-model";
 import { independentAcceptancePreview } from "./independent-prospects.server";
+import { independentInstallmentLabel } from "./independent-model";
+import { independentAdminWorksheet } from "./independent-admin-budget.server";
 
 type Space = { id: string; team_id: string; revision: number; payload: IndependentSettings };
 type Grant = {
@@ -238,7 +240,12 @@ async function independentWorkspaceInTransaction(
         const rows = (record?.independent?.installments || []).map((r) => {
           const paid = Math.min(r.amount, Math.max(0, available));
           available -= paid;
-          return { ...r, paid, outstanding: r.amount - paid };
+          return {
+            ...r,
+            label: independentInstallmentLabel(r),
+            paid,
+            outstanding: r.amount - paid,
+          };
         });
         return {
           id: p.id,
@@ -374,6 +381,9 @@ async function independentWorkspaceInTransaction(
       ),
       prospects,
       plan: context.principal.owner ? plan?.payload || null : null,
+      adminFinance: context.principal.owner
+        ? await independentAdminWorksheet(tx, context, space.team_id, space.id)
+        : null,
       published: plan?.payload.published || null,
       planRevision: plan?.revision || 0,
       basisVersion: context.version || undefined,
@@ -391,6 +401,7 @@ async function independentWorkspaceInTransaction(
             revision: p?.revision || 0,
             basisVersion: context.version || undefined,
             budget: p?.payload.budget || defaultBudget(),
+            adminBudget: p?.payload.independentAdmin,
             uniforms: p?.payload.uniforms || [],
             expenses: p?.payload.expenses || [],
           };

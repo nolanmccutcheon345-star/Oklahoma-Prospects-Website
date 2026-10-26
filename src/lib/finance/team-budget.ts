@@ -18,7 +18,7 @@ export function publishedSpendingLines(input: FeeBudget): BudgetLine[] {
     return [
       {
         id: "base:uniform",
-        name: "Prospects uniform deposits",
+        name: "Prospects initial deposits",
         category: "uniform",
         budget: input.independent.uniformDeposit * input.baseline,
       },

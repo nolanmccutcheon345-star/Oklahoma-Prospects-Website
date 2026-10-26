@@ -102,7 +102,7 @@ function validatedBudget(raw: FeeBudget, today: string) {
   if (b.independent!.lastDue > b.independent!.seasonEnd)
     throw Error("Billing must end on or before the season end date.");
   if (b.independent!.uniformDue > b.independent!.firstDue)
-    throw Error("The uniform deposit must be due on or before the first monthly installment.");
+    throw Error("The initial deposit must be due on or before the first monthly installment.");
   return b;
 }
 
@@ -124,7 +124,10 @@ export async function mutateIndependentProspects(
     throw Error(
       "An existing published season cannot be converted. Preserve its agreements and establish a new season explicitly.",
     );
-  if (plan.independentCancellation && !["independentUniform"].includes(input.action))
+  if (
+    plan.independentCancellation &&
+    !["independentUniform", "independentAdminBudget"].includes(input.action)
+  )
     throw Error(
       "This Prospects billing term was canceled. Existing balances and history remain available.",
     );
@@ -144,6 +147,10 @@ export async function mutateIndependentProspects(
         );
       plan.status = "draft";
     }
+  }
+  if ("adminBudget" in input && input.adminBudget !== undefined) {
+    if (!isIndependent(plan.budget)) throw Error("Choose Independently Funded Team first.");
+    plan.independentAdmin = input.adminBudget;
   }
   if (input.action === "publish" || input.action === "publishIndependent") {
     const b = validatedBudget(plan.budget, today),
@@ -314,7 +321,7 @@ export async function mutateIndependentProspects(
   } else if (input.action === "independentUniform") {
     const independent = plan.players[input.playerId]?.independent;
     if (!independent?.agreements.length)
-      throw Error("An accepted uniform-deposit agreement is required.");
+      throw Error("An accepted initial-deposit agreement is required.");
     independent.uniformCommitted = { at: now, reference: input.reference, actorId: actor.userId };
   } else if (input.action === "independentWithdraw" || input.action === "independentSeasonCancel") {
     const players =
@@ -369,7 +376,7 @@ export async function mutateIndependentProspects(
     }
     if (input.action === "independentSeasonCancel")
       plan.independentCancellation = { at: now, reason: input.reason, actorId: actor.userId };
-  } else if (input.action !== "save") {
+  } else if (input.action !== "save" && input.action !== "independentAdminBudget") {
     throw Error(
       "Use the independent billing controls. Legacy budget defaults, fees and approval actions do not apply.",
     );

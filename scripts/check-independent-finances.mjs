@@ -122,7 +122,15 @@ try {
   const config = page.locator("details").filter({
     has: page.locator("summary").filter({ hasText: "Synthetic baseball · Funding model" }),
   });
-  await config.getByLabel("Uniform deposit due", { exact: true }).fill("2098-01-01");
+  await config.getByLabel("Initial deposit due", { exact: true }).fill("2098-01-01");
+  await config
+    .getByLabel("Initial deposit includes (admin note)", { exact: true })
+    .fill("PRIVATE-ADMIN-NOTE: uniforms, coaching and travel");
+  await config.getByLabel("Actual uniform cost — team season ($)", { exact: true }).fill("180");
+  await config
+    .getByLabel("Actual coaching pay cost — team season ($)", { exact: true })
+    .fill("100");
+  await config.getByLabel("Actual coach travel cost — team season ($)", { exact: true }).fill("50");
   await config.getByLabel("First monthly due date", { exact: true }).fill("2098-01-31");
   await config.getByLabel("Monthly billing day (1–31)", { exact: true }).fill("31");
   await config.getByLabel("Final billing date", { exact: true }).fill("2098-04-30");
@@ -148,6 +156,7 @@ try {
     .waitFor();
   const [plan] = await h.sql`select payload from team_fee_plans where team_id='base'`;
   assert.equal(plan.payload.published.full, 75000);
+  assert.equal(plan.payload.independentAdmin.uniforms, 18000);
   assert.equal((await h.sql`select id from team_collection_authorizations`).length, 0);
   assert.equal((await h.sql`select id from commerce_orders`).length, 0);
   const guardian = await signedIn("guardian", 375),
@@ -155,6 +164,11 @@ try {
   await family.getByRole("heading", { name: "Payments to Prospects", exact: true }).waitFor();
   await family.getByRole("heading", { name: "Team-Managed Expenses", exact: true }).waitFor();
   await family.getByText("Review and accept Prospects terms", { exact: true }).click();
+  assert.match(await family.locator("body").innerText(), /Initial deposit: \$250.00/);
+  assert.equal(
+    await family.getByLabel("Initial deposit includes (admin note)", { exact: true }).count(),
+    0,
+  );
   await family
     .getByLabel("Accepting guardian's full name", { exact: true })
     .fill("Synthetic Guardian");
@@ -166,6 +180,7 @@ try {
     })
     .waitFor();
   assert.match(await family.locator("body").innerText(), /Outstanding: \$750.00/);
+  assert.doesNotMatch(guardian.bodies.join("\n"), /PRIVATE-ADMIN-NOTE|collectedMargin/);
   assert.equal((await h.sql`select id from commerce_orders`).length, 0);
   assert.ok(
     await family.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1),
@@ -244,6 +259,15 @@ try {
   assert.equal(await page.getByText("Record team financial activity", { exact: true }).count(), 0);
   assert.match(await page.locator("body").innerText(), /Outstanding \$200.00/);
   await page.screenshot({ path: shots + "/owner-read-only.png", fullPage: false });
+  await page.getByText("Admin · Prospects billing terms", { exact: true }).click();
+  const adminReport = page.getByRole("region", {
+    name: "Admin-only Prospects profit estimate",
+    exact: true,
+  });
+  await adminReport.getByText("$420.00", { exact: true }).waitFor();
+  await adminReport.scrollIntoViewIfNeeded();
+  await page.screenshot({ path: shots + "/admin-profit-worksheet.png", fullPage: false });
+  assert.doesNotMatch(coach.bodies.join("\n"), /PRIVATE-ADMIN-NOTE|collectedMargin/);
   await staff.screenshot({ path: shots + "/coach-workspace.png", fullPage: false });
   assert.equal((await h.sql`select id from commerce_orders`).length, 0);
   assert.equal((await h.sql`select id from finance_records`).length, 0);

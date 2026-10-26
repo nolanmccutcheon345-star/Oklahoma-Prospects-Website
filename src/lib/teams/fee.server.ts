@@ -1,4 +1,4 @@
-import { isIndependent } from "./independent-model";
+import { isIndependent, independentInstallmentLabel } from "./independent-model";
 import { mutateIndependentProspects } from "./independent-prospects.server";
 import { teamCollectionsEnabled } from "./collections.server";
 import { pinSpendingBudget, teamExpenseTotals, teamBudgetLedger } from "../finance/team-budget";
@@ -210,6 +210,9 @@ function playerView(t: Team, p: Player, plan: FeePlan, asOf = today()) {
             amount: Math.round(r.amount * 100),
             due: r.date,
             label:
+              (isIndependent(agreedBudget) && r.label
+                ? independentInstallmentLabel({ label: r.label })
+                : "") ||
               r.label ||
               (i === 0 ? "Deposit" : i === rows.length - 1 ? "Final payment" : `Payment ${i + 1}`),
           }))
