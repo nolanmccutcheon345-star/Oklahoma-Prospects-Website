@@ -155,11 +155,11 @@ export function CoachApp({
                 <span>
                   <strong>#{p.number || "—"} {p.name}</strong>
                   <span className="block text-xs text-muted">
-                    {p.positions.join("/")} · {isCleared(p) ? "Cleared" : "Not cleared"}
+                    {p.positions.join("/")} · {p.withdrawn ? "Inactive roster record — financial history retained" : isCleared(p) ? "Cleared" : "Not cleared"}
                   </span>
                 </span>
-                <button type="button" disabled={rosterBusy} className="min-h-11 rounded border px-2 text-sm" onClick={async () => {
-                  if(!window.confirm(`Remove ${p.name} from ${team.name}? Players with billing records require Front Office review.`))return;
+                <button type="button" disabled={rosterBusy||p.withdrawn} className="min-h-11 rounded border px-2 text-sm" onClick={async () => {
+                  if(!window.confirm(`Remove ${p.name} from the active roster for ${team.name}? Independent financial records and accepted obligations remain in place. Financial withdrawal requires a separate Front Office action.`))return;
                   setRosterBusy(true);setRosterError("");
                   try{const row=await coachRemoveRosterPlayer({data:{teamId:team.id,playerId:p.id}});onChange(row.club);}
                   catch(err){setRosterError(err instanceof Error?err.message:"Could not remove player.");}

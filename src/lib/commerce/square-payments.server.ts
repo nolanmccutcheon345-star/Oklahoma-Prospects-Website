@@ -144,6 +144,15 @@ export async function fulfillSquarePayment(
   const [refunded] = await sql<{
     exists: boolean;
   }>`select exists(select 1 from square_payments where order_id=${order.id} and refunded_cents>0)`;
+  if (refunded.exists && order.kind === "team-fee" && order.snapshot.teamFee?.independent) {
+    // This is a payment toward a finite obligation, with no service entitlement
+    // to unwind. Preserve the verified net receipt and refund history; a partial
+    // refund must not automatically request a refund of the remaining money.
+    const { fulfillTeamPayment } = await import("../teams/payment.server");
+    await fulfillTeamPayment(sql, order, config.environment);
+    await applySquareRefundBalance(sql, payment, config);
+    return;
+  }
   if (refunded.exists) {
     // A COMPLETED payment can already have returned funds. Never grant access or
     // allocate a lane, even if an older payment response arrives after the refund.

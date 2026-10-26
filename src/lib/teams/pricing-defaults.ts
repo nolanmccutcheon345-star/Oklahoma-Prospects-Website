@@ -1,3 +1,4 @@
+import { isIndependent, independentDraft } from "./independent-model";
 import { z } from "zod";
 import {
   programDraft,
@@ -51,6 +52,7 @@ export function teamPricingValues(
   };
 }
 export function linkedPricingDraft(plan: FeePlan, master: MasterMatrix, team: Team): FeeBudget {
+  if (isIndependent(plan.budget)) return independentDraft(plan.budget);
   if (plan.status === "closed" || !master.pricingDefaultsVersion) return plan.budget;
   const b = programDraft(plan.budget);
   let inheritance = b.pricingInheritance;

@@ -44,6 +44,8 @@ jobs:
       - run: npx playwright install --with-deps chromium
       - name: Isolated organization enrollment walkthrough
         run: node --import tsx scripts/check-enrollment.mjs
+      - name: Isolated independent team financial walkthrough
+        run: node --import tsx scripts/check-independent-finances.mjs
       - name: Isolated coordinator permissions walkthrough
         run: node scripts/check-coordinator.mjs
       - name: Nonfinancial tournament finder component walkthrough
@@ -88,6 +90,7 @@ jobs:
             artifacts/membership
             artifacts/journal
             artifacts/enrollment
+            artifacts/independent-finances
             artifacts/coordinator
             artifacts/tournament-finder
           if-no-files-found: ignore

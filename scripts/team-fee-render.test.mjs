@@ -93,6 +93,7 @@ for (const inherited of [false, true])
         people: [{ userId: "parent", name: "Example Parent", role: "parent" }],
       };
       const mocks = {
+        "@/lib/teams/independent-api": `export const getIndependentWorkspace=async()=>({spaces:[],availableTeams:[],admin:false});export const changeIndependentTeam=async()=>{throw Error("Unexpected independent mutation")};export const downloadIndependentDocument=async()=>{throw Error("Unexpected receipt access")};export const exportIndependentStatement=async()=>{throw Error("Unexpected financial export")};export const findIndependentManager=async()=>{throw Error("Unexpected manager lookup")};`,
         "@/lib/teams/collection-operations-api": `export const getCollectionOperations=async()=>({rows:[],enabled:false,sandboxConfigured:false,sandboxVerified:false});export const pauseCollectionAuthorization=async()=>{throw Error("Unexpected collection pause")};`,
         "@/lib/teams/offline-payment-api": `export const getOfflineTeamPayments=async()=>({payments:[]});export const reviewOfflineTeamPayment=async()=>{throw Error("Unexpected offline review")};`,
         "@/lib/teams/collection-api": `export const getTeamCollection=async()=>{throw Error("Unexpected collection setup")};export const saveTeamCollectionCard=async()=>{throw Error("Unexpected card save")};export const changeTeamCollection=async()=>{throw Error("Unexpected collection authorization")};`,

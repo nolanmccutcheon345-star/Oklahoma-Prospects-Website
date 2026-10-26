@@ -408,7 +408,15 @@ export async function commitFinancialFeePlanInTransaction(
       change.reason || "Team fee " + request.action,
     );
   } else if (
-    ["publish", "roster", "playerRole", "accept", "lateFee"].includes(request.action) ||
+    [
+      "publish",
+      "roster",
+      "playerRole",
+      "accept",
+      "lateFee",
+      "independentWithdraw",
+      "independentSeasonCancel",
+    ].includes(request.action) ||
     (request.action === "applyDefaults" && !same(nextClub, initial.club))
   ) {
     nextClub._rev = initial.club._rev + 1;

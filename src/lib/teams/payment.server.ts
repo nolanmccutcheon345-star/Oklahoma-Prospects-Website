@@ -101,6 +101,9 @@ export async function prepareTeamCheckout(
     const [prior] =
       await tx<SquareOrder>`select * from commerce_orders where request_key=${a.requestId} for update`;
     const { team, player } = await lockedPlayer(tx, a.teamId, a.playerId);
+    const independent = context.feePlans.find((p) => p.team_id === team.id)?.payload.players[
+      player.id
+    ]?.independent;
     guardian(player, me);
     if (prior) {
       if (
@@ -121,7 +124,12 @@ export async function prepareTeamCheckout(
         email: me.email,
       };
     }
-    if (!player.agreement.signedAt || !player.planLock || team.closed || player.withdrawn)
+    if (
+      !player.agreement.signedAt ||
+      !player.planLock ||
+      (team.closed && !independent) ||
+      (player.withdrawn && !independent)
+    )
       throw Error(
         "Accept the published team fee before paying. Contact the office for a closed roster.",
       );
@@ -138,7 +146,11 @@ export async function prepareTeamCheckout(
     const quote = {
       productId: team.id,
       kind: "team-fee",
-      title: team.name + " · " + player.name + " · team fee",
+      title:
+        team.name +
+        " · " +
+        player.name +
+        (independent ? " · Payments to Prospects" : " · team fee"),
       totalCents: a.amount,
       regularCents: a.amount,
       setupCents: 0,
@@ -151,7 +163,14 @@ export async function prepareTeamCheckout(
       expiresDays: 365,
       discipline: team.sport,
       resources: [],
-      lines: [{ label: "Payment toward accepted season fee", cents: a.amount }],
+      lines: [
+        {
+          label: independent
+            ? "Accepted uniform deposit and monthly Prospects dues"
+            : "Payment toward accepted season fee",
+          cents: a.amount,
+        },
+      ],
       teamRate: false,
       needsSlot: false,
       consentAt: new Date().toISOString(),
@@ -160,6 +179,15 @@ export async function prepareTeamCheckout(
         playerId: player.id,
         lockedAt: player.feeLock!.lockedAt,
         role: player.roleType,
+        ...(independent
+          ? {
+              independent: {
+                seasonKey: independent.seasonKey,
+                agreementVersion: independent.version,
+                acceptedFeeCents: Math.round(player.feeLock!.amount * 100),
+              },
+            }
+          : {}),
       },
     };
     await tx`insert into commerce_orders(id,request_key,user_id,email,athlete_id,product_id,kind,snapshot,total_cents,hold_until,payment_provider,payment_environment) values(${id},${a.requestId},${userId},${me.email},null,${team.id},'team-fee',${JSON.stringify(quote)}::jsonb,${a.amount},${end},'square',${environment})`;
@@ -181,6 +209,9 @@ export async function validateTeamPayment(sql: Sql, order: SquareOrder) {
   const m = order.snapshot.teamFee;
   if (!m) throw Error("Team fee details are missing.");
   const { player, team } = await lockedPlayer(sql, m.teamId, m.playerId);
+  const independent = context.feePlans.find((p) => p.team_id === team.id)?.payload.players[
+    player.id
+  ]?.independent;
   // Resolve against the original, verified account again; roster links can change.
   const [u] = await sql<{
     email: string;
@@ -201,8 +232,9 @@ export async function validateTeamPayment(sql: Sql, order: SquareOrder) {
   )
     throw Error("Guardian access changed.");
   if (
-    team.closed ||
-    player.withdrawn ||
+    (team.closed && !independent) ||
+    (player.withdrawn && !independent) ||
+    (independent && m.independent?.agreementVersion !== independent.version) ||
     !player.agreement.signedAt ||
     player.feeLock?.lockedAt !== m.lockedAt ||
     player.roleType !== m.role ||
@@ -260,6 +292,20 @@ export async function fulfillTeamPayment(sql: Sql, order: SquareOrder, environme
   if (!m) throw Error("Team fee details are missing.");
   const context = await loadFinancialProviderContextInTransaction(sql, order.id);
   if (!context) throw Error("Verified Square team payment is unavailable.");
+  const scope = context.basis
+    ? resolveFinancialAgreement(context.basis, { teamId: m.teamId, playerId: m.playerId })
+    : null;
+  const canceled = context.feePlans.find((p) => p.team_id === (scope?.team.id || m.teamId))?.payload
+    .players[scope?.player.id || m.playerId]?.independent?.cancellation;
+  if (canceled) {
+    const [stored] = await sql<{
+      paid_at: Date | null;
+    }>`select paid_at from commerce_orders where id=${order.id}`;
+    if (!stored.paid_at || +new Date(stored.paid_at) >= +new Date(canceled.at)) {
+      await sql`insert into payment_notifications(id,order_id,kind) values(${"independent-cutoff:" + order.id},${order.id},'owner-payment-review') on conflict do nothing`;
+      await sql`insert into finance_audit(actor_id,record_id,action,reason,after_state) values(${order.user_id},${order.id},'Independent payment cutoff review','A verified payment began after the cancellation cutoff, or its initiation time is unavailable. Preserve the receipt and review any refund under the accepted terms.',${JSON.stringify({ cutoff: canceled.at, providerPaidAt: stored.paid_at })}::jsonb)`;
+    }
+  }
   if (context.mode === "basis") {
     // fulfillSquarePayment's original object predates its stored payment-ID and
     // paid-at updates. Decide from the verified row just bound by the loader.
@@ -277,11 +323,21 @@ export async function fulfillTeamPayment(sql: Sql, order: SquareOrder, environme
     return;
   }
   const { player } = await lockedPlayer(sql, m.teamId, m.playerId);
+  const independent = context.feePlans.find((p) => p.team_id === m.teamId)?.payload.players[
+    player.id
+  ]?.independent;
   if (
     player.feeLock?.lockedAt !== m.lockedAt ||
     player.roleType !== m.role ||
     !player.feeLock ||
-    order.total_cents > remainingTeamPaymentCents(player)
+    (independent && m.independent
+      ? m.independent.seasonKey !== independent.seasonKey ||
+        !independent.agreements.some(
+          (a) =>
+            a.version === m.independent!.agreementVersion &&
+            order.total_cents <= a.installments.reduce((s, r) => s + r.amount, 0),
+        )
+      : order.total_cents > remainingTeamPaymentCents(player))
   ) {
     await sql`update commerce_orders set status='payment_review',updated_at=now() where id=${order.id}`;
     await queueExpiredCheckoutRefunds(sql, environment, order.id);

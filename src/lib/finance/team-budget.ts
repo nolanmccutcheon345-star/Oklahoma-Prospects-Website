@@ -14,6 +14,21 @@ export function budgetCategory(name: string): SpendingCategory {
   return "other";
 }
 export function publishedSpendingLines(input: FeeBudget): BudgetLine[] {
+  if (input.fundingModel === "independent" && input.independent)
+    return [
+      {
+        id: "base:uniform",
+        name: "Prospects uniform deposits",
+        category: "uniform",
+        budget: input.independent.uniformDeposit * input.baseline,
+      },
+      {
+        id: "base:prospects",
+        name: "Prospects dues (organization funds)",
+        category: "other",
+        budget: calculateFees(input).member * input.baseline,
+      },
+    ];
   const b = effectiveFeeBudget(input),
     f = calculateFees(b);
   return [

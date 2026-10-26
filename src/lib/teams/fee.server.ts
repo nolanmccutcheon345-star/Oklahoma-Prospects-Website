@@ -1,3 +1,5 @@
+import { isIndependent } from "./independent-model";
+import { mutateIndependentProspects } from "./independent-prospects.server";
 import { teamCollectionsEnabled } from "./collections.server";
 import { pinSpendingBudget, teamExpenseTotals, teamBudgetLedger } from "../finance/team-budget";
 import {
@@ -248,7 +250,7 @@ export async function feeWorkspaceInTransaction(
   const canViewPlayer = (player: Player) =>
     canGuard(player) || (me.role === "player" && me.playerIds.includes(player.id));
   for (const row of rows)
-    if (row.payload.status !== "closed")
+    if (row.payload.status !== "closed" && !isIndependent(row.payload.budget))
       row.payload.budget = {
         ...row.payload.budget,
         tournament: row.payload.budget.scheduleCostsAutomatic
@@ -396,6 +398,7 @@ export async function feeWorkspaceInTransaction(
       );
       return {
         id: t.id,
+        independent: isIndependent(p.budget),
         poEnabled: offersPO(p.budget, t.sport),
         seasonLabel: t.seasonLabel,
         name: t.name,
@@ -459,7 +462,8 @@ export async function feeWorkspaceInTransaction(
                 });
                 const pending = [
                   ...health.pending,
-                  ...(p.budget.automaticPayments &&
+                  ...(!isIndependent(p.budget) &&
+                  p.budget.automaticPayments &&
                   process.env.SQUARE_DEPLOY_CONTEXT === "production" &&
                   !teamCollectionsEnabled(
                     { ...process.env, SQUARE_DEPLOY_CONTEXT: process.env.SQUARE_DEPLOY_CONTEXT },
@@ -569,6 +573,15 @@ export async function mutateFeePlan(sql: Sql, userId: string, raw: z.infer<typeo
       throw Error("Financial basis changed. Refresh before saving.");
     if (p.revision !== input.revision) throw Error("This plan changed. Reload before saving.");
     const admin = me.role === "admin";
+    if (
+      isIndependent(p.budget) ||
+      (input.action === "save" && isIndependent(input.budget)) ||
+      input.action === "publishIndependent" ||
+      input.action.startsWith("independent")
+    ) {
+      await mutateIndependentProspects(tx, context, t, p, input);
+      return;
+    }
     if (!admin && input.action !== "propose" && input.action !== "accept")
       throw Error("Admin access required.");
     if (p.status === "closed") throw Error("This season is financially closed.");

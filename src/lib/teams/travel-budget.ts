@@ -1,3 +1,4 @@
+import { isIndependent, independentDraft } from "./independent-model";
 import type { ClubRecord } from "./types";
 import type { TeamActivity } from "./activity-contracts";
 import type { FeeBudget } from "./fee-model";
@@ -24,6 +25,7 @@ export async function withScheduledHotels(
   budget: FeeBudget,
   context?: FinancialContext,
 ): Promise<FeeBudget> {
+  if (isIndependent(budget)) return independentDraft(budget);
   const rows = context
     ? context.activities.filter((row) => row.team_id === teamId)
     : await sql<{

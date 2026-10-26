@@ -319,6 +319,8 @@ export async function sourceData(
         ? p.planLock.rows
         : [{ amount: p.feeLock.amount, date: p.planLock?.deadline || "", label: "Team fee" }];
       rows.forEach((row, i) => {
+        const independent = plan?.players[p.id]?.independent;
+        if (independent && row.amount === 0) return;
         const original = Math.round(row.amount * 100),
           cashAllocated = Math.min(original, Math.max(0, paid - prior)),
           creditAllocated = Math.min(
@@ -328,9 +330,11 @@ export async function sourceData(
           allocated = cashAllocated + creditAllocated;
         prior += original;
         receivables.push({
-          id: `team:${t.id}:${p.id}:${i}`,
+          id: independent
+            ? `team:${t.id}:${p.id}:${independent.seasonKey}:${independent.installments[i].id}`
+            : `team:${t.id}:${p.id}:${i}`,
           customer: p.name,
-          category: "team fees",
+          category: independent ? "Payments to Prospects" : "team fees",
           teamId: t.id,
           amount: original,
           paid: cashAllocated,
@@ -428,22 +432,26 @@ export async function sourceData(
       projected: rosterProjection.beforeOverhead,
       closed: plan.status === "closed",
     });
-    const roles = [
-      {
-        title: "Head Coach",
-        people: t.coachEmail ? [{ email: t.coachEmail, name: t.headCoach }] : [],
-        cost: b.costs.find(
-          (c) => c.id === "matrix-head" || c.id === "cost-0" || c.name === "Head coach",
-        ),
-      },
-      {
-        title: "Assistant Coach",
-        people: t.staff.filter((s) => /assistant/i.test(s.role)),
-        cost: b.costs.find(
-          (c) => c.id === "matrix-assistant" || c.id === "cost-1" || c.name === "Assistant coach",
-        ),
-      },
-    ];
+    const roles =
+      b.fundingModel === "independent"
+        ? []
+        : [
+            {
+              title: "Head Coach",
+              people: t.coachEmail ? [{ email: t.coachEmail, name: t.headCoach }] : [],
+              cost: b.costs.find(
+                (c) => c.id === "matrix-head" || c.id === "cost-0" || c.name === "Head coach",
+              ),
+            },
+            {
+              title: "Assistant Coach",
+              people: t.staff.filter((s) => /assistant/i.test(s.role)),
+              cost: b.costs.find(
+                (c) =>
+                  c.id === "matrix-assistant" || c.id === "cost-1" || c.name === "Assistant coach",
+              ),
+            },
+          ];
     for (const role of roles) {
       if (role.cost?.cents && !role.people.length) {
         warnings.push(
