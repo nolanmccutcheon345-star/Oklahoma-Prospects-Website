@@ -13,6 +13,9 @@ import {
 import {
   emptyIndependentAdminBudget,
   independentProfitWorksheet,
+  independentBudgetProjection,
+  independentCostTotals,
+  withIndependentPlanning,
 } from "./independent-admin-budget";
 import { prepareTeamCheckout } from "./payment.server";
 import { fulfillSquarePayment } from "../commerce/square-payments.server";
@@ -20,6 +23,271 @@ import {
   withFinancialContext,
   recordFinancialTeamPaymentInTransaction,
 } from "../finance/context.server";
+
+const planningBudget = (): FeeBudget => ({
+  ...defaultBudget(),
+  fundingModel: "independent",
+  processingBps: 0,
+  processingFixed: 0,
+  policy: "Synthetic terms: publication and acceptance are separate from authorization.",
+  independent: {
+    seasonKey: randomUUID(),
+    uniformDeposit: 70000,
+    monthlyDues: 14900,
+    uniformDue: "2098-01-01",
+    firstDue: "2098-02-01",
+    billingDay: 1,
+    lastDue: "2098-06-01",
+    seasonEnd: "2098-06-26",
+    processingExplanation: "No processing fee.",
+  },
+});
+const planningCosts = {
+  depositNote: "PRIVATE-PLAN: uniforms, coaching and travel",
+  uniforms: null,
+  coaching: null,
+  coachTravel: null,
+  planning: {
+    basisPlayers: 10,
+    expectedPlayers: 10,
+    uniformPerPlayer: 20000,
+    organizationPerPlayer: 10000,
+    expenses: [
+      { id: "coaching", name: "Coaching pay", total: 300000, included: true },
+      { id: "coach-travel", name: "Coach travel", total: 100000, included: true },
+      { id: "tournaments", name: "Tournament fees", total: 50000, included: false },
+    ],
+  },
+};
+
+test("fixed deposit pricing separates uniform unit cost, selected expenses and additional-player profit", () => {
+  const b = planningBudget(),
+    s = independentBudgetProjection(b, planningCosts);
+  assert.equal(s.calculatedDeposit, 70000);
+  assert.equal(s.costCoveredDeposit, 60000);
+  assert.equal(s.fixedCosts, 400000);
+  assert.equal(s.baseline.initialDeposits, 700000);
+  assert.equal(s.baseline.uniforms, 200000);
+  assert.equal(s.baseline.totalCosts, 600000);
+  assert.equal(s.baseline.depositProfit, 100000);
+  assert.equal(s.expected.monthlyRevenue, 149000);
+  assert.equal(s.monthlyInstallments, 5);
+  assert.equal(s.expected.seasonMonthlyRevenue, 745000);
+  assert.equal(s.expected.seasonRevenue, 1445000);
+  assert.equal(s.expected.seasonProfit, 845000);
+  assert.equal(s.additionalPlayerContribution, 50000);
+  assert.equal(s.breakEvenPlayers, 8);
+  const actual = independentProfitWorksheet({
+    costs: { ...planningCosts, planning: { ...planningCosts.planning, expectedPlayers: 13 } },
+    initialDeposits: 700000,
+    monthlyDues: 0,
+    disclosedProcessing: 0,
+    credits: 0,
+    acceptedPlayers: 10,
+    pendingPlayers: 0,
+    recordedPayments: 700000,
+    appliedPayments: 700000,
+    squareGross: 700000,
+    squareRefunds: 0,
+    knownProcessingFees: 0,
+    missingProcessingFees: 0,
+  });
+  assert.equal(
+    actual.totalCosts,
+    600000,
+    "expected players never become actual uniform obligations",
+  );
+  assert.equal(actual.collectedMargin, 100000);
+  for (const [expectedPlayers, profit] of [
+    [10, 100000],
+    [11, 150000],
+    [12, 200000],
+    [13, 250000],
+  ]) {
+    const more = independentBudgetProjection(b, {
+      ...planningCosts,
+      planning: { ...planningCosts.planning, expectedPlayers },
+    });
+    assert.equal(more.calculatedDeposit, 70000, "roster growth never reprices the deposit");
+    assert.equal(more.uniformPerPlayer, 20000);
+    assert.equal(more.fixedCosts, 400000);
+    assert.equal(more.expected.depositProfit, profit);
+    assert.equal(more.baseline.depositProfit, 100000);
+    assert.equal(more.expected.monthlyRevenue, 14900 * expectedPlayers);
+  }
+  assert.equal(b.independent!.uniformDeposit, 70000, "calculator never mutates billing terms");
+  const includesTournament = independentBudgetProjection(b, {
+    ...planningCosts,
+    planning: {
+      ...planningCosts.planning,
+      expenses: planningCosts.planning.expenses.map((e) => ({ ...e, included: true })),
+    },
+  });
+  assert.equal(includesTournament.fixedCosts, 450000);
+  assert.equal(includesTournament.calculatedDeposit, 75000);
+  assert.equal(includesTournament.expected.depositProfit, 50000);
+  const other = independentBudgetProjection(b, {
+    ...planningCosts,
+    planning: {
+      ...planningCosts.planning,
+      expenses: [
+        ...planningCosts.planning.expenses,
+        { id: "custom", name: "Other season expense", total: 25000, included: true },
+      ],
+    },
+  });
+  assert.equal(other.fixedCosts, 425000);
+  assert.equal(other.calculatedDeposit, 72500);
+  const fees = independentBudgetProjection({ ...b, processingBps: 300 }, planningCosts);
+  assert.ok(fees.expected.processingAllowance! > 0);
+  assert.equal(fees.expected.seasonProfit, 845000, "processing pass-through is not planned profit");
+  const legacy = { depositNote: "Legacy", uniforms: 20000, coaching: 300000, coachTravel: 100000 };
+  assert.equal(independentCostTotals(legacy).totalCosts, 420000);
+  assert.equal(
+    withIndependentPlanning(legacy).planning.uniformPerPlayer,
+    null,
+    "never reinterpret an old team total as a unit cost",
+  );
+  assert.equal(
+    independentBudgetProjection(b, {
+      ...planningCosts,
+      planning: { ...planningCosts.planning, uniformPerPlayer: null },
+    }).expected.depositProfit,
+    null,
+  );
+  assert.equal(
+    independentBudgetProjection(b, {
+      ...planningCosts,
+      planning: { ...planningCosts.planning, basisPlayers: 0 },
+    }).calculatedDeposit,
+    null,
+  );
+  assert.equal(
+    independentBudgetProjection(b, {
+      ...planningCosts,
+      planning: { ...planningCosts.planning, expectedPlayers: 10.5 },
+    }).expected.seasonProfit,
+    null,
+  );
+  const noRoster = independentBudgetProjection(b, {
+    ...planningCosts,
+    planning: { ...planningCosts.planning, expectedPlayers: 0 },
+  });
+  assert.equal(noRoster.expected.initialDeposits, 0);
+  assert.equal(noRoster.expected.depositProfit, -400000);
+  const missingDates = independentBudgetProjection(
+    { ...b, independent: { ...b.independent!, firstDue: "" } },
+    planningCosts,
+  );
+  assert.equal(missingDates.expected.depositProfit, 100000);
+  assert.equal(missingDates.expected.seasonRevenue, null);
+  const rounded = independentBudgetProjection(b, {
+    ...planningCosts,
+    planning: { ...planningCosts.planning, basisPlayers: 3 },
+  });
+  assert.equal(rounded.calculatedDeposit, 163334, "round allocated fixed costs up to a cent");
+});
+
+test("saving draft fees keeps a changed deposit and headcount without republishing or rewriting accepted terms", async () => {
+  const f = await enrollmentFixture(),
+    { sql } = f;
+  try {
+    const b = planningBudget();
+    const save = (revision: number, budget: FeeBudget, adminBudget = planningCosts) =>
+      mutateFeePlan(sql, "owner", {
+        action: "save",
+        teamId: "base",
+        revision,
+        budget,
+        adminBudget,
+        uniforms: [],
+        expenses: [],
+      });
+    await save(0, { ...b, independent: { ...b.independent!, uniformDeposit: 60000 } });
+    await save(1, b);
+    let owner = (await independentWorkspace(sql, "owner")).spaces.find((s) => s.teamId === "base")!;
+    assert.equal(owner.plan!.budget.independent!.uniformDeposit, 70000);
+    assert.equal(owner.plan!.independentAdmin!.planning!.basisPlayers, 10);
+    assert.equal(owner.adminFinance!.planning.expected.depositProfit, 100000);
+    assert.equal(owner.adminFinance!.planning.expected.seasonProfit, 845000);
+    assert.equal(
+      owner.adminFinance!.projectedRevenue,
+      0,
+      "planning never invents published receivables",
+    );
+    assert.equal(owner.plan!.published, undefined);
+    await assert.rejects(() =>
+      save(1, { ...b, independent: { ...b.independent!, uniformDeposit: 60000 } }),
+    );
+    for (const basisPlayers of [0, 10.5, 201])
+      await assert.rejects(() =>
+        save(2, b, { ...planningCosts, planning: { ...planningCosts.planning, basisPlayers } }),
+      );
+    await mutateFeePlan(sql, "owner", {
+      action: "publishIndependent",
+      teamId: "base",
+      revision: 2,
+      budget: b,
+      adminBudget: planningCosts,
+      confirmed: true,
+    });
+    const family = (await independentWorkspace(sql, "guardian")).spaces.find(
+      (s) => s.teamId === "base",
+    )!;
+    await mutateFeePlan(sql, "guardian", {
+      action: "accept",
+      teamId: "base",
+      playerId: "base-player",
+      revision: 3,
+      consent: true,
+      name: "Synthetic Guardian",
+      independentOfferDigest: family.prospects[0].acceptancePreview!.digest,
+    });
+    const [before] = await sql<{
+      payload: FeePlan;
+    }>`select payload from team_fee_plans where team_id='base'`;
+    await save(
+      4,
+      { ...b, independent: { ...b.independent!, uniformDeposit: 80000, monthlyDues: 15900 } },
+      { ...planningCosts, planning: { ...planningCosts.planning, expectedPlayers: 12 } },
+    );
+    const [after] = await sql<{
+      payload: FeePlan;
+    }>`select payload from team_fee_plans where team_id='base'`;
+    assert.deepEqual(after.payload.published, before.payload.published);
+    assert.deepEqual(after.payload.publishedBudget, before.payload.publishedBudget);
+    assert.deepEqual(after.payload.players, before.payload.players);
+    owner = (await independentWorkspace(sql, "owner")).spaces.find((s) => s.teamId === "base")!;
+    assert.equal(owner.adminFinance!.planning.expected.initialDeposits, 960000);
+    assert.equal(
+      owner.adminFinance!.projectedRevenue,
+      144500,
+      "real agreement still has its accepted amounts",
+    );
+    const view = await independentWorkspace(sql, "guardian");
+    assert.doesNotMatch(
+      JSON.stringify(view),
+      /PRIVATE-PLAN|basisPlayers|uniformPerPlayer|organizationPerPlayer|seasonProfit/,
+    );
+    for (const id of ["guardian", "coach", "coordinator"])
+      await assert.rejects(() =>
+        mutateFeePlan(sql, id, {
+          action: "save",
+          teamId: "base",
+          revision: 5,
+          budget: b,
+          adminBudget: planningCosts,
+          uniforms: [],
+          expenses: [],
+        }),
+      );
+    assert.equal((await sql`select id from commerce_orders`).length, 0);
+    assert.equal((await sql`select id from team_collection_authorizations`).length, 0);
+    assert.equal((await sql`select id from finance_records`).length, 0);
+  } finally {
+    await f.db.close();
+  }
+});
 
 test("profit worksheet reserves unapplied funds and withholds incomplete or unreconciled results", () => {
   const input = {

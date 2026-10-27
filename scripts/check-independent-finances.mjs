@@ -123,18 +123,23 @@ try {
     has: page.locator("summary").filter({ hasText: "Synthetic baseball · Funding model" }),
   });
   await config.getByLabel("Initial deposit due", { exact: true }).fill("2098-01-01");
+  await config.getByLabel("Initial deposit per player ($)", { exact: true }).fill("600");
+  await config.getByLabel("Monthly Prospects dues per player ($)", { exact: true }).fill("149");
   await config
     .getByLabel("Initial deposit includes (admin note)", { exact: true })
     .fill("PRIVATE-ADMIN-NOTE: uniforms, coaching and travel");
-  await config.getByLabel("Actual uniform cost — team season ($)", { exact: true }).fill("180");
+  await config.getByLabel("Players used to price the deposit", { exact: true }).fill("10");
+  await config.getByLabel("Expected players on the team", { exact: true }).fill("10");
   await config
-    .getByLabel("Actual coaching pay cost — team season ($)", { exact: true })
+    .getByLabel("Organization contribution per player in deposit ($)", { exact: true })
     .fill("100");
-  await config.getByLabel("Actual coach travel cost — team season ($)", { exact: true }).fill("50");
-  await config.getByLabel("First monthly due date", { exact: true }).fill("2098-01-31");
-  await config.getByLabel("Monthly billing day (1–31)", { exact: true }).fill("31");
-  await config.getByLabel("Final billing date", { exact: true }).fill("2098-04-30");
-  await config.getByLabel("Season end date", { exact: true }).fill("2098-04-30");
+  await config.getByLabel("Uniform cost per player ($)", { exact: true }).fill("200");
+  await config.getByLabel("Total Coaching pay — season ($)", { exact: true }).fill("3000");
+  await config.getByLabel("Total Coach travel — season ($)", { exact: true }).fill("1000");
+  await config.getByLabel("First monthly due date", { exact: true }).fill("2098-02-01");
+  await config.getByLabel("Monthly billing day (1–31)", { exact: true }).fill("1");
+  await config.getByLabel("Final billing date", { exact: true }).fill("2098-06-01");
+  await config.getByLabel("Season end date", { exact: true }).fill("2098-06-26");
   await config
     .getByLabel("Prospects enrollment, withdrawal and refund terms")
     .fill(
@@ -147,6 +152,115 @@ try {
     .getByText("Independent team draft saved. No charges or notices were created.", { exact: true })
     .waitFor();
   await page.getByText("Admin · Prospects billing terms", { exact: true }).click();
+  const settings = page
+    .locator("details")
+    .filter({ has: page.locator("summary").filter({ hasText: "Admin · Prospects billing terms" }) })
+    .first();
+  await settings.getByLabel("Initial deposit per player ($)", { exact: true }).fill("700");
+  const forecast = settings.getByRole("region", { name: "Admin budget forecast", exact: true });
+  await forecast
+    .getByRole("row", { name: /Initial deposit profit/ })
+    .getByText("$1,000.00", { exact: true })
+    .last()
+    .waitFor();
+  await forecast.getByTestId("calculated-deposit").filter({ hasText: "$700.00" }).waitFor();
+  await settings.getByLabel("Expected players on the team", { exact: true }).fill("13");
+  await forecast
+    .getByRole("row", { name: /Initial deposit profit/ })
+    .getByText("$2,500.00", { exact: true })
+    .waitFor();
+  assert.equal(
+    await settings.getByLabel("Initial deposit per player ($)", { exact: true }).inputValue(),
+    "700",
+  );
+  assert.equal(
+    await settings.getByLabel("Uniform cost per player ($)", { exact: true }).inputValue(),
+    "200",
+  );
+  await settings.getByLabel("Include Tournament fees in initial deposit", { exact: true }).check();
+  await settings.getByLabel("Total Tournament fees — season ($)", { exact: true }).fill("500");
+  await forecast.getByTestId("calculated-deposit").filter({ hasText: "$750.00" }).waitFor();
+  await settings.getByRole("button", { name: "Use calculated deposit", exact: true }).click();
+  assert.equal(
+    await settings.getByLabel("Initial deposit per player ($)", { exact: true }).inputValue(),
+    "750",
+  );
+  await settings
+    .getByLabel("Include Tournament fees in initial deposit", { exact: true })
+    .uncheck();
+  await settings.getByRole("button", { name: "Use calculated deposit", exact: true }).click();
+  assert.equal(
+    await settings.getByLabel("Initial deposit per player ($)", { exact: true }).inputValue(),
+    "700",
+  );
+  await settings.getByRole("button", { name: "Add another deposit expense", exact: true }).click();
+  await settings.getByLabel("Total Other expense — season ($)", { exact: true }).fill("150");
+  await forecast.getByTestId("calculated-deposit").filter({ hasText: "$715.00" }).waitFor();
+  await settings.getByRole("button", { name: "Remove expense", exact: true }).click();
+  await settings.getByLabel("Expected players on the team", { exact: true }).fill("10");
+  await page.getByRole("button", { name: "Save draft fees and admin budget", exact: true }).click();
+  await page
+    .getByText(
+      "Draft fees and admin budget saved. Published terms and accepted agreements are unchanged.",
+      { exact: true },
+    )
+    .waitFor();
+  await page.reload();
+  await page.getByText("Admin · Prospects billing terms", { exact: true }).click();
+  assert.equal(
+    await settings.getByLabel("Initial deposit per player ($)", { exact: true }).inputValue(),
+    "700",
+  );
+  assert.equal(
+    await settings.getByLabel("Players used to price the deposit", { exact: true }).inputValue(),
+    "10",
+  );
+  await forecast
+    .getByRole("row", { name: /Initial deposit profit/ })
+    .getByText("$1,000.00", { exact: true })
+    .last()
+    .waitFor();
+  await forecast.getByText("$1,490.00", { exact: true }).last().waitFor();
+  await forecast.getByText("$8,450.00", { exact: true }).last().waitFor();
+  const [savedDraft] = await h.sql`select payload from team_fee_plans where team_id='base'`;
+  assert.equal(savedDraft.payload.budget.independent.uniformDeposit, 70000);
+  assert.equal(savedDraft.payload.independentAdmin.planning.basisPlayers, 10);
+  assert.equal(savedDraft.payload.published, undefined);
+  await settings.getByLabel("Expected players on the team", { exact: true }).fill("13");
+  await page.setViewportSize({ width: 375, height: 900 });
+  await forecast.scrollIntoViewIfNeeded();
+  assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1));
+  const comparison = forecast.getByRole("region", { name: "Budget comparison", exact: true });
+  assert.ok(await comparison.evaluate((el) => el.scrollWidth > el.clientWidth));
+  await comparison.evaluate((el) => {
+    el.scrollLeft = el.scrollWidth;
+  });
+  const expectedProfit = forecast
+    .getByRole("row", { name: /Initial deposit profit/ })
+    .getByText("$2,500.00", { exact: true });
+  assert.equal(await expectedProfit.evaluate((el) => getComputedStyle(el).whiteSpace), "nowrap");
+  await expectedProfit.scrollIntoViewIfNeeded();
+  await page.screenshot({ path: shots + "/admin-planned-profit-mobile.png", fullPage: false });
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await comparison.evaluate((el) => {
+    el.scrollLeft = 0;
+  });
+  await forecast.getByRole("table").screenshot({ path: shots + "/admin-planned-profit-table.png" });
+  // Continue the existing per-player agreement/independent-ledger walkthrough.
+  await settings.getByLabel("Initial deposit per player ($)", { exact: true }).fill("250");
+  await settings.getByLabel("Monthly Prospects dues per player ($)", { exact: true }).fill("125");
+  await settings.getByLabel("Players used to price the deposit", { exact: true }).fill("1");
+  await settings.getByLabel("Expected players on the team", { exact: true }).fill("1");
+  await settings
+    .getByLabel("Organization contribution per player in deposit ($)", { exact: true })
+    .fill("0");
+  await settings.getByLabel("Uniform cost per player ($)", { exact: true }).fill("180");
+  await settings.getByLabel("Total Coaching pay — season ($)", { exact: true }).fill("100");
+  await settings.getByLabel("Total Coach travel — season ($)", { exact: true }).fill("50");
+  await settings.getByLabel("First monthly due date", { exact: true }).fill("2098-01-31");
+  await settings.getByLabel("Monthly billing day (1–31)", { exact: true }).fill("31");
+  await settings.getByLabel("Final billing date", { exact: true }).fill("2098-04-30");
+  await settings.getByLabel("Season end date", { exact: true }).fill("2098-04-30");
   await page.getByRole("button", { name: "Publish these Prospects terms", exact: true }).click();
   await page
     .getByText(
@@ -156,7 +270,7 @@ try {
     .waitFor();
   const [plan] = await h.sql`select payload from team_fee_plans where team_id='base'`;
   assert.equal(plan.payload.published.full, 75000);
-  assert.equal(plan.payload.independentAdmin.uniforms, 18000);
+  assert.equal(plan.payload.independentAdmin.planning.uniformPerPlayer, 18000);
   assert.equal((await h.sql`select id from team_collection_authorizations`).length, 0);
   assert.equal((await h.sql`select id from commerce_orders`).length, 0);
   const guardian = await signedIn("guardian", 375),
@@ -260,6 +374,7 @@ try {
   assert.match(await page.locator("body").innerText(), /Outstanding \$200.00/);
   await page.screenshot({ path: shots + "/owner-read-only.png", fullPage: false });
   await page.getByText("Admin · Prospects billing terms", { exact: true }).click();
+  await page.getByText("Published agreements and verified collections", { exact: true }).click();
   const adminReport = page.getByRole("region", {
     name: "Admin-only Prospects profit estimate",
     exact: true,
@@ -280,6 +395,9 @@ try {
         scope: "Compiled app with isolated synthetic data",
         checked: [
           "admin draft and publication",
+          "deposit 600 to 700 save and reload",
+          "pricing baseline, expected roster, selected and custom expenses",
+          "flat deposit and uniform unit cost through 13 players",
           "finite $750 per-player schedule",
           "guardian acceptance without collection",
           "coach obligation/payment/allocation",

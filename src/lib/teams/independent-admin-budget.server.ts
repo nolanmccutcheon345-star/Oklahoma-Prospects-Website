@@ -7,6 +7,7 @@ import { organizationDay } from "./fee-model";
 import {
   emptyIndependentAdminBudget,
   independentProfitWorksheet,
+  independentBudgetProjection,
 } from "./independent-admin-budget";
 
 export async function independentAdminWorksheet(
@@ -104,20 +105,24 @@ export async function independentAdminWorksheet(
       };
     }),
   );
-  return independentProfitWorksheet({
-    costs: plan.independentAdmin || emptyIndependentAdminBudget(),
-    initialDeposits,
-    monthlyDues,
-    disclosedProcessing,
-    credits,
-    acceptedPlayers,
-    pendingPlayers,
-    recordedPayments,
-    appliedPayments,
-    squareGross: totals.gross,
-    squareRefunds: totals.refunds,
-    verifiedOffline,
-    knownProcessingFees: totals.knownFees,
-    missingProcessingFees: totals.missingFees,
-  });
+  const costs = plan.independentAdmin || emptyIndependentAdminBudget();
+  return {
+    planning: independentBudgetProjection(plan.budget, costs),
+    ...independentProfitWorksheet({
+      costs,
+      initialDeposits,
+      monthlyDues,
+      disclosedProcessing,
+      credits,
+      acceptedPlayers,
+      pendingPlayers,
+      recordedPayments,
+      appliedPayments,
+      squareGross: totals.gross,
+      squareRefunds: totals.refunds,
+      verifiedOffline,
+      knownProcessingFees: totals.knownFees,
+      missingProcessingFees: totals.missingFees,
+    }),
+  };
 }

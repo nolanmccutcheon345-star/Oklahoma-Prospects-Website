@@ -23,6 +23,9 @@ import {
 import { money, organizationDay, type FeeBudget } from "@/lib/teams/fee-model";
 import {
   emptyIndependentAdminBudget,
+  independentBudgetProjection,
+  withIndependentPlanning,
+  type IndependentDepositPlanning,
   type IndependentAdminBudget,
 } from "@/lib/teams/independent-admin-budget";
 import { Button } from "../ui/button";
@@ -38,12 +41,14 @@ function Field({
   onChange,
   type = "text",
   required = false,
+  step,
 }: {
   label: string;
   value: string | number;
   onChange: (v: string) => void;
   type?: string;
   required?: boolean;
+  step?: string;
 }) {
   return (
     <label className="grid gap-1 text-sm">
@@ -51,7 +56,7 @@ function Field({
       <input
         className="office-control min-w-0 w-full"
         type={type}
-        step={type === "number" ? "0.01" : undefined}
+        step={step ?? (type === "number" ? "0.01" : undefined)}
         value={value}
         onChange={(e) => onChange(e.target.value)}
         required={required}
@@ -265,50 +270,295 @@ function AdminCosts({
   onChange,
   onSave,
   busy,
+  saveLabel = "Save draft fees and admin budget",
 }: {
   value: IndependentAdminBudget;
   onChange: (value: IndependentAdminBudget) => void;
   onSave?: () => void;
   busy: boolean;
+  saveLabel?: string;
 }) {
+  const p = withIndependentPlanning(value).planning;
+  const update = (patch: Partial<IndependentDepositPlanning>) =>
+    onChange({ ...value, planning: { ...p, ...patch } });
+  const updateExpense = (
+    id: string,
+    patch: Partial<IndependentDepositPlanning["expenses"][number]>,
+  ) => update({ expenses: p.expenses.map((e) => (e.id === id ? { ...e, ...patch } : e)) });
   return (
     <section
       className="grid gap-3 rounded-xl border bg-paper-2 p-4"
       aria-label="Admin-only Prospects budget"
     >
       <h4 className="font-bold">Admin-only Prospects budget</h4>
-      <p className="text-sm">
-        Actual cost totals for this entire team and season, not per player. Enter 0 when there is no
-        cost; leave blank until known. Update these totals as costs change.
-      </p>
-      <div className="grid gap-3 sm:grid-cols-3">
-        {(
-          [
-            ["uniforms", "Actual uniform cost — team season ($)"],
-            ["coaching", "Actual coaching pay cost — team season ($)"],
-            ["coachTravel", "Actual coach travel cost — team season ($)"],
-          ] as const
-        ).map(([key, label]) => (
-          <Field
-            key={key}
-            label={label}
-            type="number"
-            value={value[key] === null ? "" : value[key] / 100}
-            onChange={(v) =>
-              onChange({ ...value, [key]: v.trim() === "" ? null : Math.round(Number(v) * 100) })
-            }
-          />
-        ))}
+      <div className="grid gap-3 sm:grid-cols-2">
+        <Field
+          label="Players used to price the deposit"
+          type="number"
+          step="1"
+          value={p.basisPlayers || ""}
+          onChange={(v) => update({ basisPlayers: Number(v) })}
+        />
+        <Field
+          label="Expected players on the team"
+          type="number"
+          step="1"
+          value={p.expectedPlayers}
+          onChange={(v) => update({ expectedPlayers: Number(v) })}
+        />
+        <Field
+          label="Uniform cost per player ($)"
+          type="number"
+          value={p.uniformPerPlayer === null ? "" : p.uniformPerPlayer / 100}
+          onChange={(v) =>
+            update({ uniformPerPlayer: v.trim() === "" ? null : Math.round(Number(v) * 100) })
+          }
+        />
+        <Field
+          label="Organization contribution per player in deposit ($)"
+          type="number"
+          value={p.organizationPerPlayer / 100}
+          onChange={(v) => update({ organizationPerPlayer: Math.round(Number(v) * 100) })}
+        />
       </div>
       <p className="text-sm">
-        These costs are counted once in this worksheet. Saving does not post another expense, send a
-        payment, change player fees or share the note or costs with families or coaches.
+        Uniform cost is always per player. Team expenses below are fixed season totals divided by
+        the pricing player count. Changing the expected roster only changes the forecast; every
+        player keeps the same published deposit.
+      </p>
+      {value.uniforms !== null && p.uniformPerPlayer === null && (
+        <p className="text-sm">
+          The previous uniform entry, {money(value.uniforms)}, was stored as a team total. Enter the
+          uniform cost per player above to use the new calculator.
+        </p>
+      )}
+      <h5 className="font-semibold">Expenses included in the initial deposit</h5>
+      <p className="text-sm">
+        Select the expenses Prospects will cover from this deposit. Unchecked expenses are excluded
+        from this organization budget. Enter the total once, even if more players join. Enter 0 when
+        there is no cost; leave unknown costs blank.
+      </p>
+      <div className="grid gap-3">
+        {p.expenses.map((e) => (
+          <fieldset key={e.id} className="grid min-w-0 gap-2 rounded-lg border border-line p-3">
+            <legend className="px-1 font-semibold">{e.name}</legend>
+            <label className="flex min-h-11 items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={e.included}
+                onChange={(event) => updateExpense(e.id, { included: event.target.checked })}
+              />
+              Include {e.name} in initial deposit
+            </label>
+            {!["coaching", "coach-travel", "tournaments"].includes(e.id) && (
+              <Field
+                label="Expense name"
+                value={e.name}
+                onChange={(name) => updateExpense(e.id, { name })}
+              />
+            )}
+            <Field
+              label={`Total ${e.name} — season ($)`}
+              type="number"
+              value={e.total === null ? "" : e.total / 100}
+              onChange={(v) =>
+                updateExpense(e.id, { total: v.trim() === "" ? null : Math.round(Number(v) * 100) })
+              }
+            />
+            {e.included &&
+              e.total !== null &&
+              Number.isInteger(p.basisPlayers) &&
+              p.basisPlayers > 0 && (
+                <p className="text-sm">
+                  About {money(Math.round(e.total / p.basisPlayers))} per player at the{" "}
+                  {p.basisPlayers}-player pricing baseline.
+                </p>
+              )}
+            {!["coaching", "coach-travel", "tournaments"].includes(e.id) && (
+              <Button
+                type="button"
+                variant="outlineDark"
+                disabled={busy}
+                onClick={() => update({ expenses: p.expenses.filter((row) => row.id !== e.id) })}
+              >
+                Remove expense
+              </Button>
+            )}
+          </fieldset>
+        ))}
+      </div>
+      <Button
+        type="button"
+        variant="outlineDark"
+        disabled={busy || p.expenses.length >= 25}
+        onClick={() =>
+          update({
+            expenses: [
+              ...p.expenses,
+              { id: crypto.randomUUID(), name: "Other expense", total: null, included: true },
+            ],
+          })
+        }
+      >
+        Add another deposit expense
+      </Button>
+      <p className="text-sm">
+        Saving keeps the draft fees, pricing assumptions, selected expenses and note. Publication
+        remains separate. Saving does not change accepted agreements, post expenses, collect money
+        or share this private budget with families or coaches.
       </p>
       {onSave && (
         <Button type="button" disabled={busy} onClick={onSave}>
-          Save admin budget and note
+          {saveLabel}
         </Button>
       )}
+    </section>
+  );
+}
+function AdminPlanningSummary({
+  budget,
+  costs,
+  onApply,
+  busy,
+}: {
+  budget: FeeBudget;
+  costs: IndependentAdminBudget;
+  onApply?: (deposit: number) => void;
+  busy: boolean;
+}) {
+  const s = independentBudgetProjection(budget, costs);
+  const rows: [string, keyof typeof s.baseline][] = [
+    ["Initial deposit revenue", "initialDeposits"],
+    ["Uniform cost", "uniforms"],
+    ["Total costs covered by deposits", "totalCosts"],
+    ["Initial deposit profit", "depositProfit"],
+    ["Monthly facility / organization revenue", "monthlyRevenue"],
+    ["Monthly dues revenue over the season", "seasonMonthlyRevenue"],
+    ["Total season revenue", "seasonRevenue"],
+    ["Season profit before processing and facility overhead", "seasonProfit"],
+  ];
+  const amount = (v: number | null) => (v === null ? "Incomplete" : money(v));
+  return (
+    <section className="grid min-w-0 gap-3 rounded-xl border p-4" aria-label="Admin budget forecast">
+      <h4 className="font-bold">Deposit calculator and budget forecast · admins only</h4>
+      <dl className="grid gap-3 sm:grid-cols-2">
+        <div>
+          <dt>Selected fixed team expenses</dt>
+          <dd className="font-bold">{amount(s.fixedCosts)}</dd>
+        </div>
+        <div>
+          <dt>Team expense share per pricing player</dt>
+          <dd className="font-bold">
+            {amount(
+              s.fixedCosts !== null && s.basisPlayers
+                ? Math.ceil(s.fixedCosts / s.basisPlayers)
+                : null,
+            )}
+          </dd>
+        </div>
+        <div>
+          <dt>Uniform cost per player</dt>
+          <dd className="font-bold">{amount(s.uniformPerPlayer)}</dd>
+        </div>
+        <div>
+          <dt>Deposit needed to cover costs per player</dt>
+          <dd className="font-bold">{amount(s.costCoveredDeposit)}</dd>
+        </div>
+        <div>
+          <dt>Calculated deposit including organization contribution</dt>
+          <dd className="font-bold" data-testid="calculated-deposit">
+            {amount(s.calculatedDeposit)}
+          </dd>
+        </div>
+        <div>
+          <dt>Current draft initial deposit per player</dt>
+          <dd className="font-bold">{money(budget.independent!.uniformDeposit)}</dd>
+        </div>
+      </dl>
+      {onApply && (
+        <Button
+          type="button"
+          variant="outlineDark"
+          disabled={busy || s.calculatedDeposit === null || s.calculatedDeposit > 100_000_000}
+          onClick={() => {
+            if (s.calculatedDeposit !== null) onApply(s.calculatedDeposit);
+          }}
+        >
+          Use calculated deposit
+        </Button>
+      )}
+      <p className="text-sm">
+        Use the calculated amount or edit the initial deposit above, then save the draft. The
+        forecast uses that draft deposit for every player, including players who join above the
+        pricing baseline. Team expense shares round up to the nearest cent. This private calculation
+        does not create player obligations.
+      </p>
+      <p className="text-sm">
+        {s.monthlyInstallments ?? "Incomplete"} monthly installments from the billing dates above.
+        This preview updates while you edit, before publication or family acceptance.
+      </p>
+      <p className="text-sm sm:hidden">Scroll the comparison sideways to see both player counts.</p>
+      <div
+        className="min-w-0 overflow-x-auto"
+        role="region"
+        aria-label="Budget comparison"
+        tabIndex={0}
+      >
+        <table className="w-full min-w-[36rem] text-left text-sm [overflow-wrap:normal]">
+          <caption className="sr-only">
+            Pricing baseline and expected team revenue and profit
+          </caption>
+          <thead>
+            <tr>
+              <th className="p-2">Budget item</th>
+              <th className="whitespace-nowrap p-2">{s.basisPlayers ?? "—"}-player basis</th>
+              <th className="whitespace-nowrap p-2">{s.expectedPlayers ?? "—"}-player forecast</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map(([label, key]) => (
+              <tr key={key} className="border-t border-line">
+                <th scope="row" className="p-2 font-medium">
+                  {label}
+                </th>
+                <td className="whitespace-nowrap p-2">{amount(s.baseline[key])}</td>
+                <td className="whitespace-nowrap p-2 font-bold">{amount(s.expected[key])}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <p className="text-sm">
+        Each additional player's deposit contributes {amount(s.additionalPlayerContribution)} after
+        their uniform cost, before processing and other costs.{" "}
+        {s.breakEvenPlayers === null
+          ? "Complete the costs and deposit to calculate when fixed expenses are covered."
+          : `Selected fixed expenses are covered at ${s.breakEvenPlayers} paying player(s).`}
+        Coaching, travel and other selected team expenses stay fixed as players are added.
+      </p>
+      {(s.fixedCosts === null || s.uniformPerPlayer === null) && (
+        <p className="text-sm">
+          Enter the per-player uniform cost and every checked expense total, including explicit
+          zeros, to calculate profit.
+        </p>
+      )}
+      {s.monthlyInstallments === null && (
+        <p className="text-sm">
+          Complete valid billing dates to calculate full-season monthly revenue.
+        </p>
+      )}
+      {(s.basisPlayers === null || s.expectedPlayers === null) && (
+        <p className="text-sm">
+          The pricing count must be 1–200 players; expected players must be 0–200. Use whole
+          numbers.
+        </p>
+      )}
+      <p className="text-sm">
+        Monthly dues are facility / organization revenue. Processing allowances (
+        {amount(s.expected.processingAllowance)} for the expected roster) are excluded from planned
+        profit. Facility costs, other overhead, refunds and processing can reduce final profit.
+        Verified collections are reported separately below.
+      </p>
     </section>
   );
 }
@@ -320,7 +570,8 @@ function AdminProfitSummary({ summary: s }: { summary: Space["adminFinance"] }) 
     ["Disclosed processing allowances", s.disclosedProcessing],
     ["Credits reducing projected collections", s.credits],
     ["Projected season collections", s.projectedRevenue],
-    ["Entered season costs", s.costsComplete ? s.totalCosts : null],
+    ["Cost allowance for published roster", s.projectedCosts],
+    ["Cost allowance for accepted players", s.costsComplete ? s.totalCosts : null],
     ["Projected profit before processing and other overhead", s.projectedMarginBeforeProcessing],
     ["Gross verified Square collections", s.grossCollected],
     ["Refunds", s.refunded],
@@ -329,18 +580,21 @@ function AdminProfitSummary({ summary: s }: { summary: Space["adminFinance"] }) 
     ["Reserved credits or unreconciled collections", s.reservedOrUnreconciled],
     ["Applied Prospects revenue", s.appliedRevenue],
     ["Known actual processing costs", s.processingFees],
-    ["Collected profit before other costs", s.collectedMargin],
+    ["Collected contribution after cost allowance", s.collectedMargin],
   ];
   return (
     <section
       className="grid gap-3 rounded-xl border p-4"
       aria-label="Admin-only Prospects profit estimate"
     >
-      <h4 className="font-bold">Prospects season profit estimate · admins only</h4>
+      <h4 className="font-bold">Published agreements and verified collections · admins only</h4>
       <p className="text-sm">
         {s.acceptedPlayers} accepted player agreement(s); {s.pendingPlayers} player(s) projected
         from published terms awaiting acceptance. Projections use current accepted schedules and
-        published offers, not unsaved fee edits. Independent team funds are excluded.
+        published offers, not the planning headcount or unsaved fee edits. Entered costs use the
+        saved budget. Uniform allowances use accepted players for collected contribution and the
+        published roster for projections; selected fixed expenses are counted once. Planning
+        headcounts and independent team funds are excluded from these collection figures.
       </p>
       <dl className="grid gap-3 sm:grid-cols-2">
         {rows.map(([label, value]) => (
@@ -352,7 +606,8 @@ function AdminProfitSummary({ summary: s }: { summary: Space["adminFinance"] }) 
       </dl>
       {!s.costsComplete && (
         <p className="text-sm">
-          Enter all three actual cost totals, including explicit zeros, to calculate profit.
+          Complete the uniform unit cost and selected expense totals, including explicit zeros, to
+          calculate the contribution.
         </p>
       )}
       {s.missingProcessingFees > 0 && (
@@ -369,11 +624,12 @@ function AdminProfitSummary({ summary: s }: { summary: Space["adminFinance"] }) 
         </p>
       )}
       <p className="text-sm">
-        Projected profit = projected collections − entered costs, before processing and other
-        overhead. Collected profit = applied collections after refunds − entered costs − known
-        processing costs. Unpaid dues and refundable credits are not collected profit. External
-        payment fees and other overhead are not included. These estimates reflect the costs entered
-        here; they are not bank balances or funds approved for distribution.
+        Projected contribution = projected collections − the published roster's cost allowance,
+        before processing and other overhead. Collected contribution = applied collections after
+        refunds − the accepted players' cost allowance − known processing costs. Unpaid dues and
+        refundable credits are not collected profit. External payment fees and other overhead are
+        not included. These estimates reflect the costs entered here; they are not bank balances or
+        funds approved for distribution.
       </p>
     </section>
   );
@@ -388,7 +644,9 @@ function Configure({
   busy: boolean;
 }) {
   const [open, setOpen] = useState(false);
-  const [adminBudget, setAdminBudget] = useState(team.adminBudget || emptyIndependentAdminBudget());
+  const [adminBudget, setAdminBudget] = useState<IndependentAdminBudget>(
+    withIndependentPlanning(team.adminBudget || emptyIndependentAdminBudget()),
+  );
   const [b, setB] = useState<FeeBudget>(() => ({
     ...team.budget,
     fundingModel: "independent",
@@ -434,6 +692,14 @@ function Configure({
             setAdminBudget={setAdminBudget}
           />
           <AdminCosts value={adminBudget} onChange={setAdminBudget} busy={busy} />
+          <AdminPlanningSummary
+            budget={b}
+            costs={adminBudget}
+            busy={busy}
+            onApply={(deposit) =>
+              setB({ ...b, independent: { ...b.independent!, uniformDeposit: deposit } })
+            }
+          />
           <Button
             disabled={busy}
             onClick={() =>
@@ -464,8 +730,8 @@ function Configure({
 }
 
 function ProspectsSettings({ space: s, run, busy }: { space: Space; run: Run; busy: boolean }) {
-  const [adminBudget, setAdminBudget] = useState(
-    s.plan!.independentAdmin || emptyIndependentAdminBudget(),
+  const [adminBudget, setAdminBudget] = useState<IndependentAdminBudget>(
+    withIndependentPlanning(s.plan!.independentAdmin || emptyIndependentAdminBudget()),
   );
   const [b, setB] = useState(s.plan!.budget),
     [playerId, setPlayerId] = useState(""),
@@ -493,15 +759,49 @@ function ProspectsSettings({ space: s, run, busy }: { space: Space; run: Run; bu
           value={adminBudget}
           onChange={setAdminBudget}
           busy={busy}
+          saveLabel={
+            s.plan!.independentCancellation
+              ? "Save admin budget and note"
+              : "Save draft fees and admin budget"
+          }
           onSave={() =>
             void run(
               () =>
-                changeFeePlan({ data: { ...base, action: "independentAdminBudget", adminBudget } }),
-              "Admin budget and note saved. Player fees and accepted agreements are unchanged.",
+                changeFeePlan({
+                  data: s.plan!.independentCancellation
+                    ? { ...base, action: "independentAdminBudget", adminBudget }
+                    : {
+                        ...base,
+                        action: "save",
+                        budget: independentDraft(b),
+                        adminBudget,
+                        uniforms: s.plan!.uniforms,
+                        expenses: s.plan!.expenses,
+                      },
+                }),
+              s.plan!.independentCancellation
+                ? "Admin budget and note saved. Canceled billing terms are unchanged."
+                : "Draft fees and admin budget saved. Published terms and accepted agreements are unchanged.",
             )
           }
         />
-        <AdminProfitSummary summary={s.adminFinance} />
+        <AdminPlanningSummary
+          budget={b}
+          costs={adminBudget}
+          busy={busy}
+          onApply={
+            s.plan!.independentCancellation
+              ? undefined
+              : (deposit) =>
+                  setB({ ...b, independent: { ...b.independent!, uniformDeposit: deposit } })
+          }
+        />
+        <details>
+          <summary className="min-h-11 cursor-pointer">
+            Published agreements and verified collections
+          </summary>
+          <AdminProfitSummary summary={s.adminFinance} />
+        </details>
         <Button
           disabled={busy || Boolean(s.plan!.independentCancellation)}
           onClick={() =>
