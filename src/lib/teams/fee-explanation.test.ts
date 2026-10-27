@@ -14,6 +14,7 @@ import { mutateFeePlan, feeWorkspace } from "./fee.server";
 import { independentWorkspace, independentExport } from "./independent.server";
 import { independentPublishedPolicy } from "./independent-model";
 import type { FeePlan } from "./fee-contracts";
+import { currentMembershipOffer, separateMembershipPolicy } from "./retired-membership";
 
 const explanation = () => ({
   initialDeposit: "Uniform package and agreed coaching.\n• Two jerseys\n• One hat",
@@ -42,6 +43,15 @@ const budget = (): FeeBudget => ({
 });
 
 test("explanations validate publication content without affecting money or injecting private costs", () => {
+  const explicit = {
+    explanation: explanation(),
+    policy: "Individual facility access is optional.",
+  };
+  assert.equal(currentMembershipOffer(explicit).policy, explicit.policy);
+  assert.equal(
+    currentMembershipOffer({ policy: explicit.policy }).policy,
+    separateMembershipPolicy,
+  );
   assert.equal(feeExplanationIssues().length, 3);
   assert.equal(feeExplanationIssues(emptyFeeExplanation()).length, 3);
   assert.deepEqual(

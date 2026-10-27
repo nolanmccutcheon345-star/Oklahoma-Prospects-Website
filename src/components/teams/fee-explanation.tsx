@@ -65,6 +65,7 @@ export function FeeExplanationEditor({
         <label className="grid min-w-0 gap-1 text-sm" key={key}>
           {label}
           <textarea
+            aria-label={label}
             className="office-control min-h-24 w-full"
             maxLength={4000}
             value={current[key]}
