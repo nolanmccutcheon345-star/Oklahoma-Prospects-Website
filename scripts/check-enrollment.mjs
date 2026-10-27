@@ -8,6 +8,8 @@ import { chromium } from "playwright";
 import { hashPassword } from "better-auth/crypto";
 import { enrollmentFixture, prepareOrganization } from "../src/lib/enrollment/test-fixture.ts";
 import { enrollmentCase } from "../src/lib/enrollment/enrollment.server.ts";
+import { defaultBudget } from "../src/lib/teams/fee-model.ts";
+import { mutateFeePlan } from "../src/lib/teams/fee.server.ts";
 for (const name of [
   "DATABASE_URL",
   "NETLIFY_DATABASE_URL",
@@ -26,6 +28,39 @@ const shots = "artifacts/enrollment";
 await mkdir(shots, { recursive: true });
 try {
   await prepareOrganization(h.sql);
+  const inviteId = randomUUID();
+  await h.sql`insert into club_invites(id,token_hash,email,role,family_id,team_id,invited_by,expires_at) values(${inviteId},${inviteId},'guardian@example.invalid','parent','home-guardian','base','owner',now()+interval '7 days')`;
+  await mutateFeePlan(h.sql, "owner", {
+    action: "publishIndependent",
+    teamId: "base",
+    revision: 0,
+    confirmed: true,
+    budget: {
+      ...defaultBudget(),
+      fundingModel: "independent",
+      policy: "Synthetic payment, withdrawal and refund policy.",
+      processingBps: 0,
+      processingFixed: 0,
+      parentExplanation: {
+        initialDeposit: "PUBLIC: uniforms and coaching coverage.",
+        monthlyDues: "Facility practice access.",
+        teamExpenses: "Coach-arranged tournament entries.",
+        additionalNotes: "",
+      },
+      independent: {
+        seasonKey: randomUUID(),
+        uniformDeposit: 70000,
+        monthlyDues: 14900,
+        uniformDue: "2098-01-01",
+        firstDue: "2098-02-01",
+        billingDay: 1,
+        lastDue: "2098-06-01",
+        seasonEnd: "2098-06-30",
+        processingExplanation: "No processing fees.",
+      },
+    },
+  });
+  assert.equal((await h.sql`select * from fee_ready_notifications`).length, 1);
   for (const teamId of ["base", "soft"]) {
     await enrollmentCase(h.sql, "guardian", { teamId, playerId: teamId + "-player" });
     await h.sql`insert into team_activities(id,team_id,payload,updated_by) values(${randomUUID()},${teamId},${JSON.stringify({ kind: "practice", title: "Synthetic practice", date: "2026-01-01", startTime: "15:00", status: "scheduled" })}::jsonb,'owner')`;
@@ -122,8 +157,33 @@ try {
   }
   const guardian = await signedIn("guardian", 375),
     p = guardian.page;
+  await p
+    .getByRole("heading", { name: "Complete your player’s enrollment", exact: true })
+    .waitFor();
+  await p.goto(origin + "/invitations");
+  await p.getByRole("button", { name: "Accept invitation", exact: true }).click();
+  await p.getByRole("link", { name: "Open account and continue enrollment", exact: true }).click();
+  await p
+    .getByRole("heading", { name: "Complete your player’s enrollment", exact: true })
+    .waitFor();
+  await p.getByRole("link", { name: "Continue enrollment", exact: true }).first().click();
+  await p.getByLabel("Athlete and season").waitFor();
+  assert.equal(await p.getByLabel("Athlete and season").inputValue(), "base:base-player");
+  assert.ok(await p.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1));
+  await p.screenshot({ path: shots + "/parent-guide-mobile.png", fullPage: false });
   for (const teamId of ["base", "soft"]) {
     await p.getByLabel("Athlete and season").selectOption(teamId + ":" + teamId + "-player");
+    const guide = p.locator('section[aria-labelledby="enrollment-guide-title"]');
+    await guide.getByRole("link", { name: "Continue enrollment", exact: true }).waitFor();
+    assert.equal(await guide.locator("article").count(), 1);
+    assert.ok(
+      (
+        await guide
+          .getByRole("link", { name: "Continue enrollment", exact: true })
+          .getAttribute("href")
+      ).includes(`playerId=${teamId}-player`),
+      "The guide follows the selected athlete without showing the previous player's steps",
+    );
     await p.getByRole("button", { name: "Sign this packet", exact: true }).waitFor();
     await p.getByRole("link", { name: "View memberships", exact: true }).waitFor();
     assert.match(await p.locator("body").innerText(), /full published price/);
@@ -145,6 +205,29 @@ try {
       1,
     );
   }
+  await p.getByLabel("Athlete and season").selectOption("base:base-player");
+  await p.getByText("Review and accept Prospects terms", { exact: true }).click();
+  await p.getByLabel("Accepting guardian's full name", { exact: true }).fill("Synthetic Guardian");
+  await p.getByLabel("I accept this player's displayed Prospects terms.", { exact: false }).check();
+  await p.getByRole("button", { name: "Accept this player's agreement", exact: true }).click();
+  await p
+    .getByText("Terms accepted. Review and authorize automatic payment separately.", {
+      exact: true,
+    })
+    .waitFor();
+  await p.getByText("Pay Prospects securely", { exact: true }).click();
+  assert.equal(await p.getByLabel("Payment amount ($)", { exact: true }).inputValue(), "700");
+  await p.getByRole("button", { name: "Refresh progress", exact: true }).click();
+  await p
+    .getByText("Set up monthly automatic payments — Autopay unavailable", { exact: true })
+    .waitFor();
+  assert.equal((await h.sql`select * from square_payments`).length, 0);
+  assert.equal((await h.sql`select * from team_collection_authorizations`).length, 0);
+  await p.reload();
+  await p
+    .getByText("Review and accept your player's fee agreement — Complete", { exact: true })
+    .waitFor();
+  await p.getByLabel("Athlete and season").selectOption("soft:soft-player");
   await p.getByText("2. Private emergency and medical information", { exact: true }).click();
   await p.getByLabel("Emergency contact name", { exact: true }).fill("Synthetic Emergency");
   await p.getByLabel("Emergency phone", { exact: true }).fill("555-010-1212");
@@ -220,6 +303,22 @@ try {
   );
   await coordinator.page.screenshot({ path: shots + "/coordinator-mobile.png", fullPage: false });
   const owner = await signedIn("owner", 1280);
+  await owner.page
+    .getByRole("heading", { name: "Parent enrollment progress", exact: true })
+    .waitFor();
+  await owner.page.getByLabel("Athlete and season").selectOption("base:base-player");
+  await owner.page
+    .getByText("Parent fee emails — delivery and catch-up preview", { exact: true })
+    .click();
+  await owner.page
+    .getByRole("button", { name: "Load / refresh email preview and delivery status", exact: true })
+    .click();
+  await owner.page.getByText("Recent delivery records", { exact: true }).waitFor();
+  assert.equal(
+    (await h.sql`select * from fee_ready_notifications where provider_message_id is not null`)
+      .length,
+    0,
+  );
   await owner.page.getByText("Organization enrollment controls", { exact: true }).click();
   const controls = owner.page.locator("details").filter({
     has: owner.page.locator("summary").filter({ hasText: "Organization enrollment controls" }),

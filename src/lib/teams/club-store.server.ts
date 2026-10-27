@@ -122,6 +122,7 @@ export async function persistClubSave(
       const {reconcileRosterEducation}=await import("../athlete-registration.server");
       await reconcileRosterEducation(tx,userId,stored,merged);
       await writeStoredClub(tx, merged, data.baseRev);
+      await queueNewRosterFees(tx, userId, stored, merged);
       await tx`insert into club_audit(user_id,action,detail) values(${userId},'save',${me.role})`;
       return scopedClubResult(merged, me, financial);
     },
@@ -138,10 +139,18 @@ export async function mutateStoredClub(
     const club = await readStoredClub(tx, true);
     if (!club || (expectedRev !== undefined && club._rev !== expectedRev))
       throw new Error("The club changed. Reload before saving.");
-    const rev = club._rev;
+    const rev = club._rev, before = structuredClone(club);
     await work(tx, club, financial);
     club._rev = rev + 1;
     club._savedAt = new Date().toISOString();
     await writeStoredClub(tx, club, rev);
+    await queueNewRosterFees(tx, userId, before, club);
   });
+}
+
+async function queueNewRosterFees(tx: Sql, actor: string, before: ClubRecord, after: ClubRecord) {
+  for (const team of after.teams) for (const player of team.roster) {
+    if (!before.teams.find(t => t.id === team.id)?.roster.some(p => p.id === player.id))
+      await (await import("./fee-notifications.server")).queueFeeReadyInTransaction(tx, actor, { teamId: team.id, playerId: player.id });
+  }
 }

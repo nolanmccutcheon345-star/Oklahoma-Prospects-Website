@@ -96,6 +96,7 @@ export function TeamPayment({
                 const r = await submitSquarePayment({
                   data: { orderId: prepared.orderId, sourceId, attemptId },
                 });
+                window.dispatchEvent(new window.Event("enrollment-progress-updated"));
                 if (r.url) window.location.assign(r.url);
                 return r;
               }}

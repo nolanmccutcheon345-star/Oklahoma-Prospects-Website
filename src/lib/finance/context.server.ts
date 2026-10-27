@@ -1415,6 +1415,7 @@ export async function admitFinancialEntitiesForOwnerInTransaction(
     await tx`insert into financial_player_aliases(basis_id,legacy_team_id,legacy_player_id,agreement_id,created_version) values(${ID},${candidate.id},${entry.playerId},${entry.agreementId},${version})`;
   }
   await tx`insert into finance_audit(actor_id,record_id,action,reason,after_state) values(${principal.userId},${teamSeasonId},'Financial identity admission',${request.reason},${JSON.stringify({ teamId: candidate.id, teamSeasonId, agreements, sourceClubRevision: source.rev, version })}::jsonb)`;
+  for (const entry of agreements) await (await import("../teams/fee-notifications.server")).queueFeeReadyInTransaction(tx, principal.userId, { teamId: candidate.id, playerId: entry.playerId });
   return { version, teamSeasonId, agreements };
 }
 

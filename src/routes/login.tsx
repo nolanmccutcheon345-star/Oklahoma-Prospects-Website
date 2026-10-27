@@ -34,7 +34,7 @@ function persistSessionToken(token: string | null | undefined) {
 
 async function emailAuth(
   mode: "in" | "up",
-  payload: { email: string; password: string; name?: string },
+  payload: { email: string; password: string; name?: string; callbackURL?: string },
 ) {
   const path =
     mode === "up" ? "/api/auth/sign-up/email" : "/api/auth/sign-in/email";
@@ -80,6 +80,7 @@ function Login() {
       const payload = {
         email: email.trim(),
         password,
+        callbackURL: dest,
         ...(mode === "up" ? { name } : {}),
       };
       if (resetToken) {
@@ -95,7 +96,7 @@ function Login() {
       }
       const signedIn=await emailAuth(mode, payload);
       setPassword("");
-      if(signedIn.twoFactorRedirect){window.location.assign("/two-factor");return;}
+      if(signedIn.twoFactorRedirect){window.location.assign("/two-factor?next="+encodeURIComponent(dest));return;}
       if(mode === "up"){setNotice("Check your email to verify your account before signing in.");setBusy(false);return;}
       try {
         await authClient.getSession();

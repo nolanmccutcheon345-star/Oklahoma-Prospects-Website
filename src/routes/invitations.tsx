@@ -15,6 +15,7 @@ function Invitations() {
   const [rows, setRows] = useState<Awaited<ReturnType<typeof getInvitations>>>([]),
     [error, setError] = useState(""),
     [notice, setNotice] = useState(""),
+    [enrollmentInvitation, setEnrollmentInvitation] = useState(false),
     [busy, setBusy] = useState(false);
   async function load() {
     setRows(await getInvitations());
@@ -35,7 +36,13 @@ function Invitations() {
         </Link>
       ) : (
         <>
-          {!rows.length ? <p className="mt-4">No pending invitations for this account.</p> : null}
+          {!rows.length ? (
+            <p className="mt-4">
+              No pending invitations for this account. If an invitation expired, was revoked, or
+              used a different email, contact Prospects for a corrected invitation. Existing
+              accepted access is available in your account.
+            </p>
+          ) : null}
           {rows.map((r) => (
             <article key={r.id} className="mt-4 rounded-xl border p-4">
               <h2 className="text-2xl">
@@ -63,7 +70,13 @@ function Invitations() {
                   try {
                     await acceptClubInvitation({ data: { id: r.id } });
                     await load();
-                    setNotice("Invitation accepted. Open your account to continue.");
+                    const parentEnrollment = r.role === "parent" && Boolean(r.family_id);
+                    setEnrollmentInvitation(parentEnrollment);
+                    setNotice(
+                      parentEnrollment
+                        ? "Invitation accepted. Your assigned household access is connected. Continue with enrollment documents, fee acceptance and payments in your account."
+                        : "Invitation accepted. Open your account to use your assigned workspace.",
+                    );
                   } catch (e) {
                     setError(e instanceof Error ? e.message : "Could not accept.");
                   } finally {
@@ -82,7 +95,7 @@ function Invitations() {
         <p role="status">
           {notice}{" "}
           <Link to="/account" className="underline">
-            Open account
+            {enrollmentInvitation ? "Open account and continue enrollment" : "Open account"}
           </Link>
         </p>
       ) : null}
