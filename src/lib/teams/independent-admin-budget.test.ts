@@ -26,6 +26,12 @@ import {
 
 const planningBudget = (): FeeBudget => ({
   ...defaultBudget(),
+  parentExplanation: {
+    initialDeposit: "Synthetic initial deposit coverage.",
+    monthlyDues: "Synthetic scheduled facility and program access.",
+    teamExpenses: "Team separately arranges tournament expenses.",
+    additionalNotes: "",
+  },
   fundingModel: "independent",
   processingBps: 0,
   processingFixed: 0,
@@ -331,6 +337,12 @@ test("admin notes and season costs persist privately, preserve agreements, and r
   try {
     const b: FeeBudget = {
       ...defaultBudget(),
+      parentExplanation: {
+        initialDeposit: "Synthetic initial deposit coverage.",
+        monthlyDues: "Synthetic scheduled facility and program access.",
+        teamExpenses: "Team separately arranges tournament expenses.",
+        additionalNotes: "",
+      },
       fundingModel: "independent",
       processingBps: 0,
       processingFixed: 0,

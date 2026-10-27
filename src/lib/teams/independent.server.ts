@@ -285,7 +285,20 @@ async function independentWorkspaceInTransaction(
           rows,
           cancellation: record?.independent?.cancellation || null,
           uniformCommitted: Boolean(record?.independent?.uniformCommitted),
-          policy: record?.acceptedPolicy || plan?.payload.published?.policy || "",
+          policy: record?.acceptedPolicy || "",
+          explanation: accepted
+            ? record?.acceptedExplanation || null
+            : (ownIds.has(p.id) || context.principal.owner) && record?.independent?.offer
+              ? record.independent.offer.budget.parentExplanation || null
+              : plan?.payload.published?.explanation || null,
+          agreements:
+            ownIds.has(p.id) || context.principal.owner
+              ? (record?.independent?.agreements || []).map((a) => ({
+                  version: a.version,
+                  publicationRevision: a.publicationRevision,
+                  at: a.at,
+                }))
+              : [],
           offer:
             ownIds.has(p.id) || context.principal.owner ? record?.independent?.offer || null : null,
           agreementVersion: record?.independent?.version || 0,

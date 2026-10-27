@@ -1,3 +1,5 @@
+import { FeeExplanationEditor, FeeExplanationView, FeeAgreementDownload } from "./fee-explanation";
+import { independentPublishedPolicy } from "@/lib/teams/independent-model";
 import { useEffect, useState, type ReactNode } from "react";
 import {
   getIndependentWorkspace,
@@ -163,6 +165,13 @@ function Schedule({ budget }: { budget: FeeBudget }) {
     );
   }
 }
+function previewPolicy(budget: FeeBudget) {
+  try {
+    return independentPublishedPolicy(budget);
+  } catch (e) {
+    return e instanceof Error ? e.message : "Complete the schedule to preview terms.";
+  }
+}
 function TermsFields({
   budget: b,
   setBudget,
@@ -194,8 +203,8 @@ function TermsFields({
             onChange={(v) => setAdminBudget({ ...adminBudget, depositNote: v })}
           />
           <p className="text-sm text-muted">
-            Admins only. For example: uniforms; uniforms and coaching; or uniforms, coaching and
-            coach travel.
+            Private admin budgeting. Never visible to parents. For example: uniforms; uniforms and
+            coaching; or uniforms, coaching and coach travel.
           </p>
         </div>
         <Field
@@ -251,6 +260,10 @@ function TermsFields({
         Short months use the last valid day. These amounts apply equally to each player. Team
         operating costs are collected separately.
       </p>
+      <FeeExplanationEditor
+        value={b.parentExplanation}
+        onChange={(parentExplanation) => setBudget({ ...b, parentExplanation })}
+      />
       <Text
         label="Processing-fee explanation (state explicitly if there are no fees)"
         value={t.processingExplanation}
@@ -262,6 +275,12 @@ function TermsFields({
         onChange={(v) => setBudget({ ...b, policy: v })}
       />
       <Schedule budget={b} />
+      <details>
+        <summary className="min-h-11 cursor-pointer font-semibold">
+          Preview complete parent terms
+        </summary>
+        <p className="whitespace-pre-wrap text-sm">{previewPolicy(b)}</p>
+      </details>
     </>
   );
 }
@@ -290,7 +309,7 @@ function AdminCosts({
       className="grid gap-3 rounded-xl border bg-paper-2 p-4"
       aria-label="Admin-only Prospects budget"
     >
-      <h4 className="font-bold">Admin-only Prospects budget</h4>
+      <h4 className="font-bold">Private admin budgeting</h4>
       <div className="grid gap-3 sm:grid-cols-2">
         <Field
           label="Players used to price the deposit"
@@ -439,7 +458,10 @@ function AdminPlanningSummary({
   ];
   const amount = (v: number | null) => (v === null ? "Incomplete" : money(v));
   return (
-    <section className="grid min-w-0 gap-3 rounded-xl border p-4" aria-label="Admin budget forecast">
+    <section
+      className="grid min-w-0 gap-3 rounded-xl border p-4"
+      aria-label="Admin budget forecast"
+    >
       <h4 className="font-bold">Deposit calculator and budget forecast · admins only</h4>
       <dl className="grid gap-3 sm:grid-cols-2">
         <div>
@@ -956,6 +978,23 @@ function PlayerProspects({
         Outstanding: {money(p.outstanding)} · Overdue: {money(p.overdue)}
         {p.credit > 0 ? ` · Credit awaiting disposition: ${money(p.credit)}` : ""}
       </p>
+      <FeeExplanationView
+        value={p.explanation}
+        status={
+          p.accepted
+            ? `Accepted agreement version ${p.agreementVersion}`
+            : `Published terms version ${p.offer?.revision || s.published?.revision}`
+        }
+      />
+      {!p.accepted && p.acceptancePreview && (
+        <ul className="space-y-1 text-sm" aria-label="Published Prospects payment schedule">
+          {p.acceptancePreview.rows.map((row) => (
+            <li key={row.id}>
+              {row.label} · {row.due} · {money(row.amount)}
+            </li>
+          ))}
+        </ul>
+      )}
       {p.rows.length > 0 && (
         <ul className="space-y-1 text-sm">
           {p.rows.map((r) => (
@@ -989,6 +1028,10 @@ function PlayerProspects({
             Review and accept Prospects terms
           </summary>
           <div className="grid gap-3">
+            <FeeExplanationView
+              value={p.acceptancePreview?.explanation}
+              status={`Terms to accept · publication ${p.acceptancePreview?.publicationRevision}`}
+            />
             <p className="max-h-96 overflow-auto whitespace-pre-wrap text-sm">
               {p.acceptancePreview?.policy}
             </p>
@@ -1042,6 +1085,34 @@ function PlayerProspects({
         <summary className="min-h-11 cursor-pointer">Accepted policy</summary>
         <p className="whitespace-pre-wrap text-sm">{p.policy || "No accepted agreement yet."}</p>
       </details>
+      {p.accepted && (
+        <FeeAgreementDownload
+          teamId={s.teamId}
+          playerId={p.id}
+          seasonId={s.id}
+          version={p.agreementVersion}
+        />
+      )}
+      {p.agreements.length > 1 && (
+        <details>
+          <summary className="min-h-11 cursor-pointer">Previous accepted agreements</summary>
+          {p.agreements
+            .filter((a) => a.version !== p.agreementVersion)
+            .map((a) => (
+              <div key={a.version}>
+                <p>
+                  Version {a.version} · accepted {a.at}
+                </p>
+                <FeeAgreementDownload
+                  teamId={s.teamId}
+                  playerId={p.id}
+                  seasonId={s.id}
+                  version={a.version}
+                />
+              </div>
+            ))}
+        </details>
+      )}
       {s.plan && p.accepted && (
         <details>
           <summary className="min-h-11 cursor-pointer">Uniform purchase evidence</summary>
@@ -1739,6 +1810,12 @@ function SpaceView({
           <p className="text-sm">
             Initial deposit and monthly Prospects dues, per player. Managed by Prospects.
           </p>
+          {s.role !== "billing-party" && (
+            <FeeExplanationView
+              value={s.published?.explanation}
+              status={`Current published team terms · version ${s.published?.revision}`}
+            />
+          )}
           {s.prospects.map((p) => (
             <PlayerProspects
               key={p.id + ":" + p.agreementVersion + ":" + s.planRevision}

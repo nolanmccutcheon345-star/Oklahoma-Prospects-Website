@@ -1,3 +1,5 @@
+import { auditFeeExplanation } from "./fee-explanation.server";
+import { requireFeeExplanation, feeExplanationText } from "./fee-explanation";
 import { isIndependent, independentInstallmentLabel } from "./independent-model";
 import { mutateIndependentProspects } from "./independent-prospects.server";
 import { teamCollectionsEnabled } from "./collections.server";
@@ -185,6 +187,7 @@ function playerView(t: Team, p: Player, plan: FeePlan, asOf = today()) {
     rosterStatus: status,
     note: plan.players[p.id]?.note || "",
     acceptedPolicy: plan.players[p.id]?.acceptedPolicy || "",
+    acceptedExplanation: plan.players[p.id]?.acceptedExplanation || null,
     uniformReleasedAt: plan.players[p.id]?.uniformReleasedAt || "",
     agreedLateFee: plan.players[p.id]?.latePolicy?.fee || 0,
     agreedLateFeeBps: terms?.bps || 0,
@@ -750,6 +753,7 @@ export async function mutateFeePlan(sql: Sql, userId: string, raw: z.infer<typeo
         throw Error(
           "Enter the approved payment/refund policy and reinstatement rules before publishing.",
         );
+      requireFeeExplanation(b.parentExplanation);
       const f = calculateFees(b);
       const schedules = {
         full: scheduleRows(b, f.full, "full", final, today()).map((r, i) =>
@@ -772,12 +776,14 @@ export async function mutateFeePlan(sql: Sql, userId: string, raw: z.infer<typeo
         }
       }
       p.published = {
+        explanation: b.parentExplanation ? structuredClone(b.parentExplanation) : undefined,
         schedules,
         full: f.full,
         po: poEnabled ? f.po : 0,
         secondDue: b.secondDue,
         finalDue: final,
         policy:
+          (b.parentExplanation ? feeExplanationText(b.parentExplanation) + "\n\n" : "") +
           b.policy +
           "\n\n" +
           (b.automaticPayments ? collectionConsent : teamPaymentDisclosure) +
@@ -943,6 +949,7 @@ export async function mutateFeePlan(sql: Sql, userId: string, raw: z.infer<typeo
         status: "Confirmed",
         note: "Guardian accepted the published fee and policy.",
         acceptedPolicy: offer.policy,
+        acceptedExplanation: offer.explanation ? structuredClone(offer.explanation) : undefined,
         ...(agreed.automaticPayments
           ? {
               automaticPayments: true as const,
@@ -1125,6 +1132,15 @@ export async function mutateFeePlan(sql: Sql, userId: string, raw: z.infer<typeo
           uniformCost: p.budget.uniformCost,
         };
     }
+    await auditFeeExplanation(
+      tx,
+      me.userId,
+      t.id,
+      input.action,
+      row?.payload.budget.parentExplanation,
+      p.budget.parentExplanation,
+      p.revision,
+    );
     await commitFinancialFeePlanInTransaction(tx, context, {
       request,
       expectedBasisVersion: request.basisVersion,

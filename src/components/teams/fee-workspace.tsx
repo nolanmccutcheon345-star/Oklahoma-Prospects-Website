@@ -1,3 +1,4 @@
+import { FeeExplanationEditor, FeeExplanationView, FeeAgreementDownload } from "./fee-explanation";
 import { IndependentWorkspace } from "./independent-workspace";
 import { TeamOperatingGuide } from "./operating-guide";
 import { CollectionOperations } from "./collection-operations";
@@ -366,6 +367,10 @@ function TeamPlan({
       )}
       {publication && (
         <Panel title="Published player fees" open>
+          <FeeExplanationView
+            value={publication.explanation}
+            status={`Published team terms · version ${publication.revision}. Existing accepted agreements keep their original wording.`}
+          />
           <Numbers
             rows={[
               ["Full player", publication.full],
@@ -1490,6 +1495,10 @@ function TeamPlan({
                 onChange={(lateFee) => update({ lateFee })}
               />
             )}
+            <FeeExplanationEditor
+              value={plan.budget.parentExplanation}
+              onChange={(parentExplanation) => update({ parentExplanation })}
+            />
             <label>
               Approved payment / refund policy
               <textarea
@@ -1997,6 +2006,13 @@ function TeamPlan({
                     next={p.rows.find((r) => r.remaining > 0)?.remaining || p.balance}
                   />
                 )}
+                <FeeExplanationView
+                  value={p.signed ? p.acceptedExplanation : publication?.explanation}
+                  status={
+                    p.signed ? "Your accepted agreement" : "Published terms awaiting acceptance"
+                  }
+                />
+                {p.signed && <FeeAgreementDownload teamId={team.id} playerId={p.id} />}
                 {p.acceptedPolicy && (
                   <details>
                     <summary>Accepted payment policy</summary>

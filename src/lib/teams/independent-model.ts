@@ -1,3 +1,4 @@
+import { feeExplanationText, type FeeExplanation } from "./fee-explanation";
 import { z } from "zod";
 
 const cents = z.number().int().min(0).max(100_000_000);
@@ -26,6 +27,7 @@ export const independentTermsSchema = z
   .strict();
 export type IndependentTerms = z.infer<typeof independentTermsSchema>;
 export type IndependentBudget = {
+  parentExplanation?: FeeExplanation;
   fundingModel?: "organization" | "independent";
   independent?: IndependentTerms;
   processingBps: number;
@@ -219,6 +221,7 @@ export function independentPublishedPolicy(
 ) {
   return (
     "Payments to Prospects — per player. Independent team expenses are set and collected separately by the team.\n\n" +
+    (b.parentExplanation ? feeExplanationText(b.parentExplanation) + "\n\n" : "") +
     b.policy +
     "\n\n" +
     b.independent!.processingExplanation +

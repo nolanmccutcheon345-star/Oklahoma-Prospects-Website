@@ -122,6 +122,20 @@ try {
   const config = page.locator("details").filter({
     has: page.locator("summary").filter({ hasText: "Synthetic baseball · Funding model" }),
   });
+  await config
+    .getByLabel("What the initial deposit covers", { exact: true })
+    .fill("PUBLIC-COVERAGE: uniforms and agreed coaching.\n• Team uniform package");
+  await config
+    .getByLabel("What monthly Prospects dues cover", { exact: true })
+    .fill("Scheduled indoor team practice and Prospects program access.");
+  await config
+    .getByLabel("Costs the team must fund separately", { exact: true })
+    .fill("Tournament entries and other independently arranged team expenses.");
+  await config
+    .getByLabel("Additional notes (optional)", { exact: true })
+    .fill(
+      "The coach will discuss fundraising with families. <script>window.untrustedFeeNote = true</script>",
+    );
   await config.getByLabel("Initial deposit due", { exact: true }).fill("2098-01-01");
   await config.getByLabel("Initial deposit per player ($)", { exact: true }).fill("600");
   await config.getByLabel("Monthly Prospects dues per player ($)", { exact: true }).fill("149");
@@ -222,6 +236,15 @@ try {
     .waitFor();
   await forecast.getByText("$1,490.00", { exact: true }).last().waitFor();
   await forecast.getByText("$8,450.00", { exact: true }).last().waitFor();
+  assert.match(
+    await settings.getByLabel("What the initial deposit covers", { exact: true }).inputValue(),
+    /PUBLIC-COVERAGE/,
+  );
+  await settings.getByText("Preview parent explanation", { exact: true }).click();
+  await settings
+    .getByRole("region", { name: "Fee explanation for parents", exact: true })
+    .getByText(/PUBLIC-COVERAGE/)
+    .waitFor();
   const [savedDraft] = await h.sql`select payload from team_fee_plans where team_id='base'`;
   assert.equal(savedDraft.payload.budget.independent.uniformDeposit, 70000);
   assert.equal(savedDraft.payload.independentAdmin.planning.basisPlayers, 10);
@@ -277,6 +300,29 @@ try {
     family = guardian.page;
   await family.getByRole("heading", { name: "Payments to Prospects", exact: true }).waitFor();
   await family.getByRole("heading", { name: "Team-Managed Expenses", exact: true }).waitFor();
+  await family
+    .getByRole("region", { name: "Fee explanation for parents", exact: true })
+    .getByText(/PUBLIC-COVERAGE/)
+    .first()
+    .waitFor();
+  assert.equal(
+    await family
+      .getByRole("textbox", { name: "What the initial deposit covers", exact: true })
+      .count(),
+    0,
+  );
+  await family
+    .getByRole("region", { name: "Fee explanation for parents", exact: true })
+    .first()
+    .screenshot({ path: shots + "/parent-fee-explanation-mobile.png" });
+  assert.equal(
+    await family
+      .getByRole("region", { name: "Fee explanation for parents", exact: true })
+      .first()
+      .locator("script")
+      .count(),
+    0,
+  );
   await family.getByText("Review and accept Prospects terms", { exact: true }).click();
   assert.match(await family.locator("body").innerText(), /Initial deposit: \$250.00/);
   assert.equal(
@@ -294,6 +340,13 @@ try {
     })
     .waitFor();
   assert.match(await family.locator("body").innerText(), /Outstanding: \$750.00/);
+  const downloaded = family.waitForEvent("download");
+  await family.getByRole("button", { name: "Download accepted agreement", exact: true }).click();
+  const file = await downloaded;
+  const contents = await readFile(await file.path(), "utf8");
+  assert.match(contents, /PUBLIC-COVERAGE/);
+  assert.doesNotMatch(contents, /PRIVATE-ADMIN-NOTE|collectedMargin/);
+
   assert.doesNotMatch(guardian.bodies.join("\n"), /PRIVATE-ADMIN-NOTE|collectedMargin/);
   assert.equal((await h.sql`select id from commerce_orders`).length, 0);
   assert.ok(

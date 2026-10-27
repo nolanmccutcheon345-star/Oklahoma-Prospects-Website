@@ -30,6 +30,18 @@ Families receive only their own authorized player obligations and their own paym
 
 Closeout uses open, closing and closed states and records funds, receivables, credits and commitments without automatically distributing or forgiving anything. A closed season blocks ordinary new entries and budget edits; an authorized reopening or correction records its reason. Completed external refunds require their original payment, amount, date, method and reference, and may settle a linked planned refund partially or fully. An explicit carryforward requires authority and published disposition terms in both source and destination seasons, reserves unapplied payer credits, and atomically creates matching transfer records without income. The operator distinguishes bookkeeping carryforward from an external cash transfer already completed. Funds available after commitments and funds available after reserving payer credits are labeled separately.
 
+## Parent fee explanations
+
+Front Office provides a separate **Fee explanation for parents** editor for each team's fee plan, alongside deposit and dues settings. Admins write initial-deposit coverage, monthly coverage and separately funded team expenses, with optional additional notes. The editor identifies content as **Visible to parents · draft until published**; the existing cost worksheet and deposit note remain **Private admin budgeting**. No private fields are copied into an explanation.
+
+Draft saves use the existing revision checks and never publish or collect money. All three coverage fields must contain an explicit explanation (including “None currently planned” where appropriate) before new publication or an individual offer. Historical published terms without this field remain readable and acceptable under their existing rules. Parent text is plain text, limited to 4,000 characters per field, preserving paragraph/bullet lines without executing HTML.
+
+Publication stores a detached explanation and includes its canonical text in the agreement policy. Acceptance freezes that explanation with the exact policy, schedule, publication revision and player agreement version. Saving or publishing revised wording does not change an existing acceptance. Independently funded teams use the existing explicit individual amendment offer and renewed acceptance when changed responsibilities should apply to an already accepted player. Outstanding amounts, fixed pricing, allocations, history and authorization rules remain governed by the existing billing flow.
+
+The player fee page shows applicable published/accepted explanations with status labels. The admin can preview the explanation and complete independent terms before publishing. An authenticated **Download accepted agreement** action exports only the selected player's immutable accepted text and identifying agreement metadata. Independent agreement history can be downloaded by version, with season checks. Every request rechecks current account/guardian/owner/assigned-coach access; operational-only coordinators are denied. There are no public receipt links. Separate team financial statements continue to exclude private admin budgeting.
+
+Explanation draft edits, publications and individual offers record actor, action, revision, timestamp and before/after explanations in the existing financial audit. Downloads are audited. This feature does not send messages or initiate charges.
+
 ## Verification
 
 - `src/lib/teams/independent.test.ts`: pricing isolation, exact finite schedules, acceptance, ledger calculations, scoped permissions, documents, immutable history and cancellation.

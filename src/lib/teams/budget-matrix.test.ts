@@ -253,6 +253,12 @@ test("master admin permissions, durable revisions, draft initialization, review 
         secondDue: "2098-02-01",
         deadlineOverride: "2098-03-01",
         policy: "Approved payment policy",
+        parentExplanation: {
+          initialDeposit: "Synthetic initial deposit coverage.",
+          monthlyDues: "Synthetic scheduled facility and program access.",
+          teamExpenses: "Team separately arranges tournament expenses.",
+          additionalNotes: "",
+        },
         reinstatement: "Contact office",
       },
       uniforms: [],

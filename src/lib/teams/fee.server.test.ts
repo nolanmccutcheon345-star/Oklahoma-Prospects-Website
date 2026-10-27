@@ -1,3 +1,4 @@
+import { acceptedFeeAgreement } from "./fee-explanation.server";
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFile, readdir } from "node:fs/promises";
@@ -73,6 +74,12 @@ for (const { role, retiredOffer } of [
       await sql`update team_budget_master set payload=jsonb_set(payload,'{overheadReviewed}','true'::jsonb) where id='master'`;
       const budget = {
         ...defaultBudget(),
+        parentExplanation: {
+          initialDeposit: "Synthetic initial deposit coverage.",
+          monthlyDues: "Synthetic scheduled facility and program access.",
+          teamExpenses: "Team separately arranges tournament expenses.",
+          additionalNotes: "",
+        },
         poEnabled: true,
         tournamentEstimate: 10000,
         readiness: {
@@ -286,6 +293,17 @@ for (const { role, retiredOffer } of [
         await sql`update team_fee_plans set payload=jsonb_set(payload,'{budget,poEnabled}','true') where team_id=${team.id}`;
       }
       await mutateFeePlan(sql, "parent", accept);
+      const acceptedDownload = await acceptedFeeAgreement(sql, "parent", {
+        teamId: team.id,
+        playerId: player.id,
+      });
+      assert.match(acceptedDownload.text, /Synthetic initial deposit coverage/);
+      assert.doesNotMatch(acceptedDownload.text, /Private owner cost/);
+      await assert.rejects(
+        () => acceptedFeeAgreement(sql, "stranger", { teamId: team.id, playerId: player.id }),
+        /access/,
+      );
+
       if (role === "po") {
         await sql`update team_fee_plans set payload=jsonb_set(payload,'{budget,poEnabled}','false') where team_id=${team.id}`;
         const off = (await feeWorkspace(sql, "parent")).teams[0];
@@ -373,6 +391,10 @@ for (const { role, retiredOffer } of [
         payload: typeof club;
       }>`select payload from club_state where id='oklahoma-prospects'`;
       assert.equal(stored.payload.teams[0].roster[0].feeLock!.amount, signed.feeLock!.amount);
+      assert.equal(
+        (await acceptedFeeAgreement(sql, "parent", { teamId: team.id, playerId: player.id })).text,
+        acceptedDownload.text,
+      );
       await assert.rejects(
         () => mutateFeePlan(sql, "parent", { ...accept, revision: 6 }),
         /already exists/,

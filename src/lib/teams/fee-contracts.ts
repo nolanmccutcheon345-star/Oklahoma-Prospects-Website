@@ -1,3 +1,4 @@
+import type { FeeExplanation } from "./fee-explanation";
 import { z } from "zod";
 import { budgetSchema, expenseSchema, type FeeBudget, type Expense } from "./fee-model";
 import type { IndependentInstallment } from "./independent-model";
@@ -41,6 +42,7 @@ export type FeePlan = {
   publishedBudget?: FeeBudget;
   spendingBudget?: { budget: FeeBudget; publishedAt: string; publicationRevision: number };
   published?: {
+    explanation?: FeeExplanation;
     full: number;
     po: number;
     schedules?: {
@@ -61,6 +63,7 @@ export type FeePlan = {
       status: "Invited" | "Confirmed" | "Roster Hold" | "Removed";
       note: string;
       acceptedPolicy?: string;
+      acceptedExplanation?: FeeExplanation;
       uniformReleasedAt?: string;
       membershipAllocation?: number;
       organizationAllocation?: number;
@@ -81,6 +84,7 @@ export type FeePlan = {
         agreements: {
           version: number;
           publicationRevision: number;
+          explanation?: FeeExplanation;
           actorId: string;
           name: string;
           at: string;
