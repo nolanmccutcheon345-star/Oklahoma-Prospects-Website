@@ -1,3 +1,5 @@
+import { auditFeeExplanation } from "./fee-explanation.server";
+import { requireFeeExplanation } from "./fee-explanation";
 import type { z } from "zod";
 import { createHash } from "node:crypto";
 import type { Sql } from "../db";
@@ -91,12 +93,19 @@ export function independentAcceptancePreview(plan: FeePlan, player: Player, toda
       ]),
     )
     .digest("hex");
-  return { rows, policy, digest };
+  return {
+    rows,
+    policy,
+    digest,
+    explanation: budget.parentExplanation || null,
+    publicationRevision: previous?.offer?.revision || plan.published.revision,
+  };
 }
 
-function validatedBudget(raw: FeeBudget, today: string) {
+function validatedBudget(raw: FeeBudget, today: string, publishing = true) {
   const b = budgetSchema.parse(independentDraft(raw));
   if (!isIndependent(b)) throw Error("Choose Independently Funded Team.");
+  if (publishing) requireFeeExplanation(b.parentExplanation);
   const issues = independentIssues(b, today);
   if (issues.length) throw Error(issues.join(" "));
   if (b.independent!.lastDue > b.independent!.seasonEnd)
@@ -164,6 +173,7 @@ export async function mutateIndependentProspects(
       secondDue: "",
       finalDue: b.independent!.lastDue,
       policy: independentPublishedPolicy(b),
+      explanation: b.parentExplanation ? structuredClone(b.parentExplanation) : undefined,
       at: now,
       revision: plan.revision + 1,
     };
@@ -220,7 +230,7 @@ export async function mutateIndependentProspects(
     const offer = previousAgreement?.offer;
     if (offer && offer.payerUserId !== actor.userId)
       throw Error("The designated payer must accept this offer.");
-    const b = validatedBudget(offer?.budget || plan.publishedBudget, today);
+    const b = validatedBudget(offer?.budget || plan.publishedBudget, today, false);
     const preview = independentAcceptancePreview(plan, player, today)!;
     if (input.independentOfferDigest !== preview.digest)
       throw Error(
@@ -286,6 +296,7 @@ export async function mutateIndependentProspects(
       status: old?.status || "Confirmed",
       note: "Guardian accepted per-player Prospects terms. Autopay requires separate authorization.",
       acceptedPolicy: policy,
+      acceptedExplanation: b.parentExplanation ? structuredClone(b.parentExplanation) : undefined,
       automaticPayments: true,
       acceptedFeeCents: total(rows),
       acceptedSchedule: rows.map((r) => ({ date: r.due, amountCents: r.amount })),
@@ -312,6 +323,7 @@ export async function mutateIndependentProspects(
             name: input.name,
             at: now,
             policy,
+            explanation: b.parentExplanation ? structuredClone(b.parentExplanation) : undefined,
             installments: structuredClone(rows),
           },
         ],
@@ -390,6 +402,18 @@ export async function mutateIndependentProspects(
       throw Error("Independent season identity already belongs to another team.");
   }
   plan.revision++;
+  await auditFeeExplanation(
+    tx,
+    actor.userId,
+    team.id,
+    input.action,
+    previous?.budget.parentExplanation,
+    input.action === "independentOffer"
+      ? input.budget.parentExplanation
+      : plan.budget.parentExplanation,
+    plan.revision,
+    "playerId" in input ? input.playerId : undefined,
+  );
   plan.history = [
     ...plan.history,
     {

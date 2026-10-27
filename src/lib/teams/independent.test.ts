@@ -31,6 +31,12 @@ import {
 import { applyFutureActiveSchemaForTest } from "../finance/context.test-fixture";
 const terms = (): FeeBudget => ({
   ...defaultBudget(),
+  parentExplanation: {
+    initialDeposit: "Synthetic initial deposit coverage.",
+    monthlyDues: "Synthetic scheduled facility and program access.",
+    teamExpenses: "Team separately arranges tournament expenses.",
+    additionalNotes: "",
+  },
   fundingModel: "independent",
   independent: {
     seasonKey: randomUUID(),

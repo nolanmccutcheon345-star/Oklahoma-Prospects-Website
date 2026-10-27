@@ -1,3 +1,4 @@
+import { feeExplanationSchema } from "./fee-explanation";
 import { withoutRetiredMembershipPricing } from "./retired-membership";
 import { overheadRuleSchema } from "./facility-overhead";
 import { z } from "zod";
@@ -84,6 +85,7 @@ export const budgetSchema = z
   .object({
     fundingModel: z.enum(["organization", "independent"]).optional(),
     independent: independentTermsSchema.optional(),
+    parentExplanation: feeExplanationSchema.optional(),
     ...poAllocationFields,
     ...programFields,
     pricingInheritance: pricingInheritanceSchema.optional(),

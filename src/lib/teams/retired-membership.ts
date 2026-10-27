@@ -25,9 +25,12 @@ export function currentMembershipOffer<T extends { policy: string; schedules?: o
     delete schedules.fullAccess;
     clean.schedules = schedules;
   }
-  clean.policy = offer.policy.replace(
-    /Individual facility access is optional\./gi,
-    separateMembershipPolicy,
-  );
+  // Explicit coverage snapshots are newly authored terms, not legacy template copy.
+  // Never rewrite an admin's parent explanation or the matching acceptance policy.
+  if (!("explanation" in offer && offer.explanation))
+    clean.policy = offer.policy.replace(
+      /Individual facility access is optional\./gi,
+      separateMembershipPolicy,
+    );
   return clean;
 }

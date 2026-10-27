@@ -254,6 +254,12 @@ test("persisted defaults propagate atomically; published offers, accepted agreem
       tournamentEstimate: 0,
       uniformEstimate: 0,
       policy: "Synthetic approved policy",
+      parentExplanation: {
+        initialDeposit: "Synthetic initial deposit coverage.",
+        monthlyDues: "Synthetic scheduled facility and program access.",
+        teamExpenses: "Team separately arranges tournament expenses.",
+        additionalNotes: "",
+      },
       reinstatement: "Owner review required",
       processingZeroReason: "Synthetic fee-free fixture",
       readiness: {

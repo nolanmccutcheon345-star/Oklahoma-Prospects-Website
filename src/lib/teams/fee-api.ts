@@ -122,3 +122,21 @@ export const admitFinancialEventCommitment = createServerFn({ method: "POST" })
     const { admitFinancialEventCommitment } = await import("./fee.server");
     return admitFinancialEventCommitment(await getSql(), context.userId, data);
   });
+
+export const downloadFeeAgreement = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
+  .validator(
+    z
+      .object({
+        teamId: z.string().min(1).max(150),
+        playerId: z.string().min(1).max(150),
+        seasonId: z.string().uuid().optional(),
+        version: z.number().int().positive().optional(),
+      })
+      .strict(),
+  )
+  .handler(async ({ context, data }) => {
+    const { getSql } = await import("../db");
+    const { acceptedFeeAgreement } = await import("./fee-explanation.server");
+    return acceptedFeeAgreement(await getSql(), context.userId, data);
+  });

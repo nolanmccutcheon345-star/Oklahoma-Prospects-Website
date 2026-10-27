@@ -49,6 +49,12 @@ function adapter(query: PGlite["query"], inTransaction = false): Sql {
 function readyBudget() {
   return {
     ...defaultBudget(),
+    parentExplanation: {
+      initialDeposit: "Synthetic initial deposit coverage.",
+      monthlyDues: "Synthetic scheduled facility and program access.",
+      teamExpenses: "Team separately arranges tournament expenses.",
+      additionalNotes: "",
+    },
     tournamentEstimate: 10000,
     uniformEstimate: 0,
     start: "2027-04-01",
