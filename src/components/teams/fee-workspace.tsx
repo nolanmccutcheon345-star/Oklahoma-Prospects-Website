@@ -1,3 +1,4 @@
+import { publicationOffer } from "@/lib/teams/fee-publication";
 import { FeeNotifications } from "./fee-notifications";
 import { FeeExplanationEditor, FeeExplanationView, FeeAgreementDownload } from "./fee-explanation";
 import { IndependentWorkspace } from "./independent-workspace";
@@ -10,7 +11,13 @@ import { TeamCollectionSetup } from "./team-collection-setup";
 import { TeamPayment } from "./team-payment";
 import { OfflinePaymentReview } from "./offline-payments";
 import { serviceMonths } from "@/lib/teams/season-months";
-import { feeHealth } from "@/lib/teams/fee-health";
+import { feeHealth, publicationHealth } from "@/lib/teams/fee-health";
+import {
+  collectionActivationDisclosure,
+  seasonPaymentPolicy,
+  seasonReinstatementPolicy,
+} from "@/lib/teams/payment-policy";
+import { TeamInvitations } from "./team-invitations";
 import { OverheadRuleEditor } from "./overhead-rule-editor";
 import { monthlyTeamOverhead, teamSeasonOverhead } from "@/lib/teams/facility-overhead";
 import { BudgetMasterEditor } from "./budget-master-editor";
@@ -106,7 +113,11 @@ function Numbers({ rows }: { rows: [string, number][] }) {
     </dl>
   );
 }
-export function TeamFeeWorkspace({ teamId, playerId, includeAllIndependentTeams = false }: {
+export function TeamFeeWorkspace({
+  teamId,
+  playerId,
+  includeAllIndependentTeams = false,
+}: {
   teamId?: string;
   playerId?: string;
   includeAllIndependentTeams?: boolean;
@@ -199,7 +210,11 @@ export function TeamFeeWorkspace({ teamId, playerId, includeAllIndependentTeams 
       {!data ? (
         <Button onClick={() => void load()}>Load team fee plans</Button>
       ) : !team ? (
-        <p>{includeAllIndependentTeams ? "No Prospects fee plans are available here. Independently assigned team workspaces appear below." : "No assigned teams are available."}</p>
+        <p>
+          {includeAllIndependentTeams
+            ? "No Prospects fee plans are available here. Independently assigned team workspaces appear below."
+            : "No assigned teams are available."}
+        </p>
       ) : (
         <>
           {!teamId && (
@@ -221,14 +236,23 @@ export function TeamFeeWorkspace({ teamId, playerId, includeAllIndependentTeams 
               </select>
             </label>
           )}
-          {!includeAllIndependentTeams && <IndependentWorkspace teamId={team.id} playerId={playerId} />}
+          {!includeAllIndependentTeams && (
+            <IndependentWorkspace teamId={team.id} playerId={playerId} />
+          )}
+          {(team.access === "admin" || team.access === "coach") && (
+            <TeamInvitations key={team.id} teamId={team.id} />
+          )}
           {!team.independent && <TeamFundingNotice teamId={team.id} />}
           {!team.independent && (
             <TeamPlan
               key={
                 team.id + ":" + team.revision + (team.basisVersion ? ":" + team.basisVersion : "")
               }
-              team={playerId && team.access !== "admin" ? { ...team, players: team.players.filter(p => p.id === playerId) } : team}
+              team={
+                playerId && team.access !== "admin"
+                  ? { ...team, players: team.players.filter((p) => p.id === playerId) }
+                  : team
+              }
               refresh={load}
               notify={setNotice}
             />
@@ -263,6 +287,7 @@ function TeamPlan({
     [uniformId, setUniform] = useState(team.choices?.uniformId || ""),
     [busy, setBusy] = useState(false),
     [photoUploads, setPhotoUploads] = useState(0),
+    [reviewPublication, setReviewPublication] = useState(false),
     [master, setMaster] = useState<MasterMatrix>(),
     [matrixKey, setMatrixKey] = useState(team.private?.plan.defaults?.key || ""),
     [error, setError] = useState(""),
@@ -270,6 +295,13 @@ function TeamPlan({
     [po, setPo] = useState(0),
     [name, setName] = useState(""),
     [consent, setConsent] = useState(false);
+  const publicationReview = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (reviewPublication) {
+      publicationReview.current?.focus();
+      publicationReview.current?.scrollIntoView({ block: "start", behavior: "smooth" });
+    }
+  }, [reviewPublication]);
   const paymentRequests = useRef(new Map<string, string>());
   for (const player of team.players)
     if (!paymentRequests.current.has(player.id))
@@ -302,7 +334,9 @@ function TeamPlan({
           ? "Draft saved. Publish after reviewing the fee and policy."
           : action.action === "propose"
             ? "Selections submitted for Front Office approval."
-            : "Changes saved.",
+            : action.action === "publish"
+              ? "Fees published. The approved budget is recorded in Finance → Team spending. Families can review their offer and pay; invitations remain a separate action."
+              : "Changes saved.",
       );
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not save.");
@@ -353,6 +387,42 @@ function TeamPlan({
   } catch {
     // An incomplete draft has no valid preview; server validation still gates publication.
   }
+  let publishHealth: ReturnType<typeof publicationHealth> | null = null;
+  try {
+    if (plan)
+      publishHealth = publicationHealth(plan.budget, {
+        key: plan.defaults?.key,
+        seasonLabel: team.seasonLabel,
+        finalDue: deadline(plan.budget, team.events),
+        today: new Intl.DateTimeFormat("en-CA", {
+          timeZone: "America/Chicago",
+          year: "numeric",
+          month: "2-digit",
+          day: "2-digit",
+        }).format(new Date()),
+      });
+  } catch {
+    /* Server returns the specific invalid input on publication. */
+  }
+  let reviewedOffer: ReturnType<typeof publicationOffer> | undefined;
+  try {
+    if (plan) {
+      const b = master ? teamSeasonOverhead(plan.budget, master) : plan.budget;
+      reviewedOffer = publicationOffer(
+        b,
+        canPO,
+        deadline(b, team.events),
+        new Intl.DateTimeFormat("en-CA", {
+          timeZone: "America/Chicago",
+          year: "numeric",
+          month: "2-digit",
+          day: "2-digit",
+        }).format(new Date()),
+      );
+    }
+  } catch {
+    /* Missing dates or costs are reported by publication readiness. */
+  }
   const publication = team.publication;
   const dirty = Boolean(plan && JSON.stringify(plan) !== JSON.stringify(team.private?.plan));
   let trace: ReturnType<typeof feeCostTrace> | undefined;
@@ -367,10 +437,130 @@ function TeamPlan({
         {team.name} · {team.status}
         {publication ? " · Published fee version " + publication.revision : ""}
       </p>
+      {team.access === "admin" && plan && (
+        <Button
+          type="button"
+          disabled={busy || photoUploads > 0 || plan.status === "closed"}
+          onClick={() => {
+            setReviewPublication(true);
+            publicationReview.current?.focus();
+            publicationReview.current?.scrollIntoView({ block: "start", behavior: "smooth" });
+          }}
+        >
+          Review & publish fees
+        </Button>
+      )}
       {error && (
         <p role="alert" className="text-maroon">
           {error}
         </p>
+      )}
+      {reviewPublication && plan && team.access === "admin" && (
+        <div
+          ref={publicationReview}
+          tabIndex={-1}
+          className="grid gap-3 rounded-xl border-2 border-maroon bg-white p-4"
+          aria-label="Fee publication review"
+        >
+          <h3 className="text-2xl">Review & publish this team's fees</h3>
+          <p>
+            Publication uses the approved baseline of {plan.budget.baseline} full players. What-if
+            roster changes below do not change the publication check. Saving and publishing happen
+            together; a failed check leaves the saved offer unchanged.
+          </p>
+          <p>
+            Confirm this team's costs, dates and written terms below. Publication records the
+            original category budgets for Finance → Team spending. It does not approve spending,
+            collect a payment or clear an athlete to participate.
+          </p>
+          {reviewedOffer ? (
+            <section
+              aria-label="Player obligations to publish"
+              className="grid gap-3 rounded-lg border p-3"
+            >
+              <h4 className="font-semibold">Player obligations to publish</h4>
+              <p>
+                Full player: {money(reviewedOffer.full)}
+                {canPO ? ` · Pitcher only: ${money(reviewedOffer.po)}` : ""}. These are the fees for
+                new acceptances. Previously accepted agreements retain their amounts and wording.
+              </p>
+              <FeeExplanationView
+                value={reviewedOffer.explanation}
+                status="Draft coverage to publish"
+              />
+              <p className="whitespace-pre-wrap text-sm">{reviewedOffer.policy}</p>
+            </section>
+          ) : (
+            <p role="status">
+              Complete the fee inputs and payment dates to review player obligations.
+            </p>
+          )}
+          {publishHealth?.pending.map((item) => (
+            <p key={item}>Required: {item}</p>
+          ))}
+          {publishHealth && !publishHealth.funded && (
+            <p role="alert">The baseline price does not cover the approved costs.</p>
+          )}
+          {!master?.overheadReviewed && (
+            <p>
+              Facility overhead still needs review for the organization forecast and financial
+              close. It does not prevent publishing this team's priced offer.
+            </p>
+          )}
+          {plan.budget.automaticPayments && <p>{collectionActivationDisclosure}</p>}
+          {plan.budget.automaticPayments && !team.private?.automaticCollectionsAvailable && (
+            <p role="status">
+              Automatic collection is currently paused. Publishing makes the offer available.
+              Individual checkout still requires its own payment readiness; publication does not
+              enable automatic charges or backup retries. The account must confirm activation
+              separately.
+            </p>
+          )}
+          <Button
+            type="button"
+            variant="outlineDark"
+            onClick={() =>
+              update({
+                readiness: {
+                  ...plan.budget.readiness,
+                  schedule: true,
+                  gas: true,
+                  hotels: true,
+                  other: true,
+                  processing: true,
+                  noUniform: plan.budget.readiness?.noUniform || false,
+                },
+              })
+            }
+          >
+            Confirm I reviewed this team's event, gas, hotel, other costs and processing inputs
+          </Button>
+          <p>
+            Explicit tournament and uniform costs, valid dates, any zero-processing explanation and
+            the written policy are still required. Review the editable sections below before the
+            final publication action.
+          </p>
+          <Button
+            type="button"
+            disabled={busy || photoUploads > 0 || plan.status === "closed"}
+            onClick={() => {
+              if (
+                window.confirm(
+                  "Publish this team's displayed fee, payment dates and written terms, and fix its original spending budget? Existing signed agreements stay unchanged. Eligible published-fee notices may be queued by the configured email service; no payment is charged.",
+                )
+              )
+                void act({
+                  ...base,
+                  action: "publish",
+                  confirmed: true,
+                  reviewedOffer: reviewedOffer ? JSON.stringify(reviewedOffer) : undefined,
+                  draft: { budget: plan.budget, uniforms: plan.uniforms, expenses: plan.expenses },
+                });
+            }}
+          >
+            Save & publish approved fees
+          </Button>
+        </div>
       )}
       {publication && (
         <Panel title="Published player fees" open>
@@ -517,8 +707,8 @@ function TeamPlan({
                     <span>
                       {
                         {
-                          membershipMonthly: "Full-player monthly membership",
-                          poMembershipMonthly: "Pitcher-only monthly membership",
+                          membershipMonthly: "Full-player monthly program fee",
+                          poMembershipMonthly: "Pitcher-only monthly program fee",
                           contingencyBps: "Contingency",
                           eventPaymentSchedule: "Payment percentages and deadlines",
                         }[key]
@@ -1415,7 +1605,27 @@ function TeamPlan({
               Coach may propose uniform package
             </label>
           </Panel>
-          <Panel title="Payment deadlines & written policy">
+          <Panel title="Payment deadlines & written policy" open={reviewPublication}>
+            <Button
+              type="button"
+              variant="outlineDark"
+              disabled={busy}
+              onClick={() => {
+                if (
+                  (!plan.budget.policy.trim() && !plan.budget.reinstatement.trim()) ||
+                  window.confirm(
+                    "Replace this draft's policy and reinstatement text with the current owner-directed season terms? Accepted agreements are unchanged.",
+                  )
+                )
+                  update({ policy: seasonPaymentPolicy, reinstatement: seasonReinstatementPolicy });
+              }}
+            >
+              Use organization season policy in this draft
+            </Button>
+            <p>
+              Review the text for this team's offer. The contingency refund provision is retained;
+              this action does not claim an outside legal review.
+            </p>
             <PaymentScheduleEditor
               budget={plan.budget}
               update={update}
@@ -1802,25 +2012,7 @@ function TeamPlan({
             </Button>
             <Button
               variant="outlineDark"
-              disabled={busy || photoUploads > 0 || plan.status === "closed" || !health?.ready}
-              onClick={() => {
-                if (JSON.stringify(plan) !== JSON.stringify(team.private?.plan)) {
-                  setError("Save your changes before publishing.");
-                  return;
-                }
-                if (
-                  window.confirm(
-                    "Approve the saved budget, written policy, and publish these fees to team families? Existing signed fees stay unchanged.",
-                  )
-                )
-                  void act({ ...base, action: "publish", confirmed: true });
-              }}
-            >
-              Approve & publish fees
-            </Button>
-            <Button
-              variant="outlineDark"
-              disabled={busy || photoUploads > 0 || plan.status === "closed" || !health?.ready}
+              disabled={busy || photoUploads > 0 || plan.status === "closed"}
               onClick={() => {
                 if (JSON.stringify(plan) !== JSON.stringify(team.private?.plan)) {
                   setError("Save expenses before closing.");
@@ -2364,7 +2556,7 @@ function PaymentScheduleEditor({
             })
           }
         >
-          Use a custom team schedule
+          Set explicit payment dates (keep these percentages)
         </Button>
       </section>
     );

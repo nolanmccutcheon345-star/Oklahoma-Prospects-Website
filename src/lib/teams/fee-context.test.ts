@@ -1,3 +1,4 @@
+import { publicationOffer } from "./fee-publication";
 import test, { after } from "node:test";
 import assert from "node:assert/strict";
 import { readFile, readdir } from "node:fs/promises";
@@ -630,6 +631,41 @@ test("frozen guardian acceptance follows an explicit historical transfer alias w
     live.payload.teams.find((t) => t.id === "transferred-team")!.roster[0].parents[0].email,
     "stranger@example.invalid",
   );
+});
+
+test("atomic save and publication records one frozen revision and rolls back invalid drafts", async () => {
+  const { sql } = await fixture();
+  await sql`delete from team_fee_plans where team_id='draft'`;
+  await capture(sql);
+  await activateFixture(sql);
+  const before = await saved(sql);
+  const request = {
+    action: "publish" as const,
+    teamId: "draft",
+    revision: 0,
+    basisVersion: before.version!,
+    confirmed: true as const,
+    reviewedOffer: JSON.stringify(
+      publicationOffer(readyBudget(), true, readyBudget().deadlineOverride, "2026-10-28"),
+    ),
+    draft: { budget: readyBudget(), uniforms: [], expenses: [] },
+  };
+  await assert.rejects(
+    mutateFeePlan(sql, "owner", {
+      ...request,
+      draft: { ...request.draft, budget: { ...readyBudget(), policy: "" } },
+    }),
+    /policy/,
+  );
+  assert.deepEqual(await saved(sql), before);
+  await mutateFeePlan(sql, "owner", request);
+  const after = await saved(sql);
+  const plan = after.feePlans.find((p) => p.team_id === "draft")!;
+  assert.equal(after.version, before.version! + 1);
+  assert.equal(plan.revision, 1);
+  assert.equal(plan.payload.status, "published");
+  assert.ok(plan.payload.spendingBudget);
+  await assert.rejects(mutateFeePlan(sql, "owner", request), /changed/);
 });
 
 test("Owner operational schedule edits stay financially inert; explicit owner event amendment and admission use reviewed revisions", async () => {

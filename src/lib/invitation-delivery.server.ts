@@ -1,12 +1,14 @@
 import { randomUUID } from "node:crypto";
 import type { Sql } from "./db";
 import { authEmailAllowed } from "./auth/email.server";
+import { authorizedTeamInvitation } from "./teams/invitations.server";
 type Env = Record<string, string | undefined>;
 type Invite = {
   id: string;
   email: string;
   role: string;
   family_id: string | null;
+  team_id: string | null;
   invited_by: string;
   expires_at: Date;
   status: string;
@@ -23,7 +25,8 @@ async function currentOwner(tx: Sql, actor: string) {
 }
 export async function invitationIssuerAuthorized(
   tx: Sql,
-  invite: Pick<Invite, "role" | "family_id" | "invited_by">,
+  invite: Pick<Invite, "role" | "family_id" | "invited_by"> &
+    Partial<Pick<Invite, "team_id" | "email">>,
 ) {
   if (invite.role.endsWith("_coordinator")) {
     try {
@@ -35,12 +38,14 @@ export async function invitationIssuerAuthorized(
       return false;
     }
   }
+  if (invite.team_id) return authorizedTeamInvitation(tx, invite.invited_by, invite);
   if (await currentOwner(tx, invite.invited_by)) return true;
   if (invite.role !== "parent" || !invite.family_id) return false;
   return (
     (
       await tx`select u.id from "user" u join profiles p on p.user_id=u.id join household_members m on m.user_id=u.id
-    where u.id=${invite.invited_by} and u."emailVerified" and u."disabledAt" is null and p.role='parent' and m.household_id=${invite.family_id}`
+    where u.id=${invite.invited_by} and u."emailVerified" and u."disabledAt" is null and p.role='parent' and m.household_id=${invite.family_id}
+    and not exists(select 1 from organization_operational_access a where a.user_id=u.id and a.financial_restricted)`
     ).length > 0
   );
 }
@@ -49,7 +54,11 @@ async function managedInvitation(tx: Sql, actor: string, id: string) {
   if (
     !invite ||
     !(await invitationIssuerAuthorized(tx, invite)) ||
-    !((await currentOwner(tx, actor)) || actor === invite.invited_by)
+    !(
+      (await currentOwner(tx, actor)) ||
+      actor === invite.invited_by ||
+      (await authorizedTeamInvitation(tx, actor, invite))
+    )
   )
     throw new Error("Invitation management is unavailable for this account.");
   return invite;

@@ -1,7 +1,13 @@
 import { useState } from "react";
 import { Button } from "./ui/button";
 import { sendInvitationEmail, checkInvitationDelivery } from "@/lib/invitation-delivery-api";
-export function InvitationDelivery({ id }: { id: string }) {
+export function InvitationDelivery({
+  id,
+  onUpdate,
+}: {
+  id: string;
+  onUpdate?: () => Promise<void>;
+}) {
   const [busy, setBusy] = useState(false),
     [error, setError] = useState(""),
     [notice, setNotice] = useState("");
@@ -27,6 +33,7 @@ export function InvitationDelivery({ id }: { id: string }) {
           `Email: ${r.status}; delivery: ${r.delivery}. Account invitation: ${r.invitation}. Delivery does not prove the recipient read the message or accepted an agreement.`,
         );
       }
+      await onUpdate?.();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Invitation delivery unavailable.");
     } finally {
@@ -50,8 +57,10 @@ export function InvitationDelivery({ id }: { id: string }) {
         </Button>
       </div>
       <p className="text-sm">
-        This control sends the general account invitation. Eligible parent invitations with published fees also queue separate fee instructions automatically. Repeated sends for the same invitation retry the
-        original message without intentionally sending another copy.
+        This control sends the general account invitation. Separate fee instructions are queued for
+        eligible published offers when account access is accepted or fees are published. Repeated
+        sends for the same invitation retry the original message without intentionally sending
+        another copy.
       </p>
       {notice && (
         <p role="status" className="text-sm">

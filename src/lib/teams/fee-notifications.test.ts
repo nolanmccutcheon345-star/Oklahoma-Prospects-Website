@@ -1,3 +1,4 @@
+import { issueTeamInvitation } from "./invitations.server";
 import test from "node:test";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
@@ -411,3 +412,58 @@ for (const change of [
       await db.close();
     }
   });
+
+test("pending team invitations retain issuer scope in fee notices and revoked staff cannot deliver them", async () => {
+  const { sql, db, club } = await enrollmentFixture();
+  try {
+    await issueTeamInvitation(sql, "coach", {
+      teamId: "base",
+      playerId: "base-player",
+      email: "guardian@example.invalid",
+    });
+    await mutateFeePlan(sql, "owner", {
+      action: "publishIndependent",
+      teamId: "base",
+      revision: 0,
+      budget: budget(),
+      confirmed: true,
+    });
+    assert.equal(
+      (await sql`select id from fee_ready_notifications where team_id='base'`).length,
+      1,
+    );
+    club.teams[0].coachEmail = "othercoach@example.invalid";
+    await sql`update club_state set payload=${JSON.stringify(club)}::jsonb where id='oklahoma-prospects'`;
+    let sends = 0;
+    await deliverFeeReadyEmails(sql, env, async () => {
+      sends++;
+      return new Response(JSON.stringify({ id: "synthetic" }));
+    });
+    assert.equal(sends, 0);
+    await sql`update coordinator_assignments set permissions=array['enrollment.manage','contacts.read'] where user_id='coordinator'`;
+    await issueTeamInvitation(sql, "coordinator", {
+      teamId: "soft",
+      playerId: "soft-player",
+      email: "guardian@example.invalid",
+    });
+    await mutateFeePlan(sql, "owner", {
+      action: "publishIndependent",
+      teamId: "soft",
+      revision: 0,
+      budget: budget(),
+      confirmed: true,
+    });
+    assert.equal(
+      (await sql`select id from fee_ready_notifications where team_id='soft'`).length,
+      1,
+    );
+    await sql`update coordinator_assignments set permissions=array['enrollment.read','contacts.read'] where user_id='coordinator'`;
+    await deliverFeeReadyEmails(sql, env, async () => {
+      sends++;
+      return new Response(JSON.stringify({ id: "synthetic" }));
+    });
+    assert.equal(sends, 0);
+  } finally {
+    await db.close();
+  }
+});
