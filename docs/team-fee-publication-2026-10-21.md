@@ -15,3 +15,7 @@
 Synthetic regressions cover publication rejection for missing schedules or fees, unpublished family responses, anonymous and cross-team denials, scoped coordinator projections/revocation, source selection after financial activation, explicit-zero estimates, no duplicate cost allocation and immutable accepted fees. Standard typecheck, Netlify build, built-server validation and required GitHub workflows apply before release.
 
 Production master defaults were saved through the owner's Front Office and confirmed after reload: full and PO Team & Development Program Fee $150/month, ten-player baseline, 15% Team Contingency and separate $24,000 business reserve target. All 120 existing live matrix rows were retained. No live team quote or payment was created for testing.
+
+## Owner-approved Bobby 7U public information (October 28, 2026)
+
+The exact team `t-prospects-7u-navy-bsb-x9k5` has a public informational membership card approved by the owner: $350 initial deposit and $99 monthly, with the specified uniforms and indoor benefits. This is a narrow exception to the historical blanket statement above that public team pages contain no pricing. It does not expose stored draft budgets, publish financial obligations, set billing dates, accept a player, or charge anyone. Its CTA opens the existing baseball / 7U tryout request form; enrollment and payment are confirmed separately after coach review. Other teams and all account-level financial controls are unchanged.
