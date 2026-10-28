@@ -1,4 +1,5 @@
-import { IndependentWorkspace } from "@/components/teams/independent-workspace";
+import { ParentEnrollmentGuide } from "@/components/enrollment/guide";
+import { TeamFeeWorkspace } from "@/components/teams/fee-workspace";
 import { getCoordinatorEntry } from "@/lib/coordinator/api";
 import { CoordinatorAccountLink } from "@/components/coordinator/account-link";
 import {MyFinance} from "@/components/finance/my-finance";
@@ -159,6 +160,7 @@ function AccountHome() {
           image="/brand/training.jpg"
         />
         <div className="mx-auto max-w-3xl px-5 py-8">
+          <ParentEnrollmentGuide />
           {loadError ? <p className="mb-3 text-sm text-maroon">{loadError}</p> : null}
           <form
             className="grid gap-3 rounded-2xl bg-paper-2 p-5 shadow-border"
@@ -224,7 +226,7 @@ function AccountHome() {
 
   if (profile.role === "admin" && !desk)
     return <Navigate to="/office" search={{ section: "dashboard" }} />;
-  if (desk === "team-finances") return <main id="main" className="mx-auto max-w-5xl px-5 py-8"><a href="/account" className="min-h-11 underline">Back to Account</a><h1 className="text-3xl">Team finances</h1><IndependentWorkspace/></main>;
+  if (desk === "team-finances") return <main id="main" className="mx-auto max-w-5xl px-5 py-8"><a href="/account" className="min-h-11 underline">Back to Account</a><h1 className="text-3xl">Team finances</h1>{profile.role !== "player" && <ParentEnrollmentGuide />}<TeamFeeWorkspace includeAllIndependentTeams/></main>;
   if (desk === "compensation") return <main id="main" className="mx-auto max-w-3xl px-5 py-8"><a href="/account" className="min-h-11 underline">Back to Account</a><h1 className="text-3xl">My compensation</h1><MyFinance/></main>;
   if (desk === "security")
     return (
@@ -290,6 +292,7 @@ function AccountHome() {
         />
       )}
       <div className="mx-auto max-w-3xl px-5 py-8 pb-24">
+        {profile.role !== "player" && <ParentEnrollmentGuide />}
         <Link
           to="/account"
           search={{ desk: "security" }}

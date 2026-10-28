@@ -150,6 +150,7 @@ for (const baselineVersion of [66, 76, 79])
             "0112_team_collections.sql",
             "0113_collection_queue.sql",
             "0114_independent_team_finances.sql",
+            "0115_fee_ready_notifications.sql",
           ],
         );
       for (const { name } of late) {

@@ -393,6 +393,7 @@ export const reviewTeamInquiry=createServerFn({method:'POST'}).middleware([authM
    const revision=club._rev;club._rev++;club._savedAt=new Date().toISOString();
    await tx`update club_requests set status=case when ${data.stage}='accepted' then 'accepted' else status end,payload=payload||${JSON.stringify({stage:data.stage,teamId:team.id,...(data.rosterRole?{rosterRole:data.rosterRole}:{}),...(rosterPlayerId?{rosterPlayerId}:{})})}::jsonb where id=${data.id}`;
    await writeRaw(club,revision,tx);
+   if(rosterPlayerId) await (await import("./fee-notifications.server")).queueFeeReadyInTransaction(tx,context.userId,{teamId:team.id,playerId:rosterPlayerId});
    return {ok:true,message:rosterPlayerId?'Added to the roster. Ask the guardian to sign in at /invitations to accept access.':'Registration stage saved.'};
   });
  });

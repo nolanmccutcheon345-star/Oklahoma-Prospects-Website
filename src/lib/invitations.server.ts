@@ -37,7 +37,9 @@ export async function issueInvitation(
   }
   const id = randomUUID(),
     hash = createHash("sha256").update(randomUUID()).digest("hex");
+  let feesQueued = 0;
   await sql.transaction(async (tx) => {
+    await (await import("./finance/execution.server")).lockFinancialExecution(tx);
     await tx.query("select pg_advisory_xact_lock(hashtext($1))", [
       `account-invite:${normalized}:${role}:${familyId || ""}`,
     ]);
@@ -47,12 +49,18 @@ export async function issueInvitation(
     }
     await tx`update club_invites set status='revoked' where lower(email)=${normalized} and role=${role} and family_id is not distinct from ${familyId} and status='pending'`;
     await tx`insert into club_invites(id,token_hash,email,family_id,invited_by,role,expires_at) values(${id},${hash},${normalized},${familyId},${actor},${role},now()+interval '7 days')`;
+    if (role === "parent" && familyId)
+      feesQueued = await (
+        await import("./teams/fee-notifications.server")
+      ).queueFeeReadyInTransaction(tx, actor, { familyId, recipient: normalized });
+    await tx`insert into club_audit(user_id,action,detail) values(${actor},'invitation.created',${id})`;
   });
   return {
     id,
     path: "/invitations",
-    message:
-      "Invitation saved; email has not been sent. Use Send invitation email when ready. The recipient must sign in with this exact email and open Invitations within seven days.",
+    message: feesQueued
+      ? "Invitation saved. Applicable published fee instructions are queued for email; delivery is tracked in Front Office. The recipient must verify the invited email and accept access."
+      : "Invitation saved. Use Send invitation email for the general account invitation when needed. Owners can check any existing fee instructions under Team Fees → Parent fee emails. The recipient must sign in with this exact email and open Invitations within seven days.",
   };
 }
 export async function pendingInvitations(userId: string) {
@@ -77,6 +85,7 @@ export async function acceptInvitation(userId: string, id: string) {
       id,
     );
   return sql.transaction(async (tx) => {
+    await (await import("./finance/execution.server")).lockFinancialExecution(tx);
     const [invite] = await tx<{
       role: string;
       family_id: string | null;
@@ -114,6 +123,11 @@ export async function acceptInvitation(userId: string, id: string) {
     if (role === "coach")
       await tx`update club_staff set user_id=${userId} where lower(trim(email))=${me.email} and active and role in ('coach','admin') and (user_id='' or user_id=${userId})`;
     await tx`update club_invites set status='accepted',accepted_by=${userId} where id=${id}`;
+    if (invite.role === "parent" && invite.family_id)
+      await (
+        await import("./teams/fee-notifications.server")
+      ).queueFeeReadyInTransaction(tx, userId, { familyId: invite.family_id, recipient: me.email });
+    await tx`insert into club_audit(user_id,action,detail) values(${userId},'invitation.accepted',${id})`;
     return { ok: true };
   });
 }

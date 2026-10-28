@@ -68,7 +68,11 @@ function Paid() {
           : status === "paid"
             ? "Payment confirmed"
             : status === "payment_review"
-              ? payment?.merchandise ? "We’re reviewing your order" : "We’re reviewing your booking"
+              ? payment?.enrollment
+                ? "We’re reviewing your team payment"
+                : payment?.merchandise
+                  ? "We’re reviewing your order"
+                  : "We’re reviewing your booking"
               : status === "failed"
                 ? "Payment wasn’t completed"
                 : status === "refunded"
@@ -79,9 +83,19 @@ function Paid() {
         {status === "pending_fee"
           ? "Your membership payment was received. The separate first-month fee shown in your order is still due. No booking is confirmed until both payments succeed."
           : status === "paid"
-            ? payment?.merchandise ? `${formatMoney(amount)} received. Your merchandise order and shipping updates are in My shop orders.` : payment?.eventRegistration ? `${formatMoney(amount)} received. Your player is registered for the event. View sessions and registration details on the Events page.` : `${formatMoney(amount)} received. Your saved booking and receipt are in your account. An assessment stays incomplete until your coach completes it.`
+            ? payment?.enrollment
+              ? `${formatMoney(amount)} received toward your player’s accepted Prospects fees. Continue enrollment to review your remaining balance and separately set up monthly autopay.`
+              : payment?.merchandise
+                ? `${formatMoney(amount)} received. Your merchandise order and shipping updates are in My shop orders.`
+                : payment?.eventRegistration
+                  ? `${formatMoney(amount)} received. Your player is registered for the event. View sessions and registration details on the Events page.`
+                  : `${formatMoney(amount)} received. Your saved booking and receipt are in your account. An assessment stays incomplete until your coach completes it.`
             : status === "payment_review"
-              ? payment?.merchandise ? "Your payment needs owner review before fulfillment. Do not pay again. Open My shop orders for its current status." : "Payment was received, but the selected time could not be booked. A refund is being processed. This booking is not confirmed."
+              ? payment?.enrollment
+                ? "Your team payment is awaiting reconciliation. Do not pay again. Prospects will confirm the result; no refund or duplicate charge is implied."
+                : payment?.merchandise
+                  ? "Your payment needs owner review before fulfillment. Do not pay again. Open My shop orders for its current status."
+                  : "Payment was received, but the selected time could not be booked. A refund is being processed. This booking is not confirmed."
               : "This page waits for verified payment confirmation. Returning here does not mark an order paid."}
       </p>
       {payment?.feeDue && payment.square && user ? (
@@ -113,12 +127,46 @@ function Paid() {
       ) : null}
       {status === "paid" && payment?.receipt_url ? (
         <section className="my-5 rounded-xl border p-4" aria-label="Payment receipt">
-          <a className="inline-flex min-h-11 items-center underline" href={payment.receipt_url} target="_blank" rel="noopener noreferrer">View your Square receipt</a>
-          {payment.bookingConfirmed ? <p className="mt-3">Questions about your paid booking? <a className="inline-flex min-h-11 items-center underline" href={`tel:${CLUB.phoneTel}`}>Call {CLUB.phoneDisplay}</a>.</p> : null}
+          <a
+            className="inline-flex min-h-11 items-center underline"
+            href={payment.receipt_url}
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            View your Square receipt
+          </a>
+          {payment.bookingConfirmed ? (
+            <p className="mt-3">
+              Questions about your paid booking?{" "}
+              <a
+                className="inline-flex min-h-11 items-center underline"
+                href={`tel:${CLUB.phoneTel}`}
+              >
+                Call {CLUB.phoneDisplay}
+              </a>
+              .
+            </p>
+          ) : null}
         </section>
       ) : null}
-      {payment?.merchandise && <Link className="my-4 inline-flex min-h-11 items-center underline" to="/merchandise">Open My shop orders</Link>}
-      {payment?.eventRegistration && <a className="my-4 inline-flex min-h-11 items-center underline" href="/events">View event registrations</a>}
+      {payment?.merchandise && (
+        <Link className="my-4 inline-flex min-h-11 items-center underline" to="/merchandise">
+          Open My shop orders
+        </Link>
+      )}
+      {payment?.eventRegistration && (
+        <a className="my-4 inline-flex min-h-11 items-center underline" href="/events">
+          View event registrations
+        </a>
+      )}
+      {payment?.enrollment && (
+        <a
+          className="my-4 inline-flex min-h-11 items-center rounded bg-navy px-4 py-2 text-white"
+          href={`/enrollment?${new URLSearchParams(payment.enrollment)}#enrollment-payments`}
+        >
+          Continue enrollment and monthly autopay setup
+        </a>
+      )}
       <div className="flex flex-wrap gap-3">
         <Button asChild>
           <Link to="/family">Open billing history</Link>
@@ -129,10 +177,12 @@ function Paid() {
           </Link>
         </Button>
       </div>
-      {!payment?.merchandise && <p className="mt-5">
-        Payment is required before any booking is confirmed. Your completed assessment remains a
-        separate coach-recorded requirement.
-      </p>}
+      {!payment?.merchandise && !payment?.enrollment && (
+        <p className="mt-5">
+          Payment is required before any booking is confirmed. Your completed assessment remains a
+          separate coach-recorded requirement.
+        </p>
+      )}
     </main>
   );
 }

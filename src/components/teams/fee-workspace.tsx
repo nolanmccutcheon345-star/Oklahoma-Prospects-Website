@@ -1,3 +1,4 @@
+import { FeeNotifications } from "./fee-notifications";
 import { FeeExplanationEditor, FeeExplanationView, FeeAgreementDownload } from "./fee-explanation";
 import { IndependentWorkspace } from "./independent-workspace";
 import { TeamOperatingGuide } from "./operating-guide";
@@ -105,7 +106,11 @@ function Numbers({ rows }: { rows: [string, number][] }) {
     </dl>
   );
 }
-export function TeamFeeWorkspace({ teamId }: { teamId?: string }) {
+export function TeamFeeWorkspace({ teamId, playerId, includeAllIndependentTeams = false }: {
+  teamId?: string;
+  playerId?: string;
+  includeAllIndependentTeams?: boolean;
+}) {
   const [data, setData] = useState<Workspace>(),
     [error, setError] = useState(""),
     [selected, setSelected] = useState(teamId || ""),
@@ -143,6 +148,7 @@ export function TeamFeeWorkspace({ teamId }: { teamId?: string }) {
       </header>
       {error && <p role="alert">{error}</p>}
       {notice && <p role="status">{notice}</p>}
+      {data?.admin && <FeeNotifications />}
       {data?.admin && <BudgetMasterEditor teams={data.teams} />}
       {data?.admin && <CollectionOperations />}
       {data && (
@@ -193,7 +199,7 @@ export function TeamFeeWorkspace({ teamId }: { teamId?: string }) {
       {!data ? (
         <Button onClick={() => void load()}>Load team fee plans</Button>
       ) : !team ? (
-        <p>No assigned teams are available.</p>
+        <p>{includeAllIndependentTeams ? "No Prospects fee plans are available here. Independently assigned team workspaces appear below." : "No assigned teams are available."}</p>
       ) : (
         <>
           {!teamId && (
@@ -215,14 +221,14 @@ export function TeamFeeWorkspace({ teamId }: { teamId?: string }) {
               </select>
             </label>
           )}
-          <IndependentWorkspace teamId={team.id} />
+          {!includeAllIndependentTeams && <IndependentWorkspace teamId={team.id} playerId={playerId} />}
           {!team.independent && <TeamFundingNotice teamId={team.id} />}
           {!team.independent && (
             <TeamPlan
               key={
                 team.id + ":" + team.revision + (team.basisVersion ? ":" + team.basisVersion : "")
               }
-              team={team}
+              team={playerId && team.access !== "admin" ? { ...team, players: team.players.filter(p => p.id === playerId) } : team}
               refresh={load}
               notify={setNotice}
             />
@@ -239,6 +245,7 @@ export function TeamFeeWorkspace({ teamId }: { teamId?: string }) {
           )}
         </>
       )}
+      {includeAllIndependentTeams && <IndependentWorkspace teamId={teamId} playerId={playerId} />}
     </section>
   );
 }

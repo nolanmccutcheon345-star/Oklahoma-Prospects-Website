@@ -1,3 +1,4 @@
+import { ParentEnrollmentGuide } from "./guide";
 import {
   concussionFacts,
   concussionResources,
@@ -15,9 +16,14 @@ export const enrollmentField =
 type Home = Awaited<ReturnType<typeof api.getEnrollmentHome>>;
 type Case = Awaited<ReturnType<typeof api.getEnrollmentCase>>;
 const text = (f: FormData, k: string) => String(f.get(k) || "");
-export function EnrollmentWorkspace() {
+export function EnrollmentWorkspace({
+  initialTeamId,
+  initialPlayerId,
+}: { initialTeamId?: string; initialPlayerId?: string } = {}) {
   const [home, setHome] = useState<Home>(),
-    [selected, setSelected] = useState(""),
+    [selected, setSelected] = useState(
+      initialTeamId && initialPlayerId ? initialTeamId + ":" + initialPlayerId : "",
+    ),
     [data, setData] = useState<Case>(),
     [error, setError] = useState(""),
     [notice, setNotice] = useState(""),
@@ -26,6 +32,13 @@ export function EnrollmentWorkspace() {
   useEffect(() => {
     loadHome().catch((e) => setError(e.message));
   }, []);
+  const caseId = data?.summary.id;
+  useEffect(() => {
+    if (!caseId || !window.location.hash) return;
+    const element = document.getElementById(window.location.hash.slice(1));
+    element?.scrollIntoView({ block: "start" });
+    element?.focus({ preventScroll: true });
+  }, [caseId]);
   const candidate = home?.candidates.find((p) => p.teamId + ":" + p.playerId === selected);
   const candidateTeamId = candidate?.teamId,
     candidatePlayerId = candidate?.playerId;
@@ -63,6 +76,7 @@ export function EnrollmentWorkspace() {
       await loadHome();
       await refresh();
       setNotice("Saved.");
+      window.dispatchEvent(new window.Event("enrollment-progress-updated"));
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not save.");
     } finally {
@@ -71,6 +85,13 @@ export function EnrollmentWorkspace() {
   }
   return (
     <div className="grid gap-5">
+      {home &&
+        !home.restricted &&
+        (home.owner ||
+          !home.teams.length ||
+          home.teams.some((t) => t.guardianPlayerIds.length > 0)) && (
+          <ParentEnrollmentGuide teamId={candidateTeamId} playerId={candidatePlayerId} />
+        )}
       {error && (
         <p role="alert" className="rounded border border-maroon p-3">
           {error}
@@ -115,13 +136,15 @@ export function EnrollmentWorkspace() {
             </p>
           )}
           {data && (
-            <CaseWorkspace
-              key={"case:" + data.summary.id}
-              data={data}
-              busy={busy}
-              run={run}
-              refresh={refresh}
-            />
+            <div id="enrollment-documents" tabIndex={-1} className="scroll-mt-6">
+              <CaseWorkspace
+                key={"case:" + data.summary.id}
+                data={data}
+                busy={busy}
+                run={run}
+                refresh={refresh}
+              />
+            </div>
           )}
           {data && (
             <SeasonProgress
@@ -383,8 +406,14 @@ function CaseWorkspace({
         </a>
       </section>
       {data.canViewFinancial && (
-        <section className="rounded-xl border p-4">
-          <h3 className="text-xl">3. Your published fee and payment</h3>
+        <section
+          id="enrollment-payments"
+          tabIndex={-1}
+          className="scroll-mt-6 rounded-xl border p-4"
+        >
+          <h3 className="text-xl">
+            Payments to Prospects — agreement, initial deposit and monthly installments
+          </h3>
           <p className="my-3">
             Review your actual season total and due dates here. The signed financial offer controls
             these amounts.
@@ -396,7 +425,7 @@ function CaseWorkspace({
             </a>
             .
           </p>
-          <TeamFeeWorkspace teamId={s.teamId} />
+          <TeamFeeWorkspace teamId={s.teamId} playerId={s.playerId} />
           <FinancialReadiness ids={ids} owner={data.owner} busy={busy} run={run} />
         </section>
       )}

@@ -1045,9 +1045,9 @@ export function AdminAccountsDesk({
         <div>
           <h3 className="text-2xl">Users & Permissions</h3>
           <p className="mt-1 text-sm text-muted">
-            Save the invitation, then use Send invitation email when the offer and access are ready.
-            Recipients choose their own password and verify their email. Saving alone sends no
-            email.
+            Save the invitation. Eligible parents with published player fees receive queued fee instructions automatically; check delivery in Team Fees. Use Send invitation email for the general account invitation.
+            Recipients choose their own password and verify their email. General account invitations
+            require the separate send action; fee-email delivery is tracked in Team Fees.
           </p>
         </div>
         <Button

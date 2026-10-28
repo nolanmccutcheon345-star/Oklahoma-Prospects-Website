@@ -1076,7 +1076,7 @@ function PlayerProspects({
           teamId={s.teamId}
           playerId={p.id}
           balance={p.outstanding}
-          next={p.overdue || p.rows.find((r) => r.outstanding > 0)?.outstanding || 0}
+          next={p.rows.find((r) => r.outstanding > 0)?.outstanding || 0}
           label="Pay Prospects securely"
         />
       )}
@@ -1983,7 +1983,7 @@ function SpaceView({
   );
 }
 
-export function IndependentWorkspace({ teamId }: { teamId?: string }) {
+export function IndependentWorkspace({ teamId, playerId }: { teamId?: string; playerId?: string }) {
   const [data, setData] = useState<Workspace>(),
     [error, setError] = useState(""),
     [notice, setNotice] = useState(""),
@@ -2039,7 +2039,7 @@ export function IndependentWorkspace({ teamId }: { teamId?: string }) {
         <Configure key={t.id} team={t} run={run} busy={busy} />
       ))}
       {data?.spaces.map((s) => (
-        <SpaceView key={s.id} space={s} spaces={data.spaces} run={run} busy={busy} />
+        <SpaceView key={s.id} space={playerId ? { ...s, prospects: s.prospects.filter(p => p.id === playerId) } : s} spaces={data.spaces} run={run} busy={busy} />
       ))}
       {data && !data.spaces.length && !data.availableTeams.length && (
         <p className="text-sm">

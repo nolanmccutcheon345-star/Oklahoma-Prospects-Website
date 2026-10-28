@@ -50,7 +50,7 @@ export function InvitationDelivery({ id }: { id: string }) {
         </Button>
       </div>
       <p className="text-sm">
-        Saving an invitation does not send it. Repeated sends for the same invitation retry the
+        This control sends the general account invitation. Eligible parent invitations with published fees also queue separate fee instructions automatically. Repeated sends for the same invitation retry the
         original message without intentionally sending another copy.
       </p>
       {notice && (

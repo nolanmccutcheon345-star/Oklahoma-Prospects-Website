@@ -11,7 +11,7 @@ import { recordEnrollment } from "./handbooks.server";
 import { z } from "zod";
 import { offlinePaymentEvidence } from "../teams/offline-payments.server";
 
-async function financialState(
+export async function financialState(
   tx: Sql,
   context: FinancialContext,
   teamId: string,

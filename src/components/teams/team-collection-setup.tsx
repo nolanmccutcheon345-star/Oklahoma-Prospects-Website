@@ -33,6 +33,7 @@ export function TeamCollectionSetup({ teamId, playerId }: { teamId: string; play
     try {
       await work();
       await load();
+      window.dispatchEvent(new window.Event("enrollment-progress-updated"));
     } catch (e) {
       setError(e instanceof Error ? e.message : "Collection settings unavailable.");
     } finally {
@@ -66,10 +67,17 @@ export function TeamCollectionSetup({ teamId, playerId }: { teamId: string; play
           <ul>
             {data.terms.rows.map((r, i) => (
               <li key={i}>
-                Installment {i + 1}: {money(r.amountCents)} due {r.date}, 9 a.m. Central
+                {i === 0 ? "Initial deposit" : `Installment ${i + 1}`}: {money(r.amountCents)} due{" "}
+                {r.date}, 9 a.m. Central. Remaining:{" "}
+                {money(data.remaining?.[i]?.remainingCents ?? r.amountCents)}
               </li>
             ))}
           </ul>
+          <p>
+            Final scheduled billing date: {data.terms.rows.at(-1)?.date}. Verified payments and
+            permitted credits reduce collection amounts; a satisfied initial deposit is not
+            collected again.
+          </p>
           {data.canManage && (
             <>
               <p>
@@ -120,6 +128,7 @@ export function TeamCollectionSetup({ teamId, playerId }: { teamId: string; play
                     setStorageConsent(false);
                     setConsent(false);
                     await load();
+                    window.dispatchEvent(new window.Event("enrollment-progress-updated"));
                     setNotice(
                       "Card saved with Square. Review and authorize the installment schedule.",
                     );

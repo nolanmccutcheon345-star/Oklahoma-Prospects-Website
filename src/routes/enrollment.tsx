@@ -11,9 +11,14 @@ export const Route = createFileRoute("/enrollment")({
       "Your team packet, enrollment steps and first month.",
       true,
     ),
+  validateSearch: (s: Record<string, unknown>): { teamId?: string; playerId?: string } => ({
+    teamId: typeof s.teamId === "string" ? s.teamId.slice(0, 150) : undefined,
+    playerId: typeof s.playerId === "string" ? s.playerId.slice(0, 150) : undefined,
+  }),
   component: Page,
 });
 function Page() {
+  const { teamId, playerId } = Route.useSearch();
   const { user, isPending } = useCurrentUserState();
   if (isPending)
     return (
@@ -25,7 +30,7 @@ function Page() {
   return (
     <main id="main" className="mx-auto max-w-5xl px-5 py-10">
       <h1 className="mb-5 text-4xl">My Season & Enrollment</h1>
-      <EnrollmentWorkspace />
+      <EnrollmentWorkspace initialTeamId={teamId} initialPlayerId={playerId} />
     </main>
   );
 }

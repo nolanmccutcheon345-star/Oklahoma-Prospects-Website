@@ -141,7 +141,7 @@ function paid(p: Player) {
 function credit(p: Player) {
   return Math.round(sum((p.credits || []).map((x) => x.amount)) * 100);
 }
-function playerView(t: Team, p: Player, plan: FeePlan, asOf = today()) {
+export function playerView(t: Team, p: Player, plan: FeePlan, asOf = today()) {
   const offer =
     p.roleType === "po" && !p.feeLock && !offersPO(plan.budget, t.sport)
       ? undefined
@@ -579,6 +579,9 @@ export async function mutateFeePlan(sql: Sql, userId: string, raw: z.infer<typeo
       throw Error("Financial basis changed. Refresh before saving.");
     if (p.revision !== input.revision) throw Error("This plan changed. Reload before saving.");
     const admin = me.role === "admin";
+    const noticeFilter = { teamId: t.id, ...("playerId" in input ? { playerId: input.playerId } : {}) };
+    const unchangedNotices = me.owner && ["publish", "publishIndependent"].includes(input.action)
+      ? await (await import("./fee-notifications.server")).feeReadyCandidateIds(tx, userId, noticeFilter) : [];
     if (
       isIndependent(p.budget) ||
       (input.action === "save" && isIndependent(input.budget)) ||
@@ -586,6 +589,8 @@ export async function mutateFeePlan(sql: Sql, userId: string, raw: z.infer<typeo
       input.action.startsWith("independent")
     ) {
       await mutateIndependentProspects(tx, context, t, p, input);
+      if (["publish", "publishIndependent", "independentOffer"].includes(input.action))
+        await (await import("./fee-notifications.server")).queueFeeReadyInTransaction(tx, userId, noticeFilter, unchangedNotices);
       return;
     }
     if (!admin && input.action !== "propose" && input.action !== "accept")
@@ -1150,6 +1155,7 @@ export async function mutateFeePlan(sql: Sql, userId: string, raw: z.infer<typeo
       plan: JSON.parse(JSON.stringify(p)) as FeePlan,
       uniforms: club.uniforms,
     });
+    if (input.action === "publish") await (await import("./fee-notifications.server")).queueFeeReadyInTransaction(tx, userId, noticeFilter, unchangedNotices);
   });
   return { ok: true };
 }

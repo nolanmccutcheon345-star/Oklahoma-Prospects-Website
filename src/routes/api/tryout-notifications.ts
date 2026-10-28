@@ -33,6 +33,7 @@ export const Route = createFileRoute("/api/tryout-notifications")({
           const invitations = await (
             await import("@/lib/invitation-delivery.server")
           ).deliverInvitationEmails(sql, env);
+          const feeNotices = await (await import("@/lib/teams/fee-notifications.server")).deliverFeeReadyEmails(sql, env);
           const teamNotices = await (
             await import("@/lib/coordinator/communications.server")
           ).deliverTeamNotices(sql);
@@ -44,10 +45,10 @@ export const Route = createFileRoute("/api/tryout-notifications")({
             await import("@/lib/coordinator/program-notices.server")
           ).deliverProgramEventNotices(sql, env);
           return Response.json(
-            { group: summary, center, teamNotices, program, invitations },
+            { group: summary, center, teamNotices, program, invitations, feeNotices },
             {
               status:
-                summary.failed || center.failed || program.failed || invitations.failed ? 503 : 200,
+                summary.failed || center.failed || program.failed || invitations.failed || feeNotices.failed ? 503 : 200,
             },
           );
         } catch {

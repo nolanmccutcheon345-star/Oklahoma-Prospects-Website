@@ -11,7 +11,8 @@ import {
   lockFinancialExecution,
 } from "../finance/context.server";
 import { resolveFinancialAgreement } from "../finance/basis.server";
-import { collectionConsent, type CollectionTerms } from "./collection-policy";
+import { collectionConsent, installmentRemaining, type CollectionTerms } from "./collection-policy";
+import { financialState } from "../enrollment/financial.server";
 export type CollectionIds = { teamId: string; playerId: string };
 export type CollectionAuthorization = {
   id: string;
@@ -95,6 +96,16 @@ export async function collectionStatus(
     const a = await collectionAgreement(tx, actor, ids);
     const [row] =
       await tx<CollectionAuthorization>`select * from team_collection_authorizations where agreement_key=${a.key} and environment=${environment}`;
+    const verified = await financialState(tx, a.context, ids.teamId, ids.playerId);
+    let receivedCents =
+      verified.verifiedCents + verified.offlineVerifiedCents + verified.creditCents;
+    if (environment === "sandbox") {
+      const [sandbox] = await tx<{
+        cents: number;
+      }>`select coalesce(sum(greatest(0,p.amount_cents-p.refunded_cents)),0)::int as cents from square_payments p join commerce_orders o on o.id=p.order_id and o.square_payment_id=p.id where p.environment='sandbox' and o.payment_environment='sandbox' and o.status='paid' and p.status='COMPLETED' and o.kind='team-fee' and o.snapshot->'teamFee'->>'lockedAt'=${a.player.feeLock!.lockedAt} and ((o.snapshot->'teamFee'->>'teamId'=${ids.teamId} and o.snapshot->'teamFee'->>'playerId'=${ids.playerId}) or (${a.agreementId}::text is not null and o.snapshot->'teamFee'->>'financialAgreementId'=${a.agreementId}))`;
+      receivedCents = sandbox.cents + verified.creditCents;
+    }
+    const remaining = installmentRemaining(a.terms, receivedCents, a.record.lateFeeInstallments);
     if (
       (row && row.user_id !== actor) ||
       (a.record.independent && a.record.independent.payerUserId !== actor)
@@ -102,6 +113,7 @@ export async function collectionStatus(
       return {
         status: `managed by designated payer (${row?.status || "not authorized"})`,
         terms: a.terms,
+        remaining,
         primary: null,
         backup: null,
         canManage: false,
@@ -109,6 +121,7 @@ export async function collectionStatus(
     return {
       status: row?.status || "not set up",
       terms: a.terms,
+      remaining,
       primary: row?.primary_display || null,
       backup: row?.backup_display || null,
       canManage: true,
