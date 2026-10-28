@@ -1,3 +1,4 @@
+import { feeEmailReadiness } from "./launch-readiness";
 import { createHash, randomUUID } from "node:crypto";
 import type { Sql } from "../db";
 import {
@@ -319,16 +320,7 @@ export async function feeNotificationWorkspace(sql: Sql, actor: string, env: Env
     const all = await candidates(tx, actor);
     const known = await tx<{ id: string }>`select id from fee_ready_notifications`;
     return {
-      enabled:
-        env.SQUARE_DEPLOY_CONTEXT === "production" &&
-        env.CONTEXT === "production" &&
-        env.TRYOUT_NOTIFICATIONS_ENABLED === "true" &&
-        Boolean(
-          env.TRYOUT_NOTIFICATIONS_SECRET &&
-          env.RESEND_API_KEY &&
-          (env.RESEND_FROM_EMAIL || env.EMAIL_FROM),
-        ) &&
-        env.INVITATION_EMAIL_PAUSED !== "true",
+      ...feeEmailReadiness(env),
       rows,
       preview: all
         .filter((c) => !known.some((k) => k.id === c.id))

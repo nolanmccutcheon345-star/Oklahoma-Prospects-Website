@@ -16,7 +16,7 @@ export const Route = createFileRoute("/api/tryout-notifications")({
           return new Response("Forbidden", { status: 403 });
         if (
           process.env.SQUARE_DEPLOY_CONTEXT !== "production" ||
-          process.env.CONTEXT !== "production" ||
+          (process.env.CONTEXT && process.env.CONTEXT !== "production") ||
           new URL(request.url).origin !== "https://prospectssports.club"
         )
           return new Response("Production endpoint only", { status: 403 });

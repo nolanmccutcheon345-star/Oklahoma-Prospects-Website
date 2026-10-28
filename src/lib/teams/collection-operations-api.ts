@@ -1,3 +1,4 @@
+import { collectionLaunchReadiness } from "./launch-readiness";
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { authMiddleware } from "../auth/middleware";
@@ -16,19 +17,17 @@ export const getCollectionOperations = createServerFn({ method: "GET" })
         status: string;
         runs: { index: number; amount: number; status: string }[];
       }>`select a.id,a.team_id,a.player_id,a.environment,a.status,coalesce((select jsonb_agg(jsonb_build_object('index',r.installment_index,'amount',r.amount_cents,'status',r.status) order by r.installment_index) from team_collection_runs r where r.authorization_id=a.id),'[]'::jsonb) as runs from team_collection_authorizations a order by a.created_at desc limit 500`;
+      const readiness = collectionLaunchReadiness({
+        ...process.env,
+        SQUARE_DEPLOY_CONTEXT: process.env.SQUARE_DEPLOY_CONTEXT,
+      });
       return {
+        blockers: readiness.blockers,
         enabled: teamCollectionsEnabled(
           { ...process.env, SQUARE_DEPLOY_CONTEXT: process.env.SQUARE_DEPLOY_CONTEXT },
           "production",
         ),
-        sandboxConfigured: [
-          "APPLICATION_ID",
-          "LOCATION_ID",
-          "MERCHANT_ID",
-          "ACCESS_TOKEN",
-          "WEBHOOK_SIGNATURE_KEY",
-          "WEBHOOK_URL",
-        ].every((k) => Boolean(process.env["SQUARE_SANDBOX_" + k])),
+        sandboxConfigured: readiness.sandboxSettingsLocal,
         sandboxVerified: process.env.TEAM_AUTOPAY_SANDBOX_VERIFIED === "true",
         rows: rows.map((r) => ({
           ...r,
