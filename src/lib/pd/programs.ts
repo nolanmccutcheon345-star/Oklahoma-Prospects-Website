@@ -1,3 +1,4 @@
+import {athleteAge} from '@/lib/pd/engines';
 import type { AthleteSlice } from "./context";
 import {
   EXERCISES,
@@ -7,7 +8,7 @@ import {
 } from "./content/exercises";
 import { THROWING_PLANS, type ThrowGoal, type ThrowTemplate } from "./content/throwing";
 import { WARMUPS, warmupBandForAge, type WarmupPlan } from "./content/warmups";
-import { ageOnClubDay, clubDayIso } from "./engines";
+import { clubDayIso } from "./engines";
 import { primaryDiscipline } from "./content";
 import type { StrengthSet } from "./types";
 
@@ -88,7 +89,7 @@ export function healthReturning(slice: AthleteSlice): boolean {
 export function phaseFromSlice(slice: AthleteSlice): SeasonPhase {
   const month = monthOfClub();
   const recentOuting = slice.outings.some((row) => row.date <= clubDayIso() && row.date >= new Date(Date.parse(clubDayIso() + "T12:00:00Z") - 28 * 864e5).toISOString().slice(0, 10));
-  const college = slice.athlete.opLevel === 7 || ageOnClubDay(slice.athlete.birthDate) >= 19;
+  const college = slice.athlete.opLevel === 7 || athleteAge(slice.athlete) >= 19;
   if (healthReturning(slice)) return "Postseason Recovery";
   if (month >= 11 || month === 12) return "Postseason Recovery";
   if (month === 1) return "Accumulation";
@@ -238,7 +239,7 @@ export function generateStrengthProgram(
   slice: AthleteSlice,
   overrides?: { track?: StrengthTrack; phase?: SeasonPhase; emphasis?: Emphasis },
 ): StrengthProgram {
-  const age = ageOnClubDay(slice.athlete.birthDate);
+  const age = athleteAge(slice.athlete);
   const college = slice.athlete.opLevel === 7 || age >= 19;
   const conservative = !slice.athlete.assessmentComplete;
   const returning = healthReturning(slice);
@@ -384,7 +385,7 @@ export function e1rmTrend(sets: StrengthSet[], exerciseId: string) {
 }
 
 export function warmupForSlice(slice: AthleteSlice): WarmupPlan {
-  const age = ageOnClubDay(slice.athlete.birthDate);
+  const age = athleteAge(slice.athlete);
   const band = warmupBandForAge(age);
   const disc = primaryDiscipline(slice.athlete.position, slice.athlete.sport);
   const sport = slice.athlete.sport;
@@ -403,7 +404,7 @@ export function warmupForSlice(slice: AthleteSlice): WarmupPlan {
 
 export function throwingForSlice(slice: AthleteSlice): ThrowTemplate[] {
   const disc = primaryDiscipline(slice.athlete.position, slice.athlete.sport);
-  const age = ageOnClubDay(slice.athlete.birthDate);
+  const age = athleteAge(slice.athlete);
   const returning = healthReturning(slice);
   return THROWING_PLANS.filter((row) => {
     if (row.discipline !== disc && !(disc === "Fielding" && row.discipline === "Hitting")) return false;
@@ -417,7 +418,7 @@ export function throwingForSlice(slice: AthleteSlice): ThrowTemplate[] {
 
 export function defaultThrowGoal(slice: AthleteSlice): ThrowGoal {
   if (healthReturning(slice)) return "Return to Throw";
-  const age = ageOnClubDay(slice.athlete.birthDate);
+  const age = athleteAge(slice.athlete);
   if (age <= 12) return "Youth";
   const phase = phaseFromSlice(slice);
   if (phase === "In-Season") return "In-Season";

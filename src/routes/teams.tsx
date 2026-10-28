@@ -1,3 +1,4 @@
+import { ACTIVE_SEASON } from "@/lib/active-season";
 import { PublicTeamRoster } from "@/components/public-team-roster";
 import {pageHead} from "@/lib/seo";
 import { createFileRoute, Link, Outlet, useRouterState } from "@tanstack/react-router";
@@ -8,17 +9,19 @@ import { TryoutSchedule } from "@/components/tryout-schedule";
 import { Button } from "@/components/ui/button";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
 import { getProfile, type ClubRole } from "@/lib/club-data";
-import { AGE_GROUPS, SOFTBALL_AGES } from "@/lib/club";
+import { AGE_GROUPS, CLUB } from "@/lib/club";
 import { cn } from "@/lib/utils";
+import { getPublicTryoutEvents } from "@/lib/tryout-events-api";
 
 export const Route = createFileRoute("/teams")({
   head: () =>
     pageHead(
       "/teams",
-      "Teams & Spring 2027 Tryouts",
-      "Oklahoma Prospects baseball and softball teams in Broken Arrow. Softball 10U, 12U, 14U and 16U tryout registration is open; dates to be announced.",
+      "Teams & Tryouts",
+      "Baseball and softball teams in Broken Arrow. Free individual tryout requests at every age; group event dates appear when published.",
       false,
     ),
+  loader: () => getPublicTryoutEvents(),
   component: TeamsPage,
 });
 
@@ -88,36 +91,30 @@ function TeamsOverview() {
           </div>
         </section>
       ) : null}
-      <nav aria-label="Team sports" className="mx-auto grid max-w-3xl grid-cols-2 gap-3 px-5 py-4">
-        <Button asChild variant="outlineDark">
-          <a href="#baseball">Baseball</a>
-        </Button>
-        <Button asChild variant="outlineDark">
-          <a href="#softball">Softball</a>
-        </Button>
-      </nav>
       <TeamsPublic />
-    <PublicTeamRoster/>
       </main>
   );
 }
 
 function TeamsPublic() {
+  const events = Route.useLoaderData();
+  const hasBaseballDates = events.some((event) => event.sport === "Baseball");
+  const hasSoftballDates = events.some((event) => event.sport === "Softball");
   const [age, setAge] = useState<(typeof AGE_GROUPS)[number] | null>(null);
 
   return (
     <>
       <PageHero
-        eyebrow="Oklahoma Prospects teams"
+        eyebrow={`${ACTIVE_SEASON} · ${CLUB.name} teams`}
         title="Find your team."
         accent="Bring your game."
-        copy="Competitive baseball and softball, purposeful development, and a place to belong. Free Spring 2027 evaluations in Broken Arrow."
+        copy="Competitive baseball and softball, purposeful development, and a place to belong. Request a free individual tryout at any age group."
         image="/brand/team.jpg"
         actions={
           <>
             <Button asChild>
               <Link to="/tryouts" hash="register">
-                Register for tryouts
+                Request a tryout
               </Link>
             </Button>
             <Button asChild variant="outline">
@@ -127,52 +124,51 @@ function TeamsPublic() {
         }
       />
 
+      <section id="explore-teams" className="mx-auto max-w-5xl px-5 py-10"><h2 className="text-3xl">Explore our teams</h2><PublicTeamRoster /></section>
+      <section className="mx-auto max-w-5xl px-5 pb-10"><h2 className="text-2xl">Team payments</h2><p className="mt-2 text-muted">Only pay after the office confirms the team, fee, and amount. Include the player’s name and age group. Debit or credit only.</p><div className="mt-4 flex flex-wrap gap-4"><Button asChild><Link to="/family">Open your family team account</Link></Button><Button asChild variant="outline"><Link to="/contact">Ask the office for a team invoice</Link></Button></div></section>
       <section id="softball" className="scroll-mt-24 bg-navy py-10 text-fg-inverse">
         <div className="mx-auto max-w-3xl px-5">
           <p className="text-xs font-semibold tracking-[0.16em] text-powder uppercase">
-            Oklahoma Prospects softball
+            Softball
           </p>
-          <h2 className="mt-2 text-4xl">Teams forming: {SOFTBALL_AGES.join(" · ")}</h2>
+          <h2 className="mt-2 text-4xl">Softball tryouts</h2>
           <p className="mt-3 text-fg-soft">
-            Sarah Blankenship, Softball Program Coordinator, is adding four softball age groups.
-            Sign up for tryouts below. Dates and times are to be announced; Prospects will contact
-            registered families with details.
+            Baseball and softball use the same tryout request form.{" "}
+            {hasSoftballDates
+              ? "Published softball group dates are listed below. A request does not reserve a roster spot."
+              : "No softball group date is posted yet. Individual requests stay on the tryouts page."}
           </p>
-          <p className="mt-4 font-semibold">14U B Softball · Head Coach Rusty</p>
-          <p className="mt-2 text-fg-soft">
-            Rusty also offers softball hitting and defense instruction.{" "}
-            <Link to="/softball" className="underline">
-              Meet Coach Rusty and ask about lessons.
-            </Link>
-          </p>
-          <div className="mt-6 grid gap-3 sm:grid-cols-2">
-            {SOFTBALL_AGES.map((group) => (
-              <Button asChild key={group}>
-                <Link to="/tryouts" search={{ sport: "Softball", age: group }} hash="register">
-                  {group} softball tryout signup
-                </Link>
-              </Button>
-            ))}
+          <div className="mt-5 text-ink">
+            <TryoutSchedule events={events} sport="Softball" />
+          </div>
+          <div className="mt-6">
+            <Button asChild>
+              <Link to="/tryouts" search={{ sport: "Softball" }} hash="register">
+                Tryouts
+              </Link>
+            </Button>
           </div>
         </div>
       </section>
 
       <section id="baseball" className="mx-auto max-w-3xl scroll-mt-24 px-5 py-10">
-        <h2 className="text-3xl">Spring 2027 baseball evaluations</h2>
+        <h2 className="text-3xl">Baseball tryouts & evaluations</h2>
         <p className="mt-2 mb-6 text-muted">
-          Free. No payment to register. Check in 15 minutes early.
+          {hasBaseballDates
+            ? "Free. No payment to request a tryout. Check in 15 minutes before your confirmed group event."
+            : "Free individual evaluation requests. A coach will confirm any private appointment."}
         </p>
-        <TryoutSchedule />
+        <TryoutSchedule events={events} sport="Baseball" />
         <p className="mt-4">
-          Other baseball ages:{" "}
-          <Link to="/tryouts" hash="team-inquiry" className="underline">
-            send a team inquiry
+          Do not see a group event for your age?{" "}
+          <Link to="/tryouts" search={{ sport: "Baseball" }} hash="register" className="underline">
+            Request an individual tryout
           </Link>
           .
         </p>
         <Button asChild className="mt-6 w-full">
           <Link to="/tryouts" search={{ sport: "Baseball" }} hash="register">
-            Register for baseball
+            Request a baseball tryout
           </Link>
         </Button>
       </section>

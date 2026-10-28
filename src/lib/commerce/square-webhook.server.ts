@@ -10,6 +10,7 @@ import { grantCredits, carryOneSession } from "./store.server";
 import { addCalendarMonth } from "./catalog";
 import { chicagoInstant } from "../scheduling";
 import { applySquareRefundBalance } from "./square-refunds.server";
+import { lockFinancialExecution } from "../finance/execution.server";
 
 type SquareSyncDependencies = {
   client: SquareClient;
@@ -44,9 +45,12 @@ export async function syncSquareSubscription(id: string, dependencies?: SquareSy
     s.actions?.find((a) => a.type === "RESUME");
   // Compare inside the update: another webhook may have saved a newer version
   // while this Square request was in flight. Same-version action refreshes are valid.
-  await sql`update club_subscriptions set status=${s.status.toLowerCase()},provider_version=${s.version.toString()},cancel_at_period_end=${Boolean(s.canceledDate || s.status === "CANCELED" || action?.type === "CANCEL")},scheduled_action=${action?.type || null},action_effective_date=${action?.effectiveDate || s.canceledDate || null},updated_at=now()
-    where id=${id} and payment_provider='square'
-      and (provider_version is null or provider_version<=${s.version.toString()}::bigint)`;
+  await sql.transaction(async (tx) => {
+    await lockFinancialExecution(tx);
+    await tx`update club_subscriptions set status=${s.status!.toLowerCase()},provider_version=${s.version!.toString()},cancel_at_period_end=${Boolean(s.canceledDate || s.status === "CANCELED" || action?.type === "CANCEL")},scheduled_action=${action?.type || null},action_effective_date=${action?.effectiveDate || s.canceledDate || null},updated_at=now()
+      where id=${id} and payment_provider='square'
+        and (provider_version is null or provider_version<=${s.version!.toString()}::bigint)`;
+  });
 }
 export async function syncSquareInvoice(
   id: string,
@@ -57,6 +61,7 @@ export async function syncSquareInvoice(
     c = dependencies?.config || squareConfig(),
     sql = dependencies?.sql || (await getSql());
   const { invoice } = await client.invoices.get({ invoiceId: id });
+  if (invoice && invoice.id !== id) throw new Error("Invoice identity mismatch.");
   if (!invoice?.subscriptionId || invoice.locationId !== c.locationId) return;
   const [local] = await sql<{
     order_id: string;
@@ -70,6 +75,7 @@ export async function syncSquareInvoice(
   const [o] = await sql<SquareOrder>`select * from commerce_orders where id=${local.order_id}`;
   if (o.payment_environment !== c.environment) throw new Error("Invoice environment mismatch.");
   const paid = invoice.status === "PAID";
+  const partial = invoice.status === "PARTIALLY_PAID";
   const due = invoice.paymentRequests?.[0]?.dueDate;
   if (!due) throw new Error("Invoice billing date is missing.");
   const start = chicagoInstant(due, "00:00"),
@@ -80,16 +86,19 @@ export async function syncSquareInvoice(
       "00:00",
     );
   let payments: Square.Payment[] = [];
-  if (paid) {
+  if (paid || partial) {
     if (!invoice.orderId) throw new Error("Invoice order is missing.");
     const { order } = await client.orders.get({ orderId: invoice.orderId });
+    if (order?.id !== invoice.orderId) throw new Error("Invoice order identity mismatch.");
     const ids = (order?.tenders || [])
       .map((t) => t.paymentId)
       .filter((v): v is string => Boolean(v));
+    if (new Set(ids).size !== ids.length) throw new Error("Duplicate invoice payment identity.");
     payments = await Promise.all(
       ids.map(async (paymentId) => {
         const r = await client.payments.get({ paymentId });
-        if (!r.payment) throw new Error("Invoice payment missing.");
+        if (!r.payment || r.payment.id !== paymentId)
+          throw new Error("Invoice payment identity mismatch.");
         return r.payment;
       }),
     );
@@ -106,11 +115,16 @@ export async function syncSquareInvoice(
           Number(p.refundedMoney?.amount || 0) > 0 ||
           p.customerId !== local.customer_id,
       ) ||
-      payments.reduce((sum, p) => sum + Number(p.amountMoney!.amount), 0) !== local.amount_cents
+      !Number.isSafeInteger(payments.reduce((sum, p) => sum + Number(p.amountMoney!.amount), 0)) ||
+      (paid
+        ? payments.reduce((sum, p) => sum + Number(p.amountMoney!.amount), 0) !== local.amount_cents
+        : payments.reduce((sum, p) => sum + Number(p.amountMoney!.amount), 0) <= 0 ||
+          payments.reduce((sum, p) => sum + Number(p.amountMoney!.amount), 0) >= local.amount_cents)
     )
       throw new Error("Invoice payment amount or identity mismatch.");
   }
   await sql.transaction(async (tx) => {
+    await lockFinancialExecution(tx);
     await tx`select id from club_subscriptions where id=${invoice.subscriptionId!} for update`;
     const [previous] = await tx<{
       status: string;
@@ -120,15 +134,17 @@ export async function syncSquareInvoice(
     if (previous?.status === "paid") return;
     await tx`insert into billing_invoices(id,user_id,subscription_id,amount_cents,status,invoice_url,period_start,period_end)
       values(${id},${o.user_id},${invoice.subscriptionId!},${local.amount_cents},${invoice.status?.toLowerCase() || "pending"},${invoice.publicUrl || null},${start.toISOString()},${end.toISOString()}) on conflict(id) do update set status=excluded.status,invoice_url=excluded.invoice_url`;
+    // Verified partial payments are real receipts. Membership benefits still
+    // require the entire invoice to be paid; duplicate webhooks remain idempotent.
+    for (const p of payments)
+      await tx`insert into square_payments(id,order_id,invoice_id,environment,amount_cents,status,receipt_url,period_start,period_end)
+      values(${p.id!},${o.id},${id},${c.environment},${Number(p.amountMoney!.amount)},'COMPLETED',${p.receiptUrl || null},${start.toISOString()},${end.toISOString()}) on conflict(id) do nothing`;
     if (!paid) {
       if (failedCharge)
         await tx`insert into payment_notifications(id,order_id,kind) values(${"failed:" + id},${o.id},'renewal-failed') on conflict do nothing`;
       return;
     }
     await tx`update payment_notifications set status='resolved' where id=${"failed:" + id} and status='pending'`;
-    for (const p of payments)
-      await tx`insert into square_payments(id,order_id,invoice_id,environment,amount_cents,status,receipt_url,period_start,period_end)
-      values(${p.id!},${o.id},${id},${c.environment},${Number(p.amountMoney!.amount)},'COMPLETED',${p.receiptUrl || null},${start.toISOString()},${end.toISOString()}) on conflict(id) do nothing`;
     if (["m1", "m2", "m3", "m4", "m5"].includes(o.snapshot.productId))
       await carryOneSession(
         tx,
@@ -174,6 +190,7 @@ export async function syncSquareRefund(id: string, dependencies?: SquareSyncDepe
   )
     throw new Error("Refund verification failed.");
   await sql.transaction(async (tx) => {
+    await lockFinancialExecution(tx);
     if (!(await applySquareRefundBalance(tx, p, c))) {
       const known =
         await tx`select id from commerce_orders where id=${p.referenceId || ""} and payment_provider='square' and payment_environment=${c.environment}`;
@@ -186,7 +203,36 @@ export async function syncSquareRefund(id: string, dependencies?: SquareSyncDepe
         throw new Error("Payment record pending; retry this refund event.");
     }
     await tx`update commerce_refunds set status=${refundStatus},square_refund_id=${id}
-      where square_refund_id=${id} and status<>'completed'`;
+      where square_refund_id=${id} and status<>'completed' and external_status is null`;
+  });
+}
+export async function syncSquareDispute(id: string, dependencies?: SquareSyncDependencies) {
+  const client = dependencies?.client || squareClient(),
+    c = dependencies?.config || squareConfig(),
+    sql = dependencies?.sql || (await getSql());
+  const { dispute: d } = await client.disputes.get({ disputeId: id });
+  if (!d || d.id !== id || !d.disputedPayment?.paymentId || d.locationId !== c.locationId)
+    throw new Error("Dispute identity verification failed.");
+  const version = Number(d.version ?? 0),
+    amount = Number(d.amountMoney?.amount);
+  if (
+    !Number.isSafeInteger(version) ||
+    version < 1 ||
+    !Number.isSafeInteger(amount) ||
+    amount < 0 ||
+    d.amountMoney?.currency !== "USD"
+  )
+    throw new Error("Dispute response is incomplete; reconciliation requires provider review.");
+  await sql.transaction(async (tx) => {
+    await lockFinancialExecution(tx);
+    const [payment] = await tx<{
+      order_id: string;
+    }>`select order_id from square_payments where id=${d.disputedPayment!.paymentId!} and environment=${c.environment}`;
+    if (!payment) return;
+    const saved =
+      await tx`insert into square_disputes(id,payment_id,state,amount_cents,due_at,provider_version) values(${d.id!},${d.disputedPayment!.paymentId!},${d.state || "unknown"},${amount},${d.dueAt || null},${version}) on conflict(id) do update set state=excluded.state,amount_cents=excluded.amount_cents,due_at=excluded.due_at,provider_version=excluded.provider_version,updated_at=now() where square_disputes.provider_version<excluded.provider_version and square_disputes.payment_id=excluded.payment_id returning id`;
+    if (saved.length)
+      await tx`insert into payment_notifications(id,order_id,kind) values(${"dispute:" + d.id + ":" + version},${payment.order_id},'dispute') on conflict do nothing`;
   });
 }
 export async function processSquareEvent(
@@ -217,18 +263,9 @@ export async function processSquareEvent(
     if (card?.id && card.customerId)
       await sql`update commerce_orders set updated_at=now() where square_card_id=${card.id} and square_customer_id=${card.customerId} and payment_environment=${squareConfig().environment}`;
   } else if (event.type.startsWith("refund.")) await syncSquareRefund(event.object_id);
-  else if (event.type.startsWith("dispute.")) {
-    const { dispute: d } = await client.disputes.get({ disputeId: event.object_id });
-    if (d?.id && d.disputedPayment?.paymentId) {
-      const [payment] = await sql<{
-        order_id: string;
-      }>`select order_id from square_payments where id=${d.disputedPayment.paymentId} and environment=${squareConfig().environment}`;
-      if (payment) {
-        await sql`insert into payment_notifications(id,order_id,kind) values(${"dispute:" + d.id},${payment.order_id},'dispute') on conflict do nothing`;
-        await sql`insert into square_disputes(id,payment_id,state,amount_cents,due_at) values(${d.id},${d.disputedPayment.paymentId},${d.state || "unknown"},${Number(d.amountMoney?.amount || 0)},${d.dueAt || null}) on conflict(id) do update set state=excluded.state,due_at=excluded.due_at,updated_at=now()`;
-      }
-    }
-  }
+  else if (event.type.startsWith("dispute."))
+    await syncSquareDispute(event.object_id, { client, config: squareConfig(), sql });
+
   await sql`update square_events set status='processed',processed_at=now() where id=${event.id}`;
 }
 export async function squareWebhook(

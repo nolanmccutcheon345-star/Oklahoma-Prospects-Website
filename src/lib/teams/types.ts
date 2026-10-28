@@ -26,6 +26,8 @@ export type UniformPackage = {
 };
 
 export type StaffMember = {
+  bio?: string;
+  photo?: string;
   id: string;
   name: string;
   role: string;
@@ -66,6 +68,14 @@ export type Player = {
   joinedOn: string;
   withdrawn: boolean;
   agreement: { version: string; signedBy: string; signedAt: string };
+  rosterConsent?: {
+    version: string;
+    text: string;
+    signedBy: string;
+    signerEmail: string;
+    signedAt: string;
+    revokedAt?: string;
+  };
   feeLock: {
     amount: number;
     lockedAt: string;
@@ -76,7 +86,7 @@ export type Player = {
     dep: number;
     deadline: string;
     planType: string;
-    rows: { date: string; amount: number }[];
+    rows: { date: string; amount: number; label?: string }[];
   } | null;
   credits: { label: string; amount: number }[];
   payments: {
@@ -126,6 +136,11 @@ export type EventItem = {
   type: "tournament" | "showcase";
   stayToPlay: boolean;
   verifiedOn: string;
+  /** Office-supplied organizer link. This is not an independent verification. */
+  sourceUrl?: string;
+  sourceCheckedOn?: string;
+  /** Office-recorded approximate driving miles from Broken Arrow. */
+  distanceMiles?: number;
 };
 
 export type Practice = {
@@ -168,11 +183,14 @@ export type Team = {
   age: string;
   level: string;
   seasonLabel: string;
+  seasons?: string[];
   seasonStart: string;
   seasonEnd: string;
   months: number;
   headCoach: string;
   coachEmail: string;
+  headCoachBio?: string;
+  headCoachPhoto?: string;
   staff: StaffMember[];
   uniformPackageId: string;
   uniformDeadline: string;
@@ -224,6 +242,8 @@ export type Notification = {
   title: string;
   body: string;
   audience: "admin" | "coach" | "family" | "all";
+  /** Explicit household recipient required before family-specific notices are shown. */
+  recipientFamilyId?: string;
 };
 
 export type ClubRecord = {

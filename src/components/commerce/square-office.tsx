@@ -5,6 +5,7 @@ import {
   sendOwnerBookingAlerts,
   prepareSquareMonthlyPlans,
   prepareSquareMembershipWebhooks,
+  checkSquareMembershipWebhooks,
   reconcilePayments,
   ownerRefund,
   approveMembershipPause,
@@ -246,6 +247,9 @@ export function SquareOffice() {
               >
                 Connect {data.config.environment} membership events
               </Button>
+              <Button disabled={busy} variant="outlineDark" onClick={()=>void action(
+                ()=>checkSquareMembershipWebhooks(),'Existing payment and membership events are configured and verified. No settings changed.',
+              )}>Check membership events without changes</Button>
             </section>
           ) : null}
           <h3 className="text-xl">Payments</h3>

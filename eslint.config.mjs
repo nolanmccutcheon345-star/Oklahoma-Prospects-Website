@@ -14,6 +14,10 @@ export default tseslint.config(
       "scripts/.audit-ui-*/**",
       // Generated bundle emitted by the checkout render test; source is linted below.
       "artifacts/discount-checkout-render.mjs",
+      "artifacts/team-fee-render.mjs",
+      "artifacts/front-office-render.mjs",
+      "scripts/.lesson-ui-*/**",
+      "scripts/.render-component-*/**",
       ".output/**",
       ".vercel/**",
       ".nitro/**",

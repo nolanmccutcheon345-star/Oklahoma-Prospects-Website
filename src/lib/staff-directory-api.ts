@@ -1,5 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
-import { authMiddleware } from "./auth/middleware";
+import { operationalAuthMiddleware } from "./auth/middleware";
 import { staffListingInput } from "./staff-directory";
 
 export const getPublicStaff = createServerFn({ method: "GET" }).handler(async () => {
@@ -7,13 +7,13 @@ export const getPublicStaff = createServerFn({ method: "GET" }).handler(async ()
   return publicStaff();
 });
 export const getStaffDirectory = createServerFn({ method: "GET" })
-  .middleware([authMiddleware])
+  .middleware([operationalAuthMiddleware])
   .handler(async ({ context }) => {
     const { listStaffDirectory } = await import("./staff-directory.server");
     return listStaffDirectory(context.userId);
   });
 export const saveStaffDirectoryListing = createServerFn({ method: "POST" })
-  .middleware([authMiddleware])
+  .middleware([operationalAuthMiddleware])
   .validator(staffListingInput)
   .handler(async ({ context, data }) => {
     const { saveStaffListing } = await import("./staff-directory.server");

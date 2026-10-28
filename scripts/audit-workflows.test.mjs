@@ -64,6 +64,7 @@ test('isolated full account and lesson journey through real server commands',asy
    player=await fixtureUser('audit-player','player','Audit Athlete');
    const me=await api.clubIdentity(parent);
    await sql`insert into household_members(household_id,user_id) values(${me.billingHouseholdIds[0]},${player})`;
+   await sql`insert into person_player_links(user_id,player_id) values(${player},${athlete})`;
    const desk=await api.loadDeskForUser(coach);coachId=desk.data.coaches.find(c=>c.email==='audit-coach@audit.example.invalid').id;
    await sql`insert into club_staff(id,user_id,name,email,role) values('audit-staff',${coach},'Audit Coach','audit-coach@audit.example.invalid','coach')`;
    await sql`insert into club_staff_services(staff_id,service_id,profit_split) values('audit-staff','s1',60),('audit-staff','s2',60)`;
@@ -94,12 +95,14 @@ test('isolated full account and lesson journey through real server commands',asy
    assert.equal((await api.loadAthleteForUser(coach,athlete)).ok,true);
   });
   await t.test('only assigned coach can complete after the end; first completion records one assessment and one earning',async()=>{
-   await assert.rejects(api.completeSession(coach,booking,'Too early'),/after it ends/);
+   await assert.rejects(api.completeSession(coach,booking,'Old path'),/guided lesson/);
    await assert.rejects(api.completeSession(parent,booking,'Forged'),/Coach access/);
    // Advance this isolated fixture to an ended session, retaining five-minute alignment.
-   await sql`update booking_records set starts_at=date_trunc('hour',now())-interval '2 hours',ends_at=date_trunc('hour',now())-interval '1 hour' where id=${booking}`;
-   assert.equal((await api.completeSession(coach,booking,'Audit assessment completed')).assessmentCompleted,true);
-   await api.completeSession(coach,booking,'Retry must not overwrite');
+   await sql`update booking_records set starts_at=date_trunc('hour',now())-interval '2 hours',ends_at=date_trunc('hour',now())-interval '45 minutes' where id=${booking}`;
+   const opened=await api.openLessonSession(coach,booking);
+   const document={...opened.session.document,attendance:'present',readiness:'ready',familyRecap:'Audit assessment completed',homework:'Review safe practice plan.',nextSteps:'Next lesson',overrideReason:'Assessment observations documented in stage notes.',stageNotes:Array(8).fill('Assessment completed and documented.')};
+   const completion={bookingId:booking,revision:1,document,complete:true};
+   await api.saveLessonSession(coach,completion);await api.saveLessonSession(coach,completion);
    assert.equal((await sql`select * from athlete_assessments where athlete_id=${athlete}`).length,1);
    const earning=(await sql`select * from contractor_earnings where booking_id=${booking}`)[0];
    assert.equal(earning.amount_cents,9240);assert.equal(earning.status,'payable');
@@ -136,7 +139,7 @@ test('isolated full account and lesson journey through real server commands',asy
    assert.equal((await api.creditSlots(parent,h.redemption)).some(s=>s.value==='18:00'),false);
   });
   await t.test('parent can sign minor waiver, unrelated family cannot, repeated signature is idempotent',async()=>{
-   const waiver={athleteId:athlete,adultName:'Audit Parent',adultPhone:'555-0100',participantType:'minor',emergencyName:'Audit Emergency',emergencyPhone:'555-0101',signerName:'Audit Parent',relationship:'parent',medicalNotes:'',consent:true};
+   const waiver={athleteId:athlete,adultName:'Audit Parent',adultPhone:'555-0100',participantType:'minor',emergencyName:'Audit Emergency',emergencyPhone:'555-0101',signerName:'Audit Parent',relationship:'parent',medicalNotes:'',consent:true,rosterConsent:true};
    await assert.rejects(api.signWaiver(other,waiver),/your household/);
    await api.signWaiver(parent,waiver);await api.signWaiver(parent,waiver);
    assert.equal((await api.myWaivers(parent)).length,1);
@@ -173,7 +176,7 @@ test('isolated full account and lesson journey through real server commands',asy
    assert.equal((await api.readWorkingFile()).lessons.some(l=>l.id==='forged'),false);
   });
   await t.test('softball registration submission persists once and rejects cross-origin requests',async()=>{
-   const input={kind:'tryout',requestId:randomUUID(),player:'Audit Softball Player',age:'12U',parent:'Audit Parent',phone:'555-0100',email:'parent@audit.example.invalid',notes:'ISOLATED AUDIT ONLY',sport:'Softball',session:'Individual tryout request'};
+   const input={kind:'tryout',requestId:randomUUID(),player:'Audit Softball Player',athleteProfile:{birthDate:'2014-09-01',graduationYear:'unknown',schoolStatus:'homeschool',school:''},age:'12U',parent:'Audit Parent',phone:'555-0100',email:'parent@audit.example.invalid',positions:'Pitcher, shortstop',notes:'ISOLATED AUDIT ONLY',usssaStatus:'provided',usssaAthleteId:'00123456',sport:'Softball',session:'Individual tryout request'};
    await api.submitInquiry(input);await api.submitInquiry(input);
    assert.equal((await sql`select id from club_requests where id=${input.requestId}`).length,1);
    for(const sport of ['Baseball','Softball']){
@@ -181,8 +184,14 @@ test('isolated full account and lesson journey through real server commands',asy
     await api.submitInquiry(extended);
     const [saved]=await sql`select payload from club_requests where id=${extended.requestId}`;
     assert.equal(saved.payload.age,'18U');assert.equal(saved.payload.sport,sport);
+    assert.equal(saved.payload.positions,input.positions);assert.equal(saved.payload.usssaAthleteId,'00123456');
    }
-   await assert.rejects(api.submitInquiry({...input,requestId:randomUUID(),age:' '}),/age group/);
+   for(const field of ['positions','notes','usssaStatus','usssaAthleteId']){
+    const invalid={...input,requestId:randomUUID(),[field]:''};
+    await assert.rejects(api.submitInquiry(invalid));
+    assert.equal((await sql`select id from club_requests where id=${invalid.requestId}`).length,0);
+   }
+   await assert.rejects(api.submitInquiry({...input,requestId:randomUUID(),age:' '}));
    const prior=state.request;
    state.request=new Request(base,{method:'POST',headers:{origin:'https://unrelated.example.invalid','sec-fetch-site':'cross-site'}});
    await assert.rejects(api.submitInquiry({...input,requestId:randomUUID()}),/cross-site/);state.request=prior;
@@ -219,7 +228,11 @@ test('isolated full account and lesson journey through real server commands',asy
    assert.equal('parent_email' in published,false);assert.equal('owner_id' in published,false);
    const rosterResponse=await api.fundraisingRoster.GET(new Request(base+'/api/fundraising/teams?teamId=audit-team'));
    assert.equal(rosterResponse.status,200);const roster=(await rosterResponse.json()).team;
-   assert.equal(roster.players.length,1);assert.equal(roster.players[0].name,'Audit Fundraiser');assert.equal(roster.players[0].roster_player_id,'audit-roster');
+   assert.equal(roster.players.length,1);assert.equal(roster.players[0].name,'Audit Fundraiser');
+   assert.deepEqual(Object.keys(roster.players[0]).sort(),['goal','id','name','raised']);
+   assert.equal(roster.players[0].id,made.id);
+   assert.equal('roster_player_id' in roster.players[0],false);
+   assert.equal('team_id' in roster.players[0],false);
    assert.equal('parents' in roster.players[0],false);
   });
   await t.test('public fundraising totals include completed payments less refunds and exclude pending/failed payments',async()=>{

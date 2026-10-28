@@ -1,3 +1,4 @@
+import {birthdayAccess} from '../player-birthdays.server';
 import { publicPdViewer } from "./viewer";
 import { getSql, type Sql } from "@/lib/db";
 import { clubIdentity } from "@/lib/identity.server";
@@ -15,12 +16,11 @@ import { seedDevelopment } from "./seed";
 import type { DevelopmentData, Family, Message } from "./types";
 
 import { withCommerceRecords } from "../commerce/development.server";
-import { currentCatalogPrice } from "../pricing";
 import {newCoachId} from "../coach-id.server";
 
 const FILE_ID = "club";
 
-async function viewerFromUserId(userId: string): Promise<PdViewer> {
+async function viewerFromUserId(userId: string): Promise<Awaited<ReturnType<typeof clubIdentity>>> {
   return clubIdentity(userId);
 }
 
@@ -30,9 +30,9 @@ export async function readWorkingFile(transaction?: Sql): Promise<DevelopmentDat
   const empty = emptyDevelopment();
   // Curriculum/catalog defaults are public. Never manufacture athletes or household data.
   const defaults = seedDevelopment();
-  empty.services = defaults.services.map(currentCatalogPrice);
-  empty.packages = defaults.packages.map(currentCatalogPrice);
-  empty.memberships = defaults.memberships.map(currentCatalogPrice);
+  empty.services = []; // Populated from club_services by withCommerceRecords.
+  empty.packages = []; // Populated from club_services by withCommerceRecords.
+  empty.memberships = []; // Populated from club_services by withCommerceRecords.
   empty.videoStandards = defaults.videoStandards;
   if (!row) return withCommerceRecords(sql, { ...empty, revision: 0 });
   const parsed = typeof row.payload === "string" ? JSON.parse(row.payload) : row.payload;
@@ -53,8 +53,9 @@ export async function writeWorkingFile(data: DevelopmentData, transaction?:Sql) 
   return rows[0].revision;
 }
 
-function scopedDesk(viewer: PdViewer, full: DevelopmentData) {
+async function scopedDesk(viewer: PdViewer & {userId:string}, full: DevelopmentData) {
   const scope = scopeForViewer(viewer, full);
+  scope.birthdayIds=(await birthdayAccess(await getSql(),viewer.userId)).visibleIds;
   return { viewer, scope, data: filterDevelopmentData(full, scope) };
 }
 
@@ -81,7 +82,7 @@ async function provisionViewer(viewer: PdViewer, full: DevelopmentData): Promise
     }
     return full;
   }
-  if (viewer.role === "coach") {
+  if (viewer.role === "coach" || viewer.canInstruct) {
     const email = viewer.email.trim().toLowerCase();
     if (full.coaches.some((row) => row.email.trim().toLowerCase() === email)) return full;
     const next = {
@@ -115,14 +116,14 @@ async function provisionViewer(viewer: PdViewer, full: DevelopmentData): Promise
 export async function loadDeskForUser(userId: string) {
   const viewer = await viewerFromUserId(userId);
   const full = await provisionViewer(viewer, await readWorkingFile());
-  const { data } = scopedDesk(viewer, full);
+  const { data } = await scopedDesk(viewer, full);
   return { viewer: publicPdViewer(viewer), data };
 }
 
 export async function loadAthleteForUser(userId: string, athleteId: string) {
   const viewer = await viewerFromUserId(userId);
   const full = await readWorkingFile();
-  const { scope, data } = scopedDesk(viewer, full);
+  const { scope, data } = await scopedDesk(viewer, full);
   assertAthleteAccess(scope, athleteId);
   const athlete = data.athletes.find((row) => row.id === athleteId);
   if (!athlete) throw new Error("Forbidden");
@@ -158,6 +159,7 @@ export async function saveDeskForUser(userId: string, incoming: DevelopmentData)
   const full = await readWorkingFile();
   const scope = scopeForViewer(viewer, full);
   if (incoming.revision !== full.revision) throw new Error("Another editor saved changes. Reload before saving again.");
+  scope.birthdayIds=(await birthdayAccess(await getSql(),userId)).visibleIds;
   const signedMessages=incoming.messages.map(row=>full.messages.find(old=>old.id===row.id)||({...row,fromRole:viewer.role,fromName:viewer.name,createdAt:new Date().toISOString()}));
   const merged = mergeScopedFile(full, {...incoming,messages:signedMessages}, scope);
   const sql = await getSql();
@@ -166,7 +168,13 @@ export async function saveDeskForUser(userId: string, incoming: DevelopmentData)
   for (const athlete of merged.athletes) {
     if (scope.athleteIds !== "all" && !scope.athleteIds.has(athlete.id)) continue;
     await tx`update club_athletes set name = ${`${athlete.firstName} ${athlete.lastName}`.trim()},
-      birth_date = ${athlete.birthDate || null}, coach_ids = ${JSON.stringify(athlete.coachIds)}::jsonb where id = ${athlete.id}`;
+      coach_ids = ${JSON.stringify(athlete.coachIds)}::jsonb where id = ${athlete.id}`;
+    const before=full.athletes.find(a=>a.id===athlete.id)?.birthDate||null;
+    if(scope.birthdayIds?.has(athlete.id) && (athlete.birthDate||null)!==before) {
+      const changed=await tx`update club_athletes set birth_date=${athlete.birthDate||null} where id=${athlete.id} and birth_date is not distinct from ${before}::date returning id`;
+      if(!changed.length)throw new Error('This birthday changed. Reload the player profile before saving.');
+      await tx`insert into athlete_profile_changes(id,athlete_id,actor_id,fields,reason) values(${crypto.randomUUID()},${athlete.id},${userId},array['birthDate'],'Authorized private development profile correction')`;
+    }
   }
   return { ok: true as const, revision };
   });

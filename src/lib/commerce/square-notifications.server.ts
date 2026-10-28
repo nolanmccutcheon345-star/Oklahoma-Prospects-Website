@@ -58,7 +58,8 @@ export async function deliverPaymentNotifications(
     title: string;
     customer_name: string | null;
     total_cents: number;
-  }>`select n.*,o.email,o.receipt_url,o.total_cents,u.name as customer_name,o.snapshot->>'title' as title from payment_notifications n join commerce_orders o on o.id=n.order_id left join "user" u on u.id=o.user_id where n.status='pending' and o.payment_provider='square' and o.payment_environment=${c.environment}
+    order_kind: string;
+  }>`select n.*,o.email,o.kind as order_kind,o.receipt_url,o.total_cents,u.name as customer_name,o.snapshot->>'title' as title from payment_notifications n join commerce_orders o on o.id=n.order_id left join "user" u on u.id=o.user_id where n.status='pending' and o.payment_provider='square' and o.payment_environment=${c.environment}
     and (${orderId || null}::text is null or o.id=${orderId || null})
     and (${ownerOnly}=false or n.kind in ('owner-booking','owner-payment-review'))
     and (${ownerTest?.userId || null}::text is null or (o.user_id=${ownerTest?.userId || null} and lower(o.email)=lower(${ownerTest?.email || null}) and n.kind='receipt' and o.receipt_url is not null))
@@ -78,6 +79,13 @@ export async function deliverPaymentNotifications(
           await sql`update payment_notifications set status='sandbox-suppressed' where id=${n.id}`;
         return;
       }
+      const teamNotice = n.kind.startsWith("team-");
+      const teamText =
+        n.kind === "team-primary-failed"
+          ? "Your primary card was declined for the agreed team installment. Under your authorization, the backup card is scheduled to be attempted beginning at 9 a.m. Central the following calendar day. A payment made before that attempt reduces the amount due."
+          : n.kind === "team-collection-failed"
+            ? "Both the primary and backup card attempts failed for this team installment. Review your account and make the overdue payment. After your agreed grace period, a one-time late fee of 20% of the unpaid overdue installment may be assessed after owner review. It excludes future installments and does not compound."
+            : "Your scheduled team payment needs review because its result is uncertain. The system will not try the backup card while this is unresolved. Check your account and contact Front Office before submitting another payment.";
       const failed = n.kind === "renewal-failed",
         dispute = n.kind === "dispute",
         ownerBooking = n.kind === "owner-booking",
@@ -98,15 +106,17 @@ export async function deliverPaymentNotifications(
               ends_at: Date;
               resources: string[];
               status: string;
-            }>`select starts_at,ends_at,resources,status from booking_records where order_id=${n.order_id} order by starts_at`
+            }>`select starts_at,ends_at,resources,status from operational_booking_schedule where order_id=${n.order_id} order by starts_at`
           : [];
       const details = bookingNoticeDetails(bookings);
       const confirmedBooking =
-        n.kind === "receipt" && bookings.length > 0 && bookings.every((b) => b.status === "confirmed");
+        n.kind === "receipt" &&
+        bookings.length > 0 &&
+        bookings.every((b) => b.status === "confirmed");
       const amount = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(
         n.total_cents / 100,
       );
-      const ownerText = `${ownerReview ? "Payment needs review — no booking was confirmed." : "Paid booking recorded."}\nCustomer: ${n.customer_name || n.email}\nEmail: ${n.email}\nProduct: ${n.title}\nOrder total: ${amount}\n${details}\nOrder: ${n.order_id}\nOpen the front office: ${c.origin}/office`;
+      const ownerText = `${n.order_kind === "merchandise" ? "Merchandise order requires fulfillment or refund review." : ownerReview ? "Payment needs review — no booking was confirmed." : "Paid booking recorded."}\nCustomer: ${n.customer_name || n.email}\nEmail: ${n.email}\nProduct: ${n.title}\nOrder total: ${amount}\n${details}\nOrder: ${n.order_id}\nOpen the owner controls: ${c.origin}${n.order_kind === "merchandise" ? "/merchandise" : "/office"}`;
       try {
         const response = await send("https://api.resend.com/emails", {
           method: "POST",
@@ -118,30 +128,36 @@ export async function deliverPaymentNotifications(
           body: JSON.stringify({
             from,
             to: recipients,
-            subject: ownerTest
-              ? "Oklahoma Prospects — Sandbox booking receipt test"
-              : ownerBooking
-                ? `New paid booking — ${n.title} — ${amount}`
-                : ownerReview
-                  ? "Action needed — paid checkout has no confirmed booking"
+            subject: teamNotice
+              ? "Action needed - team installment payment"
+              : ownerTest
+                ? "Prospects Sports Academy — Sandbox booking receipt test"
+                : ownerBooking
+                  ? `New paid booking — ${n.title} — ${amount}`
+                  : ownerReview
+                    ? "Action needed — payment requires review"
+                    : dispute
+                      ? "Square payment dispute needs review"
+                      : failed
+                        ? "Update your membership payment card"
+                        : confirmedBooking
+                          ? "Thank you for booking with Prospects Sports Academy!"
+                          : "Prospects Sports Academy payment receipt",
+            text: teamNotice
+              ? `${teamText}\n\nInstallment attempted: ${amount}. Athlete and team: ${n.title}.\nReview your team account: ${c.origin}/family.\nContact Front Office through ${c.origin}/contact.`
+              : ownerTest
+                ? `This is a Sandbox receipt check from your saved test payment for ${n.title}. No real money was charged. This is not an active booking confirmation; the test booking may already have been cancelled or refunded. View the saved test billing record at ${c.origin}/family. Square Sandbox receipt: ${n.receipt_url}`
+                : ownerBooking || ownerReview
+                  ? ownerText
                   : dispute
-                    ? "Square payment dispute needs review"
+                    ? `A Square payment dispute requires owner review. Open ${c.origin}/office and review the deadline in Square.`
                     : failed
-                      ? "Update your membership payment card"
+                      ? `Your membership renewal could not be collected. Update your card in your account: ${c.origin}/family. New credits are issued only after a successful payment.`
                       : confirmedBooking
-                        ? "Thank you for booking with Oklahoma Prospects!"
-                        : "Oklahoma Prospects payment receipt",
-            text: ownerTest
-              ? `This is a Sandbox receipt check from your saved test payment for ${n.title}. No real money was charged. This is not an active booking confirmation; the test booking may already have been cancelled or refunded. View the saved test billing record at ${c.origin}/family. Square Sandbox receipt: ${n.receipt_url}`
-              : ownerBooking || ownerReview
-                ? ownerText
-                : dispute
-                  ? `A Square payment dispute requires owner review. Open ${c.origin}/office and review the deadline in Square.`
-                  : failed
-                    ? `Your membership renewal could not be collected. Update your card in your account: ${c.origin}/family. New credits are issued only after a successful payment.`
-                    : confirmedBooking
-                      ? `Hello${n.customer_name ? " " + n.customer_name : ""}!\n\nThank you for booking with Oklahoma Prospects! We appreciate you choosing our facility and look forward to seeing you at your reserved time:\n\n${details}\n\nYour payment for ${n.title} is confirmed.\n\nLocation: 3804 S. Elm Pl., Suite A, Broken Arrow, OK 74011.\n\nView your booking and billing history at ${c.origin}/family. Receipt: ${n.receipt_url || c.origin + "/paid?order_id=" + n.order_id}\n\nSee you soon!\nCoach Steve & the Oklahoma Prospects Team`
-                      : `Your payment for ${n.title} is confirmed.\n${details ? details + "\n" : ""}View your booking and billing history at ${c.origin}/family. Receipt: ${n.receipt_url || c.origin + "/paid?order_id=" + n.order_id}`,
+                        ? `Hello${n.customer_name ? " " + n.customer_name : ""}!\n\nThank you for booking with Prospects Sports Academy! We appreciate you choosing our facility and look forward to seeing you at your reserved time:\n\n${details}\n\nYour payment for ${n.title} is confirmed.\n\nLocation: 3804 S. Elm Pl., Suite A, Broken Arrow, OK 74011.\n\nView your booking and billing history at ${c.origin}/family. Receipt: ${n.receipt_url || c.origin + "/paid?order_id=" + n.order_id}\n\nSee you soon!\nThe Prospects Sports Academy Team`
+                        : n.order_kind === "merchandise"
+                          ? `Your payment for ${n.title} is confirmed. Your items will be made after fulfillment review. View your order and shipping updates at ${c.origin}/merchandise (My shop orders). Receipt: ${n.receipt_url || c.origin + "/merchandise"}`
+                          : `Your payment for ${n.title} is confirmed.\n${details ? details + "\n" : ""}View your booking and billing history at ${c.origin}/family. Receipt: ${n.receipt_url || c.origin + "/paid?order_id=" + n.order_id}`,
           }),
           signal: AbortSignal.timeout(10000),
         });

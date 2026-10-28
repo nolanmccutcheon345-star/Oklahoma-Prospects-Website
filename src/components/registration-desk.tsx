@@ -1,3 +1,5 @@
+import { RegistrationProfileFilters } from "./registration-profile-filters";
+import { setTryoutCoordinator } from "@/lib/tryout-center-api";
 import { useEffect, useMemo, useState } from "react";
 import { PageHero } from "@/components/page-hero";
 import { Button } from "@/components/ui/button";
@@ -6,12 +8,15 @@ import {
   getRegistrationRows,
   getRegistrationReaders,
   setRegistrationReader,
+  reviewRegistrationEligibility,
 } from "@/lib/registrations-api";
 
 import { TryoutEventEditor } from "./tryout-event-editor";
+import { UsssaPlayerId, usssaStatusLabel } from "./usssa-player-id";
 
 type Rows = Awaited<ReturnType<typeof getRegistrationRows>>;
 const labels: Record<string, string> = {
+  birthMonthYear: "Birth month / year", graduationYear: "Graduation year", school: "School", schoolStatus: "School status", suggestedDivision: "Suggested division", eligibilityStatus: "Review status", eligibilityExplanation: "Eligibility explanation", season: "Season",
   player: "Player",
   parent: "Parent / guardian",
   name: "Name",
@@ -21,6 +26,9 @@ const labels: Record<string, string> = {
   email: "Email",
   phone: "Phone",
   notes: "Notes",
+  positions: "Player positions",
+  usssaStatus: "USSSA status",
+  usssaAthleteId: "USSSA Player / Athlete ID",
   message: "Message",
 };
 export function RegistrationDesk() {
@@ -80,6 +88,7 @@ export function RegistrationDesk() {
         }
       />
       <div className="mx-auto max-w-3xl px-5 py-8 pb-28">
+{access?.allowed&&<RegistrationProfileFilters busy={loading} onApply={async data=>{setLoading(true);setError('');try{setRows(await getRegistrationRows({data}));}catch(e){setRows([]);setError(e instanceof Error?e.message:'Could not load registrations.');}finally{setLoading(false);}}}/>}
         {error ? (
           <p role="alert" className="mb-4 text-maroon">
             {error}
@@ -104,7 +113,7 @@ export function RegistrationDesk() {
               <div>
                 <h2 className="text-3xl">Registrations & inquiries</h2>
                 <p className="text-sm text-muted">
-                  Latest {rows.length} records (up to 500). Viewing only.
+                  Latest {rows.length} records (up to 100 per page). Viewing only.
                 </p>
               </div>
               <Button variant="outlineDark" onClick={() => void load()}>
@@ -173,10 +182,19 @@ export function RegistrationDesk() {
                       .map(([key, value]) => (
                         <div key={key} className="break-words">
                           <dt className="text-sm font-semibold">{labels[key] || key}</dt>
-                          <dd className="whitespace-pre-wrap">{value}</dd>
+                          <dd className="whitespace-pre-wrap">
+                            {key === "usssaAthleteId" ? (
+                              <UsssaPlayerId value={value} />
+                            ) : key === "usssaStatus" ? (
+                              usssaStatusLabel(value)
+                            ) : (
+                              value
+                            )}
+                          </dd>
                         </div>
                       ))}
                   </dl>
+                  {access.owner && row.kind!=='contact' && row.payload.profileConfirmedAt && !['accepted','declined','closed','resolved'].includes(row.status) && <EligibilityReview row={row} onSaved={load}/>}
                 </article>
               ))}
             </div>
@@ -212,6 +230,31 @@ export function RegistrationDesk() {
                           setBusy(true);
                           setError("");
                           try {
+                            await setTryoutCoordinator({
+                              data: { userId: reader.user_id, enabled: !reader.can_manage_tryouts },
+                            });
+                            setReaders(await getRegistrationReaders());
+                            setNotice("Tryout coordinator access updated.");
+                          } catch (e) {
+                            setError(
+                              e instanceof Error ? e.message : "Could not update coordinator.",
+                            );
+                          } finally {
+                            setBusy(false);
+                          }
+                        }}
+                      >
+                        {reader.can_manage_tryouts
+                          ? "Remove tryout coordinator"
+                          : "Enable tryout coordinator"}
+                      </Button>
+                      <Button
+                        variant="outlineDark"
+                        disabled={busy}
+                        onClick={async () => {
+                          setBusy(true);
+                          setError("");
+                          try {
                             await setRegistrationReader({
                               data: { userId: reader.user_id, enabled: !reader.enabled },
                             });
@@ -239,4 +282,12 @@ export function RegistrationDesk() {
       </div>
     </main>
   );
+}
+
+function EligibilityReview({row,onSaved}:{row:Rows[number];onSaved:()=>Promise<void>}){
+ const [reason,setReason]=useState(''),[rule,setRule]=useState(row.payload.eligibilityRule||''),[busy,setBusy]=useState(false),[error,setError]=useState('');
+ async function save(decision:'approved'|'deferred'){
+  setBusy(true);setError('');try{await reviewRegistrationEligibility({data:{requestId:row.id,revision:row.revision,decision,reason,ruleReference:rule}});await onSaved();}catch(e){setError(e instanceof Error?e.message:'Review could not be saved.');}finally{setBusy(false);}
+ }
+ return <details className="mt-4 rounded border p-3"><summary>Owner eligibility review</summary><p>This records a reviewed eligibility decision only. It does not assign a team or change permissions.</p><label>Rule or exception reference<input className="block min-h-11 w-full rounded border p-2" value={rule} onChange={e=>setRule(e.target.value)} maxLength={500}/></label><label>Reason and reviewed evidence<textarea className="block w-full rounded border p-2" value={reason} onChange={e=>setReason(e.target.value)} maxLength={500}/></label>{error&&<p role="alert">{error}</p>}<div className="mt-2 flex flex-wrap gap-2"><Button disabled={busy||reason.trim().length<5||rule.trim().length<3} onClick={()=>void save('approved')}>Record approval</Button><Button variant="outline" disabled={busy||reason.trim().length<5||rule.trim().length<3} onClick={()=>void save('deferred')}>Keep for review</Button></div></details>;
 }

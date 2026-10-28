@@ -1,3 +1,7 @@
+import { athleteScope } from "./athlete-selector";
+import {MyTraining} from "./my-training";
+import {BookedLessonHistory} from "./booked-guided-lesson";
+import {athleteAge} from '@/lib/pd/engines';
 import { Link } from "@tanstack/react-router";
 import { useMemo, useState, type ReactNode } from "react";
 import { Button } from "@/components/ui/button";
@@ -27,7 +31,6 @@ import type { RecordGroupId, RecordViewId, ViewerRole } from "@/lib/pd/types";
 import { RECORD_GROUPS, groupForView, viewsForRole } from "@/lib/pd/views";
 import { cn } from "@/lib/utils";
 
-import { ageOnClubDay } from "@/lib/pd/engines";
 
 function displayName(slice: AthleteSlice) {
   return `${slice.athlete.firstName} ${slice.athlete.lastName}`;
@@ -118,7 +121,7 @@ function RecordView({
 }) {
   const { data } = useDevelopment();
   const name = displayName(slice);
-  const age = ageOnClubDay(slice.athlete.birthDate);
+  const age = athleteAge(slice.athlete);
   const coach = role === "admin" || role === "coach";
   const op =
     slice.athlete.opLevel === 0
@@ -320,7 +323,7 @@ function RecordView({
         </Panel>
       );
     case "skill-plan":
-      return <SkillPlanLibrary slice={slice} role={role} />;
+      return <div className="grid gap-6"><MyTraining athleteId={slice.athlete.id}/><details><summary className="cursor-pointer">Existing skill plans</summary><SkillPlanLibrary slice={slice} role={role} /></details></div>;
     case "strength":
       return <StrengthProgramView slice={slice} role={role} />;
     case "warmups":
@@ -417,6 +420,7 @@ function RecordView({
       }
       return (
         <Panel eyebrow="Lessons" title={`${slice.lessons.length} on file`}>
+          <BookedLessonHistory athleteId={slice.athlete.id}/>
           <Notes
             rows={slice.lessons.map((row) => ({
               key: row.id,
@@ -669,6 +673,7 @@ export function AthleteRoster({
   onStartLesson?: (athleteId: string) => void;
 }) {
   const dev = useDevelopment();
+  const [search, setSearch] = useState("");
   const athletes = useMemo(
     () => dev.listAthletes(role, familyId, selfName),
     [dev, familyId, role, selfName],
@@ -695,12 +700,14 @@ export function AthleteRoster({
 
   return (
     <section data-athlete-count={athletes.length}>
-      <h3 className="text-2xl">{role === "admin" ? "Athletes" : "Roster"}</h3>
+      <h3 className="text-2xl">Choose Athlete</h3>
       <p className="mt-1 text-sm text-muted">
-        {athletes.length} on this desk. Open a record — {RECORD_GROUPS.flatMap((g) => g.views).length} views, phone first.
+        {athleteScope(role)} {athletes.length} on this desk.
       </p>
+      {athletes.length >= 8 && <label className="mt-3 grid gap-1">Search athletes<input type="search" className="min-h-11 rounded-lg border p-2" value={search} onChange={e => setSearch(e.target.value)}/></label>}
+      {search && !athletes.some(a => `${a.firstName} ${a.lastName}`.toLowerCase().includes(search.trim().toLowerCase())) && <p role="status">No athletes match your search.</p>}
       <ul className="mt-3 grid gap-2">
-        {athletes.map((row) => {
+        {athletes.filter(a => `${a.firstName} ${a.lastName}`.toLowerCase().includes(search.trim().toLowerCase())).map((row) => {
           const pts = activityPoints({
             athlete: row,
             pointsLog: dev.data.pointsLog.filter((item) => item.athleteId === row.id),
@@ -717,7 +724,7 @@ export function AthleteRoster({
                   <span className="font-display text-xl uppercase">
                     {row.firstName} {row.lastName}
                   </span>
-                  <span className="pd-num text-sm font-semibold text-maroon">{ageOnClubDay(row.birthDate)}</span>
+                  <span className="pd-num text-sm font-semibold text-maroon">{athleteAge(row)}</span>
                 </span>
                 <span className="mt-1 block text-sm text-muted">
                   {row.sport} · {row.position}

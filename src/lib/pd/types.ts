@@ -22,6 +22,9 @@ export type Athlete = {
   throws: Throws;
   bats: Throws;
   birthDate: string;
+  ageYears?:number;
+  birthdayRecorded?:boolean;
+  canViewBirthday?:boolean;
   graduationYear: number;
   familyId: string;
   coachIds: string[];

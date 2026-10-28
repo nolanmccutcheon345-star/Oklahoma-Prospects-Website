@@ -1,24 +1,33 @@
+import { OfficeWorkspace } from "@/components/office-workspace";
+import { OFFICE_SECTIONS, type OfficeSection } from "@/components/front-office-shell";
+import { CLUB } from "@/lib/club";
 import { StaffBookingChanges } from "@/components/commerce/booking-changes";
 import { pageHead } from "@/lib/seo";
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { RedirectToSignIn } from "@/lib/auth/gates";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
 import { SquareOffice } from "@/components/commerce/square-office";
 import { DiscountOffice } from "@/components/commerce/discount-office";
 import { OfficeRequests } from "@/components/commerce/office-requests";
-import { OfficeApp } from "@/components/teams/office-app";
 import { OfficeOperations } from "@/components/commerce/operations";
 import { FailScreen } from "@/components/teams/ui";
-import { TeamsShell } from "@/components/teams/shell";
 import { Button } from "@/components/ui/button";
 import { PageHero } from "@/components/page-hero";
 import { getTeamsClub, onboardTeamsClub, saveTeamsClub } from "@/lib/teams/store";
 import type { ClubRecord } from "@/lib/teams/types";
 
 export const Route = createFileRoute("/office")({
-  head: () =>
-    pageHead("/office", "Front Office", "Manage Oklahoma Prospects club operations.", true),
+  head: () => pageHead("/office", "Front Office", `Manage ${CLUB.name} club operations.`, true),
+  validateSearch: (
+    search: Record<string, unknown>,
+  ): { section?: OfficeSection; filter?: string; person?:string } => ({
+    section: (OFFICE_SECTIONS.some(([id]) => id === search.section)
+      ? search.section
+      : "dashboard") as OfficeSection,
+    person: typeof search.person === "string" ? search.person : undefined,
+    filter: typeof search.filter === "string" ? search.filter : undefined,
+  }),
   component: Page,
 });
 
@@ -108,31 +117,49 @@ function OfficePage() {
       <main id="main">
         <PageHero
           eyebrow="Front office"
-          title="Open the club."
-          accent="Your club records."
-          copy="Start an empty team desk. Only add confirmed club records."
+          title="Admin front office"
+          accent="Manage your academy."
+          copy="Manage baseball and softball teams, coaching staff, payments, requests, and facility operations."
           image="/brand/team.jpg"
           compact
         />
         <div className="mx-auto max-w-3xl px-5 py-8">
+          <section
+            id="office-teams"
+            className="mb-8 rounded-2xl border-2 border-maroon bg-white p-5"
+          >
+            <h2 className="text-2xl font-bold">Teams & coaches</h2>
+            <p className="my-3 text-sm">
+              Open your team's admin workspace to create baseball and softball teams, create coach
+              profiles, and assign coaches. This is a one-time setup; no sample teams will be added.
+            </p>
+            <Button
+              type="button"
+              onClick={async () => {
+                try {
+                  const row = await onboardTeamsClub({ data: { mode: "empty" } });
+                  setClub(row.club);
+                  setState({
+                    ok: true,
+                    missing: false,
+                    role: "admin",
+                    me: state.me,
+                    club: row.club,
+                    financial: null,
+                  });
+                } catch (err) {
+                  setError(err instanceof Error ? err.message : "Could not initialize teams.");
+                }
+              }}
+            >
+              Open teams & coaches admin
+            </Button>
+          </section>
           <SquareOffice />
           <DiscountOffice />
           <OfficeOperations />
-      <StaffBookingChanges />
+          <StaffBookingChanges />
           <OfficeRequests />
-          <div className="grid gap-2">
-            <Button
-              type="button"
-              variant="outlineDark"
-              onClick={async () => {
-                const row = await onboardTeamsClub({ data: { mode: "empty" } });
-                setClub(row.club);
-                setState({ ok: true, missing: false, role: "admin", me: state.me, club: row.club });
-              }}
-            >
-              Start empty
-            </Button>
-          </div>
         </div>
       </main>
     );
@@ -140,36 +167,24 @@ function OfficePage() {
   if (!club) return <FailScreen message="Club record missing after load." />;
 
   return (
-    <TeamsShell
-      title="Front office"
-      path="/office"
-      demo={club._demo}
-      nav={[
-        { to: "/office", label: "Office" },
-        { to: "/evaluations", label: "Evaluations" },
-        { to: "/coach", label: "Coach" },
-        { to: "/family", label: "Family" },
-        { to: "/account", label: "Development" },
-      ]}
-    >
-      <section className="mb-5 rounded-xl border border-line bg-white p-4"><h2 className="text-2xl">Tryout results</h2><p className="mt-2 text-sm text-muted">Review coach scores, notes and next steps across all teams and age groups.</p><Button asChild className="mt-3"><Link to="/evaluations">Review evaluations</Link></Button></section>
-      <OfficeRequests />
-      <SquareOffice />
-      <DiscountOffice />
-      <OfficeOperations />
-      <StaffBookingChanges />
-      <OfficeApp
-        club={club}
-        onChange={setClub}
-        onSave={async () => {
-          try {
-            const saved = await saveTeamsClub({ data: { club, baseRev: club._rev } });
-            setClub(saved.club);
-          } catch (err) {
-            setError(err instanceof Error ? err.message : "Save failed");
-          }
-        }}
-      />
-    </TeamsShell>
+    <OfficeWorkspace
+      club={club}
+      financial={state.financial}
+      onReload={async()=>{const row=await getTeamsClub();setState(row);if(row.ok)setClub(row.club);}}
+      onChange={setClub}
+      name={state.me.name}
+      onSave={async (nextClub) => {
+        const incoming = nextClub ?? club;
+        try {
+          const saved = await saveTeamsClub({ data: { club: incoming, baseRev: incoming._rev } });
+          setClub(saved.club);
+          setState({...state,financial:saved.financial});
+          return true;
+        } catch (err) {
+          window.alert(err instanceof Error ? err.message : "Save failed");
+          return false;
+        }
+      }}
+    />
   );
 }

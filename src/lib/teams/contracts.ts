@@ -1,13 +1,16 @@
 import {z} from 'zod';
 import type {ClubRecord} from './types';
+import { assertTournamentCatalogIdentifiers, tournamentMetadata, validTournamentSource } from './tournament-finder';
 const id=z.string().max(150),text=z.string().max(5000),short=z.string().max(200);
 const money=z.number().finite().min(0).max(10000000),count=z.number().int().min(0).max(100000);
 const strings=z.array(short).max(200),numbers=z.record(short,z.number().finite());
-const staff=z.object({id,name:short,role:short,monthly:money,childId:id,applyAmount:money,w9:z.boolean(),backgroundCheck:z.boolean(),safeSport:z.boolean(),expires:short,email:short}).strict();
+const photo=z.union([z.literal(''),z.string().max(250000).regex(/^data:image\/(?:jpeg|png|webp);base64,[A-Za-z0-9+/]+={0,2}$/)]);
+const staff=z.object({id,name:short,role:short,monthly:money,childId:id,applyAmount:money,w9:z.boolean(),backgroundCheck:z.boolean(),safeSport:z.boolean(),expires:short,email:short,bio:z.string().max(2000).optional(),photo:photo.optional()}).strict();
 const player=z.object({
  id,teamId:id,familyId:id,name:short,number:short,positions:strings,bats:short,throws:short,gradYear:short,school:short,height:short,weight:short,email:short,
  parents:z.array(z.object({name:short,rel:short,phone:short,email:short}).strict()).max(10),roleType:z.enum(['full','po']),coachChild:z.boolean(),joinedOn:short,withdrawn:z.boolean(),
  agreement:z.object({version:short,signedBy:short,signedAt:short}).strict(),
+ rosterConsent:z.object({version:short,text:text,signedBy:short,signerEmail:short,signedAt:short,revokedAt:short.optional()}).strict().optional(),
  feeLock:z.object({amount:money,lockedAt:short,policyVersion:short,components:numbers}).strict().nullable().optional(),
  planLock:z.object({dep:money,deadline:short,planType:short,rows:z.array(z.object({date:short,amount:money}).strict()).max(100)}).strict().nullable().optional(),
  credits:z.array(z.object({label:short,amount:money}).strict()).max(1000).optional(),
@@ -21,7 +24,7 @@ const player=z.object({
  rsvp:z.record(id,z.enum(['going','maybe','cant',''])),
 }).strict();
 const team=z.object({
- id,name:short,sport:z.enum(['baseball','softball']),age:short,level:short,seasonLabel:short,seasonStart:short,seasonEnd:short,months:count,headCoach:short,coachEmail:short,staff:z.array(staff).max(100),
+ id,name:short,sport:z.enum(['baseball','softball']),age:short,level:short,seasonLabel:short,seasons:z.array(short).max(12).optional(),seasonStart:short,seasonEnd:short,months:z.number().finite().min(0).max(36),headCoach:short,coachEmail:short,headCoachBio:z.string().max(2000).optional(),headCoachPhoto:photo.optional(),staff:z.array(staff).max(100),
  uniformPackageId:id,uniformDeadline:short,orgFee:money,coachMonthly:money,eventBudget:money,tournamentIds:strings,
  otherCosts:z.object({insurance:money,balls:money,fields:money,admin:money,travel:money}).strict(),teamCageHoursPerWeek:money,playerCageHoursPerWeek:money,
  record:z.object({w:count,l:count,t:count}).strict(),roster:z.array(player).max(500),
@@ -34,16 +37,17 @@ const team=z.object({
 const club=z.object({
  settings:z.object({contingencyPct:money,membershipMonthly:money,facilityMonthly:money,fundingPlayers:count,cardFeePct:money,orgFeeFloor:money,orgFeeCeiling:money,coachPayMin:money,coachPayMax:money,cageHourly:money,roundTo:money,policyVersion:short}).strict(),
  teams:z.array(team).max(200),
- catalog:z.array(z.object({id,org:short,name:short,city:short,state:short,start:short,end:short,ages:strings,levels:strings,fee:money,sport:short,type:z.enum(['tournament','showcase']),stayToPlay:z.boolean(),verifiedOn:short}).strict()).max(3000),
+ catalog:z.array(z.object({id,org:short,name:short,city:short,state:short,start:short,end:short,ages:strings,levels:strings,fee:money,sport:short,type:z.enum(['tournament','showcase']),stayToPlay:z.boolean(),verifiedOn:short,...tournamentMetadata}).strict().refine(validTournamentSource,"Add an organizer link before recording a source check.")).max(3000),
  uniforms:z.array(z.object({id,name:short,sport:z.enum(['baseball','softball']),price:money,items:strings,colourways:strings,sizeFields:strings}).strict()).max(100),
  leads:z.array(z.object({id,name:short,age:short,stage:z.enum(['lead','registered','evaluated','offer','accepted','waitlist']),grades:numbers,teamId:id}).strict()).max(5000),
  alumni:z.array(z.object({id,name:short,kind:z.enum(['college','draft','pro']),detail:text}).strict()).max(2000),
- notifications:z.array(z.object({id,ts:short,teamId:id,kind:short,title:short,body:text,audience:z.enum(['admin','coach','family','all'])}).strict()).max(5000),
+ notifications:z.array(z.object({id,ts:short,teamId:id,kind:short,title:short,body:text,audience:z.enum(['admin','coach','family','all']),recipientFamilyId:id.optional()}).strict()).max(5000),
  audit:z.array(z.object({at:short,action:short,detail:text}).strict()).max(5000),onboarding:z.object({started:z.boolean()}).strict(),_rev:count,_savedAt:short,_demo:z.boolean(),
 }).strict();
 export function parseClubSave(input:{club:ClubRecord;baseRev:number}) {
  if(JSON.stringify(input).length>5000000)throw new Error('Club record is too large.');
  const parsed=z.object({club,baseRev:count}).strict().parse(input);
+ assertTournamentCatalogIdentifiers(parsed.club.catalog);
  const teamIds=parsed.club.teams.map(t=>t.id);
  if(teamIds.some(id=>!id.trim())||new Set(teamIds).size!==teamIds.length)throw new Error('Team identifiers must be nonempty and unique.');
  for(const t of parsed.club.teams){const staffIds=t.staff.map(s=>s.id);if(staffIds.some(id=>!id.trim())||new Set(staffIds).size!==staffIds.length)throw new Error('Staff identifiers must be nonempty and unique within a team.');}

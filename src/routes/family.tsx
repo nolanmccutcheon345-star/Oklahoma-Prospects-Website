@@ -8,7 +8,7 @@ import { FamilyApp } from "@/components/teams/family-app";
 import { FailScreen } from "@/components/teams/ui";
 import { TeamsShell } from "@/components/teams/shell";
 import { Button } from "@/components/ui/button";
-import { getTeamsClub, saveTeamsClub } from "@/lib/teams/store";
+import { getFamilyTeamsClub, saveFamilyTeamsClub } from "@/lib/teams/store";
 import type { ClubRecord } from "@/lib/teams/types";
 
 export const Route = createFileRoute("/family")({head:()=>pageHead("/family","Family Account","Manage your household athletes, bookings, receipts, and memberships.",true), component: Page });
@@ -29,14 +29,14 @@ function Page() {
 function FamilyPage() {
   const [lang, setLang] = useState<"en" | "es">("en");
   const [familyId, setFamilyId] = useState("");
-  const [state, setState] = useState<Awaited<ReturnType<typeof getTeamsClub>>>();
+  const [state, setState] = useState<Awaited<ReturnType<typeof getFamilyTeamsClub>>>();
   const [club, setClub] = useState<ClubRecord>();
   const [error, setError] = useState("");
   const [saveError, setSaveError] = useState("");
   const [saved, setSaved] = useState("");
 
   async function load() {
-    const row = await getTeamsClub();
+    const row = await getFamilyTeamsClub();
     setState(row);
         if (row.ok) {
           setClub(row.club);
@@ -90,12 +90,12 @@ function FamilyPage() {
 
   const familyOptions = Array.from(
     new Map(
-      club.teams.flatMap((team) =>
+      [...(state.financial?.owner?state.financial.obligations.map(p=>[p.familyId,`${p.playerName} · ${p.teamName}`] as const):[]),...club.teams.flatMap((team) =>
         team.roster.map((player) => [
           player.familyId,
           `${player.name} · ${team.name}`,
         ] as const),
-      ),
+      )],
     ).entries(),
   );
 
@@ -113,6 +113,7 @@ function FamilyPage() {
           : []),
         ...(state.role === "admin" ? [{ to: "/office", label: "Office" }] : []),
         { to: "/account", label: "Lessons" },
+        { to: "/enrollment", label: "My season & enrollment" },
       ]}
     >
       {state.role === "admin" && club ? (
@@ -134,8 +135,10 @@ function FamilyPage() {
       <FamilyBilling />
       <FamilyApp
         club={club}
+        financial={state.financial}
         familyId={familyId || state.me.familyId}
         familyIds={state.role==='admin'?[familyId||state.me.familyId]:state.me.familyIds}
+        playerIds={state.me.playerIds}
         isPlayer={state.role === "player"}
         lang={lang}
         onChange={setClub}
@@ -147,8 +150,9 @@ function FamilyPage() {
         onClick={async () => {
           try {
             setSaveError("");
-            const savedClub = await saveTeamsClub({ data: { club, baseRev: club._rev } });
+            const savedClub = await saveFamilyTeamsClub({ data: { club, baseRev: club._rev } });
             setClub(savedClub.club);
+            setState({...state,financial:savedClub.financial});
             setSaved("Family record saved.");
           } catch (err) {
             setSaveError(err instanceof Error ? err.message : "Save failed");
@@ -167,6 +171,7 @@ function FamilyPage() {
           {saveError}
         </p>
       ) : null}
-    </TeamsShell>
+    <a href="/player-profiles" className="my-3 inline-flex min-h-11 items-center rounded bg-maroon px-4 text-white">Recruiting profiles & metric verification</a>
+</TeamsShell>
   );
 }

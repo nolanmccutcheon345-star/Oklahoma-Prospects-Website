@@ -1,0 +1,15 @@
+-- Permit the reviewed owner activation command to represent active state.
+-- This migration does not capture data, backfill bindings, activate any row,
+-- grant access, amend financial terms, or perform provider work.
+ALTER TABLE financial_basis_state
+ DROP CONSTRAINT financial_basis_state_activation_state_check,
+ DROP CONSTRAINT financial_basis_state_active_version_check;
+ALTER TABLE financial_basis_state
+ ADD CONSTRAINT financial_basis_state_activation_state_check
+ CHECK (activation_state IN ('captured','active')),
+ ADD CONSTRAINT financial_basis_state_active_version_check
+ CHECK ((activation_state='captured' AND active_version IS NULL)
+   OR (activation_state='active' AND active_version IS NOT NULL AND active_version=current_version)),
+ ADD CONSTRAINT financial_basis_active_version
+ FOREIGN KEY (id,active_version) REFERENCES financial_basis_versions(basis_id,version)
+ DEFERRABLE INITIALLY DEFERRED;

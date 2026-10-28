@@ -8,7 +8,7 @@ import { PeopleCards } from "@/components/people";
 import { Button } from "@/components/ui/button";
 import { CLUB, LINKS } from "@/lib/club";
 
-export const Route = createFileRoute("/contact")({head:()=>pageHead("/contact","Contact the Front Desk","Call (918) 922-8114 or send Oklahoma Prospects a question about cages, lessons, and teams.",false), validateSearch: (search: Record<string, unknown>): { subject?: string } => ({ subject: typeof search.subject === "string" ? search.subject.slice(0, 200) : "" }), component: ContactPage });
+export const Route = createFileRoute("/contact")({head:()=>pageHead("/contact","Contact the Front Desk",`Call (918) 922-8114 or send ${CLUB.name} a question about cages, lessons, and teams.`,false), validateSearch: (search: Record<string, unknown>): { subject?: string } => ({ subject: typeof search.subject === "string" ? search.subject.slice(0, 200) : "" }), component: ContactPage });
 
 function ContactPage() {
   const { subject } = Route.useSearch();
@@ -69,8 +69,7 @@ function ContactPage() {
         <div className="mx-auto max-w-3xl px-5">
           <h2 className="text-3xl">Who to text</h2>
           <p className="mt-2 mb-5 text-muted">
-            Desk for cages and arriving today. Steve for lessons and member
-            access.
+            Contact Organization for lessons, memberships, teams, and general questions. Contact the facility desk for cage bookings and arriving today.
           </p>
           <PeopleCards />
         </div>

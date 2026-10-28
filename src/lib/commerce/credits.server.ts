@@ -1,4 +1,6 @@
+import { operationalCoachAvailability } from "../operational-person.server";
 import { requireCoachService } from "./coach-services.server";
+import { lockFinancialExecution } from "../finance/execution.server";
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
 import { getSql } from "../db";
@@ -6,6 +8,7 @@ import { commerceIdentity as clubIdentity } from "./access.server";
 import { readWorkingFile } from "../pd/desk-impl.server";
 import { validateWindow, slotsFor } from "../scheduling";
 import { ASSESSMENT_PRODUCTS } from "../pricing";
+import { assertAthleteMayPurchase } from "./assessment-gate.server";
 import { BOOKABLE_LANES } from "../club";
 import { coachAvailable } from "./availability";
 import { expireHolds, createPaidBooking } from "./store.server";
@@ -31,7 +34,12 @@ async function context(userId: string, input: Input) {
     await sql<Grant>`select g.*,o.product_id from credit_grants g join commerce_orders o on o.id=g.order_id
     where g.id=${input.grantId} and g.household_id=any(${me.billingHouseholdIds}::text[]) and g.remaining>0 and g.starts_at<=now() and g.expires_at>now() and o.status='paid'`;
   if (!grant) throw new Error("This credit is unavailable or has expired.");
-  const file = await readWorkingFile();
+  const originalFile = await readWorkingFile();
+  const file = await operationalCoachAvailability(
+    sql,
+    originalFile.coaches,
+    originalFile.availability,
+  );
   let minutes = grant.minutes,
     resources: string[],
     quantity = 1;
@@ -50,10 +58,14 @@ async function context(userId: string, input: Input) {
     quantity = minutes;
     resources = [`lane:${input.laneId}`];
   } else {
-    const [assessment] =
-      await sql`select id from athlete_assessments where athlete_id=${grant.athlete_id} limit 1`;
-    if (!assessment)
-      throw new Error("Complete your assessment with your coach before booking ordinary lessons.");
+    await assertAthleteMayPurchase(sql, {
+      athleteId: grant.athlete_id,
+      kind: "lesson",
+      productId: input.serviceId || "",
+      billingHouseholdIds: me.billingHouseholdIds,
+      role: me.role,
+      date: input.date,
+    });
     if (grant.product_id === "m4")
       throw new Error(
         "Small-group credits require a published group session. Contact your coach for the weekly group schedule.",
@@ -108,8 +120,17 @@ export async function redeemCredit(userId: string, input: Input) {
   const prior =
     await read`select id from club_requests where id=${`redeem:${input.requestId}`} and user_id=${userId}`;
   if (prior.length) return { ok: true };
-  const { sql, grant, file, minutes, quantity, resources, me } = await context(userId, input);
+  const { sql, grant, minutes, quantity, resources, me } = await context(userId, input);
   return sql.transaction(async (tx) => {
+    await lockFinancialExecution(tx);
+    const originalFile = await readWorkingFile(tx);
+    const file = await operationalCoachAvailability(
+      tx,
+      originalFile.coaches,
+      originalFile.availability,
+    );
+    if (grant.kind !== "cage-minutes")
+      await requireCoachService(tx, file.coaches, input.coachId, input.serviceId!);
     const key = `redeem:${input.requestId}`;
     const previous = await tx`select id from club_requests where id=${key} and user_id=${userId}`;
     if (previous.length) return { ok: true };
@@ -141,6 +162,7 @@ export async function redeemCredit(userId: string, input: Input) {
         userId,
         athleteId: grant.athlete_id || null,
         coachId: input.coachId,
+        lessonSport: input.sport,
         productId: grant.kind === "cage-minutes" ? "individual" : input.serviceId,
         ...window,
         resources,

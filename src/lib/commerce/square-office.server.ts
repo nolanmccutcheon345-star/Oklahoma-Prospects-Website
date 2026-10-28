@@ -12,6 +12,8 @@ import { processSquareEvent } from "./square-webhook.server";
 import { executeSquareRefund } from "./square-management.server";
 import { expireHolds, queueExpiredCheckoutRefunds } from "./store.server";
 import { rateLimit } from "./checkout.server";
+import { lockFinancialExecution } from "../finance/execution.server";
+import { financialPrincipalInTransaction } from "../finance/principal.server";
 export async function requirePaymentOwner(userId: string) {
   const me = await clubIdentity(userId);
   if (me.role !== "admin") throw new Error("Owner access required.");
@@ -107,6 +109,9 @@ export async function manualSquareRefund(
     c = squareConfig();
   const id = "manual:" + input.requestId;
   await sql.transaction(async (tx) => {
+    await lockFinancialExecution(tx);
+    if (!(await financialPrincipalInTransaction(tx, userId)).owner)
+      throw new Error("Owner access required.");
     const [payment] = await tx<{
       id: string;
       order_id: string;
@@ -132,7 +137,7 @@ export async function manualSquareRefund(
     }
     const [pending] = await tx<{
       cents: string;
-    }>`select coalesce(sum(amount_cents),0) as cents from commerce_refunds where square_payment_id=${payment.id} and status in ('pending','unknown')`;
+    }>`select coalesce(sum(amount_cents),0) as cents from commerce_refunds where square_payment_id=${payment.id} and (status not in ('completed','failed','rejected') or external_status is not null)`;
     if (
       input.amountCents <= 0 ||
       input.amountCents > payment.amount_cents - payment.refunded_cents - Number(pending.cents)
@@ -221,8 +226,14 @@ async function reconcileSquareWork() {
       if (++scanned >= 200) break;
     }
   }
-  await sql.transaction((tx) => expireHolds(tx));
-  await queueExpiredCheckoutRefunds(sql, c.environment);
+  await sql.transaction(async (tx) => {
+    await lockFinancialExecution(tx);
+    await expireHolds(tx);
+  });
+  await sql.transaction(async (tx) => {
+    await lockFinancialExecution(tx);
+    await queueExpiredCheckoutRefunds(tx, c.environment);
+  });
   const pending = await sql<{
     id: string;
   }>`select id from commerce_orders where subscription_setup_status='pending' and status='paid' and payment_environment=${c.environment} limit 10`;
@@ -245,7 +256,7 @@ async function reconcileSquareWork() {
     }
   const refunds = await sql<{
     id: string;
-  }>`select r.id from commerce_refunds r join square_payments p on p.id=r.square_payment_id where r.status in ('pending','unknown') and p.environment=${c.environment} order by r.created_at limit 10`;
+  }>`select r.id from commerce_refunds r join square_payments p on p.id=r.square_payment_id where r.status in ('pending','unknown') and r.external_status is null and p.environment=${c.environment} order by r.created_at limit 10`;
   for (const r of refunds)
     try {
       await executeSquareRefund(r.id);
@@ -281,7 +292,11 @@ export async function verifySquareLocation(userId: string) {
 }
 
 /** Read-only configuration check; signing keys never leave the server. */
-export async function verifySquareWebhooks(userId: string, prepareMemberships = false) {
+export async function verifySquareWebhooks(
+  userId: string,
+  prepareMemberships = false,
+  requireMemberships = false,
+) {
   await requirePaymentOwner(userId);
   const c = squareConfig();
   if (prepareMemberships) {
@@ -299,12 +314,13 @@ export async function verifySquareWebhooks(userId: string, prepareMemberships = 
     if (subscription.signatureKey !== c.signatureKey)
       throw new Error("The Square webhook signing key does not match this site's saved key.");
     const required = ["payment.updated", "refund.updated"];
-    if (c.checkoutScope === "all" || prepareMemberships)
+    if (c.checkoutScope === "all" || prepareMemberships || requireMemberships)
       required.push(
         "subscription.updated",
         "invoice.payment_made",
         "invoice.scheduled_charge_failed",
         "dispute.created",
+        "dispute.state.updated",
         "card.automatically_updated",
       );
     if (prepareMemberships && required.some((type) => !subscription?.eventTypes?.includes(type))) {

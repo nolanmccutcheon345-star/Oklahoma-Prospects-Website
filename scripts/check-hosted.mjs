@@ -22,6 +22,7 @@ const privateCache = (response) => {
 const nonces = new Set();
 const pages = [
   ["/", 200], ["/book", 200], ["/training", 200], ["/memberships", 200],
+  ["/teams", 200], ["/tryouts", 200], ["/games", 200],
   ["/login?next=%2Faccount", 200], ["/__audit_missing_page__", 404], ["/", 200],
 ];
 for (const [path, expected] of pages) {
@@ -60,6 +61,26 @@ for (const path of ["/visit", "/check-in", "/checkin"]) {
     new URL("/visits", origin).href, `${path}: destination`);
   console.log(`PASS 301 ${path} -> /visits`);
 }
+
+// The health endpoint is a GET-only diagnostic. A missing DB should be an
+// explicit 503, never a forged "isolated" hash or a deployment-wide 500.
+const healthResponse = await request("/api/health");
+assert.ok([200, 503].includes(healthResponse.status), "Database health must be configured or explicitly unverified");
+assert.match(healthResponse.headers.get("content-type") || "", /application\/json/);
+privateCache(healthResponse);
+const rawHealth = await healthResponse.text();
+const health = JSON.parse(rawHealth);
+assert.deepEqual(Object.keys(health).sort(), ["databaseFingerprint", "databaseSource", "status"]);
+assert.ok(["postgres", "pglite", "unconfigured"].includes(health.databaseSource), "Known database source");
+if (healthResponse.status === 200) {
+  assert.equal(health.status, "configured");
+  assert.equal(health.databaseSource, "postgres");
+  assert.match(health.databaseFingerprint || "", /^[a-f0-9]{64}$/);
+} else {
+  assert.equal(health.status, "unverified");
+  assert.equal(health.databaseFingerprint, null, "Never claim DB isolation with missing persistent config");
+}
+console.log("PASS read-only database health: restricted JSON, private cache, no raw connection details");
 
 const session = await request("/api/auth/get-session");
 assert.equal(session.status, 200, "Signed-out session endpoint");

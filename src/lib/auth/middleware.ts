@@ -25,7 +25,7 @@ import { createMiddleware } from "@tanstack/react-start";
  * all. On the auth-on path, use it on every server function that touches
  * per-user data and scope every query by `context.userId`.
  */
-export const authMiddleware = createMiddleware({ type: "function" })
+const verifiedSessionMiddleware = createMiddleware({ type: "function" })
   .client(async ({ next }) => {
     // Live preview (partitioned iframe): the session rides a bearer token, not a
     // cookie, so forward it to the server. Null when deployed (cookie auth), so
@@ -43,6 +43,41 @@ export const authMiddleware = createMiddleware({ type: "function" })
     // Reject scripted cross-site/sibling requests before touching per-user data.
     assertSameSiteRequest();
     const userId = await requireUserId(context.bearerToken);
-    const { withAuditActor } = await import('../audit-context.server');
-    return withAuditActor(userId, () => next({ context: { userId } }));
+    const { withAuditActor } = await import("../audit-context.server");
+    return withAuditActor(userId, async () => {
+      try {
+        return await next({ context: { userId } });
+      } catch (error) {
+        const { getSql } = await import("../db");
+        const { recordRejectedCoordinatorRequest } = await import("../coordinator/access.server");
+        await recordRejectedCoordinatorRequest(await getSql(), userId);
+        throw error;
+      }
+    });
+  });
+
+/** Default-deny for the financially isolated operational role. Existing and future
+ * legacy endpoints may return mixed data; only explicitly reviewed operational
+ * endpoints may opt in to operationalAuthMiddleware. Client flags cannot opt in. */
+export const authMiddleware = createMiddleware({ type: "function" })
+  .middleware([verifiedSessionMiddleware])
+  .server(async ({ next, context }) => {
+    const { getSql } = await import("../db");
+    const { requireUnrestrictedLegacyAccess } = await import("../coordinator/access.server");
+    await requireUnrestrictedLegacyAccess(await getSql(), context.userId);
+    return next();
+  });
+export const operationalAuthMiddleware = verifiedSessionMiddleware;
+
+/** Explicit transport for reviewed sport/team-scoped coordinator functions.
+ * The domain handler must still authorize its exact capability and record in
+ * the data transaction. This never opens legacy mixed-data or owner routes. */
+export const coordinatorAuthMiddleware = createMiddleware({ type: "function" })
+  .middleware([verifiedSessionMiddleware])
+  .server(async ({ next, context }) => {
+    const { getSql } = await import("../db");
+    const { grants, CoordinatorDenied } = await import("../coordinator/access.server");
+    const current = await grants(await getSql(), context.userId);
+    if (!current.some((g) => g.status === "active")) throw new CoordinatorDenied();
+    return next();
   });

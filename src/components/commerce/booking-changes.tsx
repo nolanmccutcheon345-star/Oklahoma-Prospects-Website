@@ -1,3 +1,5 @@
+import { formatClockTime } from "@/lib/time-display";
+import { TimeInput } from "@/components/time-input";
 import { useEffect, useState } from "react";
 import { SquareCard } from "./square-card";
 import { submitSquarePayment } from "@/lib/commerce/api";
@@ -147,8 +149,8 @@ export function RescheduleBooking({
           </label>
           <label>
             New start time
-            <input
-              type="time"
+            <TimeInput
+
               name="time"
               required
               step={1800}
@@ -167,7 +169,7 @@ export function RescheduleBooking({
             {new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(
               checkout.totalCents / 100,
             )}{" "}
-            for the requested move to {checkout.date} at {checkout.time} (America/Chicago). A
+            for the requested move to {checkout.date} at {formatClockTime(checkout.time)} (America/Chicago). A
             confirmed move uses your household’s monthly allowance. If the move cannot complete, the
             fee enters the original-card refund process and the original booking stays intact.
           </p>

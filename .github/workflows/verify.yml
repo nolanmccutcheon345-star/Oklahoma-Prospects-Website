@@ -19,7 +19,9 @@ permissions:
 jobs:
   verify:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    # Run 39485829764 reached test 920 before the 20-minute job limit.
+    # Preserve every browser/regression gate and allow the expanded suite to finish.
+    timeout-minutes: 40
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -28,16 +30,70 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run typecheck
-      - run: npm test
-      - run: npm run lint
-      - run: npm audit --audit-level=high
       - run: npm run build
         env:
           NETLIFY: "true"
-          CONTEXT: deploy-preview
+          # This is an offline synthetic build, not a hosted Netlify preview.
+          # Actual preview builds receive SITE_ID and DEPLOY_PRIME_URL from Netlify.
+          CONTEXT: dev
           SQUARE_LIVE_ENABLED: "false"
           SQUARE_ENVIRONMENT: sandbox
+      - name: Verify exact clean release identity
+        run: node scripts/check-reviewed-release.mjs
       - run: npm run verify:build
+      - run: npx playwright install --with-deps chromium
+      - name: Isolated organization enrollment walkthrough
+        run: node --import tsx scripts/check-enrollment.mjs
+      - name: Isolated independent team financial walkthrough
+        run: node --import tsx scripts/check-independent-finances.mjs
+      - name: Isolated coordinator permissions walkthrough
+        run: node scripts/check-coordinator.mjs
+      - name: Nonfinancial tournament finder component walkthrough
+        run: node scripts/check-organization-tournaments-ui.mjs
+      - name: Isolated tournament finder walkthrough
+        run: node --import tsx scripts/check-tournament-finder.mjs
+      - name: Authenticated isolated instructor walkthrough
+        run: npm run test:guided:browser
+        env:
+          NETLIFY: "true"
+          LESSON_FULL_APP: "true"
+          LESSON_SCREENSHOT_DIR: artifacts/guided-lessons
+      - name: Public navigation and tryout walkthrough
+        run: node scripts/public-ux-walkthrough.mjs
+        env:
+          NETLIFY: "true"
+          PUBLIC_UX_SCREENSHOTS: artifacts/guided-lessons/public-ux
+      - name: Isolated membership and homepage walkthrough
+        run: node scripts/membership-homepage-walkthrough.mjs
+        env:
+          NETLIFY: "true"
+      - name: Isolated Journal publishing walkthrough
+        run: node scripts/journal-walkthrough.mjs
+        env:
+          NETLIFY: "true"
+      - name: Isolated coach tryout center walkthrough
+        run: node scripts/check-tryout-center.mjs
+      - name: Isolated shop walkthrough
+        run: node scripts/shop-walkthrough.mjs
+      # Run the real interaction loop first so interface failures are found promptly.
+      - run: npm test
+      - run: npm run lint
+      - run: npm audit --audit-level=high
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: guided-lesson-walkthrough
+          path: |
+            artifacts/guided-lessons
+            artifacts/tryout-center
+            artifacts/shop
+            artifacts/membership
+            artifacts/journal
+            artifacts/enrollment
+            artifacts/independent-finances
+            artifacts/coordinator
+            artifacts/tournament-finder
+          if-no-files-found: ignore
       - name: Read-only hosted HTTP smoke
         if: github.event_name == 'workflow_dispatch' && inputs.hosted_origin != 'skip'
         run: npm run verify:hosted -- "$HOSTED_ORIGIN"

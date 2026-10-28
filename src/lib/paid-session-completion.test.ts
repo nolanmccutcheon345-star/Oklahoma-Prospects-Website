@@ -45,9 +45,12 @@ test('assessment completion requires paid ledger evidence and rolls back invalid
     const oldSql=state.__pgSqlPromise__,oldUrl=process.env.DATABASE_URL,oldContext=process.env.CONTEXT;
     try {
       process.env.DATABASE_URL='postgresql://unused.invalid/disposable';process.env.CONTEXT='dev';state.__pgSqlPromise__=Promise.resolve(sql);
-      const {completeSession}=await import('./commerce/portal.server');
+      const {openLessonSession,saveLessonSession}=await import('./pd/lesson-session.server');
+      await sql`update club_athletes set birth_date='2013-01-01',profile=' {"sport":"baseball"}'::jsonb where id='athlete'`;
       await sql`insert into commerce_orders(id,request_key,user_id,email,athlete_id,product_id,kind,snapshot,total_cents,status) values('order','order','parent','parent@example.invalid','athlete','s1','lesson','{"discipline":"Pitching"}',14900,'pending')`;
       await sql`insert into booking_records(id,order_id,user_id,athlete_id,coach_id,product_id,starts_at,ends_at,resources,status) values('assessment','order','parent','athlete','coach-record','s1','2026-01-01T18:00:00Z','2026-01-01T19:15:00Z','[]','confirmed')`;
+      const session=(await openLessonSession('coach','assessment')).session!;
+      const completeSession=async (_user:string,_id:string,recap:string)=>saveLessonSession('coach',{bookingId:'assessment',revision:1,complete:true,document:{...session.document,attendance:'present',readiness:'ready',familyRecap:recap,homework:'Safe practice only.',nextSteps:'Review assessment.',stageNotes:Array(8).fill('Reviewed assessment.'),overrideReason:'Assessment documented in stage notes.'}});
       for(const status of ['pending','payment_review','refunded','cancelled']) {
        await sql`update commerce_orders set status=${status} where id='order'`;
        await assert.rejects(()=>completeSession('coach','assessment','Synthetic full assessment recap'),/verified paid order/);
@@ -56,7 +59,7 @@ test('assessment completion requires paid ledger evidence and rolls back invalid
        assert.equal((await sql`select booking_id from contractor_earnings`).length,0);
       }
       await sql`update commerce_orders set status='paid' where id='order'`;
-      assert.equal((await completeSession('coach','assessment','Synthetic full assessment recap')).assessmentCompleted,true);
+      assert.equal((await completeSession('coach','assessment','Synthetic full assessment recap')).completed,true);
       await completeSession('coach','assessment','Second delivery attempt');
       assert.equal((await sql`select id from athlete_assessments`).length,1);
       assert.equal((await sql<{status:string}>`select status from booking_records where id='assessment'`)[0].status,'completed');

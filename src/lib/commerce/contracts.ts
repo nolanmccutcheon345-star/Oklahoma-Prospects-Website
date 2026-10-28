@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { eligibility } from "../pricing";
+import { ASSESSMENT_LOCK_MESSAGE, eligibility } from "../pricing";
 import { BOOKABLE_LANES } from "../club";
 import type { AppliedDiscount } from "./discounts";
 
@@ -9,6 +9,7 @@ export const checkoutInput = z
     productId: z.string().trim().min(1).max(80),
     kind: z.enum(["lesson", "package", "membership", "cage", "cage-plan"]),
     athleteId: z.string().max(100).optional(),
+    sport: z.enum(["baseball","softball"]).optional(),
     coachId: z.string().max(100).optional(),
     date: z.string().max(10).optional(),
     time: z.string().max(5).optional(),
@@ -39,7 +40,9 @@ export type Product = {
   discipline: string;
   active: boolean;
 };
+export type BookedServiceConfig = {service:Product & {lesson_version:number};sport:'baseball'|'softball'|null;source:string;capturedAt?:string};
 export type Quote = {
+  lessonConfig?: BookedServiceConfig;
   productId: string;
   kind: string;
   title: string;
@@ -48,6 +51,7 @@ export type Quote = {
   setupCents: number;
   recurring: boolean;
   initialBookingUsesCredit?: boolean;
+  squarePlanVariationId?: string;
   assessment: boolean;
   duration: number;
   sessionMinutes: number;
@@ -79,11 +83,11 @@ export function calculateQuote(
     !(product.id === "s6" && input.kind === "lesson")
   )
     throw new Error("Product type does not match.");
-  const rule = eligibility(input.kind, product.id, completed);
-  if (rule.locked)
-    throw new Error(
-      "Complete your assessment with your coach to unlock ordinary lessons and packages.",
-    );
+  const assessmentFirst = !completed && input.kind === "membership" && ["m1","m2","m3"].includes(product.id);
+  const fee = cages.find(p => p.id === "assessment-setup");
+  if (assessmentFirst && !fee) throw new Error("The first-month assessment fee is unavailable. Contact Front Office.");
+  const rule = eligibility(input.kind, product.id, completed, fee?.active ? Math.round(fee.price * 100) : 0);
+  if (rule.locked) throw new Error(ASSESSMENT_LOCK_MESSAGE);
   const recurring =
     input.kind === "membership" || input.kind === "cage-plan" || product.id === "s6";
   if (requireConsent && recurring && !input.consent)
@@ -97,7 +101,7 @@ export function calculateQuote(
     setupCents: rule.setupCents,
     recurring,
     initialBookingUsesCredit: input.kind === "membership" && product.credits > 0,
-    assessment: rule.assessment || rule.setupCents > 0,
+    assessment: rule.assessment || assessmentFirst,
     duration: product.minutes,
     sessionMinutes: product.minutes,
     credits: product.credits,
@@ -113,9 +117,9 @@ export function calculateQuote(
       (input.kind === "lesson" && product.id !== "s5") ||
       input.kind === "membership",
   };
-  if (rule.setupCents) {
+  if (assessmentFirst) {
     quote.duration = product.discipline === "Hitting" ? 60 : 75;
-    quote.lines.push({ label: "First-month fee (no assessment on file)", cents: rule.setupCents });
+    quote.lines.push({ label: fee!.name, cents: rule.setupCents });
   }
   if (input.kind === "membership" && product.id === "m5" && completed) quote.needsSlot = false;
   if (input.kind === "cage-plan" && (!input.household || input.athleteCount > 2))

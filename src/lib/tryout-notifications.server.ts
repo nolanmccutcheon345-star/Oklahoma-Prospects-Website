@@ -1,3 +1,4 @@
+import { formatClockTime } from "./time-display";
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
 import type { Sql } from "./db";
@@ -30,8 +31,8 @@ function emailBody(kind: string, payload: unknown, from: string) {
   return {
     from,
     to: [p.email.trim()],
-    subject: `Oklahoma Prospects Academy — ${subject}`,
-    text: `${subject}.\n\nPlayer: ${p.player}\nSport: ${p.sport}\nSeason: ${p.season}\nDate: ${p.date}\nTime: ${p.startTime}–${p.endTime} Central (America/Chicago)\nLocation: ${p.location}\n\n${kind === "cancelled" ? "Do not attend this cancelled event. Your request remains on file for matching group opportunities." : "This is a group tryout appointment. Private tryouts are arranged separately with a coach."}`,
+    subject: `Prospects Sports Academy — ${subject}`,
+    text: `${subject}.\n\nPlayer: ${p.player}\nSport: ${p.sport}\nSeason: ${p.season}\nDate: ${p.date}\nTime: ${formatClockTime(p.startTime)}–${formatClockTime(p.endTime)} Central (America/Chicago)\nLocation: ${p.location}\n\n${kind === "cancelled" ? "Do not attend this cancelled event. Your request remains on file for matching group opportunities." : "This is a group tryout appointment. Private tryouts are arranged separately with a coach."}`,
   };
 }
 type Notice = {
@@ -44,7 +45,12 @@ type Notice = {
   attempts: number;
   first_attempt_at: Date | null;
 };
-export async function deliverTryoutNotifications(sql: Sql, env: Env, send: typeof fetch = fetch) {
+export async function deliverTryoutNotifications(
+  sql: Sql,
+  env: Env,
+  send: typeof fetch = fetch,
+  maxAttempts = 2,
+) {
   if (
     env.TRYOUT_NOTIFICATIONS_ENABLED !== "true" ||
     !env.RESEND_API_KEY ||
@@ -66,7 +72,7 @@ export async function deliverTryoutNotifications(sql: Sql, env: Env, send: typeo
     payload: { email?: string };
   }>`select id,payload from tryout_notification_outbox where (status='pending' and next_attempt_at<=now()) or (status='processing' and lease_until<now()) order by created_at,id limit 20`;
   for (const candidate of candidates) {
-    if (accepted + failed >= 2) break;
+    if (accepted + failed >= maxAttempts) break;
     if (!candidate.payload.email || !tryoutEmailAllowed(candidate.payload.email, env)) continue;
     const lease = randomUUID();
     const notice = await sql.transaction(async (tx) => {

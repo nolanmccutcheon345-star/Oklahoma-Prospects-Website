@@ -1,3 +1,4 @@
+import {validatePlayerBirthday} from './player-birthdays.server';
 import type { Sql } from "./db";
 import type { Profile } from "./club-data";
 
@@ -7,7 +8,7 @@ type AccountViewer = { userId: string; email: string; role: Profile["role"] };
 export async function saveAccountProfile(
   sql: Sql,
   viewer: AccountViewer & { familyId: string },
-  input: { name: string; role: Profile["role"]; playerName: string },
+  input: { name: string; role: Profile["role"]; playerName: string; birthDate?:string },
 ) {
   if (viewer.role === "player") {
     const rows = await sql`update profiles set name = ${input.name}
@@ -15,11 +16,21 @@ export async function saveAccountProfile(
     if (!rows.length) throw new Error("Your player profile must be linked by the club before editing it.");
     return { ok: true, role: viewer.role };
   }
+  const [existing]=await sql`select user_id from profiles where user_id=${viewer.userId}`;
+  const newPlayer=!existing && viewer.role==='parent' && input.role==='player';
+  if(newPlayer) validatePlayerBirthday(input.birthDate||'');
   // Preserve the existing initial player/parent setup, without allowing role escalation.
   const role = viewer.role === "parent" && input.role === "player" ? "player" : viewer.role;
-  await sql`insert into profiles (user_id, name, email, role, player_name, family_id)
+  await sql.transaction(async tx=>{
+  await tx`insert into profiles (user_id, name, email, role, player_name, family_id)
     values (${viewer.userId}, ${input.name}, ${viewer.email}, ${role}, ${input.playerName}, ${viewer.familyId})
     on conflict (user_id) do update set name = excluded.name, player_name = excluded.player_name`;
+  if(newPlayer) {
+    const id=`player:${viewer.userId}`;
+    await tx`insert into club_athletes(id,user_id,household_email,name,birth_date) values(${id},${viewer.userId},${viewer.email},${input.playerName||input.name},${input.birthDate!})`;
+    await tx`insert into person_player_links(user_id,player_id) values(${viewer.userId},${id})`;
+  }
+  });
   return { ok: true, role };
 }
 

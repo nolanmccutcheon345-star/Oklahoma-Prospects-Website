@@ -4,7 +4,7 @@ export function safeNext(value: unknown, fallback = "/account") {
   try {
     const decoded = decodeURIComponent(value);
     if (decoded.startsWith("//") || (decoded.includes("\\") || [...decoded].some(c => c.charCodeAt(0) < 32))) return fallback;
-    const base = "https://prospectsbaseball.club";
+    const base = "https://prospectssports.club";
     const url = new URL(value, base);
     return url.origin === base ? `${url.pathname}${url.search}${url.hash}` : fallback;
   } catch { return fallback; }

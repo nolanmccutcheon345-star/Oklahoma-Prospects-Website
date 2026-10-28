@@ -81,6 +81,8 @@ export type EvaluationTeam = {
   sport: "baseball" | "softball";
 };
 export type EvaluationCandidate = {
+  profile?: import("./athlete-registration-contracts").RegistrationSummary;
+  positions?: string;
   id: string;
   name: string;
   age: string;

@@ -1,14 +1,15 @@
-import type { Config } from "@netlify/functions";
-export default async () => {
+import type { Config, Context } from "@netlify/functions";
+export default async (_request: Request, context: Context) => {
   if (
-    Netlify.env.get("CONTEXT") !== "production" ||
+    context.deploy.context !== "production" ||
+    !context.deploy.published ||
     Netlify.env.get("TRYOUT_NOTIFICATIONS_ENABLED") !== "true"
   )
     return new Response("Disabled");
   const secret = Netlify.env.get("TRYOUT_NOTIFICATIONS_SECRET");
   if (!secret) return new Response("Not configured", { status: 503 });
   try {
-    const result = await fetch("https://prospectsbaseball.club/api/tryout-notifications", {
+    const result = await fetch("https://prospectssports.club/api/tryout-notifications", {
       method: "POST",
       headers: { Authorization: "Bearer " + secret },
       redirect: "error",

@@ -1,3 +1,4 @@
+import { CLUB } from "@/lib/club";
 import {pageHead} from "@/lib/seo";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState } from "react";
@@ -14,7 +15,7 @@ import { safeNext } from "@/lib/auth/redirect";
 
 type LoginSearch = { next?: string; token?: string };
 
-export const Route = createFileRoute("/login")({head:()=>pageHead("/login","Sign In","Sign in to your Oklahoma Prospects account.",true),
+export const Route = createFileRoute("/login")({head:()=>pageHead("/login","Sign In",`Sign in to your ${CLUB.name} account.`,true),
   validateSearch: (search: Record<string, unknown>): LoginSearch => ({
     next: safeNext(search.next),
     token: typeof search.token === "string" ? search.token.slice(0,1000) : undefined,
@@ -33,7 +34,7 @@ function persistSessionToken(token: string | null | undefined) {
 
 async function emailAuth(
   mode: "in" | "up",
-  payload: { email: string; password: string; name?: string },
+  payload: { email: string; password: string; name?: string; callbackURL?: string },
 ) {
   const path =
     mode === "up" ? "/api/auth/sign-up/email" : "/api/auth/sign-in/email";
@@ -79,6 +80,7 @@ function Login() {
       const payload = {
         email: email.trim(),
         password,
+        callbackURL: dest,
         ...(mode === "up" ? { name } : {}),
       };
       if (resetToken) {
@@ -94,7 +96,7 @@ function Login() {
       }
       const signedIn=await emailAuth(mode, payload);
       setPassword("");
-      if(signedIn.twoFactorRedirect){window.location.assign("/two-factor");return;}
+      if(signedIn.twoFactorRedirect){window.location.assign("/two-factor?next="+encodeURIComponent(dest));return;}
       if(mode === "up"){setNotice("Check your email to verify your account before signing in.");setBusy(false);return;}
       try {
         await authClient.getSession();
@@ -111,7 +113,7 @@ function Login() {
   return (
     <main id="main">
       <PageHero
-        eyebrow="Oklahoma Prospects"
+        eyebrow={CLUB.name}
         title="Sign in."
         accent="One account."
         copy="Parents, players, coaches, and the front office. Cages, lessons, and teams share this login."

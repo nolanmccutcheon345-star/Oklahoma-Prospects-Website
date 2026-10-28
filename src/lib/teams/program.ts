@@ -175,7 +175,7 @@ export function funnelOf(club: ClubOs) {
 }
 
 export function tryoutLink() {
-  return "https://prospectsbaseball.club/tryouts";
+  return "https://prospectssports.club/tryouts";
 }
 
 export function alumniPublic(

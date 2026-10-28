@@ -1,4 +1,5 @@
-import { PRICES, formatMoney as priceMoney } from "@/lib/pricing";
+import { AthleteSelector, athleteScope } from "@/components/pd/athlete-selector";
+import {PlayerBirthdays} from '@/components/commerce/player-birthdays';
 import { checkoutLessonService } from "@/lib/commerce/coach-services";
 import { pageHead } from "@/lib/seo";
 import { createFileRoute, Link } from "@tanstack/react-router";
@@ -16,7 +17,7 @@ import { eligibility, formatMoney } from "@/lib/pricing";
 import { chicagoDate, slotsFor } from "@/lib/scheduling";
 import { useCurrentUser } from "@/lib/auth/use-current-user";
 import { SquareCard } from "@/components/commerce/square-card";
-import { CANCEL_POLICY } from "@/lib/club";
+import { CANCEL_POLICY, CLUB } from "@/lib/club";
 import { checkoutScopeCustomerNotice } from "@/lib/commerce/square-config";
 
 export const Route = createFileRoute("/pay")({
@@ -31,13 +32,20 @@ function PayPage() {
   const [context, setContext] = useState<Awaited<ReturnType<typeof getCheckoutContext>> | null>(
     null,
   );
+  const [lessonSport,setLessonSport]=useState<"baseball"|"softball"|"">("");
   const [athleteId, setAthleteId] = useState("");
-  const [coachId, setCoachId] = useState("");
+  const [coachId, setCoachId] = useState(search.instructor || "");
+  useEffect(()=>{setCoachId(search.instructor||" ".trim());},[search.instructor]);
+  const [autoAssignCoach, setAutoAssignCoach] = useState(false);
+  const [assigningCoach, setAssigningCoach] = useState(false);
+  const [autoCoachError, setAutoCoachError] = useState("");
+  const autoCoachAttempt = useRef(0);
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const playerName = "",
     birthDate = "";
   const [date, setDate] = useState(search.date || chicagoDate());
+  const dateChosen = useRef(Boolean(search.date));
   const [time, setTime] = useState(search.time || "");
   const [household, setHousehold] = useState(checkoutParty(search).household);
   const [count, setCount] = useState(checkoutParty(search).count);
@@ -56,6 +64,8 @@ function PayPage() {
   const [slotError, setSlotError] = useState("");
   const [slots, setSlots] = useState<{ value: string; label: string }[]>([]);
   const [loadingSlots, setLoadingSlots] = useState(false);
+  const [nextAvailable, setNextAvailable] = useState<{ date: string } | null>(null);
+  const [dateNotice, setDateNotice] = useState("");
   const [prepared, setPrepared] = useState<Awaited<ReturnType<typeof startCheckout>> | null>(null);
   const requestId = useRef(crypto.randomUUID());
   const paymentLock = useRef(false);
@@ -65,7 +75,7 @@ function PayPage() {
   }, [user?.id, user?.displayName, user?.primaryEmail]);
   useEffect(() => {
     let active = true;
-    getCheckoutContext()
+    const refresh = () => getCheckoutContext()
       .then((value) => {
         if (active) {
           setContext(value);
@@ -76,9 +86,10 @@ function PayPage() {
         if (active)
           setError(e instanceof Error ? e.message : "Checkout could not load. Please try again.");
       });
-    return () => {
-      active = false;
-    };
+    refresh();
+    window.addEventListener('focus',refresh);
+    window.addEventListener('player-profile-updated',refresh);
+    return () => { active=false; window.removeEventListener('focus',refresh);window.removeEventListener('player-profile-updated',refresh); };
   }, [user?.id]);
   const product = context?.products.find((p) => p.id === search.id);
   const assessed = context?.athletes.find((a) => a.id === athleteId)?.assessmentComplete === true;
@@ -99,6 +110,7 @@ function PayPage() {
       productId: search.id || "",
       kind,
       athleteId: athleteId || undefined,
+      sport: lessonSport || undefined,
       coachId: coachId || undefined,
       date,
       time,
@@ -116,6 +128,7 @@ function PayPage() {
       search.id,
       kind,
       athleteId,
+      lessonSport,
       coachId,
       date,
       time,
@@ -137,7 +150,7 @@ function PayPage() {
         input,
         product,
         assessed,
-        context.products.filter((p) => p.kind === "cage"),
+        context.products,
         false,
       );
     } catch {
@@ -192,14 +205,24 @@ function PayPage() {
   useEffect(() => {
     let cancelled = false;
     setSlots([]);
+    setNextAvailable(null);
     setSlotError("");
     setLoadingSlots(false);
-    if (!quote?.needsSlot || !email.includes("@") || !name || (kind !== "cage" && !coachId)) return;
+    if (!quote?.needsSlot || !user || !email.includes("@") || !name || (kind !== "cage" && (!coachId || !athleteId))) return;
     setLoadingSlots(true);
     const timer = window.setTimeout(() => {
       getCheckoutQuote({ data: { ...input, requestId: requestId.current } })
         .then((result) => {
-          if (!cancelled) setSlots(result.slots);
+          if (!cancelled) {
+            if (kind !== "cage" && !dateChosen.current && !result.slots.length && result.nextAvailable) {
+              setDate(result.nextAvailable.date);
+              setTime("");
+              setDateNotice("Showing this instructor’s next available date. Choose a start time below.");
+            } else {
+              setSlots(result.slots);
+              setNextAvailable(result.nextAvailable || null);
+            }
+          }
         })
         .catch((e) => {
           if (!cancelled)
@@ -216,6 +239,7 @@ function PayPage() {
     // Time selection and consent do not change which slots are available.
   }, [
     context,
+    user?.id,
     quote?.duration,
     quote?.needsSlot,
     date,
@@ -230,6 +254,59 @@ function PayPage() {
     kind,
     search.cages,
   ]);
+  /** Choose only a coach whose service and slots pass live server-side checks. */
+  async function chooseAvailableCoach(forDate: string) {
+    const generation = ++autoCoachAttempt.current;
+    setAutoCoachError("");
+    setCoachId("");
+    setTime("");
+    setSlots([]);
+    if (!context || !quote || !user || kind === "cage") {
+      setAutoCoachError("Sign in, select an athlete, and choose a coaching service first.");
+      return;
+    }
+    if (!name.trim() || !email.includes("@")) {
+      setAutoCoachError("Enter your name and email before assigning a coach.");
+      return;
+    }
+    const serviceId = checkoutLessonService(quote);
+    const qualified = context.coaches
+      .filter((coach) => coach.serviceIds.includes(serviceId))
+      .sort((a, b) => a.id.localeCompare(b.id));
+    if (!qualified.length) {
+      setAutoCoachError("No coach is assigned to this lesson type yet.");
+      return;
+    }
+    setAssigningCoach(true);
+    let nearest: { coachId: string; date: string } | null = null;
+    try {
+      for (const coach of qualified) {
+        try {
+          const result = await getCheckoutQuote({
+            data: { ...input, date: forDate, time: undefined, coachId: coach.id, requestId: crypto.randomUUID() },
+          });
+          if (generation !== autoCoachAttempt.current) return;
+          if (result.slots.length > 0) {
+            setCoachId(coach.id);
+            return;
+          }
+          if (result.nextAvailable && (!nearest || result.nextAvailable.date < nearest.date))
+            nearest = { coachId: coach.id, date: result.nextAvailable.date };
+        } catch {
+          // An unqualified/unavailable coach cannot be selected; try the next.
+        }
+      }
+      if (generation === autoCoachAttempt.current && nearest) {
+        setCoachId(nearest.coachId);
+        if (!dateChosen.current) setDate(nearest.date);
+        return;
+      }
+      if (generation === autoCoachAttempt.current)
+        setAutoCoachError("No qualified coach has available times that day. Choose a different date.");
+    } finally {
+      if (generation === autoCoachAttempt.current) setAssigningCoach(false);
+    }
+  }
   async function submit(event: React.FormEvent) {
     event.preventDefault();
     if (paymentLock.current) return;
@@ -264,7 +341,7 @@ function PayPage() {
   const recurring = quote?.recurring || kind === "membership" || kind === "cage-plan";
   return (
     <main id="main" className="mx-auto max-w-3xl px-5 py-8">
-      <p className="eyebrow">Oklahoma Prospects</p>
+      <p className="eyebrow">{CLUB.name}</p>
       <h1 className="mt-2 text-4xl">
         {recurring ? "Start your membership" : "Review your booking"}
       </h1>
@@ -321,6 +398,7 @@ function PayPage() {
           />
         </div>
       ) : null}
+      {user && needsAthlete && !prepared ? <PlayerBirthdays /> : null}
       {product && !prepared ? (
         <form onSubmit={submit} className="mt-6 grid gap-5">
           <article className="rounded-2xl bg-ink p-5 text-white">
@@ -337,7 +415,7 @@ function PayPage() {
             {quote?.teamRate ? (
               <p className="mt-2 text-powder">
                 Team rate applies to three or more athletes, three or more spaces, or non-household
-                use. Fielding is {priceMoney(PRICES.field)}/hour.
+                use. Fielding has its own hourly rate, included in your total.
               </p>
             ) : null}
             {recurring && quote ? (
@@ -396,23 +474,7 @@ function PayPage() {
             </label>
           </div>
           {needsAthlete && context?.athletes.length ? (
-            <label className="grid gap-1">
-              Athlete
-              <select
-                className="rounded-lg border p-3"
-                value={athleteId}
-                onChange={(e) => setAthleteId(e.target.value)}
-                required
-              >
-                <option value="">Select your athlete</option>
-                {context.athletes.map((a) => (
-                  <option key={a.id} value={a.id}>
-                    {a.name}
-                    {a.assessmentComplete ? " · assessment completed" : " · assessment needed"}
-                  </option>
-                ))}
-              </select>
-            </label>
+            <AthleteSelector athletes={context.athletes} value={athleteId} onChange={setAthleteId} scope={athleteScope(context.athleteScopeRole)} />
           ) : null}
           {needsAthlete && !context?.athletes.length ? (
             <p>
@@ -427,11 +489,14 @@ function PayPage() {
               <p>{enrollmentHelp}</p>
             </div>
           ) : null}
+          {kind!=="cage"&&kind!=="cage-plan"&&<label className="grid gap-1">Lesson sport<select className="rounded-lg border p-3" value={lessonSport} onChange={e=>setLessonSport(e.target.value as "baseball"|"softball"|"")}><option value="">Use player profile (single-sport only)</option><option value="baseball">Baseball</option><option value="softball">Softball</option></select></label>}
           {locked ? (
             <div className="rounded-xl border border-maroon p-4" role="status">
               <p>
-                Ordinary lessons and packages unlock after your coach records your assessment as
-                completed. Booking or paying for an assessment does not complete it.
+                Private lessons and packages unlock after a completed New Player Assessment is recorded
+                 for this athlete. An eligible in-person development membership can start first:
+                 the first included lesson is the assessment and the current first-month fee shown in your total
+                 applies. Simply paying for a booking never records assessment completion.
               </p>
               <Button className="mt-3" asChild>
                 <Link to="/training">Choose an assessment</Link>
@@ -467,23 +532,28 @@ function PayPage() {
             </fieldset>
           ) : null}
           {quote?.needsSlot && !locked ? (
-            <fieldset className="grid gap-4">
+            <fieldset className="grid min-w-0 gap-4">
               <legend className="font-semibold">
                 Choose your available time · {quote.duration} minutes
               </legend>
               {kind !== "cage" ? (
                 <label className="grid gap-1">
-                  Coach
+                  Instructor
                   <select
                     className="rounded-lg border p-3"
                     required
                     value={coachId}
                     onChange={(e) => {
+                      ++autoCoachAttempt.current;
+                      setAutoAssignCoach(false);
+                      setAssigningCoach(false);
+                      setAutoCoachError("");
                       setCoachId(e.target.value);
                       setTime("");
+                      setDateNotice("");
                     }}
                   >
-                    <option value="">Select a coach</option>
+                    <option value="">Select an instructor</option>
                     {context?.coaches
                       .filter((c) => c.serviceIds.includes(checkoutLessonService(quote)))
                       .map((c) => (
@@ -494,20 +564,53 @@ function PayPage() {
                   </select>
                 </label>
               ) : null}
+              {kind !== "cage" && coachId && context && !context.coachAvailability.some(c=>c.id===coachId&&c.serviceIds.includes(checkoutLessonService(quote)))?<p role="status">This instructor is assigned to this lesson, but has no published hours long enough for it. Ask the instructor or Front Office to publish availability.</p>:null}
+              {kind !== "cage" && context && !context.coaches.some(c=>c.serviceIds.includes(checkoutLessonService(quote))) ? <p role="status">No instructor is assigned to this service yet. Contact Front Office to check the service assignment.</p> : null}
+              {kind !== "cage" ? (
+                <label className="flex min-h-11 items-center gap-3 rounded-lg border border-line bg-paper-2 p-3">
+                  <input
+                    type="checkbox"
+                    className="size-5 shrink-0"
+                    checked={autoAssignCoach}
+                    disabled={assigningCoach}
+                    onChange={(event) => {
+                      const enabled = event.target.checked;
+                      ++autoCoachAttempt.current;
+                      setAutoAssignCoach(enabled);
+                      setAutoCoachError("");
+                      if (enabled) void chooseAvailableCoach(date);
+                    }}
+                  />
+                  <span className="text-sm font-semibold">Assign coach for me</span>
+                </label>
+              ) : null}
+              {assigningCoach ? <p role="status" className="text-sm">Checking qualified coaches' availability…</p> : null}
+              {autoCoachError ? <p role="alert" className="text-sm text-maroon">{autoCoachError}</p> : null}
+              {autoAssignCoach && coachId && context ? (
+                <p className="text-sm" role="status">
+                  Assigned for this booking: <strong>{context.coaches.find((coach) => coach.id === coachId)?.name ?? "Qualified coach"}</strong>.
+                  Choose an open time below. The booking is confirmed only after payment.
+                </p>
+              ) : null}
               <label className="grid gap-1">
                 Date · America/Chicago
                 <input
-                  className="rounded-lg border p-3"
+                  className="box-border min-w-0 w-full max-w-full rounded-lg border p-3"
                   type="date"
                   min={chicagoDate()}
                   required
                   value={date}
                   onChange={(e) => {
-                    setDate(e.target.value);
+                    const chosenDate = e.target.value;
+                    dateChosen.current = true;
+                    setDateNotice("");
+                    setDate(chosenDate);
                     setTime("");
+                    if (autoAssignCoach) void chooseAvailableCoach(chosenDate);
                   }}
                 />
               </label>
+              {dateNotice ? <p role="status" className="text-sm">{dateNotice}</p> : null}
               {loadingSlots ? (
                 <p role="status">Checking available times…</p>
               ) : slotError ? (
@@ -529,16 +632,27 @@ function PayPage() {
                   ))}
                 </div>
               ) : (
+                <div className="grid gap-3" role="status">
                 <p>
                   {!user
                     ? "Sign in to check available times."
                     : kind === "cage"
-                      ? "Choose a date to check available cage times."
-                      : "Choose a coach and date to see available times."}{" "}
-                  {slotsFor(date, quote.duration).length === 0
-                    ? "No times remain on this date."
-                    : "If no times appear, choose another date."}
+                      ? "No cage times are available on this date. Choose another date."
+                      : !athleteId ? "Select your player to check lesson times."
+                      : !coachId ? "Select an instructor or choose Assign coach for me."
+                      : !date ? "Choose a date to check lesson times."
+                      : slotsFor(date, quote.duration).length === 0
+                        ? "No start times remain on this date that fit the full lesson before closing."
+                        : "This instructor has no open times for this lesson on the selected date."}
                 </p>
+                {nextAvailable ? <Button type="button" variant="maroon" onClick={() => {
+                  dateChosen.current = true;
+                  setDate(nextAvailable.date);
+                  setTime("");
+                  setDateNotice("Choose a start time below. All times are Central Time.");
+                }}>Show next available date · {new Date(`${nextAvailable.date}T12:00:00Z`).toLocaleDateString("en-US", { timeZone: "America/Chicago", weekday: "short", month: "short", day: "numeric" })}</Button>
+                  : user && coachId && athleteId && kind !== "cage" && date ? <p className="text-sm">No openings found in the following 28 days. Try another instructor or <Link to="/contact" className="underline">contact the office</Link>.</p> : null}
+                </div>
               )}
             </fieldset>
           ) : null}
@@ -664,6 +778,7 @@ function PayPage() {
                 !user ||
                 (needsAthlete && !athleteId) ||
                 busy ||
+                assigningCoach ||
                 applyingDiscount ||
                 Boolean(normalizedCode && !applied) ||
                 locked ||

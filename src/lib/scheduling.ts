@@ -1,8 +1,16 @@
 export const CLUB_TIME_ZONE = "America/Chicago";
+/** The same published booking horizon applies to all cage customers. */
+export const CAGE_BOOKING_DAYS = 14;
 export function chicagoDate(now = new Date()) {
   const parts = new Intl.DateTimeFormat("en-CA", { timeZone: CLUB_TIME_ZONE, year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(now);
   const part = (key: string) => parts.find(p => p.type === key)?.value;
   return `${part("year")}-${part("month")}-${part("day")}`;
+}
+/** Inclusive calendar-date limit in the facility timezone (safe across DST). */
+export function cageBookingLastDate(now = new Date()) {
+  const noonUtc = new Date(chicagoDate(now) + "T12:00:00Z");
+  noonUtc.setUTCDate(noonUtc.getUTCDate() + CAGE_BOOKING_DAYS);
+  return noonUtc.toISOString().slice(0, 10);
 }
 export function validDate(date: string) {
   return /^\d{4}-\d{2}-\d{2}$/.test(date) && Number.isFinite(Date.parse(`${date}T12:00:00Z`))

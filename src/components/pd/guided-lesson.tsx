@@ -1,3 +1,7 @@
+import {BookedGuidedLesson} from "./booked-guided-lesson";
+import {LessonRecruitingMetrics} from "../lesson-recruiting-metrics";
+import {athleteAge} from '@/lib/pd/engines';
+import { formatClockTime } from "@/lib/time-display";
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { useDevelopment, type AthleteSlice } from "@/lib/pd/context";
@@ -8,7 +12,7 @@ import {
   type Drill,
 } from "@/lib/pd/content";
 import { FLAWS } from "@/lib/pd/content/flaws";
-import { ageOnClubDay, clubDayIso } from "@/lib/pd/engines";
+import { clubDayIso } from "@/lib/pd/engines";
 import {
   INTERVENTION_METHODS,
   INTERVENTION_OUTCOMES,
@@ -43,13 +47,11 @@ export type LessonStart = {
 };
 
 export function LessonLaunch({ onStart }: { onStart: (start: LessonStart) => void }) {
-  const { data, listAthletes } = useDevelopment();
-  const drafts = typeof window === "undefined" ? {} : readDrafts();
-  const today = clubDayIso();
+  const { data } = useDevelopment();
+  const drafts = typeof window === "undefined" ? {} : Object.fromEntries(Object.entries(readDrafts()).filter(([,d])=>data.athletes.some(a=>a.id===d.athleteId)));
   const floor = data.bookings.filter(
-    (row) => row.status === "paid" && row.date >= today,
+    (row) => row.status === "paid",
   );
-  const athletes = listAthletes("coach");
   return (
     <div className="pd-stack" data-lesson-launch="true">
       <section className="rounded-2xl bg-ink text-fg-inverse">
@@ -57,29 +59,22 @@ export function LessonLaunch({ onStart }: { onStart: (start: LessonStart) => voi
           <p className="text-xs font-semibold tracking-[0.16em] text-powder uppercase">
             Guided lesson
           </p>
-          <h2 className="mt-2 text-3xl italic">On the mound. Phone in hand.</h2>
+          <h2 className="mt-2 text-3xl italic">Your booked lesson. One guided workflow.</h2>
           <p className="mt-2 text-sm text-fg-soft">
-            Eight stages. Thumb-zone continue. The pen drafts itself so a walk-away never dumps 35 pitches.
+            Open a confirmed booking for the correct sport, discipline and duration. Save Draft during the session; publish the completed record at recap.
           </p>
         </div>
       </section>
       {Object.keys(drafts).length ? (
         <section className="rounded-2xl bg-maroon text-fg-inverse">
           <div className="pd-card">
-            <p className="text-xs font-semibold tracking-[0.16em] text-powder uppercase">Draft waiting</p>
+            <p className="text-xs font-semibold tracking-[0.16em] text-powder uppercase">Earlier local drafts retained</p>
             <ul className="mt-3 grid gap-2">
               {Object.values(drafts).map((row) => {
                 const athlete = data.athletes.find((item) => item.id === row.athleteId);
                 return (
                   <li key={row.athleteId}>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      className="min-h-12 w-full"
-                      onClick={() => onStart({ athleteId: row.athleteId, bookingId: row.bookingId, serviceId: row.serviceId })}
-                    >
-                      Recover {athlete ? `${athlete.firstName} ${athlete.lastName}` : row.athleteId}
-                    </Button>
+                    <details><summary>{athlete ? `${athlete.firstName} ${athlete.lastName}` : 'Saved player draft'}</summary><p>This earlier draft is retained for review. It is not automatically converted or published as a booked lesson.</p><Button type="button" variant="outline" onClick={()=>{const url=URL.createObjectURL(new Blob([JSON.stringify(row,null,2)],{type:'application/json'}));const a=document.createElement('a');a.href=url;a.download='retained-lesson-draft.json';a.click();URL.revokeObjectURL(url);}}>Download original draft for review</Button></details>
                   </li>
                 );
               })}
@@ -92,7 +87,7 @@ export function LessonLaunch({ onStart }: { onStart: (start: LessonStart) => voi
         <ul className="mt-3 grid gap-2">
           {floor.length === 0 ? (
             <li className="rounded-xl bg-paper-2 px-4 py-3 text-sm text-muted shadow-border">
-              No paid sessions in the next few days. Open a roster athlete.
+              No confirmed lessons are available. Ask Front Office to review the booking or instructor assignment.
             </li>
           ) : (
             floor.map((row) => {
@@ -103,7 +98,7 @@ export function LessonLaunch({ onStart }: { onStart: (start: LessonStart) => voi
                     {athlete ? `${athlete.firstName} ${athlete.lastName}` : row.athleteId}
                   </strong>
                   <span className="mt-1 block text-sm text-muted">
-                    {row.date} · {row.time} · {row.serviceId}
+                    {row.date} · {formatClockTime(row.time)} · {row.serviceId}
                   </span>
                   <Button
                     type="button"
@@ -125,25 +120,7 @@ export function LessonLaunch({ onStart }: { onStart: (start: LessonStart) => voi
           )}
         </ul>
       </section>
-      <section>
-        <h3 className="text-2xl">Or pick an athlete</h3>
-        <ul className="mt-3 grid gap-2">
-          {athletes.slice(0, 8).map((row) => (
-            <li key={row.id}>
-              <button
-                type="button"
-                className="pd-row min-h-12 w-full rounded-xl bg-paper-2 text-left shadow-border"
-                onClick={() => onStart({ athleteId: row.id })}
-              >
-                {row.firstName} {row.lastName}
-                <span className="mt-1 block text-sm text-muted">
-                  {row.position} · {row.sport}
-                </span>
-              </button>
-            </li>
-          ))}
-        </ul>
-      </section>
+      <p className="text-sm">For training outside a booked lesson, use the player’s existing development tools. Guided lesson completion always starts from a booking.</p>
     </div>
   );
 }
@@ -152,7 +129,7 @@ const CELLS = [0, 1, 2, 3, 4];
 const SWING_RESULTS = ["Whiff", "Foul", "Ground", "Line", "Fly", "Hard"];
 const CATCH_KINDS = ["Receive", "Block", "Pop"];
 
-export function GuidedLesson({
+function LegacyGuidedLesson({
   start,
   onClose,
 }: {
@@ -238,7 +215,7 @@ export function GuidedLesson({
   const live = draft;
   const current = athleteSlice;
 
-  const age = ageOnClubDay(current.athlete.birthDate);
+  const age = athleteAge(current.athlete);
   const name = `${current.athlete.firstName} ${current.athlete.lastName}`;
   const stage = LESSON_STAGES[live.stage] ?? LESSON_STAGES[0];
   const last = live.stage >= LESSON_STAGES.length - 1;
@@ -360,6 +337,7 @@ export function GuidedLesson({
       </header>
 
       <div className="flex-1 overflow-y-auto px-4 py-4">
+        {start.bookingId && <LessonRecruitingMetrics bookingId={start.bookingId} />}
         {draft.stage === 0 ? (
           <SetupStage
             slice={athleteSlice}
@@ -1198,4 +1176,9 @@ function RecapStage({
       </section>
     </div>
   );
+}
+
+export function GuidedLesson({start,onClose}:{start:LessonStart;onClose:()=>void}) {
+  if (!start.bookingId) return <div className="fixed inset-0 z-50 bg-paper p-6"><h2>Choose a booked lesson</h2><p>Guided sessions require a confirmed booking so the service, sport, duration, player and instructor can be verified. Use the player’s standalone tools for work outside a booking.</p><Button onClick={onClose}>Return to lessons</Button></div>;
+  return <BookedGuidedLesson bookingId={start.bookingId} onClose={onClose}/>;
 }

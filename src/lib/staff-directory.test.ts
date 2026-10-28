@@ -8,6 +8,7 @@ import {
   listStaffDirectoryFor,
   saveStaffListingFor,
 } from "./staff-directory.server";
+import { publicPeopleFor } from "./person-public.server";
 import { staffListingInput } from "./staff-directory";
 
 function wrap(db: Pick<PGlite, "query" | "transaction">): Sql {
@@ -53,6 +54,12 @@ test("staff listings persist independently of accounts and only published record
       bio: "Coordinates the softball program.",
       published: true,
     });
+    const card = (await publicPeopleFor(sql)).find(p => p.name === "Fixture Coordinator")!;
+    assert.equal(card.coach, true);
+    assert.deepEqual(card.teams, []);
+    assert.deepEqual(card.sports, ["softball"]);
+    assert.equal(card.title, "Softball Coordinator & Recruiter");
+    assert.ok(!("email" in card) && !("phone" in card));
     const initial = await publicStaffFor(sql);
     assert.equal(initial[0].title, "Softball Coordinator & Recruiter");
     assert.equal(initial[0].email, "staff@example.invalid");
@@ -64,7 +71,7 @@ test("staff listings persist independently of accounts and only published record
       await assert.rejects(saveStaffListingFor(sql, id, staff));
     }
     await assert.rejects(
-      saveStaffListingFor(sql, "owner", { ...staff, role: "admin" } as typeof staff),
+      saveStaffListingFor(sql, "owner", { ...staff, role: "admin" } as unknown as typeof staff),
     );
     const saved = await saveStaffListingFor(sql, "owner", {
       ...staff,
@@ -73,6 +80,7 @@ test("staff listings persist independently of accounts and only published record
     });
     assert.equal(saved.version, 2);
     assert.equal((await publicStaffFor(sql)).length, 0);
+    assert.ok(!(await publicPeopleFor(sql)).some(p => p.id === card.id));
     assert.equal((await listStaffDirectoryFor(sql, "owner"))[0].bio, "Updated biography.");
     await assert.rejects(saveStaffListingFor(sql, "owner", staff), /changed/);
     await saveStaffListingFor(sql, "owner", { ...saved, published: true });

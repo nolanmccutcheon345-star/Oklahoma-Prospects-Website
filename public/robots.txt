@@ -3,10 +3,12 @@ Allow: /
 Disallow: /api/
 Disallow: /account
 Disallow: /family
-Disallow: /coach
+Disallow: /coach$
+Disallow: /coach/
+Disallow: /coach?
 Disallow: /office
 Disallow: /pay
 Disallow: /paid
 Disallow: /login
 
-Sitemap: https://prospectsbaseball.club/sitemap.xml
+Sitemap: https://prospectssports.club/sitemap.xml

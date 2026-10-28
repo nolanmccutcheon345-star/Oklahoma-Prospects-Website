@@ -1,11 +1,11 @@
+import { TeamFundingNotice } from "@/components/teams/team-funding-notice";
+import { PublishedTeamFees } from "@/components/teams/published-team-fees";
 import { createFileRoute, Outlet, useRouterState } from "@tanstack/react-router";
 import { PublicTeamRoster } from "@/components/public-team-roster";
+import { CLUB } from "@/lib/club";
 export const Route = createFileRoute("/teams/$teamId")({
   head: () => ({
-    meta: [
-      { title: "Team roster | Oklahoma Prospects Academy" },
-      { name: "robots", content: "noindex" },
-    ],
+    meta: [{ title: `Team roster | ${CLUB.name}` }, { name: "robots", content: "noindex" }],
   }),
   component: Page,
 });
@@ -23,6 +23,10 @@ function Page() {
       <a className="inline-flex min-h-11 items-center px-5 underline" href="/teams">
         All teams
       </a>
+      <div className="mx-auto max-w-3xl px-5">
+        <PublishedTeamFees key={teamId} teamId={teamId} />
+        <TeamFundingNotice teamId={teamId} />
+      </div>
       <PublicTeamRoster key={teamId} teamId={teamId} />
     </main>
   );

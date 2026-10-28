@@ -15,3 +15,23 @@ test('club saves accept actual role shapes and reject malformed or cross-roster 
  assert.throws(()=>validateRecord({amount:Infinity}));
  assert.throws(()=>validateRecord(JSON.parse('{"__proto__":{"admin":true}}')));
 });
+
+test('coach assignment saves preserve fractional months on every team, including unrelated teams',()=>{
+ const club=sampleClub();
+ club.teams[0].months=3.5;
+ club.teams[1].months=2.5;
+ club.teams[1].headCoach='Example Coach';
+ club.teams[1].coachEmail='coach@example.invalid';
+ const saved=parseClubSave({club,baseRev:club._rev});
+ assert.equal(saved.club.teams[0].months,3.5);
+ assert.equal(saved.club.teams[1].months,2.5);
+ assert.equal(saved.club.teams[1].coachEmail,'coach@example.invalid');
+ const scoped=scopeClub(club,'coach',{email:'coach@example.invalid',familyId:''});
+ assert.equal(parseClubSave({club:scoped,baseRev:club._rev}).club.teams[0].months,2.5);
+ for(const months of [-1,37,NaN,Infinity]) {
+  const invalid=structuredClone(club);invalid.teams[0].months=months;
+  assert.throws(()=>parseClubSave({club:invalid,baseRev:club._rev}));
+ }
+ const invalid=structuredClone(club);invalid.teams[0].record.w=1.5;
+ assert.throws(()=>parseClubSave({club:invalid,baseRev:club._rev}));
+});

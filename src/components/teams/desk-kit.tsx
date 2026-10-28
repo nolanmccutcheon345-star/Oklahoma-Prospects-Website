@@ -1,3 +1,4 @@
+import { TimeInput } from "@/components/time-input";
 import type { ReactNode } from "react";
 import { cn } from "@/lib/utils";
 
@@ -173,14 +174,14 @@ export function FieldInput({
   return (
     <label className="grid gap-1">
       <span className="text-xs font-semibold tracking-wide text-teams-muted uppercase">{label}</span>
-      <input
+      {type === "time" || ["Time", "New time", "Arrive"].includes(label) ? <TimeInput value={value} placeholder={placeholder} onChange={e=>onChange(e.target.value)} className="teams-control min-h-11 w-full rounded-lg bg-paper px-3 text-sm text-teams-ink shadow-border" {...attr} /> : <input
         type={type}
         value={value}
         placeholder={placeholder}
         onChange={(e) => onChange(e.target.value)}
         className="teams-control min-h-11 w-full rounded-lg bg-paper px-3 text-sm text-teams-ink shadow-border"
         {...attr}
-      />
+      />}
     </label>
   );
 }

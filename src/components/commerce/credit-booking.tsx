@@ -14,6 +14,7 @@ export function CreditBooking({
 }) {
   const [open, setOpen] = useState(false);
   const [context, setContext] = useState<Awaited<ReturnType<typeof getCheckoutContext>>>();
+  const [sport,setSport]=useState<"baseball"|"softball"|"">("");
   const [date, setDate] = useState(chicagoDate());
   const [time, setTime] = useState("");
   const [coachId, setCoach] = useState("");
@@ -36,6 +37,7 @@ export function CreditBooking({
   }, [open]);
   const input = {
     requestId,
+    sport:sport||undefined,
     grantId: credit.id,
     serviceId: credit.kind === "cage-minutes" ? "individual" : serviceId,
     coachId: coachId || undefined,
@@ -65,6 +67,8 @@ export function CreditBooking({
         {open ? "Close booking" : "Use credits"}
       </Button>
       {open ? (
+        <>
+        {credit.kind!=="cage-minutes"&&<label>Lesson sport<select className="min-h-11 w-full rounded border p-2" value={sport} onChange={e=>setSport(e.target.value as "baseball"|"softball"|"")}><option value="">Use single-sport player profile</option><option value="baseball">Baseball</option><option value="softball">Softball</option></select></label>}
         <form
           className="mt-3 grid gap-3"
           onSubmit={async (e) => {
@@ -254,6 +258,7 @@ export function CreditBooking({
                 : "Book using credit"}
           </Button>
         </form>
+        </>
       ) : null}
     </div>
   );

@@ -3,6 +3,15 @@ import { resolveIdentity } from "../identity.server";
 import type { ClubRecord } from "../teams/types";
 import { publishedPlayer, publicationPlayers } from "./publication";
 import { AppError } from "./errors";
+/** Never serialize private club roster identifiers or player stories in a roster list. */
+function publicTeamPlayer(row: Record<string, unknown>) {
+  return { id: row.id, name: row.name, goal: row.goal, raised: row.raised };
+}
+function publicPlayerDetail(row: Record<string, unknown>) {
+  const { team_id: _internalTeam, roster_player_id: _internalPlayer, ...publicRow } = row;
+  return publicRow;
+}
+
 export async function realTeams(sql: Sql) {
   const [row] = await sql.query<{ payload: ClubRecord; demo: boolean }>(
     "SELECT payload,demo FROM club_state WHERE id='oklahoma-prospects'",
@@ -58,7 +67,7 @@ export async function linkedPlayer(sql: Sql, id: string) {
   if (!team?.roster.some((p) => p.id === link.roster_player_id)) return null;
   const p = await publishedPlayer(sql, id);
   return p
-    ? { ...p, team: team.name, team_id: link.team_id, roster_player_id: link.roster_player_id }
+    ? { ...p, team: team.name }
     : null;
 }
 export async function publicRoster(sql: Sql, teamId?: string, playerId?: string) {
@@ -82,14 +91,14 @@ export async function publicRoster(sql: Sql, teamId?: string, playerId?: string)
           : [];
       }),
     }))
-    .filter((t) => t.players.length);
+    .filter((t) => !teams.find(original => original.id === t.id)?.closed);
   if (!teamId) return { teams: records.map(({ players: _, ...t }) => t) };
   const team = records.find((t) => t.id === teamId);
   if (!team) throw new AppError("This public team roster is unavailable.", 404);
   if (playerId) {
     const player = team.players.find((p) => p.roster_player_id === playerId);
     if (!player) throw new AppError("This player page is unavailable.", 404);
-    return { player };
+    return { player: publicPlayerDetail(player) };
   }
-  return { team };
+  return { team: { ...team, players: team.players.map(publicTeamPlayer) } };
 }

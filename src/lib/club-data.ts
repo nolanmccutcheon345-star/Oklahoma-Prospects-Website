@@ -9,6 +9,9 @@ import { createLegacyProgram, addLegacyDrill, legacyProgramInput, legacyDrillInp
 export type ClubRole = "player" | "parent" | "coach" | "admin";
 
 export type Profile = {
+  canInstruct?:boolean;
+  canOperateInstruction?:boolean;
+  canTeamCoach?:boolean;
   user_id: string;
   name: string;
   email: string;
@@ -26,14 +29,16 @@ export const getProfile = createServerFn({ method: "GET" })
   .handler(async ({ context }) => {
     const me = await clubIdentity(context.userId);
     const sql = await getSql();
-    return readAccountProfile(sql, me);
+    const { hasOperationalInstruction } = await import("./operational-instruction.server");
+    const canOperateInstruction = await hasOperationalInstruction(sql, context.userId);
+    const p=await readAccountProfile(sql, me);return p?{...p,canInstruct:me.canInstruct,canOperateInstruction,canTeamCoach:me.canTeamCoach}:null;
   });
 
 export const saveProfile = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
   .validator(z.object({ name: z.string().trim().min(1).max(120),
     role: z.enum(["parent", "player", "coach", "admin"]),
-    playerName: z.string().trim().max(120), email: z.string().email().max(254) }))
+    birthDate:z.string().optional(), playerName: z.string().trim().max(120), email: z.string().email().max(254) }))
   .handler(async ({ context, data }) => {
     const me = await clubIdentity(context.userId);
     const sql = await getSql();

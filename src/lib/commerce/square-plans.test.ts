@@ -3,7 +3,8 @@ import assert from "node:assert/strict";
 import { PGlite } from "@electric-sql/pglite";
 import type { Sql } from "../db";
 import type { SquareClient, Square } from "square";
-import { prepareMonthlyPlans, savedPlan, assertMonthlyPlan } from "./square-plans.server";
+import { PRICES } from "../pricing";
+import { prepareMonthlyPlans, savedPlan, assertMonthlyPlan, MONTHLY_PLANS } from "./square-plans.server";
 
 test("monthly setup verifies price, persists scoped mappings, retries without duplicating and isolates production setup", async () => {
   const db = new PGlite();
@@ -17,6 +18,8 @@ test("monthly setup verifies price, persists scoped mappings, retries without du
         values,
       )
     ).rows) as Sql;
+  await db.exec("create table club_services(id text primary key,name text,price numeric,kind text,active boolean default true,sort_order int default 0)");
+  for (const [i,p] of MONTHLY_PLANS.entries()) await db.query("insert into club_services(id,name,price,kind,sort_order) values($1,$2,$3,'membership',$4)",[p.id,p.name,PRICES[p.id]/100,i]);
   const c = { environment: "sandbox" as const, merchantId: "merchant", locationId: "location" };
   const objects = new Map<string, Square.CatalogObject>(),
     keys = new Map<string, string>();
@@ -97,13 +100,15 @@ test("monthly setup verifies price, persists scoped mappings, retries without du
       () => assertMonthlyPlan({ ...p, isDeleted: true }, 8200),
       /approved monthly price/,
     );
-    // A configured but incorrect mapping must not be silently replaced.
-    const wrong = await prepareMonthlyPlans(sql, client, c, "owner", (id) =>
-      id === "prospect" ? "missing" : undefined,
-    );
-    assert.equal(wrong[0].ready, false);
-    assert.equal(wrong.filter((r) => r.ready).length, 7);
-    assert.equal(creates, 16);
+    // An admin price edit creates a new variation; original plan remains unchanged.
+    await db.exec("update club_services set price=99.25,name='Renamed pass' where id='prospect'");
+    assert.equal(await savedPlan(sql,c,"prospect"),undefined);
+    const changed=await prepareMonthlyPlans(sql,client,c,"owner",id=>id==="prospect"?"variation-1":undefined);
+    assert.equal(changed[0].cents,9925);
+    assert.equal(changed[0].ready,true);
+    assert.equal(creates,17);
+    assertMonthlyPlan(objects.get("variation-1"),8200);
+    assertMonthlyPlan(objects.get(await savedPlan(sql,c,"prospect") as string),9925);
     await db.exec("update commerce_policy set value=jsonb_set(value,'{cents}','1')");
     assert.equal(await savedPlan(sql, c, "prospect"), undefined);
   } finally {

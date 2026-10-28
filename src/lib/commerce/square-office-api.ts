@@ -88,6 +88,13 @@ export const prepareSquareMembershipWebhooks = createServerFn({ method: "POST" }
     return m.verifySquareWebhooks(context.userId, true);
   });
 
+export const checkSquareMembershipWebhooks = createServerFn({method:'POST'})
+  .middleware([authMiddleware])
+  .handler(async ({context})=>{
+    const m=await import('./square-office.server');
+    return m.verifySquareWebhooks(context.userId,false,true);
+  });
+
 export const testSiteActivityAlerts = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
   .handler(async ({ context }) => {

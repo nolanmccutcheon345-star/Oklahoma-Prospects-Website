@@ -1,3 +1,4 @@
+import { CLUB } from "@/lib/club";
 import { createFileRoute, redirect } from "@tanstack/react-router";
 import FundraisingApp from "@/components/fundraising-app";
 import css from "@/fundraising.css?url";
@@ -7,7 +8,7 @@ export const Route = createFileRoute("/fundraising/")({
   },
   head: () => ({
     meta: [
-      { title: "Player Fundraising | Oklahoma Prospects" },
+      { title: `Player Fundraising | ${CLUB.name}` },
       { name: "robots", content: "noindex" },
     ],
     links: [{ rel: "stylesheet", href: css }],

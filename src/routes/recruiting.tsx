@@ -1,10 +1,11 @@
+import { CLUB } from "@/lib/club";
 import {pageHead} from "@/lib/seo";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { PageHero } from "@/components/page-hero";
 
 import { Button } from "@/components/ui/button";
 
-export const Route = createFileRoute("/recruiting")({head:()=>pageHead("/recruiting","Recruiting","Learn about Oklahoma Prospects recruiting support and player development.",false),
+export const Route = createFileRoute("/recruiting")({head:()=>pageHead("/recruiting","Recruiting",`Learn about ${CLUB.name} recruiting support and player development.`,false),
   component: RecruitingPage,
 });
 
@@ -22,13 +23,14 @@ function RecruitingPage() {
               <Link to="/contact">Talk with Prospects</Link>
             </Button>
             <Button asChild variant="outline">
-              <Link to="/tryouts">Free Spring tryout</Link>
+              <Link to="/tryouts">Tryouts</Link>
             </Button>
           </>
         }
       />
 
       <section className="mx-auto max-w-3xl px-5 py-10">
+        <a className="mb-5 inline-flex min-h-11 items-center rounded bg-maroon px-4 text-white" href="/players">Explore player recruiting profiles</a>
         <h2 className="text-3xl">Bring this to the conversation</h2>
         <ol className="mt-6 divide-y divide-line">
           {[

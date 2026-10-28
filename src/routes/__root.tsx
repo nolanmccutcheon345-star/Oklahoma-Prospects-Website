@@ -25,7 +25,7 @@ export const Route = createRootRoute({
       {
         name: "description",
         content:
-          "Oklahoma Prospects Academy: paid indoor cages, private lessons, and free Spring 2027 evaluations in Broken Arrow.",
+          `${CLUB.name}: indoor cages, private lessons, and baseball and softball tryout requests in Broken Arrow.`,
       },
       { name: "theme-color", content: "#0b1720" },
       { name: "apple-mobile-web-app-capable", content: "yes" },
@@ -33,7 +33,7 @@ export const Route = createRootRoute({
     ],
     links: [
       { rel: "icon", type: "image/svg+xml", href: "/favicon.svg" },
-      { rel: "apple-touch-icon", href: "/brand/crest.png" },
+      { rel: "apple-touch-icon", href: "/__grok/icon-180.png" },
       { rel: "stylesheet", href: appCss },
       { rel: "stylesheet", href: d001Css },
       { rel: "manifest", href: "/__grok/manifest.webmanifest" },

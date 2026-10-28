@@ -1,3 +1,6 @@
+import { ACTIVE_SEASON } from "@/lib/active-season";
+import { formatClockTime } from "@/lib/time-display";
+import { TimeInput } from "@/components/time-input";
 import { useEffect, useState, type FormEvent } from "react";
 import { Button } from "./ui/button";
 import {
@@ -11,7 +14,7 @@ const blank = (): TryoutEventInput => ({
   id: crypto.randomUUID(),
   revision: 0,
   sport: "Baseball",
-  season: "",
+  season: ACTIVE_SEASON,
   ageGroups: [],
   date: "",
   startTime: "",
@@ -106,7 +109,7 @@ export function TryoutEventEditor() {
               {event.sport} · {event.season} · {event.ageGroups.join(", ")}
             </strong>
             <p>
-              {event.date} · {event.startTime}–{event.endTime} CT · {event.location} · Capacity{" "}
+              {event.date} · {formatClockTime(event.startTime)}–{formatClockTime(event.endTime)} CT · {event.location} · Capacity{" "}
               {event.capacity} · {event.status}
             </p>
             <Button disabled={busy} variant="outlineDark" onClick={() => edit(event)}>
@@ -170,9 +173,9 @@ export function TryoutEventEditor() {
         </label>
         <label>
           Start time (Central)
-          <input
+          <TimeInput
             required
-            type="time"
+
             className={field}
             value={draft.startTime}
             onChange={(e) => setDraft({ ...draft, startTime: e.target.value })}
@@ -180,9 +183,9 @@ export function TryoutEventEditor() {
         </label>
         <label>
           End time (Central)
-          <input
+          <TimeInput
             required
-            type="time"
+
             className={field}
             value={draft.endTime}
             onChange={(e) => setDraft({ ...draft, endTime: e.target.value })}

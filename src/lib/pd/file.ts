@@ -84,15 +84,18 @@ function mergeAthletes(full: Athlete[], incoming: Athlete[], scope: PdScope): At
   return full.map(prev => {
     const row = incoming.find(item => item.id === prev.id);
     if (!row || !keepAthlete(scope, prev.id)) return prev;
-    if (row.birthDate && (!validDate(row.birthDate) || row.birthDate > chicagoDate())) throw new Error("Choose a valid athlete date of birth.");
+    // A redacted date must never erase the canonical date on an unrelated save.
+    const birthDate=scope.birthdayIds?.has(prev.id)?row.birthDate:prev.birthDate;
+    if(scope.birthdayIds?.has(prev.id) && prev.birthDate && !birthDate) throw new Error('A saved player birthday cannot be removed.');
+    if (birthDate && (!validDate(birthDate) || birthDate > chicagoDate())) throw new Error("Choose a valid athlete date of birth.");
     if (row.sport && !["baseball", "softball"].includes(row.sport)) throw new Error("Choose baseball or softball.");
     if (typeof row.position !== "string" || row.position.length > 80) throw new Error("Invalid athlete position.");
     const personal = { firstName: row.firstName, lastName: row.lastName, school: row.school,
-      city: row.city, birthDate: row.birthDate, graduationYear: row.graduationYear,
+      city: row.city, birthDate, graduationYear: row.graduationYear,
       sport: row.sport, position: row.position, throws: row.throws, bats: row.bats, frame: row.frame };
     const coached = canCoachAthlete(scope, prev.id) ? { ...prev, ...row } : { ...prev, ...personal };
     // Payment and completion are controlled by dedicated server commands, even for staff.
-    return { ...coached, id: prev.id, familyId: prev.familyId,
+    return { ...coached, birthDate, id: prev.id, familyId: prev.familyId,
       coachIds: scope.includeStaffOps ? row.coachIds : prev.coachIds,
       assessmentComplete: prev.assessmentComplete };
   });

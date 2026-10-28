@@ -1,3 +1,4 @@
+import { formatClockTime } from "../time-display";
 import type { ClubOs, OsPlayer, OsTeam } from "./model";
 import { TODAY, d, iso, uid } from "./engine/00-helpers.js";
 import {
@@ -352,10 +353,10 @@ export function applyFieldCall(
     input.status === "moved"
       ? `${team.name} is moved to ${where}${when ? ` on ${when}` : ""}${input.newTime ? ` at ${input.newTime}` : ""}.`
       : input.status === "cancelled"
-        ? `${team.name} is cancelled${practice ? ` (${practice.date} ${practice.time})` : ""}.`
+        ? `${team.name} is cancelled${practice ? ` (${practice.date} ${formatClockTime(practice.time)})` : ""}.`
         : input.status === "delayed"
           ? `${team.name} is delayed. Hold tight.`
-          : `${team.name} is back on. ${practice ? `${practice.date} ${practice.time}` : ""}`.trim();
+          : `${team.name} is back on. ${practice ? `${practice.date} ${formatClockTime(practice.time)}` : ""}`.trim();
   notify(club, team.id, title, input.note || body, "field", "all");
   logAudit(club, input.actor, "field-call", `${input.status} ${team.name}`);
   return club;
@@ -416,7 +417,7 @@ export function applyAddPractice(
     club,
     team.id,
     "Practice posted",
-    `${input.date} ${input.time} at ${input.place}.`,
+    `${input.date} ${formatClockTime(input.time)} at ${input.place}.`,
     "practice",
     "all",
   );

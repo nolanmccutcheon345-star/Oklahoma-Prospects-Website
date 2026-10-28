@@ -1,5 +1,7 @@
+import {registrationFilters,registrationFilterSql,type RegistrationFilters} from "./registration-filters";
+import { registrationSummary } from "./athlete-registration-contracts";
 import type { Sql } from "./db";
-import { resolveIdentity } from "./identity.server";
+import { centerAccessFor } from "./tryout-center-access.server";
 import { chicagoDate } from "./scheduling";
 import { coachHoldsTeam } from "./teams/privacy";
 import type { ClubRecord } from "./teams/types";
@@ -15,15 +17,7 @@ import {
 } from "./tryout-evaluation-contracts";
 
 async function evaluationAccess(sql: Sql, userId: string) {
-  const me = await resolveIdentity(sql, userId);
-  if (me.role !== "admin" && me.role !== "coach")
-    throw new Error("Coach or owner access is required.");
-  if (me.role === "coach") {
-    const staff =
-      await sql`select id from club_staff where lower(trim(email))=${me.email} and active=true
-      and role in ('coach','admin') and (user_id='' or user_id=${userId})`;
-    if (!staff.length) throw new Error("An active staff assignment is required. Ask a club owner.");
-  }
+  const me = await centerAccessFor(sql, userId);
   const [state] = await sql<{
     payload: ClubRecord;
   }>`select payload from club_state where id='oklahoma-prospects'`;
@@ -38,8 +32,8 @@ async function evaluationAccess(sql: Sql, userId: string) {
       (t) => !t.closed && (me.role === "admin" || (club && coachHoldsTeam(club, me.email, t.id))),
     )
     .map((t) => ({ id: t.id, name: t.name, age: t.age, sport: t.sport }));
-  // Owners retain historical results when a team closes. Coaches lose results
-  // when their team assignment is removed, even if they authored them.
+  // Active coaches can review all tryout results. Editing remains attributed
+  // to the original evaluator and requires current assignment for team results.
   return { me, teams };
 }
 
@@ -57,7 +51,16 @@ function candidateFor(row: RequestRow, teams: EvaluationTeam[]): EvaluationCandi
         : t.sport === sport && normalizedEvaluationAge(t.age) === normalizedEvaluationAge(age),
     )
     .map((t) => t.id);
-  return { id: row.id, name: text("player"), age, sport, session: text("session"), teamIds };
+  return {
+    profile: registrationSummary(row.payload),
+    positions: text("positions"),
+    id: row.id,
+    name: text("player"),
+    age,
+    sport,
+    session: text("session"),
+    teamIds,
+  };
 }
 type EvaluationRow = {
   id: string;
@@ -101,17 +104,16 @@ function saved(row: EvaluationRow, userId: string): SavedEvaluation {
 export async function evaluationWorkspaceFor(
   sql: Sql,
   userId: string,
+  filters?: RegistrationFilters,
 ): Promise<EvaluationWorkspace> {
   const { me, teams } = await evaluationAccess(sql, userId);
-  const requests =
-    await sql<RequestRow>`select id,kind,payload from club_requests where kind in ('tryout','team-inquiry') order by created_at desc,id desc`;
+  const f=registrationFilters.parse(filters||{});
+  const requests=await sql.query<RequestRow>(`select r.id,r.kind,r.payload from club_requests r where r.kind in ('tryout','team-inquiry') and ${registrationFilterSql('$1')} order by ${f.sort==='player'?"lower(r.payload->>'player'),":""}r.created_at desc,r.id desc limit 100 offset $2`,[JSON.stringify(f),f.page*100]);
   const candidates = requests
     .map((row) => candidateFor(row, teams))
-    .filter((c) => c.name && (me.role === "admin" || c.teamIds.length));
+    .filter((c) => c.name && ["baseball", "softball"].includes(c.sport));
   const rows =
-    me.role === "admin"
-      ? await sql<EvaluationRow>`select * from tryout_evaluations order by evaluation_date desc,updated_at desc,id`
-      : await sql<EvaluationRow>`select * from tryout_evaluations where team_id=any(${teams.map((t) => t.id)}::text[]) or (team_id='' and evaluator_id=${userId}) order by evaluation_date desc,updated_at desc,id`;
+    await sql<EvaluationRow>`select * from tryout_evaluations order by evaluation_date desc,updated_at desc,id`;
   return {
     owner: me.role === "admin",
     name: me.name,
@@ -158,11 +160,9 @@ export async function saveEvaluationFor(
         await tx<RequestRow>`select id,kind,payload from club_requests where id=${input.registrationId} and kind in ('tryout','team-inquiry') for share`;
       if (!request) throw new Error("Registration not found.");
       const candidate = candidateFor(request, teams);
-      if (
-        input.teamId
-          ? !candidate.teamIds.includes(team.id)
-          : me.role !== "admin" && !candidate.teamIds.length
-      )
+      // Registration discovery and general evaluations are club-wide for active
+      // coaches. Assigning an evaluation to a team still requires that team.
+      if (input.teamId && !candidate.teamIds.includes(team.id))
         throw new Error("This registration does not match your assigned teams.");
       playerName = candidate.name;
       if (!playerName) throw new Error("This registration has no player name.");

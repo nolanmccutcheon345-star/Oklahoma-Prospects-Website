@@ -24,7 +24,7 @@ function VisitPage() {
   return (
     <main id="main">
       <PageHero
-        eyebrow="Visit Oklahoma Prospects"
+        eyebrow={`Visit ${CLUB.venueName}`}
         title="Arrive ready."
         accent="Then train."
         copy="Waiver, directions, uniforms, and member tools in one place."
@@ -34,6 +34,8 @@ function VisitPage() {
       <div className="mt-6 rounded-2xl bg-ink p-5 text-fg-inverse">
         <HoursChip />
         <p className="mt-3 font-display text-2xl">
+          {CLUB.venueName}
+          <br />
           {CLUB.addressLine1}
           <br />
           {CLUB.addressLine2}
@@ -103,7 +105,7 @@ function VisitPage() {
       <section className="mt-8">
         <h2 className="text-2xl">Need a person?</h2>
         <p className="mt-2 text-sm text-muted">
-          After you book. The desk for cages and the door. Coach Steve after a paid lesson.
+          Contact Prospects Sports Academy for help with bookings, lessons, memberships, and teams.
         </p>
         <div className="mt-4">
           <Link to="/contact" className="inline-flex min-h-11 items-center underline">Contact</Link>

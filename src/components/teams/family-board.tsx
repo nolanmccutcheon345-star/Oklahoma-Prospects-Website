@@ -1,3 +1,4 @@
+import { formatClockTime } from "@/lib/time-display";
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { DeskCard, Fold, NumRows, downloadText } from "@/components/teams/desk-kit";
@@ -95,7 +96,7 @@ export function FamilyHome({
     <div data-teams-family-home="true" className="teams-stack">
       <DeskCard
         eyebrow={t("family.thisWeek")}
-        title={next ? `Next up: ${next.time} ${next.place || "cages"}.` : t("family.noSession")}
+        title={next ? `Next up: ${formatClockTime(next.time)} ${next.place || "cages"}.` : t("family.noSession")}
         copy={`${kids.length} player${kids.length === 1 ? "" : "s"} on this login. Combined balance is one number.`}
       >
         <div className="grid grid-cols-2 gap-2" data-teams-quick="true">

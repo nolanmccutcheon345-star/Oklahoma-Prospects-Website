@@ -1,3 +1,8 @@
+import {RegistrationProfileFilters} from "./registration-profile-filters";
+import {emptyRegistrationFilters,type RegistrationFilters} from "@/lib/registration-filters";
+import { RegistrationProfileSummary } from "@/components/registration-profile-summary";
+import { getEvaluationReviews, markEvaluationReviewed } from "@/lib/front-office-api";
+import { CLUB } from "@/lib/club";
 import { cloneElement, useEffect, useId, useState, type ReactElement } from "react";
 import { getTryoutEvaluations, saveTryoutEvaluation } from "@/lib/tryout-evaluations-api";
 import {
@@ -45,7 +50,18 @@ function editInput(row: SavedEvaluation): EvaluationInput {
   };
 }
 
-export function TryoutEvaluations() {
+export function TryoutEvaluations({
+  pendingOnly = false,
+  registrationId,
+}: {
+  pendingOnly?: boolean;
+  registrationId?: string;
+}) {
+  const [reviewOnly, setReviewOnly] = useState(pendingOnly);
+  const [reviews, setReviews] = useState<Awaited<ReturnType<typeof getEvaluationReviews>>>([]);
+  const [reviewError, setReviewError] = useState("");
+  const [reviewsLoaded, setReviewsLoaded] = useState(false);
+  const [athleteFilters,setAthleteFilters]=useState(emptyRegistrationFilters);
   const [workspace, setWorkspace] = useState<EvaluationWorkspace>();
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
@@ -61,11 +77,11 @@ export function TryoutEvaluations() {
     [dateFilter, setDateFilter] = useState(""),
     [coachFilter, setCoachFilter] = useState(""),
     [statusFilter, setStatusFilter] = useState("");
-  async function refresh() {
+  async function refresh(filters:RegistrationFilters=athleteFilters) {
     setLoading(true);
     setError("");
     try {
-      setWorkspace(await getTryoutEvaluations());
+      setWorkspace(await getTryoutEvaluations({data:filters}));
     } catch (e) {
       setWorkspace(undefined);
       setError(e instanceof Error ? e.message : "Could not load evaluations.");
@@ -98,6 +114,17 @@ export function TryoutEvaluations() {
     window.addEventListener("beforeunload", warn);
     return () => window.removeEventListener("beforeunload", warn);
   }, [dirty]);
+  useEffect(() => {
+    if (workspace?.owner)
+      void getEvaluationReviews()
+        .then((rows) => {
+          setReviews(rows);
+          setReviewsLoaded(true);
+        })
+        .catch((e) => setReviewError(e.message));
+  }, [workspace]);
+  const reviewed = (r: SavedEvaluation) =>
+    reviews.some((v) => v.evaluation_id === r.id && v.revision === r.revision);
   const readonly = !!viewing && !viewing.canEdit;
   function leave() {
     if (dirty && !window.confirm("Leave without saving these evaluation changes?")) return;
@@ -121,17 +148,23 @@ export function TryoutEvaluations() {
     setForm({
       id: crypto.randomUUID(),
       baseRevision: 0,
-      registrationId: null,
-      ageGroup: "",
-      sport: "baseball",
-      teamId: workspace?.teams.some((t) => t.id === teamFilter)
-        ? teamFilter
-        : workspace?.teams[0]?.id || "",
-      playerName: "",
+      registrationId: registrationId ?? null,
+      ageGroup: workspace?.candidates.find((c) => c.id === registrationId)?.age ?? "",
+      sport:
+        workspace?.candidates.find((c) => c.id === registrationId)?.sport === "softball" ||
+        workspace?.teams.find((t) => t.id === teamFilter)?.sport === "softball" ||
+        sportFilter === "softball"
+          ? "softball"
+          : "baseball",
+      teamId: workspace?.teams.some((t) => t.id === teamFilter) ? teamFilter : "",
+      playerName: workspace?.candidates.find((c) => c.id === registrationId)?.name ?? "",
       evaluationDate: chicagoDate(),
       status: "draft",
       recommendation: "undecided",
-      payload: blankEvaluationPayload(),
+      payload: {
+        ...blankEvaluationPayload(),
+        positions: workspace?.candidates.find((c) => c.id === registrationId)?.positions ?? "",
+      },
     });
     setViewing(null);
     setDirty(false);
@@ -193,6 +226,10 @@ export function TryoutEvaluations() {
 
   const rows = workspace.evaluations.filter(
     (r) =>
+      (!registrationId || r.registrationId === registrationId) &&
+      (!workspace.owner ||
+        !reviewOnly ||
+        (reviewsLoaded && r.status === "submitted" && !reviewed(r))) &&
       (!search || r.playerName.toLowerCase().includes(search.toLowerCase())) &&
       (!teamFilter || r.teamId === (teamFilter === "__general__" ? "" : teamFilter)) &&
       (!ageFilter || r.ageGroup === ageFilter) &&
@@ -207,7 +244,7 @@ export function TryoutEvaluations() {
   const total = form ? evaluationTotal(form.payload.ratings) : null;
   const teamOptions = form?.registrationId
     ? workspace.teams.filter((t) => candidate?.teamIds.includes(t.id))
-    : workspace.teams;
+    : workspace.teams.filter((t) => t.sport === form?.sport);
   const resultTeams = [
     ...new Map(
       [
@@ -229,12 +266,54 @@ export function TryoutEvaluations() {
 
   return (
     <div className="grid gap-5">
+      {!form && <RegistrationProfileFilters onApply={f=>{setAthleteFilters(f);void refresh(f);}} busy={loading} />}
+      {workspace.owner && !reviewsLoaded && !reviewError && (
+        <p role="status">Loading review status…</p>
+      )}
+      {reviewError && <p role="alert">Review status could not load: {reviewError}</p>}
+      {workspace.owner && !form && (
+        <label className="flex min-h-11 items-center gap-3">
+          <input
+            type="checkbox"
+            checked={reviewOnly}
+            onChange={(e) => setReviewOnly(e.target.checked)}
+          />
+          Awaiting review only
+        </label>
+      )}
+      {workspace.owner && viewing?.status === "submitted" && (
+        <div className="rounded-xl border border-line bg-white p-4">
+          <p className="text-sm">
+            {reviewed(viewing) ? "Reviewed at this saved version." : "Awaiting owner review."}
+          </p>
+          <Button
+            disabled={saving || dirty || reviewed(viewing)}
+            onClick={async () => {
+              setSaving(true);
+              setReviewError("");
+              try {
+                await markEvaluationReviewed({
+                  data: { id: viewing.id, revision: viewing.revision },
+                });
+                setReviews(await getEvaluationReviews());
+                setNotice("Evaluation marked reviewed.");
+              } catch (e) {
+                setReviewError(e instanceof Error ? e.message : "Could not save review.");
+              } finally {
+                setSaving(false);
+              }
+            }}
+          >
+            Mark Reviewed
+          </Button>
+        </div>
+      )}
       {!form ? (
         <>
           <header className="flex flex-wrap items-start justify-between gap-4 border-b-4 border-maroon pb-5">
             <div>
               <p className="mb-1 text-sm font-semibold text-muted">
-                Oklahoma Prospects · {workspace.owner ? "Owner results" : "Coach workspace"}
+                {CLUB.name} · {workspace.owner ? "Owner results" : "Coach workspace"}
               </p>
               <h1 className="text-3xl sm:text-4xl">Tryout evaluations</h1>
               <p className="mt-2 text-sm text-muted">
@@ -369,6 +448,7 @@ export function TryoutEvaluations() {
                     setDateFilter("");
                     setCoachFilter("");
                     setStatusFilter("");
+                    setReviewOnly(false);
                   }}
                 >
                   Clear filters
@@ -494,6 +574,31 @@ export function TryoutEvaluations() {
             >
               <section className="grid gap-4 rounded-xl border border-line bg-white p-4">
                 <h2 className="text-2xl">Player &amp; tryout</h2>
+                <Field label="Sport">
+                  <select
+                    className={control}
+                    value={form.sport}
+                    disabled={form.baseRevision > 0}
+                    onChange={(e) => {
+                      const sport = e.target.value as EvaluationInput["sport"];
+                      change({
+                        sport,
+                        registrationId: registrationId ?? null,
+                        playerName: "",
+                        ageGroup: "",
+                        teamId: "",
+                        payload: { ...form.payload, session: "" },
+                      });
+                    }}
+                  >
+                    <option value="baseball">Baseball</option>
+                    <option value="softball">Softball</option>
+                  </select>
+                </Field>
+                <p className="text-sm text-muted">
+                  Choose a sport to see all registered players, across every age group and team.
+                  Players outside your assigned teams can be evaluated as a general tryout.
+                </p>
                 <Field label="Registration">
                   <select
                     className={control}
@@ -516,21 +621,28 @@ export function TryoutEvaluations() {
                             ? form.teamId
                             : c.teamIds[0] || ""
                           : form.teamId,
-                        payload: { ...form.payload, session: c?.session || "" },
+                        payload: {
+                          ...form.payload,
+                          session: c?.session || "",
+                          positions: c?.positions || "",
+                        },
                       });
                     }}
                   >
                     <option value="">Walk-in / enter a player</option>
+                    {candidate?.profile && <RegistrationProfileSummary profile={candidate.profile}/>}
                     {form.registrationId && !candidate ? (
                       <option value={form.registrationId}>
                         {form.playerName} · Saved registration
                       </option>
                     ) : null}
-                    {workspace.candidates.map((c) => (
-                      <option key={c.id} value={c.id}>
-                        {c.name} · {c.age} · {c.sport}
-                      </option>
-                    ))}
+                    {workspace.candidates
+                      .filter((c) => c.sport === form.sport)
+                      .map((c) => (
+                        <option key={c.id} value={c.id}>
+                          {c.name} · {c.age} · {c.sport}
+                        </option>
+                      ))}
                   </select>
                 </Field>
                 <div className="grid gap-4 sm:grid-cols-2">
@@ -583,19 +695,6 @@ export function TryoutEvaluations() {
                           onChange={(e) => change({ ageGroup: e.target.value })}
                           placeholder="Example: 8U"
                         />
-                      </Field>
-                      <Field label="Sport">
-                        <select
-                          className={control}
-                          value={form.sport}
-                          disabled={!!form.registrationId}
-                          onChange={(e) =>
-                            change({ sport: e.target.value as EvaluationInput["sport"] })
-                          }
-                        >
-                          <option value="baseball">Baseball</option>
-                          <option value="softball">Softball</option>
-                        </select>
                       </Field>
                     </>
                   ) : null}

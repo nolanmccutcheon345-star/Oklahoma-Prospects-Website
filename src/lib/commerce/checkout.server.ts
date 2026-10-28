@@ -1,4 +1,18 @@
-import { coachesWithAvailability, requireCoachService } from "./coach-services.server";
+import { operationalCoachAvailability } from "../operational-person.server";
+import {
+  availableOperationalServices,
+  assertOperationalServiceForNewPurchase,
+} from "../coordinator/organization-services.server";
+import {
+  bookableCoaches,
+  coachesWithAvailability,
+  requireCoachService,
+} from "./coach-services.server";
+import { lockFinancialExecution } from "../finance/execution.server";
+import {
+  assertApprovedFinancialLessonInTransaction,
+  type FinancialLessonAdmission,
+} from "../finance/context.server";
 import { checkoutLessonService } from "./coach-services";
 import { createHash, randomUUID } from "node:crypto";
 import { getRequest } from "@tanstack/react-start/server";
@@ -8,14 +22,17 @@ import { assertSameSiteRequest } from "../auth/isolation.server";
 import { commerceIdentity as clubIdentity } from "./access.server";
 import { readWorkingFile, loadDeskForUser } from "../pd/desk-impl.server";
 import { calculateQuote, type CheckoutInput, type Product, type Quote } from "./contracts";
-import { slotsFor, validateWindow, validDate } from "../scheduling";
+import { CAGE_BOOKING_DAYS, chicagoDate, slotsFor, validateWindow, validDate } from "../scheduling";
+import { withinBookingHorizon } from "./booking-policy.server";
 import { coachAvailable } from "./availability";
+import { availableLessonTimes, calendarDay, NEXT_LESSON_DAYS } from "./available-lesson-times";
 import { paymentMode, squarePublicConfig, squareConfig, planVariation } from "./square.server";
 import { approvedProducts, CATALOG_VERSION } from "./catalog";
 import { assertSquareCheckoutScope } from "./square-config";
 import { expireHolds } from "./store.server";
 import { quoteWithDiscount, assertDiscountCurrent } from "./discounts.server";
 import { assertBreakTheBatAvailable } from "./break-the-bat.server";
+import { assertAthleteMayPurchase, householdAssessmentIds } from "./assessment-gate.server";
 
 export async function rateLimit(bucket: string, maximum = 30) {
   const request = getRequest();
@@ -38,20 +55,32 @@ export async function checkoutContext(verifiedUserId?: string) {
   const me = session ? await clubIdentity(session.id) : null;
   const sql = await getSql();
   const file = session ? (await loadDeskForUser(session.id)).data : await readWorkingFile();
-  const [products, assessments] = await Promise.all([
-    sql<Product>`select id,kind,name,price,minutes,credits,remote,expires_days,hours,discipline,active from club_services where active = true`,
-    session
-      ? sql<{ athlete_id: string }>`select distinct a.athlete_id from athlete_assessments a
-      join club_athletes c on c.id = a.athlete_id where c.household_id = any(${me!.billingHouseholdIds}::text[])`
-      : Promise.resolve([]),
-  ]);
-  const done = new Set(assessments.map((a) => a.athlete_id));
+  const products =
+    await sql<Product>`select id,kind,name,price,minutes,credits,remote,expires_days,hours,discipline,active from club_services where active = true or id = 'assessment-setup'`;
+  // A failed status lookup is an empty set: every athlete is not assessed.
+  const done = session
+    ? await householdAssessmentIds(sql, me!.billingHouseholdIds)
+    : new Set<string>();
   // Parent-scoped desk data omits staff schedules; use the full file only on the server.
-  const publicProducts = approvedProducts(products);
-  const bookingFile = session ? await readWorkingFile() : file;
-  const coaches = await coachesWithAvailability(sql, bookingFile.coaches, bookingFile.availability, publicProducts);
+  const publicProducts = approvedProducts(await availableOperationalServices(sql, products));
+  const originalBookingFile = session ? await readWorkingFile() : file;
+  const bookingFile = await operationalCoachAvailability(
+    sql,
+    originalBookingFile.coaches,
+    originalBookingFile.availability,
+  );
+  const availableProductIds = new Set(publicProducts.map((p) => p.id));
+  const coaches = (await bookableCoaches(sql, bookingFile.coaches))
+    .map((c) => ({ ...c, serviceIds: c.serviceIds.filter((id) => availableProductIds.has(id)) }))
+    .filter((c) => c.serviceIds.length);
   // Guest callers receive only coach names/specialties and the public catalog.
   return {
+    athleteScopeRole:
+      me?.role === "admin"
+        ? "admin"
+        : me?.canInstruct || me?.canTeamCoach
+          ? "coach"
+          : me?.role || "parent",
     mode: paymentMode(),
     square: squarePublicConfig(),
     products: publicProducts,
@@ -63,6 +92,12 @@ export async function checkoutContext(verifiedUserId?: string) {
         }))
       : [],
     coaches,
+    coachAvailability: await coachesWithAvailability(
+      sql,
+      bookingFile.coaches,
+      bookingFile.availability,
+      publicProducts,
+    ),
   };
 }
 
@@ -79,49 +114,42 @@ export async function quoteForRequest(
   const me = await clubIdentity(session.id);
   const sql = await getSql();
   const products = approvedProducts(
-    await sql<Product>`select id,kind,name,price,minutes,credits,remote,expires_days,hours,discipline,active from club_services where active = true`,
+    await availableOperationalServices(
+      sql,
+      await sql<Product>`select id,kind,name,price,minutes,credits,remote,expires_days,hours,discipline,active from club_services where active = true or id = 'assessment-setup'`,
+    ),
   );
   const product = products.find((p) => p.id === input.productId);
   if (!product) throw new Error("This product is unavailable.");
-  const file = await readWorkingFile();
+  const originalFile = await readWorkingFile();
+  const file = {
+    ...originalFile,
+    ...(await operationalCoachAvailability(sql, originalFile.coaches, originalFile.availability)),
+  };
   let athleteId: string | null = null;
   let completed = false;
-  if (input.athleteId) {
-    if (!me) throw new Error("Sign in to select an athlete on your account.");
-    const desk = await loadDeskForUser(me.userId);
-    const athlete = desk.data.athletes.find((a) => a.id === input.athleteId);
-    if (
-      !athlete ||
-      (me.role !== "admin" &&
-        !desk.data.families.some(
-          (f) =>
-            f.id === athlete.familyId &&
-            (me.householdEmails.includes(f.email.toLowerCase()) ||
-              f.email.toLowerCase() === me.email),
-        ))
-    )
-      throw new Error("This athlete is not in your household.");
-    athleteId = athlete.id;
-    const [result] = await sql<{
-      done: boolean;
-    }>`select exists(select 1 from athlete_assessments where athlete_id = ${athleteId}) as done`;
-    completed = result.done;
-  }
-  if (input.productId === "all-star") {
-    const { requirePriorityPolicy } = await import("./booking-policy.server");
-    await requirePriorityPolicy(sql);
+  if (
+    input.athleteId ||
+    input.kind === "lesson" ||
+    input.kind === "package" ||
+    input.kind === "membership"
+  ) {
+    const gate = await assertAthleteMayPurchase(sql, {
+      athleteId: input.athleteId,
+      kind: input.kind,
+      productId: input.productId,
+      billingHouseholdIds: me.billingHouseholdIds,
+      role: me.role,
+      date: input.date,
+    });
+    athleteId = gate.athleteId;
+    completed = gate.assessed;
   }
   if (input.kind === "cage" && input.date) {
     const { checkCageBookingWindow } = await import("./booking-policy.server");
     await checkCageBookingWindow(me.billingHouseholdIds, input.date);
   }
-  const baseQuote = calculateQuote(
-    input,
-    product,
-    completed,
-    products.filter((p) => p.kind === "cage"),
-    requireConsent,
-  );
+  const baseQuote = calculateQuote(input, product, completed, products, requireConsent);
   const quote = await quoteWithDiscount(sql, baseQuote, input.discountCode);
   await assertBreakTheBatAvailable(sql, quote, {
     userId: me.userId,
@@ -137,6 +165,21 @@ export async function quoteForRequest(
     );
   if (quote.needsSlot && quote.kind !== "cage") {
     const spaceProduct = checkoutLessonService(quote);
+    await assertOperationalServiceForNewPurchase(sql, spaceProduct);
+    const [savedService] = await sql<
+      import("./contracts").Product & { lesson_version: number }
+    >`select * from club_services where id=${spaceProduct} and kind='lesson'`;
+    const [playerSport] = await sql<{
+      profile: { sport?: string; sports?: string[] };
+    }>`select profile from club_athletes where id=${athleteId}`;
+    const sport =
+      input.sport ||
+      ((playerSport?.profile?.sports?.length || 0) <= 1 ? playerSport?.profile?.sport : undefined);
+    quote.lessonConfig = {
+      service: savedService,
+      sport: sport === "baseball" || sport === "softball" ? sport : null,
+      source: "checkout-quote",
+    };
     await requireCoachService(sql, file.coaches, input.coachId, spaceProduct);
     const { lessonResources } = await import("./operations.server");
     quote.resources = [`coach:${input.coachId}`, ...(await lessonResources(spaceProduct, sql))];
@@ -147,13 +190,27 @@ export async function quoteForRequest(
 
 export async function availableSlots(input: CheckoutInput, verifiedUserId?: string) {
   const { quote, file } = await quoteForRequest(input, false, verifiedUserId);
-  if (!quote.needsSlot || !input.date || !validDate(input.date)) return { quote, slots: [] };
+  if (!quote.needsSlot || !input.date || !validDate(input.date))
+    return { quote, slots: [], nextAvailable: null };
   const sql = await getSql();
+  const firstDate = input.date < chicagoDate() ? chicagoDate() : input.date;
+  const lastDate = quote.kind === "cage" ? firstDate : calendarDay(firstDate, NEXT_LESSON_DAYS);
   const occupied = await sql<{
     resource_id: string;
     slot_at: Date;
   }>`select resource_id,slot_at from booking_occupancy b join booking_records r on r.id=b.booking_id left join commerce_orders o on o.id=r.order_id
-    where r.status in ('confirmed','completed') and resource_id = any(${quote.resources}::text[]) and slot_at >= ${input.date}::date - interval '1 day' and slot_at < ${input.date}::date + interval '2 days'`;
+    where r.status in ('confirmed','completed') and resource_id = any(${quote.resources}::text[]) and slot_at >= ${firstDate}::date - interval '1 day' and slot_at < ${lastDate}::date + interval '2 days'`;
+  if (quote.kind !== "cage")
+    return {
+      quote,
+      ...availableLessonTimes({
+        date: input.date,
+        duration: quote.duration,
+        coachId: input.coachId!,
+        availability: file.availability,
+        occupied,
+      }),
+    };
   const slots = slotsFor(input.date, quote.duration).filter((slot) => {
     if (
       quote.kind !== "cage" &&
@@ -163,7 +220,7 @@ export async function availableSlots(input: CheckoutInput, verifiedUserId?: stri
     const { start, end } = validateWindow(input.date!, slot.value, quote.duration);
     return !occupied.some((row) => new Date(row.slot_at) >= start && new Date(row.slot_at) < end);
   });
-  return { quote, slots };
+  return { quote, slots, nextAvailable: null };
 }
 
 export async function beginCheckout(input: CheckoutInput, verifiedUserId?: string) {
@@ -173,13 +230,14 @@ export async function beginCheckout(input: CheckoutInput, verifiedUserId?: strin
   const config = squareConfig();
   if (input.productId === "m4" || input.productId === "s6")
     throw new Error("Small-group enrollment opens when the office publishes the group schedule.");
-  const { me, quote, athleteId, file } = await quoteForRequest(input, true, verifiedUserId);
+  const { me, quote, athleteId } = await quoteForRequest(input, true, verifiedUserId);
   if (quote.discount && input.discountVersion !== quote.discount.version)
     throw new Error("Apply the current discount code and review your total before continuing.");
   assertSquareCheckoutScope(config, quote);
   if (quote.recurring) {
     const { validateSquarePlan } = await import("./square-payments.server");
-    await validateSquarePlan(await planVariation(quote.productId), quote.regularCents);
+    quote.squarePlanVariationId = await planVariation(quote.productId);
+    await validateSquarePlan(quote.squarePlanVariationId, quote.regularCents);
   }
   const sql = await getSql();
   const fingerprint = JSON.stringify({
@@ -194,6 +252,7 @@ export async function beginCheckout(input: CheckoutInput, verifiedUserId?: strin
     consent: input.consent,
   });
   return sql.transaction(async (tx) => {
+    await lockFinancialExecution(tx);
     await expireHolds(tx);
     await assertDiscountCurrent(tx, quote);
     const [existing] = await tx<{
@@ -217,6 +276,9 @@ export async function beginCheckout(input: CheckoutInput, verifiedUserId?: strin
         recurring: quote.recurring,
       };
     }
+    await assertOperationalServiceForNewPurchase(tx, quote.productId);
+    if (quote.needsSlot && quote.kind !== "cage")
+      await assertOperationalServiceForNewPurchase(tx, checkoutLessonService(quote));
     const id = randomUUID(),
       holdUntil = new Date(Date.now() + 10 * 60_000);
     const snapshot = {
@@ -230,6 +292,7 @@ export async function beginCheckout(input: CheckoutInput, verifiedUserId?: strin
         athleteCount: input.athleteCount,
       },
       consentAt: input.consent ? new Date().toISOString() : null,
+      financialLessonAdmission: undefined as FinancialLessonAdmission | undefined,
       bookingWindow: null as null | {
         start: string;
         end: string;
@@ -239,6 +302,14 @@ export async function beginCheckout(input: CheckoutInput, verifiedUserId?: strin
     };
     if (quote.needsSlot) {
       if (!input.date || !input.time) throw new Error("Choose a date and available start time.");
+      const originalFile = await readWorkingFile(tx);
+      const file = await operationalCoachAvailability(
+        tx,
+        originalFile.coaches,
+        originalFile.availability,
+      );
+      if (quote.kind !== "cage")
+        await requireCoachService(tx, file.coaches, input.coachId, checkoutLessonService(quote));
       const window = validateWindow(input.date, input.time, quote.duration);
       if (
         quote.kind !== "cage" &&
@@ -251,6 +322,19 @@ export async function beginCheckout(input: CheckoutInput, verifiedUserId?: strin
         coachId: input.coachId,
         participantCount: quote.kind === "cage" ? input.athleteCount : 1,
       };
+      if (quote.kind !== "cage")
+        snapshot.financialLessonAdmission =
+          (await assertApprovedFinancialLessonInTransaction(tx, {
+            coachId: input.coachId || null,
+            productId:
+              (quote.assessment && quote.recurring) || quote.setupCents > 0
+                ? quote.discipline === "Hitting"
+                  ? "s9"
+                  : "s1"
+                : quote.productId,
+            startsAt: window.start,
+            endsAt: window.end,
+          })) || undefined;
       const occupied =
         await tx`select b.booking_id from booking_occupancy b join booking_records r on r.id=b.booking_id where r.status in ('confirmed','completed') and b.resource_id=any(${quote.resources}::text[]) and b.slot_at>=${window.start.toISOString()} and b.slot_at<${window.end.toISOString()} limit 1`;
       if (occupied.length)
@@ -288,7 +372,16 @@ export async function orderStatus(orderId: string, verifiedUserId?: string) {
   }>`
     select status,total_cents,product_id,receipt_url,subscription_setup_status,hold_until,snapshot,square_payment_id,square_fee_payment_id from commerce_orders where id=${orderId} and household_id=any(${me.billingHouseholdIds}::text[])`;
   if (!row) throw new Error("Order not found.");
+  const teamFee = row.snapshot.kind === "team-fee" ? (row.snapshot as Quote & { teamFee?: { teamId: string; playerId: string } }).teamFee : null;
   return {
+    enrollment: teamFee ? { teamId: teamFee.teamId, playerId: teamFee.playerId } : null,
+    merchandise: row.snapshot.kind === "merchandise",
+    eventRegistration:
+      (
+        row.snapshot as Quote & {
+          eventRegistration?: import("../training-events.server").EventSnapshot;
+        }
+      ).eventRegistration || null,
     status: row.status,
     total_cents: row.total_cents,
     product_id: row.product_id,
@@ -313,6 +406,8 @@ export async function cageAvailability(input: {
   laneIds: string[];
 }) {
   assertSameSiteRequest();
+  // Match the checkout guard so families cannot select unavailable future dates.
+  if (!withinBookingHorizon(input.date, CAGE_BOOKING_DAYS)) return [];
   const sql = await getSql();
   const resources = [...new Set(input.laneIds)].map((id) => `lane:${id}`);
   const occupied = await sql<{

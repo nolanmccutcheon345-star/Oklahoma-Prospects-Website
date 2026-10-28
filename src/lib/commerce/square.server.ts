@@ -4,6 +4,7 @@ import { resolveSquareConfig } from "./square-config";
 export function squareConfig() {
   const value = resolveSquareConfig({
     ...process.env,
+    SQUARE_OWNER_FULL_CATALOG_LAUNCH: process.env.SQUARE_OWNER_FULL_CATALOG_LAUNCH,
     CONTEXT: process.env.SQUARE_DEPLOY_CONTEXT || process.env.CONTEXT,
   });
   if (!value)
@@ -13,6 +14,7 @@ export function squareConfig() {
 export function squarePublicConfig() {
   const c = resolveSquareConfig({
     ...process.env,
+    SQUARE_OWNER_FULL_CATALOG_LAUNCH: process.env.SQUARE_OWNER_FULL_CATALOG_LAUNCH,
     CONTEXT: process.env.SQUARE_DEPLOY_CONTEXT || process.env.CONTEXT,
   });
   return c
@@ -27,6 +29,7 @@ export function squarePublicConfig() {
 export function paymentMode(): "disabled" | "test" | "live" {
   const c = resolveSquareConfig({
     ...process.env,
+    SQUARE_OWNER_FULL_CATALOG_LAUNCH: process.env.SQUARE_OWNER_FULL_CATALOG_LAUNCH,
     CONTEXT: process.env.SQUARE_DEPLOY_CONTEXT || process.env.CONTEXT,
   });
   return !c ? "disabled" : c.environment === "sandbox" ? "test" : "live";
@@ -53,12 +56,31 @@ export function configuredPlanVariation(productId: string) {
     ];
   return id;
 }
+let launchSetup: Promise<Awaited<ReturnType<typeof import('./launch-catalog.server').prepareLaunchCatalog>>> | undefined;
+let launchCatalogKey = "";
+export async function ensureOwnerLaunchCatalog() {
+  const c = squareConfig();
+  if(c.environment!=='production'||process.env.SQUARE_OWNER_FULL_CATALOG_LAUNCH!=='true') return undefined;
+  const {getSql}=await import('../db');
+  const sql=await getSql();
+  const plans=await sql`select id,name,price,active from club_services where kind in ('membership','cage_plan') order by id`;
+  const key=JSON.stringify(plans);
+  if(!launchSetup || key!==launchCatalogKey) {
+    launchCatalogKey=key;
+    launchSetup=(async()=>{
+      const {getSql}=await import('../db');
+      const {prepareLaunchCatalog}=await import('./launch-catalog.server');
+      return prepareLaunchCatalog(await getSql(),squareClient(),c,configuredPlanVariation);
+    })().catch(error=>{launchSetup=undefined;throw error;});
+  }
+  return launchSetup;
+}
 export async function planVariation(productId: string) {
+  await ensureOwnerLaunchCatalog();
   const { getSql } = await import("../db");
   const { savedPlan } = await import("./square-plans.server");
   const id =
-    configuredPlanVariation(productId) ||
-    (await savedPlan(await getSql(), squareConfig(), productId));
+    (await savedPlan(await getSql(), squareConfig(), productId)) || configuredPlanVariation(productId);
   if (!id)
     throw new Error("This monthly plan is not ready for enrollment. No payment has been taken.");
   return id;

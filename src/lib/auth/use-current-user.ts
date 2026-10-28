@@ -1,6 +1,11 @@
+import { useSyncExternalStore } from "react";
 import { authClient, authEnabled } from "./client";
 import { useAppUser, type AppUser } from "./use-app-user";
 export type { AppUser } from "./use-app-user";
+
+const subscribeToHydration = () => () => {};
+const clientHydrated = () => true;
+const serverHydrated = () => false;
 
 /**
  * Stable fallback user, used ONLY when auth is disabled
@@ -47,12 +52,17 @@ export type CurrentUserState = {
  * call keeps a stable hook order across every render of a given component.
  */
 export function useCurrentUserState(): CurrentUserState {
+  // Session fetch can finish while a streamed route is still dehydrated. All
+  // consumers must share the same pending SSR/first-client view, even when the
+  // client session cache already holds a user. This affects rendering only;
+  // server authorization still verifies every protected request.
+  const hydrated = useSyncExternalStore(subscribeToHydration, clientHydrated, serverHydrated);
   if (!authEnabled) return { user: DEV_USER, isPending: false };
   // eslint-disable-next-line react-hooks/rules-of-hooks -- authEnabled is constant for the app's lifetime
   const { data, isPending } = authClient.useSession();
   // eslint-disable-next-line react-hooks/rules-of-hooks -- same module-level auth switch
   const user = useAppUser(data?.user);
-  return { user, isPending };
+  return hydrated ? { user, isPending } : { user: null, isPending: true };
 }
 
 /**

@@ -1,4 +1,3 @@
-import { FIRST_MONTH_SETUP_CENTS } from "./pricing";
 import { CLUB } from "@/lib/club";
 import type { ClubRole } from "@/lib/club-data";
 
@@ -19,7 +18,6 @@ export const PD_POLICY = {
   reschedulesPerMonth: 1,
   newFamilyCredit: 0,
   parentReferralCredit: 0,
-  assessmentSurcharge: FIRST_MONTH_SETUP_CENTS / 100,
 } as const;
 
 export const MEMBERSHIP_RULES = [

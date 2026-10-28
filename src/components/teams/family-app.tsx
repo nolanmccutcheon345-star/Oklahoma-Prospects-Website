@@ -1,10 +1,17 @@
+import type { TeamFinancialView } from "@/lib/teams/financial-view";
+import { FamilyFinancialRecords } from "./family-financial-records";
+import { SelectedTeamUniform } from "./uniform-photos";
+import {TeamActivities} from "./team-activities";
 import { useState } from "react";
+import { TeamFeeWorkspace } from './fee-workspace';
 import { Link } from "@tanstack/react-router";
 import { Button } from "@/components/ui/button";
 import type { ClubRecord, Player } from "@/lib/teams/types";
 import { balance, docsComplete } from "@/lib/teams/pricing";
 import { Section } from "./ui";
 import { money } from "./ui";
+import { TeamRosterConsentForm } from './roster-consent-form';
+import { TeamDevelopmentFamilyPanel } from '@/components/team-development/family-panel';
 
 const copy = {
   en: {
@@ -14,7 +21,7 @@ const copy = {
     docs: "Documents",
     uniform: "Uniform",
     avail: "Availability",
-    member: "Membership includes",
+    member: "Team & Development Program includes",
     fund: "Fundraising",
     sib: "Siblings",
     cage: "Cage credits",
@@ -26,7 +33,7 @@ const copy = {
     docs: "Documentos",
     uniform: "Uniforme",
     avail: "Disponibilidad",
-    member: "La membresía incluye",
+    member: "El programa de equipo y desarrollo incluye",
     fund: "Recaudación",
     sib: "Hermanos",
     cage: "Créditos de jaula",
@@ -35,15 +42,20 @@ const copy = {
 
 export function FamilyApp({
   club,
+  financial,
   familyId,
   familyIds,
-  isPlayer,
+  playerIds = [],
+  isPlayer: playerAccount,
   lang,
   onChange,
+  onReload,
 }: {
   club: ClubRecord;
+  financial?: TeamFinancialView | null;
   familyId: string;
   familyIds?:string[];
+  playerIds?:string[];
   isPlayer: boolean;
   lang: "en" | "es";
   onChange: (club: ClubRecord) => void;
@@ -51,12 +63,14 @@ export function FamilyApp({
 }) {
   const t = copy[lang];
   const mine = club.teams.flatMap((team) =>
-    team.roster.filter((p) => (familyIds||[familyId]).includes(p.familyId)).map((p) => ({ team, player: p })),
+    team.roster.filter((p) => (familyIds||[familyId]).includes(p.familyId)||playerIds.includes(p.id)).map((p) => ({ team, player: p })),
   );
   const [active, setActive] = useState(mine[0]?.player.id ?? "");
   const row = mine.find((m) => m.player.id === active) ?? mine[0];
   if (!row) {
     return (
+      <div className="grid gap-3">
+      {financial&&<FamilyFinancialRecords financial={financial} familyId={familyId}/>}
       <div className="rounded-2xl bg-paper-2 p-5 shadow-border">
         <h2 className="text-2xl">No player is linked to this login.</h2>
         <p className="mt-2 text-sm text-muted">
@@ -71,12 +85,14 @@ export function FamilyApp({
             <Link to="/contact">Contact</Link>
           </Button>
         </div>
-      </div>
+      </div></div>
     );
   }
   const { team, player } = row;
-  const signed = player.feeLock?.amount ?? 0;
-  const due = balance(player, signed);
+  const isPlayer=playerAccount||!(familyIds||[familyId]).includes(player.familyId);
+  const financialPlayer=financial?.obligations.find(p=>p.playerId===player.id);
+  const signed = financial ? financialPlayer?.signed??0 : player.feeLock?.amount ?? 0;
+  const due = financial ? financialPlayer?.due??0 : balance(player, signed);
   const combined = mine.reduce((sum, m) => sum + balance(m.player, m.player.feeLock?.amount ?? 0), 0);
   const red = {
     balance: due > 0,
@@ -97,6 +113,10 @@ export function FamilyApp({
 
   return (
     <div className="grid gap-3">
+      {financial&&<FamilyFinancialRecords financial={financial} familyId={familyId}/>}
+      {!financial&&<TeamFeeWorkspace teamId={team.id}/>}
+      <TeamActivities key={team.id} teamId={team.id} onSaved={onReload}/>
+      <TeamDevelopmentFamilyPanel teamId={team.id} rosterPlayerId={player.id} />
       {mine.length > 1 ? (
         <div className="flex flex-wrap gap-2">
           {mine.map((m) => (
@@ -132,17 +152,17 @@ export function FamilyApp({
         ))}
       </div>
 
-      {!isPlayer ? (
+      {!financial && player.feeLock && (!isPlayer ? (
         <Section title={t.pay} defaultOpen>
           <p className="font-display text-4xl">{money(due)}</p>
           <p className="text-sm text-muted">
             Season total {money(signed)} · family combined {money(combined)}
           </p>
-          {player.feeLock?.components ? (
+          {player.feeLock?.components&&!player.feeLock.components.season ? (
             <ul className="mt-2 text-sm">
               <li>Team and event costs {money(player.feeLock.components.teamAndEvents ?? 0)}</li>
               <li>Coaching and instruction {money(player.feeLock.components.coaching ?? 0)}</li>
-              <li>Program and membership {money(player.feeLock.components.program ?? 0)}</li>
+              <li>Organization + Team &amp; Development Program {money(player.feeLock.components.program ?? 0)}</li>
               <li>Uniform {money(player.feeLock.components.uniform ?? 0)}</li>
             </ul>
           ) : null}
@@ -160,13 +180,13 @@ export function FamilyApp({
         <p className="rounded-xl bg-paper-2 p-4 text-sm">
           Player view — no dollar figures. Ask a parent about fees.
         </p>
-      )}
+      ))}
 
-      <Section title={t.plan}>
+      {!financial&&<Section title={t.plan}>
         {player.planLock ? (
           <ul className="text-sm">
-            {player.planLock.rows.map((r) => (
-              <li key={r.date}>
+            {player.planLock.rows.map((r, index) => (
+              <li key={index}>
                 {r.date} · {isPlayer ? "installment" : money(r.amount)}
               </li>
             ))}
@@ -174,16 +194,17 @@ export function FamilyApp({
         ) : (
           <p>Plan locks when you sign.</p>
         )}
-      </Section>
+      </Section>}
 
       <Section title={t.docs}>
         <p>Document status is confirmed by the front office. Signed annual waivers are maintained in your account.</p>
         <Link to="/waiver" className="inline-flex min-h-11 items-center underline">View and sign annual waivers</Link>
+        {!isPlayer?<TeamRosterConsentForm key={player.id} teamId={team.id} player={player} baseRev={club._rev} onSaved={onReload}/>:null}
         {(["birthCert", "insurance", "physical"] as const).map(k=><p key={k}>{k}: {player.docs[k]?"On file":"Not yet verified"}</p>)}
       </Section>
 
       <Section title={t.uniform}>
-        <p className="text-sm">{club.uniforms.find((u) => u.id === team.uniformPackageId)?.name}</p>
+        <SelectedTeamUniform teamId={team.id} />
         <label>Uniform number<input
           value={player.order.number}
           onChange={(e) =>
@@ -236,20 +257,20 @@ export function FamilyApp({
 
       <Section title={t.member}>
         <ul className="list-disc pl-5 text-sm">
-          <li>Weekly cage time</li>
-          <li>Development app access</li>
-          <li>Practices and instruction</li>
-          <li>Member pricing</li>
-          <li>Recruiting support</li>
+          <li>Scheduled team facility use</li>
+          <li>Strength, athletic development, throwing and arm-care programming through the platform</li>
+          <li>Player-, position- and age-specific programming when assigned</li>
+          <li>Drill assignments, tracking, coach access and development history</li>
         </ul>
+        <p className="mt-2 text-sm">Personal memberships are purchased separately through the Memberships page at the full published price. Team fees do not include a discounted membership.</p>
       </Section>
 
-      <Section title={t.fund}>
+      {!financial&&<Section title={t.fund}>
         <p className="text-sm">
           Credits earned: {isPlayer ? "on file" : money(player.credits.reduce((s, c) => s + c.amount, 0))}
         </p>
         <p className="text-xs text-muted">Sponsorships reduce the balance, never the signed fee.</p>
-      </Section>
+      </Section>}
 
       <Section title={t.cage}>
         <p className="text-sm">

@@ -23,13 +23,21 @@ import type { Quote } from "./contracts";
 import { applySquareRefundBalance, paymentRefundedCents } from "./square-refunds.server";
 import { assertDiscountCurrent } from "./discounts.server";
 import { lockBreakTheBatCustomer } from "./break-the-bat.server";
+import { assertStoredOrderAllowed } from "./assessment-gate.server";
+import { lockFinancialExecution } from "../finance/execution.server";
+import { resolveIdentity } from "../identity.server";
+import { assertApprovedFinancialLessonInTransaction } from "../finance/context.server";
 export type SquareOrder = {
   id: string;
   kind?: string;
+  product_id?: string;
   user_id: string;
   email: string;
   athlete_id: string | null;
   snapshot: Quote & {
+    financialLessonAdmission?: import("../finance/context.server").FinancialLessonAdmission | null;
+    teamFee?: import("../teams/payment-contracts").TeamFeeSnapshot;
+    eventRegistration?: import("../training-events.server").EventSnapshot;
     rescheduleFee?: import("./reschedule-fee.server").FeeOrder["snapshot"]["rescheduleFee"];
     bookingWindow?: {
       start: string;
@@ -42,6 +50,7 @@ export type SquareOrder = {
   total_cents: number;
   hold_until: Date;
   paid_at: Date | null;
+  payment_provider?: string;
   payment_environment: string;
   square_customer_id: string | null;
   square_payment_id: string | null;
@@ -91,6 +100,7 @@ export async function fulfillSquarePayment(
   payment: Square.Payment,
   config: { environment: string; locationId: string },
 ) {
+  await lockFinancialExecution(sql);
   if (!payment.referenceId) return;
   const [order] =
     await sql<SquareOrder>`select * from commerce_orders where id=${payment.referenceId} and payment_provider='square' for update`;
@@ -99,7 +109,10 @@ export async function fulfillSquarePayment(
     throw new Error("Payment environment mismatch.");
   const fee =
     order.snapshot.setupCents > 0 &&
-    payment.amountMoney?.amount === BigInt(order.snapshot.setupCents);
+    (payment.id === order.square_fee_payment_id ||
+      payment.note?.startsWith("Prospects setup fee · ") ||
+      (order.snapshot.setupCents !== order.snapshot.regularCents &&
+        payment.amountMoney?.amount === BigInt(order.snapshot.setupCents)));
   const expected = fee
     ? order.snapshot.setupCents
     : order.snapshot.setupCents > 0
@@ -131,6 +144,15 @@ export async function fulfillSquarePayment(
   const [refunded] = await sql<{
     exists: boolean;
   }>`select exists(select 1 from square_payments where order_id=${order.id} and refunded_cents>0)`;
+  if (refunded.exists && order.kind === "team-fee" && order.snapshot.teamFee?.independent) {
+    // This is a payment toward a finite obligation, with no service entitlement
+    // to unwind. Preserve the verified net receipt and refund history; a partial
+    // refund must not automatically request a refund of the remaining money.
+    const { fulfillTeamPayment } = await import("../teams/payment.server");
+    await fulfillTeamPayment(sql, order, config.environment);
+    await applySquareRefundBalance(sql, payment, config);
+    return;
+  }
   if (refunded.exists) {
     // A COMPLETED payment can already have returned funds. Never grant access or
     // allocate a lane, even if an older payment response arrives after the refund.
@@ -139,6 +161,21 @@ export async function fulfillSquarePayment(
     await sql`delete from booking_occupancy where booking_id in(select id from booking_records where order_id=${order.id} and status='expired')`;
     await queueExpiredCheckoutRefunds(sql, config.environment, order.id);
     await sql`insert into payment_notifications(id,order_id,kind) values(${"owner-review:" + order.id},${order.id},'owner-payment-review') on conflict do nothing`;
+    return;
+  }
+  if (order.kind === "merchandise") {
+    const { fulfillShopPayment } = await import("../shop/store.server");
+    await fulfillShopPayment(sql, order);
+    return;
+  }
+  if (order.kind === "team-fee") {
+    const { fulfillTeamPayment } = await import("../teams/payment.server");
+    await fulfillTeamPayment(sql, order, config.environment);
+    return;
+  }
+  if (order.kind === "event") {
+    const { fulfillEventPayment } = await import("../training-events.server");
+    await fulfillEventPayment(sql, order, config.environment);
     return;
   }
   if (order.kind === "reschedule-fee" || order.snapshot.rescheduleFee) {
@@ -176,8 +213,9 @@ export async function fulfillSquarePayment(
       userId: order.user_id,
       athleteId: order.athlete_id,
       coachId: window.coachId,
+      lessonConfig: order.snapshot.lessonConfig,
       productId:
-        order.snapshot.setupCents > 0
+        (order.snapshot.assessment && order.snapshot.recurring) || order.snapshot.setupCents > 0
           ? order.snapshot.discipline === "Hitting"
             ? "s9"
             : "s1"
@@ -240,7 +278,7 @@ export async function provisionSubscription(orderId: string, client = squareClie
     throw new Error("Subscription environment mismatch.");
   if (nextBillingDate(new Date(o.paid_at!)) <= chicagoDate())
     throw new Error("Delayed recurring setup requires owner review before any new charge.");
-  const planId = await planVariation(o.snapshot.productId);
+  const planId = o.snapshot.squarePlanVariationId || (await planVariation(o.snapshot.productId));
   await validateSquarePlan(planId, o.snapshot.regularCents, client);
   // CreateCard accepts the completed payment id; a consumed nonce is never reused.
   const { card } = await client.cards.create({
@@ -257,11 +295,12 @@ export async function provisionSubscription(orderId: string, client = squareClie
     cardId: card.id,
     startDate: nextBillingDate(new Date(o.paid_at!)),
     timezone: "America/Chicago",
-    source: { name: "Oklahoma Prospects" },
+    source: { name: "Prospects Sports Academy" },
   });
   if (!s?.id || s.customerId !== o.square_customer_id || s.locationId !== c.locationId)
     throw new Error("Subscription verification is pending.");
   await sql.transaction(async (tx) => {
+    await lockFinancialExecution(tx);
     const end = chicagoInstant(nextBillingDate(new Date(o.paid_at!)), "00:00");
     await tx`insert into club_subscriptions(id,order_id,user_id,athlete_id,product_id,customer_id,status,amount_cents,period_start,period_end,payment_provider,provider_version)
       values(${s.id!},${o.id},${o.user_id},${o.athlete_id},${o.snapshot.productId},${o.square_customer_id!},${s.status?.toLowerCase() || "pending"},${o.snapshot.regularCents},${new Date(o.paid_at!).toISOString()},${end.toISOString()},'square',${s.version?.toString() || null}) on conflict(id) do nothing`;
@@ -281,13 +320,19 @@ export async function paySquareOrder(
   await rateLimit("square-payment", 15);
   const session = verifiedUserId ? { id: verifiedUserId } : await getSessionUser();
   if (!session) throw new Error("Sign in before payment.");
-  const identity = await clubIdentity(session.id);
   const sql = await getSql(),
     c = squareConfig(),
     client = squareClient();
   const [order] =
     await sql<SquareOrder>`select * from commerce_orders where id=${input.orderId} and user_id=${session.id} and payment_provider='square'`;
   if (!order || order.payment_environment !== c.environment) throw new Error("Checkout not found.");
+  // Team charges reauthorize against their database-selected financial context
+  // below. A mutable operational role must not revoke a frozen guardian binding.
+  // Keep the existing commerce-role preflight for every other purchase kind.
+  const identity =
+    order.kind === "team-fee"
+      ? await resolveIdentity(sql, session.id)
+      : await clubIdentity(session.id);
   const url = `/paid?order_id=${order.id}`;
   const [priorAttempt] = await sql<{
     status: string;
@@ -312,7 +357,7 @@ export async function paySquareOrder(
       : order.total_cents;
   if (order.snapshot.recurring)
     await validateSquarePlan(
-      await planVariation(order.snapshot.productId),
+      order.snapshot.squarePlanVariationId || (await planVariation(order.snapshot.productId)),
       order.snapshot.regularCents,
       client,
     );
@@ -340,6 +385,7 @@ export async function paySquareOrder(
     throw new Error("Payment account could not be verified.");
   const hash = createHash("sha256").update(input.sourceId).digest("hex");
   await sql.transaction(async (tx) => {
+    await lockFinancialExecution(tx);
     const [current] =
       await tx<SquareOrder>`select * from commerce_orders where id=${order.id} for update`;
     if (
@@ -348,7 +394,7 @@ export async function paySquareOrder(
     )
       throw new Error("This checkout expired. Check billing history before starting again.");
     if (current.snapshot.rescheduleFee) {
-      const { validatePreparedRescheduleFee, currentMoveAvailability } =
+      const { validatePreparedRescheduleFee, preparedMoveAvailability } =
         await import("./reschedule-fee.server");
       const fee = await validatePreparedRescheduleFee(tx, current.id, {
         ...identity,
@@ -358,7 +404,7 @@ export async function paySquareOrder(
       const { booking: b } = await lockedBooking(tx, fee.snapshot.rescheduleFee.bookingId);
       const m = fee.snapshot.rescheduleFee;
       const minutes = (+new Date(b.ends_at) - +new Date(b.starts_at)) / 60000;
-      if (!(await currentMoveAvailability(b, m.date, m.time, minutes, tx)))
+      if (!(await preparedMoveAvailability(b, m.date, m.time, minutes, tx)))
         throw new Error("The session is no longer available. No fee was submitted.");
       const { validateWindow } = await import("../scheduling");
       const target = validateWindow(m.date, m.time, minutes);
@@ -366,29 +412,53 @@ export async function paySquareOrder(
         await tx`select booking_id from booking_occupancy where resource_id=any(${b.resources}::text[]) and slot_at>=${target.start.toISOString()} and slot_at<${target.end.toISOString()} and booking_id<>${b.id} limit 1`;
       if (occupied.length) throw new Error("That time was just booked. No fee was submitted.");
     }
-    if (current.athlete_id && !current.snapshot.rescheduleFee) {
-      const [athlete] = await tx<{
-        assessed: boolean;
-      }>`select exists(select 1 from athlete_assessments a where a.athlete_id=c.id) as assessed from club_athletes c where c.id=${current.athlete_id} and c.household_id=any(${identity.billingHouseholdIds}::text[])`;
-      if (!athlete) throw new Error("This athlete is no longer linked to your billing household.");
-      if (
-        ["lesson", "package"].includes(current.snapshot.kind) &&
-        !current.snapshot.assessment &&
-        !athlete.assessed
-      )
-        throw new Error(
-          "A completed assessment must remain on the athlete account before payment.",
-        );
-    }
+    if (current.kind === "merchandise") {
+      const { validateShopPayment } = await import("../shop/store.server");
+      await validateShopPayment(tx, current);
+    } else if (current.kind === "team-fee") {
+      const { validateTeamPayment } = await import("../teams/payment.server");
+      await validateTeamPayment(tx, current);
+    } else if (current.kind === "event") {
+      const { validateEventPayment } = await import("../training-events.server");
+      await validateEventPayment(tx, current, identity);
+    } else await assertStoredOrderAllowed(tx, current, identity);
     if (current.snapshot.bookingWindow) {
       const window = current.snapshot.bookingWindow;
       if (current.snapshot.kind !== "cage") {
+        const pin = current.snapshot.financialLessonAdmission;
+        const lessonProductId =
+          (current.snapshot.assessment && current.snapshot.recurring) ||
+          current.snapshot.setupCents > 0
+            ? current.snapshot.discipline === "Hitting"
+              ? "s9"
+              : "s1"
+            : current.snapshot.productId;
+        if (
+          pin &&
+          (pin.coachId !== window.coachId ||
+            pin.productId !== lessonProductId ||
+            +new Date(pin.startsAt) !== +new Date(window.start) ||
+            +new Date(pin.endsAt) !== +new Date(window.end))
+        )
+          throw new Error("The original approved lesson admission does not match this checkout.");
+        const admission = await assertApprovedFinancialLessonInTransaction(tx, {
+          coachId: window.coachId || null,
+          productId: lessonProductId,
+          startsAt: window.start,
+          endsAt: window.end,
+          basisVersion: pin?.basisVersion,
+        });
+        if (admission && !pin) {
+          current.snapshot.financialLessonAdmission = admission;
+          await tx`update commerce_orders set snapshot=${JSON.stringify(current.snapshot)}::jsonb,updated_at=now() where id=${current.id}`;
+        }
         const { readWorkingFile } = await import("../pd/desk-impl.server");
         await requireCoachService(
           tx,
           (await readWorkingFile()).coaches,
           window.coachId,
           checkoutLessonService(current.snapshot),
+          { operational: false },
         );
       }
       if (new Date(window.start).getTime() <= Date.now())
@@ -442,15 +512,18 @@ export async function paySquareOrder(
       referenceId: order.id,
       buyerEmailAddress: order.email,
       note: order.square_payment_id
-        ? "First-month fee (no assessment on file)"
-        : "Oklahoma Prospects " + order.snapshot.title,
+        ? "Prospects setup fee · " + order.snapshot.title
+        : "Prospects Sports Academy " + order.snapshot.title,
     }));
   } catch (error) {
     const status = (error as { statusCode?: number }).statusCode;
     const declined = Boolean(
       status && status >= 400 && status < 500 && status !== 408 && status !== 409 && status !== 429,
     );
-    await sql`update square_payment_attempts set status=${declined ? "declined" : "unknown"} where id=${input.attemptId} and status='pending'`;
+    await sql.transaction(async (tx) => {
+      await lockFinancialExecution(tx);
+      await tx`update square_payment_attempts set status=${declined ? "declined" : "unknown"} where id=${input.attemptId} and status='pending'`;
+    });
     return { url: "", declined, message: safePaymentError(error) };
   }
   if (!payment?.id)

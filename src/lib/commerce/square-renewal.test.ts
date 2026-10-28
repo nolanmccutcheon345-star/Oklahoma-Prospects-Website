@@ -65,7 +65,7 @@ test("renewal invoices require verified payment and survive duplicates and late 
       invoices: { get: async () => ({ invoice }) },
       orders: {
         get: async () => ({
-          order: { id: "provider-order", tenders: [{ paymentId: "renewal-payment" }] },
+          order: { id: "provider-order", tenders: [{ paymentId: payment.id }] },
         }),
       },
       payments: { get: async () => ({ payment }) },
@@ -85,7 +85,30 @@ test("renewal invoices require verified payment and survive duplicates and late 
         1,
       );
     });
-    invoice = { ...invoice, status: "PAID" };
+    await t.test(
+      "partial invoice receipts are verified and idempotent without granting benefits",
+      async () => {
+        invoice = { ...invoice, id: "partial-invoice", status: "PARTIALLY_PAID" };
+        payment = {
+          ...valid,
+          id: "deposit-payment",
+          amountMoney: { amount: 2000n, currency: "USD" },
+          totalMoney: { amount: 2000n, currency: "USD" },
+        };
+        // Provider returns the payment corresponding to its tender; identity checks
+        // below exercise mismatched customers and full-price partial responses.
+        await syncSquareInvoice("partial-invoice", deps);
+        await syncSquareInvoice("partial-invoice", deps);
+        assert.equal(
+          (await sql`select * from square_payments where invoice_id='partial-invoice'`).length,
+          1,
+        );
+        assert.equal((await sql`select * from credit_grants`).length, 0);
+        payment = valid;
+        await assert.rejects(syncSquareInvoice("partial-invoice", deps), /identity mismatch/);
+      },
+    );
+    invoice = { ...invoice, id: "invoice", status: "PAID" };
     await t.test("wrong identity, price, order and refunded payment are rejected", async () => {
       for (const patch of [
         { customerId: "other" },
@@ -119,7 +142,7 @@ test("renewal invoices require verified payment and survive duplicates and late 
         )[0].status,
         "resolved",
       );
-      assert.equal((await sql`select * from square_payments`).length, 1);
+      assert.equal((await sql`select * from square_payments where invoice_id='invoice'`).length, 1);
     });
     await t.test(
       "late unpaid response does not undo paid state or restore spent credits",
@@ -128,7 +151,8 @@ test("renewal invoices require verified payment and survive duplicates and late 
         invoice = { ...invoice, status: "UNPAID" };
         await syncSquareInvoice("invoice", deps, true);
         assert.equal(
-          (await sql<{ status: string }>`select status from billing_invoices`)[0].status,
+          (await sql<{ status: string }>`select status from billing_invoices where id='invoice'`)[0]
+            .status,
           "paid",
         );
         invoice = { ...invoice, status: "PAID" };

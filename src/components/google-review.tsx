@@ -16,29 +16,20 @@ export function GoogleReview({
         dark ? "bg-ink text-fg-inverse" : "bg-paper-2 text-ink shadow-border",
       )}
     >
-      <p
-        className={cn(
-          "text-xs font-semibold tracking-[0.16em] uppercase",
-          dark ? "text-powder" : "text-maroon",
-        )}
-      >
-        One listing · one name
-      </p>
-      <div className="mt-3 flex items-start gap-3">
+      <div className="flex items-start gap-3">
         <Star
           className={cn("mt-1 size-5 shrink-0", dark ? "text-powder" : "text-maroon")}
         />
         <div>
-          <h2 className="font-display text-2xl uppercase">{CLUB.name}</h2>
+          <h2 className="font-display text-2xl uppercase">Leave a Google review</h2>
           <p className={cn("mt-2 text-sm", dark ? "text-fg-soft" : "text-muted")}>
-            Search Google for {CLUB.name}, {CLUB.addressLine1}, Broken
-            Arrow. Leave a review on this club’s listing.
+            Trained with us? Share your experience and help other baseball and softball families discover Prospects Sports Academy.
           </p>
         </div>
       </div>
       <Button asChild className="mt-4" variant={dark ? "primary" : "maroon"}>
         <a href={LINKS.googleReview} target="_blank" rel="noopener noreferrer">
-          Open the {CLUB.name} listing
+          Open the {CLUB.googleListingName} listing
           <span className="sr-only"> (opens in a new tab)</span>
         </a>
       </Button>

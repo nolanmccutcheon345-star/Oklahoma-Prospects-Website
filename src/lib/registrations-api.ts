@@ -1,3 +1,5 @@
+import {eligibilityReviewInput} from "./athlete-registration-contracts";
+import { registrationFilters } from "./registration-filters";
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { authMiddleware } from "./auth/middleware";
@@ -11,10 +13,11 @@ export const getRegistrationAccess = createServerFn({ method: "GET" })
   });
 export const getRegistrationRows = createServerFn({ method: "GET" })
   .middleware([authMiddleware])
-  .handler(async ({ context }) => {
+  .validator(registrationFilters.optional())
+  .handler(async ({ context, data }) => {
     const { getSql } = await import("./db");
     const { registrationRowsFor } = await import("./registrations.server");
-    return registrationRowsFor(await getSql(), context.userId);
+    return registrationRowsFor(await getSql(), context.userId, data);
   });
 export const getRegistrationReaders = createServerFn({ method: "GET" })
   .middleware([authMiddleware])
@@ -31,3 +34,5 @@ export const setRegistrationReader = createServerFn({ method: "POST" })
     const { setRegistrationReaderFor } = await import("./registrations.server");
     return setRegistrationReaderFor(await getSql(), context.userId, data);
   });
+
+export const reviewRegistrationEligibility=createServerFn({method:'POST'}).middleware([authMiddleware]).validator(eligibilityReviewInput).handler(async({context,data})=>{const {getSql}=await import('./db');const {reviewEligibilityFor}=await import('./athlete-registration.server');return reviewEligibilityFor(await getSql(),context.userId,data);});

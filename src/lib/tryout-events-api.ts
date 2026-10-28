@@ -1,5 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
-import { authMiddleware } from "./auth/middleware";
+import { operationalAuthMiddleware } from "./auth/middleware";
 import { tryoutEventInput } from "./tryout-events-contracts";
 export const getPublicTryoutEvents = createServerFn({ method: "GET" }).handler(async () => {
   const { getSql } = await import("./db");
@@ -7,14 +7,14 @@ export const getPublicTryoutEvents = createServerFn({ method: "GET" }).handler(a
   return publicTryoutEventsFor(await getSql());
 });
 export const getAdminTryoutEvents = createServerFn({ method: "GET" })
-  .middleware([authMiddleware])
+  .middleware([operationalAuthMiddleware])
   .handler(async ({ context }) => {
     const { getSql } = await import("./db");
     const { adminTryoutEventsFor } = await import("./tryout-events.server");
     return adminTryoutEventsFor(await getSql(), context.userId);
   });
 export const saveTryoutEvent = createServerFn({ method: "POST" })
-  .middleware([authMiddleware])
+  .middleware([operationalAuthMiddleware])
   .validator(tryoutEventInput)
   .handler(async ({ context, data }) => {
     const { getSql } = await import("./db");
@@ -23,9 +23,16 @@ export const saveTryoutEvent = createServerFn({ method: "POST" })
   });
 
 export const getAdminTryoutEnrollments = createServerFn({ method: "GET" })
-  .middleware([authMiddleware])
+  .middleware([operationalAuthMiddleware])
   .handler(async ({ context }) => {
     const { getSql } = await import("./db");
-    const { adminTryoutEnrollmentsFor } = await import("./tryout-enrollment.server");
-    return adminTryoutEnrollmentsFor(await getSql(), context.userId);
+    const { operationalTryoutEnrollmentsFor } = await import("./tryout-events.server");
+    return operationalTryoutEnrollmentsFor(await getSql(), context.userId);
   });
+
+/** Public, minimal coach/team labels for optional tryout preferences. */
+export const getPublicTryoutTeams = createServerFn({ method: "GET" }).handler(async () => {
+  const { getSql } = await import("./db");
+  const { publicTryoutTeamsFor } = await import("./tryout-preferences.server");
+  return publicTryoutTeamsFor(await getSql());
+});

@@ -1,96 +1,71 @@
+import { PublicProgramUpdates } from "@/components/public-program-updates";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { PageHero } from "@/components/page-hero";
+import { TryoutSchedule } from "@/components/tryout-schedule";
+import { PublicTeamRoster } from "@/components/public-team-roster";
 import { Button } from "@/components/ui/button";
-import { SOFTBALL_AGES } from "@/lib/club";
+import { getPublicTryoutEvents } from "@/lib/tryout-events-api";
 import { pageHead } from "@/lib/seo";
 
-import { getPublicTryoutEvents } from "@/lib/tryout-events-api";
-import { TryoutSchedule } from "@/components/tryout-schedule";
-
 export const Route = createFileRoute("/softball")({
-  loader: () => getPublicTryoutEvents(),
   head: () =>
     pageHead(
       "/softball",
       "Softball Teams & Tryouts",
-      "Oklahoma Prospects softball: 10U, 12U, 14U and 16U. Free individual tryout requests for all age groups. View published upcoming tryouts.",
+      "Explore Prospects softball teams, tryout opportunities and coaching in Broken Arrow.",
       false,
     ),
+  loader: () => getPublicTryoutEvents(),
   component: SoftballPage,
 });
 
 function SoftballPage() {
   const events = Route.useLoaderData();
+  const sportEvents = events.filter((event) => event.sport === "Softball");
   return (
     <main id="main">
       <PageHero
-        eyebrow="Oklahoma Prospects softball"
-        title="Your team starts here."
-        accent="Bring your game."
-        copy="Softball in Broken Arrow. Free individual tryout requests are open for every age group."
+        eyebrow="Prospects Softball"
+        title="Softball teams."
+        accent="Find your fit."
+        copy="Explore our softball teams, meet the coaches, and find your next opportunity at Prospects Sports Academy."
+        image="/brand/team.jpg"
         actions={
-          <Button asChild>
-            <a href="#softball-ages">Find your age group</a>
-          </Button>
+          <>
+            <Button asChild>
+              <a href="#explore-teams">Explore Teams</a>
+            </Button>
+            <Button asChild variant="outline">
+              <Link to="/tryouts" search={{ sport: "Softball" }} hash="register">
+                Request a softball tryout
+              </Link>
+            </Button>
+          </>
         }
       />
-      <section id="softball-ages" className="mx-auto max-w-3xl scroll-mt-24 px-5 py-10">
-        <p className="text-xs font-semibold uppercase tracking-widest text-maroon">
-          Softball tryouts
-        </p>
-        <h2 className="mt-2 text-3xl">Choose your age group</h2>
-        <p className="mt-3 text-muted">
-          Requests are open for every age group, including ages beyond the team cards below. Submit
-          your player information, and Prospects will respond with next steps.
-        </p>
-        <div className="mt-6">
-          <TryoutSchedule events={events} sport="Softball" />
-        </div>
-        <div className="mt-6 grid gap-4 sm:grid-cols-2">
-          {SOFTBALL_AGES.map((age) => (
-            <article key={age} className="rounded-2xl bg-paper-2 p-5 shadow-border">
-              <h3 className="text-3xl">{age === "14U" ? "14U B" : age} Softball</h3>
-              <p className="mt-2 text-sm text-muted">Team forming · Free tryout signup</p>
-              {age === "14U" ? <p className="mt-2 font-semibold">Head Coach: Rusty</p> : null}
-              <Button asChild className="mt-4 w-full">
-                <Link to="/tryouts" search={{ sport: "Softball", age }} hash="register">
-                  Register for {age}
-                </Link>
-              </Button>
-            </article>
-          ))}
-        </div>
-        <article className="mt-8 rounded-2xl border border-line p-6">
-          <p className="text-xs font-semibold uppercase tracking-widest text-maroon">
-            14U B softball · Instruction
-          </p>
-          <h2 className="mt-2 text-3xl">Coach Rusty</h2>
-          <p className="mt-2 font-semibold">14U B Softball Head Coach</p>
+      <PublicProgramUpdates sport="softball" />
+      <section id="explore-teams" className="scroll-mt-24 bg-paper-2 px-5 py-10">
+        <div className="mx-auto max-w-5xl">
+          <h2 className="text-3xl">Explore our softball teams</h2>
           <p className="mt-3 text-muted">
-            Softball hitting and defense instructor. Ask about hitting assessments, 30- and
-            60-minute hitting lessons, and 60-minute fielding lessons.
+            Browse teams by age group and season. Contact our staff to confirm roster openings and
+            the right fit for your player.
           </p>
-          <Button asChild variant="outlineDark" className="mt-4">
-            <Link
-              to="/contact"
-              search={{ subject: "Softball hitting and defense with Coach Rusty" }}
-            >
-              Ask about lessons with Rusty
-            </Link>
-          </Button>
-        </article>
-        <div className="mt-8 rounded-2xl bg-ink p-6 text-fg-inverse">
-          <h2 className="text-2xl">Sarah Blankenship</h2>
-          <p className="mt-1 font-semibold text-powder">Softball Program Coordinator</p>
-          <p className="mt-3 text-fg-soft">
-            Helping families find their place with Oklahoma Prospects softball.
-          </p>
-          <Button asChild variant="outline" className="mt-4">
-            <Link to="/tryouts" search={{ sport: "Softball" }} hash="register">
-              Request a softball tryout
-            </Link>
-          </Button>
+          <PublicTeamRoster sport="Softball" />
         </div>
+      </section>
+      <section className="mx-auto max-w-3xl px-5 py-10">
+        <h2 className="text-3xl">Find your next team</h2>
+        <p className="mt-3 mb-6 text-muted">
+          Explore upcoming tryouts or request an individual evaluation. Our staff will help you find
+          the right next step.
+        </p>
+        <TryoutSchedule events={sportEvents} sport="Softball" />
+        <Button asChild className="mt-6">
+          <Link to="/tryouts" search={{ sport: "Softball" }} hash="register">
+            Request a softball tryout
+          </Link>
+        </Button>
       </section>
     </main>
   );

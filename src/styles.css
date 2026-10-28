@@ -48,6 +48,9 @@
   html {
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+    /* Room for keyboard focus outlines beyond sticky header and bottom tabs. */
+    scroll-padding-top: calc(var(--header-height) + 0.75rem);
+    scroll-padding-bottom: calc(var(--bottom-nav-space) + var(--booking-review-height) + 0.75rem);
   }
 
   html,
@@ -62,6 +65,7 @@
     color: var(--color-fg);
     font-family: var(--font-sans);
     line-height: 1.5;
+    overflow-wrap: anywhere;
   }
 
   button:not(:disabled),
@@ -428,3 +432,85 @@
 }
 
 :root { --bottom-nav-height: 3.5rem; --bottom-nav-space: calc(var(--bottom-nav-height) + 1px + env(safe-area-inset-bottom, 0px)); }
+
+.club-wordmark {
+  display: block;
+  overflow: visible;
+  text-overflow: clip;
+  white-space: normal;
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-style: italic;
+  font-size: 1.125rem;
+  line-height: 1;
+  letter-spacing: 0.025em;
+}
+.club-wordmark-line { display: inline; }
+.club-wordmark-gap { display: inline; }
+@media (max-width: 360px) {
+  .club-wordmark {
+    font-size: 0.94rem;
+    line-height: 0.95;
+    letter-spacing: 0;
+    white-space: normal;
+  }
+  .club-wordmark-line { display: block; white-space: normal; }
+  .club-wordmark-gap { display: none; }
+}
+
+/* Cage booking: compact entry choices and space for the review bar above site navigation. */
+.booking-options { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); width: 100%; gap: .25rem; padding: .25rem; border: 1px solid rgba(255,255,255,.25); border-radius: .65rem; }
+.booking-options a { display: flex; align-items: center; justify-content: center; gap: .3rem; min-height: 2.75rem; padding: .35rem; border-radius: .4rem; text-align: center; font-size: .8rem; font-weight: 700; line-height: 1.15; }
+.booking-options a[aria-current] { background: var(--color-maroon); color: white; }
+.booking-options a:hover { background: var(--color-maroon); }
+.booking-options a:focus-visible { outline: 2px solid var(--color-powder); outline-offset: 2px; }
+.booking-date { box-sizing: border-box; appearance: none; -webkit-appearance: none; }
+.booking-date::-webkit-date-and-time-value { text-align: left; min-height: 1.5em; }
+.booking-date::-webkit-datetime-edit { display: inline-flex; padding: 0; }
+.booking-review-bar { position: fixed; inset-inline: 0; bottom: var(--bottom-nav-space); z-index: 30; border-top: 1px solid var(--color-line); background: var(--color-paper); box-shadow: 0 -4px 20px rgba(0,0,0,.08); }
+html:has(.booking-review-bar) { --booking-review-height: calc(7rem + env(safe-area-inset-bottom, 0px)); }
+body:has(.booking-review-bar) .booking-page,
+body:has(.booking-review-bar) footer { padding-bottom: var(--booking-review-height); }
+/* Root scroll padding supplies the measured chrome clearance; avoid doubling it
+   with hard-coded element margins. Focused fields leave the review action in flow. */
+.booking-page :is(input, select, textarea, button, summary) { scroll-margin-block: 0.75rem; }
+body:has(input:focus, select:focus, textarea:focus) .booking-review-bar { position: static; box-shadow: none; }
+@media (max-width: 360px) { .booking-space { gap: .5rem; padding-inline: .65rem; } .booking-space .font-display { font-size: 1.125rem; } }
+@media (max-height: 500px) { .booking-review-bar { position: static; box-shadow: none; } body:has(.booking-review-bar) .booking-page, body:has(.booking-review-bar) footer { padding-bottom: 0; } }
+
+/* Staff workspace: the focused navigation replaces the public tab bar. */
+body:has(.front-office) [data-site-nav], body:has(.front-office) footer {display:none;}
+.office-control {min-height:44px;width:100%;min-width:0;max-width:100%;box-sizing:border-box;border:1px solid var(--color-line);border-radius:.5rem;background:white;padding:.6rem .75rem;font-size:1rem;color:var(--color-ink);}
+.office-mobile-nav {padding-bottom:env(safe-area-inset-bottom);}
+.front-office {padding-bottom:calc(4rem + env(safe-area-inset-bottom));}
+.front-office input,.front-office select,.front-office textarea {min-width:0;max-width:100%;}
+.front-office details[open]>summary {margin-bottom:.75rem;}
+@media(min-width:1024px){.front-office{padding-bottom:0;}}
+
+/* Native dialog gives mobile section navigation focus containment and an inert backdrop. */
+.site-navigation-sheet { position: fixed; inset: auto 0 0; margin: 0 auto; width: 100%; max-width: 40rem; max-height: calc(100dvh - 1rem); overflow-y: auto; overscroll-behavior: contain; border: 0; border-top: 4px solid var(--color-maroon); border-radius: 1.25rem 1.25rem 0 0; background: var(--color-paper); color: var(--color-ink); }
+.site-navigation-sheet::backdrop { background: rgb(5 16 32 / 65%); }
+.site-menu-header { position: sticky; top: 0; z-index: 1; display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: 1rem; background: var(--color-paper); border-bottom: 1px solid var(--color-line); }
+.site-menu-content { display: grid; gap: .375rem; padding: .75rem 1rem max(1rem, env(safe-area-inset-bottom)); }
+.site-menu-link { display: flex; min-height: 3rem; align-items: center; gap: .75rem; padding: .625rem .875rem; border-radius: .5rem; background: var(--color-paper-2); color: var(--color-ink); font-weight: 600; text-decoration: none; text-align: left; overflow-wrap: anywhere; }
+.site-menu-link:hover, .site-menu-link[aria-current="page"] { background: var(--color-navy); color: white; }
+.site-menu-children { margin: .375rem 0 .625rem 1rem; border-left: 2px solid var(--color-powder); padding-left: .625rem; }
+.site-menu-children .site-menu-link { margin-top: .25rem; font-size: .9375rem; }
+@media (min-width: 1024px) { .site-navigation-sheet { inset: calc(var(--header-height) + 1rem) 0 auto; border-radius: 1.25rem; max-height: calc(100dvh - var(--header-height) - 2rem); } }
+
+@media (min-width: 1024px) { :root { --bottom-nav-height: 0px; --bottom-nav-space: 0px; } }
+
+/* Public navigation lives in the header; workspace tab bars retain their own space. */
+html:has(.public-site-shell) { --bottom-nav-space: 0px; }
+.public-site-shell .booking-review-bar { padding-bottom: env(safe-area-inset-bottom, 0px); }
+[id^="person-"] { scroll-margin-top: 0.75rem; }
+/* Payment forms get uninterrupted viewport space. The booking link stays in the
+   normal-flow header; no promotional floating action sits over payment inputs. */
+.payment-site-shell .site-header { position: static; }
+html:has(.payment-site-shell) { --header-height: 0px; }
+/* Enlarged text or a software keyboard must not let pinned chrome consume the
+   viewport. The measured-height hook applies this only when it exceeds a third. */
+.site-header[data-layout-flow], .booking-review-bar[data-layout-flow] { position: static; box-shadow: none; }
+.booking-review-bar[data-layout-flow] > div,
+body:has(input:focus, select:focus, textarea:focus) .booking-review-bar > div { padding-inline: 0; }
+@media (max-height: 500px) { .booking-review-bar > div { padding-inline: 0; } }

@@ -95,7 +95,7 @@ export function chargeOf(
 export function receiptText(player: OsPlayer, team: OsTeam, pay: OsPayment): string {
   const method = pay.method === "ach" ? "Bank draft" : "Card";
   return [
-    "Oklahoma Prospects",
+    "Prospects Sports Academy",
     `Receipt ${pay.receipt || "—"}`,
     `${player.name} · ${team.name}`,
     pay.label || "Payment",
@@ -362,7 +362,7 @@ export function recruitingShareUrl(player: OsPlayer): string {
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, "-")
       .replace(/^-|-$/g, "");
-  return `https://prospectsbaseball.club/p/${slug}`;
+  return `https://prospectssports.club/p/${slug}`;
 }
 
 export function applyWaiveUniform(

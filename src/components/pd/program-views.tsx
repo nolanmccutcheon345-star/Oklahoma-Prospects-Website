@@ -1,10 +1,11 @@
+import {athleteAge} from '@/lib/pd/engines';
 import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { useDevelopment, type AthleteSlice } from "@/lib/pd/context";
 import { exerciseById, loadBandForAge, type Exercise } from "@/lib/pd/content/exercises";
 import { THROWING_PLANS } from "@/lib/pd/content/throwing";
 import { WARMUP_PRINCIPLES } from "@/lib/pd/content/warmups";
-import { ageOnClubDay, clubDayIso } from "@/lib/pd/engines";
+import { clubDayIso } from "@/lib/pd/engines";
 import {
   EMPHASES,
   PHASES,
@@ -29,12 +30,12 @@ export function StrengthProgramView({
 }) {
   const { saveStrengthAssignment, canCoach } = useDevelopment();
   const coach = canCoach(slice.athlete.id);
-  const age = ageOnClubDay(slice.athlete.birthDate);
+  const age = athleteAge(slice.athlete);
   const generated = useMemo(() => generateStrengthProgram(slice), [slice]);
   const assignment = (slice.strengthAssignments ?? []).find(row => coach || row.status === "published");
   const program = assignment?.program ?? generated;
   const { track, phase, emphasis } = program;
-  const missing = [!slice.athlete.birthDate && "date of birth", !slice.athlete.sport && "sport", !slice.athlete.position && "position"].filter(Boolean);
+  const missing = [!slice.athlete.birthDate && !slice.athlete.birthdayRecorded && "date of birth", !slice.athlete.sport && "sport", !slice.athlete.position && "position"].filter(Boolean);
   function save(overrides: { track?: StrengthTrack; phase?: SeasonPhase; emphasis?: Emphasis }, status: "draft" | "published" = "draft") {
     saveStrengthAssignment({ athleteId: slice.athlete.id, status, generatorVersion: "strength-v2",
       inputs: { birthDate: slice.athlete.birthDate, sport: slice.athlete.sport, position: slice.athlete.position,
@@ -353,7 +354,7 @@ function SessionRunner({
 
 export function WarmupLibraryView({ slice }: { slice: AthleteSlice }) {
   const plan = warmupForSlice(slice);
-  const age = ageOnClubDay(slice.athlete.birthDate);
+  const age = athleteAge(slice.athlete);
   return (
     <div className="pd-stack" data-warmup-plan={plan.id}>
       <section className="rounded-2xl bg-ink text-fg-inverse">

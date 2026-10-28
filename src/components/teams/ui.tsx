@@ -1,3 +1,4 @@
+import { CLUB } from "@/lib/club";
 import type { ReactNode } from "react";
 import { cn } from "@/lib/utils";
 
@@ -63,7 +64,7 @@ export function FailScreen({ message }: { message: string }) {
     <main id="main" className="grid min-h-[60dvh] place-items-center bg-paper px-6 text-ink">
       <div className="max-w-md">
         <p className="text-xs font-semibold tracking-[0.16em] text-maroon uppercase">
-          Oklahoma Prospects
+          {CLUB.name}
         </p>
         <h1 className="mt-2 font-display text-4xl italic">Can't open this desk.</h1>
         <p role="alert" className="mt-3 text-lg text-muted">{message}</p>

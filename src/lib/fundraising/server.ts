@@ -1,3 +1,4 @@
+import { CLUB } from "@/lib/club";
 import { publicationPlayers } from "./publication";
 import { AppError } from "./errors";
 export { AppError } from "./errors";
@@ -90,7 +91,7 @@ export async function requireAdmin() {
   const i = await requireUser();
   if (!i.admin)
     throw new AppError(
-      "This page is for Oklahoma Prospects owners. Sign in with the authorized owner account.",
+      `This page is for ${CLUB.name} owners. Sign in with the authorized owner account.`,
       403,
     );
   return i;
@@ -155,5 +156,21 @@ export function paymentReady() {
     );
   } catch {
     return false;
+  }
+}
+
+/** Public prices remain public, but a restricted authenticated account cannot use
+ * financial checkout/receipt routes that otherwise permit anonymous visitors. */
+export async function requireFinancialSessionAccess() {
+  const session = await getSessionUser();
+  if (!session) return;
+  const { requireUnrestrictedLegacyAccess, CoordinatorDenied } =
+    await import("../coordinator/access.server");
+  try {
+    await requireUnrestrictedLegacyAccess(await getSql(), session.id);
+  } catch (error) {
+    if (error instanceof CoordinatorDenied)
+      throw new AppError("Financial access is not authorized for this account.", 403);
+    throw error;
   }
 }

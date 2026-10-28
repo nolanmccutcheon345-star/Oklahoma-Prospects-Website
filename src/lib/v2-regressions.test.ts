@@ -39,7 +39,7 @@ test('v2 migrations, owner authority, households, audit events and visit gates',
   }
   await t.test('explicit prices change new purchases while paid history stays unchanged',async()=>{
    const prices=await sql<{id:string;price:number}>`select id,price::float as price from club_services where id in ('m1','p2','p3','s9') order by id`;
-   assert.deepEqual(prices,[{id:'m1',price:247},{id:'p2',price:397},{id:'p3',price:763},{id:'s9',price:155}]);
+   assert.deepEqual(prices,[{id:'m1',price:247},{id:'p2',price:397},{id:'p3',price:763},{id:'s9',price:149}]);
    assert.equal((await sql<{total_cents:number}>`select total_cents from commerce_orders where id='historic'`)[0].total_cents,38500);
    const catalog=buildPublicCatalog(await loadServices(sql));
    assert.equal(catalog.cages.find(row=>row.id==='individual')?.price,52.5);

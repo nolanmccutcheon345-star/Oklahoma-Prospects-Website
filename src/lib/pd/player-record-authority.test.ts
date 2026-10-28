@@ -34,6 +34,7 @@ test("real player desk reads do not create working-file households and saves pre
     }
     await sql`insert into club_households(id,primary_email) values('linked-household','parent@example.invalid')`;
     await sql`insert into household_members(household_id,user_id) values('linked-household','parent'),('linked-household','player')`;
+    await sql`insert into person_player_links(user_id,player_id) values('player','self')`;
     const full = emptyDevelopment();
     full.revision=7;
     full.families=[{id:'family',email:'parent@example.invalid',name:'Original Household',parentName:'Original Parent',phone:'Original phone',athleteIds:['self'],leaderboardOptOut:true}];

@@ -1,15 +1,23 @@
 import type { DevelopmentData, Athlete, Booking } from '../pd/types';
 import type { Sql } from '../db';
+import {scoreChart} from '../pd/lesson';
 import { chicagoDate } from '../scheduling';
+import { loadVerifiedAssessmentIds } from './assessment-gate.server';
 
 /** Overlay payment/completion facts. The editable coaching file is never financial authority. */
 export async function withCommerceRecords(sql: Sql, data: DevelopmentData): Promise<DevelopmentData> {
-  const [athletes, completed, bookings, credits] = await Promise.all([
-    sql<{id:string;user_id:string|null;household_email:string;name:string;birth_date:string|null;coach_ids:string[];profile:Partial<Athlete>}>`select * from club_athletes`,
-    sql<{athlete_id:string}>`select distinct athlete_id from athlete_assessments`,
-    sql<{id:string;athlete_id:string;coach_id:string;product_id:string;starts_at:Date;status:string;total_cents:number}>`select b.id,b.athlete_id,b.coach_id,b.product_id,b.starts_at,b.status,coalesce(o.total_cents,0) as total_cents from booking_records b left join commerce_orders o on o.id=b.order_id where b.athlete_id is not null`,
+  const [athletes, bookings, credits] = await Promise.all([
+    sql<{id:string;user_id:string|null;household_email:string;name:string;birth_date:string|null;coach_ids:string[];profile:Partial<Athlete>}>`select id,user_id,household_email,name,birth_date::text as birth_date,coach_ids,profile from club_athletes`,
+    sql<{id:string;athlete_id:string;coach_id:string;product_id:string;starts_at:Date;status:string;total_cents:number}>`select b.id,b.athlete_id,b.coach_id,b.product_id,b.starts_at,b.status,coalesce(o.total_cents,0) as total_cents from operational_booking_schedule b left join commerce_orders o on o.id=b.order_id where b.athlete_id is not null`,
     sql<{athlete_id:string;remaining:number}>`select athlete_id,sum(remaining)::integer as remaining from credit_grants where kind='lesson' and expires_at>now() and starts_at<=now() group by athlete_id`,
   ]);
+  const catalog = await sql<{id:string;kind:string;name:string;price:number;minutes:number;credits:number;detail:string}>`select id,kind,name,price,minutes,credits,detail from club_services where active=true`;
+  data = {...data,
+    services:catalog.filter(r=>r.kind==="lesson").map(r=>({...r,price:Number(r.price)})),
+    packages:catalog.filter(r=>r.kind==="package").map(r=>({...r,price:Number(r.price)})),
+    memberships:catalog.filter(r=>r.kind==="membership").map(r=>({...r,price:Number(r.price)})),
+  };
+  const assessmentIds = await loadVerifiedAssessmentIds(sql);
   const families = data.families.map(f=>({...f,athleteIds:[...f.athleteIds]}));
   const all = data.athletes.map(a=>({...a,coachIds:[...a.coachIds]}));
   for (const row of athletes) {
@@ -19,16 +27,24 @@ export async function withCommerceRecords(sql: Sql, data: DevelopmentData): Prom
     if (!family) { family={id:`fam-${row.user_id}`,name:'Your household',parentName:'',email:row.household_email,phone:'',athleteIds:[]}; families.push(family); }
     if (!family.athleteIds.includes(row.id)) family.athleteIds.push(row.id);
     const existing = all.find(a=>a.id===row.id);
-    if (existing) { existing.familyId=family.id; existing.coachIds=row.coach_ids; continue; }
+    if (existing) { existing.familyId=family.id; existing.coachIds=row.coach_ids; existing.birthDate=row.birth_date?.slice(0,10)||''; continue; }
     const [firstName,...last] = row.name.trim().split(/\s+/);
     all.push({id:row.id,firstName,lastName:last.join(' '),birthDate:row.birth_date?.slice(0,10)||'',familyId:family.id,
       sport:row.profile?.sport||'',throws:row.profile?.throws||'',bats:row.profile?.bats||'',graduationYear:0,position:'',coachIds:row.coach_ids,opLevel:0,assessmentComplete:false,
       school:'',city:'',notes:'',tags:['complete-profile']} as Athlete);
   }
-  const assessmentIds = new Set(completed.map(a=>a.athlete_id));
   const ledger = bookings.map(row=>({id:row.id,athleteId:row.athlete_id,coachId:row.coach_id,serviceId:row.product_id,
     date:chicagoDate(new Date(row.starts_at)),time:new Intl.DateTimeFormat('en-GB',{timeZone:'America/Chicago',hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).format(new Date(row.starts_at)),
     status:row.status==='confirmed'?'paid':row.status==='completed'?'completed':row.status==='cancelled'?'cancelled':'unconfirmed',price:row.total_cents/100} as Booking));
+  const guided = await sql<{id:string;athlete_id:string;instructor_id:string;snapshot:{startsAt:string;template:{minutes:number;discipline:string}};document:{objective:string;familyRecap:string;logs:import('../pd/lesson-templates').LessonDocument['logs']}}>`select id,athlete_id,instructor_id,snapshot,document from guided_lesson_sessions where status='published'`;
+  const guidedLessons=guided.map(s=>({id:'guided:'+s.id,athleteId:s.athlete_id,coachId:s.instructor_id,date:chicagoDate(new Date(s.snapshot.startsAt)),focus:s.document.objective,minutes:s.snapshot.template.minutes,notes:s.document.familyRecap}));
+  const guidedBullpens=guided.filter(s=>s.snapshot.template.discipline==='Pitching').flatMap(s=>{
+    const logs=s.document.logs.filter(l=>l.kind==='Pitching');
+    if(!logs.length)return [];
+    const chart=scoreChart(logs.filter(l=>l.intent&&l.actual).map(l=>({intent:l.intent!,actual:l.actual!,velo:l.velocity})));
+    return [{id:'guided:'+s.id,athleteId:s.athlete_id,date:chicagoDate(new Date(s.snapshot.startsAt)),pitches:logs.reduce((n,l)=>n+(l.repetitions??1),0),tci:chart.tci,chart:chart.pitches,notes:'Practice log from completed booked lesson. Not a verified recruiting metric.'}];
+  });
+  data={...data,lessons:[...guidedLessons,...data.lessons.filter(l=>!l.id.startsWith('guided:'))],bullpens:[...guidedBullpens,...data.bullpens.filter(l=>!l.id.startsWith('guided:'))]};
   const known = new Set(ledger.map(b=>b.id));
   return {...data,families:families.map(f=>({...f,plan:{...f.plan,type:f.plan?.type||'none',lessonCredits:credits.filter(c=>f.athleteIds.includes(c.athlete_id)).reduce((n,c)=>n+c.remaining,0)}})),
     athletes:all.map(a=>({...a,assessmentComplete:assessmentIds.has(a.id)})),

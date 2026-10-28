@@ -1,8 +1,9 @@
+import {athleteAge} from '@/lib/pd/engines';
+import { formatClockTime } from "../time-display";
 import { POINT_VALUES } from "./core-algorithms.js";
 import type { AthleteSlice } from "./context";
 import {
   clubDayIso,
-  ageOnClubDay,
   churnForFamily,
   sessionRestWarning,
   workloadFor,
@@ -88,7 +89,7 @@ export function activityPoints(slice: {
   athlete: { birthDate: string };
   pointsLog: PointsLog[];
 }) {
-  const age = ageOnClubDay(slice.athlete.birthDate);
+  const age = athleteAge(slice.athlete);
   const band = pointsBandForAge(age);
   const target = POINTS_TARGETS[band];
   const week = slice.pointsLog.filter((row) => row.date >= weekStart() && countsTowardWeek(row));
@@ -189,7 +190,7 @@ export function leaderboardRows(
 ) {
   const group = LB_AGE_GROUPS.find((row) => row.id === groupId) ?? LB_AGE_GROUPS[0];
   const rows = data.athletes
-    .filter((row) => !row.archived && group.test(ageOnClubDay(row.birthDate)))
+    .filter((row) => !row.archived && group.test(athleteAge(row)))
     .map((row) => {
       const family = data.families.find((f) => f.id === row.familyId);
       const opted = Boolean(family?.leaderboardOptOut);
@@ -215,7 +216,7 @@ export function ownStanding(
 ) {
   const athlete = data.athletes.find((row) => row.id === athleteId);
   if (!athlete) return null;
-  const age = ageOnClubDay(athlete.birthDate);
+  const age = athleteAge(athlete);
   const group = LB_AGE_GROUPS.find((row) => row.test(age));
   if (!group) return null;
   const value = measure(data, athleteId, metric);
@@ -371,9 +372,9 @@ export function buildAlerts(data: DevelopmentData, scope: AlertScope): PdAlert[]
         bucket: "week",
         kind: "development",
         rank: 110,
-        title: `${name}: no baseline assessment`,
-        detail: "Nothing to show progress against. Families cancel when they can't see it.",
-        action: "Book the assessment this week — two specific times, not an open question.",
+        title: `${name}: assessment not completed`,
+        detail: "No completed assessment is recorded for this player.",
+        action: "Coordinate an assessment time with the family.",
         athleteId: athlete.id,
         view: "intake",
         desk: "intake",
@@ -417,15 +418,15 @@ export function buildAlerts(data: DevelopmentData, scope: AlertScope): PdAlert[]
         bucket: "fyi",
         kind: "commercial",
         rank: 240,
-        title: `${name}: missing waiver`,
-        detail: "No signed card on file.",
+        title: `${name}: waiver needed`,
+        detail: "No waiver is recorded in this player’s development documents. Confirm current waiver status before the session.",
         action: "Send the waiver link before the next session.",
         athleteId: athlete.id,
         view: "documents",
       });
     }
 
-    const age = ageOnClubDay(athlete.birthDate);
+    const age = athleteAge(athlete);
     if (age >= 16 && slice.certifications.length === 0) {
       out.push({
         id: `cert-${athlete.id}`,
@@ -451,7 +452,7 @@ export function buildAlerts(data: DevelopmentData, scope: AlertScope): PdAlert[]
       kind: "commercial",
       rank: 210,
       title: `${athlete?.firstName ?? "Athlete"}: unconfirmed session`,
-      detail: `${row.date} · ${row.time}. Proposed, not approved.`,
+      detail: `${row.date} · ${formatClockTime(row.time)}. Proposed, not approved.`,
       action: "Ping the family with the exact slot. Don't wait for them to notice.",
       athleteId: row.athleteId,
       desk: "today",
@@ -468,7 +469,7 @@ export function buildAlerts(data: DevelopmentData, scope: AlertScope): PdAlert[]
       kind: "commercial",
       rank: 220,
       title: `${athlete?.firstName ?? "Athlete"} is on the waitlist`,
-      detail: `${row.preferredDay ?? "Any day"} · ${row.preferredTime ?? "any time"}.`,
+      detail: `${row.preferredDay ?? "Any day"} · ${formatClockTime(row.preferredTime) || "any time"}.`,
       action: "Offer a real opening that matches the preference.",
       athleteId: row.athleteId,
       desk: "today",
@@ -507,9 +508,9 @@ export function buildAlerts(data: DevelopmentData, scope: AlertScope): PdAlert[]
       bucket: risk.level === "high" ? "today" : "week",
       kind: "commercial",
       rank: risk.level === "high" ? 200 : 230,
-      title: `${family.name}: ${risk.level} churn risk`,
-      detail: risk.signals[0]?.label ?? `Score ${risk.score}`,
-      action: risk.signals[0]?.fix ?? "Offer two specific times this week — an open question gets ignored, a concrete slot gets answered.",
+      title: `${family.name}: ${risk.signals.some(s=>s.label.includes("Nothing on the calendar")) ? "no upcoming session booked" : "follow-up suggested"}`,
+      detail: risk.signals[0]?.label ?? "Review the family’s recent sessions and next steps.",
+      action: risk.signals[0]?.fix ?? "Review the schedule and coordinate the next session with the family.",
       familyId: family.id,
       athleteId: family.athleteIds[0],
       desk: "retention",

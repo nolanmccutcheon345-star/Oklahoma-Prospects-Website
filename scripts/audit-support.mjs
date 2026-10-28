@@ -7,7 +7,7 @@ import {pathToFileURL} from 'node:url';
 import {randomBytes} from 'node:crypto';
 
 export async function auditHarness() {
-  for (const name of ['DATABASE_URL','PREVIEW_DATABASE_URL','NETLIFY_DATABASE_URL','RESEND_API_KEY','SQUARE_PRODUCTION_ACCESS_TOKEN','SQUARE_SANDBOX_ACCESS_TOKEN']) {
+  for (const name of ['DATABASE_URL','PREVIEW_DATABASE_URL','NETLIFY_DATABASE_URL','RESEND_API_KEY','SQUARE_PRODUCTION_ACCESS_TOKEN','SQUARE_SANDBOX_ACCESS_TOKEN','PRINTFUL_ACCESS_TOKEN','PRINTIFY_ACCESS_TOKEN','SHOP_STRIPE_TAX_SECRET_KEY']) {
     if (process.env[name]) throw new Error(`Audit refuses externally configured ${name}`);
   }
   // Match src/lib/db.ts driver parsing exactly; DATE is a date-only string.
@@ -38,6 +38,16 @@ export async function auditHarness() {
     export * as fundraisingRoster from './src/lib/fundraising/roster-api';
     export * as fundraising from './src/lib/fundraising/server';
     export * from './src/lib/pd/empty';
+    export {emptyClub} from './src/lib/teams/seed';
+    export * from './src/lib/pd/training.server';
+    export * from './src/lib/pd/training-content.server';
+    export * from './src/lib/pd/curriculum-controls.server';
+    export * from './src/lib/pd/training-catalog';
+    export * from './src/lib/pd/development-programs';
+    export * from './src/lib/pd/development-evidence';
+    export * from './src/lib/pd/lesson-choices';
+    export * from './src/lib/pd/lesson-session.server';
+    export * from './src/lib/pd/lesson-templates';
     export * from './src/lib/pd/desk-impl.server';
     export * from './src/lib/commerce/portal.server';
     export * from './src/lib/commerce/credits.server';
@@ -46,6 +56,9 @@ export async function auditHarness() {
     export * from './src/lib/commerce/store.server';
     export * from './src/lib/commerce/checkout.server';
     export * from './src/lib/scheduling';
+    export * as financialBasis from './src/lib/finance/basis.server';
+    export * as financialContext from './src/lib/finance/context.server';
+    export * as financialContextFixture from './src/lib/finance/context.test-fixture';
   `,resolveDir:process.cwd(),loader:'ts'},outfile,bundle:true,platform:'node',format:'esm',packages:'external',plugins:[{name:'audit-boundaries',setup(b){
     b.onResolve({filter:/(^|\/)db$/},args=>args.path.startsWith('.')||args.path.startsWith('@/')?{path:'db',namespace:'audit'}:undefined);
     b.onResolve({filter:/email\.server$/},args=>args.importer.endsWith('/auth/server.ts')?{path:'email',namespace:'audit'}:undefined);

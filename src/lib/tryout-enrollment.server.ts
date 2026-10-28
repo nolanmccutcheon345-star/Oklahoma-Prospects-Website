@@ -1,6 +1,7 @@
 import { createHash, randomUUID } from "node:crypto";
 import type { Sql } from "./db";
 import { resolveIdentity } from "./identity.server";
+import { assertTryoutPreference, publicTryoutTeamsFor } from "./tryout-preferences.server";
 const normalize = (value: string) => value.trim().replace(/\s+/g, " ").toLowerCase();
 export type TryoutApplicant = {
   player: string;
@@ -9,6 +10,9 @@ export type TryoutApplicant = {
   age: string;
   season?: string;
   autoEnroll?: boolean;
+  preferredTeamId?: string;
+  preferredCoachId?: string;
+  requestType?: "scheduled" | "individual";
 };
 export function applicantKey(input: TryoutApplicant) {
   return createHash("sha256")
@@ -41,7 +45,7 @@ export async function matchTryoutApplicants(tx: Sql) {
     age_groups: string[];
     sport: string;
     season: string;
-  }>`select id,capacity,age_groups,sport,season from tryout_events where status='published' and (event_date+start_time::time) at time zone 'America/Chicago'>now() order by event_date,start_time,id for update`;
+  }>`select id,capacity,age_groups,sport,season from tryout_events where status='published' and not exists(select 1 from coordinator_tryout_scopes scope where scope.event_id=tryout_events.id) and (event_date+start_time::time) at time zone 'America/Chicago'>now() order by event_date,start_time,id for update`;
   for (const event of events) {
     const requests = await tx<{
       id: string;
@@ -49,6 +53,9 @@ export async function matchTryoutApplicants(tx: Sql) {
     }>`select id,payload from club_requests where kind='tryout' and status='open' and payload->>'autoEnroll'='true' order by created_at,id`;
     for (const request of requests) {
       const p = request.payload;
+      // Published group events do not identify a preferred team or coach.
+      // Staff must review the request instead of silently enrolling elsewhere.
+      if (p.preferredTeamId || p.preferredCoachId || p.requestType) continue;
       if (
         !p.season?.trim() ||
         !p.player?.trim() ||
@@ -76,11 +83,101 @@ export async function matchTryoutApplicants(tx: Sql) {
 export async function recordInquiryFor(
   sql: Sql,
   input: { requestId: string; kind: string; [key: string]: unknown },
+  profile?: {userId:string|null;data:import("./athlete-registration-contracts").AthleteRegistrationInput;householdEmail:string|null},
 ) {
   return sql.transaction(async (tx) => {
-    await tx`insert into club_requests(id,user_id,kind,payload) values(${input.requestId},null,${input.kind},${JSON.stringify(input)}::jsonb) on conflict(id) do nothing`;
+    if(profile){const {lockFinancialExecution}=await import("./finance/execution.server");await lockFinancialExecution(tx);}
+    if (input.kind === "tryout") {
+      if (input.requestType) {
+        if (input.requestConsent !== true || input.autoEnroll === true)
+          throw new Error("Confirm request consent. Staff must confirm your appointment.");
+        if (input.requestType === "scheduled") {
+          const { publicTryoutEventsFor } = await import("./tryout-events.server");
+          const event = (await publicTryoutEventsFor(tx)).find(
+            (e) => e.id === input.requestedEventId,
+          );
+          if (
+            !event ||
+            event.sport !== input.sport ||
+            event.season !== input.season ||
+            !event.ageGroups.some((age) => normalize(age) === normalize(String(input.age)))
+          )
+            throw new Error(
+              "This tryout changed or is no longer available. Refresh and choose a published event.",
+            );
+          const [scope] = await tx<{
+            team_id: string;
+          }>`select team_id from coordinator_tryout_scopes where event_id=${event.id}`;
+          if (scope) {
+            if (input.preferredTeamId && input.preferredTeamId !== scope.team_id)
+              throw new Error("This event belongs to a different team. Refresh your selection.");
+            input = { ...input, preferredTeamId: scope.team_id };
+          }
+          input = {
+            ...input,
+            requestedEvent: {
+              id: event.id,
+              sport: event.sport,
+              season: event.season,
+              date: event.date,
+              startTime: event.startTime,
+              endTime: event.endTime,
+              location: event.location,
+            },
+          };
+        } else if (input.requestedEventId)
+          throw new Error("Individual evaluations cannot select a scheduled event.");
+      }
+      const preferredTeamId =
+        typeof input.preferredTeamId === "string" ? input.preferredTeamId : "";
+      const preferredCoachId =
+        typeof input.preferredCoachId === "string" ? input.preferredCoachId : "";
+      if (preferredTeamId || preferredCoachId) {
+        assertTryoutPreference(await publicTryoutTeamsFor(tx), {
+          sport: String(input.sport),
+          age: String(input.age),
+          preferredTeamId,
+          preferredCoachId,
+          autoEnroll: input.autoEnroll === true,
+        });
+      }
+    }
+    const [prior] = await tx<{
+      same: boolean;
+    }>`select (payload-'requestedEvent'-'sourceForm'-'athleteId'-'birthMonthYear'-'birthYear'-'graduationYear'-'school'-'schoolStatus'-'suggestedDivision'-'eligibilityStatus'-'eligibilityExplanation'-'eligibilityRule'-'profileConfirmedAt'-'eligibilitySource'-'eligibilityCutoff'-'currentGrade')=(${JSON.stringify(input)}::jsonb-'requestedEvent'-'sourceForm') as same from club_requests where id=${input.requestId} for update`;
+    if (prior) {
+      if (!prior.same)
+        throw new Error(
+          "This registration reference was already used with different details. Start a new registration.",
+        );
+      return { ok: true, reference: input.requestId };
+    }
+    input = {
+      ...input,
+      sourceForm:
+        input.kind === "tryout"
+          ? "tryout-registration"
+          : input.kind === "team-inquiry"
+            ? "team-inquiry"
+            : "contact",
+    };
+    const inserted =
+      await tx`insert into club_requests(id,user_id,kind,payload) values(${input.requestId},null,${input.kind},${JSON.stringify(input)}::jsonb) on conflict(id) do nothing returning id`;
+    if (!inserted.length) {
+      const [same] =
+        await tx`select id from club_requests where id=${input.requestId} and (payload-'requestedEvent'-'sourceForm'-'athleteId'-'birthMonthYear'-'birthYear'-'graduationYear'-'school'-'schoolStatus'-'suggestedDivision'-'eligibilityStatus'-'eligibilityExplanation'-'eligibilityRule'-'profileConfirmedAt'-'eligibilitySource'-'eligibilityCutoff'-'currentGrade')=(${JSON.stringify(input)}::jsonb-'requestedEvent'-'sourceForm')`;
+      if (!same)
+        throw new Error(
+          "This registration reference was already used with different details. Start a new registration.",
+        );
+    }
+    let claimToken='';
+    if(profile && inserted.length) {
+      const {saveRegistrationProfile}=await import('./athlete-registration.server');
+      ({claimToken}=await saveRegistrationProfile(tx,input.requestId,profile.userId,profile.data,String(input.player),String(input.email),String(input.sport),String(input.season),String(input.age),profile.householdEmail));
+    }
     if (input.kind === "tryout") await matchTryoutApplicants(tx);
-    return { ok: true, reference: input.requestId };
+    return { ok: true, reference: input.requestId, claimToken };
   });
 }
 export async function adminTryoutEnrollmentsFor(sql: Sql, userId: string) {

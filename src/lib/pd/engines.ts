@@ -38,6 +38,10 @@ export function clubDayIso(now = new Date()) {
 
 export const CLUB_DAY_ISO = clubDayIso();
 
+export function athleteAge(athlete:{birthDate:string;ageYears?:number}) {
+  return athlete.birthDate ? ageOnClubDay(athlete.birthDate) : athlete.ageYears ?? 0;
+}
+
 export function ageOnClubDay(iso: string, dayIso = clubDayIso()) {
   const day = new Date(`${dayIso}T12:00:00Z`);
   const born = new Date(`${iso}T12:00:00Z`);
@@ -95,7 +99,7 @@ function scorecardMap(slice: AthleteSlice) {
 }
 
 export function toEngineAthlete(slice: AthleteSlice) {
-  const age = ageOnClubDay(slice.athlete.birthDate);
+  const age = athleteAge(slice.athlete);
   const veloHistory = [...slice.velocity].sort((a, b) => a.date.localeCompare(b.date)).map((row) => row.mph);
   const tciHistory = [...slice.bullpens]
     .sort((a, b) => a.date.localeCompare(b.date))
@@ -138,7 +142,7 @@ export function toEngineAthlete(slice: AthleteSlice) {
 }
 
 function athleteFromData(data: DevelopmentData, row: Athlete) {
-  const age = ageOnClubDay(row.birthDate);
+  const age = athleteAge(row);
   const veloHistory = data.velocity
     .filter((v) => v.athleteId === row.id)
     .sort((a, b) => a.date.localeCompare(b.date))
@@ -223,7 +227,7 @@ export function dailyLoad(slice: AthleteSlice) {
 export function workloadFor(slice: AthleteSlice) {
   const { history, labels } = dailyLoad(slice);
   const stats = loadStats(history);
-  const age = ageOnClubDay(slice.athlete.birthDate);
+  const age = athleteAge(slice.athlete);
   const lastHigh = [...slice.workload].sort((a, b) => b.date.localeCompare(a.date))[0];
   const lastOuting = [...slice.outings].sort((a, b) => b.date.localeCompare(a.date))[0];
   const pitchCount = lastOuting?.pitches ?? lastHigh?.throws ?? 0;

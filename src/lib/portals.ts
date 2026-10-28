@@ -1,3 +1,5 @@
+import { CLUB } from "@/lib/club";
+
 export type PortalId =
   | "book"
   | "tryouts"
@@ -37,13 +39,13 @@ export const PORTALS: Record<
 > = {
   book: {
     title: "Pick a live slot",
-    kicker: "Cages · Oklahoma Prospects",
+    kicker: `Cages · ${CLUB.name}`,
     body: "Individual, team, or fielding area. Choose an open window and hold it on this club — not a second booking site.",
     cta: "Open cage booking",
   },
   tryouts: {
     title: "Spring 2027 tryouts",
-    kicker: "Free evaluation · Oklahoma Prospects",
+    kicker: `Free evaluation · ${CLUB.name}`,
     body: "Request an individual baseball or softball tryout for any age group. No payment to request an evaluation.",
     cta: "Register for free",
   },
@@ -55,7 +57,7 @@ export const PORTALS: Record<
   },
   lessons: {
     title: "Player development",
-    kicker: "Lessons · Oklahoma Prospects",
+    kicker: `Lessons · ${CLUB.name}`,
     body: "Assessments, private 30s and 60s, packages, and monthly development.",
     cta: "Open lessons",
   },
@@ -67,7 +69,7 @@ export const PORTALS: Record<
   },
   coaches: {
     title: "Coaches",
-    kicker: "Oklahoma Prospects staff",
+    kicker: `${CLUB.name} staff`,
     body: "Ask about the right instructor, team, or evaluation.",
     cta: "Talk to a coach",
   },
@@ -80,7 +82,7 @@ export const PORTALS: Record<
   checkin: {
     title: "Athlete check-in",
     kicker: "On-site visit",
-    body: "Check your athlete in when you arrive. Same Oklahoma Prospects visit tools as uniforms and waiver.",
+    body: `Check your athlete in when you arrive. Same ${CLUB.name} visit tools as uniforms and waiver.`,
     cta: "Check in",
   },
   uniform: {

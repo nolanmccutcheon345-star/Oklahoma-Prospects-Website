@@ -1,7 +1,9 @@
 import { dollars, formatMoney, PRICES } from "./pricing";
 import { processingInclusiveCents } from "./processing-prices.js";
 export const CLUB = {
-  name: "Oklahoma Prospects Academy",
+  name: "Prospects Sports Academy",
+  venueName: "Prospects Sports Facility",
+  googleListingName: "Prospects Sports Academy",
   shortName: "Prospects",
   tagline: "Indoor baseball & softball in Broken Arrow.",
   established: 2008,
@@ -35,7 +37,7 @@ export const LINKS = {
   waiver: "/waiver",
   checkin: "/visits",
   maps: "https://www.google.com/maps/search/?api=1&query=3804+S.+Elm+Pl.+Suite+A+Broken+Arrow+OK+74011",
-  site: "https://prospectsbaseball.club/",
+  site: "https://prospectssports.club/",
   googleReview:
     "https://www.google.com/maps/search/?api=1&query=Oklahoma+Prospects+Academy+3804+S+Elm+Pl+Broken+Arrow+OK",
 } as const;
@@ -46,6 +48,7 @@ export function smsHref(tel: string, body: string) {
 }
 
 export const AGE_GROUPS = [
+  "4U",
   "5U",
   "6U",
   "7U",
@@ -58,7 +61,11 @@ export const AGE_GROUPS = [
   "14U",
   "15U",
   "16U",
+  "17U",
+  "18U",
 ] as const;
+
+export const TRYOUT_AGE_GROUPS = [...AGE_GROUPS, "19U", "20U", "Adult"] as const;
 
 export const SOFTBALL_AGES = ["10U", "12U", "14U", "16U"] as const;
 // An intake request is not a reservation for an invented event.
@@ -133,7 +140,6 @@ export const MEMBERSHIPS = [
     featured: true,
     perks: [
       "Four 1-hour cage rentals included",
-      "14-day priority booking",
       "Household athletes only — not for team practices",
     ],
   },
@@ -284,11 +290,11 @@ export const PEOPLE = [
     href: "tel:+19189228114",
   },
   {
-    name: "Coach Steve",
+    name: "Contact Organization",
     role: "Lessons, development, member access",
     phoneDisplay: "(918) 760-2719",
     tel: "+19187602719",
-    action: "Text Coach Steve",
+    action: "Contact Organization",
     href: "sms:+19187602719",
   },
 ] as const;
@@ -328,7 +334,7 @@ export const FAQ = [
   },
   {
     q: "What does a cage hour cost?",
-    a: `One household cage hour is ${formatMoney(PRICES.individual)}. A monthly cage pass brings the hour down — All-Star is ${formatMoney(Math.round(PRICES["all-star"] / 4))} per included hour, with first pick of times.`,
+    a: "See Book for current hourly rates and Memberships for current cage passes. All households may book up to 14 days ahead.",
   },
   {
     q: "Are you open during the day?",
@@ -344,7 +350,7 @@ export const FAQ = [
   },
   {
     q: "I’m new. Where do I start?",
-    a: `Want reps today? Book a cage. Want coaching? Start with an assessment — pitching 75 min / ${formatMoney(PRICES.s1)}, hitting 60 min / ${formatMoney(PRICES.s9)}. Private hours are ${formatMoney(PRICES.s3)} after that. Ordinary lessons and packages unlock after your coach completes your assessment. Monthly coaching is four sessions a month from ${formatMoney(PRICES.m1)}.`,
+    a: "Book a cage for independent practice. For coaching, start with an assessment or choose a youth lesson for players 11U and under; youth lessons do not require an assessment. See Train for current lesson and monthly-plan prices.",
   },
   {
     q: "What if I need to cancel?",
@@ -355,7 +361,7 @@ export const FAQ = [
 export const PROOF = [
   { label: "Est.", value: "2008" },
   { label: "Facility", value: "7 lanes" },
-  { label: "Booking", value: "Pay to book" },
+  { label: "Booking", value: "Online booking" },
   { label: "Tryouts", value: "Free evals" },
 ] as const;
 

@@ -1,17 +1,26 @@
+import { assertRosterAssignment } from "./po-roster.server";
+import { rosterAddInput, inquiryRosterInput, assertPORosterSpace, type RosterRole } from "./po-roster";
 import {z} from "zod";
 import {parseClubSave} from "./contracts";
+import { assertTeamInquiryPlacement } from "./inquiry-placement";
+import { withFinancialContext, loadFinancialContextInTransaction, lockFinancialExecution, recordFinancialTeamPaymentInTransaction, commitFinancialClubTermsInTransaction, commitFinancialCatalogPriceInTransaction, previewFinancialAdmissionInTransaction, admitFinancialEntitiesForOwnerInTransaction } from "../finance/context.server";
+import { financialClubTermsChangeSchema, financialAdmissionSchema } from "../finance/context-contracts";
+import { readStoredClub, writeStoredClub, persistClubSave, mutateStoredClub, scopedClubResult } from "./club-store.server";
+import { financialPrincipalInTransaction } from "../finance/principal.server";
 import { randomUUID } from "node:crypto";
 import { createServerFn } from "@tanstack/react-start";
 import { authMiddleware } from "@/lib/auth/middleware";
 import { getSql, type Sql } from "@/lib/db";
 import { getProfile } from "@/lib/club-data";
 import { clubIdentity } from "@/lib/identity.server";
-import { mergeSave, scopeClub, fetchTeamRecord, fetchPlayerRecord } from "./privacy";
+import { scopeClub, coachHoldsTeam } from "./privacy";
 import { emptyClub, sampleClub } from "./seed";
 import type { ClubRecord, Player, Team } from "./types";
 import type { ClubRole } from "@/lib/club-data";
+import { seasonSaveInput, persistTeamSeasons } from "./season-save.server";
+import { recordTeamRosterConsent, revokeTeamRosterConsent } from './roster-consent';
 
-type Identity = { email: string; familyId: string; familyIds:string[]; role: ClubRole; name: string };
+type Identity = { primaryRole:ClubRole; playerIds:string[]; guardianHouseholdIds:string[]; email: string; familyId: string; familyIds:string[]; role: ClubRole; name: string };
 
 async function identity(userId: string): Promise<Identity> {
   const me = await clubIdentity(userId);
@@ -21,46 +30,33 @@ async function identity(userId: string): Promise<Identity> {
     player.parents.some(parent => parent.email.trim().toLowerCase() === me.email)
     || (me.role === "player" && player.email.trim().toLowerCase() === me.email));
   if (matched?.familyId) familyId = matched.familyId;
-  return { ...me, familyId };
+  return { ...me, primaryRole:me.role, role:me.role==='admin'?'admin':me.canTeamCoach?'coach':me.role, familyId };
 }
 
-async function loadRaw(): Promise<ClubRecord | null> {
-  const sql = await getSql();
-  const [row] = await sql<{ payload: ClubRecord; rev: number; demo: boolean }>`
-    select payload, rev, demo from club_state where id = 'oklahoma-prospects'`;
-  if (!row) return null;
-  const parsed = typeof row.payload === "string" ? JSON.parse(row.payload) as ClubRecord : row.payload;
-  return { ...parsed, _rev: row.rev, _demo: row.demo };
-}
+async function loadRaw(sql?:Sql,lock=false){ return readStoredClub(sql||await getSql(),lock); }
+async function writeRaw(club:ClubRecord,expectedRev:number|undefined,tx:Sql){ return writeStoredClub(tx,club,expectedRev); }
 
-async function writeRaw(club: ClubRecord, expectedRev?: number, transaction?:Sql) {
-  const sql = transaction || await getSql();
-  const rows = expectedRev === undefined
-    ? await sql`insert into club_state (id, rev, demo, payload, updated_at)
-        values ('oklahoma-prospects', ${club._rev}, ${club._demo}, ${JSON.stringify(club)}::jsonb, now())
-        on conflict do nothing returning rev`
-    : await sql`update club_state set rev = ${club._rev}, demo = ${club._demo},
-        payload = ${JSON.stringify(club)}::jsonb, updated_at = now()
-        where id = 'oklahoma-prospects' and rev = ${expectedRev} returning rev`;
-  if (!rows.length) throw new Error("Another editor saved changes. Reload before saving again.");
-}
-
-export const getTeamsClub = createServerFn({ method: "POST" })
-  .middleware([authMiddleware])
-  .handler(async ({ context }) => {
-    const me = await identity(context.userId);
-    const club = await loadRaw();
-    if (!club) {
-      return { ok: false as const, missing: true as const, role: me.role, me };
-    }
-    return {
-      ok: true as const,
-      missing: false as const,
-      role: me.role,
-      me,
-      club: scopeClub(club, me.role, me),
-    };
+async function clubResponse(userId:string, me:Identity, family=false) {
+  const sql=await getSql();
+  if(!await loadRaw(sql)) return {ok:false as const,missing:true as const,role:me.role,me};
+  return withFinancialContext(sql,userId,"read",async(tx,financial)=>{
+    const club=await loadRaw(tx);
+    if(!club)return {ok:false as const,missing:true as const,role:me.role,me};
+    return {missing:false as const,role:me.role,me,
+      ...scopedClubResult(club,me,financial,family?"family":me.role==="admin"?"office":"coach")};
   });
+}
+export const getTeamsClub=createServerFn({method:"POST"}).middleware([authMiddleware])
+  .handler(async({context})=>clubResponse(context.userId,await identity(context.userId)));
+
+async function familyIdentity(userId:string):Promise<Identity>{const me=await identity(userId);const club=await loadRaw();const selfIds=club?.teams.flatMap(t=>t.roster.filter(p=>p.email&&p.email.trim().toLowerCase()===me.email).map(p=>p.id))||[];return {...me,playerIds:[...new Set([...me.playerIds,...selfIds])],familyIds:me.primaryRole==='player'?me.guardianHouseholdIds:me.familyIds,role:me.primaryRole==='admin'?'admin':me.primaryRole==='player'&&!me.guardianHouseholdIds.length?'player':'parent'};}
+export const getFamilyTeamsClub=createServerFn({method:'POST'}).middleware([authMiddleware])
+  .handler(async({context})=>clubResponse(context.userId,await familyIdentity(context.userId),true));
+async function saveClub(userId:string,me:Identity,data:ReturnType<typeof parseClubSave>) {
+  return persistClubSave(await getSql(),userId,me,data);
+}
+export const saveFamilyTeamsClub=createServerFn({method:'POST'}).middleware([authMiddleware]).validator(parseClubSave)
+  .handler(async({context,data})=>saveClub(context.userId,await familyIdentity(context.userId),data));
 
 export const onboardTeamsClub = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
@@ -72,72 +68,77 @@ export const onboardTeamsClub = createServerFn({ method: "POST" })
     if (existing) throw new Error("Club already exists. Reload.");
     if (data.mode === "sample" && process.env.NODE_ENV === "production") throw new Error("Sample data is only available locally.");
     const club = data.mode === "sample" ? sampleClub() : emptyClub();
-    await writeRaw(club);
+    await (await getSql()).transaction(async tx=>{
+      await lockFinancialExecution(tx);
+      const principal=await financialPrincipalInTransaction(tx,context.userId);
+      if(!principal.owner)throw new Error("Financial owner access required.");
+      await writeRaw(club,undefined,tx);
+    });
     return { ok: true, club: scopeClub(club, "admin", me) };
   });
 
-export const saveTeamsClub = createServerFn({ method: "POST" })
-  .middleware([authMiddleware])
-  .validator(parseClubSave)
-  .handler(async ({ context, data }) => {
-    const me = await identity(context.userId);
-    const stored = await loadRaw();
-    if (!stored) throw new Error("Club is not open.");
-    if (stored._rev !== data.baseRev) {
-      throw new Error("The club changed. Reload before saving.");
-    }
-    const merged = mergeSave(stored, data.club, me.role, me);
-    await writeRaw(merged, data.baseRev);
-    const sql = await getSql();
-    await sql`
-      insert into club_audit (user_id, action, detail)
-      values (${context.userId}, 'save', ${me.role})
-    `;
-    return { ok: true, club: scopeClub(merged, me.role, me) };
+export const saveTeamsClub=createServerFn({method:"POST"}).middleware([authMiddleware]).validator(parseClubSave)
+  .handler(async({context,data})=>saveClub(context.userId,await identity(context.userId),data));
+
+export const recordTeamPayment=createServerFn({method:"POST"}).middleware([authMiddleware])
+  .validator(z.object({teamId:z.string().min(1).max(150),playerId:z.string().min(1).max(150),amount:z.number().finite().positive().max(100000),method:z.enum(["Cash","Check","Square invoice","Bank transfer"]),label:z.string().trim().min(1).max(200),verifiedReceived:z.literal(true),requestId:z.string().uuid(),expectedBasisVersion:z.number().int().positive().optional()}).strict())
+  .handler(async({context,data})=>{
+    const me=await identity(context.userId);
+    await withFinancialContext(await getSql(),context.userId,"owner",(tx,financial)=>recordFinancialTeamPaymentInTransaction(tx,financial,data));
+    const result=await clubResponse(context.userId,me);
+    if(!result.ok)throw new Error("Club is not open.");
+    return result;
   });
 
-export const recordTeamPayment = createServerFn({ method: "POST" })
+/** Explicit owner-only financial command, never called by a bulk club save. */
+export const saveTeamFinancialTerms=createServerFn({method:"POST"}).middleware([authMiddleware])
+  .validator(financialClubTermsChangeSchema)
+  .handler(async({context,data})=>{
+    await identity(context.userId);
+    return withFinancialContext(await getSql(),context.userId,"owner",(tx,financial)=>commitFinancialClubTermsInTransaction(tx,financial,data));
+  });
+
+export const saveFinancialCatalogPrice=createServerFn({method:"POST"}).middleware([authMiddleware])
+  .validator(z.object({expectedBasisVersion:z.number().int().positive(),sourceClubRevision:z.number().int().nonnegative(),catalogId:z.string().min(1).max(200),fee:z.number().finite().min(0).max(1_000_000_000),confirmed:z.literal(true),reason:z.string().trim().min(1).max(1000)}).strict())
+  .handler(async({context,data})=>{
+    await identity(context.userId);
+    return withFinancialContext(await getSql(),context.userId,"owner",(tx,financial)=>commitFinancialCatalogPriceInTransaction(tx,financial,data));
+  });
+
+export const previewTeamFinancialAdmission=createServerFn({method:"POST"}).middleware([authMiddleware])
+  .validator(z.object({teamId:z.string().min(1).max(150),playerIds:z.array(z.string().min(1).max(150)).max(500),sourceClubRevision:z.number().int().nonnegative()}).strict())
+  .handler(async({context,data})=>{
+    await identity(context.userId);
+    return withFinancialContext(await getSql(),context.userId,"owner",(tx,financial)=>previewFinancialAdmissionInTransaction(tx,financial,data));
+  });
+export const admitTeamFinancialEntities=createServerFn({method:"POST"}).middleware([authMiddleware])
+  .validator(financialAdmissionSchema)
+  .handler(async({context,data})=>{
+    await identity(context.userId);
+    return withFinancialContext(await getSql(),context.userId,"owner",(tx,financial)=>admitFinancialEntitiesForOwnerInTransaction(tx,financial,data));
+  });
+
+export const saveTeamRosterConsent = createServerFn({ method: 'POST' })
   .middleware([authMiddleware])
-  .validator(z.object({teamId:z.string().min(1).max(150),playerId:z.string().min(1).max(150),amount:z.number().finite().positive().max(100000),method:z.string().min(1).max(80),label:z.string().min(1).max(200)}).strict())
-  .handler(async ({ context, data }) => {
+  .validator(z.object({teamId:z.string().min(1).max(150),playerId:z.string().min(1).max(150),
+    signerName:z.string().trim().min(1).max(120),consent:z.literal(true),baseRev:z.number().int().nonnegative()}).strict())
+  .handler(async ({context,data}) => {
     const me = await identity(context.userId);
-    if (me.role !== "admin") {
-      throw new Error("Not allowed.");
-    }
-    if (!Number.isFinite(data.amount) || data.amount <= 0) {
-      throw new Error("Enter an amount greater than zero.");
-    }
-    const stored = await loadRaw();
-    if (!stored) throw new Error("Club is not open.");
-    const team = stored.teams.find((t) => t.id === data.teamId);
-    const player = team?.roster.find((p) => p.id === data.playerId);
-    if (!player) throw new Error("Player not found.");
-    const due = Math.max(0, (player.feeLock?.amount ?? 0) - player.payments.reduce((sum, row) => sum + row.amount, 0));
-    if (due > 0 && data.amount > due + 1) {
-      throw new Error(`That is more than the balance (${due}).`);
-    }
-    const fee = 0; // Processing is included in new offers; no method-specific add-on.
-    player.payments.push({
-      date: new Date().toISOString().slice(0, 10),
-      amount: data.amount,
-      fee,
-      charged: data.amount + fee,
-      method: data.method,
-      label: data.label,
-      receipt: `R-${Date.now().toString().slice(-6)}`,
+    await mutateStoredClub(await getSql(),context.userId,me.role==='admin'?'owner':'read',data.baseRev,async(_tx,club)=>{
+      recordTeamRosterConsent(club,data,{...me,familyIds:[...new Set([...me.familyIds,me.familyId])]});
     });
-    if (!player.depositPaid && data.label.toLowerCase().includes("deposit")) {
-      player.depositPaid = true;
-    }
-    stored._rev += 1;
-    stored._savedAt = new Date().toISOString();
-    stored.audit.unshift({
-      at: stored._savedAt,
-      action: "payment",
-      detail: `${player.name} ${data.label} ${data.amount}`,
+    return {ok:true};
+  });
+
+export const withdrawTeamRosterConsent = createServerFn({method: 'POST'})
+  .middleware([authMiddleware])
+  .validator(z.object({teamId:z.string().min(1).max(150),playerId:z.string().min(1).max(150),baseRev:z.number().int().nonnegative()}).strict())
+  .handler(async ({context,data}) => {
+    const me = await identity(context.userId);
+    await mutateStoredClub(await getSql(),context.userId,me.role==='admin'?'owner':'read',data.baseRev,async(_tx,club)=>{
+      revokeTeamRosterConsent(club,data,{...me,familyIds:[...new Set([...me.familyIds,me.familyId])]});
     });
-    await writeRaw(stored, stored._rev - 1);
-    return { ok: true, club: scopeClub(stored, me.role, me) };
+    return {ok:true};
   });
 
 export const getTeamRoster = createServerFn({ method: "POST" })
@@ -145,9 +146,9 @@ export const getTeamRoster = createServerFn({ method: "POST" })
   .validator(z.object({teamId:z.string().min(1).max(150)}).strict())
   .handler(async ({ context, data }) => {
     const me = await identity(context.userId);
-    const club = await loadRaw();
-    if (!club) throw new Error("Club is not open.");
-    const team = fetchTeamRecord(club, me.role, me, data.teamId);
+    const result=await clubResponse(context.userId,me);
+    if (!result.ok) throw new Error("Club is not open.");
+    const team = result.club.teams.find(t=>t.id===data.teamId);
     if (!team) throw new Error("Not your team.");
     return { ok: true as const, team };
   });
@@ -157,14 +158,10 @@ export const getPlayerRecord = createServerFn({ method: "POST" })
   .validator(z.object({teamId:z.string().min(1).max(150),playerId:z.string().min(1).max(150)}).strict())
   .handler(async ({ context, data }) => {
     const me = await identity(context.userId);
-    const club = await loadRaw();
-    if (!club) throw new Error("Club is not open.");
-    if (me.role === "coach") {
-      const team = fetchTeamRecord(club, me.role, me, data.teamId);
-      if (!team) throw new Error("Not your team.");
-    }
-    const player = fetchPlayerRecord(club, me.role, me, data.playerId);
-    if (!player) throw new Error("Not your player.");
+    const result=await clubResponse(context.userId,me);
+    if (!result.ok) throw new Error("Club is not open.");
+    const player = result.club.teams.find(t=>t.id===data.teamId)?.roster.find(p=>p.id===data.playerId&&p.teamId===data.teamId);
+    if (!player) throw new Error("Player is not accessible on the requested team.");
     return { ok: true as const, player };
   });
 
@@ -180,6 +177,7 @@ function blankPlayer(input: {
   name: string;
   parentName: string;
   parentEmail: string;
+  rosterRole: RosterRole;
 }): Player {
   return {
     id: `p-${slug(input.name)}-${Date.now().toString(36).slice(-4)}`,
@@ -196,7 +194,7 @@ function blankPlayer(input: {
     weight: "",
     email: "",
     parents: [{ name: input.parentName, rel: "guardian", phone: "", email: input.parentEmail }],
-    roleType: "full",
+    roleType: input.rosterRole,
     coachChild: false,
     joinedOn: new Date().toISOString().slice(0, 10),
     withdrawn: false,
@@ -231,7 +229,7 @@ function blankPlayer(input: {
 
 export const officeAddTeam = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
-  .validator(z.object({name:z.string().trim().min(1).max(200),age:z.string().trim().max(30),sport:z.enum(["baseball","softball"])}).strict())
+  .validator(z.object({name:z.string().trim().min(1).max(200),age:z.string().trim().max(30),sport:z.enum(["baseball","softball"]),season:z.string().trim().min(3).max(100)}).strict())
   .handler(async ({ context, data }) => {
     const me = await identity(context.userId);
     if (me.role !== "admin") throw new Error("Front office only.");
@@ -245,9 +243,10 @@ export const officeAddTeam = createServerFn({ method: "POST" })
       sport: data.sport,
       age: data.age.trim() || "Open",
       level: "Open",
-      seasonLabel: "Spring 2027",
-      seasonStart: "2027-02-01",
-      seasonEnd: "2027-07-15",
+      seasonLabel: data.season,
+      seasons: data.season.split(/\s*&\s*/),
+      seasonStart: "",
+      seasonEnd: "",
       months: 6,
       headCoach: "",
       coachEmail: "",
@@ -275,71 +274,104 @@ export const officeAddTeam = createServerFn({ method: "POST" })
     stored._rev += 1;
     stored._savedAt = new Date().toISOString();
     stored.audit.unshift({ at: stored._savedAt, action: "team", detail: `Added ${team.name}` });
-    await writeRaw(stored, stored._rev - 1);
-    return { ok: true as const, club: scopeClub(stored, "admin", me) };
+    const sql = await getSql();
+    const { initializeTeamBudget } = await import("./budget-matrix.server");
+    await sql.transaction(async (tx) => {
+      await lockFinancialExecution(tx);
+      const financial=await loadFinancialContextInTransaction(tx,context.userId,"owner");
+      const plan = financial.mode === "legacy" ? await initializeTeamBudget(tx, team) : null;
+      if (plan) team.months = plan.budget.months;
+      await writeRaw(stored, stored._rev - 1, tx);
+    });
+    const result=await clubResponse(context.userId,me); if(!result.ok)throw new Error("Club is not open."); return result;
   });
 
-export const officeAddPlayer = createServerFn({ method: "POST" })
+export const officeRemoveTeam = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
-  .validator(z.object({teamId:z.string().min(1).max(150),name:z.string().trim().min(1).max(200),parentName:z.string().trim().max(200),parentEmail:z.string().trim().email().max(254)}).strict())
-  .handler(async ({ context, data }) => {
+  .validator(z.object({teamId:z.string().min(1).max(150),baseRev:z.number().int().nonnegative()}).strict())
+  .handler(async ({context,data}) => {
+    const me=await identity(context.userId);
+    if(me.role!=="admin") throw new Error("Front office only.");
+    await mutateStoredClub(await getSql(),context.userId,'owner',data.baseRev,async(tx,stored)=>{
+      const team=stored.teams.find(t=>t.id===data.teamId);
+      if(!team)throw new Error("Team not found.");
+      if(team.roster.length||team.tournamentIds.length||team.practices.length||team.messages.length)
+        throw new Error("This team has roster or activity records. Remove or transfer them before deleting the team.");
+      await tx`update team_dev_roster_links set ended_at=now(),ended_by=${context.userId} where team_id=${team.id} and ended_at is null`;
+      stored.teams=stored.teams.filter(t=>t.id!==data.teamId);
+      stored.audit.unshift({at:new Date().toISOString(),action:'team-delete',detail:`Removed ${team.name}`});
+    });
+    const result=await clubResponse(context.userId,me); if(!result.ok)throw new Error("Club is not open."); return result;
+  });
+
+export const officeSaveTeamSeasons = createServerFn({method: "POST"})
+  .middleware([authMiddleware]).validator(seasonSaveInput)
+  .handler(async ({context, data}) => {
     const me = await identity(context.userId);
     if (me.role !== "admin") throw new Error("Front office only.");
-    const stored = await loadRaw();
-    if (!stored) throw new Error("Club is not open.");
-    const team = stored.teams.find((row) => row.id === data.teamId);
-    if (!team) throw new Error("Team not found.");
-    const playerName = data.name.trim();
-    const parentEmail = data.parentEmail.trim().toLowerCase();
-    if (!playerName || !parentEmail) throw new Error("Player name and parent email are required.");
-    const db=await getSql();
-    await db`insert into club_households(id,primary_email) values(${'fam-'+randomUUID()},${parentEmail}) on conflict(primary_email) do nothing`;
-    const [household]=await db<{id:string}>`select id from club_households where primary_email=${parentEmail}`;
-    const familyId=household.id;
-
-    const player = blankPlayer({
-      teamId: team.id,
-      familyId,
-      name: playerName,
-      parentName: data.parentName.trim() || "Parent",
-      parentEmail,
-    });
-    team.roster.push(player);
-    stored._rev += 1;
-    stored._savedAt = new Date().toISOString();
-    stored.audit.unshift({
-      at: stored._savedAt,
-      action: "player",
-      detail: `Added ${player.name} to ${team.name}`,
-    });
-    await writeRaw(stored, stored._rev - 1);
-    try {
-      const sql = await getSql();
-      await sql`
-        update profiles
-        set family_id = ${familyId}
-        where lower(email) = ${parentEmail}
-      `;
-    } catch {
-      /* profile may not exist yet */
-    }
-    return { ok: true as const, club: scopeClub(stored, "admin", me) };
+    await persistTeamSeasons(await getSql(), data, context.userId);
+    const result=await clubResponse(context.userId,me); if(!result.ok)throw new Error("Club is not open."); return result;
   });
 
+async function addRosterPlayer(userId:string,me:Identity,data:z.infer<typeof rosterAddInput>,ownerOnly:boolean){
+  if(ownerOnly?me.role!=='admin':me.role!=='admin'&&me.role!=='coach')throw new Error("Coach access required.");
+  await mutateStoredClub(await getSql(),userId,me.role==='admin'?'owner':'read',undefined,async(tx,club)=>{
+    const team=club.teams.find(t=>t.id===data.teamId);
+    if(!team||me.role!=='admin'&&!coachHoldsTeam(club,me.email,team.id))throw new Error("Not assigned to this team.");
+    const email=data.parentEmail.trim().toLowerCase();
+    await tx`insert into club_households(id,primary_email) values(${'fam-'+randomUUID()},${email}) on conflict(primary_email) do nothing`;
+    const [household]=await tx<{id:string}>`select id from club_households where primary_email=${email}`;
+    const player=blankPlayer({teamId:team.id,familyId:household.id,name:data.name,parentName:data.parentName||'Parent',parentEmail:email,rosterRole:data.rosterRole});
+    team.roster.push(player);
+    if(ownerOnly)await tx`update profiles set family_id=${household.id} where lower(email)=${email}`;
+    club.audit.unshift({at:new Date().toISOString(),action:ownerOnly?'player':'coach-roster-add',detail:`Added ${player.name} to ${team.name}`});
+  });
+  const result=await clubResponse(userId,me);if(!result.ok)throw new Error("Club is not open.");return result;
+}
+export const coachAddRosterPlayer=createServerFn({method:'POST'}).middleware([authMiddleware]).validator(rosterAddInput)
+  .handler(async({context,data})=>addRosterPlayer(context.userId,await identity(context.userId),data,false));
+export const officeAddPlayer=createServerFn({method:'POST'}).middleware([authMiddleware]).validator(rosterAddInput)
+  .handler(async({context,data})=>addRosterPlayer(context.userId,await identity(context.userId),data,true));
+export const coachRemoveRosterPlayer=createServerFn({method:'POST'}).middleware([authMiddleware])
+  .validator(z.object({teamId:z.string().min(1).max(150),playerId:z.string().min(1).max(150)}).strict())
+  .handler(async({context,data})=>{
+    const me=await identity(context.userId);
+    if(me.role!=='admin'&&me.role!=='coach')throw new Error("Coach access required.");
+    await mutateStoredClub(await getSql(),context.userId,me.role==='admin'?'owner':'read',undefined,async(tx,club,financial)=>{
+      const team=club.teams.find(t=>t.id===data.teamId);
+      if(!team||me.role!=='admin'&&!coachHoldsTeam(club,me.email,team.id))throw new Error("Not assigned to this team.");
+      const player=team.roster.find(p=>p.id===data.playerId);
+      if(!player)throw new Error("Player not found.");
+      const independent=financial.feePlans.some(p=>p.team_id===team.id&&p.payload.budget.fundingModel==='independent');
+      if(financial.mode==='legacy'&&!independent&&(player.payments.length||player.feeLock||player.planLock||player.credits.length))throw new Error("Player has billing records. Contact Front Office to handle a transfer or withdrawal.");
+      const {endRosterDevelopmentLink}=await import("../team-development/runtime.server");
+      await endRosterDevelopmentLink(tx,{teamId:team.id,rosterPlayerId:player.id,actorId:context.userId});
+      team.roster=team.roster.filter(p=>p.id!==data.playerId);
+      club.audit.unshift({at:new Date().toISOString(),action:'coach-roster-remove',detail:`Removed player from ${team.name}`});
+    });
+    const result=await clubResponse(context.userId,me);if(!result.ok)throw new Error("Club is not open.");return result;
+  });
 
 export const reviewTeamInquiry=createServerFn({method:'POST'}).middleware([authMiddleware])
- .validator(z.object({id:z.string().min(1).max(150),teamId:z.string().min(1).max(150),stage:z.enum(['registered','evaluated','offer','accepted','waitlist'])}).strict())
+ .validator(inquiryRosterInput)
  .handler(async({context,data})=>{
   const me=await identity(context.userId);if(me.role!=='admin')throw new Error('Front office only.');
   const sql=await getSql();
   return sql.transaction(async tx=>{
-   const [request]=await tx<{kind:string;payload:{player:string;parent:string;email:string;age:string;rosterPlayerId?:string}}> `select kind,payload from club_requests where id=${data.id} for update`;
+   await lockFinancialExecution(tx);
+   const financial=await loadFinancialContextInTransaction(tx,context.userId,"owner");
+   const [request]=await tx<{kind:string;payload:{player:string;parent:string;email:string;sport:string;age:string;preferredTeamId?:string;preferredCoachId?:string;rosterPlayerId?:string;athleteId?:string;school?:string;graduationYear?:string}}> `select kind,payload from club_requests where id=${data.id} for update`;
    if(!request||!['tryout','team-inquiry'].includes(request.kind))throw new Error('Choose a tryout or team inquiry.');
    const [row]=await tx<{payload:ClubRecord;rev:number}>`select payload,rev from club_state where id='oklahoma-prospects' for update`;
    if(!row)throw new Error('Open the club record first.');
    const club={...row.payload,_rev:row.rev},team=club.teams.find(t=>t.id===data.teamId);
    if(!team)throw new Error('Choose a current team.');
    if(request.payload.rosterPlayerId)return {ok:true,message:'This registration is already on a roster.'};
+   assertTeamInquiryPlacement(request.payload,team,data.acknowledgePreferenceOverride);
+   if(data.stage==='offer'||data.stage==='accepted') {
+    if(financial.mode==='basis') { if(data.rosterRole==='po') assertPORosterSpace(team); }
+    else await assertRosterAssignment(tx,team,data.rosterRole!, '',data.id);
+   }
    const leadId='inquiry-'+data.id,prior=club.leads.find(l=>l.id===leadId);
    const lead={id:leadId,name:request.payload.player,age:request.payload.age,stage:data.stage,grades:prior?.grades||{},teamId:team.id};
    club.leads=[...club.leads.filter(l=>l.id!==leadId),lead];
@@ -348,13 +380,20 @@ export const reviewTeamInquiry=createServerFn({method:'POST'}).middleware([authM
     const email=z.string().email().parse(request.payload.email).toLowerCase();
     await tx`insert into club_households(id,primary_email) values(${'fam-'+randomUUID()},${email}) on conflict(primary_email) do nothing`;
     const [household]=await tx<{id:string}>`select id from club_households where primary_email=${email}`;
-    const player=blankPlayer({teamId:team.id,familyId:household.id,name:request.payload.player,parentName:request.payload.parent,parentEmail:email});
+    const player=blankPlayer({teamId:team.id,familyId:household.id,name:request.payload.player,parentName:request.payload.parent,parentEmail:email,rosterRole:data.rosterRole!});
+    player.school=request.payload.school||'';player.gradYear=/^\d{4}$/.test(request.payload.graduationYear||'')?request.payload.graduationYear!:'';
+    if(request.payload.athleteId){
+     const [current]=await tx<{school:string;graduation_year:number|null;education_confirmed_at:unknown}>`select school,graduation_year,education_confirmed_at from club_athletes where id=${request.payload.athleteId}`;
+     if(current?.education_confirmed_at){player.school=current.school;player.gradYear=current.graduation_year?.toString()||'';}
+     await tx`insert into recruiting_roster_links(athlete_id,team_id,roster_id,linked_by) values(${request.payload.athleteId},${team.id},${player.id},${context.userId})`;
+    }
     team.roster.push(player);rosterPlayerId=player.id;
     await tx`insert into club_invites(id,token_hash,email,team_id,family_id,invited_by,role,expires_at) values(${randomUUID()},${randomUUID()},${email},${team.id},${household.id},${context.userId},'parent',now()+interval '7 days')`;
    }
    const revision=club._rev;club._rev++;club._savedAt=new Date().toISOString();
+   await tx`update club_requests set status=case when ${data.stage}='accepted' then 'accepted' else status end,payload=payload||${JSON.stringify({stage:data.stage,teamId:team.id,...(data.rosterRole?{rosterRole:data.rosterRole}:{}),...(rosterPlayerId?{rosterPlayerId}:{})})}::jsonb where id=${data.id}`;
    await writeRaw(club,revision,tx);
-   await tx`update club_requests set status=${data.stage},payload=payload||${JSON.stringify({stage:data.stage,teamId:team.id,...(rosterPlayerId?{rosterPlayerId}:{})})}::jsonb where id=${data.id}`;
+   if(rosterPlayerId) await (await import("./fee-notifications.server")).queueFeeReadyInTransaction(tx,context.userId,{teamId:team.id,playerId:rosterPlayerId});
    return {ok:true,message:rosterPlayerId?'Added to the roster. Ask the guardian to sign in at /invitations to accept access.':'Registration stage saved.'};
   });
  });

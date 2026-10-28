@@ -1,3 +1,4 @@
+import { CLUB } from "@/lib/club";
 import { identity, listPlayers, db, json, fail, AppError, paymentReady } from "./server";
 export async function GET(req: Request) {
   try {
@@ -7,7 +8,7 @@ export async function GET(req: Request) {
     if (scope !== "home" && !user) throw new AppError("Please sign in to view your players.", 401);
     if (scope === "office" && !admin)
       throw new AppError(
-        "Office access is restricted to authorized Oklahoma Prospects owners.",
+        `Office access is restricted to authorized ${CLUB.name} owners.`,
         403,
       );
     const players = await listPlayers(scope as any, user?.userId);

@@ -1,33 +1,65 @@
+import { availableOperationalServices } from "../coordinator/organization-services.server";
+import {
+  operationalCoachAvailability,
+  operationalPersonSettings,
+} from "../operational-person.server";
 import type { Product } from "./contracts";
 import type { Sql } from "../db";
 import type { Availability, Coach } from "../pd/types";
 import { coachHasBookingWindow } from "./availability";
-import {newCoachId} from "../coach-id.server";
+import { newCoachId } from "../coach-id.server";
 
 /** Picker eligibility combines admin service assignments with usable recurring availability. */
-export async function coachesWithAvailability(sql: Sql, roster: Coach[], availability: Availability[], services: Pick<Product, "id" | "minutes" | "discipline">[]) {
-  return (await bookableCoaches(sql, roster)).flatMap(coach => {
-    const offered = services.filter(service => coach.serviceIds.includes(service.id) && coachHasBookingWindow(availability, coach.id, service.minutes));
-    return offered.length ? [{...coach, serviceIds: offered.map(service => service.id), specialties: [...new Set(offered.map(service => service.discipline))]}] : [];
+export async function coachesWithAvailability(
+  sql: Sql,
+  roster: Coach[],
+  availability: Availability[],
+  services: Pick<Product, "id" | "minutes" | "discipline">[],
+) {
+  services = await availableOperationalServices(sql, services);
+  const operational = await operationalCoachAvailability(sql, roster, availability);
+  return (await bookableCoaches(sql, operational.coaches)).flatMap((coach) => {
+    const offered = services.filter(
+      (service) =>
+        coach.serviceIds.includes(service.id) &&
+        coachHasBookingWindow(operational.availability, coach.id, service.minutes),
+    );
+    return offered.length
+      ? [
+          {
+            ...coach,
+            serviceIds: offered.map((service) => service.id),
+            specialties: [...new Set(offered.map((service) => service.discipline))],
+          },
+        ]
+      : [];
   });
 }
 
-/** Public booking choices come from admin assignments, never editable coach bios. */
-export async function bookableCoaches(sql: Sql, roster: Coach[]) {
+/** Active admin service assignments are instructor authority. Disabling an instructor clears offerings atomically. */
+export async function bookableCoaches(
+  sql: Sql,
+  roster: Coach[],
+  options: { operational?: boolean } = {},
+) {
+  const settings = options.operational === false ? [] : await operationalPersonSettings(sql);
   const rows = await sql<{
     id: string;
     name: string;
     email: string;
     service_ids: string[];
     specialties: string[];
+    user_id: string;
   }>`
-    select staff.id, staff.name, staff.email,
+    select staff.id, staff.name, staff.email,staff.user_id,
       array_agg(service.id order by service.sort_order, service.id) as service_ids,
       array_agg(distinct service.discipline) as specialties
     from club_staff staff
     join club_staff_services offer on offer.staff_id=staff.id
     join club_services service on service.id=offer.service_id
-    where staff.active=true and staff.role in ('coach','admin') and staff.email<>''
+    left join "user" account on account.id=staff.user_id or (staff.user_id='' and lower(trim(account.email))=lower(trim(staff.email)))
+    where staff.active=true and staff.email<>''
+      and (account.id is null or account."disabledAt" is null)
       and service.active=true and service.kind='lesson'
     group by staff.id, staff.name, staff.email order by staff.name, staff.id`;
   const seen = new Set<string>();
@@ -36,9 +68,16 @@ export async function bookableCoaches(sql: Sql, roster: Coach[]) {
     const coach = roster.find((c) => c.email.trim().toLowerCase() === email);
     // Same identifier as first-sign-in provisioning; existing schedule IDs stay intact.
     const id = coach?.id || newCoachId(email);
-    if (coach?.active === false || seen.has(id)) return [];
+    const setting = settings.find(
+      (s) => s.coach_id === id || (row.user_id && s.user_id === row.user_id),
+    );
+    if (coach?.active === false || seen.has(id) || setting?.directory_active === false) return [];
+    const serviceIds = row.service_ids.filter(
+      (id) => !setting?.unavailable_service_ids.includes(id),
+    );
+    if (!serviceIds.length) return [];
     seen.add(id);
-    return [{ id, name: row.name, serviceIds: row.service_ids, specialties: row.specialties }];
+    return [{ id, name: row.name, serviceIds, specialties: row.specialties }];
   });
 }
 
@@ -47,8 +86,9 @@ export async function requireCoachService(
   roster: Coach[],
   coachId: string | undefined,
   serviceId: string,
+  options: { operational?: boolean } = {},
 ) {
-  const coach = (await bookableCoaches(sql, roster)).find((c) => c.id === coachId);
+  const coach = (await bookableCoaches(sql, roster, options)).find((c) => c.id === coachId);
   if (!coach?.serviceIds.includes(serviceId))
     throw new Error("This coach is not assigned to this service. Choose an available coach.");
   return coach;

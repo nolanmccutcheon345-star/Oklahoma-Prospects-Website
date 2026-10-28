@@ -1,4 +1,8 @@
-import { PRICES, formatMoney } from "@/lib/pricing";
+import { AthleteSelector, athleteScope } from "./athlete-selector";
+import {TrainingInbox} from "./training-review";
+import {MyTraining} from "./my-training";
+import { formatClockTime } from "@/lib/time-display";
+
 import {DevelopmentBoard} from "@/components/commerce/development-board";
 import {CoachProfile} from "@/components/commerce/coach-profile";
 import { CoachSessions } from "@/components/commerce/coach-sessions";
@@ -78,32 +82,7 @@ export function ViewAsBar({
   onChange: (role: ClubRole) => void;
 }) {
   return (
-    <section className="pd-os bg-ink text-fg-inverse" data-density="compact">
-      <div className="mx-auto max-w-3xl px-5 pb-5">
-        <p className="text-xs font-semibold tracking-[0.16em] text-powder uppercase">
-          Preview player development
-        </p>
-        <p className="mt-1 text-sm text-fg-soft">See the coach, parent, and player desks without signing out.</p>
-        <div role="tablist" className="mt-3 grid grid-cols-4 gap-1 rounded-xl bg-navy p-1">
-          {PREVIEW_ROLES.map((role) => (
-            <button
-              key={role}
-              type="button"
-              role="tab"
-              data-view-as={role}
-              aria-selected={value === role}
-              onClick={() => onChange(role)}
-              className={cn(
-                "pd-control rounded-lg text-xs font-semibold tracking-wide uppercase",
-                value === role ? "bg-maroon text-fg-inverse" : "text-fg-soft",
-              )}
-            >
-              {ROLE_LABEL[role]}
-            </button>
-          ))}
-        </div>
-      </div>
-    </section>
+    <details className="rounded-xl border border-line bg-paper-2 p-3"><summary className="min-h-11 cursor-pointer text-sm font-semibold">Workspace preview (read-only)</summary><p className="text-sm text-muted">Preview a selected household or coach in read-only mode. Your account permissions do not change.</p><label className="mt-2 grid gap-1 text-sm">Preview role<select className="office-control" value={value} onChange={e=>onChange(e.target.value as ClubRole)}>{PREVIEW_ROLES.map(role=><option key={role} value={role}>{ROLE_LABEL[role]}</option>)}</select></label></details>
   );
 }
 
@@ -179,6 +158,7 @@ function ScopedWorkspace({
     <div className="pd-os mt-6" data-density={density} data-viewer-role={previewRole}>
 {loadError?<p role="alert">{loadError}</p>:null}
       <PdErrorBoundary section="Player development">
+        {trueRole===previewRole&&<TrainingInbox/>}
         <PdSearch
           onOpenAthlete={(id) => {
             setTab(previewRole === "admin" ? "athletes" : previewRole === "coach" ? "roster" : "progress");
@@ -186,24 +166,7 @@ function ScopedWorkspace({
           }}
           onOpenDesk={(id) => setTab(id)}
         />
-        <div role="tablist" className="flex gap-1 overflow-x-auto rounded-xl bg-ink p-1 text-fg-inverse">
-          {tabs.map((item) => (
-            <button
-              key={item.id}
-              type="button"
-              role="tab"
-              data-desk-tab={item.id}
-              aria-selected={tab === item.id}
-              onClick={() => setTab(item.id)}
-              className={cn(
-                "pd-control shrink-0 rounded-lg px-3 text-xs font-semibold tracking-wide uppercase",
-                tab === item.id ? "bg-maroon text-fg-inverse" : "text-fg-soft",
-              )}
-            >
-              {item.label}
-            </button>
-          ))}
-        </div>
+        <label className="my-3 grid gap-1 text-sm font-semibold">Development section<select value={tab} onChange={e=>setTab(e.target.value)} className="office-control">{tabs.map(item=><option key={item.id} value={item.id}>{item.label.replace('Athletes','Players')}</option>)}</select></label>
         <div className="mt-6">
           <DeskFrame name={`Train · ${ROLE_LABEL[previewRole]} · ${activeLabel}`}>
             <BreakProbe />
@@ -305,7 +268,7 @@ function HomeDesk({
         <div className="pd-card">
           <p className="text-xs font-semibold tracking-[0.16em] text-powder uppercase">
             {profile.role === "admin"
-              ? "Club today"
+              ? "Today at Prospects"
               : profile.role === "coach"
                 ? "Today at a glance"
                 : profile.role === "player"
@@ -313,7 +276,7 @@ function HomeDesk({
                   : "Your development"}
           </p>
           <h2 className="mt-2 text-3xl italic">
-            {profile.role === "admin" || profile.role === "coach" ? "Your athletes and coaching work." : self?.assessmentComplete ? "Assessment on file." : "Choose an athlete to get started."}
+            {profile.role === "admin" || profile.role === "coach" ? "Players & Sessions" : self?.assessmentComplete ? "Assessment on file." : "Choose an athlete to get started."}
           </h2>
           <p className="mt-2 text-sm text-fg-soft">
             {profile.role === "admin" || profile.role === "coach" ? `${data.athletes.length} athletes available on your desk. Open an athlete to review their saved programs and lessons.` : self?.assessmentComplete
@@ -343,8 +306,8 @@ function HomeDesk({
       ) : null}
       {trueRole === "admin" && profile.role === "admin" ? (
         <section className="rounded-2xl bg-navy p-5 text-fg-inverse">
-          <p className="text-xs font-semibold tracking-[0.16em] text-powder uppercase">Staff ops</p>
-          <h3 className="mt-2 text-2xl italic">Coaches, prices, logins.</h3>
+          <p className="text-xs font-semibold tracking-[0.16em] text-powder uppercase">Staff & Business Settings</p>
+          <h3 className="mt-2 text-2xl italic">Manage Staff, Services & Access</h3>
           <div className="mt-4 flex flex-wrap gap-2">
             <Button type="button" onClick={() => onOpenTab("coaches")}>
               Coaches
@@ -425,7 +388,7 @@ function PlanDesk({ profile }: { profile: Profile }) {
           {data.policy.rescheduleDaysNotice} days’ notice, {data.policy.reschedulesPerMonth} per month.
         </p>
         <Button asChild className="mt-4">
-          <Link to="/training">See memberships</Link>
+          <Link to="/training" search={{view:"plans"}}>See memberships</Link>
         </Button>
       </section>
       <section>
@@ -476,7 +439,7 @@ function BusinessDesk() {
     <>
       <SubPills
         items={[
-          { id: "launch", label: "Launch" },
+          { id: "launch", label: "Checkout Status" },
           { id: "services", label: "Services" },
           { id: "accounts", label: "Accounts" },
           { id: "staff", label: "Staff directory" },
@@ -498,7 +461,7 @@ function BusinessDesk() {
             <p className="mt-2 text-sm text-muted">
               View paid cage bookings, customer details, and owner alerts in the front office.
             </p>
-            <Link to="/office" className="mt-3 inline-flex min-h-11 items-center font-semibold underline">Open bookings and payments</Link>
+            <Link to="/office" search={{section:"payments"}} className="mt-3 inline-flex min-h-11 items-center font-semibold underline">Open bookings and payments</Link>
           </div>
         </section>
       ) : null}
@@ -667,19 +630,19 @@ function ProgramsDesk() {
   const [selected, setSelected] = useState("");
   const id = data.athletes.some(a => a.id === selected) ? selected : data.athletes[0]?.id;
   const current = id ? slice(id) : null;
-  const [section, setSection] = useState("strength");
+  const [section, setSection] = useState("practice");
   return <div className="pd-stack">
     <h2 className="text-3xl">My assigned programs</h2>
-    {data.athletes.length ? <label>Athlete<select className="pd-control block w-full" value={id} onChange={e => setSelected(e.target.value)}>{data.athletes.map(a => <option key={a.id} value={a.id}>{a.firstName} {a.lastName}</option>)}</select></label> : <p>No athletes are linked to this desk. <Link to="/family" className="underline">Add or review your athletes</Link>; contact the club if an existing athlete is missing. Existing history should be recovered before a replacement record is created.</p>}
+    {data.athletes.length ? <AthleteSelector athletes={data.athletes.map(a => ({id: a.id, name: `${a.firstName} ${a.lastName}`}))} value={id || ""} onChange={setSelected} scope={athleteScope(viewer?.role === "admin" ? "admin" : viewer?.canInstruct ? "coach" : viewer?.role)}/> : <p>No athletes are linked to this desk. <Link to="/family" className="underline">Add or review your athletes</Link>; contact the club if an existing athlete is missing. Existing history should be recovered before a replacement record is created.</p>}
     {current ? <><details key={id}><summary className="min-h-12 cursor-pointer">Athlete profile · sport, position, date of birth</summary>
       <form className="grid gap-3 rounded-xl border p-4" onSubmit={e => { e.preventDefault(); const f = new FormData(e.currentTarget); updateAthleteProfile(id!, { birthDate: String(f.get("birthDate")), sport: f.get("sport") as "baseball" | "softball", position: String(f.get("position")) }); }}>
-        <label>Date of birth<input type="date" required name="birthDate" max={clubDayIso()} defaultValue={current.athlete.birthDate} /></label>
+        {current.athlete.canViewBirthday?<label>Date of birth<input type="date" required name="birthDate" max={clubDayIso()} defaultValue={current.athlete.birthDate} /></label>:<p>Birthday {current.athlete.birthdayRecorded?'saved privately':'required — complete the player profile in Account'}. Only the parent/guardian and assigned team coaches can view it.</p>}
         <label>Sport<select name="sport" required defaultValue={current.athlete.sport}><option value="">Choose sport</option><option value="baseball">Baseball</option><option value="softball">Softball</option></select></label>
         <label>Position(s)<input name="position" required maxLength={80} defaultValue={current.athlete.position} placeholder="Example: RHP / SS" /></label>
         <Button type="submit">Save athlete profile</Button>
       </form>
-    </details><div role="tablist" aria-label="Assigned programs" className="flex flex-wrap gap-2">{["strength", "throwing"].map(key => <Button key={key} role="tab" aria-selected={section === key} onClick={() => setSection(key)}>{key === "strength" ? "Strength" : "Throwing"}</Button>)}</div>
-    {section === "strength" ? <StrengthProgramView key={id} slice={current} role={canCoach(id) ? viewer?.role ?? "coach" : "parent"} /> : <ThrowingPlanView key={id} slice={current} role={canCoach(id) ? viewer?.role ?? "coach" : "parent"} />}</> : null}
+    </details><div role="tablist" aria-label="Assigned programs" className="flex flex-wrap gap-2">{["practice", "strength", "throwing"].map(key => <Button key={key} role="tab" aria-selected={section === key} onClick={() => setSection(key)}>{key === "practice" ? "My Training" : key === "strength" ? "Strength" : "Throwing"}</Button>)}</div>
+    {section === "practice" ? <MyTraining key={id} athleteId={id!}/> : section === "strength" ? <StrengthProgramView key={id} slice={current} role={canCoach(id) ? viewer?.role ?? "coach" : "parent"} /> : <ThrowingPlanView key={id} slice={current} role={canCoach(id) ? viewer?.role ?? "coach" : "parent"} />}</> : null}
     <details><summary className="min-h-12 cursor-pointer">Curriculum library</summary><ProgramsCurriculum /></details>
   </div>;
 }
@@ -689,7 +652,7 @@ function AssessDesk({ athlete, onSaved }: { athlete: string; onSaved: () => void
   return (
     <section>
       <h3 className="text-2xl">New pitcher assessment</h3>
-      <p className="mt-1 text-sm text-muted">75 minutes. Health screen, then eight phases. {formatMoney(PRICES.s1)}. Not an ordinary lesson.</p>
+      <p className="mt-1 text-sm text-muted">75 minutes. Health screen, then eight phases. See Train for the current assessment price. Not an ordinary lesson.</p>
       <ol className="mt-4 grid gap-2">
         {ASSESSMENT_PHASES.map((phase, index) => (
           <li key={phase} className="flex gap-3 rounded-xl bg-paper-2 px-4 py-3 shadow-border">
@@ -787,7 +750,7 @@ function SessionRow({ row, hideMoney }: { row: Reservation; hideMoney: boolean }
     <li className="pd-row rounded-xl bg-paper-2 shadow-border">
       <strong>{row.title}</strong>
       <span className="block text-sm text-muted">
-        {row.date} · {row.start_time} · {row.duration_min} min
+        {row.date} · {formatClockTime(row.start_time)} · {row.duration_min} min
         {hideMoney ? "" : ` · $${row.price}`}
         {row.status ? ` · ${row.status}` : ""}
       </span>
@@ -827,30 +790,14 @@ function SubPills({
   onChange: (id: string) => void;
 }) {
   return (
-    <div role="tablist" className="flex gap-1 overflow-x-auto rounded-xl bg-paper p-1">
-      {items.map((item) => (
-        <button
-          key={item.id}
-          type="button"
-          role="tab"
-          aria-selected={value === item.id}
-          onClick={() => onChange(item.id)}
-          className={cn(
-            "pd-control shrink-0 rounded-lg px-3 text-xs font-semibold tracking-wide uppercase",
-            value === item.id ? "bg-maroon text-fg-inverse" : "text-muted",
-          )}
-        >
-          {item.label}
-        </button>
-      ))}
-    </div>
+    <label className="mb-4 grid gap-1 text-sm font-semibold">Section<select className="office-control" value={value} onChange={e=>onChange(e.target.value)}>{items.map(item=><option key={item.id} value={item.id}>{item.label}</option>)}</select></label>
   );
 }
 
 export function PdWorkspace({profile}:{profile:Profile}) {
   const context=useDevelopment();const [role,setRole]=useState<ClubRole>(profile.role);
   const [targetId,setTargetId]=useState("");
-  if(profile.role!=="admin")return <ScopedWorkspace profile={profile}/>;
+  if(profile.role!=="admin")return <ScopedWorkspace profile={profile.canInstruct?{...profile,role:"coach"}:profile}/>;
   const preview=role!=="admin";
   const target=context.data.athletes.find(a=>a.id===targetId);
   const family=context.data.families.find(f=>f.id===target?.familyId);

@@ -1,10 +1,11 @@
+import {catalogFixture} from "./testing/catalog-fixture";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { buildPublicCatalog } from "./ops";
 import { checkoutParty, checkoutReturnPath, parsePaySearch, quoteCages, quoteCheckout, resolvePayItem } from "./pay";
 import { calculateQuote, type Product } from "./commerce/contracts";
 
-const catalog = buildPublicCatalog([]);
+const catalog = await catalogFixture();
 
 test("household booking keeps its posted rate and choices through sign-in", () => {
   const selection = parsePaySearch({ kind: "cage", id: "individual", cages: "1", minutes: 60,
@@ -97,10 +98,15 @@ test("hour lesson with assessment uses its posted price", () => {
   assert.equal(item.price, 104);
 });
 
-test("development first month includes the posted setup price", () => {
-  const item = quoteCheckout({ kind: "membership", id: "m1" }, catalog, false);
-  assert.ok(item);
-  assert.equal(item.price, 297);
+test("development membership adds $50 only to the first month for an unassessed athlete", () => {
+  const first = quoteCheckout({ kind: "membership", id: "m1" }, catalog, false);
+  assert.ok(first);
+  assert.equal(first.error, undefined);
+  assert.equal(first.price, 297);
+  const open = quoteCheckout({ kind: "membership", id: "m1" }, catalog, true);
+  assert.ok(open);
+  assert.equal(open.error, undefined);
+  assert.equal(open.price, 247);
 });
 
 test("household cage plan is blocked for team use", () => {

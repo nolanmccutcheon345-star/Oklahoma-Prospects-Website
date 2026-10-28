@@ -47,9 +47,17 @@ test("authenticated parent checkout uses full server schedules without exposing 
       assert.deepEqual(context.coaches,[{id:'coach',name:'Synthetic Coach',serviceIds:['s2'],specialties:['Pitching']}]);
       assert.ok(!JSON.stringify(context.coaches).includes('@example.invalid'));
       assert.ok(!JSON.stringify(context.coaches).includes('16:00'));
+      await sql`insert into club_staff_services(staff_id,service_id,profit_split) values('staff','youth-pitching',65)`;
+      await sql`insert into "user"(id,email,name,"emailVerified","createdAt","updatedAt") values('coach-account','coach@example.invalid','Synthetic Coach',true,now(),now())`;
+      await sql`insert into person_profiles(user_id,instructor) values('coach-account',false)`;
+      const youth=await checkoutContext('parent');
+      assert.ok(youth.coaches[0].serviceIds.includes('youth-pitching'));
+      assert.ok(youth.coachAvailability[0].serviceIds.includes('youth-pitching'));
       full.availability=[];
       await sql`update pd_working_file set payload=${JSON.stringify(full)} where id='club'`;
-      assert.deepEqual((await checkoutContext('parent')).coaches,[]);
+      const noHours=await checkoutContext('parent');
+      assert.equal(noHours.coaches[0].id,'coach');
+      assert.deepEqual(noHours.coachAvailability,[]);
       full.availability=[{id:'window',coachId:'coach',weekday:'Mon',window:'16:00–20:00'}];
       await sql`update pd_working_file set payload=${JSON.stringify(full)} where id='club'`;
       await sql`delete from club_staff_services where staff_id='staff'`;

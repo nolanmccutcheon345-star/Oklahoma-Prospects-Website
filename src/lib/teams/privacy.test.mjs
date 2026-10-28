@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { coachHoldsTeam, familyHoldsPlayer, fetchPlayerRecord, fetchTeamRecord, mergeSave, scopeClub } from "./privacy.ts";
+import { coachHoldsTeam, familyHoldsPlayer, fetchPlayerRecord, fetchPlayerRecordForTeam, fetchTeamRecord, mergeSave, scopeClub } from "./privacy.ts";
 
 function club() {
   const cade = {
@@ -204,7 +204,7 @@ it('v2: a colliding family identifier does not reveal or edit an unrelated house
  const scoped=scopeClub(raw,'parent',me);
  assert.deepEqual(scoped.teams.map(t=>t.id),['t-13u-navy']);
  assert.deepEqual(scoped.teams[0].roster.map(p=>p.id),['p-cade']);
- assert.deepEqual(scoped.notifications.map(n=>n.id),['family']);
+ assert.deepEqual(scoped.notifications.map(n=>n.id),[]); // Unaddressed "family" notices are private, not a team broadcast.
  const incoming=structuredClone(raw);incoming.teams[0].roster[1].order.number='99';
  assert.equal(mergeSave(raw,incoming,'parent',me).teams[0].roster[1].order.number,'7');
 });
@@ -246,4 +246,121 @@ it('player RSVPs cannot publish a public profile; guardians retain publication c
  assert.deepEqual(player.rsvp,{practice:'yes'});
  const parent=mergeSave(raw,incoming,'parent',{...me,email:'guardian@example.invalid'}).teams[0].roster[0];
  assert.deepEqual(parent.publicProfile,incoming.teams[0].roster[0].publicProfile);
+});
+
+it("v3: private family notices require a matching recipient and team", () => {
+ const raw=club(),me={email:"ty@prospectsbaseball.club",familyId:"fam-cade",familyIds:["fam-cade"]};
+ raw.notifications=[
+  {id:"broadcast",ts:"2026-10-08",teamId:"t-13u-navy",kind:"practice",title:"Practice",body:"Open for all",audience:"all"},
+  {id:"ours",ts:"2026-10-08",teamId:"t-13u-navy",kind:"family",title:"Family",body:"Our private note",audience:"family",recipientFamilyId:"fam-cade"},
+  {id:"theirs",ts:"2026-10-08",teamId:"t-13u-navy",kind:"family",title:"Family",body:"Other private note",audience:"family",recipientFamilyId:"fam-other"},
+  {id:"unaddressed",ts:"2026-10-08",teamId:"t-13u-navy",kind:"family",title:"Legacy",body:"May belong to anyone",audience:"family"},
+  {id:"coach",ts:"2026-10-08",teamId:"t-13u-navy",kind:"staff",title:"Coach",body:"Staff only",audience:"coach"},
+  {id:"foreign",ts:"2026-10-08",teamId:"t-foreign",kind:"family",title:"Family",body:"Wrong team",audience:"family",recipientFamilyId:"fam-cade"},
+ ];
+ const p=scopeClub(raw,"parent",me),player=scopeClub(raw,"player",{email:"cade@example.com",familyId:"fam-cade",familyIds:["fam-cade"]});
+ assert.deepEqual(p.notifications.map(n=>n.id),["broadcast","ours"]);
+ assert.deepEqual(player.notifications.map(n=>n.id),["broadcast","ours"]);
+ assert.deepEqual(scopeClub(raw,"coach",me).notifications.map(n=>n.id),["broadcast","coach"]);
+ assert.equal(scopeClub(raw,"admin",me).notifications.length,6);
+ assert.deepEqual(scopeClub(raw,"parent",{...me,familyIds:[]}).notifications,[]);
+});
+
+it("v3: the player endpoint cannot mix an authorized player ID with a foreign team ID", () => {
+ const raw=club(),parent={email:"ty@prospectsbaseball.club",familyId:"fam-cade",familyIds:["fam-cade"]};
+ const player={email:"cade@example.com",familyId:"fam-cade",familyIds:["fam-cade"]};
+ const coach={email:"ty@prospectsbaseball.club",familyId:"fam-cade"};
+ for(const [role,who] of [["parent",parent],["player",player],["coach",coach],["admin",parent]]) {
+  assert.equal(fetchPlayerRecordForTeam(raw,role,who,"t-foreign","p-cade"),null);
+  assert.equal(fetchPlayerRecordForTeam(raw,role,who,"t-13u-navy","p-foreign"),null);
+  assert.equal(fetchPlayerRecordForTeam(raw,role,who,"t-13u-navy","p-cade")?.id,"p-cade");
+ }
+ assert.equal(fetchPlayerRecordForTeam(raw,"parent",parent,"t-13u-navy","p-other"),null);
+});
+
+it("v4: coaches retain their own pay but not coworkers' payroll or owner budgets",()=>{
+ const raw=club();
+ const team=raw.teams[0];
+ team.staff.push({
+  ...team.staff[0],id:"st-colleague",email:"colleague@example.com",
+  name:"Colleague",monthly:2300,applyAmount:450,childId:"p-other",
+  w9:true,backgroundCheck:true,safeSport:true,expires:"2027-08-01",
+ });
+ const coach=scopeClub(raw,"coach",{email:"ty@prospectsbaseball.club",familyId:"fam-cade"});
+ assert.equal(coach.teams.length,1);
+ const scoped=coach.teams[0];
+ const mine=scoped.staff.find(s=>s.id==="st-ty");
+ const other=scoped.staff.find(s=>s.id==="st-colleague");
+ assert.equal(mine.monthly,1500);
+ assert.equal(mine.w9,true);
+ assert.equal(other.monthly,0);
+ assert.equal(other.applyAmount,0);
+ assert.equal(other.childId,"");
+ assert.equal(other.w9,false);
+ assert.equal(other.backgroundCheck,false);
+ assert.equal(other.safeSport,false);
+ assert.equal(other.expires,"");
+ assert.equal(scoped.orgFee,0);
+ assert.equal(scoped.coachMonthly,0);
+ assert.equal(scoped.eventBudget,0);
+ assert.ok(Object.values(scoped.otherCosts).every(v=>v===0));
+ const admin=scopeClub(raw,"admin",{email:"owner@example.com",familyId:""});
+ assert.equal(admin.teams[0].staff[1].monthly,2300);
+ assert.equal(admin.teams[0].eventBudget,3600);
+});
+
+it("v5: parent and player team snapshots never expose another athlete's pitch or attendance data, or coach notes", () => {
+ const raw=club(),team=raw.teams[0];
+ team.notes="Staff only: confidential performance and placement comments";
+ team.messages=[{id:"staff-chat",at:"2026-10-08",from:"Coach",body:"Coach-only note about another family"}];
+ team.announcements=[{id:"team-broadcast",title:"Practice",body:"Team practice",pin:false,arrive:"",uniform:"",hotel:""}];
+ team.attendance={practice1:{"p-cade":"present","p-other":"absent"}};
+ team.pitchLog=[
+  {id:"outing-cade",playerId:"p-cade",date:"2026-10-08",pitches:27},
+  {id:"outing-other",playerId:"p-other",date:"2026-10-08",pitches:90},
+ ];
+ const family={email:"ty@prospectsbaseball.club",familyId:"fam-cade",familyIds:["fam-cade"]};
+ for(const [role,identity] of [
+  ["parent",family],
+  ["player",{email:"cade@example.com",familyId:"fam-cade",familyIds:["fam-cade"]}],
+ ]) {
+  const scoped=scopeClub(raw,role,identity).teams[0];
+  assert.equal(scoped.notes,"");
+  assert.deepEqual(scoped.messages,[]);
+  assert.deepEqual(scoped.announcements,team.announcements);
+  assert.deepEqual(scoped.attendance,{practice1:{"p-cade":"present"}});
+  assert.deepEqual(scoped.pitchLog.map(row=>row.playerId),["p-cade"]);
+  assert.deepEqual(scoped.roster.map(row=>row.id),["p-cade"]);
+ }
+ const admin=scopeClub(raw,"admin",family).teams[0];
+ assert.equal(admin.notes,team.notes);
+ assert.equal(admin.messages.length,1);
+ assert.equal(admin.pitchLog.length,2);
+ const coach=scopeClub(raw,"coach",family).teams[0];
+ assert.equal(coach.pitchLog.length,2);
+ assert.equal(coach.attendance.practice1["p-other"],"absent");
+});
+
+it("v6: coach, parent and player responses do not leak owner financial policy inputs", () => {
+ const raw = club();
+ const admin = scopeClub(raw, "admin", {email: "owner@example.com",familyId: ""});
+ assert.deepEqual(admin.settings, raw.settings);
+ const sensitive = [
+  "contingencyPct", "membershipMonthly", "facilityMonthly", "fundingPlayers",
+  "cardFeePct", "orgFeeFloor", "orgFeeCeiling", "coachPayMin",
+  "coachPayMax", "cageHourly", "roundTo",
+ ];
+ for(const [role,identity] of [
+  ["coach", {email: "ty@prospectsbaseball.club",familyId:"fam-cade"}],
+  ["parent", {email: "ty@prospectsbaseball.club",familyId:"fam-cade",familyIds:["fam-cade"]}],
+  ["player", {email: "cade@example.com",familyId:"fam-cade",familyIds:["fam-cade"]}],
+ ]) {
+  const view = scopeClub(raw, role, identity);
+  for(const key of sensitive) assert.equal(view.settings[key], 0, role+" leaked "+key);
+  assert.equal(view.settings.policyVersion, raw.settings.policyVersion);
+  assert.equal(view.teams.length, 1);
+ }
+ // The read projection must never overwrite the financial policy in storage.
+ const scoped = scopeClub(raw, "parent", {email:"ty@prospectsbaseball.club",familyId:"fam-cade",familyIds:["fam-cade"]});
+ assert.deepEqual(mergeSave(raw, scoped, "parent", {email:"ty@prospectsbaseball.club",familyId:"fam-cade",familyIds:["fam-cade"]}).settings, raw.settings);
 });

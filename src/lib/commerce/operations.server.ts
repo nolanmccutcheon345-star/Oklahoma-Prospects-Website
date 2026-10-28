@@ -1,13 +1,17 @@
+import { lockFinancialExecution } from "../finance/execution.server";
+import { clubIdentity as staffIdentity } from "../identity.server";
 import { getSql } from "../db";
 import { commerceIdentity as clubIdentity } from "./access.server";
 import { readWorkingFile } from "../pd/desk-impl.server";
-import {assignedCoachIdFor} from "./coach-access.server";
+import { assignedCoachIdFor } from "./coach-access.server";
 import { BOOKABLE_LANES } from "../club";
 
 export async function setParticipants(userId: string, id: string, athleteIds: string[]) {
   const me = await clubIdentity(userId);
   const sql = await getSql();
   return sql.transaction(async (tx) => {
+    await lockFinancialExecution(tx);
+    await tx`select id from booking_records where id=${id} for update`;
     const [booking] = await tx<{
       id: string;
       participant_count: number;
@@ -15,7 +19,7 @@ export async function setParticipants(userId: string, id: string, athleteIds: st
       ends_at: Date;
       athlete_id: string | null;
       household_id: string;
-    }>`select * from booking_records where id=${id} and (household_id=any(${me.billingHouseholdIds}::text[]) or ${me.role === "admin"}) and status='confirmed' and checked_in_at is null for update`;
+    }>`select * from operational_booking_schedule where id=${id} and (household_id=any(${me.billingHouseholdIds}::text[]) or ${me.role === "admin"}) and status='confirmed' and checked_in_at is null`;
     if (!booking) throw new Error("Choose an upcoming paid booking that has not been checked in.");
     if (new Date(booking.ends_at) <= new Date()) throw new Error("This booking has ended.");
     const ids = [...new Set(athleteIds)];
@@ -43,11 +47,24 @@ export async function setParticipants(userId: string, id: string, athleteIds: st
 }
 
 export async function earnings(userId: string) {
-  const me = await clubIdentity(userId);
-  if (me.role !== "admin" && me.role !== "coach") throw new Error("Coach access required.");
-  const file = await readWorkingFile();
-  const coachId = assignedCoachIdFor(me,file);
   const sql = await getSql();
+  const {
+    lockFinancialExecution,
+    financialSourceModeInTransaction,
+    loadFinancialContextInTransaction,
+  } = await import("../finance/context.server");
+  const active = await sql.transaction(async (tx) => {
+    await lockFinancialExecution(tx);
+    if ((await financialSourceModeInTransaction(tx)) === "legacy") return null;
+    const context = await loadFinancialContextInTransaction(tx, userId, "read");
+    return (await import("../finance/self.server")).financialEarningsInTransaction(tx, context);
+  });
+  if (active) return active;
+  const me = await staffIdentity(userId);
+  if (me.role !== "admin" && me.role !== "coach" && !me.canInstruct)
+    throw new Error("Coach access required.");
+  const file = await readWorkingFile();
+  const coachId = assignedCoachIdFor(me, file);
   const rows = await sql<{
     booking_id: string;
     coach_id: string;
@@ -65,22 +82,9 @@ export async function earnings(userId: string) {
 export async function recordSettlement(userId: string, bookingId: string, reference: string) {
   const me = await clubIdentity(userId);
   if (me.role !== "admin") throw new Error("Owner access required.");
-  const sql = await getSql();
-  return sql.transaction(async (tx) => {
-    const [row] = await tx<{
-      status: string;
-      transfer_id: string | null;
-    }>`select status,transfer_id from contractor_earnings where booking_id=${bookingId} for update`;
-    const key = "external:" + reference;
-    if (row?.status === "paid" && row.transfer_id === key) return { ok: true };
-    if (row?.status !== "payable")
-      throw new Error("Only an unpaid, payable earning can be settled.");
-    const [order] =
-      await tx`select o.id from commerce_orders o join booking_records b on b.order_id=o.id where b.id=${bookingId} and o.status='paid' and b.status='completed' for update of o`;
-    if (!order) throw new Error("Review this booking and its payment before settlement.");
-    await tx`update contractor_earnings set status='paid',transfer_id=${key},updated_at=now() where booking_id=${bookingId}`;
-    return { ok: true };
-  });
+  throw new Error(
+    "Use Front Office → Finance → Payout Center to approve, record and reconcile this payment. Entering a reference alone does not mark it paid.",
+  );
 }
 
 export async function officeOperations(userId: string) {
@@ -104,8 +108,8 @@ export async function officeOperations(userId: string) {
     }>`select b.id,b.product_id,b.starts_at,b.ends_at,b.resources,b.status,b.checked_in_at,b.participant_count,o.email as customer_email,o.total_cents,
    string_agg(a.name,', ') as participant_names,
    count(*) filter(where a.id is null or not exists(select 1 from club_waivers w where w.athlete_id=a.id and w.signed_at<=now() and w.signed_at+interval '1 year'>now()))::integer as missing_waivers
-   from booking_records b left join commerce_orders o on o.id=b.order_id left join booking_participants p on p.booking_id=b.id left join club_athletes a on a.id=p.athlete_id
-   where b.starts_at>now()-interval '1 day' and b.starts_at<now()+interval '14 days' and b.status='confirmed' group by b.id,o.id order by b.starts_at limit 200`,
+   from operational_booking_schedule b left join commerce_orders o on o.id=b.order_id left join booking_participants p on p.booking_id=b.id left join club_athletes a on a.id=p.athlete_id
+   where b.starts_at>now()-interval '1 day' and b.starts_at<now()+interval '14 days' and b.status='confirmed' group by b.id,b.product_id,b.starts_at,b.ends_at,b.resources,b.status,b.checked_in_at,b.participant_count,o.id order by b.starts_at limit 200`,
     sql<{
       service_id: string;
       name: string;
@@ -151,16 +155,38 @@ export async function officeOperations(userId: string) {
   return { bookings, resources, counts: counts[0], events, athletes };
 }
 export async function saveServiceResources(userId: string, serviceId: string, laneIds: string[]) {
-  const me = await clubIdentity(userId);
-  if (me.role !== "admin") throw new Error("Owner access required.");
   if (!laneIds.length || laneIds.some((id) => !BOOKABLE_LANES.some((l) => l.id === id)))
     throw new Error("Choose the physical space this lesson needs.");
   const sql = await getSql();
   return sql.transaction(async (tx) => {
-    const [service] = await tx`select id from club_services where id=${serviceId} and kind='lesson' and active for update`;
+    const { requireOrganizationOperations, audit, CoordinatorDenied } =
+      await import("../coordinator/access.server");
+    try {
+      await requireOrganizationOperations(tx, userId);
+    } catch (error) {
+      if (error instanceof CoordinatorDenied)
+        throw new Error("Owner access or organization operations access required.");
+      throw error;
+    }
+    const [service] =
+      await tx`select id from club_services where id=${serviceId} and kind='lesson' and active for update`;
     if (!service) throw new Error("Choose an active lesson to assign its facility space.");
     await tx`insert into service_resources(service_id,lane_ids) values(${serviceId},${JSON.stringify([...new Set(laneIds)])}::jsonb) on conflict(service_id) do update set lane_ids=excluded.lane_ids`;
+    await audit(tx, userId, "organization.facility.assign", serviceId, "allowed");
     return { ok: true };
+  });
+}
+
+export async function operationalServiceResources(userId: string) {
+  const sql = await getSql();
+  return sql.transaction(async (tx) => {
+    const { requireOrganizationOperations } = await import("../coordinator/access.server");
+    await requireOrganizationOperations(tx, userId);
+    return tx<{
+      id: string;
+      name: string;
+      lane_ids: string[];
+    }>`select s.id,s.name,coalesce(r.lane_ids,'[]'::jsonb) as lane_ids from club_services s left join service_resources r on r.service_id=s.id where s.kind='lesson' and s.active order by s.sort_order,s.id`;
   });
 }
 
@@ -168,7 +194,13 @@ export async function lessonResources(serviceId: string, sql: Awaited<ReturnType
   const [row] = await sql<{
     lane_ids: unknown;
   }>`select lane_ids from service_resources where service_id=${serviceId}`;
-  if (!Array.isArray(row?.lane_ids) || !row.lane_ids.length || row.lane_ids.some((id) => typeof id !== "string" || !BOOKABLE_LANES.some((lane) => lane.id === id)))
+  if (
+    !Array.isArray(row?.lane_ids) ||
+    !row.lane_ids.length ||
+    row.lane_ids.some(
+      (id) => typeof id !== "string" || !BOOKABLE_LANES.some((lane) => lane.id === id),
+    )
+  )
     throw new Error(
       "This lesson is unavailable until a facility space is assigned. Choose another available service.",
     );

@@ -1,8 +1,16 @@
-import { useState, type FormEvent } from "react";
+import {athleteRegistrationInput} from "@/lib/athlete-registration-contracts";
+import { AthleteRegistrationFields, emptyAthleteRegistration } from "./athlete-registration-fields";
+import { ACTIVE_SEASON } from "@/lib/active-season";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import { sendInquiry } from "@/lib/portal-api";
 import { Button } from "@/components/ui/button";
-import { AGE_GROUPS, TRYOUT_REQUEST_SESSION } from "@/lib/club";
+import { TRYOUT_AGE_GROUPS, TRYOUT_REQUEST_SESSION } from "@/lib/club";
+import { getPublicTryoutTeams } from "@/lib/tryout-events-api";
+import type { TryoutEvent } from "@/lib/tryout-events-contracts";
+import { formatClockTime } from "@/lib/time-display";
+import type { PublicTryoutTeam } from "@/lib/tryout-preferences.server";
 import { cn } from "@/lib/utils";
+import { inquiryInput } from "@/lib/portal-contracts";
 
 const fieldClass =
   "mt-1.5 block min-h-11 w-full rounded-md border border-muted/40 bg-paper-2 px-3 text-base text-ink placeholder:text-muted";
@@ -21,10 +29,15 @@ type TryoutValues = {
   phone: string;
   email: string;
   notes: string;
+  positions: string;
+  usssaStatus: "" | "provided" | "unknown" | "not-registered";
+  usssaAthleteId: string;
   sport: string;
   session: string;
   season: string;
   autoEnroll: boolean;
+  preferredTeamId: string;
+  preferredCoachId: string;
 };
 
 export function ContactForm({ initialSubject = "" }: { initialSubject?: string }) {
@@ -118,67 +131,215 @@ export function ContactForm({ initialSubject = "" }: { initialSubject?: string }
 export function TryoutForm({
   initialAge = "",
   initialSport = "Baseball",
+  initialEventId = "",
   intent = "register",
+  publishedEvents = [],
 }: {
   initialAge?: string;
   initialSport?: "Baseball" | "Softball";
+  initialEventId?: string;
   intent?: "register" | "inquiry";
+  publishedEvents?: TryoutEvent[];
 }) {
+  const events = publishedEvents.map((event) => ({
+    ...event,
+    ageGroups: event.ageGroups.map(
+      (group) =>
+        TRYOUT_AGE_GROUPS.find((age) => age.toLowerCase() === group.trim().toLowerCase()) || group,
+    ),
+  }));
+  const initialEvent = events.find((e) => e.id === initialEventId);
+  const [athleteProfile,setAthleteProfile]=useState({...emptyAthleteRegistration});
+  const [claimToken,setClaimToken]=useState('');
+  const [mode, setMode] = useState<"scheduled" | "individual">(
+    initialEvent ? "scheduled" : "individual",
+  );
+  const [eventId, setEventId] = useState(initialEvent?.id || "");
+  const [step, setStep] = useState(0);
+  const formRef = useRef<HTMLFormElement>(null);
+  const headingRef = useRef<HTMLHeadingElement>(null);
+  function goToStep(next: number) {
+    setStep(next);
+    requestAnimationFrame(() => { headingRef.current?.focus(); headingRef.current?.scrollIntoView({block:"start",behavior:"instant"}); });
+  }
+  function nextStep() {
+    if (!formRef.current?.reportValidity()) return;
+    if(step===0){const checked=athleteRegistrationInput.safeParse(athleteProfile);if(!checked.success){setError(checked.error.issues.map(i=>i.message).join(' '));return;}}
+    setError('');goToStep(step + 1);
+  }
+  const [consent, setConsent] = useState(false);
   const [values, setValues] = useState<TryoutValues>({
     player: "",
-    age: initialAge,
     parent: "",
     phone: "",
     email: "",
     notes: "",
-    sport: initialSport,
-    season: "",
+    positions: "",
+    usssaStatus: "",
+    usssaAthleteId: "",
     autoEnroll: false,
+    sport: initialEvent?.sport || initialSport,
+    age: initialEvent
+      ? initialEvent.ageGroups.some((age) => age.toLowerCase() === initialAge.toLowerCase())
+        ? initialEvent.ageGroups.find((age) => age.toLowerCase() === initialAge.toLowerCase())!
+        : initialEvent.ageGroups.length === 1
+          ? initialEvent.ageGroups[0]
+          : ""
+      : initialAge,
+    season: initialEvent?.season || ACTIVE_SEASON,
     session: intent === "register" ? TRYOUT_REQUEST_SESSION : "",
+    preferredTeamId: "",
+    preferredCoachId: "",
   });
-
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
-  const [sent, setSent] = useState(false);
+  const [teams, setTeams] = useState<PublicTryoutTeam[]>([]);
+  const [teamError, setTeamError] = useState("");
+  const [busy, setBusy] = useState(false),
+    [error, setError] = useState(""),
+    [sent, setSent] = useState(false);
   const [requestId] = useState(() => crypto.randomUUID());
+  useEffect(() => {
+    if (intent !== "register") return;
+    let live = true;
+    getPublicTryoutTeams()
+      .then((rows) => {
+        if (live) setTeams(rows);
+      })
+      .catch(() => {
+        if (live)
+          setTeamError(
+            "Team preferences are unavailable. You can still submit without a preference.",
+          );
+      });
+    return () => {
+      live = false;
+    };
+  }, [intent]);
+  const selectedEvent = events.find((e) => e.id === eventId);
+  const scheduled = intent === "register" && mode === "scheduled";
+  const eligibleTeams = teams.filter(
+    (t) => t.sport === values.sport && t.age.toLowerCase() === values.age.toLowerCase(),
+  );
+  const selectedTeam = eligibleTeams.find((t) => t.id === values.preferredTeamId);
+  function selectEvent(id: string) {
+    const event = events.find((e) => e.id === id);
+    setEventId(id);
+    setValues((v) => ({
+      ...v,
+      season: event?.season || "",
+      sport: event?.sport || v.sport,
+      age: event?.ageGroups.includes(v.age)
+        ? v.age
+        : event?.ageGroups.length === 1
+          ? event.ageGroups[0]
+          : "",
+      preferredTeamId: "",
+      preferredCoachId: "",
+    }));
+  }
   async function onSubmit(event: FormEvent) {
     event.preventDefault();
+    if (intent === "register" && step < 2) { nextStep(); return; }
     if (busy || sent) return;
+    if (intent === "register" && !consent) {
+      setError("Please confirm the request consent.");
+      return;
+    }
+    if (scheduled && (!selectedEvent || !selectedEvent.ageGroups.includes(values.age))) {
+      setError("Choose a published tryout and matching age group.");
+      return;
+    }
     setBusy(true);
     setError("");
     try {
-      await sendInquiry({
-        data: {
+      const data = inquiryInput.parse({
+          ...values,
+          athleteProfile,
           kind: intent === "register" ? "tryout" : "team-inquiry",
           requestId,
-          ...values,
           sport: values.sport as "Baseball" | "Softball",
-        },
+          autoEnroll: false,
+          ...(intent === "register"
+            ? {
+                requestType: mode,
+                requestedEventId: scheduled ? eventId : "",
+                requestConsent: consent,
+              }
+            : {}),
       });
+      const result=await sendInquiry({ data });
+      if('claimToken' in result)setClaimToken(String(result.claimToken||''));
       setSent(true);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Submission did not save. Please retry.");
+      setError(e && typeof e === "object" && "issues" in e
+        ? (e as { issues: { message: string }[] }).issues.map((issue) => issue.message).join(" ")
+        : e instanceof Error ? e.message : "Submission did not save. Please retry.");
     } finally {
       setBusy(false);
     }
   }
-
+  if (sent)
+    return (
+      <div role="status" className="rounded-xl border bg-paper p-5">
+        <h3 className="text-2xl">Request received</h3>
+        <p className="mt-2">
+          Our staff will contact your family to confirm the next step. This request does not reserve
+          an event spot, appointment, or roster place.
+        </p>
+        <p className="mt-3 text-sm">Reference: {requestId}</p>{claimToken&&<div className="mt-3 rounded border p-3"><p>Save this private code to link this request to your verified account later. Do not share it publicly.</p><code className="break-all">{claimToken}</code></div>}
+        <p className="mt-2 text-sm">Your request is saved. Keep this reference; you do not need to submit again. Staff will contact you using the details you provided.</p>
+      </div>
+    );
   return (
-    <form onSubmit={onSubmit} className="grid gap-4">
-      {error ? (
+    <form ref={formRef} onSubmit={onSubmit} className="grid gap-4">
+      {intent === "register" && <div className="rounded-xl bg-ink p-4 text-white">
+        <h3 ref={headingRef} tabIndex={-1} className="scroll-mt-40 text-2xl">Step {step + 1} of 3 · {["Player & contact", "Player details", "Review & send"][step]}</h3>
+        <p className="mt-2 text-sm">Tell us about your player. Staff will confirm the next available evaluation option. A request does not reserve a roster position.</p>
+        <progress aria-label="Tryout request progress" value={step + 1} max={3} className="mt-3 h-2 w-full accent-powder" />
+      </div>}
+      {error && (
         <p role="alert" className="text-maroon">
           {error}
         </p>
-      ) : null}
-      {sent ? (
+      )}
+      {initialEventId && !initialEvent && (
         <p role="status">
-          Saved to the club’s front-office queue.{" "}
-          {intent === "register"
-            ? "Your request was saved for matching group enrollment. Group enrollment depends on eligibility and capacity; private appointments require agreement. "
-            : ""}
-          Reference: {requestId}
+          That event is no longer available. Please select another published tryout or request an
+          individual evaluation.
         </p>
-      ) : null}
+      )}
+      <fieldset hidden={intent === "register" && step !== 0} disabled={intent === "register" && step !== 0} className="grid min-w-0 gap-4" aria-label="Player and contact information">
+      <AthleteRegistrationFields value={athleteProfile} onChange={setAthleteProfile} onName={player=>setValues(v=>({...v,player}))}/>
+      {intent === "register" && (
+        <fieldset className="grid gap-2 rounded-xl border bg-paper p-4 sm:grid-cols-2">
+          <legend className="px-2 font-semibold">Choose your next step</legend>
+          {(
+            [
+              ["scheduled", "Scheduled Tryout"],
+              ["individual", "Individual Evaluation"],
+            ] as const
+          ).map(([value, label]) => (
+            <label key={value} className="flex min-h-11 cursor-pointer items-center gap-3">
+              <input
+                type="radio"
+                name="tryout-type"
+                value={value}
+                checked={mode === value}
+                onChange={() => {
+                  setMode(value);
+                  setEventId("");
+                  setValues((v) => ({
+                    ...v,
+                    season: value === "individual" ? ACTIVE_SEASON : "",
+                    preferredTeamId: "",
+                    preferredCoachId: "",
+                  }));
+                }}
+              />
+              {label}
+            </label>
+          ))}
+        </fieldset>
+      )}
       <label className="text-sm font-semibold">
         Sport <span className="text-maroon">*</span>
         <select
@@ -186,128 +347,322 @@ export function TryoutForm({
           className={fieldClass}
           value={values.sport}
           onChange={(e) => {
-            const sport = e.target.value;
+            setEventId("");
             setValues((v) => ({
               ...v,
-              sport,
-              session: intent === "register" ? TRYOUT_REQUEST_SESSION : "",
+              sport: e.target.value,
+              season: mode === "individual" ? ACTIVE_SEASON : "",
+              preferredTeamId: "",
+              preferredCoachId: "",
             }));
           }}
         >
-          <option value="Baseball">Baseball</option>
-          <option value="Softball">Softball</option>
+          <option>Baseball</option>
+          <option>Softball</option>
         </select>
       </label>
+      {scheduled && (
+        <>
+          <label className="text-sm font-semibold">
+            Scheduled tryout <span className="text-maroon">*</span>
+            <select
+              required
+              className={fieldClass}
+              value={eventId}
+              onChange={(e) => selectEvent(e.target.value)}
+            >
+              <option value="">Choose a published tryout</option>
+              {publishedEvents
+                .filter((e) => e.sport === values.sport)
+                .map((e) => (
+                  <option key={e.id} value={e.id}>
+                    {e.season} · {e.ageGroups.join(" / ")} · {e.date} ·{" "}
+                    {formatClockTime(e.startTime)} Central
+                  </option>
+                ))}
+            </select>
+          </label>
+          {selectedEvent ? (
+            <div className="rounded-lg bg-paper p-4 text-sm">
+              <strong>{selectedEvent.season}</strong>
+              <p>
+                {selectedEvent.date} · {formatClockTime(selectedEvent.startTime)}–
+                {formatClockTime(selectedEvent.endTime)} Central
+              </p>
+              <p>{selectedEvent.location}</p>
+              <p className="mt-2 text-muted">Season is set by the published event.</p>
+            </div>
+          ) : (
+            <p className="text-sm text-muted">
+              {events.some((e) => e.sport === values.sport)
+                ? "Choose an event to see its season, time and location."
+                : "No group tryouts are currently scheduled for this sport. Choose Individual Evaluation to request an appointment."}
+            </p>
+          )}
+        </>
+      )}
       <div className="grid gap-4 sm:grid-cols-2">
+        <label className="text-sm font-semibold">
+          Age group <span className="text-maroon">*</span>
+          <select
+            required
+            className={fieldClass}
+            value={values.age}
+            onChange={(e) =>
+              setValues((v) => ({
+                ...v,
+                age: e.target.value,
+                preferredTeamId: "",
+                preferredCoachId: "",
+              }))
+            }
+          >
+            <option value="">Choose age group</option>
+            {(scheduled ? selectedEvent?.ageGroups || [] : TRYOUT_AGE_GROUPS).map((age) => (
+              <option key={age}>{age}</option>
+            ))}
+          </select>
+        </label>
         <label className="text-sm font-semibold">
           Player name <span className="text-maroon">*</span>
           <input
             required
+            maxLength={120}
             className={fieldClass}
-            placeholder="Player full name"
             value={values.player}
             onChange={(e) => setValues((v) => ({ ...v, player: e.target.value }))}
           />
         </label>
-        <label className="text-sm font-semibold">
-          Age group <span className="text-maroon">*</span>
-          <input
-            required
-            className={fieldClass}
-            value={values.age}
-            maxLength={120}
-            list={`tryout-ages-${intent}`}
-            placeholder="For example, 9U or 18U"
-            onChange={(e) => setValues((v) => ({ ...v, age: e.target.value }))}
-          />
-          <datalist id={`tryout-ages-${intent}`}>
-            {AGE_GROUPS.map((age) => (
-              <option key={age} value={age} />
-            ))}
-          </datalist>
-        </label>
       </div>
-      {intent === "register" ? (
-        <>
-          <label className="text-sm font-semibold">
-            Season <span className="text-maroon">*</span>
-            <input
-              required
-              className={fieldClass}
-              maxLength={120}
-              value={values.season}
-              placeholder="For example, Spring 2027"
-              onChange={(e) => setValues((v) => ({ ...v, season: e.target.value }))}
-            />
-          </label>
-          <label className="rounded-md border border-powder bg-paper p-4 text-sm">
-            <input
-              type="checkbox"
-              required
-              checked={values.autoEnroll}
-              onChange={(e) => setValues((v) => ({ ...v, autoEnroll: e.target.checked }))}
-              className="mr-2"
-            />
-            When a group tryout matches my player's sport, age group and season, automatically
-            enroll my player if capacity allows. One matching group appointment will be selected.
-            Private appointments require agreement with a coach.
-          </label>
-          <p className="text-sm text-muted">
-            All ages are welcome. If no matching place is available, your request stays open.
-            Private appointments require agreement with a coach.
-          </p>
-        </>
-      ) : null}
-      <div className="grid gap-4 sm:grid-cols-2">
+      {intent === "register" && !scheduled && (
         <label className="text-sm font-semibold">
-          Parent / Guardian <span className="text-maroon">*</span>
+          Preferred season <span className="text-maroon">*</span>
           <input
             required
-            autoComplete="name"
+            maxLength={120}
             className={fieldClass}
-            value={values.parent}
-            onChange={(e) => setValues((v) => ({ ...v, parent: e.target.value }))}
+            placeholder={ACTIVE_SEASON}
+            value={values.season}
+            onChange={(e) => setValues((v) => ({ ...v, season: e.target.value }))}
           />
+          <span className="mt-1 block text-xs text-muted">
+            Our staff will confirm the season and appointment with your family.
+          </span>
         </label>
+      )}
+      <label className="text-sm font-semibold">
+        Parent / Guardian <span className="text-maroon">*</span>
+        <input
+          required
+          autoComplete="name"
+          maxLength={120}
+          className={fieldClass}
+          value={values.parent}
+          onChange={(e) => setValues((v) => ({ ...v, parent: e.target.value }))}
+        />
+      </label>
+      <div className="grid gap-4 sm:grid-cols-2">
         <label className="text-sm font-semibold">
           Phone <span className="text-maroon">*</span>
           <input
             required
             type="tel"
             autoComplete="tel"
-            inputMode="tel"
+            maxLength={120}
             className={fieldClass}
-            placeholder="(###) ###-####"
             value={values.phone}
             onChange={(e) => setValues((v) => ({ ...v, phone: e.target.value }))}
           />
         </label>
+        <label className="text-sm font-semibold">
+          Email <span className="text-maroon">*</span>
+          <input
+            required
+            type="email"
+            autoComplete="email"
+            className={fieldClass}
+            value={values.email}
+            onChange={(e) => setValues((v) => ({ ...v, email: e.target.value }))}
+          />
+        </label>
       </div>
-      <label className="text-sm font-semibold">
-        Email <span className="text-maroon">*</span>
-        <input
-          required
-          type="email"
-          autoComplete="email"
-          className={fieldClass}
-          placeholder="you@example.com"
-          value={values.email}
-          onChange={(e) => setValues((v) => ({ ...v, email: e.target.value }))}
-        />
-      </label>
-      <label className="text-sm font-semibold">
-        Notes
-        <textarea
-          rows={4}
-          className={cn(fieldClass, "min-h-28 py-2.5")}
-          placeholder="Positions, current team, goals, or questions"
-          value={values.notes}
-          onChange={(e) => setValues((v) => ({ ...v, notes: e.target.value }))}
-        />
-      </label>
-      <Button type="submit" disabled={busy || sent} variant="primary" className="w-full sm:w-auto">
-        Submit {intent === "register" ? "tryout request" : "team inquiry"}
-      </Button>
+      </fieldset>
+      <fieldset hidden={intent === "register" && step !== 1} disabled={intent === "register" && step !== 1} className="grid min-w-0 gap-4 rounded-xl border bg-paper p-4">
+        <legend className="px-2 font-semibold">
+          Player details {intent === "register" && <span className="text-maroon">— mandatory</span>}
+        </legend>
+        <label className="text-sm font-semibold">
+          Player positions {intent === "register" && <span className="text-maroon">*</span>}
+          <input
+            required={intent === "register"}
+            maxLength={200}
+            className={fieldClass}
+            placeholder="Pitcher, catcher, shortstop, outfield…"
+            value={values.positions}
+            onChange={(e) => setValues((v) => ({ ...v, positions: e.target.value }))}
+          />
+          <span className="mt-1 block text-xs font-normal text-muted">
+            List primary and other positions. Beginners can enter “New player / still learning.”
+          </span>
+        </label>
+        <label className="text-sm font-semibold">
+          Player notes {intent === "register" && <span className="text-maroon">*</span>}
+          <textarea
+            required={intent === "register"}
+            rows={3}
+            maxLength={5000}
+            className={cn(fieldClass, "py-2.5")}
+            placeholder="Experience, goals, or anything your coach should know"
+            value={values.notes}
+            onChange={(e) => setValues((v) => ({ ...v, notes: e.target.value }))}
+          />
+          <span className="mt-1 block text-xs font-normal text-muted">
+            Enter “No additional notes” if there is nothing else to share.
+          </span>
+        </label>
+        {intent === "register" && (
+          <>
+            <label className="text-sm font-semibold">
+              USSSA Player ID status <span className="text-maroon">*</span>
+              <select
+                required
+                className={fieldClass}
+                value={values.usssaStatus}
+                onChange={(e) => setValues((v) => ({
+                  ...v,
+                  usssaStatus: e.target.value as TryoutValues["usssaStatus"],
+                  usssaAthleteId: "",
+                }))}
+              >
+                <option value="">Choose an option</option>
+                <option value="provided">I have the Player ID</option>
+                <option value="unknown">I don’t know it yet</option>
+                <option value="not-registered">Not registered with USSSA yet</option>
+              </select>
+            </label>
+            {values.usssaStatus === "provided" && (
+              <label className="text-sm font-semibold">
+                USSSA Player / Athlete ID <span className="text-maroon">*</span>
+                <input
+                  required
+                  inputMode="numeric"
+                  pattern="[0-9]+"
+                  maxLength={30}
+                  className={fieldClass}
+                  value={values.usssaAthleteId}
+                  onChange={(e) => setValues((v) => ({ ...v, usssaAthleteId: e.target.value.trim() }))}
+                />
+              </label>
+            )}
+            <p className="text-sm text-muted">
+              This helps staff find the correct USSSA player record. You can still request a tryout
+              if you don’t know the ID or haven’t registered yet.{" "}
+              <a href="https://support.usssa.com/hc/en-us/articles/49338934982419-Gathering-Player-IDs" target="_blank" rel="noreferrer" className="font-semibold underline">
+                How to find a Player ID
+              </a>
+            </p>
+          </>
+        )}
+      </fieldset>
+      <fieldset hidden={intent === "register" && step !== 2} disabled={intent === "register" && step !== 2} className="grid min-w-0 gap-4" aria-label="Review tryout request">
+      {intent === "register" && <div className="rounded-xl border bg-paper p-4">
+        <h4 className="text-xl">Review your request</h4><p>Birthdate (private): {athleteProfile.birthDate} · Graduation: {athleteProfile.graduationYear} · School: {athleteProfile.school||athleteProfile.schoolStatus} · Grade: {athleteProfile.currentGrade} · Rules reference: {athleteProfile.eligibilityOrganization}</p>
+        <dl className="mt-3 grid gap-3 text-sm">
+          <div><dt className="font-semibold">Player</dt><dd>{values.player} · {values.sport} · {values.age} · {values.season}</dd></div>
+          <div><dt className="font-semibold">Evaluation</dt><dd>{scheduled && selectedEvent ? `${selectedEvent.date} · ${formatClockTime(selectedEvent.startTime)} Central · ${selectedEvent.location}` : "Individual evaluation — staff will confirm an appointment"}</dd></div>
+          <div><dt className="font-semibold">Parent / guardian</dt><dd className="break-words">{values.parent} · {values.phone} · {values.email}</dd></div>
+          <div><dt className="font-semibold">Positions & notes</dt><dd className="whitespace-pre-wrap break-words">{values.positions}<br/>{values.notes}</dd></div>
+          <div><dt className="font-semibold">USSSA Player ID</dt><dd>{values.usssaStatus === "provided" ? values.usssaAthleteId : values.usssaStatus === "unknown" ? "Not known yet" : "Not registered yet"}</dd></div>
+        </dl>
+      </div>}
+      {intent === "register" && <details className="rounded-xl border bg-paper p-4">
+        <summary className="min-h-11 cursor-pointer font-semibold">
+          Team & coach preferences <span className="font-normal">(optional)</span>
+        </summary>
+        <div className="mt-2 grid gap-4">
+          {intent === "register" && (
+            <>
+              {teamError && (
+                <p role="status" className="text-sm">
+                  {teamError}
+                </p>
+              )}
+              <label className="text-sm font-semibold">
+                Preferred team
+                <select
+                  className={fieldClass}
+                  value={values.preferredTeamId}
+                  onChange={(e) =>
+                    setValues((v) => ({
+                      ...v,
+                      preferredTeamId: e.target.value,
+                      preferredCoachId: "",
+                    }))
+                  }
+                >
+                  <option value="">No preference — have the office match me</option>
+                  {eligibleTeams.map((t) => (
+                    <option key={t.id} value={t.id}>
+                      {t.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              {selectedTeam && (
+                <label className="text-sm font-semibold">
+                  Preferred coach
+                  <select
+                    className={fieldClass}
+                    value={values.preferredCoachId}
+                    onChange={(e) => setValues((v) => ({ ...v, preferredCoachId: e.target.value }))}
+                  >
+                    <option value="">No coach preference</option>
+                    {selectedTeam.coaches.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              )}
+              <p className="text-sm text-muted">
+                Preferences are requests. Staff will confirm the right fit and availability.
+              </p>
+            </>
+          )}
+        </div>
+      </details>}
+      {intent === "register" && (
+        <label className="flex items-start gap-3 rounded-xl border bg-paper p-4 text-sm">
+          <input
+            required
+            type="checkbox"
+            className="mt-1 size-5 shrink-0"
+            checked={consent}
+            onChange={(e) => setConsent(e.target.checked)}
+          />
+          <span>
+            I agree to be contacted about this tryout request. I understand that submitting does not
+            reserve an event spot, appointment, or roster place; staff must confirm it.
+          </span>
+        </label>
+      )}
+      </fieldset>
+      <div className="flex flex-wrap items-center gap-3">
+      {intent === "register" && step > 0 && <Button type="button" variant="outlineDark" disabled={busy} onClick={()=>goToStep(step - 1)}>Back</Button>}
+      {intent === "register" && step < 2 ? <Button type="button" onClick={nextStep}>Continue to {step === 0 ? "player details" : "review"}</Button> : <>
+      <Button
+        type="submit"
+        disabled={busy || (scheduled && !selectedEvent)}
+        className="w-full sm:w-auto"
+      >
+        {busy
+          ? "Sending request…"
+          : intent === "register"
+            ? "Submit tryout request"
+            : "Submit team inquiry"}
+      </Button></>}
+      </div>
     </form>
   );
 }

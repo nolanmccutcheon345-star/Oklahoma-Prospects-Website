@@ -1,3 +1,5 @@
+import { CLUB } from "@/lib/club";
+
 export const TEAMS = ["5U", "7U", "8U", "9U", "10U", "11U", "12U", "13U", "14U", "15U", "16U"];
 export type Player = {
   id: string;
@@ -43,7 +45,7 @@ export const examplePlayer: Player = {
   number: "",
   goal: 100000,
   story:
-    "Baseball is where I learn to work hard, be a great teammate, and keep getting better. Your support helps make my season with Oklahoma Prospects possible. Thank you for being in my corner!",
+    `Baseball is where I learn to work hard, be a great teammate, and keep getting better. Your support helps make my season with ${CLUB.name} possible. Thank you for being in my corner!`,
   approved: 1,
   active: 1,
   raised: 0,
