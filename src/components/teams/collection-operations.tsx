@@ -43,10 +43,21 @@ export function CollectionOperations() {
       {data && (
         <>
           <p>
-            Live automatic collection: {data.enabled ? "enabled" : "paused"}. Sandbox configuration:{" "}
-            {data.sandboxConfigured ? "present" : "incomplete"}. Provider acceptance evidence:{" "}
-            {data.sandboxVerified ? "recorded" : "not recorded"}.
+            Live automatic collection: {data.enabled ? "enabled" : "paused"}. Sandbox settings in
+            this deployment: {data.sandboxConfigured ? "present" : "not present"}. Provider
+            acceptance evidence: {data.sandboxVerified ? "recorded" : "not recorded"}.
           </p>
+          <p>
+            Sandbox credentials belong on an isolated test deployment. Their absence here does not
+            mean that the separate test deployment is unconfigured.
+          </p>
+          {data.blockers.length > 0 && (
+            <ul className="list-disc pl-5">
+              {data.blockers.map((reason) => (
+                <li key={reason}>{reason}</li>
+              ))}
+            </ul>
+          )}
           {data.rows.length === 0 && <p>No saved automatic-payment authorizations.</p>}
           {data.rows.map((r) => (
             <article key={r.id} className="my-3 rounded-lg border p-3">

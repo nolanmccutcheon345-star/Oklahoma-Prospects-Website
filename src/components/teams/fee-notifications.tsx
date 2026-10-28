@@ -52,6 +52,13 @@ export function FeeNotifications() {
               ? "Email worker configured. New queued messages are eligible for scheduled delivery."
               : "Email delivery is unavailable or paused. Queued messages have not been confirmed sent; contact the site operator."}
           </p>
+          {data.blockers.length > 0 && (
+            <ul className="list-disc pl-5">
+              {data.blockers.map((reason) => (
+                <li key={reason}>{reason}</li>
+              ))}
+            </ul>
+          )}
           <h3 className="font-bold">Eligible catch-up recipients ({data.preview.length})</h3>
           {data.preview.map((item) => (
             <article key={item.id} className="rounded border p-3">

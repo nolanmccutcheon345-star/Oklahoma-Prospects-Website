@@ -1,7 +1,8 @@
-import type { Config } from "@netlify/functions";
-export default async () => {
+import type { Config, Context } from "@netlify/functions";
+export default async (_request: Request, context: Context) => {
   if (
-    Netlify.env.get("CONTEXT") !== "production" ||
+    context.deploy.context !== "production" ||
+    !context.deploy.published ||
     Netlify.env.get("TRYOUT_NOTIFICATIONS_ENABLED") !== "true"
   )
     return new Response("Disabled");
