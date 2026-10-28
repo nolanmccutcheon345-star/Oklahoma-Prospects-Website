@@ -415,6 +415,7 @@ try {
   await owner.page.getByLabel("Team", { exact: true }).selectOption("soft");
   assert.equal(
     await owner.page
+      .locator('[aria-label="Selected team fee plan"]')
       .getByLabel("Organization fee per full player ($)", { exact: true })
       .inputValue(),
     "600",
@@ -487,7 +488,7 @@ try {
   );
   assert.deepEqual(errors, []);
   console.log(
-    "PASS: real compiled guardian signatures for baseball and softball, optional-media independence, medical privacy, assigned-coach scope, scoped coordinator attendance, mobile layouts. Synthetic payments only in domain tests; no live pilot certified.",
+    "PASS: real compiled guardian signatures for baseball and softball, optional-media independence, medical privacy, assigned-coach scope, scoped coordinator attendance, draft save/reload, reviewed fee publication, scoped invitation queueing and mobile layouts. Synthetic providers only; no live pilot certified.",
   );
 } catch (error) {
   console.error("Browser errors:", errors);
