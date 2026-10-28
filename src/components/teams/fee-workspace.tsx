@@ -222,6 +222,7 @@ export function TeamFeeWorkspace({
               Team
               <select
                 className="office-control"
+                aria-label="Team"
                 value={team.id}
                 onChange={(e) => {
                   setSelected(e.target.value);
@@ -432,7 +433,7 @@ function TeamPlan({
     /* Incomplete input is explained below. */
   }
   return (
-    <div className="grid gap-4">
+    <div className="grid gap-4" aria-label="Selected team fee plan">
       <p className="rounded-lg bg-ink p-3 text-white">
         {team.name} · {team.status}
         {publication ? " · Published fee version " + publication.revision : ""}

@@ -58,6 +58,16 @@ test("atomic owner publication uses baseline, preserves accepted fees and spendi
         noUniform: false,
       },
     };
+    const reordered = {
+      ...budget,
+      parentExplanation: Object.fromEntries(
+        Object.entries(budget.parentExplanation).reverse(),
+      ) as typeof budget.parentExplanation,
+    };
+    assert.equal(
+      JSON.stringify(publicationOffer(reordered, false, budget.deadlineOverride, "2026-10-28")),
+      JSON.stringify(publicationOffer(budget, false, budget.deadlineOverride, "2026-10-28")),
+    );
     assert.equal(calculateFees(budget).full, 330000);
     assert.equal(publicationHealth(budget).ready, true);
     assert.equal(feeHealth(budget, { full: 0 }).ready, false);

@@ -399,7 +399,10 @@ try {
   });
   await owner.page.goto(origin + "/account?desk=team-finances");
   await owner.page.getByLabel("Team", { exact: true }).selectOption("soft");
-  await owner.page.getByLabel("Organization fee per full player ($)", { exact: true }).fill("600");
+  await owner.page
+    .locator('[aria-label="Selected team fee plan"]')
+    .getByLabel("Organization fee per full player ($)", { exact: true })
+    .fill("600");
   await owner.page.getByRole("button", { name: "Save draft & expenses", exact: true }).click();
   await owner.page
     .getByText("Draft saved. Publish after reviewing the fee and policy.", { exact: true })
@@ -427,6 +430,7 @@ try {
       ),
     ),
   );
+  await reviewed.scrollIntoViewIfNeeded();
   await owner.page.screenshot({ path: shots + "/publication-review-desktop.png", fullPage: false });
   owner.page.once("dialog", (dialog) => dialog.accept());
   await owner.page
@@ -464,6 +468,23 @@ try {
     0,
   );
   assert.ok(!coach.bodies.join("").includes("PRIVATE-MEDICAL-CANARY"));
+  await coach.page.getByRole("button", { name: "Create & send invitation", exact: true }).click();
+  await coach.page
+    .getByText(
+      "Invitation saved and queued. Email delivery is paused or unconfigured; no email was sent by this attempt.",
+      { exact: true },
+    )
+    .waitFor();
+  assert.equal(
+    (await h.sql`select * from invitation_delivery where provider_message_id is not null`).length,
+    0,
+  );
+  assert.equal(
+    (
+      await h.sql`select * from club_invites where team_id='base' and invited_by='coach' and role='parent' and status='pending'`
+    ).length,
+    1,
+  );
   assert.deepEqual(errors, []);
   console.log(
     "PASS: real compiled guardian signatures for baseball and softball, optional-media independence, medical privacy, assigned-coach scope, scoped coordinator attendance, mobile layouts. Synthetic payments only in domain tests; no live pilot certified.",

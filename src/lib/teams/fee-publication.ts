@@ -25,7 +25,16 @@ export function publicationOffer(b: FeeBudget, poEnabled: boolean, final: string
       : [],
   };
   return {
-    explanation: b.parentExplanation ? structuredClone(b.parentExplanation) : undefined,
+    // PostgreSQL JSONB and browser transport may reorder object keys. Normalize the
+    // public fields before serializing a review; key order is not a changed term.
+    explanation: b.parentExplanation
+      ? {
+          initialDeposit: b.parentExplanation.initialDeposit,
+          monthlyDues: b.parentExplanation.monthlyDues,
+          teamExpenses: b.parentExplanation.teamExpenses,
+          additionalNotes: b.parentExplanation.additionalNotes,
+        }
+      : undefined,
     schedules,
     full: f.full,
     po: poEnabled ? f.po : 0,
