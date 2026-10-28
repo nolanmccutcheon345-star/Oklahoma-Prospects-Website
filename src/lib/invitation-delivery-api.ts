@@ -1,9 +1,9 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
-import { authMiddleware } from "./auth/middleware";
+import { operationalAuthMiddleware } from "./auth/middleware";
 const input = z.object({ id: z.string().uuid() }).strict();
 export const sendInvitationEmail = createServerFn({ method: "POST" })
-  .middleware([authMiddleware])
+  .middleware([operationalAuthMiddleware])
   .validator(input)
   .handler(async ({ context, data }) => {
     const { getSql } = await import("./db");
@@ -22,7 +22,7 @@ export const sendInvitationEmail = createServerFn({ method: "POST" })
     return { status: sent.accepted ? "accepted" : queued.status, skipped: sent.skipped };
   });
 export const checkInvitationDelivery = createServerFn({ method: "POST" })
-  .middleware([authMiddleware])
+  .middleware([operationalAuthMiddleware])
   .validator(input)
   .handler(async ({ context, data }) => {
     const { getSql } = await import("./db");

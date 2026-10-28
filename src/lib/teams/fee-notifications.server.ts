@@ -96,12 +96,13 @@ async function candidates(tx: Sql, actor: string, filter: Filter = {}): Promise<
       if (!rows.length) continue;
       const invites = await tx<{
         email: string;
+        team_id: string | null;
         role: string;
         family_id: string;
         invited_by: string;
         accepted_by: string | null;
         status: string;
-      }>`select distinct email,role,family_id,invited_by,accepted_by,status from club_invites where family_id=${p.familyId} and role='parent' and ((status='pending' and expires_at>now() and (team_id is null or team_id='' or team_id=${t.id})) or status='accepted')`;
+      }>`select distinct email,team_id,role,family_id,invited_by,accepted_by,status from club_invites where family_id=${p.familyId} and role='parent' and ((status='pending' and expires_at>now() and (team_id is null or team_id='' or team_id=${t.id})) or status='accepted')`;
       const emails = new Set<string>();
       for (const invite of invites) {
         const email = invite.email.trim().toLowerCase();

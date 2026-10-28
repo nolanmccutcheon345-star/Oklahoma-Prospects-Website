@@ -1,3 +1,4 @@
+import { feeExplanationIssues } from "./fee-explanation";
 import { isIndependent, independentDraft, independentIssues } from "./independent-model";
 import { calendarBillableMonths, serviceMonths } from "./season-months";
 import {
@@ -42,6 +43,23 @@ export function publicationCostIssues(
   return issues;
 }
 export const offersPO = (b: FeeBudget, sport: string) => b.poEnabled ?? sport === "baseball";
+/** Fee publication uses the priced baseline, not an exploratory roster or business-profit review. */
+export function publicationHealth(
+  b: FeeBudget,
+  options: Omit<
+    NonNullable<Parameters<typeof feeHealth>[1]>,
+    "full" | "po" | "overheadReviewed"
+  > = {},
+) {
+  const health = feeHealth(b, { ...options, full: b.baseline, po: 0, overheadReviewed: true });
+  const pending = [...health.pending, ...feeExplanationIssues(b.parentExplanation)];
+  return {
+    ...health,
+    pending,
+    ready: health.ready && !pending.length,
+    status: pending.length && health.status !== "UNDERFUNDED" ? "INCOMPLETE" : health.status,
+  };
+}
 export function pendingGas(b: FeeBudget): FeeBudget {
   if (isIndependent(b)) return independentDraft(b);
   b = {
