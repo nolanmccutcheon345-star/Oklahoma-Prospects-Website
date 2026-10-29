@@ -296,6 +296,78 @@ try {
   assert.equal(plan.payload.independentAdmin.planning.uniformPerPlayer, 18000);
   assert.equal((await h.sql`select id from team_collection_authorizations`).length, 0);
   assert.equal((await h.sql`select id from commerce_orders`).length, 0);
+  // Split fields are isolated to a selected individual offer, never a team save.
+  await page.getByText("Admin · Prospects billing terms", { exact: true }).click();
+  await settings
+    .getByText("Late enrollment, amendment or designated payer", { exact: true })
+    .click();
+  const individual = settings
+    .locator("details")
+    .filter({
+      has: page
+        .locator("summary")
+        .filter({ hasText: "Late enrollment, amendment or designated payer" }),
+    })
+    .first();
+  await individual.getByLabel("Player", { exact: true }).selectOption("base-player");
+  await individual
+    .getByLabel("Designated verified payer", { exact: true })
+    .selectOption("guardian");
+  await individual
+    .getByLabel("Split this player's initial deposit into two payments", { exact: true })
+    .check();
+  await individual.getByLabel("First deposit payment ($)", { exact: true }).fill("125");
+  await individual.getByLabel("First deposit payment due", { exact: true }).fill("2098-01-01");
+  await individual.getByLabel("Second deposit payment due", { exact: true }).fill("2098-01-15");
+  await individual
+    .getByLabel("Reason and treatment of existing obligations", { exact: true })
+    .fill("Owner-approved synthetic two-payment accommodation");
+  await individual.getByText("Preview individual parent agreement", { exact: true }).click();
+  assert.match(await individual.innerText(), /Initial deposit — payment 2 of 2/);
+  await page.setViewportSize({ width: 375, height: 900 });
+  assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1));
+  await individual.getByRole("button", { name: "Publish individual offer", exact: true }).click();
+  await page
+    .getByText(
+      "Individual offer published. Acceptance and new autopay authorization are required.",
+      { exact: true },
+    )
+    .waitFor();
+  const [splitPlan] = await h.sql`select payload from team_fee_plans where team_id='base'`;
+  assert.equal(splitPlan.payload.publishedBudget.independent.depositInstallments, undefined);
+  assert.deepEqual(
+    splitPlan.payload.players["base-player"].independent.offer.budget.independent.depositInstallments,
+    [
+      { amount: 12500, due: "2098-01-01" },
+      { amount: 12500, due: "2098-01-15" },
+    ],
+  );
+  assert.equal((await h.sql`select id from commerce_orders`).length, 0);
+  // Restore a single-deposit individual offer for the unchanged legacy journey below.
+  await page.getByText("Admin · Prospects billing terms", { exact: true }).click();
+  await settings
+    .getByText("Late enrollment, amendment or designated payer", { exact: true })
+    .click();
+  await individual.getByLabel("Player", { exact: true }).selectOption("base-player");
+  await individual
+    .getByLabel("Designated verified payer", { exact: true })
+    .selectOption("guardian");
+  assert.equal(
+    await individual
+      .getByLabel("Split this player's initial deposit into two payments", { exact: true })
+      .isChecked(),
+    false,
+  );
+  await individual
+    .getByLabel("Reason and treatment of existing obligations", { exact: true })
+    .fill("Restore synthetic legacy single-deposit offer before acceptance");
+  await individual.getByRole("button", { name: "Publish individual offer", exact: true }).click();
+  await page
+    .getByText(
+      "Individual offer published. Acceptance and new autopay authorization are required.",
+      { exact: true },
+    )
+    .waitFor();
   const guardian = await signedIn("guardian", 375),
     family = guardian.page;
   await family.getByRole("heading", { name: "Payments to Prospects", exact: true }).waitFor();
@@ -452,6 +524,7 @@ try {
           "pricing baseline, expected roster, selected and custom expenses",
           "flat deposit and uniform unit cost through 13 players",
           "finite $750 per-player schedule",
+          "individual split deposit preview and publication without changing team terms",
           "guardian acceptance without collection",
           "coach obligation/payment/allocation",
           "owner read-only UI",

@@ -61,6 +61,22 @@ export function revisedIndependentSchedule(
     available -= allocated;
     return allocated > 0 || row.due <= today;
   });
+  const oldDeposits = old.filter((r) => r.kind === "uniform");
+  const nextDeposits = next.filter((r) => r.kind === "uniform");
+  const depositIdentityChanged =
+    JSON.stringify(oldDeposits.map((r) => r.id)) !== JSON.stringify(nextDeposits.map((r) => r.id));
+  const splitDepositChanged =
+    (oldDeposits.length > 1 || nextDeposits.length > 1) &&
+    JSON.stringify(oldDeposits.map((r) => [r.id, r.due, r.base, r.amount])) !==
+      JSON.stringify(nextDeposits.map((r) => [r.id, r.due, r.base, r.amount]));
+  if (
+    oldDeposits.length &&
+    (depositIdentityChanged || splitDepositChanged) &&
+    protectedRows.some((r) => r.kind === "uniform")
+  )
+    throw Error(
+      "A paid or accrued deposit cannot be replaced with a split schedule. Preserve its obligations and request financial review.",
+    );
   const ids = new Set(protectedRows.map((r) => r.id));
   return [...protectedRows, ...next.filter((r) => !ids.has(r.id))].sort(
     (a, b) =>
@@ -70,16 +86,31 @@ export function revisedIndependentSchedule(
   );
 }
 
-export function independentAcceptancePreview(plan: FeePlan, player: Player, today: string) {
+export function independentAcceptancePreview(
+  plan: FeePlan,
+  player: Player,
+  today: string,
+  strict = false,
+) {
   const previous = plan.players[player.id]?.independent,
     budget = previous?.offer?.budget || plan.publishedBudget;
+  if (player.feeLock && !previous?.offer) return null;
   if (!budget || !plan.published || !isIndependent(budget)) return null;
-  const rows = revisedIndependentSchedule(
-    previous?.installments || [],
-    independentSchedule(budget),
-    received(player),
-    today,
-  );
+  let rows: IndependentInstallment[];
+  try {
+    rows = revisedIndependentSchedule(
+      previous?.installments || [],
+      independentSchedule(budget),
+      received(player),
+      today,
+    );
+  } catch (error) {
+    // A payment or due-date transition can invalidate an outstanding amendment.
+    // Keep read projections and the accepted payment history available, but never
+    // fall back to a different offer or let the guardian accept a blank schedule.
+    if (strict) throw error;
+    return null;
+  }
   const policy = independentPublishedPolicy(budget, rows);
   const digest = createHash("sha256")
     .update(
@@ -148,6 +179,10 @@ export async function mutateIndependentProspects(
       previous.budget.independent.seasonKey !== input.budget.independent?.seasonKey
     )
       throw Error("The season identity cannot change. Establish a new season explicitly.");
+    if (input.budget.independent?.depositInstallments)
+      throw Error(
+        "Split deposits are individual offers only; team-wide terms must keep a single deposit.",
+      );
     plan.budget = budgetSchema.parse(independentDraft(input.budget));
     if (input.action === "save") {
       if (JSON.stringify(input.expenses) !== JSON.stringify(plan.expenses))
@@ -162,6 +197,8 @@ export async function mutateIndependentProspects(
     plan.independentAdmin = input.adminBudget;
   }
   if (input.action === "publish" || input.action === "publishIndependent") {
+    if (plan.budget.independent?.depositInstallments)
+      throw Error("Split deposits are individual offers only.");
     const b = validatedBudget(plan.budget, today),
       rows = independentSchedule(b);
     plan.budget = b;
@@ -204,6 +241,14 @@ export async function mutateIndependentProspects(
     };
     if (independent.cancellation)
       throw Error("A withdrawn agreement cannot be reactivated by publishing another offer.");
+    // Validate against accepted identities before publishing, and again at acceptance
+    // to handle a payment or due-date transition while the offer is open.
+    revisedIndependentSchedule(
+      independent.installments,
+      independentSchedule(b),
+      received(player),
+      today,
+    );
     independent.offer = {
       budget: b,
       reason: input.reason,
@@ -231,7 +276,11 @@ export async function mutateIndependentProspects(
     if (offer && offer.payerUserId !== actor.userId)
       throw Error("The designated payer must accept this offer.");
     const b = validatedBudget(offer?.budget || plan.publishedBudget, today, false);
-    const preview = independentAcceptancePreview(plan, player, today)!;
+    const preview = independentAcceptancePreview(plan, player, today, true);
+    if (!preview)
+      throw Error(
+        "This offer is no longer available. Ask Prospects to review the individual schedule.",
+      );
     if (input.independentOfferDigest !== preview.digest)
       throw Error(
         "The displayed offer or payment allocations changed. Reload and review before accepting.",
@@ -280,7 +329,7 @@ export async function mutateIndependentProspects(
       components: { season: total(rows) / 100 },
     };
     player.planLock = {
-      dep: (rows.find((r) => r.kind === "uniform")?.amount || 0) / 100,
+      dep: rows.filter((r) => r.kind === "uniform").reduce((sum, r) => sum + r.amount, 0) / 100,
       deadline: b.independent!.lastDue,
       planType: "custom",
       rows: rows.map((r) => ({ date: r.due, amount: r.amount / 100, label: r.label })),
@@ -383,7 +432,9 @@ export async function mutateIndependentProspects(
           label: r.label,
         }));
         player.planLock.dep =
-          (independent.installments.find((r) => r.kind === "uniform")?.amount || 0) / 100;
+          independent.installments
+            .filter((r) => r.kind === "uniform")
+            .reduce((sum, r) => sum + r.amount, 0) / 100;
       }
     }
     if (input.action === "independentSeasonCancel")
