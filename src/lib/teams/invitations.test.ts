@@ -1,3 +1,4 @@
+import { approveSyntheticNotices } from "../notifications/release-control.test-fixture";
 import test from "node:test";
 import assert from "node:assert/strict";
 import { enrollmentFixture } from "../enrollment/test-fixture";
@@ -40,6 +41,7 @@ test("team invitation access is scoped, persistent, idempotent, revocable and in
       sends++;
       return new Response(JSON.stringify({ id: "synthetic-message" }));
     };
+    await approveSyntheticNotices(sql, "invitation", env, [invite.id]);
     await deliverInvitationEmails(sql, env, send, invite.id);
     await deliverInvitationEmails(sql, env, send, invite.id);
     assert.equal(sends, 1);
@@ -67,6 +69,7 @@ test("team invitation access is scoped, persistent, idempotent, revocable and in
       invited_by: string;
     }>`select * from club_invites where id=${soft.id}`;
     assert.equal(await invitationIssuerAuthorized(sql, stored), true);
+    await approveSyntheticNotices(sql, "invitation", env, [soft.id]);
     await sql`update coordinator_assignments set permissions=array['enrollment.read','contacts.read'] where user_id='coordinator'`;
     assert.equal(await invitationIssuerAuthorized(sql, stored), false);
     await deliverInvitationEmails(sql, env, send, soft.id);

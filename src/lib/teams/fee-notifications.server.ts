@@ -1,3 +1,7 @@
+import {
+  noticeReleaseAllowed,
+  releaseUnsubmittedNoticeClaim,
+} from "../notifications/release-control.server";
 import { feeEmailReadiness } from "./launch-readiness";
 import { createHash, randomUUID } from "node:crypto";
 import type { Sql } from "../db";
@@ -224,7 +228,12 @@ async function stillEligible(tx: Sql, row: Delivery) {
     })
   ).some((c) => c.id === row.id);
 }
-export async function deliverFeeReadyEmails(sql: Sql, env: Env, send: typeof fetch = fetch) {
+export async function deliverFeeReadyEmails(
+  sql: Sql,
+  env: Env,
+  send: typeof fetch = fetch,
+  onlyIds?: string[],
+) {
   if (
     !env.RESEND_API_KEY ||
     !(env.RESEND_FROM_EMAIL || env.EMAIL_FROM) ||
@@ -233,10 +242,11 @@ export async function deliverFeeReadyEmails(sql: Sql, env: Env, send: typeof fet
     return { accepted: 0, failed: 0, skipped: true };
   const rows = await sql<{
     id: string;
-  }>`select id from fee_ready_notifications where (status='queued' and next_attempt_at<=now()) or (status='processing' and lease_until<now()) order by requested_at limit 2`;
+  }>`select id from fee_ready_notifications where exists(select 1 from notice_release_approvals a where a.queue='fee' and a.source_id=id and a.approved) and (${onlyIds || null}::text[] is null or id=any(${onlyIds || null}::text[])) and ((status='queued' and next_attempt_at<=now()) or (status='processing' and lease_until<now())) order by requested_at limit 2`;
   let accepted = 0,
     failed = 0;
   for (const item of rows) {
+    if (!(await noticeReleaseAllowed(sql, "fee", item.id, env))) continue;
     const lease = randomUUID();
     const claimed = await sql.transaction(async (tx) => {
       await lockFinancialExecution(tx);
@@ -281,6 +291,10 @@ export async function deliverFeeReadyEmails(sql: Sql, env: Env, send: typeof fet
       continue;
     }
     try {
+      if (!(await noticeReleaseAllowed(sql, "fee", claimed.id, env, claimed.body))) {
+        await releaseUnsubmittedNoticeClaim(sql, "fee", claimed.id, lease);
+        continue;
+      }
       const response = await send("https://api.resend.com/emails", {
         method: "POST",
         headers: {

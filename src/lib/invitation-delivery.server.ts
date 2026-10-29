@@ -1,3 +1,7 @@
+import {
+  noticeReleaseAllowed,
+  releaseUnsubmittedNoticeClaim,
+} from "./notifications/release-control.server";
 import { randomUUID } from "node:crypto";
 import type { Sql } from "./db";
 import { authEmailAllowed } from "./auth/email.server";
@@ -76,7 +80,7 @@ export async function queueInvitationEmail(sql: Sql, actor: string, id: string) 
     return { status: row.status };
   });
 }
-function emailBody(invite: Invite, env: Env): Body {
+export function invitationEmailBody(invite: Invite, env: Env): Body {
   const origin =
     env.SQUARE_DEPLOY_CONTEXT === "production" && (!env.CONTEXT || env.CONTEXT === "production")
       ? "https://prospectssports.club"
@@ -104,11 +108,12 @@ export async function deliverInvitationEmails(
     return { accepted: 0, failed: 0, skipped: true };
   const candidates = await sql<{
     invitation_id: string;
-  }>`select invitation_id from invitation_delivery where (${onlyId || null}::text is null or invitation_id=${onlyId || null}) and
+  }>`select invitation_id from invitation_delivery where exists(select 1 from notice_release_approvals a where a.queue='invitation' and a.source_id=invitation_id and a.approved) and (${onlyId || null}::text is null or invitation_id=${onlyId || null}) and
     ((status='pending' and next_attempt_at<=now()) or (status='processing' and lease_until<now())) order by requested_at limit 2`;
   let accepted = 0,
     failed = 0;
   for (const candidate of candidates) {
+    if (!(await noticeReleaseAllowed(sql, "invitation", candidate.invitation_id, env))) continue;
     const lease = randomUUID();
     const claimed = await sql.transaction(async (tx) => {
       const [row] = await tx<{
@@ -137,7 +142,7 @@ export async function deliverInvitationEmails(
         await tx`update invitation_delivery set status='review',lease_token=null,lease_until=null where invitation_id=${invite.id}`;
         return null;
       }
-      const body = row.request_body || emailBody(invite, env);
+      const body = row.request_body || invitationEmailBody(invite, env);
       await tx`update invitation_delivery set status='processing',lease_token=${lease},lease_until=now()+interval '2 minutes',attempts=attempts+1,
         first_attempt_at=coalesce(first_attempt_at,now()),request_body=${JSON.stringify(body)}::jsonb where invitation_id=${invite.id}`;
       return { invite, body };
@@ -151,6 +156,10 @@ export async function deliverInvitationEmails(
       continue;
     }
     try {
+      if (!(await noticeReleaseAllowed(sql, "invitation", claimed.invite.id, env, claimed.body))) {
+        await releaseUnsubmittedNoticeClaim(sql, "invitation", claimed.invite.id, lease);
+        continue;
+      }
       const response = await send("https://api.resend.com/emails", {
         method: "POST",
         headers: {
