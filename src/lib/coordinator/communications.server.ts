@@ -1,3 +1,4 @@
+import { noticeReleaseAllowed } from "../notifications/release-control.server";
 import { createHash, randomUUID } from "node:crypto";
 import type { z } from "zod";
 import type { Sql } from "../db";
@@ -202,11 +203,15 @@ export async function decideTeamNotice(
   await tx`update coordinator_team_notices set status=${approved ? "queued" : "cancelled"},reviewer_id=${reviewer},revision=revision+1 where id=${id}`;
 }
 /** Internal scheduled executor. No network operation; publishing and archive/audit commit together. */
-export async function deliverTeamNotices(sql: Sql, onlyId?: string) {
+export async function deliverTeamNotices(
+  sql: Sql,
+  onlyId?: string,
+  immediate?: { actorId: string; previewDigest: string },
+) {
   const due = await sql<{
     id: string;
     actor_id: string;
-  }>`select id,actor_id from coordinator_team_notices where status='queued' and send_at<=now() and (${onlyId || null}::uuid is null or id=${onlyId || null}::uuid) order by send_at,id limit 30`;
+  }>`select id,actor_id from coordinator_team_notices where (exists(select 1 from notice_release_approvals a where a.queue='team' and a.source_id=id::text and a.approved) or (${Boolean(immediate && onlyId)} and actor_id=${immediate?.actorId || null} and preview_digest=${immediate?.previewDigest || null})) and status='queued' and send_at<=now() and (${onlyId || null}::uuid is null or id=${onlyId || null}::uuid) order by send_at,id limit 30`;
   let sent = 0,
     blocked = 0;
   for (const d of due) {
@@ -215,6 +220,16 @@ export async function deliverTeamNotices(sql: Sql, onlyId?: string) {
         const [n] =
           await tx<Notice>`select * from coordinator_team_notices where id=${d.id} and status='queued' and send_at<=now() for update skip locked`;
         if (!n) return false;
+        const explicitlyConfirmed = Boolean(
+          onlyId &&
+          immediate &&
+          n.id === onlyId &&
+          n.actor_id === immediate.actorId &&
+          n.kind === "team" &&
+          n.preview_digest === immediate.previewDigest,
+        );
+        if (!explicitlyConfirmed && !(await noticeReleaseAllowed(tx, "team", n.id, {})))
+          return false;
         const p = await prepare(tx, n.actor_id, n.proposal);
         if (p.previewDigest !== n.preview_digest)
           throw Error("Current recipients or event no longer match confirmation.");
@@ -414,6 +429,7 @@ export async function sendImmediateTeamMessage(
       if (
         prior.actor_id !== actor ||
         prior.kind !== "team" ||
+        prior.proposal.reason !== "Sender confirmed the team conversation recipients" ||
         prior.proposal.body !== input.body ||
         prior.team_ids.length !== 1 ||
         prior.team_ids[0] !== team.id
@@ -438,7 +454,7 @@ export async function sendImmediateTeamMessage(
     previewDigest: preview.previewDigest,
     confirm: true,
   });
-  await deliverTeamNotices(sql, input.id);
+  await deliverTeamNotices(sql, input.id, { actorId: actor, previewDigest: preview.previewDigest });
   const [n] = await sql<{
     status: string;
   }>`select status from coordinator_team_notices where id=${input.id}`;

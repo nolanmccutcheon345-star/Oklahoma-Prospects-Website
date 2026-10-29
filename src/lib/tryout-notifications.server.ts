@@ -1,3 +1,7 @@
+import {
+  noticeReleaseAllowed,
+  releaseUnsubmittedNoticeClaim,
+} from "./notifications/release-control.server";
 import { formatClockTime } from "./time-display";
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
@@ -20,7 +24,7 @@ export function tryoutEmailAllowed(to: string, env: Env) {
     authEmailAllowed(to, { ...env, AUTH_EMAIL_TEST_RECIPIENTS: env.TRYOUT_EMAIL_TEST_RECIPIENTS })
   );
 }
-function emailBody(kind: string, payload: unknown, from: string) {
+export function emailBody(kind: string, payload: unknown, from: string) {
   const p = payloadSchema.parse(payload);
   const subject =
     kind === "cancelled"
@@ -50,6 +54,7 @@ export async function deliverTryoutNotifications(
   env: Env,
   send: typeof fetch = fetch,
   maxAttempts = 2,
+  onlyIds?: string[],
 ) {
   if (
     env.TRYOUT_NOTIFICATIONS_ENABLED !== "true" ||
@@ -70,9 +75,10 @@ export async function deliverTryoutNotifications(
   const candidates = await sql<{
     id: string;
     payload: { email?: string };
-  }>`select id,payload from tryout_notification_outbox where (status='pending' and next_attempt_at<=now()) or (status='processing' and lease_until<now()) order by created_at,id limit 20`;
+  }>`select id,payload from tryout_notification_outbox where exists(select 1 from notice_release_approvals a where a.queue='tryout' and a.source_id=id::text and a.approved) and (${onlyIds || null}::text[] is null or id::text=any(${onlyIds || null}::text[])) and ((status='pending' and next_attempt_at<=now()) or (status='processing' and lease_until<now())) order by created_at,id limit 20`;
   for (const candidate of candidates) {
     if (accepted + failed >= maxAttempts) break;
+    if (!(await noticeReleaseAllowed(sql, "tryout", candidate.id, env))) continue;
     if (!candidate.payload.email || !tryoutEmailAllowed(candidate.payload.email, env)) continue;
     const lease = randomUUID();
     const notice = await sql.transaction(async (tx) => {
@@ -107,6 +113,10 @@ export async function deliverTryoutNotifications(
       continue;
     }
     try {
+      if (!(await noticeReleaseAllowed(sql, "tryout", notice.id, env, notice.body))) {
+        await releaseUnsubmittedNoticeClaim(sql, "tryout", notice.id, lease);
+        continue;
+      }
       const response = await send("https://api.resend.com/emails", {
         method: "POST",
         headers: {

@@ -93,6 +93,7 @@ for (const inherited of [false, true])
         people: [{ userId: "parent", name: "Example Parent", role: "parent" }],
       };
       const mocks = {
+        "@/lib/notifications/release-control-api": `export const getNoticeReleaseAudit=async()=>{throw Error("Unexpected audit")};export const approveNoticeRelease=async()=>{throw Error("Unexpected approval")};export const holdNoticeRelease=async()=>{throw Error("Unexpected hold")};export const dispatchNoticeRelease=async()=>{throw Error("Unexpected dispatch")};`,
         "@/lib/teams/fee-notifications-api": `export const getFeeNotifications=async()=>({enabled:false,rows:[],preview:[]});export const refreshFeeDelivery=async()=>{throw Error("Unexpected delivery check")};export const sendFeeCatchup=async()=>{throw Error("Unexpected catch-up email")};`,
         "@/lib/teams/independent-api": `export const getIndependentWorkspace=async()=>({spaces:[],availableTeams:[],admin:false});export const changeIndependentTeam=async()=>{throw Error("Unexpected independent mutation")};export const downloadIndependentDocument=async()=>{throw Error("Unexpected receipt access")};export const exportIndependentStatement=async()=>{throw Error("Unexpected financial export")};export const findIndependentManager=async()=>{throw Error("Unexpected manager lookup")};`,
         "@/lib/teams/invitation-api": `export const getTeamInvitations=async()=>({name:"Synthetic team",published:false,players:[]});export const createTeamInvitation=async()=>{throw Error("Unexpected invitation")};`,

@@ -1,3 +1,4 @@
+import { approveSyntheticNotices } from "./notifications/release-control.test-fixture";
 import test from "node:test";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
@@ -345,6 +346,9 @@ test("email worker: isolated recipient allowlist, immutable retry, provider acce
       0,
     );
     assert.equal(attempts, 0);
+    assert.equal((await deliverCenterNotifications(sql, env, fake)).accepted, 0);
+    assert.equal(attempts, 0, "New messages require separate exact owner release");
+    await approveSyntheticNotices(sql, "center", env, [msg.actionId]);
     assert.equal((await deliverCenterNotifications(sql, env, fake)).failed, 1);
     await sql`update tryout_center_notices set next_attempt_at=now() where id=${msg.actionId}`;
     assert.equal(
@@ -367,6 +371,7 @@ test("email worker: isolated recipient allowlist, immutable retry, provider acce
       actionId: randomUUID(),
       body: "Different synthetic message",
     });
+    await approveSyntheticNotices(sql, "center", env);
     await sql`update tryout_center_notices set first_attempt_at=now()-interval '24 hours',attempts=2 where status='pending'`;
     await deliverCenterNotifications(sql, env, fake);
     assert.equal(attempts, 2);
