@@ -137,6 +137,7 @@ function Waiver() {
             <label>
               Athlete
               <select
+                aria-label="Athlete"
                 name="athlete"
                 value={selected}
                 onChange={(e) => {
@@ -236,7 +237,7 @@ function Waiver() {
                 ))}
                 <label>
                   Participant
-                  <select name="participantType" required defaultValue="">
+                  <select aria-label="Participant" name="participantType" required defaultValue="">
                     <option value="">Choose participant type</option>
                     <option value="minor">Minor (under 18)</option>
                     <option value="adult">Adult (18 or older)</option>
@@ -244,7 +245,12 @@ function Waiver() {
                 </label>
                 <label>
                   Relationship to participant
-                  <select name="relationship" required defaultValue="">
+                  <select
+                    aria-label="Relationship to participant"
+                    name="relationship"
+                    required
+                    defaultValue=""
+                  >
                     <option value="">Choose relationship</option>
                     <option value="parent">Parent</option>
                     <option value="legal-guardian">Legal guardian</option>

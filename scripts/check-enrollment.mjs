@@ -537,7 +537,7 @@ try {
     1,
   );
   await coach.page.goto(origin + "/coach");
-  await coach.page.getByRole("heading", { name: "Operational checklist", exact: true }).waitFor();
+  await coach.page.getByText("Operational checklist", { exact: true }).waitFor();
   await coach.page.getByText("Edit roster details", { exact: true }).first().click();
   const position = coach.page.getByLabel("Positions (comma separated)", { exact: true }).first();
   await position.fill("P,SS");
