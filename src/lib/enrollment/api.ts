@@ -36,3 +36,15 @@ export const saveStandards = createServerFn({ method: "POST" })
     const { saveTeamStandards } = await import("./handbooks.server");
     return saveTeamStandards(await getSql(), context.userId, data);
   });
+export const getTeamWaiverReadiness = createServerFn({ method: "GET" })
+  .middleware([operationalAuthMiddleware])
+  .validator((data: { teamId: string }) => {
+    if (!data || typeof data.teamId !== "string" || !data.teamId || data.teamId.length > 200)
+      throw Error("Choose a team.");
+    return { teamId: data.teamId };
+  })
+  .handler(async ({ context, data }) => {
+    const { getSql } = await import("../db");
+    const { teamWaiverReadiness } = await import("./athlete-link.server");
+    return teamWaiverReadiness(await getSql(), context.userId, data.teamId);
+  });

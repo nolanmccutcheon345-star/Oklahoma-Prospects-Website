@@ -27,6 +27,8 @@ let socket,
 const shots = "artifacts/enrollment";
 await mkdir(shots, { recursive: true });
 try {
+  for (const team of h.club.teams) for (const player of team.roster) player.teamId = team.id;
+  await h.sql`update club_state set payload=${JSON.stringify(h.club)}::jsonb where id='oklahoma-prospects'`;
   await prepareOrganization(h.sql);
   const inviteId = randomUUID();
   await h.sql`insert into club_invites(id,token_hash,email,role,family_id,team_id,invited_by,expires_at) values(${inviteId},${inviteId},'guardian@example.invalid','parent','home-guardian','base','owner',now()+interval '7 days')`;
@@ -64,6 +66,11 @@ try {
   for (const teamId of ["base", "soft"]) {
     await enrollmentCase(h.sql, "guardian", { teamId, playerId: teamId + "-player" });
     await h.sql`insert into team_activities(id,team_id,payload,updated_by) values(${randomUUID()},${teamId},${JSON.stringify({ kind: "practice", title: "Synthetic practice", date: "2026-01-01", startTime: "15:00", status: "scheduled" })}::jsonb,'owner')`;
+  }
+  // Real saved athletes and explicit recruiting links, with no development link or pre-seeded waiver.
+  for (const teamId of ["base", "soft"]) {
+    await h.sql`insert into club_athletes(id,user_id,household_email,name,birth_date) values(${teamId + "-athlete"},'guardian','guardian@example.invalid',${"Synthetic " + teamId + " athlete"},'2014-02-01')`;
+    await h.sql`insert into recruiting_roster_links(athlete_id,team_id,roster_id,linked_by) values(${teamId + "-athlete"},${teamId},${teamId + "-player"},'owner')`;
   }
   const password = randomUUID() + "Aa9!",
     hashed = await hashPassword(password);
@@ -184,6 +191,37 @@ try {
       ).includes(`playerId=${teamId}-player`),
       "The guide follows the selected athlete without showing the previous player's steps",
     );
+    await p.getByRole("link", { name: "Review or sign annual waiver", exact: true }).click();
+    await p
+      .getByLabel("Athlete", { exact: true })
+      .locator('option[value="' + teamId + '-athlete"]')
+      .waitFor({ state: "attached" });
+    assert.equal(await p.getByLabel("Athlete", { exact: true }).inputValue(), teamId + "-athlete");
+    await p.getByLabel("Responsible adult name", { exact: true }).fill("Synthetic Guardian");
+    await p.getByLabel("Adult mobile", { exact: true }).fill("555-010-1212");
+    await p.getByLabel("Emergency contact", { exact: true }).fill("Synthetic Emergency");
+    await p.getByLabel("Emergency phone", { exact: true }).fill("555-010-3434");
+    await p
+      .getByLabel("Electronic signature (full legal name)", { exact: true })
+      .fill("Synthetic Guardian");
+    await p.getByLabel("Participant", { exact: true }).selectOption("minor");
+    await p.getByLabel("Relationship to participant", { exact: true }).selectOption("parent");
+    for (const checkbox of await p.locator('form input[type="checkbox"]').all())
+      await checkbox.check();
+    await p.getByRole("button", { name: "Sign the annual waiver", exact: true }).click();
+    await p.getByText(/Your signed waiver is saved/).waitFor();
+    assert.equal(
+      (await h.sql`select id from club_waivers where athlete_id=${teamId + "-athlete"}`).length,
+      1,
+    );
+    await p.reload();
+    await p.getByText(/A current waiver is already on file/).waitFor();
+    assert.equal(
+      await p.getByRole("button", { name: "Sign the annual waiver", exact: true }).count(),
+      0,
+    );
+    await p.getByRole("link", { name: "Return to player enrollment", exact: true }).click();
+    await p.getByRole("link", { name: "Review saved annual waiver", exact: true }).waitFor();
     await p.getByRole("button", { name: "Sign this packet", exact: true }).waitFor();
     await p.getByRole("link", { name: "View memberships", exact: true }).waitFor();
     assert.match(await p.locator("body").innerText(), /full published price/);
@@ -223,6 +261,11 @@ try {
     .waitFor();
   assert.equal((await h.sql`select * from square_payments`).length, 0);
   assert.equal((await h.sql`select * from team_collection_authorizations`).length, 0);
+  assert.equal(
+    new URL(p.url()).searchParams.get("playerId"),
+    "base-player",
+    "Switching players updates the saved page context",
+  );
   await p.reload();
   await p
     .getByText("Review and accept your player's fee agreement — Complete", { exact: true })
@@ -251,6 +294,13 @@ try {
     "375px layout must fit",
   );
   await p.screenshot({ path: shots + "/guardian-mobile.png", fullPage: false });
+  const returningGuardian = await signedIn("guardian", 390);
+  await returningGuardian.page.getByLabel("Athlete and season").selectOption("base:base-player");
+  await returningGuardian.page
+    .getByRole("link", { name: "Review saved annual waiver", exact: true })
+    .waitFor();
+  assert.equal((await h.sql`select id from club_waivers`).length, 2);
+  assert.equal((await h.sql`select id from team_dev_roster_links`).length, 0);
   const coach = await signedIn("coach", 1280);
   await coach.page.getByLabel("Athlete and season").selectOption("base:base-player");
   await coach.page
@@ -266,6 +316,11 @@ try {
       .count(),
     0,
   );
+  await coach.page
+    .getByText("Your current annual facility waiver is on file. No new signature is needed.", {
+      exact: true,
+    })
+    .waitFor();
   assert.ok(!coach.bodies.join("").includes("PRIVATE-MEDICAL-CANARY"));
   const coordinator = await signedIn("coordinator", 390);
   await coordinator.page.getByLabel("Athlete and season").selectOption("soft:soft-player");
@@ -486,9 +541,31 @@ try {
     ).length,
     1,
   );
+  await coach.page.goto(origin + "/coach");
+  await coach.page.getByText("Operational checklist", { exact: true }).waitFor();
+  await coach.page.getByText("Edit roster details", { exact: true }).first().click();
+  const position = coach.page.getByLabel("Positions (comma separated)", { exact: true }).first();
+  const newPositions = (await position.inputValue()) === "P,2B" ? "P,SS" : "P,2B";
+  await position.fill(newPositions);
+  await coach.page.getByText("You have unsaved coach changes.", { exact: true }).waitFor();
+  await coach.page
+    .getByRole("button", { name: "Save roster details", exact: true })
+    .first()
+    .click();
+  await coach.page.getByText("Coach changes saved.", { exact: true }).waitFor();
+  await coach.page.reload();
+  await coach.page.getByText("Edit roster details", { exact: true }).first().click();
+  assert.equal(
+    await coach.page
+      .getByLabel("Positions (comma separated)", { exact: true })
+      .first()
+      .inputValue(),
+    newPositions,
+  );
+  await coach.page.getByText(/Annual waiver: On file/).waitFor();
   assert.deepEqual(errors, []);
   console.log(
-    "PASS: real compiled guardian signatures for baseball and softball, optional-media independence, medical privacy, assigned-coach scope, scoped coordinator attendance, draft save/reload, reviewed fee publication, scoped invitation queueing and mobile layouts. Synthetic providers only; no live pilot certified.",
+    "PASS: real compiled annual waiver save, reload, fresh-session and coach status; guardian signatures for baseball and softball, optional-media independence, medical privacy, assigned-coach scope, scoped coordinator attendance, draft save/reload, reviewed fee publication, scoped invitation queueing and mobile layouts. Synthetic providers only; no live pilot certified.",
   );
 } catch (error) {
   console.error("Browser errors:", errors);
