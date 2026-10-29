@@ -545,7 +545,8 @@ try {
   await coach.page.getByText("Operational checklist", { exact: true }).waitFor();
   await coach.page.getByText("Edit roster details", { exact: true }).first().click();
   const position = coach.page.getByLabel("Positions (comma separated)", { exact: true }).first();
-  await position.fill("P,SS");
+  const newPositions = (await position.inputValue()) === "P,2B" ? "P,SS" : "P,2B";
+  await position.fill(newPositions);
   await coach.page.getByText("You have unsaved coach changes.", { exact: true }).waitFor();
   await coach.page
     .getByRole("button", { name: "Save roster details", exact: true })
@@ -559,7 +560,7 @@ try {
       .getByLabel("Positions (comma separated)", { exact: true })
       .first()
       .inputValue(),
-    "P,SS",
+    newPositions,
   );
   await coach.page.getByText(/Annual waiver: On file/).waitFor();
   assert.deepEqual(errors, []);

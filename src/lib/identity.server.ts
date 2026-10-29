@@ -71,10 +71,8 @@ export async function resolveIdentity(sql: Sql, userId: string) {
   const teamPayload =
     typeof teamRecord?.payload === "string" ? JSON.parse(teamRecord.payload) : teamRecord?.payload;
   const coachEligible = await coachNotDeactivated(sql, userId, email);
-  if (role === "coach" && !coachEligible) role = "parent";
   const canTeamCoach = Boolean(
     coachEligible &&
-    role !== "player" &&
     teamRecord &&
     !teamRecord.demo &&
     teamPayload?.teams?.some(

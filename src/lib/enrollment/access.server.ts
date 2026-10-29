@@ -43,8 +43,7 @@ export async function enrollmentScope(tx: Sql, actor: string) {
       coalesce((select jsonb_agg(jsonb_build_object('id',p->>'id','familyId',p->>'familyId')) from jsonb_array_elements(coalesce(t->'roster','[]')) p where coalesce(p->>'withdrawn','false')<>'true'),'[]') as roster
     from club_state c cross join lateral jsonb_array_elements(c.payload->'teams') t
     where c.id='oklahoma-prospects' and not c.demo and coalesce(t->>'closed','false')<>'true' and t->>'sport' in ('baseball','softball') for share of c`;
-  const coachEligible =
-    !restricted && profile?.role !== "player" && (await coachNotDeactivated(tx, actor, user.email));
+  const coachEligible = !restricted && (await coachNotDeactivated(tx, actor, user.email));
   const teams: EnrollmentTeam[] = rows
     .map((t) => {
       const coach = coachEligible && t.coach === true;
