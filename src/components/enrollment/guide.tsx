@@ -73,6 +73,7 @@ export function ParentEnrollmentGuide({
       <a className="inline-flex min-h-11 items-center underline" href="/family">
         Open payment history and receipts
       </a>
+      <a className="inline-flex min-h-11 items-center font-semibold underline" href="/team-hub">Open Team Hub for announcements, schedules and coach messages</a>
       {error && (
         <p role="alert">
           Progress could not be verified: {error} Use the invited email and verify your account.{" "}
