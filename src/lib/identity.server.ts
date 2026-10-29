@@ -1,3 +1,4 @@
+import { coachNotDeactivated } from "./teams/coach-status.server";
 import { getSql, type Sql } from "./db";
 import { randomUUID } from "node:crypto";
 import type { ClubRole } from "./club-data";
@@ -58,19 +59,29 @@ export async function resolveIdentity(sql: Sql, userId: string) {
   }>`select exists(select 1 from club_staff s join club_staff_services o on o.staff_id=s.id where s.active=true and (s.user_id=${userId} or (s.user_id='' and lower(trim(s.email))=${email}))) as assigned`;
   const canInstruct = person?.instructor === true || Boolean(staffAssignment?.assigned);
   const [teamRecord] = await sql<{
-    payload: { teams?: { closed?: boolean; coachEmail?: string; staff?: { email?: string }[] }[] };
+    payload: {
+      teams?: {
+        closed?: boolean;
+        coachEmail?: string;
+        staff?: { email?: string; role?: string }[];
+      }[];
+    };
     demo: boolean;
   }>`select payload,demo from club_state where id='oklahoma-prospects'`;
   const teamPayload =
     typeof teamRecord?.payload === "string" ? JSON.parse(teamRecord.payload) : teamRecord?.payload;
+  const coachEligible = await coachNotDeactivated(sql, userId, email);
   const canTeamCoach = Boolean(
+    coachEligible &&
     teamRecord &&
     !teamRecord.demo &&
     teamPayload?.teams?.some(
-      (t: { closed?: boolean; coachEmail?: string; staff?: { email?: string }[] }) =>
+      (t: { closed?: boolean; coachEmail?: string; staff?: { email?: string; role?: string }[] }) =>
         !t.closed &&
         (t.coachEmail?.trim().toLowerCase() === email ||
-          t.staff?.some((s) => s.email?.trim().toLowerCase() === email)),
+          t.staff?.some(
+            (s) => /coach/i.test(s.role || "") && s.email?.trim().toLowerCase() === email,
+          )),
     ),
   );
   const guardians = await sql<{
@@ -104,6 +115,7 @@ export async function resolveIdentity(sql: Sql, userId: string) {
   return {
     canInstruct,
     canTeamCoach,
+    coachInactive: !coachEligible,
     playerIds: playerLinks.map((p) => p.player_id),
     guardianHouseholdIds: guardians.map((g) => g.id),
     userId,

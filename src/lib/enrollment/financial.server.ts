@@ -1,3 +1,4 @@
+import { rosterWaiver } from "./athlete-link.server";
 import type { Sql } from "../db";
 import {
   withFinancialContext,
@@ -102,20 +103,14 @@ export async function clearEnrollment(sql: Sql, actor: string, raw: unknown) {
     const [medical] = await tx`select case_id from enrollment_medical where case_id=${c.row.id}`;
     const [concussion] =
       await tx`select id from enrollment_concussion_acknowledgments where case_id=${c.row.id} and acknowledged_at<=now() and acknowledged_at+interval '1 year'>now() limit 1`;
-    const links = await tx<{
-      athlete_id: string;
-    }>`select athlete_id from team_dev_roster_links where team_id=${i.teamId} and roster_player_id=${i.playerId} and ended_at is null`;
-    const [waiver] =
-      links.length === 1
-        ? await tx`select id from club_waivers where athlete_id=${links[0].athlete_id} and signed_at<=now() and signed_at+interval '1 year'>now() limit 1`
-        : [];
+    const waiver = await rosterWaiver(tx, i.teamId, i.playerId);
     if (
       !c.pilot.signaturesOpen ||
       !packet.ready ||
       !signed ||
       !medical ||
       !concussion ||
-      !waiver ||
+      !waiver.current ||
       !status.agreementSigned ||
       !status.collectionReady ||
       !status.depositSatisfied
