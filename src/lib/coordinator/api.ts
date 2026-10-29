@@ -560,7 +560,7 @@ import {
   rosterInformationInput,
 } from "./roster-contracts";
 export const getRosterEligibilityReview = createServerFn({ method: "POST" })
-  .middleware([coordinatorAuthMiddleware])
+  .middleware([authMiddleware])
   .validator(rosterCandidateInput)
   .handler(async ({ context, data }) => {
     const { getSql } = await import("../db");
@@ -571,7 +571,7 @@ export const getRosterEligibilityReview = createServerFn({ method: "POST" })
     );
   });
 export const approveRosterEligibility = createServerFn({ method: "POST" })
-  .middleware([coordinatorAuthMiddleware])
+  .middleware([authMiddleware])
   .validator(rosterClearanceInput)
   .handler(async ({ context, data }) => {
     const { getSql } = await import("../db");
@@ -582,7 +582,7 @@ export const approveRosterEligibility = createServerFn({ method: "POST" })
     );
   });
 export const revokeRosterEligibility = createServerFn({ method: "POST" })
-  .middleware([coordinatorAuthMiddleware])
+  .middleware([authMiddleware])
   .validator(rosterClearanceRevokeInput)
   .handler(async ({ context, data }) => {
     const { getSql } = await import("../db");
