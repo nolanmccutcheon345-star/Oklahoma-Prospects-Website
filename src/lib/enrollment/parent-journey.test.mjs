@@ -18,6 +18,7 @@ import {
   checkFeeDelivery,
 } from "../teams/fee-notifications.server.ts";
 import { enrollmentGuide } from "./guide.server.ts";
+import { approveSyntheticNotices } from "../notifications/release-control.test-fixture.ts";
 for (const key of [
   "DATABASE_URL",
   "NETLIFY_DATABASE_URL",
@@ -108,6 +109,10 @@ for (const order of ["invite-before-publish", "publish-before-player-and-invite"
           sent.push(JSON.parse(init.body));
           return new Response(JSON.stringify({ id: "synthetic-email" }));
         };
+        await deliverFeeReadyEmails(sql, env, stub);
+        assert.equal(sent.length, 0, "Published fees remain held until exact owner email approval");
+        assert.equal((await sql`select attempts from fee_ready_notifications`)[0].attempts, 0);
+        await approveSyntheticNotices(sql, "fee", env);
         await deliverFeeReadyEmails(sql, env, stub);
         await deliverFeeReadyEmails(sql, env, stub);
         assert.equal(sent.length, 1);
