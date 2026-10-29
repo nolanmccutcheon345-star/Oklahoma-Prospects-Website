@@ -261,6 +261,11 @@ try {
     .waitFor();
   assert.equal((await h.sql`select * from square_payments`).length, 0);
   assert.equal((await h.sql`select * from team_collection_authorizations`).length, 0);
+  assert.equal(
+    new URL(p.url()).searchParams.get("playerId"),
+    "base-player",
+    "Switching players updates the saved page context",
+  );
   await p.reload();
   await p
     .getByText("Review and accept your player's fee agreement — Complete", { exact: true })

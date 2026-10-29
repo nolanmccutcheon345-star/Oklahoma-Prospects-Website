@@ -19,7 +19,12 @@ const text = (f: FormData, k: string) => String(f.get(k) || "");
 export function EnrollmentWorkspace({
   initialTeamId,
   initialPlayerId,
-}: { initialTeamId?: string; initialPlayerId?: string } = {}) {
+  onSelectionChange,
+}: {
+  initialTeamId?: string;
+  initialPlayerId?: string;
+  onSelectionChange?: (teamId?: string, playerId?: string) => void;
+} = {}) {
   const [home, setHome] = useState<Home>(),
     [selected, setSelected] = useState(
       initialTeamId && initialPlayerId ? initialTeamId + ":" + initialPlayerId : "",
@@ -28,6 +33,9 @@ export function EnrollmentWorkspace({
     [error, setError] = useState(""),
     [notice, setNotice] = useState(""),
     [busy, setBusy] = useState(false);
+  useEffect(() => {
+    setSelected(initialTeamId && initialPlayerId ? initialTeamId + ":" + initialPlayerId : "");
+  }, [initialTeamId, initialPlayerId]);
   const loadHome = () => api.getEnrollmentHome().then(setHome);
   useEffect(() => {
     loadHome().catch((e) => setError(e.message));
@@ -116,7 +124,15 @@ export function EnrollmentWorkspace({
             <select
               className={enrollmentField}
               value={selected}
-              onChange={(e) => setSelected(e.target.value)}
+              disabled={busy}
+              onChange={(e) => {
+                setSelected(e.target.value);
+                setNotice("");
+                const player = home.candidates.find(
+                  (p) => p.teamId + ":" + p.playerId === e.target.value,
+                );
+                onSelectionChange?.(player?.teamId, player?.playerId);
+              }}
             >
               <option value="">Choose an athlete</option>
               {home.candidates.map((p) => (

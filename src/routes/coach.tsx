@@ -1,7 +1,7 @@
 import { MyFinance } from "@/components/finance/my-finance";
 import { money } from "@/components/teams/ui";
 import { pageHead } from "@/lib/seo";
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useBlocker } from "@tanstack/react-router";
 import { useEffect, useState, useRef } from "react";
 import { RedirectToSignIn } from "@/lib/auth/gates";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
@@ -45,16 +45,12 @@ function CoachPage() {
     [saved, setSaved] = useState(false),
     [dirty, setDirty] = useState(false);
   const inFlight = useRef(false);
-  useEffect(() => {
-    const warn = (e: BeforeUnloadEvent) => {
-      if (dirty || inFlight.current) {
-        e.preventDefault();
-        e.returnValue = "";
-      }
-    };
-    window.addEventListener("beforeunload", warn);
-    return () => window.removeEventListener("beforeunload", warn);
-  }, [dirty]);
+  useBlocker({
+    shouldBlockFn: () =>
+      (dirty || inFlight.current) &&
+      !window.confirm("You have unsaved coach changes. Leave this page?"),
+    enableBeforeUnload: () => dirty || inFlight.current,
+  });
 
   useEffect(() => {
     getTeamsClub()
