@@ -2,6 +2,7 @@ import { TeamFundingNotice } from "@/components/teams/team-funding-notice";
 import { PublishedTeamFees } from "@/components/teams/published-team-fees";
 import { createFileRoute, Outlet, useRouterState } from "@tanstack/react-router";
 import { PublicTeamRoster } from "@/components/public-team-roster";
+import { StaffTeamRoster } from "@/components/teams/staff-team-roster";
 import { CLUB } from "@/lib/club";
 export const Route = createFileRoute("/teams/$teamId")({
   head: () => ({
@@ -24,6 +25,7 @@ function Page() {
         All teams
       </a>
       <div className="mx-auto max-w-3xl px-5">
+        <StaffTeamRoster teamId={teamId} />
         <PublishedTeamFees key={teamId} teamId={teamId} />
         <TeamFundingNotice teamId={teamId} />
       </div>

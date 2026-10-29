@@ -149,7 +149,8 @@ export function PublicTeamRoster({
                 </p>
                 <h4 className="mt-5 text-xl">Team stats</h4>
                 <StatsTable stats={t.stats} />
-                <h4 className="mt-5 text-xl">Roster</h4>
+                <h4 className="mt-5 text-xl">Public roster</h4>
+                <p className="mt-2 text-sm">Only players with current signed public-roster consent appear here. This is not the full private team roster.</p>
                 {!statsAccess && (
                   <p className="mt-2 text-sm">
                     Individual stats are available to signed-in players, parents and coaches on this
@@ -176,7 +177,7 @@ export function PublicTeamRoster({
                     </li>
                   ))}
                 </ul>
-                {!t.players.length && <p>No players rostered yet.</p>}
+                {!t.players.length && <p>No players are currently listed publicly.</p>}
               </>
             ) : (
               <>
