@@ -195,9 +195,29 @@ try {
   console.log(
     "PASS Team Hub: mobile layout, real sign-in, persistent acknowledgments and family messages, attendance, coach updates, and unlinked-account guidance.",
   );
+} catch (error) {
+  console.error(error);
+  for (const [index, context] of (browser?.contexts() || []).entries())
+    for (const page of context.pages())
+      await page
+        .screenshot({ path: shots + "/failure-" + index + ".png", fullPage: true })
+        .catch(() => {});
+  throw error;
 } finally {
+  await queue.catch(() => {});
+  for (const context of browser?.contexts() || [])
+    await context.unrouteAll({ behavior: "ignoreErrors" });
   await browser?.close();
-  await queue;
-  await socket?.stop();
+  if (socket) {
+    const deadline = Date.now() + 15000;
+    while (socket.getStats().activeConnections && Date.now() < deadline)
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    assert.equal(
+      socket.getStats().activeConnections,
+      0,
+      "Synthetic database clients must drain before closing",
+    );
+    await socket.stop();
+  }
   await h.db.close();
 }

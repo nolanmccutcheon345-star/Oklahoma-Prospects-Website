@@ -516,28 +516,29 @@ export function TeamHubWorkspace() {
             </Tabs.Content>
             <Tabs.Content value="messages" className="hub-tab-panel">
               <div className="hub-card hub-chat">
-                <label>
+                <label htmlFor="hub-conversation">
                   <b>Conversation</b>
-                  <select
-                    style={{ marginTop: 8 }}
-                    disabled={busy}
-                    value={playerId || ""}
-                    onChange={(e) => {
-                      setMessage("");
-                      messageRequest.current = null;
-                      setPlayerId(e.target.value || null);
-                    }}
-                  >
-                    <option value="">Team conversation</option>
-                    {hub.players
-                      .filter((p) => p.canChat)
-                      .map((p) => (
-                        <option key={p.id} value={p.id}>
-                          {p.name} · Family & coaches
-                        </option>
-                      ))}
-                  </select>
                 </label>
+                <select
+                  id="hub-conversation"
+                  style={{ marginTop: 8 }}
+                  disabled={busy}
+                  value={playerId || ""}
+                  onChange={(e) => {
+                    setMessage("");
+                    messageRequest.current = null;
+                    setPlayerId(e.target.value || null);
+                  }}
+                >
+                  <option value="">Team conversation</option>
+                  {hub.players
+                    .filter((p) => p.canChat)
+                    .map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.name} · Family & coaches
+                      </option>
+                    ))}
+                </select>
                 <p className="hub-status">
                   {playerId
                     ? "Private to this player’s linked parents, assigned coaches and the front office."
