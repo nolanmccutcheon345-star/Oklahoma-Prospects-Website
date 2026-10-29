@@ -1,3 +1,4 @@
+import { approveSyntheticNotices } from "../notifications/release-control.test-fixture";
 import { issueTeamInvitation } from "./invitations.server";
 import test from "node:test";
 import assert from "node:assert/strict";
@@ -204,6 +205,9 @@ test("new notices are deduplicated across republication and roster saves; retrie
         status: calls.length === 1 ? 500 : 200,
       });
     };
+    assert.equal((await deliverFeeReadyEmails(sql, env, send)).accepted, 0);
+    assert.equal(calls.length, 0, "Publishing fees never authorizes email delivery");
+    await approveSyntheticNotices(sql, "fee", env);
     assert.equal((await deliverFeeReadyEmails(sql, env, send)).failed, 1);
     await sql`update fee_ready_notifications set next_attempt_at=now()`;
     assert.equal(
@@ -254,6 +258,7 @@ test("new notices are deduplicated across republication and roster saves; retrie
       club.teams[0].roster.push(p);
     });
     assert.equal((await sql`select * from fee_ready_notifications`).length, 2);
+    await approveSyntheticNotices(sql, "fee", env);
     await sql`update fee_ready_notifications set first_attempt_at=now()-interval '24 hours',attempts=1 where player_id='late-player'`;
     await deliverFeeReadyEmails(sql, env, send);
     assert.equal(calls.length, 2);
@@ -315,6 +320,7 @@ test("catch-up requires an owner-reviewed current preview; drafts and historical
     });
     await assert.rejects(queueFeeCatchup(sql, "owner", [preview.preview[0].id]), /changed/);
     let sent = 0;
+    await approveSyntheticNotices(sql, "fee", env);
     await deliverFeeReadyEmails(sql, env, async (_url, init) => {
       sent++;
       assert.match(String(init?.body), /710.00/);
@@ -381,6 +387,7 @@ for (const change of [
         budget: b,
         confirmed: true,
       });
+      await approveSyntheticNotices(sql, "fee", env);
       if (change === "expired")
         await sql`update club_invites set expires_at=now()-interval '1 second' where id=${id}`;
       if (change === "revoked") await sql`update club_invites set status='revoked' where id=${id}`;
@@ -406,7 +413,8 @@ for (const change of [
       assert.equal(result.failed, 0);
       assert.equal(
         (await sql<{ status: string }>`select status from fee_ready_notifications`)[0].status,
-        "superseded",
+        change === "issuer-revoked" ? "queued" : "superseded",
+        "Revoked release authority holds the row without transport; stale family eligibility is superseded",
       );
     } finally {
       await db.close();
@@ -432,6 +440,7 @@ test("pending team invitations retain issuer scope in fee notices and revoked st
       (await sql`select id from fee_ready_notifications where team_id='base'`).length,
       1,
     );
+    await approveSyntheticNotices(sql, "fee", env);
     club.teams[0].coachEmail = "othercoach@example.invalid";
     await sql`update club_state set payload=${JSON.stringify(club)}::jsonb where id='oklahoma-prospects'`;
     let sends = 0;
@@ -457,6 +466,7 @@ test("pending team invitations retain issuer scope in fee notices and revoked st
       (await sql`select id from fee_ready_notifications where team_id='soft'`).length,
       1,
     );
+    await approveSyntheticNotices(sql, "fee", env);
     await sql`update coordinator_assignments set permissions=array['enrollment.read','contacts.read'] where user_id='coordinator'`;
     await deliverFeeReadyEmails(sql, env, async () => {
       sends++;

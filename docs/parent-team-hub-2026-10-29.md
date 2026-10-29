@@ -6,7 +6,7 @@ The approved stadium design is now an authenticated `/team-hub` route in the exi
 
 Send the existing roster invitation to its listed guardian, using the existing reviewed email workflow. The invitation now includes the production Team Hub link and the steps to verify the invited email and accept access. Account, enrollment guidance, and invitation acceptance also link to the hub. A new account or tryout inquiry alone never grants team access. An unlinked account gets invitation/setup/help links rather than sample records.
 
-This change does not send an email, drain a queue, enable scheduled delivery, or replace the owner review controls being developed in PR #251. Existing provider request snapshots remain unchanged. Availability of outbound invitations is separate from the hub release.
+This change does not send an email, drain a queue, enable scheduled delivery, or replace the owner review controls released in PR #251. Reviewed invitation snapshots include the current Team Hub wording; existing provider request snapshots remain unchanged. Availability of outbound invitations is separate from the hub release.
 
 ## Behavior
 
