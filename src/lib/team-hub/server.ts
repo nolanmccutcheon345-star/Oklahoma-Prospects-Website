@@ -58,7 +58,7 @@ async function postsFor(tx: Sql, team: Team) {
     urgent: boolean;
     author: string;
     at: string;
-  }>`select id::text as key,title,body,urgent,author,created_at::text as at from team_hub_posts where team_id=${team.id} order by created_at desc limit 100`;
+  }>`select id::text as key,title,body,urgent,author,to_char(created_at at time zone 'UTC','YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') as at from team_hub_posts where team_id=${team.id} order by created_at desc limit 100`;
   const legacy = (team.announcements || []).map((p) => ({
     key: `legacy:${p.id}:${createHash("sha256")
       .update(JSON.stringify([p.title, p.body, p.arrive, p.uniform, p.hotel]))
@@ -143,14 +143,14 @@ export async function readHub(sql: Sql, actor: string, raw: unknown = {}) {
           body: string;
           at: string;
           mine: boolean;
-        }>`select id::text,author,body,created_at::text as at,author_id=${actor} as mine from (select * from team_hub_family_messages where team_id=${selected} and player_id=${playerId} and family_id=${familyId} order by created_at desc limit 100) m order by created_at,id`
+        }>`select id::text,author,body,to_char(created_at at time zone 'UTC','YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') as at,author_id=${actor} as mine from (select * from team_hub_family_messages where team_id=${selected} and player_id=${playerId} and family_id=${familyId} order by created_at desc limit 100) m order by created_at,id`
       : await tx<{
           id: string;
           author: string;
           body: string;
           at: string;
           mine: boolean;
-        }>`select id::text,author,body,created_at::text as at,user_id=${actor} as mine from (select m.* from team_chat_messages m where team_id=${selected} and (not exists(select 1 from coordinator_notice_messages n where n.message_id=m.id) or exists(select 1 from coordinator_notice_messages n where n.message_id=m.id and ${actor}=any(n.recipient_ids)) or ${access.owner}) order by created_at desc limit 100) m order by created_at,id`;
+        }>`select id::text,author,body,to_char(created_at at time zone 'UTC','YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') as at,user_id=${actor} as mine from (select m.* from team_chat_messages m where team_id=${selected} and (not exists(select 1 from coordinator_notice_messages n where n.message_id=m.id) or exists(select 1 from coordinator_notice_messages n where n.message_id=m.id and ${actor}=any(n.recipient_ids)) or ${access.owner}) order by created_at desc limit 100) m order by created_at,id`;
     return {
       me: identity,
       teams,

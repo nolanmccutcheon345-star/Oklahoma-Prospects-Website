@@ -125,6 +125,18 @@ test("live Team Hub persists scoped communication without financial or contact r
       1,
       "Existing team chat is reused",
     );
+    // The browser receives standard UTC timestamps, regardless of the database session zone.
+    await sql`update team_hub_posts set created_at='2026-10-29 12:34:56.123+00' where id=${post.requestId}`;
+    await sql`update team_hub_family_messages set created_at='2026-10-29 12:34:56.123+00' where id=${privateMessage.requestId}`;
+    await sql`update team_chat_messages set created_at='2026-10-29 12:34:56.123+00' where id=${group.requestId}`;
+    await sql`set time zone 'America/Chicago'`;
+    const datedTeam = (await readHub(sql, "guardian", { teamId: "base" })).workspace!;
+    const datedFamily = (
+      await readHub(sql, "guardian", { teamId: "base", playerId: "base-player" })
+    ).workspace!;
+    assert.equal(datedTeam.posts[0].at, "2026-10-29T12:34:56.123Z");
+    assert.equal(datedTeam.messages[0].at, "2026-10-29T12:34:56.123Z");
+    assert.equal(datedFamily.messages[0].at, "2026-10-29T12:34:56.123Z");
     const rsvp = {
       kind: "rsvp" as const,
       teamId: "base",
