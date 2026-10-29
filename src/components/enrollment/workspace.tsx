@@ -398,12 +398,19 @@ function CaseWorkspace({
         <h3 className="text-xl">Annual waiver</h3>
         <p>
           {s.athleteLinked
-            ? "Use your existing annual facility waiver."
-            : "The office must link this roster athlete to the existing athlete record before waiver status can be verified."}
+            ? s.waiverCurrent
+              ? "Your current annual facility waiver is on file. No new signature is needed."
+              : "Sign the annual facility waiver for your linked athlete."
+            : "Prospects must verify this roster athlete’s existing record before waiver status can be confirmed. Do not add a duplicate athlete or sign again to fix a missing link."}
         </p>
-        <a href="/waiver" className="inline-flex min-h-11 items-center underline">
-          Review or sign annual waiver
-        </a>
+        {s.guardian && s.athleteId && (
+          <a
+            href={`/waiver?${new URLSearchParams({ ...ids, athleteId: s.athleteId })}`}
+            className="inline-flex min-h-11 items-center underline"
+          >
+            {s.waiverCurrent ? "Review saved annual waiver" : "Review or sign annual waiver"}
+          </a>
+        )}
       </section>
       {data.canViewFinancial && (
         <section

@@ -24,7 +24,7 @@ export async function devScope(userId: string): Promise<DevScope> {
   `;
   const club = !row?.demo ? clubPayload(row) : null;
   const coachTeamIds = new Set<string>();
-  if (club) {
+  if (club && me.canTeamCoach) {
     for (const team of club.teams)
       if (!team.closed && coachHoldsTeam(club,me.email,team.id)) coachTeamIds.add(team.id);
   }

@@ -43,16 +43,52 @@ export async function addAthlete(userId:string,input:z.infer<typeof athleteInput
  return {id};
 }
 export async function myWaivers(userId:string){const me=await clubIdentity(userId);const sql=await getSql();return sql<{id:string;athlete_id:string;athlete_name:string;signer_name:string;signed_at:Date;expires_at:Date}>`select w.id,w.athlete_id,a.name as athlete_name,w.signer_name,w.signed_at,w.signed_at+interval '1 year' as expires_at from club_waivers w join club_athletes a on a.id=w.athlete_id where a.household_id=any(${me.billingHouseholdIds}::text[]) and w.signed_at<=now() and w.signed_at+interval '1 year'>now() order by signed_at desc`;}
-export async function signWaiver(userId:string,input:z.infer<typeof waiverInput>){
- input=waiverInput.parse(input);
- const me=await clubIdentity(userId);const sql=await getSql();const [athlete]=await sql<{id:string;name:string;birth_date:string}>`select id,name,birth_date from club_athletes where id=${input.athleteId} and household_id=any(${me.billingHouseholdIds}::text[])`;
- if(!athlete)throw new Error('Choose an athlete in your household.');
- validateWaiverSigner(athlete.birth_date,input.participantType,input.relationship);
- if(input.participantType==='adult' && (input.signerName.trim().toLowerCase()!==athlete.name.trim().toLowerCase() || me.name.trim().toLowerCase()!==athlete.name.trim().toLowerCase()))throw new Error('Adult athletes must sign in to their own account to sign.');
- const details={...input,ipAddress:getRequest()?.headers.get('x-nf-client-connection-ip')||null};
- const version=`${WAIVER_VERSION}:${chicagoDate().slice(0,4)}`;
- await sql`insert into club_waivers(id,user_id,athlete_id,version,signer_name,consent_text,details) values(${randomUUID()},${userId},${input.athleteId},${version},${input.signerName},${WAIVER_TEXT},${JSON.stringify(details)}::jsonb) on conflict(athlete_id,version) do nothing`;
- return {ok:true};
+export async function signWaiver(userId: string, input: z.infer<typeof waiverInput>) {
+  input = waiverInput.parse(input);
+  const me = await clubIdentity(userId);
+  const sql = await getSql();
+  const [athlete] = await sql<{
+    id: string;
+    name: string;
+    birth_date: string;
+  }>`select id,name,birth_date from club_athletes where id=${input.athleteId} and household_id=any(${me.billingHouseholdIds}::text[])`;
+  if (!athlete) throw new Error("Choose an athlete in your household.");
+  validateWaiverSigner(athlete.birth_date, input.participantType, input.relationship);
+  if (
+    input.participantType === "adult" &&
+    (input.signerName.trim().toLowerCase() !== athlete.name.trim().toLowerCase() ||
+      me.name.trim().toLowerCase() !== athlete.name.trim().toLowerCase())
+  )
+    throw new Error("Adult athletes must sign in to their own account to sign.");
+  const details = {
+    ...input,
+    ipAddress: getRequest()?.headers.get("x-nf-client-connection-ip") || null,
+  };
+  const version = `${WAIVER_VERSION}:${chicagoDate().slice(0, 4)}`;
+  const inserted =
+    await sql`insert into club_waivers(id,user_id,athlete_id,version,signer_name,consent_text,details) values(${randomUUID()},${userId},${input.athleteId},${version},${input.signerName},${WAIVER_TEXT},${JSON.stringify(details)}::jsonb) on conflict(athlete_id,version) do nothing returning id`;
+  const [saved] = await sql<{
+    id: string;
+    signed_at: Date;
+    expires_at: Date;
+    details: Record<string, unknown>;
+  }>`select id,signed_at,signed_at+interval '1 year' as expires_at,details from club_waivers where athlete_id=${input.athleteId} and version=${version}`;
+  if (!saved) throw new Error("Could not confirm the saved waiver. Refresh before trying again.");
+  const same = Object.entries(input).every(([key, value]) => saved.details?.[key] === value);
+  return {
+    ok: true,
+    outcome: inserted.length
+      ? ("saved" as const)
+      : same
+        ? ("already-on-file" as const)
+        : ("amendment-required" as const),
+    receipt: {
+      id: saved.id,
+      athleteId: input.athleteId,
+      signedAt: saved.signed_at.toISOString(),
+      expiresAt: saved.expires_at.toISOString(),
+    },
+  };
 }
 export async function officeRequests(userId:string){
  const me=await clubIdentity(userId);if(me.role!=='admin')throw new Error('Front-office access required.');const sql=await getSql();

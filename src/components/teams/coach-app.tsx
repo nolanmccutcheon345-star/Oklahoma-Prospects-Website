@@ -1,21 +1,22 @@
+import { getTeamWaiverReadiness } from "@/lib/enrollment/api";
 import type { TeamFinancialView } from "@/lib/teams/financial-view";
 import { TournamentFinder } from "./tournament-finder";
-import {MyFinance} from "@/components/finance/my-finance";
+import { MyFinance } from "@/components/finance/my-finance";
 import { RosterRoleSelect } from "@/components/teams/roster-role-select";
 import type { RosterRole } from "@/lib/teams/po-roster";
 import { SelectedTeamUniform } from "./uniform-photos";
-import {TeamActivities} from "./team-activities";
+import { TeamActivities } from "./team-activities";
 import { formatClockTime } from "@/lib/time-display";
-import {PrivatePlayerBirthday} from '@/components/commerce/player-birthdays';
-import { useState } from "react";
+import { PrivatePlayerBirthday } from "@/components/commerce/player-birthdays";
+import { useState, useEffect } from "react";
 import { coachAddRosterPlayer, coachRemoveRosterPlayer } from "@/lib/teams/store";
 import { Link } from "@tanstack/react-router";
 import { Button } from "@/components/ui/button";
 import type { ClubRecord, Team } from "@/lib/teams/types";
-import { cleared, docsComplete, restDays } from "@/lib/teams/pricing";
+import { restDays } from "@/lib/teams/pricing";
 import { Chip, Section } from "./ui";
 import { money } from "./ui";
-import { TeamFeeWorkspace } from './fee-workspace';
+import { TeamFeeWorkspace } from "./fee-workspace";
 import { TeamDevelopmentCoachPanel } from "@/components/team-development/coach-panel";
 
 const FILTERS = ["all", "action", "unsigned", "sizes", "paperwork", "pitchers"] as const;
@@ -36,21 +37,72 @@ export function CoachApp({
   const [teamId, setTeamId] = useState(club.teams[0]?.id ?? "");
   const [filter, setFilter] = useState<(typeof FILTERS)[number]>("all");
   const [q, setQ] = useState("");
-  const [rosterError,setRosterError]=useState("");
-  const [rosterBusy,setRosterBusy]=useState(false);
+  const [rosterError, setRosterError] = useState("");
+  const [rosterBusy, setRosterBusy] = useState(false);
+  const [waiverState, setWaiverState] = useState<{
+    teamId: string;
+    rows: Awaited<ReturnType<typeof getTeamWaiverReadiness>>;
+    error: string;
+  }>();
+  useEffect(() => {
+    let current = true;
+    getTeamWaiverReadiness({ data: { teamId } })
+      .then((rows) => {
+        if (current) setWaiverState({ teamId, rows, error: "" });
+      })
+      .catch(() => {
+        if (current)
+          setWaiverState({
+            teamId,
+            rows: [],
+            error:
+              "Waiver status could not load. Open enrollment to refresh before requesting a new signature.",
+          });
+      });
+    return () => {
+      current = false;
+    };
+  }, [teamId, club._rev]);
+  const currentWaivers = waiverState?.teamId === teamId ? waiverState : undefined;
+  const docsComplete = (p: Team["roster"][number]) =>
+    Boolean(
+      currentWaivers?.rows.find((r) => r.playerId === p.id)?.waiverCurrent &&
+      p.docs.birthCert &&
+      p.docs.insurance &&
+      p.docs.physical,
+    );
   const team = club.teams.find((t) => t.id === teamId) ?? club.teams[0];
   if (!team) {
-    return <><MyFinance/><p>No teams assigned to this coach.</p>{financial?.staff.map(s=><p key={s.teamId+s.id}>{s.name} · {s.teamName} · monthly {money(s.monthly)} · applied to fees {money(s.applyAmount)}</p>)}</>;
+    return (
+      <>
+        <MyFinance />
+        <p>No teams assigned to this coach.</p>
+        {financial?.staff.map((s) => (
+          <p key={s.teamId + s.id}>
+            {s.name} · {s.teamName} · monthly {money(s.monthly)} · applied to fees{" "}
+            {money(s.applyAmount)}
+          </p>
+        ))}
+      </>
+    );
   }
 
-  const financialTeam=financial?.coachTeams.find(t=>t.teamId===team.id);
-  const signed=(p:Team["roster"][number])=>financial?Boolean(financialTeam?.readiness.find(r=>r.playerId===p.id)?.signed):Boolean(p.agreement.signedAt);
-  const depositPaid=(p:Team["roster"][number])=>financial?Boolean(financialTeam?.readiness.find(r=>r.playerId===p.id)?.depositPaid):p.depositPaid;
-  const isCleared=(p:Team["roster"][number])=>financial?signed(p)&&depositPaid(p)&&docsComplete(p):cleared(p);
-  const spent = financial ? financialTeam?.spent??0 : team.tournamentIds.reduce((sum, id) => {
-    const ev = club.catalog.find((e) => e.id === id);
-    return sum + (ev?.fee ?? 0);
-  }, 0);
+  const financialTeam = financial?.coachTeams.find((t) => t.teamId === team.id);
+  const signed = (p: Team["roster"][number]) =>
+    financial
+      ? Boolean(financialTeam?.readiness.find((r) => r.playerId === p.id)?.signed)
+      : Boolean(p.agreement.signedAt);
+  const depositPaid = (p: Team["roster"][number]) =>
+    financial
+      ? Boolean(financialTeam?.readiness.find((r) => r.playerId === p.id)?.depositPaid)
+      : p.depositPaid;
+  const isCleared = (p: Team["roster"][number]) => signed(p) && depositPaid(p) && docsComplete(p);
+  const spent = financial
+    ? (financialTeam?.spent ?? 0)
+    : team.tournamentIds.reduce((sum, id) => {
+        const ev = club.catalog.find((e) => e.id === id);
+        return sum + (ev?.fee ?? 0);
+      }, 0);
 
   const roster = team.roster.filter((p) => {
     if (q && !p.name.toLowerCase().includes(q.toLowerCase())) return false;
@@ -79,9 +131,7 @@ export function CoachApp({
           </Chip>
         ))}
       </div>
-      <p className="text-sm text-muted">
-        Roster {team.roster.length}/10 funding
-      </p>
+      <p className="text-sm text-muted">Roster {team.roster.length}/10 funding</p>
       <p className="text-xs text-muted">
         {team.eventBudget
           ? `${Math.round((spent / team.eventBudget) * 100)}% of budget`
@@ -96,45 +146,123 @@ export function CoachApp({
         </Button>
       </div>
 
-      <Section title="Readiness" defaultOpen count={team.roster.filter((p) => !isCleared(p)).length}>
+      <Section
+        title="Operational checklist"
+        defaultOpen
+        count={team.roster.filter((p) => !isCleared(p)).length}
+      >
+        <p className="mb-2 text-sm">
+          Annual waiver status comes from the saved signature. Other document checks are office
+          records. This checklist does not grant participation clearance; review Enrollment for the
+          current packet and owner clearance.
+        </p>
+        {!currentWaivers ? (
+          <p role="status">Checking saved waivers…</p>
+        ) : currentWaivers.error ? (
+          <p role="alert">{currentWaivers.error}</p>
+        ) : null}
         <ul className="grid gap-1 text-sm">
           <li>Unsigned: {team.roster.filter((p) => !signed(p)).length}</li>
           <li>Deposits outstanding: {team.roster.filter((p) => !depositPaid(p)).length}</li>
           <li>Sizes missing: {team.roster.filter((p) => !p.order.submitted).length}</li>
-          <li>Paperwork missing: {team.roster.filter((p) => !docsComplete(p)).length}</li>
           <li>
-            Pitchers on rest:{" "}
-            {team.pitchLog.filter((o) => restDays(o.pitches) > 0).length}
+            Paperwork incomplete or unverified: {team.roster.filter((p) => !docsComplete(p)).length}
           </li>
+          <li>Pitchers on rest: {team.pitchLog.filter((o) => restDays(o.pitches) > 0).length}</li>
         </ul>
       </Section>
 
-      <TournamentFinder key={team.id} club={club} financial={financial} teamId={team.id} onSave={onSave} />
+      <TournamentFinder
+        key={team.id}
+        club={club}
+        financial={financial}
+        teamId={team.id}
+        onSave={onSave}
+      />
 
-      <MyFinance/>
-      {!financial||financialTeam?<TeamFeeWorkspace teamId={team.id}/>:<p className="text-sm">Financial setup is required before this team can offer fees.</p>}
-      <TeamActivities key={team.id} teamId={team.id} onSaved={onReload}/>
-      <a href="/handbooks" className="inline-flex min-h-11 items-center underline">Team standards & handbook</a>
-      <a href="/enrollment" className="inline-flex min-h-11 items-center underline">Enrollment & season progress</a>
+      <MyFinance />
+      {!financial || financialTeam ? (
+        <TeamFeeWorkspace teamId={team.id} />
+      ) : (
+        <p className="text-sm">Financial setup is required before this team can offer fees.</p>
+      )}
+      <TeamActivities key={team.id} teamId={team.id} onSaved={onReload} />
+      <a href="/handbooks" className="inline-flex min-h-11 items-center underline">
+        Team standards & handbook
+      </a>
+      <a href="/enrollment" className="inline-flex min-h-11 items-center underline">
+        Enrollment & season progress
+      </a>
       <TeamDevelopmentCoachPanel club={club} />
 
       <Section title="Roster" count={roster.length} defaultOpen>
-        <p className="mb-3 text-sm">Manage players only on teams assigned to your signed-in coaching email. Billing records are protected.</p>
-        <form className="mb-4 grid gap-2 rounded-lg border p-3" onSubmit={async e => {
-          e.preventDefault(); const form=e.currentTarget;const fd=new FormData(form);
-          setRosterBusy(true);setRosterError("");
-          try {const row=await coachAddRosterPlayer({data:{teamId:team.id,rosterRole:String(fd.get("rosterRole")) as RosterRole,name:String(fd.get("name")),parentName:String(fd.get("parentName")),parentEmail:String(fd.get("parentEmail"))}});onChange(row.club);form.reset();}
-          catch(err){setRosterError(err instanceof Error?err.message:"Could not add player.");}
-          finally{setRosterBusy(false);}
-        }}>
+        <p className="mb-3 text-sm">
+          Manage players only on teams assigned to your signed-in coaching email. Billing records
+          are protected.
+        </p>
+        <form
+          className="mb-4 grid gap-2 rounded-lg border p-3"
+          onSubmit={async (e) => {
+            e.preventDefault();
+            const form = e.currentTarget;
+            const fd = new FormData(form);
+            setRosterBusy(true);
+            setRosterError("");
+            try {
+              const row = await coachAddRosterPlayer({
+                data: {
+                  teamId: team.id,
+                  rosterRole: String(fd.get("rosterRole")) as RosterRole,
+                  name: String(fd.get("name")),
+                  parentName: String(fd.get("parentName")),
+                  parentEmail: String(fd.get("parentEmail")),
+                },
+              });
+              onChange(row.club);
+              form.reset();
+            } catch (err) {
+              setRosterError(err instanceof Error ? err.message : "Could not add player.");
+            } finally {
+              setRosterBusy(false);
+            }
+          }}
+        >
           <h3 className="font-semibold">Add roster player</h3>
-          <input name="name" required maxLength={200} placeholder="Player name" aria-label="Player name" className="min-h-11 rounded-md border px-3"/>
-          <input name="parentName" required maxLength={200} placeholder="Guardian name" aria-label="Guardian name" className="min-h-11 rounded-md border px-3"/>
-          <input name="parentEmail" required type="email" maxLength={254} placeholder="Guardian email" aria-label="Guardian email" className="min-h-11 rounded-md border px-3"/>
-          <RosterRoleSelect teamId={team.id}/>
-          <Button type="submit" disabled={rosterBusy}>Add player to my team</Button>
+          <input
+            name="name"
+            required
+            maxLength={200}
+            placeholder="Player name"
+            aria-label="Player name"
+            className="min-h-11 rounded-md border px-3"
+          />
+          <input
+            name="parentName"
+            required
+            maxLength={200}
+            placeholder="Guardian name"
+            aria-label="Guardian name"
+            className="min-h-11 rounded-md border px-3"
+          />
+          <input
+            name="parentEmail"
+            required
+            type="email"
+            maxLength={254}
+            placeholder="Guardian email"
+            aria-label="Guardian email"
+            className="min-h-11 rounded-md border px-3"
+          />
+          <RosterRoleSelect teamId={team.id} />
+          <Button type="submit" disabled={rosterBusy}>
+            Add player to my team
+          </Button>
         </form>
-        {rosterError && <p role="alert" className="text-sm text-maroon">{rosterError}</p>}
+        {rosterError && (
+          <p role="alert" className="text-sm text-maroon">
+            {rosterError}
+          </p>
+        )}
         <input
           value={q}
           onChange={(e) => setQ(e.target.value)}
@@ -153,24 +281,112 @@ export function CoachApp({
             <li key={p.id}>
               <div className="flex min-h-11 items-center justify-between rounded-lg bg-paper px-3 py-2">
                 <span>
-                  <strong>#{p.number || "—"} {p.name}</strong>
+                  <strong>
+                    #{p.number || "—"} {p.name}
+                  </strong>
                   <span className="block text-xs text-muted">
-                    {p.positions.join("/")} · {p.withdrawn ? "Inactive roster record — financial history retained" : isCleared(p) ? "Cleared" : "Not cleared"}
+                    {p.positions.join("/")} ·{" "}
+                    {p.withdrawn
+                      ? "Inactive roster record — financial history retained"
+                      : isCleared(p)
+                        ? "Checklist complete — review enrollment clearance"
+                        : "Checklist needs review"}
                   </span>
                 </span>
-                <button type="button" disabled={rosterBusy||p.withdrawn} className="min-h-11 rounded border px-2 text-sm" onClick={async () => {
-                  if(!window.confirm(`Remove ${p.name} from the active roster for ${team.name}? Independent financial records and accepted obligations remain in place. Financial withdrawal requires a separate Front Office action.`))return;
-                  setRosterBusy(true);setRosterError("");
-                  try{const row=await coachRemoveRosterPlayer({data:{teamId:team.id,playerId:p.id}});onChange(row.club);}
-                  catch(err){setRosterError(err instanceof Error?err.message:"Could not remove player.");}
-                  finally{setRosterBusy(false);}
-                }}>Remove player</button>
+                <button
+                  type="button"
+                  disabled={rosterBusy || p.withdrawn}
+                  className="min-h-11 rounded border px-2 text-sm"
+                  onClick={async () => {
+                    if (
+                      !window.confirm(
+                        `Remove ${p.name} from the active roster for ${team.name}? Independent financial records and accepted obligations remain in place. Financial withdrawal requires a separate Front Office action.`,
+                      )
+                    )
+                      return;
+                    setRosterBusy(true);
+                    setRosterError("");
+                    try {
+                      const row = await coachRemoveRosterPlayer({
+                        data: { teamId: team.id, playerId: p.id },
+                      });
+                      onChange(row.club);
+                    } catch (err) {
+                      setRosterError(
+                        err instanceof Error ? err.message : "Could not remove player.",
+                      );
+                    } finally {
+                      setRosterBusy(false);
+                    }
+                  }}
+                >
+                  Remove player
+                </button>
               </div>
-              <details className="rounded border p-3"><summary className="min-h-11 cursor-pointer">Edit roster details</summary>
-                <div className="grid gap-2">{(['name','number','bats','throws'] as const).map(key=><label key={key}>{key}<input maxLength={key==='name'?200:12} className="office-control w-full" value={p[key]} onChange={e=>patchTeam({...team,roster:team.roster.map(x=>x.id===p.id?{...x,[key]:e.target.value}:x)})}/></label>)}
-                <label>Positions (comma separated)<input className="office-control w-full" maxLength={100} value={p.positions.join(',')} onChange={e=>patchTeam({...team,roster:team.roster.map(x=>x.id===p.id?{...x,positions:e.target.value.split(',').map(s=>s.trim()).filter(Boolean)}:x)})}/></label><Button onClick={() => void onSave()}>Save roster details</Button></div>
+              <details className="rounded border p-3">
+                <summary className="min-h-11 cursor-pointer">Edit roster details</summary>
+                <div className="grid gap-2">
+                  {(["name", "number", "bats", "throws"] as const).map((key) => (
+                    <label key={key}>
+                      {key}
+                      <input
+                        maxLength={key === "name" ? 200 : 12}
+                        className="office-control w-full"
+                        value={p[key]}
+                        onChange={(e) =>
+                          patchTeam({
+                            ...team,
+                            roster: team.roster.map((x) =>
+                              x.id === p.id ? { ...x, [key]: e.target.value } : x,
+                            ),
+                          })
+                        }
+                      />
+                    </label>
+                  ))}
+                  <label>
+                    Positions (comma separated)
+                    <input
+                      className="office-control w-full"
+                      maxLength={100}
+                      value={p.positions.join(",")}
+                      onChange={(e) =>
+                        patchTeam({
+                          ...team,
+                          roster: team.roster.map((x) =>
+                            x.id === p.id
+                              ? {
+                                  ...x,
+                                  positions: e.target.value
+                                    .split(",")
+                                    .map((s) => s.trim())
+                                    .filter(Boolean),
+                                }
+                              : x,
+                          ),
+                        })
+                      }
+                    />
+                  </label>
+                  <Button onClick={() => void onSave()}>Save roster details</Button>
+                </div>
               </details>
-              <PrivatePlayerBirthday athleteId={p.id}/>
+              <p className="text-sm">
+                Annual waiver:{" "}
+                {currentWaivers?.rows.find((r) => r.playerId === p.id)?.waiverCurrent
+                  ? "On file"
+                  : currentWaivers?.rows.find((r) => r.playerId === p.id)?.linkStatus === "linked"
+                    ? "Signature needed"
+                    : "Office link review or status refresh needed"}
+                .{" "}
+                <a
+                  className="inline-flex min-h-11 items-center underline"
+                  href={`/enrollment?${new URLSearchParams({ teamId: team.id, playerId: p.id })}`}
+                >
+                  Review enrollment
+                </a>
+              </p>
+              <PrivatePlayerBirthday athleteId={p.id} />
             </li>
           ))}
         </ul>
@@ -189,7 +405,8 @@ export function CoachApp({
             <div key={id} className="mb-3">
               <p className="font-semibold">{ev?.name}</p>
               <p className="text-sm text-muted">
-                Going {counts.going} · Maybe {counts.maybe} · Can't {counts.cant} · No RSVP {counts.none}
+                Going {counts.going} · Maybe {counts.maybe} · Can't {counts.cant} · No RSVP{" "}
+                {counts.none}
               </p>
             </div>
           );
@@ -198,8 +415,9 @@ export function CoachApp({
 
       <Section title="Uniforms">
         <SelectedTeamUniform teamId={team.id} />
-        <p className="text-sm text-muted">Select your team’s package in Coach budget selections above.</p>
-
+        <p className="text-sm text-muted">
+          Select your team’s package in Coach budget selections above.
+        </p>
       </Section>
 
       <Emergency team={team} />
@@ -244,7 +462,12 @@ export function CoachApp({
                 </option>
               ))}
           </select>
-          <input name="date" type="date" required className="min-h-11 rounded-md border border-line px-3" />
+          <input
+            name="date"
+            type="date"
+            required
+            className="min-h-11 rounded-md border border-line px-3"
+          />
           <input
             name="pitches"
             type="number"
@@ -263,29 +486,54 @@ export function CoachApp({
           {team.playerCageHoursPerWeek}.
         </p>
         <ul className="mt-2 grid gap-2">
-          {team.practices.filter(pr=>!/^[a-f0-9-]{36}$/.test(pr.id)).map((pr) => (
-            <li key={pr.id} className="rounded-lg bg-paper p-3">
-              {pr.date} {formatClockTime(pr.time)} · {pr.where} · {pr.cageHours}h · {pr.status}
-              {!/^[a-f0-9-]{36}$/.test(pr.id) && <details><summary>Edit existing practice</summary>{(['date','time','where'] as const).map(key=><label key={key}>{key}<input className="office-control w-full" type={key==='where'?'text':key} value={pr[key]} onChange={e=>patchTeam({...team,practices:team.practices.map(p=>p.id===pr.id?{...p,[key]:e.target.value}:p)})}/></label>)}<Button onClick={() => void onSave()}>Save practice</Button></details>}
-              <div className="mt-2 flex flex-wrap gap-1">
-                {(["delayed", "moved", "cancelled", "on"] as const).map((st) => (
-                  <Chip
-                    key={st}
-                    onClick={() =>
-                      patchTeam({
-                        ...team,
-                        practices: team.practices.map((x) =>
-                          x.id === pr.id ? { ...x, status: st } : x,
-                        ),
-                      })
-                    }
-                  >
-                    {st}
-                  </Chip>
-                ))}
-              </div>
-            </li>
-          ))}
+          {team.practices
+            .filter((pr) => !/^[a-f0-9-]{36}$/.test(pr.id))
+            .map((pr) => (
+              <li key={pr.id} className="rounded-lg bg-paper p-3">
+                {pr.date} {formatClockTime(pr.time)} · {pr.where} · {pr.cageHours}h · {pr.status}
+                {!/^[a-f0-9-]{36}$/.test(pr.id) && (
+                  <details>
+                    <summary>Edit existing practice</summary>
+                    {(["date", "time", "where"] as const).map((key) => (
+                      <label key={key}>
+                        {key}
+                        <input
+                          className="office-control w-full"
+                          type={key === "where" ? "text" : key}
+                          value={pr[key]}
+                          onChange={(e) =>
+                            patchTeam({
+                              ...team,
+                              practices: team.practices.map((p) =>
+                                p.id === pr.id ? { ...p, [key]: e.target.value } : p,
+                              ),
+                            })
+                          }
+                        />
+                      </label>
+                    ))}
+                    <Button onClick={() => void onSave()}>Save practice</Button>
+                  </details>
+                )}
+                <div className="mt-2 flex flex-wrap gap-1">
+                  {(["delayed", "moved", "cancelled", "on"] as const).map((st) => (
+                    <Chip
+                      key={st}
+                      onClick={() =>
+                        patchTeam({
+                          ...team,
+                          practices: team.practices.map((x) =>
+                            x.id === pr.id ? { ...x, status: st } : x,
+                          ),
+                        })
+                      }
+                    >
+                      {st}
+                    </Chip>
+                  ))}
+                </div>
+              </li>
+            ))}
         </ul>
       </Section>
 
@@ -323,13 +571,15 @@ export function CoachApp({
       </Section>
 
       <Section title="Pay election">
-        {(financial?financial.staff:team.staff).map((s) => (
+        {(financial ? financial.staff : team.staff).map((s) => (
           <div key={s.id} className="text-sm">
             <p>
               {s.name} · monthly {money(s.monthly)} · applied to fees {money(s.applyAmount)} · cash{" "}
               {money(Math.max(0, s.monthly - s.applyAmount))}
             </p>
-            {!s.w9 ? <p className="text-maroon">contractor record required before the first dollar.</p> : null}
+            {!s.w9 ? (
+              <p className="text-maroon">contractor record required before the first dollar.</p>
+            ) : null}
           </div>
         ))}
       </Section>
@@ -360,7 +610,9 @@ function Emergency({ team }: { team: Team }) {
           <p>Allergies: {p.emergency.allergies || "none listed"}</p>
           <p>Conditions: {p.emergency.conditions || "none listed"}</p>
           <p>Physician: {p.emergency.physician || "—"}</p>
-          <p>Insurance: {p.emergency.insurer} {p.emergency.policyNo}</p>
+          <p>
+            Insurance: {p.emergency.insurer} {p.emergency.policyNo}
+          </p>
           {p.parents.map((g) => (
             <p key={g.phone}>
               {g.name} ({g.rel}) · <a href={`tel:${g.phone}`}>{g.phone}</a>
