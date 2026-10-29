@@ -252,6 +252,7 @@ try {
     const ownerCookie = await login("stevemccutcheon89@gmail.com");
     const orgCookie = await login("operations@example.invalid");
     for (const [name, method, data] of [
+      ["getRosterEligibilityReview", "POST", { search: "" }],
       ["getCoordinatorRecoveryHistory", "POST", {}],
       ["getCoordinatorPrivacy", "GET"],
       ["getCoordinatorArchiveStatus", "GET"],
@@ -566,6 +567,31 @@ try {
     owner.page.on("dialog", (d) => d.accept());
     await owner.page.goto(origin + "/office?section=staff");
     await owner.page.getByRole("heading", { name: "Staff Management", exact: true }).waitFor();
+    // A verified owner does not need a coordinator assignment to review eligibility.
+    assert.equal(
+      (
+        await sql`select count(*)::int n from coordinator_assignments where user_id='fixture-owner'`
+      )[0].n,
+      0,
+    );
+    await owner.page.getByRole("button", { name: "Roster Eligibility", exact: true }).click();
+    await owner.page
+      .getByRole("heading", { name: "Roster Eligibility Review", exact: true })
+      .waitFor();
+    await owner.page.getByRole("button", { name: "Search / Refresh", exact: true }).waitFor();
+    await owner.page
+      .getByText("Up to 100 matching records. Refine the search for older records.", {
+        exact: true,
+      })
+      .waitFor();
+    await owner.page.reload();
+    await owner.page.getByRole("button", { name: "Roster Eligibility", exact: true }).click();
+    await owner.page
+      .getByText("Up to 100 matching records. Refine the search for older records.", {
+        exact: true,
+      })
+      .waitFor();
+    await owner.page.goto(origin + "/office?section=staff");
     await owner.page.screenshot({ path: shots + "/owner-before-selection.png", fullPage: true });
     await owner.page
       .getByLabel("Verified staff account", { exact: true })

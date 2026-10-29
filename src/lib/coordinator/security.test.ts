@@ -2722,6 +2722,16 @@ test("roster eligibility withdrawal and expiry block existing sessions without a
     await sql`update coordinator_roster_clearances set expires_at='2099-01-01' where id=${clearance.id}`;
     await sql`delete from staff_authorities where email='owner@example.invalid' and capability='staff_approvals.review'`;
     await assert.rejects(ops.addEligibleRosterAthlete(sql, "zero", add), /not authorized/);
+    // Owner transport does not replace the exact domain capability checks.
+    await assert.rejects(ops.ownerRosterEligibility(sql, "owner", { search: "" }));
+    await assert.rejects(ops.clearRosterEligibility(sql, "owner", clearance));
+    await assert.rejects(
+      ops.revokeRosterEligibility(sql, "owner", {
+        id: clearance.id,
+        revision: 1,
+        reason: "Owner no longer has review authority",
+      }),
+    );
     await sql`insert into staff_authorities values('owner@example.invalid','staff_approvals.review')`;
     await ops.revokeRosterEligibility(sql, "owner", {
       id: clearance.id,
