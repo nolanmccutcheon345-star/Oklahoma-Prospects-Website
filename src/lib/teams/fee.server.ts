@@ -215,6 +215,20 @@ export function playerView(t: Team, p: Player, plan: FeePlan, asOf = today()) {
           }))
         : previewSchedule,
     ),
+    ...(plan.players[p.id]?.independent?.agreements.length
+      ? {
+          depositPaid:
+            paid(p) + credit(p) >=
+            plan.players[p.id]
+              .independent!.installments.filter((r) => r.kind === "uniform")
+              .reduce((sum, r) => sum + r.amount, 0),
+          uniformReady:
+            paid(p) + credit(p) >=
+              plan.players[p.id]
+                .independent!.installments.filter((r) => r.kind === "uniform")
+                .reduce((sum, r) => sum + r.amount, 0) && status === "Confirmed",
+        }
+      : {}),
     ...(!p.feeLock && !offer
       ? { status: "Awaiting published fee", rows: [], uniformReady: false }
       : {}),

@@ -1,0 +1,15 @@
+# Individual split deposits
+
+Owners may publish a two-payment initial-deposit accommodation for one verified player/payer through **Admin · Prospects billing terms → Late enrollment, amendment or designated payer**. Team defaults and other players are unchanged.
+
+Select the player and verified payer, enable **Split this player's initial deposit into two payments**, enter the first amount and both dates, review the individual schedule and parent agreement, record a reason, and publish the individual offer. The second base amount is the remainder of the initial deposit. Both amounts must be positive, total the deposit exactly, and use increasing dates no later than the first monthly installment. Processing is rounded up separately for each payment, so its total can differ by one cent from a single payment.
+
+The guardian must review and accept the individual offer. Publication neither charges a card nor activates automatic collection. New acceptance revokes prior collection authority and requires separate authorization. Existing signed agreements are retained; no handbook or signature is rewritten. The individual financial agreement includes an explicit, player-only exception to general alternative-payment language, without scholarship, hardship, discount or balance forgiveness.
+
+Split schedules cannot be saved or published as team defaults. A paid or accrued deposit cannot be reshaped or redistributed into a new split. Existing deposits, financial identities, historical payments and submitted provider attempts require separate financial review. New offer and acceptance both recheck this rule to prevent stale-preview races. A family with an accepted agreement and no pending offer sees its accepted schedule, not a new preview of team defaults.
+
+Full initial-deposit readiness requires all deposit installments, including processing, to be paid or credited. Paying the first split installment alone does not authorize uniform release. Withdrawal retains due installments and, when explicitly documented, committed uniform costs within accepted deposit amounts; future uncommitted installments are canceled through the existing workflow. Refunds reduce verified payment credit and recompute readiness.
+
+Verification uses synthetic fixtures, not live customer charges: rounding, validation, owner/guardian scoping, unchanged sibling/team plans, acceptance digest and repeat protection, protected-deposit reshape rejection, provider-confirmed synthetic payments/refunds, next installment, two financial receivables, uniform readiness, withdrawal, and browser preview/publication with a legacy single-payment regression.
+
+Deploy this feature only after the required exact-head checks pass. Before applying an individual accommodation, inspect the existing offer and acceptance/payment state. Do not alter an already-paid/accrued plan through this control. After publication, reload and verify the exact individual dates and amounts, unchanged monthly dues and unchanged other players. Review the current notification separately through the owner mail controls; hold stale standard-deposit notices. A queued email is not proof of delivery.
