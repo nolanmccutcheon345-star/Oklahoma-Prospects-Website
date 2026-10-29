@@ -47,6 +47,7 @@ import { Route as RecruitingRouteImport } from './routes/recruiting'
 import { Route as RegistrationsRouteImport } from './routes/registrations'
 import { Route as SitemapDotxmlRouteImport } from './routes/sitemap[.]xml'
 import { Route as SoftballRouteImport } from './routes/softball'
+import { Route as TeamHubRouteImport } from './routes/team-hub'
 import { Route as TeamsRouteImport } from './routes/teams'
 import { Route as TermsRouteImport } from './routes/terms'
 import { Route as TrainingRouteImport } from './routes/training'
@@ -280,6 +281,11 @@ const SitemapDotxmlRoute = SitemapDotxmlRouteImport.update({
 const SoftballRoute = SoftballRouteImport.update({
   id: '/softball',
   path: '/softball',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const TeamHubRoute = TeamHubRouteImport.update({
+  id: '/team-hub',
+  path: '/team-hub',
   getParentRoute: () => rootRouteImport,
 } as any)
 const TeamsRoute = TeamsRouteImport.update({
@@ -543,6 +549,7 @@ export interface FileRoutesByFullPath {
   '/registrations': typeof RegistrationsRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/softball': typeof SoftballRoute
+  '/team-hub': typeof TeamHubRoute
   '/teams': typeof TeamsRouteWithChildren
   '/terms': typeof TermsRoute
   '/training': typeof TrainingRoute
@@ -627,6 +634,7 @@ export interface FileRoutesByTo {
   '/registrations': typeof RegistrationsRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/softball': typeof SoftballRoute
+  '/team-hub': typeof TeamHubRoute
   '/teams': typeof TeamsRouteWithChildren
   '/terms': typeof TermsRoute
   '/training': typeof TrainingRoute
@@ -712,6 +720,7 @@ export interface FileRoutesById {
   '/registrations': typeof RegistrationsRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/softball': typeof SoftballRoute
+  '/team-hub': typeof TeamHubRoute
   '/teams': typeof TeamsRouteWithChildren
   '/terms': typeof TermsRoute
   '/training': typeof TrainingRoute
@@ -798,6 +807,7 @@ export interface FileRouteTypes {
     | '/registrations'
     | '/sitemap.xml'
     | '/softball'
+    | '/team-hub'
     | '/teams'
     | '/terms'
     | '/training'
@@ -882,6 +892,7 @@ export interface FileRouteTypes {
     | '/registrations'
     | '/sitemap.xml'
     | '/softball'
+    | '/team-hub'
     | '/teams'
     | '/terms'
     | '/training'
@@ -966,6 +977,7 @@ export interface FileRouteTypes {
     | '/registrations'
     | '/sitemap.xml'
     | '/softball'
+    | '/team-hub'
     | '/teams'
     | '/terms'
     | '/training'
@@ -1051,6 +1063,7 @@ export interface RootRouteChildren {
   RegistrationsRoute: typeof RegistrationsRoute
   SitemapDotxmlRoute: typeof SitemapDotxmlRoute
   SoftballRoute: typeof SoftballRoute
+  TeamHubRoute: typeof TeamHubRoute
   TeamsRoute: typeof TeamsRouteWithChildren
   TermsRoute: typeof TermsRoute
   TrainingRoute: typeof TrainingRoute
@@ -1360,6 +1373,13 @@ declare module '@tanstack/react-router' {
       path: '/softball'
       fullPath: '/softball'
       preLoaderRoute: typeof SoftballRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/team-hub': {
+      id: '/team-hub'
+      path: '/team-hub'
+      fullPath: '/team-hub'
+      preLoaderRoute: typeof TeamHubRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/teams': {
@@ -1747,6 +1767,7 @@ const rootRouteChildren: RootRouteChildren = {
   RegistrationsRoute: RegistrationsRoute,
   SitemapDotxmlRoute: SitemapDotxmlRoute,
   SoftballRoute: SoftballRoute,
+  TeamHubRoute: TeamHubRoute,
   TeamsRoute: TeamsRouteWithChildren,
   TermsRoute: TermsRoute,
   TrainingRoute: TrainingRoute,

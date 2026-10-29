@@ -37,7 +37,11 @@ test("team invitation access is scoped, persistent, idempotent, revocable and in
       RESEND_API_KEY: "synthetic",
       EMAIL_FROM: "office@example.invalid",
     };
-    const send: typeof fetch = async () => {
+    const send: typeof fetch = async (_url, init) => {
+      const body = JSON.parse(String(init?.body));
+      assert.match(body.text, /https:\/\/prospectssports\.club\/team-hub/);
+      assert.match(body.text, /After accepting your invitation/);
+      assert.doesNotMatch(body.text, /chatgpt\.site|Sample data/);
       sends++;
       return new Response(JSON.stringify({ id: "synthetic-message" }));
     };
