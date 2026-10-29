@@ -344,11 +344,16 @@
     min-height: 44px;
   }
   .hub-nav {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
     margin-top: 12px;
     gap: 4px;
     padding-bottom: 0;
   }
   .hub-nav button {
+    min-width: 0;
+    flex-wrap: wrap;
+    white-space: normal;
     font-size: 12px;
     min-height: 44px;
     padding: 10px 8px;
@@ -384,10 +389,13 @@
   }
 }
 @media (width <= 360px) {
+  .hub-nav {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
   .hub-nav button {
-    font-size: 11px;
-    padding-inline: 5px;
-    gap: 4px;
+    font-size: 12px;
+    padding-inline: 8px;
+    gap: 6px;
   }
   .hub-preview > span {
     min-width: 150px;

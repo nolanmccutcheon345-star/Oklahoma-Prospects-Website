@@ -145,6 +145,7 @@ try {
     p = guardian.page;
   for (const width of [320, 390, 1280]) {
     await p.setViewportSize({ width, height: 900 });
+    await p.screenshot({ path: shots + "/parent-" + width + ".png", fullPage: false });
     assert.ok(
       await p.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1),
       "No page overflow at " + width,
@@ -153,7 +154,6 @@ try {
       await p.getByRole("tablist").evaluate((e) => e.scrollWidth <= e.clientWidth + 1),
       "Navigation fits at " + width,
     );
-    await p.screenshot({ path: shots + "/parent-" + width + ".png", fullPage: false });
   }
   await p.getByRole("button", { name: "Got it, Coach", exact: true }).click();
   await p.getByRole("button", { name: "Acknowledged", exact: true }).waitFor();
