@@ -28,6 +28,12 @@ export const getOfficeOperations = createServerFn({ method: "GET" })
     const m = await import("./operations.server");
     return m.officeOperations(context.userId);
   });
+export const getOfficeBookingReference = createServerFn({ method: "GET" })
+  .middleware([authMiddleware])
+  .validator(z.object({ reference: id }).strict())
+  .handler(async ({ context, data }) =>
+    (await import("./operations.server")).officeBookingReference(context.userId, data.reference),
+  );
 export const setServiceResources = createServerFn({ method: "POST" })
   .middleware([operationalAuthMiddleware])
   .validator(z.object({ id, laneIds: z.array(z.string().max(30)).min(1).max(6) }).strict())
