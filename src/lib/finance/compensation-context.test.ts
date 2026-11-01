@@ -712,6 +712,39 @@ test("existing owner service/staff/person writers approve only future terms with
   );
 });
 
+test("deactivating an unassigned instructor retires legacy coach publication and assignment choices", async () => {
+  const { deleteStaffFor } = await import("../ops-owner.server");
+  const { readWorkingFile } = await import("../pd/desk-impl.server");
+  const { sql, club } = await fixture();
+  await activateFutureSchema(sql);
+  for (const team of club.teams) {
+    team.coachEmail = "";
+    team.headCoach = "";
+  }
+  await sql`update club_state set payload=${JSON.stringify(club)}::jsonb where id='oklahoma-prospects'`;
+  await sql`insert into person_profiles(user_id,instructor,publish_coach,publish_instructor,profile)
+    values('coach',true,true,true,'{}'::jsonb)`;
+  await sql`insert into coach_profiles(id,user_id,profile,published)
+    values('coach-id','coach','{}'::jsonb,true)`;
+  const [{ current_version: basisVersion }] = await sql<{ current_version: number }>`
+    select current_version from financial_basis_state
+  `;
+
+  await deleteStaffFor(sql, "owner", { id: "staff", basisVersion });
+
+  const file = await readWorkingFile(sql);
+  assert.equal(file.coaches.find((coach) => coach.id === "coach-id")?.active, false);
+  assert.equal(file.availability.some((window) => window.coachId === "coach-id"), false);
+  const [person] = await sql<{ publish_coach: boolean; publish_instructor: boolean }>`
+    select publish_coach,publish_instructor from person_profiles where user_id='coach'
+  `;
+  assert.deepEqual(person, { publish_coach: false, publish_instructor: false });
+  assert.equal(
+    (await sql<{ published: boolean }>`select published from coach_profiles where user_id='coach'`)[0].published,
+    false,
+  );
+});
+
 test("transaction finance reads match public projections at a fixed asOf without accrual writes", async (t) => {
   const { sql, transactionDepth } = await fixture();
   t.mock.timers.enable({ apis: ["Date"], now: new Date(asOf + "T12:00:00Z") });
