@@ -35,3 +35,15 @@ test('coach assignment saves preserve fractional months on every team, including
  const invalid=structuredClone(club);invalid.teams[0].record.w=1.5;
  assert.throws(()=>parseClubSave({club:invalid,baseRev:club._rev}));
 });
+
+test('coach assignment saves accept labeled independent-team payment rows',()=>{
+ const club=sampleClub();
+ const player=club.teams[0]?.roster[0];
+ assert.ok(player?.planLock);
+ player.planLock.rows[0].label='Initial deposit';
+ club.teams[1].headCoach='Updated Coach';
+ club.teams[1].coachEmail='updated@example.invalid';
+ const saved=parseClubSave({club,baseRev:club._rev});
+ assert.equal(saved.club.teams[0].roster[0].planLock?.rows[0].label,'Initial deposit');
+ assert.equal(saved.club.teams[1].coachEmail,'updated@example.invalid');
+});
