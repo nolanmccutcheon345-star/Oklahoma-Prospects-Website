@@ -265,7 +265,46 @@ export async function deleteStaffFor(
       user_id: string;
       email: string;
     }>`update club_staff set active=false where id=${data.id} returning user_id,email`;
-    if (staff) await revokeStaffAccess(tx, staff);
+    if (staff) {
+      await revokeStaffAccess(tx, staff);
+      const email = staff.email.trim().toLowerCase();
+      const [clubRow] = await tx<{ payload: unknown; demo: boolean }>`
+        select payload,demo from club_state where id='oklahoma-prospects'
+      `;
+      let club = clubRow?.payload;
+      if (typeof club === "string") {
+        try { club = JSON.parse(club); } catch { club = null; }
+      }
+      const teams = club && typeof club === "object" && Array.isArray((club as { teams?: unknown }).teams)
+        ? (club as { teams: Array<Record<string, unknown>> }).teams
+        : [];
+      const stillAssigned = !clubRow?.demo && teams.some((team) => {
+        if (team.closed === true) return false;
+        if (typeof team.coachEmail === "string" && team.coachEmail.trim().toLowerCase() === email)
+          return true;
+        return Array.isArray(team.staff) && team.staff.some((person) =>
+          Boolean(person) && typeof person === "object" &&
+          typeof (person as { email?: unknown }).email === "string" &&
+          (person as { email: string }).email.trim().toLowerCase() === email,
+        );
+      });
+      if (!stillAssigned) {
+        const { readWorkingFile, writeWorkingFile } = await import("./pd/desk-impl.server");
+        const file = await readWorkingFile(tx);
+        const retired = new Set(
+          file.coaches.filter((coach) => coach.email.trim().toLowerCase() === email).map((coach) => coach.id),
+        );
+        if (retired.size) {
+          file.coaches = file.coaches.map((coach) => retired.has(coach.id) ? { ...coach, active: false } : coach);
+          file.availability = file.availability.filter((window) => !retired.has(window.coachId));
+          await writeWorkingFile(file, tx);
+        }
+        await tx`update person_profiles set publish_coach=false,publish_instructor=false,revision=revision+1,updated_at=now()
+          where user_id in (select id from "user" where id=${staff.user_id} or lower(trim(email))=${email})`;
+        await tx`update coach_profiles set published=false,updated_at=now()
+          where user_id in (select id from "user" where id=${staff.user_id} or lower(trim(email))=${email})`;
+      }
+    }
     await commitFinancialLessonTermsInTransaction(tx, financial, {
       expectedBasisVersion: data.basisVersion,
       command: { type: "staff", staffId: data.id },
