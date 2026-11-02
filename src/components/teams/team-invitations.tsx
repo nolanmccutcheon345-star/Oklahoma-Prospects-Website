@@ -1,10 +1,10 @@
 import { useEffect, useState } from "react";
 import { getTeamInvitations, createTeamInvitation } from "@/lib/teams/invitation-api";
-import { sendInvitationEmail } from "@/lib/invitation-delivery-api";
 import { InvitationDelivery } from "../invitation-delivery";
 import { Button } from "../ui/button";
 export function TeamInvitations({ teamId }: { teamId: string }) {
   const [open, setOpen] = useState(false);
+  const [reviewId, setReviewId] = useState("");
   const [data, setData] = useState<Awaited<ReturnType<typeof getTeamInvitations>>>();
   const [error, setError] = useState(""),
     [notice, setNotice] = useState(""),
@@ -35,13 +35,9 @@ export function TeamInvitations({ teamId }: { teamId: string }) {
     setNotice("");
     try {
       const invitation = await createTeamInvitation({ data: { teamId, playerId, email } });
-      const sent = await sendInvitationEmail({ data: { id: invitation.id } });
+      setReviewId(invitation.id);
       setNotice(
-        sent.skipped
-          ? "Invitation saved and queued. Email delivery is paused or unconfigured; no email was sent by this attempt."
-          : sent.status === "accepted"
-            ? "Invitation accepted by the email provider. Check delivery below; this does not mean the family accepted its offer."
-            : "Invitation saved. Email status: " + sent.status + ". Check delivery below.",
+        "Invitation saved. Review the email below; an owner can choose Send invitation to submit it.",
       );
       await load();
     } catch (e) {
@@ -105,10 +101,17 @@ export function TeamInvitations({ teamId }: { teamId: string }) {
                     disabled={busy}
                     onClick={() => void invite(p.id, g.email)}
                   >
-                    Create & send invitation
+                    Create & review invitation
                   </Button>
                 )}
-                {g.invitation && <InvitationDelivery id={g.invitation.id} onUpdate={load} />}
+                {g.invitation && (
+                  <InvitationDelivery
+                    key={g.invitation.id}
+                    id={g.invitation.id}
+                    autoReview={g.invitation.id === reviewId}
+                    onUpdate={load}
+                  />
+                )}
               </div>
             ))}
           </article>

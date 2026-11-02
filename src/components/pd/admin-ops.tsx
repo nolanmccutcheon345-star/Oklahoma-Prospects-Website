@@ -968,6 +968,7 @@ export function AdminAccountsDesk({
   initialPerson?: string;
 }) {
   const [personId, setPersonId] = useState(initialPerson || " ".trim());
+  const [invitationId, setInvitationId] = useState("");
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState("active");
   const [loaded, setLoaded] = useState(false);
@@ -1016,8 +1017,15 @@ export function AdminAccountsDesk({
         },
       });
       setEditing(null);
+      if (saved.invitation) {
+        setInvitationId(saved.id);
+        setStatus("invited");
+        setSearch(editing.email);
+        setNotice(
+          "Invitation saved. Review the message below, then choose Send invitation to email the link.",
+        );
+      } else setNotice("Changes saved.");
       await refresh();
-      setNotice(saved.invitation || "Changes saved.");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not save that account.");
     } finally {
@@ -1041,13 +1049,29 @@ export function AdminAccountsDesk({
           {notice}
         </p>
       ) : null}
+      {invitationId && (
+        <div className="mb-5 rounded-2xl border border-navy p-4">
+          <h3 className="text-xl">Finish sending your invitation</h3>
+          <InvitationDelivery key={invitationId} id={invitationId} autoReview />
+          <Button
+            type="button"
+            variant="outlineDark"
+            size="sm"
+            className="mt-3"
+            onClick={() => setInvitationId("")}
+          >
+            Close invitation review
+          </Button>
+        </div>
+      )}
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h3 className="text-2xl">Users & Permissions</h3>
           <p className="mt-1 text-sm text-muted">
-            Save the invitation. Eligible parents with published player fees receive queued fee instructions automatically; check delivery in Team Fees. Use Send invitation email for the general account invitation.
-            Recipients choose their own password and verify their email. General account invitations
-            require the separate send action; fee-email delivery is tracked in Team Fees.
+            Enter the recipient, review their invitation here, then choose Send invitation to email
+            the link. Recipients choose their own password and verify their email. Check email
+            delivery for the provider's result. Fee instructions are reviewed separately in Team
+            Fees.
           </p>
         </div>
         <Button
@@ -1140,7 +1164,7 @@ export function AdminAccountsDesk({
           {error ? <p className="text-sm text-maroon">{error}</p> : null}
           <div className="flex gap-2">
             <Button type="submit" disabled={busy}>
-              Save
+              {editing.userId ? "Save changes" : "Review invitation"}
             </Button>
             <Button type="button" variant="outlineDark" onClick={() => setEditing(null)}>
               Cancel
@@ -1181,7 +1205,7 @@ export function AdminAccountsDesk({
                   .
                 </p>
               )}
-              {row.status === "invited" && (
+              {row.status === "invited" && row.user_id !== `invite:${invitationId}` && (
                 <InvitationDelivery id={row.user_id.slice("invite:".length)} />
               )}
               {row.status !== "invited" && (
