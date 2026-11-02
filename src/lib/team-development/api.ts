@@ -18,12 +18,12 @@ export const getAdminTeamDevelopment = createServerFn({ method: "POST" })
     const sql = await getSql();
     const me = await resolveIdentity(sql, context.userId);
     if (me.role !== "admin") throw new Error("Front office only.");
-    const [programs, versions, exercises, drills, config, links, athletes, settings] = await Promise.all([
+    const [programs, versions, exercises, drills, config, links, athletes, settings, pins] = await Promise.all([
       sql.query<{id:string;name:string;sport:string;category:string;current_version:number;disabled_at:string|null}>(
         "select id,name,sport,category,current_version,disabled_at::text from team_dev_programs order by category,name",
       ),
-      sql.query<{program_id:string;version:number;status:string;data_label:string;blocked_fields:string[];approved_by:string|null;approved_at:string|null}>(
-        "select program_id,version,status,data_label,blocked_fields,approved_by,approved_at::text from team_dev_program_versions order by program_id,version desc",
+      sql.query<{program_id:string;version:number;status:string;data_label:string;blocked_fields:string[];approved_by:string|null;approved_at:string|null;sports_science_reviewed_by:string|null;safety_reviewed_by:string|null;non_assignable_reason:string|null;snapshot_hash:string;ceiling_refs:string[]}>(
+        "select program_id,version,status,data_label,blocked_fields,approved_by,approved_at::text,sports_science_reviewed_by,safety_reviewed_by,non_assignable_reason,snapshot_hash,coalesce(case jsonb_typeof(payload->'ceiling_ref') when 'array' then payload->'ceiling_ref' when 'string' then jsonb_build_array(payload->'ceiling_ref') end,'[]'::jsonb) as ceiling_refs from team_dev_program_versions order by program_id,version desc",
       ),
       sql.query<{id:string;version:number;name:string;category:string;status:string;data_label:string}>(
         "select id,version,name,category,status,data_label from team_dev_exercises order by category,name",
@@ -43,6 +43,9 @@ export const getAdminTeamDevelopment = createServerFn({ method: "POST" })
       sql.query<{athlete_id:string;self_complete_enabled:boolean}>(
         "select athlete_id,self_complete_enabled from team_dev_player_settings order by athlete_id",
       ),
+      sql.query<{program_id:string;program_version:number;active_assignments:number}>(
+        "select program_id,program_version,count(*)::int as active_assignments from team_dev_assignments where status='active' group by program_id,program_version",
+      ),
     ]);
     return {
       programs,
@@ -52,6 +55,7 @@ export const getAdminTeamDevelopment = createServerFn({ method: "POST" })
       config,
       links,
       settings,
+      pins,
       athletes: athletes.map((a) => ({
         id: a.id,
         name: [a.profile?.firstName, a.profile?.lastName].filter(Boolean).join(" ") || a.id,
@@ -296,9 +300,9 @@ export const updateTeamDevelopmentItem = createServerFn({ method: "POST" })
       const [item] = await tx.query<{
         id:string; athlete_id:string; state:string; due_date:string; phase_end_date:string;
         late_credit_window_end:string; paused_reason:string|null; assignment_scope:string;
-        payload:{programType?:string}; team_id:string;
+        payload:{programType?:string}; team_id:string; assignment_status:string; late_rejected_reason:string|null;
       }>(
-        "select i.id,i.athlete_id,i.state,i.due_date::text,i.phase_end_date::text,i.late_credit_window_end::text,i.paused_reason,i.assignment_scope,i.payload,a.team_id from team_dev_items i join team_dev_assignments a on a.id=i.assignment_id where i.id=$1 for update",
+        "select i.id,i.athlete_id,i.state,i.due_date::text,i.phase_end_date::text,i.late_credit_window_end::text,i.paused_reason,i.assignment_scope,i.payload,a.team_id,a.status as assignment_status,i.late_rejected_reason from team_dev_items i join team_dev_assignments a on a.id=i.assignment_id where i.id=$1 for update",
         [data.itemId],
       );
       if (!item) throw new Error("Development item not found.");
@@ -306,6 +310,9 @@ export const updateTeamDevelopmentItem = createServerFn({ method: "POST" })
       const self = scope.selfAthleteId === item.athlete_id || scope.guardianAthleteIds.has(item.athlete_id);
       if (!coach && !self) throw new Error("Forbidden");
       if (item.paused_reason) throw new Error("This development item is on hold.");
+      // Cancelled days (S01 Ruling 6) stay cancelled; they are never revived.
+      if (item.assignment_status !== "active" || item.late_rejected_reason === "assignment_cancelled" || item.late_rejected_reason === "cancelled_while_held")
+        throw new Error("This development item was cancelled.");
       if (["completed","expired"].includes(item.state)) throw new Error("This item is already closed.");
 
       if (!coach) {
