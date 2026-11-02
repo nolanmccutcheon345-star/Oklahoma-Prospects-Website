@@ -6,7 +6,7 @@ import type { ClubRecord } from "../teams/types";
 import { devScope, assertTeamDevelopmentCoach } from "./access.server";
 import { assertProgramAssignable } from "./store.server";
 import type { TeamDevAgeBand } from "./contracts";
-import { resolveEffectiveAssignments, type TeamDevAssignmentScope } from "./resolution";
+import { resolveEffectiveAssignments, withoutUnassignedTypes, type TeamDevAssignmentScope } from "./resolution";
 
 function ageBand(age:number):TeamDevAgeBand {
   if(age<=8)return "agp_6u-8u";
@@ -44,14 +44,17 @@ async function activeLinks(sql:Sql,teamId:string) {
     where team_id=${teamId} and ended_at is null
   `;
 }
-async function assertNoHold(sql:Sql, athleteId:string) {
+export async function athleteHeld(sql:Sql, athleteId:string) {
   const [pd]=await sql<{held:boolean}>`
     select exists(select 1 from training_assignments where athlete_id=${athleteId} and status='paused') as held
   `;
   const [td]=await sql<{held:boolean}>`
     select exists(select 1 from team_dev_items where athlete_id=${athleteId} and paused_reason is not null) as held
   `;
-  if(pd?.held||td?.held)throw new Error("Resolve the existing training hold before assigning, replacing, or discontinuing activity.");
+  return Boolean(pd?.held||td?.held);
+}
+async function assertNoHold(sql:Sql, athleteId:string) {
+  if(await athleteHeld(sql,athleteId))throw new Error("Resolve the existing training hold before assigning or replacing activity.");
 }
 
 export async function createTeamDevelopmentAssignment(userId:string,input:{
@@ -166,6 +169,16 @@ export async function createTeamDevelopmentAssignment(userId:string,input:{
         `;
       }
     }
+    const cleared=await tx<{id:string;athlete_id:string}>`
+      update team_dev_unassigned_holds set cleared_at=now(),cleared_by=${userId},cleared_by_assignment_id=${id}
+      where cleared_at is null and team_id=${team.id} and program_type=${input.programType}
+        and athlete_id=any(${concreteIds}::text[])
+      returning id,athlete_id
+    `;
+    for(const row of cleared)await tx`
+      insert into team_dev_events(actor_id,athlete_id,team_id,entity_type,entity_id,action,after_json)
+      values(${userId},${row.athlete_id},${team.id},'unassigned_hold',${row.id},'reassigned',${JSON.stringify({assignmentId:id,programType:input.programType})}::jsonb)
+    `;
     await tx`
       insert into team_dev_events(actor_id,team_id,entity_type,entity_id,action,after_json)
       values(${userId},${team.id},'assignment',${id},'assigned',${JSON.stringify({programId:input.programId,programVersion:input.programVersion,scope:input.scope,targets})}::jsonb)
@@ -174,24 +187,58 @@ export async function createTeamDevelopmentAssignment(userId:string,input:{
   });
 }
 
-export async function endTeamDevelopmentAssignment(userId:string,assignmentId:string) {
+/**
+ * Ends (cancels) an assignment. S01 Ruling 6 (D-1): for a held athlete this never
+ * brings back a superseded or lower-tier program. The athlete becomes unassigned
+ * for that program type until a logged coach/admin reassignment (which still runs
+ * the hold checks), and every future or undated open day stays cancelled.
+ */
+export async function endTeamDevelopmentAssignment(userId:string,assignmentId:string,today=new Date().toISOString().slice(0,10)) {
   const sql=await getSql();
   const scope=await devScope(userId);
   return sql.transaction(async tx=>{
-    const [assignment]=await tx<{id:string;team_id:string;status:string}>`
-      select id,team_id,status from team_dev_assignments where id=${assignmentId} for update
+    await tx`select set_config('app.actor_id',${userId},true)`;
+    const [assignment]=await tx<{id:string;team_id:string;status:string;program_type:string}>`
+      select id,team_id,status,program_type from team_dev_assignments where id=${assignmentId} for update
     `;
     if(!assignment)throw new Error("Assignment not found.");
     assertTeamDevelopmentCoach(scope,assignment.team_id);
-    const athleteIds=(await tx<{athlete_id:string|null}>`
-      select athlete_id from team_dev_assignment_targets where assignment_id=${assignmentId} and athlete_id is not null
-    `).map(x=>x.athlete_id!).filter(Boolean);
-    for(const athleteId of athleteIds)await assertNoHold(tx,athleteId);
+    if(assignment.status==="ended")return {ok:true as const,unassigned:[] as string[]};
+    // Every athlete with items under this assignment, including team/position scopes.
+    const athleteIds=[...new Set([
+      ...(await tx<{athlete_id:string}>`select distinct athlete_id from team_dev_items where assignment_id=${assignmentId}`).map(x=>x.athlete_id),
+      ...(await tx<{athlete_id:string|null}>`select athlete_id from team_dev_assignment_targets where assignment_id=${assignmentId} and athlete_id is not null`).map(x=>x.athlete_id!),
+    ])];
+    const held:string[]=[];
+    for(const athleteId of athleteIds)if(await athleteHeld(tx,athleteId))held.push(athleteId);
     await tx`update team_dev_assignments set status='ended',revision=revision+1,updated_at=now() where id=${assignmentId}`;
     await tx`update team_dev_assignment_targets set active=false where assignment_id=${assignmentId}`;
+    await tx`
+      update team_dev_items set state='skipped_by_coach',late_rejected_reason='assignment_cancelled',revision=revision+1,updated_at=now()
+      where assignment_id=${assignmentId} and state in ('assigned','started','modified') and due_date>=${today}::date
+    `;
+    for(const athleteId of held){
+      // No restored version may show live days for a held athlete.
+      await tx`
+        update team_dev_items i set state='skipped_by_coach',late_rejected_reason='cancelled_while_held',revision=i.revision+1,updated_at=now()
+        from team_dev_assignments a
+        where a.id=i.assignment_id and a.team_id=${assignment.team_id} and a.program_type=${assignment.program_type}
+          and i.athlete_id=${athleteId} and i.state in ('assigned','started','modified') and i.due_date>=${today}::date
+      `;
+      const markerId=randomUUID();
+      const inserted=await tx<{id:string}>`
+        insert into team_dev_unassigned_holds(id,athlete_id,team_id,program_type,cancelled_assignment_id,created_by)
+        values(${markerId},${athleteId},${assignment.team_id},${assignment.program_type},${assignmentId},${userId})
+        on conflict do nothing returning id
+      `;
+      if(inserted.length)await tx`
+        insert into team_dev_events(actor_id,athlete_id,team_id,entity_type,entity_id,action,after_json)
+        values(${userId},${athleteId},${assignment.team_id},'unassigned_hold',${markerId},'cancelled_while_held',${JSON.stringify({assignmentId,programType:assignment.program_type})}::jsonb)
+      `;
+    }
     await tx`insert into team_dev_events(actor_id,team_id,entity_type,entity_id,action,before_json,after_json)
-      values(${userId},${assignment.team_id},'assignment',${assignmentId},'ended',${JSON.stringify({status:assignment.status})}::jsonb,'{"status":"ended"}'::jsonb)`;
-    return {ok:true as const};
+      values(${userId},${assignment.team_id},'assignment',${assignmentId},'ended',${JSON.stringify({status:assignment.status})}::jsonb,${JSON.stringify({status:"ended",heldAthletes:held.length})}::jsonb)`;
+    return {ok:true as const,unassigned:held};
   });
 }
 
@@ -223,7 +270,11 @@ export async function effectiveTeamDevelopmentForAthlete(userId:string,teamId:st
     current.targets.push({athlete_id:row.athlete_id,position:row.position,target_key:row.target_key});
     grouped.set(row.id,current);
   }
-  return resolveEffectiveAssignments([...grouped.values()],athleteId,player.positions||[],teamId);
+  const unassigned=(await sql<{program_type:string}>`
+    select program_type from team_dev_unassigned_holds
+    where athlete_id=${athleteId} and team_id=${teamId} and cleared_at is null
+  `).map(r=>r.program_type);
+  return withoutUnassignedTypes(resolveEffectiveAssignments([...grouped.values()],athleteId,player.positions||[],teamId),unassigned);
 }
 
 export async function endRosterDevelopmentLink(

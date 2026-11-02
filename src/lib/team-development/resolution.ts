@@ -40,3 +40,12 @@ export function resolveEffectiveAssignments(
   }
   return [...byType.values()];
 }
+
+/**
+ * S01 Ruling 6 (D-1): a program type cancelled while the athlete was held stays
+ * unassigned. No superseded or lower-tier assignment is restored for it.
+ */
+export function withoutUnassignedTypes<T extends { program_type: string }>(resolved: T[], unassignedTypes: Iterable<string>) {
+  const blocked = new Set(unassignedTypes);
+  return resolved.filter((assignment) => !blocked.has(assignment.program_type));
+}
