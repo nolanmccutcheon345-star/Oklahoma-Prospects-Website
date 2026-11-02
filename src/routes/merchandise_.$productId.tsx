@@ -5,8 +5,8 @@ export const Route = createFileRoute("/merchandise_/$productId")({
   head: ({ params }) =>
     pageHead(
       "/merchandise/" + encodeURIComponent(params.productId),
-      "Oklahoma Prospects Product",
-      "Official Oklahoma Prospects gear, available sizes and product details.",
+      "Pro Shop Product",
+      "Official Prospects gear, available sizes and product details.",
       false,
     ),
   component: ProductPage,

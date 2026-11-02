@@ -634,7 +634,7 @@ export function Shop({ selectedProductId }: { selectedProductId?: string }) {
           <p className="mt-3">
             Questions about sizing, a damaged item, or a delivery?{" "}
             <Link to="/contact" className="underline">
-              Contact Oklahoma Prospects
+              Contact the front desk
             </Link>
             . Report delivery or quality problems within 30 days. Please use each product’s size
             guide before ordering.

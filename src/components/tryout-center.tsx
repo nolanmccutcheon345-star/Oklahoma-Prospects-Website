@@ -161,7 +161,7 @@ export function TryoutCenter() {
   return (
     <main id="main" className="mx-auto w-full max-w-6xl min-w-0 px-4 py-8 pb-28">
       <p className="text-sm font-semibold uppercase tracking-widest text-maroon">
-        Oklahoma Prospects · Coaches portal
+        Prospects Sports Academy · Coaches portal
       </p>
       <h1 className="mt-2 text-3xl sm:text-5xl">Tryouts & Evaluations</h1>
       <p className="mt-3 text-muted">
@@ -414,7 +414,7 @@ function RegistrationDetail({
     [evaluate, setEvaluate] = useState(false),
     [message, setMessage] = useState({
       kind: "email" as "email" | "call" | "note" | "family-reply",
-      subject: "Your Oklahoma Prospects tryout",
+      subject: "Your Prospects Sports Academy tryout",
       body: "",
     }),
     [messageId, setMessageId] = useState(crypto.randomUUID()),
@@ -433,11 +433,11 @@ function RegistrationDetail({
     };
   }, [row.id, historyVersion]);
   const templates: Record<string, string> = {
-    welcome: `Hi ${row.payload.parent || "there"},\n\nThank you for registering ${row.payload.player} with Oklahoma Prospects! I look forward to learning more about your player's goals.\n\nCoach`,
+    welcome: `Hi ${row.payload.parent || "there"},\n\nThank you for registering ${row.payload.player} with Prospects Sports Academy! I look forward to learning more about your player's goals.\n\nCoach`,
     confirm: `Hi ${row.payload.parent || "there"},\n\nI'm following up to confirm ${row.payload.player}'s tryout. Please review the appointment details below and reply to confirm you can attend.\n\nCoach`,
     information: `Hi ${row.payload.parent || "there"},\n\nCould you share a little more about ${row.payload.player}'s experience, positions, and goals?\n\nCoach`,
     reschedule: `Hi ${row.payload.parent || "there"},\n\nLet's find another time for ${row.payload.player}'s evaluation. What days and times work for your family?\n\nCoach`,
-    followup: `Hi ${row.payload.parent || "there"},\n\nI'm checking in about ${row.payload.player}'s next step with Oklahoma Prospects. Please reply when you have a chance.\n\nCoach`,
+    followup: `Hi ${row.payload.parent || "there"},\n\nI'm checking in about ${row.payload.player}'s next step with Prospects Sports Academy. Please reply when you have a chance.\n\nCoach`,
   };
   return (
     <section className="min-w-0">
