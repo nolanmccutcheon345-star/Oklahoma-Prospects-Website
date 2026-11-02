@@ -571,7 +571,7 @@ try {
     false,
   );
   assert.equal(
-    await owner.page.getByLabel("Access status", { exact: true }).inputValue(),
+    await owner.page.getByRole("combobox", { name: /^Access status/ }).inputValue(),
     "invited",
   );
   assert.ok(
