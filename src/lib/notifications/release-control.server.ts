@@ -249,6 +249,20 @@ export async function noticeReleaseAllowed(
     return false;
   return true;
 }
+
+/** One current owner-reviewed message, without loading or releasing any other queue. */
+export async function previewNoticeRelease(
+  sql: Sql,
+  actor: string,
+  env: Env,
+  queue: NoticeQueue,
+  id: string,
+) {
+  await requireNoticeOwner(sql, actor);
+  const s = await source(sql, queue, id);
+  if (!s) throw Error("Notice no longer exists. Refresh.");
+  return describe(sql, s, env);
+}
 export async function approveNoticeReleases(
   sql: Sql,
   actor: string,
