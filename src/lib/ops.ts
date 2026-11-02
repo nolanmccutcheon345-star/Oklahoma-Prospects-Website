@@ -179,6 +179,7 @@ export type PublicCatalog = {
     detail: string;
     includes: string[];
     tier?: string;
+    featured: boolean;
   }[];
   cages: {
     id: string;
@@ -404,6 +405,7 @@ export function buildPublicCatalog(rows: ClubService[]): PublicCatalog {
       detail: r.detail || r.purpose,
       includes: r.includes,
       tier: DEVELOPMENT_PLANS.find((p) => p.id === r.id)?.tier,
+      featured: r.featured,
     })),
     cages: cages.map((r) => ({
       id: r.id,
