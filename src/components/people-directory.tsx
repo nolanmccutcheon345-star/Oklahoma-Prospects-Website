@@ -1,3 +1,4 @@
+import { publicCoachName, publicProfileText } from "@/lib/public-profile-text";
 import { useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { CoachBio } from "./coach-bio";
@@ -62,7 +63,7 @@ export function PeopleDirectory({
                 </span>
               )}
             </div>
-            <h2 className="text-3xl">{p.name}</h2>
+            <h2 className="text-3xl normal-case">{publicCoachName(p.name)}</h2>
             <p className="mt-2 font-semibold">
               {kind === "instructors"
                 ? "Lesson Instructor"
@@ -108,6 +109,7 @@ export function PeopleDirectory({
             <div className="mt-4">
               <CoachBio>
                 {[p.bio, p.approach, p.ages, p.achievements, p.welcome]
+                  .map(publicProfileText)
                   .filter(Boolean)
                   .join("\n\n")}
               </CoachBio>

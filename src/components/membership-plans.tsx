@@ -3,6 +3,7 @@ import { CatalogStatus } from "./catalog-status";
 import { MembershipCard, PricingSkeleton } from "./pricing-cards";
 import { canPurchase } from "@/lib/purchase-availability";
 import { useLiveCatalog } from "@/lib/use-catalog";
+import { FrontDeskHelp } from "./front-desk-help";
 
 export function MembershipPlans({ cta: _cta }: { cta?: string }) {
   const { cagePlans, purchaseAvailability, status, checkoutStatus, retry } = useLiveCatalog();
@@ -36,9 +37,15 @@ export function MembershipPlans({ cta: _cta }: { cta?: string }) {
       ) : null}
       <div className="grid items-stretch gap-5 md:grid-cols-3">
         {cagePlans.map((plan) => (
-          <MembershipCard key={plan.id} plan={plan} availability={purchaseAvailability} />
+          <MembershipCard
+            key={plan.id}
+            plan={plan}
+            availability={purchaseAvailability}
+            checkoutStatus={checkoutStatus}
+          />
         ))}
       </div>
+      <FrontDeskHelp />
       <p className="mt-6 text-sm">
         Household athletes only. Team practices use team cage rates. All households may book up to
         14 days ahead, subject to availability.

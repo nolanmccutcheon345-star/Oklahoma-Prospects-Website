@@ -38,8 +38,10 @@ export const LINKS = {
   checkin: "/visits",
   maps: "https://www.google.com/maps/search/?api=1&query=3804+S.+Elm+Pl.+Suite+A+Broken+Arrow+OK+74011",
   site: "https://prospectssports.club/",
+  facebook: "https://www.facebook.com/ProspectsSportsAcademy/",
+  instagram: "https://www.instagram.com/prospectssportsacademy/",
   googleReview:
-    "https://www.google.com/maps/search/?api=1&query=Oklahoma+Prospects+Academy+3804+S+Elm+Pl+Broken+Arrow+OK",
+    "https://www.google.com/maps/search/?api=1&query=Prospects+Sports+Academy+3804+S+Elm+Pl+Broken+Arrow+OK",
 } as const;
 
 export function smsHref(tel: string, body: string) {
@@ -290,11 +292,11 @@ export const PEOPLE = [
     href: "tel:+19189228114",
   },
   {
-    name: "Contact Organization",
+    name: "Coach Steve",
     role: "Lessons, development, member access",
     phoneDisplay: "(918) 760-2719",
     tel: "+19187602719",
-    action: "Contact Organization",
+    action: "Text Coach Steve",
     href: "sms:+19187602719",
   },
 ] as const;

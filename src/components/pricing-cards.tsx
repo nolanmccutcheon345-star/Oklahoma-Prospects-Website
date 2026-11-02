@@ -107,10 +107,12 @@ export function MembershipCard({
   plan,
   availability,
   preview = false,
+  checkoutStatus = "loading",
 }: {
   plan: PublicCatalog["cagePlans"][number];
   availability?: PublicCatalog["purchaseAvailability"];
   preview?: boolean;
+  checkoutStatus?: "loading" | "ready" | "error";
 }) {
   const presentation = readServicePresentation(plan.presentation);
   const badge = presentation.badge || (plan.featured ? "Best value" : "");
@@ -172,7 +174,9 @@ export function MembershipCard({
           </Button>
         ) : (
           <Button disabled className="mt-auto w-full">
-            {availability ? "Checkout unavailable" : "Checking checkout…"}
+            {availability || checkoutStatus === "error"
+              ? "Checkout unavailable"
+              : "Checking checkout…"}
           </Button>
         )}
       </div>

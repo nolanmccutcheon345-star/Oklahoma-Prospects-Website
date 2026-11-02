@@ -7,6 +7,8 @@ import type { PublicCatalog } from "@/lib/ops";
 import { reservationSlots, chicagoDateISO } from "@/lib/hours";
 import { cageBookingLastDate, validDate } from "@/lib/scheduling";
 import { cn } from "@/lib/utils";
+import { publicRequest } from "@/lib/public-request";
+import { FrontDeskHelp } from "./front-desk-help";
 import { useStickyHeight } from "@/lib/use-sticky-height";
 
 const DURATIONS = [
@@ -57,6 +59,7 @@ export function BookingFunnel({
     [duration, setDuration] = useState(60);
   const [attest, setAttest] = useState(false),
     [error, setError] = useState("");
+  const [availabilityAttempt, setAvailabilityAttempt] = useState(0);
   const [selectedTime, setSelectedTime] = useState({ key: "", value: "" });
   const [availability, setAvailability] = useState<{
     key: string;
@@ -73,7 +76,7 @@ export function BookingFunnel({
     if (!lanes.length || !dateValid) return;
     let active = true;
     setAvailability({ key: selectionKey, rows: [], error: "", loading: true });
-    loadAvailability({ date, duration, laneIds: lanes })
+    publicRequest(loadAvailability({ date, duration, laneIds: lanes }))
       .then((rows) => {
         if (active) setAvailability({ key: selectionKey, rows, error: "", loading: false });
       })
@@ -92,7 +95,7 @@ export function BookingFunnel({
     return () => {
       active = false;
     };
-  }, [selectionKey, dateValid, loadAvailability, date, duration, lanes]);
+  }, [selectionKey, dateValid, loadAvailability, date, duration, lanes, availabilityAttempt]);
   const currentAvailability = availability.key === selectionKey;
   const loadingSlots = Boolean(
     lanes.length && dateValid && (!currentAvailability || availability.loading),
@@ -153,7 +156,15 @@ export function BookingFunnel({
       use,
     });
   }
-  if (householdHour === undefined || teamHour === undefined || fieldHour === undefined) return <p role="status" className="p-5">Loading current rental rates. If rates do not appear, refresh or contact Front Office.</p>;
+  if (householdHour === undefined || teamHour === undefined || fieldHour === undefined)
+    return (
+      <div role="status" className="p-5">
+        <p>
+          Online rental rates are not currently available. Contact the front desk for booking help.
+        </p>
+        <FrontDeskHelp />
+      </div>
+    );
   return (
     <section ref={bookingRef} className="mx-auto max-w-3xl px-3 py-8 sm:px-5" data-booking-ready={complete}>
       <form id="cage-booking-form" onSubmit={onSubmit} className="grid min-w-0 gap-8">
@@ -349,6 +360,14 @@ export function BookingFunnel({
               </p>
             )}
           </fieldset>
+          {slotError && (
+            <div role="alert">
+              <button type="button" className="min-h-11 underline" onClick={() => setAvailabilityAttempt((n) => n + 1)}>
+                Retry availability
+              </button>
+              <FrontDeskHelp />
+            </div>
+          )}
         </div>
           <Button type="button" className="mt-4" disabled={!complete} onClick={()=>goToBookingStep(2)}>Review this booking</Button>
         </details>

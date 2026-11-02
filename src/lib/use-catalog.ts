@@ -16,6 +16,7 @@ import {
   type ClubService,
   type PublicCatalog,
 } from "@/lib/ops";
+import { publicRequest } from "./public-request";
 export type LiveCatalog = PublicCatalog & {
   status: "loading" | "ready" | "error";
   checkoutStatus: "loading" | "ready" | "error";
@@ -37,7 +38,7 @@ function useCatalogResource(enabled: boolean, initial?: CatalogSnapshot): LiveCa
     const id = ++requestId.current;
     if (catalogToo) {
       setStatus("loading");
-      void getServices()
+      void publicRequest(getServices())
         .then((rows: ClubService[]) => {
           if (requestId.current === id) {
             setCatalog(buildPublicCatalog(rows));
@@ -51,7 +52,7 @@ function useCatalogResource(enabled: boolean, initial?: CatalogSnapshot): LiveCa
     setAvailability(undefined);
     setCheckoutStatus("loading");
     // Square readiness never hides successfully loaded prices or enables checkout on failure.
-    void getPurchaseAvailability()
+    void publicRequest(getPurchaseAvailability())
       .then((purchase) => {
         if (requestId.current === id) {
           setAvailability(purchase);

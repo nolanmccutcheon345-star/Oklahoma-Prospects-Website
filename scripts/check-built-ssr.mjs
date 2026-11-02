@@ -14,6 +14,8 @@ for (const [path, status] of [
   ["/login?next=%2Faccount", 200],
   ["/games", 200],
   ["/games?view=watch", 200],
+  ["/contact", 200],
+  ["/contact?subject=Lessons", 200],
   ["/", 200],
 ]) {
   const response = await fetch(new Request(`https://preview.example.invalid${path}`));
@@ -46,4 +48,11 @@ for (const [path, status] of [
     );
   }
   console.log(`PASS ${status} ${path}: matching CSP, script and hydration nonces; private cache`);
+}
+
+for (const path of ["/contact?subject=", "/contact?subject=%20%20"]) {
+  const response = await fetch(new Request(`https://preview.example.invalid${path}`));
+  assert.ok([301, 302, 307, 308].includes(response.status), path + ": canonical redirect");
+  assert.equal(response.headers.get("location"), "/contact", path + ": empty subject removed without a loop");
+  console.log(`PASS ${path} -> /contact`);
 }
