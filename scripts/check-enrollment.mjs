@@ -81,6 +81,7 @@ try {
   await socket.start();
   Object.assign(process.env, {
     DATABASE_URL: "postgresql://postgres@" + socket.getServerConn() + "/postgres",
+    APP_BASE_URL: origin,
     BETTER_AUTH_URL: origin,
     BETTER_AUTH_SECRET: randomUUID() + randomUUID(),
     VITE_AUTH_ENABLED: "true",
