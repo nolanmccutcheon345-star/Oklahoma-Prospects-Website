@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { NEW_DRAFT_MESSAGE, shopPublicVisibility } from "@/lib/shop/visibility";
 import { Button } from "./ui/button";
 import {
   getShopOffice,
@@ -48,7 +49,7 @@ export function ShopOffice({ changed }: { changed: () => void }) {
       active = false;
     };
   }, []);
-  async function run(work: () => Promise<unknown>) {
+  async function run(work: () => Promise<unknown>, success = "Saved.") {
     if (busy) return;
     setBusy(true);
     setMessage("");
@@ -56,7 +57,7 @@ export function ShopOffice({ changed }: { changed: () => void }) {
       await work();
       await refresh();
       changed();
-      setMessage("Saved.");
+      setMessage(success);
     } catch (e) {
       setMessage(e instanceof Error ? e.message : "Could not save.");
     } finally {
@@ -175,10 +176,13 @@ export function ShopOffice({ changed }: { changed: () => void }) {
               className="grid gap-3 rounded-xl bg-paper-2 p-4"
               onSubmit={(e) => {
                 e.preventDefault();
-                void run(async () => {
-                  await createShopDraft({ data: { title } });
-                  setTitle("");
-                });
+                void run(
+                  async () => {
+                    await createShopDraft({ data: { title } });
+                    setTitle("");
+                  },
+                  NEW_DRAFT_MESSAGE,
+                );
               }}
             >
               <h3 className="text-xl">Add a product</h3>
@@ -393,6 +397,10 @@ function ProductEditor({
               : "Draft"}
         </span>
       </div>
+      <p className="mt-2 text-sm" data-testid="shop-public-visibility">
+        <strong>Public shop: {shopPublicVisibility(p).label}.</strong>{" "}
+        {shopPublicVisibility(p).reason}
+      </p>
       {!p.archived && (
         <>
           {(p.provider === "printify" || p.provider === "fulfill-engine") && (
