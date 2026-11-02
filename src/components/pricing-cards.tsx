@@ -7,6 +7,7 @@ import { canPurchase } from "@/lib/purchase-availability";
 import { useLiveCatalog } from "@/lib/use-catalog";
 import { CatalogStatus } from "./catalog-status";
 import { Button } from "./ui/button";
+import { cn } from "@/lib/utils";
 
 export function CardIcon({
   icon,
@@ -108,18 +109,29 @@ export function MembershipCard({
   availability,
   preview = false,
   checkoutStatus = "loading",
+  highlighted,
 }: {
   plan: PublicCatalog["cagePlans"][number];
   availability?: PublicCatalog["purchaseAvailability"];
   preview?: boolean;
   checkoutStatus?: "loading" | "ready" | "error";
+  /** Visual featured treatment. Defaults to the catalog flag. */
+  highlighted?: boolean;
 }) {
   const presentation = readServicePresentation(plan.presentation);
-  const badge = presentation.badge || (plan.featured ? "Best value" : "");
+  const showFeatured = highlighted ?? plan.featured;
+  const badge =
+    presentation.badge || (plan.featured ? "Best value" : showFeatured ? "Featured" : "");
   return (
-    <article className="pricing-card flex h-full flex-col overflow-hidden rounded-2xl border border-line bg-white text-ink shadow-border">
+    <article
+      data-featured={showFeatured ? "true" : "false"}
+      className={cn(
+        "pricing-card flex h-full flex-col overflow-hidden rounded-2xl border border-line bg-white text-ink shadow-border",
+        showFeatured && "ring-2 ring-maroon ring-offset-2 ring-offset-paper",
+      )}
+    >
       <div
-        className={`relative border-t-4 border-powder px-6 py-5 text-white ${plan.featured ? "bg-maroon" : "bg-navy"}`}
+        className={`relative border-t-4 border-powder px-6 py-5 text-white ${showFeatured ? "bg-maroon" : "bg-navy"}`}
       >
         <div className="mb-3 flex items-center justify-between gap-2">
           <CardIcon icon={presentation.icon} className="size-9 text-powder" />
@@ -167,7 +179,7 @@ export function MembershipCard({
             Card preview
           </Button>
         ) : canPurchase(availability, "cage-plan", plan.id) ? (
-          <Button asChild variant={plan.featured ? "maroon" : "primary"} className="mt-auto w-full">
+          <Button asChild variant={showFeatured ? "maroon" : "primary"} className="mt-auto w-full">
             <Link to="/pay" search={{ kind: "cage-plan", id: plan.id }}>
               Start {plan.name} · {formatDollars(plan.price)}
             </Link>

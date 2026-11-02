@@ -5,6 +5,9 @@
   --color-navy: #071b31;
   --color-maroon: #681c35;
   --color-maroon-deep: #5b0b21;
+  /* Maroon on ink is 1.56:1 and on navy is 1.49:1. These pass AA on those surfaces. */
+  --color-maroon-on-dark: #cf6f8f;
+  --color-maroon-rule-dark: #b24a6b;
   --color-powder: #9ed8f3;
   --color-powder-strong: #c5eaff;
   --color-paper: #f3f6f8;
@@ -503,7 +506,20 @@ body:has(.front-office) [data-site-nav], body:has(.front-office) footer {display
 /* Public navigation lives in the header; workspace tab bars retain their own space. */
 html:has(.public-site-shell) { --bottom-nav-space: 0px; }
 .public-site-shell .booking-review-bar { padding-bottom: env(safe-area-inset-bottom, 0px); }
-[id^="person-"] { scroll-margin-top: 0.75rem; }
+[id^="person-"],
+#contact-form,
+#register,
+#schedule,
+#softball,
+#baseball,
+#explore-teams,
+#cage-booking {
+  scroll-margin-top: calc(var(--header-height, 7.5rem) + 0.75rem);
+}
+/* Brand maroon fails as a boundary on ink and navy. Keep the fill; lighten the rule. */
+:is(.bg-ink, .bg-navy).border-maroon {
+  border-color: var(--color-maroon-rule-dark);
+}
 /* Payment forms get uninterrupted viewport space. The booking link stays in the
    normal-flow header; no promotional floating action sits over payment inputs. */
 .payment-site-shell .site-header { position: static; }

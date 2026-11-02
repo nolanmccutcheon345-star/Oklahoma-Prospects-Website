@@ -125,6 +125,46 @@ test("catalog distinguishes pending, failure and empty success; retry ignores st
       "route revalidation replaces old prices",
     );
     assert.equal(globalThis.__catalogLoads.length, 4, "fresh loader data does not fetch twice");
+    const loadsBeforeFocus = globalThis.__catalogLoads.length;
+    await act(async () => {
+      dom.window.dispatchEvent(new dom.window.Event("focus"));
+    });
+    assert.equal(
+      globalThis.__catalogLoads.length,
+      loadsBeforeFocus,
+      "window focus does not refetch",
+    );
+    assert.equal(current.status, "ready", "window focus keeps the visible catalog");
+    assert.equal(current.lessons[0].id, "revalidated-price");
+    const realNow = Date.now;
+    const started = realNow();
+    try {
+      Object.defineProperty(dom.window.document, "visibilityState", {
+        configurable: true,
+        get: () => "visible",
+      });
+      Date.now = () => started + 61_000;
+      await act(async () => {
+        dom.window.document.dispatchEvent(new dom.window.Event("visibilitychange"));
+      });
+      assert.equal(globalThis.__catalogLoads.length, loadsBeforeFocus + 1);
+      assert.equal(current.status, "ready", "a silent refresh does not blank membership cards");
+      assert.equal(current.lessons[0].id, "revalidated-price");
+      Date.now = () => started + 70_000;
+      await act(async () => {
+        dom.window.document.dispatchEvent(new dom.window.Event("visibilitychange"));
+      });
+      assert.equal(
+        globalThis.__catalogLoads.length,
+        loadsBeforeFocus + 1,
+        "visibility refreshes at most once per minute",
+      );
+      await act(async () => globalThis.__catalogLoads.at(-1).resolve([{ id: "refreshed" }]));
+      assert.equal(current.status, "ready");
+      assert.equal(current.lessons[0].id, "refreshed");
+    } finally {
+      Date.now = realNow;
+    }
   } finally {
     if (root) await act(async () => root.unmount());
     dom?.window.close();

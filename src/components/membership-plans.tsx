@@ -2,6 +2,7 @@ import { Link } from "@tanstack/react-router";
 import { CatalogStatus } from "./catalog-status";
 import { MembershipCard, PricingSkeleton } from "./pricing-cards";
 import { canPurchase } from "@/lib/purchase-availability";
+import { cagePlanIsHighlighted } from "@/lib/membership-display";
 import { useLiveCatalog } from "@/lib/use-catalog";
 import { FrontDeskHelp } from "./front-desk-help";
 
@@ -42,6 +43,7 @@ export function MembershipPlans({ cta: _cta }: { cta?: string }) {
             plan={plan}
             availability={purchaseAvailability}
             checkoutStatus={checkoutStatus}
+            highlighted={cagePlanIsHighlighted(plan, cagePlans)}
           />
         ))}
       </div>
