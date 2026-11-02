@@ -506,16 +506,7 @@ body:has(.front-office) [data-site-nav], body:has(.front-office) footer {display
 /* Public navigation lives in the header; workspace tab bars retain their own space. */
 html:has(.public-site-shell) { --bottom-nav-space: 0px; }
 .public-site-shell .booking-review-bar { padding-bottom: env(safe-area-inset-bottom, 0px); }
-[id^="person-"],
-#contact-form,
-#register,
-#schedule,
-#softball,
-#baseball,
-#explore-teams,
-#cage-booking {
-  scroll-margin-top: calc(var(--header-height, 7.5rem) + 0.75rem);
-}
+[id^="person-"] { scroll-margin-top: 0.75rem; }
 /* Brand maroon fails as a boundary on ink and navy. Keep the fill; lighten the rule. */
 :is(.bg-ink, .bg-navy).border-maroon {
   border-color: var(--color-maroon-rule-dark);

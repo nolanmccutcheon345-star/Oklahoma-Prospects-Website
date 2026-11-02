@@ -17,13 +17,14 @@ test("maroon borders on ink and navy use the darker-surface rule color", () => {
   assert.match(css, /border-color:\s*var\(--color-maroon-rule-dark\)/);
 });
 
-test("in-page targets clear the sticky header", () => {
+test("hash targets use page scroll-padding without a second header offset", () => {
   const css = readFileSync("src/styles.css", "utf8");
-  assert.match(
+  assert.match(css, /scroll-padding-top:\s*calc\(var\(--header-height\) \+ 0\.75rem\);/);
+  assert.doesNotMatch(
     css,
-    /#register[\s\S]*scroll-margin-top:\s*calc\(var\(--header-height, 7\.5rem\) \+ 0\.75rem\)/,
+    /#(?:register|contact-form|schedule|softball|baseball|explore-teams|cage-booking)[\s\S]{0,240}scroll-margin-top:\s*calc\(var\(--header-height/,
   );
-  assert.match(css, /\[id\^="person-"\]/);
+  assert.match(css, /\[id\^="person-"\]\s*\{\s*scroll-margin-top:\s*0\.75rem;\s*\}/);
 });
 
 test("team invoice action is readable on the light payments section", () => {
