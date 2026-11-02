@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Button } from "./ui/button";
 import {
   reviewInvitationEmail,
@@ -19,6 +19,10 @@ export function InvitationDelivery({
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [preview, setPreview] = useState<Awaited<ReturnType<typeof reviewInvitationEmail>>>();
+  const reviewHeading = useRef<HTMLHeadingElement>(null);
+  useEffect(() => {
+    if (preview) reviewHeading.current?.focus();
+  }, [preview]);
   useEffect(() => {
     let active = true;
     setPreview(undefined);
@@ -91,7 +95,9 @@ export function InvitationDelivery({
       </div>
       {preview && (
         <div className="grid gap-3 rounded-xl border border-line bg-white p-4">
-          <h4 className="font-semibold">Review and send this invitation</h4>
+          <h4 ref={reviewHeading} tabIndex={-1} className="font-semibold">
+            Review and send this invitation
+          </h4>
           {preview.blockers.map((message) => (
             <p key={message} role="status">
               {message}

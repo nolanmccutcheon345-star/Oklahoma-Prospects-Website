@@ -563,6 +563,10 @@ try {
     .getByRole("heading", { name: "Review and send this invitation", exact: true })
     .waitFor();
   assert.match(await invitationReview.innerText(), /new-parent@example.invalid/);
+  assert.equal(
+    await invitationReview.locator("h4").evaluate((node) => node === document.activeElement),
+    true,
+  );
   assert.match(await invitationReview.innerText(), /\/invitations/);
   assert.equal(
     await invitationReview

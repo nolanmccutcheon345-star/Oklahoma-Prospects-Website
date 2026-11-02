@@ -54,6 +54,7 @@ test("invitation screen presents the exact email and sends only on the final rev
     );
     assert.deepEqual(fixture.calls, [{ action: "review", id: "one" }]);
     assert.match(host.textContent, /synthetic@example.invalid/);
+    assert.equal(document.activeElement, host.querySelector("h4"));
     assert.match(host.textContent, /https:\/\/prospectssports.club\/invitations/);
     await act(async () => button("Send invitation").click());
     assert.deepEqual(fixture.calls[1], {
