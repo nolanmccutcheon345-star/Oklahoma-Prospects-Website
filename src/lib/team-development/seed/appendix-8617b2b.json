@@ -1,0 +1,5515 @@
+[
+ {
+  "id": "SCHEMA-00",
+  "version": 1,
+  "table": "meta",
+  "name": "Seed appendix schema and defaults",
+  "record_fields": [
+   "id",
+   "version",
+   "table",
+   "name",
+   "sport",
+   "category",
+   "age_band",
+   "level",
+   "position",
+   "season_phase",
+   "status",
+   "description",
+   "frequency",
+   "items",
+   "coach_notes",
+   "athlete_notes",
+   "safety_flags",
+   "approval_requirements",
+   "source_refs",
+   "ceiling_ref",
+   "pd_catalog_ref",
+   "counts_toward_throwing_load",
+   "high_intensity",
+   "equipment"
+  ],
+  "tables": {
+   "program": "team_dev_programs",
+   "exercise": "team_dev_exercises",
+   "drill": "team_dev_drills",
+   "config": "team_dev_config_items",
+   "routine": "team_dev_programs"
+  },
+  "id_scheme": "STR-<band>-NN strength programs | EXR-STR-NN strength exercises | THR-BB-<type>-NN / THR-SB-<type>-NN throwing programs | ARM-<cat>-NN arm-care exercises | ARM-RTN-NN arm-care routines | DRL-BB-<grp>-NN / DRL-SB-<grp>-NN drills | LVL-* levels | PHS-* phases | INT-* intensity | RULE-* shared rules | MAP-* suggestions",
+  "enums": {
+   "sport": [
+    "baseball",
+    "softball",
+    "both"
+   ],
+   "status": [
+    "DRAFT",
+    "SPORTS_SCIENCE_REVIEW",
+    "SAFETY_REVIEW",
+    "APPROVED",
+    "ACTIVE",
+    "RETIRED"
+   ],
+   "age_band": [
+    "agp_6u-8u",
+    "agp_9u-10u",
+    "agp_11u-12u",
+    "agp_13u-14u",
+    "agp_15u-17u"
+   ],
+   "level": [
+    "LVL-FND",
+    "LVL-DEV",
+    "LVL-ADV",
+    "LVL-ELT"
+   ],
+   "season_phase": [
+    "PHS-OFF",
+    "PHS-PRE",
+    "PHS-EARLY",
+    "PHS-COMP",
+    "PHS-POST",
+    "ANY"
+   ],
+   "position": [
+    "ALL",
+    "P",
+    "C",
+    "1B",
+    "MI",
+    "CI",
+    "OF",
+    "UTIL",
+    "TWO-WAY"
+   ]
+  },
+  "blocked_token": "REQUIRES APPROVED AGE-BAND CEILING BEFORE ACTIVATION",
+  "defaults": {
+   "version": 1,
+   "status": "DRAFT",
+   "data_label": "ESTIMATE",
+   "origin": "PROSPECTS_SEED_DRAFT",
+   "sport": "both",
+   "position": [
+    "ALL"
+   ],
+   "season_phase": [
+    "ANY"
+   ],
+   "counts_toward_throwing_load": false,
+   "high_intensity": false,
+   "approval_requirements": [
+    "P04_SPORTS_SCIENCE_REVIEW",
+    "S01_SAFETY_REVIEW",
+    "NAMED_HUMAN_EXPERT_SIGNOFF"
+   ],
+   "safety_flags": [
+    "DISCLAIMER_CB1",
+    "STOP_AND_TELL_CB2"
+   ]
+  },
+  "band_labels": {
+   "agp_6u-8u": "Younger youth / movement foundation (6U-8U)",
+   "agp_9u-10u": "Younger youth (9U-10U)",
+   "agp_11u-12u": "Intermediate youth (11U-12U)",
+   "agp_13u-14u": "Early adolescent (13U-14U)",
+   "agp_15u-17u": "High school (15U-17U); 18U is not yet an agp_ band; add it in admin config if needed"
+  }
+ },
+ {
+  "id": "LVL-FND",
+  "table": "config",
+  "name": "Foundation",
+  "family_label": "Building the basics",
+  "maps_to": "lvl_<area>-01",
+  "movement_competency": "Learning basic shapes: squat, hinge, lunge, push, pull, brace, land. Needs demo and cues on most reps. Knees cave or trunk folds when tired.",
+  "strength_training_experience": "None, or under ~3 months of supervised training. Body weight only.",
+  "sport_skill_competency": "Inconsistent grip, footwork and catch-throw sequence. Cannot repeat a delivery or swing pattern 3 times in a row.",
+  "workload_tolerance": "Short sessions (20-40 min). Form fades quickly. Needs frequent rest.",
+  "technical_understanding": "Follows one simple cue at a time. Cannot yet describe what changed.",
+  "independence": "Needs a coach present for every block. Not ready for home work without a guardian."
+ },
+ {
+  "id": "LVL-DEV",
+  "table": "config",
+  "name": "Developing",
+  "family_label": "Developing consistency",
+  "maps_to": "lvl_<area>-02",
+  "movement_competency": "Holds good shapes on most reps at body weight. Lands quietly with knees over toes. Can hold a 30 s plank with a neutral spine.",
+  "strength_training_experience": "About 3-12 months supervised. Light implements (bands, light DB/KB) with good form.",
+  "sport_skill_competency": "Repeats basic mechanics on most reps at Easy/Moderate intent. Breaks down at Firm intent or under game speed.",
+  "workload_tolerance": "Handles full team sessions. Needs planned easy days after games.",
+  "technical_understanding": "Understands 2-3 cues. Can tell the coach when a rep felt wrong.",
+  "independence": "Completes a familiar warm-up and arm-care routine with light supervision."
+ },
+ {
+  "id": "LVL-ADV",
+  "table": "config",
+  "name": "Advanced",
+  "family_label": "Applying skills in game speed",
+  "maps_to": "lvl_<area>-03",
+  "movement_competency": "Owns fundamental patterns under light-to-moderate load and at speed. Decelerates and changes direction under control.",
+  "strength_training_experience": "1-3 years of consistent supervised training. Ready for moderate loads with technique checks.",
+  "sport_skill_competency": "Mechanics hold at Firm intent and in live reps. Position skills are game-ready at their level.",
+  "workload_tolerance": "Tolerates a planned weekly structure across practice, games and training when recovery days are respected.",
+  "technical_understanding": "Self-corrects with one cue. Understands why a drill is used.",
+  "independence": "Runs own warm-up and arm care. Logs completion honestly. Follows the plan without reminders."
+ },
+ {
+  "id": "LVL-ELT",
+  "table": "config",
+  "name": "Elite",
+  "family_label": "Refining details",
+  "maps_to": "lvl_<area>-04",
+  "movement_competency": "Consistent, efficient movement under moderate load, at full speed and when fatigued.",
+  "strength_training_experience": "3+ years of structured training. Supervised low-rep work is allowed only per P04 §3.1 (training age 1_3yr+, 15U-17U).",
+  "sport_skill_competency": "Repeatable, adjustable mechanics. Makes in-game adjustments.",
+  "workload_tolerance": "Highest planned volume inside the same age-band ceilings. Level never raises a ceiling.",
+  "technical_understanding": "Explains own mechanics and plan. Gives useful feedback to coaches.",
+  "independence": "Largely self-directed inside the plan. Still subject to every check-in and pause rule."
+ },
+ {
+  "id": "PHS-OFF",
+  "table": "config",
+  "name": "Off-season",
+  "maps_to": "ssp_offseason",
+  "strength": "Highest emphasis. 2-3 sessions/wk (3rd = admin, per cap_both-strength-*). Build technique, then volume, then load.",
+  "throwing": "Starts with planned time off from throwing (Pitch Smart: at least 4 months/yr total without competitive throwing). Then a gradual return at Easy/Moderate intent. No max-intent throwing early.",
+  "arm_care": "3-4 days/wk. Full routine ARM-RTN-01 and ARM-RTN-03.",
+  "skill": "High technical volume at low intensity: dry work, tee, short-distance drills.",
+  "speed_power": "Introduce and build. Low-to-moderate plyometrics."
+ },
+ {
+  "id": "PHS-PRE",
+  "table": "config",
+  "name": "Preseason",
+  "maps_to": "ssp_preseason",
+  "strength": "2 sessions/wk. Keep the load, reduce total sets ~20-30%. Shift toward power and speed.",
+  "throwing": "Ramp-up (THR-BB-PRE-01 / THR-SB-POS-01): intent and distance build week to week. Pitchers add mound work per program.",
+  "arm_care": "Before every throwing day (ARM-RTN-01), after it (ARM-RTN-02).",
+  "skill": "Moves from blocked to random/live reps. Game situations added.",
+  "speed_power": "Sprint and acceleration quality emphasized, full rest."
+ },
+ {
+  "id": "PHS-EARLY",
+  "table": "config",
+  "name": "Early season",
+  "maps_to": "ssp_preseason or ssp_in-season (no ssp_early-season exists; admin may add one, AC-15)",
+  "strength": "1-2 sessions/wk. Maintain. Drop 1 set if games are stacked.",
+  "throwing": "Game workloads begin. Bullpens/long toss reduced to maintenance. Recovery days are enforced.",
+  "arm_care": "Every throwing day, plus post-game recovery.",
+  "skill": "Short, focused sessions targeting game needs.",
+  "speed_power": "Low volume, high quality. No plyometric block on game days."
+ },
+ {
+  "id": "PHS-COMP",
+  "table": "config",
+  "name": "Competition season",
+  "maps_to": "ssp_in-season",
+  "strength": "1-2 short sessions/wk (P04 A-7 note: 1 session in tournament or heavy weeks; deload = drop 1 set).",
+  "throwing": "Maintenance only (THR-BB-INS-01). Game throws count toward the one throwing total. Rest days follow approved ceilings.",
+  "arm_care": "Light pre-throw routine. Post-game recovery (ARM-RTN-02).",
+  "skill": "Lowest volume. Sharpening and situational work.",
+  "speed_power": "Primers only (2-4 short accelerations) on non-game days."
+ },
+ {
+  "id": "PHS-POST",
+  "table": "config",
+  "name": "Postseason / recovery",
+  "maps_to": "ssp_postseason / ssp_postseason-transition",
+  "strength": "Light general activity, mobility, other sports and play. Retest movement quality only if the coach chooses.",
+  "throwing": "Planned break from throwing (counts toward the annual time away).",
+  "arm_care": "Mobility only, optional.",
+  "skill": "Optional fun and multi-sport play. No structured volume.",
+  "speed_power": "Games and play only."
+ },
+ {
+  "id": "INT-SCALE-01",
+  "table": "config",
+  "name": "Prospects intent scale (named intensity scale required by handoff C4)",
+  "levels": [
+   {
+    "code": 1,
+    "label": "Easy",
+    "description": "About half effort. Smooth, relaxed, can talk normally."
+   },
+   {
+    "code": 2,
+    "label": "Moderate",
+    "description": "About 70%. Controlled, on a line or arc with good form."
+   },
+   {
+    "code": 3,
+    "label": "Firm",
+    "description": "About 85%. Strong but still repeatable. Counts as high-intensity for throwing."
+   },
+   {
+    "code": 4,
+    "label": "Game",
+    "description": "Full game intent. Counts as high-intensity. Allowed only where a program phase says so."
+   }
+  ],
+  "rule": "Firm and Game throws count toward cap_*-nonpitch-high-intensity-throws-day-<band> as well as the total."
+ },
+ {
+  "id": "RULE-STOP-01",
+  "table": "config",
+  "name": "Throwing stopping rules (all throwing, arm-care and pitching records)",
+  "rules": [
+   "Any pain, or 'yes' to 'Does your throwing arm hurt?': stop all throwing at once. Show the CB-2 stop-and-tell text. A full pause follows the D11 release rules.",
+   "Mechanics break down (arm drops, front side flies open, misses on consecutive throws by more than a body width): end that block. Finish with Easy throws only if form returns at once, otherwise stop.",
+   "Visible fatigue (slower arm, rushed tempo, athlete says tired): stop the throwing block. Record a check-in if the athlete reports 'high'.",
+   "No warm-up completed: no throwing above Easy.",
+   "Never 'throw through it'. No extra throws to make up a missed day (no make-up prompts, D8).",
+   "Health questions go to the parent/guardian and a licensed healthcare provider. Coaches do not diagnose or treat."
+  ],
+  "source_refs": [
+   "P02/COMMON_BLOCKS_P02.md CB-2",
+   "S01_t42u_SAFETY_RULINGS.md §3",
+   "P04/P04_AGE_BAND_CEILINGS_v0.md §5"
+  ]
+ },
+ {
+  "id": "RULE-WU-01",
+  "table": "config",
+  "name": "Standard throwing warm-up sequence (before any throwing)",
+  "sequence": [
+   "General raise 3-5 min: jog, skips, carioca (ARM-DWU-01..04)",
+   "Dynamic mobility 3-4 min (ARM-DWU-05..08)",
+   "Shoulder/scap prep 3-4 min (ARM-SHP-01..03, ARM-SCP-01)",
+   "Throwing progression (no-ball counts false): wrist flick -> one-knee -> step-behind -> catch play, Easy to Moderate"
+  ],
+  "source_refs": [
+   "P02/A7_BB_ARM_CARE_FOUNDATION_11U-12U.md",
+   "P04 prg_both-a9-speed-mobility-warmup-*"
+  ]
+ },
+ {
+  "id": "STR-FND-01",
+  "table": "program",
+  "name": "Movement Foundations (Play-Based)",
+  "category": "strength_athletic",
+  "age_band": [
+   "agp_6u-8u",
+   "agp_9u-10u"
+  ],
+  "level": [
+   "LVL-FND",
+   "LVL-DEV"
+  ],
+  "season_phase": [
+   "ANY"
+  ],
+  "frequency": "2x/wk, non-consecutive days, 25-35 min",
+  "ceiling_ref": [
+   "cap_both-strength-6u-8u",
+   "cap_both-strength-9u-10u",
+   "cap_both-plyometric-6u-8u",
+   "cap_both-plyometric-9u-10u",
+   "cap_both-sprint-6u-8u",
+   "cap_both-sprint-9u-10u"
+  ],
+  "description": "Builds basic movement skills through games and simple bodyweight patterns. Not a workout program.",
+  "session_structure": [
+   "Warm-up game 5 min",
+   "Movement skills 10 min",
+   "Jump and land 5 min",
+   "Speed game 5 min",
+   "Core and crawl 5 min",
+   "Cool-down 2-3 min"
+  ],
+  "items": [
+   [
+    "exr_p04-a-skip",
+    2,
+    "10 m",
+    "walk back"
+   ],
+   [
+    "exr_p04-carioca",
+    2,
+    "10 m each way",
+    "walk back"
+   ],
+   [
+    "exr_p04-bodyweight-squat",
+    2,
+    "8-10",
+    "30 s"
+   ],
+   [
+    "exr_p04-glute-bridge",
+    2,
+    10,
+    "30 s"
+   ],
+   [
+    "exr_p04-incline-push-up",
+    2,
+    "6-8",
+    "30 s"
+   ],
+   [
+    "EXR-STR-15",
+    2,
+    "10 m bear crawl",
+    "30 s"
+   ],
+   [
+    "exr_p04-snap-down",
+    2,
+    5,
+    "45 s (≤40 contacts/session for 6U-8U, ≤50 for 9U-10U)"
+   ],
+   [
+    "exr_p04-acceleration-start",
+    "4-6",
+    "10-15 m tag or race game",
+    "≥90 s"
+   ],
+   [
+    "exr_p04-dead-bug",
+    2,
+    "6 each side",
+    "30 s"
+   ],
+   [
+    "exr_p04-front-plank",
+    2,
+    "10-20 s",
+    "30 s"
+   ],
+   [
+    "ARM-MOB-01",
+    1,
+    "30 s",
+    "-"
+   ]
+  ],
+  "progression_rules": "Add the 2nd set only when every rep of the 1st set looks good. Then add 2 reps. Never add external load in this band.",
+  "regression": "Squat to a box/bench; push-up on a higher surface; bridge with shorter hold; jumps become hops in place.",
+  "equipment": [
+   "cones",
+   "mats",
+   "low box or bench"
+  ],
+  "coach_notes": "Make it a game. Count good reps, not total reps. Watch knees over toes on landings and a flat back on squats. Stop the block when form fades.",
+  "athlete_notes": "Move well, land quietly, have fun. If something hurts, stop and tell your coach and your parent.",
+  "safety_flags": [
+   "DISCLAIMER_CB1",
+   "STOP_AND_TELL_CB2",
+   "BODYWEIGHT_ONLY",
+   "SUPERVISION_ADULT"
+  ],
+  "source_refs": [
+   "P04/P04_SEED_A8_A9_v0.5.7.json",
+   "P04/P04_AGE_BAND_CEILINGS_v0.md §3",
+   "cit_aap-overuse-burnout-2024",
+   "NSCA youth RT 2009",
+   "AAP RT 2020",
+   "Bergeron IOC 2015"
+  ]
+ },
+ {
+  "id": "STR-INT-01",
+  "table": "program",
+  "name": "Athletic Foundations 11U-12U",
+  "category": "strength_athletic",
+  "age_band": [
+   "agp_11u-12u"
+  ],
+  "level": [
+   "LVL-FND",
+   "LVL-DEV"
+  ],
+  "season_phase": [
+   "PHS-OFF",
+   "PHS-PRE",
+   "PHS-EARLY",
+   "PHS-COMP"
+  ],
+  "frequency": "2x/wk (3rd only with admin approval), 35-45 min",
+  "ceiling_ref": [
+   "cap_both-strength-11u-12u",
+   "cap_both-plyometric-11u-12u",
+   "cap_both-sprint-11u-12u"
+  ],
+  "pd_catalog_ref": [
+   "prg_both-a8-strength-foundations-1112",
+   "prg_both-a9-speed-mobility-warmup-1112"
+  ],
+  "description": "Teaches squat, hinge, lunge, push, pull, brace, carry and land, plus acceleration and deceleration basics.",
+  "session_structure": [
+   "Dynamic warm-up 8 min (RULE-WU-01 first two parts)",
+   "Jump/land 5 min",
+   "Speed 6 min",
+   "Strength circuit 15 min",
+   "Core 5 min",
+   "Cool-down 3 min"
+  ],
+  "items": [
+   [
+    "exr_p04-pogo-hops",
+    2,
+    10,
+    "60 s"
+   ],
+   [
+    "exr_p04-snap-down",
+    2,
+    5,
+    "60 s"
+   ],
+   [
+    "EXR-STR-03",
+    2,
+    3,
+    "60 s (stick landing)"
+   ],
+   [
+    "exr_p04-acceleration-start",
+    4,
+    "10-15 m",
+    "≥90 s"
+   ],
+   [
+    "EXR-STR-14",
+    3,
+    "10 m run + 3-step stop",
+    "≥90 s"
+   ],
+   [
+    "exr_p04-bodyweight-squat",
+    2,
+    "10-12",
+    "60 s"
+   ],
+   [
+    "exr_p04-dowel-hip-hinge",
+    2,
+    10,
+    "60 s"
+   ],
+   [
+    "exr_p04-split-squat",
+    2,
+    "8 each leg",
+    "60 s"
+   ],
+   [
+    "exr_p04-incline-push-up",
+    2,
+    "8-10",
+    "60 s"
+   ],
+   [
+    "exr_p04-band-row",
+    2,
+    "10-12",
+    "60 s (high_intensity per P04 A-8)"
+   ],
+   [
+    "exr_p04-side-plank",
+    2,
+    "15-20 s each",
+    "30 s"
+   ],
+   [
+    "EXR-STR-11",
+    2,
+    "8 each side",
+    "30 s"
+   ]
+  ],
+  "progression_rules": "Technique first. Progress one variable at a time: reps (to 15), then sets (to 3), then a light implement only after the coach signs off technique. Plyometric contacts stay ≤60/session; sprints ≤12/session.",
+  "regression": "Box squat; hands-elevated push-up; split squat holding a rail; replace band row with towel row.",
+  "equipment": [
+   "cones",
+   "dowel",
+   "light bands",
+   "mats"
+  ],
+  "coach_notes": "Off-season 2x/wk. In-season 1x/wk at the same exercises, 1 set each. No sprint or jump block on game days.",
+  "athlete_notes": "Do every rep with good form. Stop well before you can't do more. Tell your coach if anything hurts.",
+  "safety_flags": [
+   "DISCLAIMER_CB1",
+   "STOP_AND_TELL_CB2",
+   "SUPERVISION_ADULT",
+   "NO_MAX_TESTING"
+  ],
+  "source_refs": [
+   "P04/P04_SEED_A8_A9_v0.5.7.json",
+   "P04/P04_AGE_BAND_CEILINGS_v0.md §3.1-3.3",
+   "Moran 2017 PMID 27793062",
+   "Johnson 2011 PMID 21849911"
+  ]
+ },
+ {
+  "id": "STR-EA-01",
+  "table": "program",
+  "name": "Strength & Speed Development 13U-14U",
+  "category": "strength_athletic",
+  "age_band": [
+   "agp_13u-14u"
+  ],
+  "level": [
+   "LVL-DEV",
+   "LVL-ADV"
+  ],
+  "season_phase": [
+   "PHS-OFF",
+   "PHS-PRE",
+   "PHS-EARLY",
+   "PHS-COMP"
+  ],
+  "frequency": "Off/pre 2x/wk (3rd = admin), 45-50 min; in-season 1x/wk, 25-30 min",
+  "ceiling_ref": [
+   "cap_both-strength-13u-14u",
+   "cap_both-plyometric-13u-14u",
+   "cap_both-sprint-13u-14u"
+  ],
+  "pd_catalog_ref": [
+   "prg_both-a8-strength-foundations-1314",
+   "prg_both-a9-speed-mobility-warmup-1314"
+  ],
+  "description": "Adds light-to-moderate loads, med-ball power and change of direction, with coach-checked technique and growth-spurt awareness.",
+  "session_structure": [
+   "Warm-up 8 min",
+   "Jump/land + med ball 8 min",
+   "Speed/decel 8 min",
+   "Strength A/B pairs 18 min",
+   "Core/carry 5 min",
+   "Cool-down 3 min"
+  ],
+  "items": [
+   [
+    "EXR-STR-03",
+    3,
+    3,
+    "60 s"
+   ],
+   [
+    "EXR-STR-04",
+    2,
+    "3 each side",
+    "60 s"
+   ],
+   [
+    "exr_p04-skater-hop",
+    2,
+    "5 each side",
+    "60 s"
+   ],
+   [
+    "EXR-STR-01",
+    3,
+    5,
+    "60 s (high_intensity)"
+   ],
+   [
+    "EXR-STR-02",
+    2,
+    "5 each side",
+    "60 s (high_intensity)"
+   ],
+   [
+    "exr_p04-acceleration-start",
+    5,
+    "15-20 m",
+    "≥90 s"
+   ],
+   [
+    "EXR-STR-14",
+    3,
+    "15 m + stop",
+    "≥90 s"
+   ],
+   [
+    "exr_p04-goblet-squat",
+    3,
+    "8-10",
+    "90 s (qualified supervision)"
+   ],
+   [
+    "EXR-STR-06",
+    3,
+    8,
+    "90 s (KB deadlift; qualified supervision)"
+   ],
+   [
+    "exr_p04-split-squat",
+    2,
+    "8 each",
+    "60 s"
+   ],
+   [
+    "EXR-STR-08",
+    3,
+    "8-10",
+    "60 s"
+   ],
+   [
+    "exr_p04-incline-push-up",
+    3,
+    10,
+    "60 s (progress to floor push-up)"
+   ],
+   [
+    "EXR-STR-11",
+    2,
+    "8 each",
+    "30 s"
+   ],
+   [
+    "exr_p04-farmer-carry",
+    2,
+    "20 m",
+    "60 s (qualified supervision)"
+   ]
+  ],
+  "progression_rules": "Load rises only after 2 sessions in a row with clean reps at the top of the rep range. Keep 3+ good reps in reserve. Plyo ≤80-100 contacts/session (upper band = admin); sprints ≤15 per session.",
+  "regression": "Remove the load (back to STR-INT-01 patterns). During rapid growth, coach may cut jump volume by half and swap bounds for snap-downs.",
+  "equipment": [
+   "light-moderate DB/KB",
+   "med balls 2-4 kg",
+   "bands",
+   "low box",
+   "cones",
+   "mats"
+  ],
+  "coach_notes": "Expect awkward phases during growth. Re-teach technique instead of adding load. In-season: one session, 1-2 sets, no new exercises.",
+  "athlete_notes": "Strong reps, not heavy reps. Finish every set knowing you could do 3 more good ones.",
+  "safety_flags": [
+   "DISCLAIMER_CB1",
+   "STOP_AND_TELL_CB2",
+   "QUALIFIED_SUPERVISION_LOADED",
+   "NO_MAX_TESTING",
+   "HI_ITEMS_PAUSE_ON_FATIGUE"
+  ],
+  "source_refs": [
+   "P04/P04_SEED_A8_A9_v0.5.7.json",
+   "P04/P04_AGE_BAND_CEILINGS_v0.md §3",
+   "Lloyd UKSCA 2014"
+  ]
+ },
+ {
+  "id": "STR-HS-01",
+  "table": "program",
+  "name": "High School Development 15U-17U",
+  "category": "strength_athletic",
+  "age_band": [
+   "agp_15u-17u"
+  ],
+  "level": [
+   "LVL-DEV"
+  ],
+  "season_phase": [
+   "PHS-OFF",
+   "PHS-PRE",
+   "PHS-EARLY",
+   "PHS-COMP"
+  ],
+  "frequency": "Off 2-3x/wk (3rd = admin), 50-60 min; pre 2x; in-season 1-2x, 30 min",
+  "ceiling_ref": [
+   "cap_both-strength-15u-17u",
+   "cap_both-plyometric-15u-17u",
+   "cap_both-sprint-15u-17u"
+  ],
+  "description": "For high-school athletes with under 1 year of structured training. Builds a full-body base with moderate load and sport-specific power.",
+  "session_structure": [
+   "Warm-up 10 min",
+   "Power 10 min",
+   "Speed 8 min",
+   "Strength 3 pairs 22 min",
+   "Core/durability 6 min",
+   "Cool-down 4 min"
+  ],
+  "items": [
+   [
+    "EXR-STR-03",
+    3,
+    3,
+    "90 s"
+   ],
+   [
+    "EXR-STR-05",
+    3,
+    3,
+    "90 s (step down)"
+   ],
+   [
+    "EXR-STR-02",
+    3,
+    "5 each side",
+    "60 s"
+   ],
+   [
+    "exr_p04-acceleration-start",
+    6,
+    "20 m",
+    "≥90 s"
+   ],
+   [
+    "EXR-STR-14",
+    3,
+    "20 m + stop",
+    "≥90 s"
+   ],
+   [
+    "exr_p04-goblet-squat",
+    3,
+    "8-10",
+    "90 s"
+   ],
+   [
+    "EXR-STR-06",
+    3,
+    "6-8",
+    "2 min"
+   ],
+   [
+    "EXR-STR-07",
+    3,
+    "8-10",
+    "90 s"
+   ],
+   [
+    "EXR-STR-08",
+    3,
+    10,
+    "60 s"
+   ],
+   [
+    "EXR-STR-10",
+    2,
+    "8 each",
+    "60 s"
+   ],
+   [
+    "EXR-STR-16",
+    2,
+    "8 each",
+    "60 s"
+   ],
+   [
+    "EXR-STR-13",
+    2,
+    "15-20 s each",
+    "30 s"
+   ],
+   [
+    "EXR-STR-12",
+    2,
+    "20 m each hand",
+    "60 s"
+   ]
+  ],
+  "progression_rules": "Rep range 6-12. Add load 2-5% when all sets hit the top of the range with clean form. Deload every 4th week (drop 1 set). No reps under 6 at this level.",
+  "regression": "Goblet box squat; DB deadlift from blocks; push-up instead of DB bench.",
+  "equipment": [
+   "DB/KB",
+   "bench",
+   "trap bar optional",
+   "med balls 3-5 kg",
+   "box",
+   "bands"
+  ],
+  "coach_notes": "Teach each lift before loading it. Coordinate with school/HS team lifting so the athlete is not doubling sessions.",
+  "athlete_notes": "Log your sets. Quality over load. Tell your coach about any other team's lifting so we do not double up.",
+  "safety_flags": [
+   "DISCLAIMER_CB1",
+   "STOP_AND_TELL_CB2",
+   "QUALIFIED_SUPERVISION_LOADED",
+   "NO_MAX_TESTING",
+   "MULTI_TEAM_LOAD_WARNING"
+  ],
+  "source_refs": [
+   "P04/P04_AGE_BAND_CEILINGS_v0.md §3",
+   "NSCA youth RT 2009",
+   "AAP RT 2020",
+   "Jayanthi 2015"
+  ]
+ },
+ {
+  "id": "STR-HSA-01",
+  "table": "program",
+  "name": "Advanced High School Strength & Power 15U-17U",
+  "category": "strength_athletic",
+  "age_band": [
+   "agp_15u-17u"
+  ],
+  "level": [
+   "LVL-ADV",
+   "LVL-ELT"
+  ],
+  "season_phase": [
+   "PHS-OFF",
+   "PHS-PRE",
+   "PHS-EARLY",
+   "PHS-COMP"
+  ],
+  "frequency": "Off 3x/wk (admin-approved), 60 min; pre 2x; in-season 1-2x, 30-35 min",
+  "ceiling_ref": [
+   "cap_both-strength-15u-17u",
+   "cap_both-plyometric-15u-17u",
+   "cap_both-sprint-15u-17u"
+  ],
+  "description": "For athletes with 1-3+ years of training age (training_age_assumption 1_3yr+). Moderate loads, supervised lower-rep strength, rotational power, deceleration and durability.",
+  "session_structure": [
+   "Warm-up 10 min",
+   "Power/plyo 12 min",
+   "Speed 8 min",
+   "Main lift + 2 accessory pairs 25 min",
+   "Durability 5 min"
+  ],
+  "day_split": {
+   "A": "Lower + rotational power",
+   "B": "Upper + acceleration",
+   "C": "Full body + deceleration (off-season only)"
+  },
+  "items": [
+   [
+    "EXR-STR-04",
+    3,
+    "4 each side",
+    "90 s"
+   ],
+   [
+    "EXR-STR-05",
+    3,
+    4,
+    "90 s"
+   ],
+   [
+    "EXR-STR-02",
+    4,
+    "5 each side",
+    "60 s"
+   ],
+   [
+    "EXR-STR-01",
+    3,
+    5,
+    "60 s"
+   ],
+   [
+    "exr_p04-acceleration-start",
+    "6-8",
+    "20-30 m",
+    "≥90 s and ≥60 s per 10 m"
+   ],
+   [
+    "EXR-STR-14",
+    4,
+    "20 m + stop",
+    "≥90 s"
+   ],
+   [
+    "EXR-STR-06",
+    4,
+    "4-6 (3-5 only with training age 1_3yr+ and supervision)",
+    "2-3 min"
+   ],
+   [
+    "exr_p04-goblet-squat",
+    3,
+    "6-8",
+    "2 min (or DB front squat)"
+   ],
+   [
+    "EXR-STR-07",
+    3,
+    "6-8",
+    "2 min"
+   ],
+   [
+    "EXR-STR-09",
+    3,
+    "5-8 (band-assisted as needed)",
+    "90 s"
+   ],
+   [
+    "EXR-STR-10",
+    3,
+    "6-8 each",
+    "60 s"
+   ],
+   [
+    "EXR-STR-17",
+    2,
+    "3-5 (assisted, partial range)",
+    "90 s"
+   ],
+   [
+    "EXR-STR-13",
+    2,
+    "20-30 s each",
+    "30 s"
+   ],
+   [
+    "EXR-STR-11",
+    2,
+    "10 each",
+    "30 s"
+   ]
+  ],
+  "progression_rules": "Wave load across 3 weeks, then deload in week 4. Main-lift reps 4-6, or 3-5 only with logged training age and qualified supervision. In-season: keep 1-2 working sets at the same load. No new exercises in-season.",
+  "regression": "Fall back to STR-HS-01 for any lift that loses form. Swap chin-ups for inverted rows. Remove the Nordic for anyone new to it.",
+  "equipment": [
+   "trap bar or KB",
+   "DB",
+   "bench",
+   "pull-up bar",
+   "bands",
+   "med balls 3-6 kg",
+   "plyo box"
+  ],
+  "coach_notes": "Training age must be recorded before assigning. Depth/drop jumps are not included (they need admin approval per P04 §3.2). Pitchers: no heavy pressing or chin-ups within 24 h before a scheduled outing.",
+  "athlete_notes": "Warm up fully. Lift with a coach watching. Never test a max. Rest days are part of the plan.",
+  "safety_flags": [
+   "DISCLAIMER_CB1",
+   "STOP_AND_TELL_CB2",
+   "QUALIFIED_SUPERVISION_LOADED",
+   "NO_MAX_TESTING",
+   "TRAINING_AGE_REQUIRED",
+   "ADMIN_APPROVAL_3X_WEEK"
+  ],
+  "source_refs": [
+   "P04/P04_AGE_BAND_CEILINGS_v0.md §3.1-3.3",
+   "NSCA youth RT 2009",
+   "Lloyd UKSCA 2014"
+  ]
+ },
+ {
+  "id": "EXR-STR-01",
+  "table": "exercise",
+  "name": "Med-ball chest pass to wall",
+  "category": "power",
+  "equipment": [
+   "med ball 2-5 kg",
+   "wall"
+  ],
+  "high_intensity": true,
+  "instructions": "Athletic stance 2-3 m from a wall. Ball at chest. Push explosively; catch on the rebound and reset.",
+  "dose": "3x5",
+  "progression": "Step into the throw; heavier ball within band",
+  "regression": "Lighter ball, partner catch",
+  "common_errors": "Arms only, no leg drive; flaring elbows",
+  "cues": "Legs then arms; finish tall"
+ },
+ {
+  "id": "EXR-STR-02",
+  "table": "exercise",
+  "name": "Med-ball rotational scoop toss",
+  "category": "power",
+  "equipment": [
+   "med ball 2-5 kg",
+   "wall"
+  ],
+  "high_intensity": true,
+  "instructions": "Side-on to the wall. Load the back hip, rotate through hips then trunk, and release at hip height. Both sides.",
+  "dose": "2-4x5 each side",
+  "progression": "Step-behind into the toss",
+  "regression": "Half-turn, lighter ball",
+  "common_errors": "Arms lead; lower-back bending",
+  "cues": "Hips first; chest follows; let the ball go"
+ },
+ {
+  "id": "EXR-STR-03",
+  "table": "exercise",
+  "name": "Broad jump and stick",
+  "category": "jump_land",
+  "equipment": [
+   "mat or turf"
+  ],
+  "high_intensity": true,
+  "instructions": "Swing the arms, jump forward, and land on both feet softly. Hold the landing for 2 s.",
+  "dose": "2-3x3",
+  "progression": "Add a second jump after the stick",
+  "regression": "Snap-down (exr_p04-snap-down)",
+  "common_errors": "Knees cave; loud landing",
+  "cues": "Land quiet; knees over toes; chest proud"
+ },
+ {
+  "id": "EXR-STR-04",
+  "table": "exercise",
+  "name": "Lateral bound and stick",
+  "category": "jump_land",
+  "equipment": [
+   "turf"
+  ],
+  "high_intensity": true,
+  "instructions": "Push sideways off one leg and land on the other. Hold 2 s and repeat back.",
+  "dose": "2-3x3-4 each side",
+  "progression": "Continuous bounds with short pause",
+  "regression": "Lateral hop on two feet",
+  "common_errors": "Knee drifts inward; trunk leans",
+  "cues": "Stick it; hip back; knee over middle toe"
+ },
+ {
+  "id": "EXR-STR-05",
+  "table": "exercise",
+  "name": "Box jump (step down)",
+  "category": "power",
+  "equipment": [
+   "plyo box 30-50 cm"
+  ],
+  "high_intensity": true,
+  "instructions": "Jump onto a low box with a soft landing, stand tall, then STEP down. Never jump down.",
+  "dose": "3x3-4",
+  "progression": "Higher box within technique",
+  "regression": "Countermovement jump on the floor, no box",
+  "common_errors": "Box too high; landing in deep squat",
+  "cues": "Land the way you took off"
+ },
+ {
+  "id": "EXR-STR-06",
+  "table": "exercise",
+  "name": "KB / trap-bar deadlift",
+  "category": "strength",
+  "equipment": [
+   "kettlebell or trap bar"
+  ],
+  "high_intensity": true,
+  "instructions": "Hinge with a flat back, grip, brace, and stand by pushing the floor away. Lower under control.",
+  "dose": "3-4x6-8 (see program)",
+  "progression": "KB -> trap bar -> load",
+  "regression": "Dowel hinge (exr_p04-dowel-hip-hinge); blocks",
+  "common_errors": "Rounded back; squatting the lift; jerking the bar",
+  "cues": "Long spine; push the floor; hips and shoulders rise together"
+ },
+ {
+  "id": "EXR-STR-07",
+  "table": "exercise",
+  "name": "DB bench press",
+  "category": "strength",
+  "equipment": [
+   "dumbbells",
+   "bench"
+  ],
+  "high_intensity": true,
+  "instructions": "Feet flat, shoulder blades set. Lower the DBs to chest level with elbows about 45°. Press up.",
+  "dose": "3x6-10",
+  "progression": "Load; single-arm",
+  "regression": "Push-up",
+  "common_errors": "Elbows flared 90°; bouncing",
+  "cues": "Squeeze the bench; elbows tucked"
+ },
+ {
+  "id": "EXR-STR-08",
+  "table": "exercise",
+  "name": "Inverted row",
+  "category": "strength",
+  "equipment": [
+   "bar or suspension trainer"
+  ],
+  "instructions": "Hang under a bar with a straight body. Pull the chest to the bar and lower slowly.",
+  "dose": "3x8-10",
+  "progression": "Feet elevated",
+  "regression": "More upright angle",
+  "common_errors": "Hips sag; shrugging",
+  "cues": "Body like a plank; shoulder blades back and down"
+ },
+ {
+  "id": "EXR-STR-09",
+  "table": "exercise",
+  "name": "Chin-up (band-assisted as needed)",
+  "category": "strength",
+  "equipment": [
+   "pull-up bar",
+   "bands"
+  ],
+  "high_intensity": true,
+  "instructions": "Hang with palms facing you, pull until the chin is over the bar, lower for 2-3 s.",
+  "dose": "3x5-8",
+  "progression": "Less assistance",
+  "regression": "Inverted row",
+  "common_errors": "Kipping; half reps",
+  "cues": "Chest to bar; slow down"
+ },
+ {
+  "id": "EXR-STR-10",
+  "table": "exercise",
+  "name": "Single-leg RDL (DB)",
+  "category": "strength",
+  "equipment": [
+   "light dumbbell"
+  ],
+  "instructions": "Stand on one leg and hinge forward with the free leg reaching back. Return tall.",
+  "dose": "2-3x6-8 each",
+  "progression": "Load",
+  "regression": "Hand on wall; no load",
+  "common_errors": "Hips rotate open; rounded back",
+  "cues": "Hips square; long line head to heel"
+ },
+ {
+  "id": "EXR-STR-11",
+  "table": "exercise",
+  "name": "Pallof press",
+  "category": "trunk_core",
+  "equipment": [
+   "band anchor"
+  ],
+  "instructions": "Stand side-on to a band anchor. Press the band straight out and hold 2 s without rotating.",
+  "dose": "2x8-10 each side",
+  "progression": "Half-kneeling -> split stance -> step out",
+  "regression": "Lighter band",
+  "common_errors": "Torso twists; holding breath",
+  "cues": "Resist the pull; ribs down"
+ },
+ {
+  "id": "EXR-STR-12",
+  "table": "exercise",
+  "name": "Suitcase carry",
+  "category": "durability",
+  "equipment": [
+   "kettlebell or DB"
+  ],
+  "high_intensity": true,
+  "instructions": "Carry one weight at your side and walk tall without leaning.",
+  "dose": "2x20 m each hand",
+  "progression": "Load",
+  "regression": "Two-hand farmer carry (exr_p04-farmer-carry)",
+  "common_errors": "Leaning; shuffling",
+  "cues": "Tall and level; slow steps"
+ },
+ {
+  "id": "EXR-STR-13",
+  "table": "exercise",
+  "name": "Copenhagen plank (short lever)",
+  "category": "durability",
+  "equipment": [
+   "bench"
+  ],
+  "instructions": "Side plank with the top knee on a bench and the bottom leg free. Hold.",
+  "dose": "2x15-30 s each",
+  "progression": "Long lever (ankle on bench)",
+  "regression": "Side plank (exr_p04-side-plank)",
+  "common_errors": "Hips drop",
+  "cues": "Straight line; squeeze the bench"
+ },
+ {
+  "id": "EXR-STR-14",
+  "table": "exercise",
+  "name": "Accelerate-and-stop (deceleration)",
+  "category": "deceleration",
+  "equipment": [
+   "cones"
+  ],
+  "high_intensity": true,
+  "instructions": "Sprint to a cone, then stop under control in 3 steps in an athletic stance. Walk back.",
+  "dose": "3-4 reps",
+  "progression": "Stop then cut 45°; react to a coach signal",
+  "regression": "Jog-to-stop",
+  "common_errors": "Stopping upright on one stiff leg",
+  "cues": "Drop the hips; short choppy steps; chest over knees"
+ },
+ {
+  "id": "EXR-STR-15",
+  "table": "exercise",
+  "name": "Bear crawl",
+  "category": "movement_quality",
+  "equipment": [
+   "turf"
+  ],
+  "instructions": "Hands under shoulders, knees under hips, lifted 2-3 cm. Crawl forward and back with opposite hand and foot.",
+  "dose": "2x10 m",
+  "progression": "Lateral crawl",
+  "regression": "Hold position 10 s",
+  "common_errors": "Hips high; fast and sloppy",
+  "cues": "Quiet hands and feet; flat back"
+ },
+ {
+  "id": "EXR-STR-16",
+  "table": "exercise",
+  "name": "Step-up",
+  "category": "strength",
+  "equipment": [
+   "box 30-45 cm",
+   "optional DB"
+  ],
+  "instructions": "Whole foot on the box. Drive up through that leg and step down slowly.",
+  "dose": "2-3x8 each",
+  "progression": "Hold DBs",
+  "regression": "Lower box",
+  "common_errors": "Pushing off the back foot; knee caving",
+  "cues": "Front leg does the work"
+ },
+ {
+  "id": "EXR-STR-17",
+  "table": "exercise",
+  "name": "Nordic hamstring (assisted, partial range)",
+  "category": "durability",
+  "equipment": [
+   "partner or anchor",
+   "band"
+  ],
+  "high_intensity": true,
+  "instructions": "Kneel with ankles held. Lower forward slowly as far as you can control, catch with your hands, push back up.",
+  "dose": "2x3-5",
+  "progression": "Larger range, less band assist",
+  "regression": "Omit (LVL-ADV+ only)",
+  "common_errors": "Bending at hips; dropping fast",
+  "cues": "Straight line knees to head; slow"
+ },
+ {
+  "id": "THR-BB-GEN-01",
+  "table": "program",
+  "name": "General Throwing Preparation (daily catch routine)",
+  "sport": "baseball",
+  "category": "throwing",
+  "age_band": [
+   "agp_9u-10u",
+   "agp_11u-12u",
+   "agp_13u-14u",
+   "agp_15u-17u"
+  ],
+  "level": [
+   "LVL-FND",
+   "LVL-DEV",
+   "LVL-ADV",
+   "LVL-ELT"
+  ],
+  "season_phase": [
+   "ANY"
+  ],
+  "counts_toward_throwing_load": true,
+  "frequency": "Every throwing day, 10-15 min after RULE-WU-01",
+  "ceiling_ref": [
+   "cap_ba-nonpitch-throws-day-<band>",
+   "cap_ba-nonpitch-high-intensity-throws-day-<band>"
+  ],
+  "description": "The standard Prospects catch-play sequence: short to longer, Easy to Moderate, on a line.",
+  "items": [
+   {
+    "ref": "drl_bb-wrist-flick@1",
+    "distance": "short (partners close)",
+    "intent": "Easy",
+    "throws": "REQUIRES APPROVED AGE-BAND CEILING BEFORE ACTIVATION"
+   },
+   {
+    "ref": "drl_bb-one-knee-throw@1",
+    "distance": "short",
+    "intent": "Easy",
+    "throws": "REQUIRES APPROVED AGE-BAND CEILING BEFORE ACTIVATION"
+   },
+   {
+    "ref": "drl_bb-step-behind-throw@1",
+    "distance": "short-to-medium",
+    "intent": "Moderate",
+    "throws": "REQUIRES APPROVED AGE-BAND CEILING BEFORE ACTIVATION"
+   },
+   {
+    "ref": "drl_bb-catch-play@1",
+    "distance": "medium; move back only while throws stay on a line chest-high",
+    "intent": "Moderate",
+    "throws": "REQUIRES APPROVED AGE-BAND CEILING BEFORE ACTIVATION"
+   }
+  ],
+  "progression_rules": "Move back one step-group at a time when the last throws hit the chest target. Never raise intent to reach distance.",
+  "coach_notes": "This block counts toward the day's throwing total. Partners face a target. A coach watches arm path and footwork.",
+  "athlete_notes": "Start close and easy. Hit your partner's chest. Move back only when your throws are on target.",
+  "safety_flags": [
+   "DISCLAIMER_CB1",
+   "STOP_AND_TELL_CB2",
+   "THROWING_LOAD",
+   "BLOCKED_VOLUME"
+  ],
+  "approval_requirements": [
+   "P04_APPROVED_AGE_BAND_CEILING",
+   "P04_SPORTS_SCIENCE_REVIEW",
+   "S01_SAFETY_REVIEW",
+   "NAMED_HUMAN_EXPERT_SIGNOFF"
+  ],
+  "source_refs": [
+   "P02/DRILL_LIBRARY_P02_v0.md",
+   "P02/COMMON_BLOCKS_P02.md",
+   "P04/P04_AGE_BAND_CEILINGS_v0.md §2.3"
+  ]
+ },
+ {
+  "id": "THR-BB-YTH-01",
+  "table": "program",
+  "name": "Youth Throwing Development 9U-12U (6 weeks)",
+  "sport": "baseball",
+  "category": "throwing",
+  "age_band": [
+   "agp_9u-10u",
+   "agp_11u-12u"
+  ],
+  "level": [
+   "LVL-FND",
+   "LVL-DEV"
+  ],
+  "season_phase": [
+   "PHS-OFF",
+   "PHS-PRE"
+  ],
+  "counts_toward_throwing_load": true,
+  "frequency": "2-3 non-consecutive throwing days/wk; ≥1 full day with no throwing between sessions; ≥2 days/wk off all baseball",
+  "ceiling_ref": [
+   "cap_ba-nonpitch-throws-day-9u-10u",
+   "cap_ba-nonpitch-throws-day-11u-12u",
+   "cap_ba-nonpitch-high-intensity-throws-day-9u-10u",
+   "cap_ba-nonpitch-high-intensity-throws-day-11u-12u"
+  ],
+  "pd_catalog_ref": [
+   "prg_bb-pos-throw-off-1112"
+  ],
+  "description": "Teaches grip, arm path, direction and footwork through fun target games. Intent stays Easy to Moderate.",
+  "phases": [
+   {
+    "weeks": "1-2",
+    "focus": "Grip, wrist flick, one-knee, step-behind",
+    "intent": "Easy",
+    "distance": "short",
+    "throws_per_session": "REQUIRES APPROVED AGE-BAND CEILING BEFORE ACTIVATION"
+   },
+   {
+    "weeks": "3-4",
+    "focus": "Add catch play and target game (drl_bb-target-accuracy@1)",
+    "intent": "Easy-Moderate",
+    "distance": "short-medium",
+    "throws_per_session": "REQUIRES APPROVED AGE-BAND CEILING BEFORE ACTIVATION"
+   },
+   {
+    "weeks": "5-6",
+    "focus": "Add crow-hop (drl_bb-crow-hop-throw@1) and position throws",
+    "intent": "Moderate",
+    "distance": "medium",
+    "throws_per_session": "REQUIRES APPROVED AGE-BAND CEILING BEFORE ACTIVATION",
+    "high_intensity_throws": 0
+   }
+  ],
+  "arm_care": "ARM-RTN-01 before; ARM-RTN-02 after (5 min)",
+  "coach_notes": "No long toss or max-effort throwing in this band. Make accuracy the goal.",
+  "athlete_notes": "Good throws hit the target. We are learning, not throwing hard.",
+  "safety_flags": [
+   "DISCLAIMER_CB1",
+   "STOP_AND_TELL_CB2",
+   "THROWING_LOAD",
+   "BLOCKED_VOLUME",
+   "NO_MAX_INTENT"
+  ],
+  "approval_requirements": [
+   "P04_APPROVED_AGE_BAND_CEILING",
+   "P04_SPORTS_SCIENCE_REVIEW",
+   "S01_SAFETY_REVIEW",
+   "NAMED_HUMAN_EXPERT_SIGNOFF"
+  ],
+  "source_refs": [
+   "P02/A1_BB_POS_THROWING_PROGRESSION_11U-12U_OFFSEASON.md",
+   "P02/seed/bb-pos-throw-off-1112.seed.json",
+   "cit_mlb-pitch-smart-guidelines"
+  ]
+ },
+ {
+  "id": "THR-BB-POS-01",
+  "table": "program",
+  "name": "Position-Player Throwing Development 13U-17U (8 weeks)",
+  "sport": "baseball",
+  "category": "throwing",
+  "age_band": [
+   "agp_13u-14u",
+   "agp_15u-17u"
+  ],
+  "level": [
+   "LVL-DEV",
+   "LVL-ADV",
+   "LVL-ELT"
+  ],
+  "position": [
+   "C",
+   "1B",
+   "MI",
+   "CI",
+   "OF",
+   "UTIL"
+  ],
+  "season_phase": [
+   "PHS-OFF"
+  ],
+  "counts_toward_throwing_load": true,
+  "frequency": "3 throwing days/wk (e.g., Mon/Wed/Fri); ≥2 days/wk no throwing",
+  "ceiling_ref": [
+   "cap_ba-nonpitch-throws-day-13u-14u",
+   "cap_ba-nonpitch-throws-day-15u-17u",
+   "cap_ba-nonpitch-high-intensity-throws-day-13u-14u",
+   "cap_ba-nonpitch-high-intensity-throws-day-15u-17u"
+  ],
+  "pd_catalog_ref": [
+   "prg_bb-pos-throw-off-1314"
+  ],
+  "description": "Builds a repeatable, accurate position throw with gradual distance and intent, ending in position-specific game throws.",
+  "phases": [
+   {
+    "weeks": "1-2",
+    "focus": "General prep THR-BB-GEN-01 only",
+    "intent": "Easy-Moderate",
+    "throws_per_session": "REQUIRES APPROVED AGE-BAND CEILING BEFORE ACTIVATION"
+   },
+   {
+    "weeks": "3-4",
+    "focus": "Add extended catch on a line (drl_bb-extended-catch-line@1)",
+    "intent": "Moderate",
+    "distance": "medium-long, on a line",
+    "throws_per_session": "REQUIRES APPROVED AGE-BAND CEILING BEFORE ACTIVATION"
+   },
+   {
+    "weeks": "5-6",
+    "focus": "Add crow-hop and position block (IF field-and-throw / OF to cutoff)",
+    "intent": "Moderate-Firm",
+    "throws_per_session": "REQUIRES APPROVED AGE-BAND CEILING BEFORE ACTIVATION",
+    "high_intensity_throws": "REQUIRES APPROVED AGE-BAND CEILING BEFORE ACTIVATION"
+   },
+   {
+    "weeks": "7-8",
+    "focus": "Game-speed position throws, 1 day/wk Firm-Game",
+    "intent": "Firm-Game (1 day)",
+    "throws_per_session": "REQUIRES APPROVED AGE-BAND CEILING BEFORE ACTIVATION",
+    "high_intensity_throws": "REQUIRES APPROVED AGE-BAND CEILING BEFORE ACTIVATION"
+   }
+  ],
+  "arm_care": "ARM-RTN-01 before every session; ARM-RTN-02 after; ARM-RTN-03 on 2 off days",
+  "coach_notes": "Advance a phase only when the athlete finished the last one with no flags and on-target throws. Long-toss upper distance is coach-set inside the cap; do not arc throws for distance in 13U-14U.",
+  "athlete_notes": "Each phase adds a little. If your throws lose accuracy, we stay where we are.",
+  "safety_flags": [
+   "DISCLAIMER_CB1",
+   "STOP_AND_TELL_CB2",
+   "THROWING_LOAD",
+   "BLOCKED_VOLUME"
+  ],
+  "approval_requirements": [
+   "P04_APPROVED_AGE_BAND_CEILING",
+   "P04_SPORTS_SCIENCE_REVIEW",
+   "S01_SAFETY_REVIEW",
+   "NAMED_HUMAN_EXPERT_SIGNOFF"
+  ],
+  "source_refs": [
+   "P02/A1_BB_POS_THROWING_PROGRESSION_13U-14U_OFFSEASON.md",
+   "P02/seed/bb-pos-throw-off-1314.seed.json"
+  ]
+ },
+ {
+  "id": "THR-BB-PIT-01",
+  "table": "program",
+  "name": "Pitcher Throwing Buildup 11U-14U (off-season to preseason, ~10 weeks)",
+  "sport": "baseball",
+  "category": "pitching",
+  "age_band": [
+   "agp_11u-12u",
+   "agp_13u-14u"
+  ],
+  "level": [
+   "LVL-DEV",
+   "LVL-ADV"
+  ],
+  "position": [
+   "P",
+   "TWO-WAY"
+  ],
+  "season_phase": [
+   "PHS-OFF",
+   "PHS-PRE"
+  ],
+  "counts_toward_throwing_load": true,
+  "frequency": "3 throwing days/wk; at most 1 flat-ground or mound day per week early, 2 late; never pitch on consecutive days",
+  "ceiling_ref": [
+   "cap_bb-pitching-pitches-day-11u-12u",
+   "cap_bb-pitching-pitches-day-13u-14u",
+   "cap_ba-nonpitch-throws-day-11u-12u",
+   "cap_ba-nonpitch-throws-day-13u-14u"
+  ],
+  "pd_catalog_ref": [
+   "prg_bb-pitcher-dev-off-1112",
+   "prg_bb-pitcher-dev-off-1314"
+  ],
+  "description": "Catch play first, then dry mechanics, flat ground, and finally short mound work with fastball/changeup only.",
+  "phases": [
+   {
+    "weeks": "1-2",
+    "focus": "THR-BB-GEN-01 + dry mechanics (balance-point hold, stride line, towel)",
+    "pitches": 0
+   },
+   {
+    "weeks": "3-4",
+    "focus": "Flat-ground fastball at Moderate",
+    "pitches_per_session": "REQUIRES APPROVED AGE-BAND CEILING BEFORE ACTIVATION"
+   },
+   {
+    "weeks": "5-6",
+    "focus": "Flat-ground fastball + changeup",
+    "pitches_per_session": "REQUIRES APPROVED AGE-BAND CEILING BEFORE ACTIVATION"
+   },
+   {
+    "weeks": "7-8",
+    "focus": "First mound sessions (drl_bb-bullpen-fb-ch@1) at Moderate-Firm",
+    "pitches_per_session": "REQUIRES APPROVED AGE-BAND CEILING BEFORE ACTIVATION",
+    "rest_days_after": "REQUIRES APPROVED AGE-BAND CEILING BEFORE ACTIVATION"
+   },
+   {
+    "weeks": "9-10",
+    "focus": "Mound sessions toward game intent + PFP",
+    "pitches_per_session": "REQUIRES APPROVED AGE-BAND CEILING BEFORE ACTIVATION",
+    "rest_days_after": "REQUIRES APPROVED AGE-BAND CEILING BEFORE ACTIVATION"
+   }
+  ],
+  "pitch_types_allowed": "Fastball and changeup only (breaking pitches not seeded for this band)",
+  "arm_care": "ARM-RTN-01 before; ARM-RTN-02 after; ARM-RTN-03 on non-throwing days",
+  "coach_notes": "Pitch counts include warm-up and bullpen pitches. Outside-team pitching counts (P04 §4). Avoid catcher as a second position on pitching days.",
+  "athlete_notes": "Pitchers build up slowly. Rest days are required, not optional.",
+  "safety_flags": [
+   "DISCLAIMER_CB1",
+   "STOP_AND_TELL_CB2",
+   "THROWING_LOAD",
+   "PITCHING_LOAD",
+   "BLOCKED_VOLUME",
+   "MULTI_TEAM_LOAD_WARNING"
+  ],
+  "approval_requirements": [
+   "P04_APPROVED_AGE_BAND_CEILING",
+   "P04_SPORTS_SCIENCE_REVIEW",
+   "S01_SAFETY_REVIEW",
+   "NAMED_HUMAN_EXPERT_SIGNOFF"
+  ],
+  "source_refs": [
+   "P02/A3_BB_PITCHER_DEVELOPMENT_11U-12U_OFFSEASON.md",
+   "P02/A3_BB_PITCHER_DEVELOPMENT_13U-14U_OFFSEASON.md",
+   "cit_mlb-pitch-smart-guidelines",
+   "cit_asmi-adolescent-pitchers-2013"
+  ]
+ },
+ {
+  "id": "THR-BB-PIT-02",
+  "table": "program",
+  "name": "Pitcher Throwing Buildup 15U-17U (~10-12 weeks)",
+  "sport": "baseball",
+  "category": "pitching",
+  "age_band": [
+   "agp_15u-17u"
+  ],
+  "level": [
+   "LVL-ADV",
+   "LVL-ELT"
+  ],
+  "position": [
+   "P",
+   "TWO-WAY"
+  ],
+  "season_phase": [
+   "PHS-OFF",
+   "PHS-PRE"
+  ],
+  "counts_toward_throwing_load": true,
+  "frequency": "4 throwing days/wk; 1-2 mound days/wk late in the build; never pitch on consecutive days",
+  "ceiling_ref": [
+   "cap_bb-pitching-pitches-day-15u-17u",
+   "cap_ba-nonpitch-throws-day-15u-17u",
+   "cap_ba-nonpitch-high-intensity-throws-day-15u-17u"
+  ],
+  "description": "Same order as THR-BB-PIT-01 with longer catch play and simulated innings before games. A breaking ball is coach-optional only after fastball command and changeup.",
+  "phases": [
+   {
+    "weeks": "1-3",
+    "focus": "THR-BB-GEN-01, extended catch on a line, dry mechanics",
+    "pitches": 0
+   },
+   {
+    "weeks": "4-5",
+    "focus": "Flat ground FB/CH",
+    "pitches_per_session": "REQUIRES APPROVED AGE-BAND CEILING BEFORE ACTIVATION"
+   },
+   {
+    "weeks": "6-8",
+    "focus": "Mound FB/CH at Moderate-Firm; optional breaking ball (coach-approved)",
+    "pitches_per_session": "REQUIRES APPROVED AGE-BAND CEILING BEFORE ACTIVATION",
+    "rest_days_after": "REQUIRES APPROVED AGE-BAND CEILING BEFORE ACTIVATION"
+   },
+   {
+    "weeks": "9-12",
+    "focus": "Simulated innings with rest between innings; PFP",
+    "pitches_per_session": "REQUIRES APPROVED AGE-BAND CEILING BEFORE ACTIVATION",
+    "rest_days_after": "REQUIRES APPROVED AGE-BAND CEILING BEFORE ACTIVATION"
+   }
+  ],
+  "arm_care": "ARM-RTN-01 / -02 / -03",
+  "coach_notes": "Check HS/showcase schedules; all outside pitching counts. Weighted-ball and max-velocity work is NOT included (high-intensity, default OFF).",
+  "athlete_notes": "Tell your coach about every outing on any team.",
+  "safety_flags": [
+   "DISCLAIMER_CB1",
+   "STOP_AND_TELL_CB2",
+   "THROWING_LOAD",
+   "PITCHING_LOAD",
+   "BLOCKED_VOLUME",
+   "MULTI_TEAM_LOAD_WARNING",
+   "NO_WEIGHTED_BALL"
+  ],
+  "approval_requirements": [
+   "P04_APPROVED_AGE_BAND_CEILING",
+   "P04_SPORTS_SCIENCE_REVIEW",
+   "S01_SAFETY_REVIEW",
+   "NAMED_HUMAN_EXPERT_SIGNOFF"
+  ],
+  "source_refs": [
+   "cit_mlb-pitch-smart-guidelines",
+   "cit_asmi-adolescent-pitchers-2013",
+   "cit_aap-overuse-burnout-2024",
+   "P04/P04_AGE_BAND_CEILINGS_v0.md §2.1",
+   "§4"
+  ],
+  "open_item": "No P02 15U-17U pitcher program exists on disk; this is new seed content for P02/P04 review."
+ },
+ {
+  "id": "THR-BB-C-01",
+  "table": "program",
+  "name": "Catcher Throwing Preparation",
+  "sport": "baseball",
+  "category": "throwing",
+  "age_band": [
+   "agp_11u-12u",
+   "agp_13u-14u",
+   "agp_15u-17u"
+  ],
+  "level": [
+   "LVL-DEV",
+   "LVL-ADV",
+   "LVL-ELT"
+  ],
+  "position": [
+   "C"
+  ],
+  "season_phase": [
+   "PHS-PRE",
+   "PHS-EARLY",
+   "PHS-COMP"
+  ],
+  "counts_toward_throwing_load": true,
+  "frequency": "With every catcher practice day, 10 min after THR-BB-GEN-01",
+  "ceiling_ref": [
+   "cap_ba-nonpitch-throws-day-<band>",
+   "cap_ba-nonpitch-high-intensity-throws-day-<band>"
+  ],
+  "description": "Footwork and transfer first (dry), then short throws, then throws to bases at controlled intent.",
+  "items": [
+   {
+    "ref": "DRL-BB-C-04",
+    "intent": "dry, no ball",
+    "throws": 0
+   },
+   {
+    "ref": "DRL-BB-C-05",
+    "intent": "Easy-Moderate, short",
+    "throws": "REQUIRES APPROVED AGE-BAND CEILING BEFORE ACTIVATION"
+   },
+   {
+    "ref": "DRL-BB-C-03",
+    "intent": "Moderate to Firm (in-season: 1 day/wk Firm)",
+    "throws": "REQUIRES APPROVED AGE-BAND CEILING BEFORE ACTIVATION",
+    "high_intensity_throws": "REQUIRES APPROVED AGE-BAND CEILING BEFORE ACTIVATION"
+   }
+  ],
+  "coach_notes": "Return throws to the pitcher count toward the catcher's total (P04 §2.3). Do not catch and pitch on the same day.",
+  "athlete_notes": "Fast feet and a clean transfer come first; arm strength comes later.",
+  "safety_flags": [
+   "DISCLAIMER_CB1",
+   "STOP_AND_TELL_CB2",
+   "THROWING_LOAD",
+   "BLOCKED_VOLUME"
+  ],
+  "approval_requirements": [
+   "P04_APPROVED_AGE_BAND_CEILING",
+   "P04_SPORTS_SCIENCE_REVIEW",
+   "S01_SAFETY_REVIEW",
+   "NAMED_HUMAN_EXPERT_SIGNOFF"
+  ],
+  "source_refs": [
+   "P02/DRILL_LIBRARY_P02_v0.md drl_bb-quick-exchange@1",
+   "P04/P04_AGE_BAND_CEILINGS_v0.md §2.3",
+   "§4"
+  ]
+ },
+ {
+  "id": "THR-BB-INS-01",
+  "table": "program",
+  "name": "In-Season Throwing Maintenance",
+  "sport": "baseball",
+  "category": "throwing",
+  "age_band": [
+   "agp_11u-12u",
+   "agp_13u-14u",
+   "agp_15u-17u"
+  ],
+  "level": [
+   "LVL-DEV",
+   "LVL-ADV",
+   "LVL-ELT"
+  ],
+  "season_phase": [
+   "PHS-EARLY",
+   "PHS-COMP"
+  ],
+  "counts_toward_throwing_load": true,
+  "frequency": "Non-game days only: 1-2 light catch days/wk; 1 full day off throwing/wk minimum",
+  "ceiling_ref": [
+   "cap_ba-nonpitch-throws-day-<band>",
+   "cap_ba-nonpitch-high-intensity-throws-day-<band>"
+  ],
+  "pd_catalog_ref": [
+   "prg_bb-pos-throw-maint-in-1112",
+   "prg_bb-pos-throw-maint-in-1314"
+  ],
+  "description": "Keeps the arm ready between games without adding fatigue.",
+  "items": [
+   {
+    "ref": "THR-BB-GEN-01",
+    "intent": "Easy-Moderate",
+    "throws": "REQUIRES APPROVED AGE-BAND CEILING BEFORE ACTIVATION"
+   },
+   {
+    "ref": "position block (1 drill)",
+    "intent": "Moderate",
+    "throws": "REQUIRES APPROVED AGE-BAND CEILING BEFORE ACTIVATION",
+    "high_intensity_throws": 0
+   }
+  ],
+  "coach_notes": "Game throws count. In tournament weeks, skip maintenance throwing and use ARM-RTN-03 only.",
+  "athlete_notes": "Light catch keeps you ready. Games are your hard days.",
+  "safety_flags": [
+   "DISCLAIMER_CB1",
+   "STOP_AND_TELL_CB2",
+   "THROWING_LOAD",
+   "BLOCKED_VOLUME"
+  ],
+  "approval_requirements": [
+   "P04_APPROVED_AGE_BAND_CEILING",
+   "P04_SPORTS_SCIENCE_REVIEW",
+   "S01_SAFETY_REVIEW",
+   "NAMED_HUMAN_EXPERT_SIGNOFF"
+  ],
+  "source_refs": [
+   "P02/A2_BB_POS_THROWING_MAINTENANCE_11U-12U_INSEASON.md",
+   "P02/A2_BB_POS_THROWING_MAINTENANCE_13U-14U_INSEASON.md"
+  ]
+ },
+ {
+  "id": "THR-BB-PRE-01",
+  "table": "program",
+  "name": "Preseason Throwing Buildup (all positions, 4-6 weeks)",
+  "sport": "baseball",
+  "category": "throwing",
+  "age_band": [
+   "agp_11u-12u",
+   "agp_13u-14u",
+   "agp_15u-17u"
+  ],
+  "level": [
+   "LVL-DEV",
+   "LVL-ADV",
+   "LVL-ELT"
+  ],
+  "season_phase": [
+   "PHS-PRE"
+  ],
+  "counts_toward_throwing_load": true,
+  "frequency": "3 days/wk wk 1-2; 3-4 days/wk wk 3-6; ≥2 non-throwing days/wk",
+  "ceiling_ref": [
+   "cap_ba-nonpitch-throws-day-<band>",
+   "cap_ba-nonpitch-high-intensity-throws-day-<band>"
+  ],
+  "description": "For athletes coming off planned time away. Ramps from Easy catch play to game-speed position throws before the first game.",
+  "phases": [
+   {
+    "weeks": "1-2",
+    "intent": "Easy",
+    "focus": "THR-BB-GEN-01",
+    "throws_per_session": "REQUIRES APPROVED AGE-BAND CEILING BEFORE ACTIVATION"
+   },
+   {
+    "weeks": "3-4",
+    "intent": "Moderate",
+    "focus": "+ extended catch + crow-hop",
+    "throws_per_session": "REQUIRES APPROVED AGE-BAND CEILING BEFORE ACTIVATION"
+   },
+   {
+    "weeks": "5-6",
+    "intent": "Firm (1-2 days/wk)",
+    "focus": "+ position game throws",
+    "throws_per_session": "REQUIRES APPROVED AGE-BAND CEILING BEFORE ACTIVATION",
+    "high_intensity_throws": "REQUIRES APPROVED AGE-BAND CEILING BEFORE ACTIVATION"
+   }
+  ],
+  "coach_notes": "An athlete who missed 2+ weeks of throwing restarts at week 1 (coach judgment; not a medical return-to-throw).",
+  "athlete_notes": "Build up before games so your arm is ready.",
+  "safety_flags": [
+   "DISCLAIMER_CB1",
+   "STOP_AND_TELL_CB2",
+   "THROWING_LOAD",
+   "BLOCKED_VOLUME"
+  ],
+  "approval_requirements": [
+   "P04_APPROVED_AGE_BAND_CEILING",
+   "P04_SPORTS_SCIENCE_REVIEW",
+   "S01_SAFETY_REVIEW",
+   "NAMED_HUMAN_EXPERT_SIGNOFF"
+  ],
+  "source_refs": [
+   "P02/README.md",
+   "P04/P04_AGE_BAND_CEILINGS_v0.md §2.3",
+   "§3.5"
+  ]
+ },
+ {
+  "id": "THR-BB-REC-01",
+  "table": "program",
+  "name": "Post-Competition Recovery Day",
+  "sport": "baseball",
+  "category": "arm_care",
+  "age_band": [
+   "agp_9u-10u",
+   "agp_11u-12u",
+   "agp_13u-14u",
+   "agp_15u-17u"
+  ],
+  "level": [
+   "LVL-FND",
+   "LVL-DEV",
+   "LVL-ADV",
+   "LVL-ELT"
+  ],
+  "season_phase": [
+   "PHS-EARLY",
+   "PHS-COMP"
+  ],
+  "counts_toward_throwing_load": false,
+  "frequency": "Day after a game or pitching outing, 15-20 min",
+  "description": "No throwing. Light movement, mobility and the post-throw routine. Not a treatment.",
+  "items": [
+   "ARM-DWU-01",
+   "ARM-MOB-01",
+   "ARM-MOB-02",
+   "ARM-MOB-03",
+   "ARM-REC-01",
+   "ARM-REC-02",
+   "ARM-REC-03",
+   "exr_p04-glute-bridge"
+  ],
+  "rest_rule": "Pitcher rest days come from the APPROVED pitching ceiling (blocked). This record never shortens them.",
+  "coach_notes": "If the athlete reports 'high' soreness or arm pain, the check-in pause applies; do not use this routine as a substitute.",
+  "athlete_notes": "Move easy, no throwing today. Tell us how your arm feels in the check-in.",
+  "safety_flags": [
+   "DISCLAIMER_CB1",
+   "STOP_AND_TELL_CB2",
+   "NO_THROWING"
+  ],
+  "source_refs": [
+   "P02/A7_BB_14U_PITCHER_ARM_CARE.md",
+   "P04/P04_AGE_BAND_CEILINGS_v0.md §5.3"
+  ]
+ },
+ {
+  "id": "THR-BB-OFF-01",
+  "table": "program",
+  "name": "Off-Season Throwing Development (annual structure)",
+  "sport": "baseball",
+  "category": "throwing",
+  "age_band": [
+   "agp_11u-12u",
+   "agp_13u-14u",
+   "agp_15u-17u"
+  ],
+  "level": [
+   "LVL-DEV",
+   "LVL-ADV",
+   "LVL-ELT"
+  ],
+  "season_phase": [
+   "PHS-POST",
+   "PHS-OFF"
+  ],
+  "counts_toward_throwing_load": true,
+  "frequency": "Block 1: no throwing; Block 2: 2-3 days/wk; Block 3: 3 days/wk then hand off to THR-BB-PRE-01",
+  "ceiling_ref": [
+   "cap_ba-nonpitch-throws-day-<band>"
+  ],
+  "description": "Annual frame: planned rest from throwing, then a mechanics block, then a strength-of-throw block that feeds the preseason.",
+  "blocks": [
+   {
+    "name": "Rest from throwing",
+    "length": "coach-set; annual total ≥4 months off competitive throwing (Pitch Smart)",
+    "throws": 0,
+    "other": "STR program + mobility + other sports"
+   },
+   {
+    "name": "Mechanics",
+    "length": "4-6 wk",
+    "ref": [
+     "THR-BB-GEN-01",
+     "DRL-BB-P-01",
+     "DRL-BB-P-04"
+    ],
+    "intent": "Easy-Moderate",
+    "throws_per_session": "REQUIRES APPROVED AGE-BAND CEILING BEFORE ACTIVATION"
+   },
+   {
+    "name": "Build",
+    "length": "4-6 wk",
+    "ref": [
+     "THR-BB-POS-01",
+     "THR-BB-PIT-01",
+     "THR-BB-PIT-02"
+    ],
+    "intent": "Moderate-Firm",
+    "throws_per_session": "REQUIRES APPROVED AGE-BAND CEILING BEFORE ACTIVATION"
+   }
+  ],
+  "coach_notes": "Record the start of throwing rest so the annual-rest warning can be computed. Multi-sport participation is encouraged.",
+  "athlete_notes": "Rest from throwing is part of getting better.",
+  "safety_flags": [
+   "DISCLAIMER_CB1",
+   "STOP_AND_TELL_CB2",
+   "THROWING_LOAD",
+   "BLOCKED_VOLUME",
+   "ANNUAL_REST_WARNING"
+  ],
+  "approval_requirements": [
+   "P04_APPROVED_AGE_BAND_CEILING",
+   "P04_SPORTS_SCIENCE_REVIEW",
+   "S01_SAFETY_REVIEW",
+   "NAMED_HUMAN_EXPERT_SIGNOFF"
+  ],
+  "source_refs": [
+   "cit_mlb-pitch-smart-guidelines",
+   "cit_aap-overuse-burnout-2024",
+   "P04/P04_AGE_BAND_CEILINGS_v0.md §3.5"
+  ]
+ },
+ {
+  "id": "THR-SB-POS-01",
+  "table": "program",
+  "name": "Softball Position-Player Throwing (6-8 weeks)",
+  "sport": "softball",
+  "category": "throwing",
+  "age_band": [
+   "agp_9u-10u",
+   "agp_11u-12u",
+   "agp_13u-14u",
+   "agp_15u-17u"
+  ],
+  "level": [
+   "LVL-FND",
+   "LVL-DEV",
+   "LVL-ADV"
+  ],
+  "position": [
+   "C",
+   "MI",
+   "CI",
+   "OF",
+   "UTIL"
+  ],
+  "season_phase": [
+   "PHS-OFF",
+   "PHS-PRE"
+  ],
+  "counts_toward_throwing_load": true,
+  "frequency": "2-3 throwing days/wk; ≥1 day between; ≥2 days/wk off softball",
+  "ceiling_ref": [
+   "cap_so-nonpitch-throws-day-<band>",
+   "cap_so-nonpitch-high-intensity-throws-day-<band>"
+  ],
+  "pd_catalog_ref": [
+   "prg_softball-12u-throwing-development",
+   "prg_softball-14u-throwing-development"
+  ],
+  "description": "Overhand throwing progression for softball fielders: grip, wrist, one-knee, stride-to-target, then position throws on softball distances.",
+  "phases": [
+   {
+    "weeks": "1-2",
+    "items": [
+     "drl_softball-grip-and-four-seam-check",
+     "drl_softball-wrist-and-forearm-flips-short-partner",
+     "drl_softball-one-knee-throw"
+    ],
+    "intent": "Easy",
+    "throws_per_session": "REQUIRES APPROVED AGE-BAND CEILING BEFORE ACTIVATION"
+   },
+   {
+    "weeks": "3-4",
+    "items": [
+     "drl_softball-stride-to-target-balance-throw",
+     "drl_softball-step-behind-shuffle-throw",
+     "drl_softball-progressive-partner-catch"
+    ],
+    "intent": "Moderate",
+    "throws_per_session": "REQUIRES APPROVED AGE-BAND CEILING BEFORE ACTIVATION"
+   },
+   {
+    "weeks": "5-8",
+    "items": [
+     "drl_softball-infield-receive-and-throw",
+     "drl_softball-outfield-crow-hop-to-target",
+     "DRL-SB-OT-02"
+    ],
+    "intent": "Moderate-Firm",
+    "throws_per_session": "REQUIRES APPROVED AGE-BAND CEILING BEFORE ACTIVATION",
+    "high_intensity_throws": "REQUIRES APPROVED AGE-BAND CEILING BEFORE ACTIVATION"
+   }
+  ],
+  "coach_notes": "Pitchers who also play the field: overhand throws count in the same one throwing total as windmill. Windmill volume is blocked, so two-way pitchers need admin review.",
+  "athlete_notes": "Throw to the target's glove. Accuracy first.",
+  "safety_flags": [
+   "DISCLAIMER_CB1",
+   "STOP_AND_TELL_CB2",
+   "THROWING_LOAD",
+   "BLOCKED_VOLUME"
+  ],
+  "approval_requirements": [
+   "P04_APPROVED_AGE_BAND_CEILING",
+   "P04_SPORTS_SCIENCE_REVIEW",
+   "S01_SAFETY_REVIEW",
+   "NAMED_HUMAN_EXPERT_SIGNOFF"
+  ],
+  "source_refs": [
+   "P03/A4_SB_THROWING_11U-14U.md",
+   "P03/DRILL_LIBRARY_P03_v0.md",
+   "cit_aossm-softball-injury-prevention",
+   "cit_zaremski-2025-softball-workload"
+  ]
+ },
+ {
+  "id": "THR-SB-OVH-01",
+  "table": "program",
+  "name": "Softball Overhand Mechanics Development (Foundation)",
+  "sport": "softball",
+  "category": "throwing",
+  "age_band": [
+   "agp_6u-8u",
+   "agp_9u-10u",
+   "agp_11u-12u"
+  ],
+  "level": [
+   "LVL-FND"
+  ],
+  "season_phase": [
+   "ANY"
+  ],
+  "counts_toward_throwing_load": true,
+  "frequency": "2 days/wk, 10-15 min within practice",
+  "ceiling_ref": [
+   "cap_so-nonpitch-throws-day-<band>"
+  ],
+  "description": "Teaches the overhand throw from scratch with a softball-sized grip: point, step, throw, follow.",
+  "items": [
+   {
+    "ref": "DRL-SB-OT-01",
+    "intent": "dry then Easy",
+    "throws": "REQUIRES APPROVED AGE-BAND CEILING BEFORE ACTIVATION"
+   },
+   {
+    "ref": "drl_softball-wrist-snap-release-short-partner",
+    "intent": "Easy",
+    "throws": "REQUIRES APPROVED AGE-BAND CEILING BEFORE ACTIVATION"
+   },
+   {
+    "ref": "drl_softball-stride-to-target-balance-throw",
+    "intent": "Easy",
+    "throws": "REQUIRES APPROVED AGE-BAND CEILING BEFORE ACTIVATION"
+   },
+   {
+    "ref": "DRL-SB-OT-03",
+    "intent": "Easy-Moderate",
+    "throws": "REQUIRES APPROVED AGE-BAND CEILING BEFORE ACTIVATION"
+   }
+  ],
+  "coach_notes": "Use a smaller or softer ball for small hands (11-inch or soft-core). Glove side points at the target.",
+  "athlete_notes": "Point, step, throw, follow through.",
+  "safety_flags": [
+   "DISCLAIMER_CB1",
+   "STOP_AND_TELL_CB2",
+   "THROWING_LOAD",
+   "BLOCKED_VOLUME"
+  ],
+  "approval_requirements": [
+   "P04_APPROVED_AGE_BAND_CEILING",
+   "P04_SPORTS_SCIENCE_REVIEW",
+   "S01_SAFETY_REVIEW",
+   "NAMED_HUMAN_EXPERT_SIGNOFF"
+  ],
+  "source_refs": [
+   "P03/A4_SB_THROWING_11U-14U.md"
+  ]
+ },
+ {
+  "id": "THR-SB-C-01",
+  "table": "program",
+  "name": "Softball Catcher Throwing Preparation",
+  "sport": "softball",
+  "category": "throwing",
+  "age_band": [
+   "agp_11u-12u",
+   "agp_13u-14u",
+   "agp_15u-17u"
+  ],
+  "level": [
+   "LVL-DEV",
+   "LVL-ADV",
+   "LVL-ELT"
+  ],
+  "position": [
+   "C"
+  ],
+  "season_phase": [
+   "PHS-PRE",
+   "PHS-EARLY",
+   "PHS-COMP"
+  ],
+  "counts_toward_throwing_load": true,
+  "frequency": "Each catcher practice day, 10 min",
+  "ceiling_ref": [
+   "cap_so-nonpitch-throws-day-<band>",
+   "cap_so-nonpitch-high-intensity-throws-day-<band>"
+  ],
+  "description": "Footwork and quick transfer for softball's short bases (60 ft) and throws from the knees where coach-approved.",
+  "items": [
+   {
+    "ref": "drl_softball-catcher-footwork-and-transfer-basic",
+    "intent": "dry then Easy",
+    "throws": "REQUIRES APPROVED AGE-BAND CEILING BEFORE ACTIVATION"
+   },
+   {
+    "ref": "DRL-SB-C-03",
+    "intent": "Moderate-Firm",
+    "throws": "REQUIRES APPROVED AGE-BAND CEILING BEFORE ACTIVATION",
+    "high_intensity_throws": "REQUIRES APPROVED AGE-BAND CEILING BEFORE ACTIVATION"
+   }
+  ],
+  "coach_notes": "Return throws to the pitcher count toward the catcher's total.",
+  "athlete_notes": "Quick feet, quick hands, accurate throw.",
+  "safety_flags": [
+   "DISCLAIMER_CB1",
+   "STOP_AND_TELL_CB2",
+   "THROWING_LOAD",
+   "BLOCKED_VOLUME"
+  ],
+  "approval_requirements": [
+   "P04_APPROVED_AGE_BAND_CEILING",
+   "P04_SPORTS_SCIENCE_REVIEW",
+   "S01_SAFETY_REVIEW",
+   "NAMED_HUMAN_EXPERT_SIGNOFF"
+  ],
+  "source_refs": [
+   "P03/DRILL_LIBRARY_P03_v0.md",
+   "P04/P04_AGE_BAND_CEILINGS_v0.md §2.3"
+  ]
+ },
+ {
+  "id": "THR-SB-ARM-01",
+  "table": "routine",
+  "name": "Softball General Arm Care",
+  "sport": "softball",
+  "category": "arm_care",
+  "age_band": [
+   "agp_9u-10u",
+   "agp_11u-12u",
+   "agp_13u-14u",
+   "agp_15u-17u"
+  ],
+  "level": [
+   "LVL-FND",
+   "LVL-DEV",
+   "LVL-ADV",
+   "LVL-ELT"
+  ],
+  "season_phase": [
+   "ANY"
+  ],
+  "frequency": "Before throwing (pre) and after (post) on every throwing day; 2 off days/wk (support)",
+  "pd_catalog_ref": [
+   "prg_softball-12u-arm-care",
+   "prg_softball-14u-arm-care"
+  ],
+  "description": "Softball-specific arm care for all overhand throwers and pitchers (no windmill volume).",
+  "items": {
+   "pre": [
+    "exr_softball-dynamic-warm-up-then-easy-gradual-throwing",
+    "ARM-SHP-01",
+    "ARM-SCP-01",
+    "exr_softball-light-band-rotations"
+   ],
+   "post": [
+    "exr_softball-post-session-mobility-routine",
+    "ARM-REC-02"
+   ],
+   "support": [
+    "exr_softball-prone-y-t-w-bodyweight",
+    "exr_softball-plank-and-push-up-plus-variations-closed-chain",
+    "exr_softball-single-leg-balance-and-box-squat",
+    "exr_softball-forearm-and-grip-light"
+   ]
+  },
+  "coach_notes": "Band items are high-intensity per P04 A-8 and stop under a fatigue-only pause.",
+  "athlete_notes": "Takes about 10 minutes. Do it every throwing day.",
+  "safety_flags": [
+   "DISCLAIMER_CB1",
+   "STOP_AND_TELL_CB2"
+  ],
+  "source_refs": [
+   "P03/A7_SB_ARM_CARE_11U-14U.md",
+   "P03/DRILL_LIBRARY_P03_v0.md"
+  ]
+ },
+ {
+  "id": "THR-SB-WM-00",
+  "table": "program",
+  "name": "PLACEHOLDER: Softball windmill pitching volume (BLOCKED)",
+  "sport": "softball",
+  "category": "pitching",
+  "age_band": [
+   "agp_9u-10u",
+   "agp_11u-12u",
+   "agp_13u-14u",
+   "agp_15u-17u"
+  ],
+  "position": [
+   "P",
+   "TWO-WAY"
+  ],
+  "status": "DRAFT",
+  "assignable": false,
+  "windmill_blocked": true,
+  "counts_toward_throwing_load": true,
+  "description": "Placeholder only. No windmill pitch counts, rest days or workloads are prescribed. Mechanics drills exist in P03 (drl_softball-half-circle-*, walk-through, stride-and-drive, change-up) but stay non-assignable inside any volume program.",
+  "pitches_per_session": "REQUIRES APPROVED AGE-BAND CEILING BEFORE ACTIVATION",
+  "rest_days": "REQUIRES APPROVED AGE-BAND CEILING BEFORE ACTIVATION",
+  "ceiling_ref": [
+   "cap_sb-windmill-pitches-day-<band>"
+  ],
+  "safety_flags": [
+   "WINDMILL_BLOCKED_ALL_ROLES",
+   "BLOCKED_VOLUME"
+  ],
+  "approval_requirements": [
+   "SEPARATE_OWNER_APPROVAL_OF_SPECIFIC_NUMBERS",
+   "NAMED_HUMAN_EXPERT_SIGNOFF",
+   "P04_SPORTS_SCIENCE_REVIEW",
+   "S01_SAFETY_REVIEW"
+  ],
+  "source_refs": [
+   "P03/A5_SB_WINDMILL_PITCHING_11U-14U.md",
+   "S01_WINDMILL_OPTION_B_RULING.md",
+   "P04/P04_AGE_BAND_CEILINGS_v0.md §2.2",
+   "handoff K4"
+  ]
+ },
+ {
+  "id": "ARM-DWU-01",
+  "table": "exercise",
+  "name": "Jog and skip build",
+  "category": "dynamic_warmup",
+  "equipment": [
+   "none"
+  ],
+  "instructions": "Easy jog 2 lengths, then skips with arm swings.",
+  "dose": "2-3 min",
+  "progression": "Add backward skips",
+  "regression": "Brisk walk",
+  "common_errors": "Starting too fast",
+  "cues": "Easy rhythm; get warm",
+  "pd_catalog_ref": "exr_p04-a-skip"
+ },
+ {
+  "id": "ARM-DWU-02",
+  "table": "exercise",
+  "name": "Carioca",
+  "category": "dynamic_warmup",
+  "equipment": [
+   "none"
+  ],
+  "instructions": "Move sideways crossing the trail leg in front and behind, rotating the hips.",
+  "dose": "2x10 m each way",
+  "progression": "Faster hips",
+  "regression": "Side shuffle",
+  "common_errors": "Upper body turns with hips",
+  "cues": "Hips turn, shoulders stay square",
+  "pd_catalog_ref": "exr_p04-carioca"
+ },
+ {
+  "id": "ARM-DWU-03",
+  "table": "exercise",
+  "name": "Leg swings",
+  "category": "dynamic_warmup",
+  "equipment": [
+   "fence or partner"
+  ],
+  "instructions": "Hold support; swing one leg front-to-back, then side-to-side.",
+  "dose": "10 each direction each leg",
+  "progression": "No support",
+  "regression": "Smaller range",
+  "common_errors": "Arching the back",
+  "cues": "Tall posture; smooth swings",
+  "pd_catalog_ref": "exr_p04-leg-swings"
+ },
+ {
+  "id": "ARM-DWU-04",
+  "table": "exercise",
+  "name": "Lateral lunge",
+  "category": "dynamic_warmup",
+  "equipment": [
+   "none"
+  ],
+  "instructions": "Step wide, sit into one hip with the other leg straight, push back.",
+  "dose": "5 each side",
+  "progression": "Add reach to the floor",
+  "regression": "Shallower lunge",
+  "common_errors": "Knee caves; heel lifts",
+  "cues": "Sit back; whole foot down",
+  "pd_catalog_ref": "exr_bb-lateral-lunge@1"
+ },
+ {
+  "id": "ARM-DWU-05",
+  "table": "exercise",
+  "name": "Inchworm",
+  "category": "dynamic_warmup",
+  "equipment": [
+   "none"
+  ],
+  "instructions": "Bend, walk hands out to a plank, walk feet to hands.",
+  "dose": "4-5 reps",
+  "progression": "Add a push-up",
+  "regression": "Bend knees",
+  "common_errors": "Hips sag in plank",
+  "cues": "Strong plank; slow walk",
+  "pd_catalog_ref": "exr_p04-inchworm"
+ },
+ {
+  "id": "ARM-DWU-06",
+  "table": "exercise",
+  "name": "World's greatest stretch",
+  "category": "dynamic_warmup",
+  "equipment": [
+   "none"
+  ],
+  "instructions": "Long lunge, inside elbow toward the instep, then rotate the arm up to the sky.",
+  "dose": "3 each side",
+  "progression": "Add hamstring rock-back",
+  "regression": "Back knee down",
+  "common_errors": "Rushing; collapsed back leg",
+  "cues": "Open the chest; eyes follow hand",
+  "pd_catalog_ref": "exr_p04-worlds-greatest-stretch"
+ },
+ {
+  "id": "ARM-DWU-07",
+  "table": "exercise",
+  "name": "Arm circles (small to large)",
+  "category": "dynamic_warmup",
+  "equipment": [
+   "none"
+  ],
+  "instructions": "Arms out to the side; small circles forward, building to large; repeat backward.",
+  "dose": "10 each direction",
+  "progression": "Add a light grip squeeze",
+  "regression": "Smaller circles only",
+  "common_errors": "Shrugging",
+  "cues": "Relaxed neck; smooth circles",
+  "pd_catalog_ref": "exr_bb-arm-circles@1"
+ },
+ {
+  "id": "ARM-DWU-08",
+  "table": "exercise",
+  "name": "Walking knee hug to quad pull",
+  "category": "dynamic_warmup",
+  "equipment": [
+   "none"
+  ],
+  "instructions": "Walk, hug one knee to chest, step, then pull the other heel to the glute.",
+  "dose": "10 m",
+  "progression": "Add rise onto toes",
+  "regression": "Hold a partner",
+  "common_errors": "Leaning forward",
+  "cues": "Stand tall",
+  "pd_catalog_ref": null
+ },
+ {
+  "id": "ARM-SHP-01",
+  "table": "exercise",
+  "name": "Band pull-apart",
+  "category": "shoulder_prep",
+  "equipment": [
+   "light band"
+  ],
+  "high_intensity": true,
+  "instructions": "Arms straight at chest height; pull the band apart until it touches the chest; return slowly.",
+  "dose": "1-2x10-12",
+  "progression": "Overhead pull-apart",
+  "regression": "Lighter band",
+  "common_errors": "Arching back; shrugging",
+  "cues": "Squeeze shoulder blades; ribs down",
+  "pd_catalog_ref": "exr_bb-band-pull-apart@1"
+ },
+ {
+  "id": "ARM-SHP-02",
+  "table": "exercise",
+  "name": "Band diagonal (D2) pattern",
+  "category": "shoulder_prep",
+  "equipment": [
+   "light band"
+  ],
+  "high_intensity": true,
+  "instructions": "From the opposite hip, pull the band up and out diagonally like a sword draw; return slowly.",
+  "dose": "1x8-10 each arm",
+  "progression": "Pause at the top",
+  "regression": "No band",
+  "common_errors": "Twisting trunk",
+  "cues": "Smooth path; thumb leads up",
+  "pd_catalog_ref": null
+ },
+ {
+  "id": "ARM-SHP-03",
+  "table": "exercise",
+  "name": "Wall angels / scap wall slide",
+  "category": "shoulder_prep",
+  "equipment": [
+   "wall"
+  ],
+  "instructions": "Back and arms against the wall, slide arms up and down keeping contact where comfortable.",
+  "dose": "1-2x8",
+  "progression": "Lift-off at top",
+  "regression": "Smaller range",
+  "common_errors": "Back arches off wall",
+  "cues": "Ribs down; slow",
+  "pd_catalog_ref": "exr_bb-scap-wall-slide@1"
+ },
+ {
+  "id": "ARM-SHP-04",
+  "table": "exercise",
+  "name": "Quadruped shoulder taps",
+  "category": "shoulder_prep",
+  "equipment": [
+   "mat"
+  ],
+  "instructions": "On hands and knees, tap one hand to the opposite shoulder without the hips shifting.",
+  "dose": "2x8 each side",
+  "progression": "From a plank",
+  "regression": "Slower tempo",
+  "common_errors": "Hips rock",
+  "cues": "Still hips; push the floor away",
+  "pd_catalog_ref": null
+ },
+ {
+  "id": "ARM-SCP-01",
+  "table": "exercise",
+  "name": "Prone Y-T-W (bodyweight)",
+  "category": "scapular_control",
+  "equipment": [
+   "mat or bench"
+  ],
+  "instructions": "Lying face down, lift arms into Y, then T, then W shapes, thumbs up, hold 2 s each.",
+  "dose": "1-2x6 each shape",
+  "progression": "Hold 3-5 s",
+  "regression": "Fewer reps; smaller range",
+  "common_errors": "Lifting the head; shrugging",
+  "cues": "Shoulder blades back and down; thumbs up",
+  "pd_catalog_ref": "exr_bb-prone-ytw@1"
+ },
+ {
+  "id": "ARM-SCP-02",
+  "table": "exercise",
+  "name": "Push-up plus",
+  "category": "scapular_control",
+  "equipment": [
+   "mat"
+  ],
+  "instructions": "In a plank or incline, push the floor away to spread the shoulder blades, then relax them together.",
+  "dose": "2x8-10",
+  "progression": "Floor plank",
+  "regression": "Wall or incline",
+  "common_errors": "Bending elbows; hips sag",
+  "cues": "Arms straight; push the floor away",
+  "pd_catalog_ref": "exr_softball-plank-and-push-up-plus-variations-closed-chain"
+ },
+ {
+  "id": "ARM-SCP-03",
+  "table": "exercise",
+  "name": "Band row",
+  "category": "scapular_control",
+  "equipment": [
+   "band"
+  ],
+  "high_intensity": true,
+  "instructions": "Pull the band to the ribs, shoulder blades back; return slowly.",
+  "dose": "2x10-12",
+  "progression": "Single-arm, split stance",
+  "regression": "Lighter band",
+  "common_errors": "Shrugging; leaning back",
+  "cues": "Elbows to back pockets",
+  "pd_catalog_ref": "exr_bb-band-row@1"
+ },
+ {
+  "id": "ARM-SCP-04",
+  "table": "exercise",
+  "name": "Scap push-up on wall",
+  "category": "scapular_control",
+  "equipment": [
+   "wall"
+  ],
+  "instructions": "Hands on wall, arms straight; let the chest sink between the hands, then push away.",
+  "dose": "2x10",
+  "progression": "Incline then floor",
+  "regression": "Smaller range",
+  "common_errors": "Bending elbows",
+  "cues": "Only the shoulder blades move",
+  "pd_catalog_ref": null
+ },
+ {
+  "id": "ARM-SCP-05",
+  "table": "exercise",
+  "name": "Bear-position hold",
+  "category": "scapular_control",
+  "equipment": [
+   "mat"
+  ],
+  "instructions": "Hands and feet down, knees lifted 2-3 cm, hold steady.",
+  "dose": "2x15-20 s",
+  "progression": "Add shoulder taps",
+  "regression": "Knees down hold",
+  "common_errors": "Hips high",
+  "cues": "Flat back; push the floor",
+  "pd_catalog_ref": null
+ },
+ {
+  "id": "ARM-RC-01",
+  "table": "exercise",
+  "name": "Band external rotation at side",
+  "category": "rotator_cuff",
+  "equipment": [
+   "light band",
+   "towel roll"
+  ],
+  "high_intensity": true,
+  "instructions": "Elbow at the side on a towel roll, bent 90°. Rotate the hand out against the band, return slowly.",
+  "dose": "1-2x10-12",
+  "progression": "Slow 3-s return",
+  "regression": "No band",
+  "common_errors": "Elbow leaves the side; trunk rotates",
+  "cues": "Elbow glued to the towel",
+  "pd_catalog_ref": "exr_bb-band-er-side@1"
+ },
+ {
+  "id": "ARM-RC-02",
+  "table": "exercise",
+  "name": "Band internal rotation at side",
+  "category": "rotator_cuff",
+  "equipment": [
+   "light band",
+   "towel roll"
+  ],
+  "high_intensity": true,
+  "instructions": "Same set-up facing the other way; rotate the hand in toward the belly.",
+  "dose": "1-2x10-12",
+  "progression": "Slow return",
+  "regression": "No band",
+  "common_errors": "Elbow drifts",
+  "cues": "Small, controlled movement",
+  "pd_catalog_ref": "exr_bb-band-ir-side@1"
+ },
+ {
+  "id": "ARM-RC-03",
+  "table": "exercise",
+  "name": "Side-lying external rotation",
+  "category": "rotator_cuff",
+  "equipment": [
+   "none or very light DB"
+  ],
+  "instructions": "Lie on the non-throwing side, elbow at the side, rotate the forearm up toward the ceiling.",
+  "dose": "1-2x10",
+  "progression": "Very light DB (coach-set)",
+  "regression": "No load",
+  "common_errors": "Rolling backward",
+  "cues": "Stay stacked; slow",
+  "pd_catalog_ref": null
+ },
+ {
+  "id": "ARM-RC-04",
+  "table": "exercise",
+  "name": "Band ER at 90° (90/90)",
+  "category": "rotator_cuff",
+  "equipment": [
+   "light band"
+  ],
+  "high_intensity": true,
+  "level_min": "LVL-DEV",
+  "age_min": "agp_13u-14u",
+  "instructions": "Arm out at shoulder height, elbow bent 90°. Rotate up to vertical against the band, return slowly.",
+  "dose": "1-2x8-10",
+  "progression": "Add a 2-s hold",
+  "regression": "ARM-RC-01",
+  "common_errors": "Elbow drops below shoulder",
+  "cues": "Elbow stays level",
+  "pd_catalog_ref": null
+ },
+ {
+  "id": "ARM-RC-05",
+  "table": "exercise",
+  "name": "Prone T with thumb up (hold)",
+  "category": "rotator_cuff",
+  "equipment": [
+   "mat or bench"
+  ],
+  "instructions": "Face down, arm out to the side, thumb up, lift and hold.",
+  "dose": "1x6 x 3 s each arm",
+  "progression": "5-s hold",
+  "regression": "Shorter hold",
+  "common_errors": "Shrugging",
+  "cues": "Long arm; shoulder blade back",
+  "pd_catalog_ref": "exr_bb-prone-ytw@1"
+ },
+ {
+  "id": "ARM-FW-01",
+  "table": "exercise",
+  "name": "Forearm ball squeeze",
+  "category": "forearm_wrist",
+  "equipment": [
+   "soft ball"
+  ],
+  "instructions": "Squeeze a soft ball for 3 s, relax.",
+  "dose": "10 each hand",
+  "progression": "Firmer ball",
+  "regression": "Fewer reps",
+  "common_errors": "Holding breath",
+  "cues": "Squeeze, then fully relax",
+  "pd_catalog_ref": "exr_bb-ball-squeeze@1"
+ },
+ {
+  "id": "ARM-FW-02",
+  "table": "exercise",
+  "name": "Wrist flexion/extension with light band",
+  "category": "forearm_wrist",
+  "equipment": [
+   "light band"
+  ],
+  "high_intensity": true,
+  "instructions": "Forearm on the thigh, move the wrist up and down against the band slowly.",
+  "dose": "1-2x10 each way",
+  "progression": "Slower tempo",
+  "regression": "No band",
+  "common_errors": "Moving the forearm",
+  "cues": "Only the wrist moves",
+  "pd_catalog_ref": "exr_bb-wrist-band@1"
+ },
+ {
+  "id": "ARM-FW-03",
+  "table": "exercise",
+  "name": "Pronation/supination with hammer or bat",
+  "category": "forearm_wrist",
+  "equipment": [
+   "light hammer or short bat",
+   "held near the head"
+  ],
+  "instructions": "Forearm supported, turn the palm down and up slowly.",
+  "dose": "1-2x10 each way",
+  "progression": "Hold further down the handle",
+  "regression": "Choke all the way up",
+  "common_errors": "Fast flipping",
+  "cues": "Slow and controlled",
+  "pd_catalog_ref": "exr_softball-forearm-and-grip-light"
+ },
+ {
+  "id": "ARM-FW-04",
+  "table": "exercise",
+  "name": "Rice-bucket or towel wring",
+  "category": "forearm_wrist",
+  "equipment": [
+   "towel"
+  ],
+  "instructions": "Wring a rolled towel in both directions.",
+  "dose": "2x10 s each way",
+  "progression": "Thicker towel",
+  "regression": "Shorter time",
+  "common_errors": "Shrugging",
+  "cues": "Grip strong, shoulders relaxed",
+  "pd_catalog_ref": null
+ },
+ {
+  "id": "ARM-TR-01",
+  "table": "exercise",
+  "name": "Open-book thoracic rotation",
+  "category": "trunk_rotation",
+  "equipment": [
+   "mat"
+  ],
+  "instructions": "Lie on your side, knees bent, arms together; open the top arm across to the other side and follow it with the eyes.",
+  "dose": "5-8 each side",
+  "progression": "Hold 3 s open",
+  "regression": "Smaller range",
+  "common_errors": "Knees come apart",
+  "cues": "Knees stay stacked; breathe out as you open",
+  "pd_catalog_ref": "exr_bb-open-book@1"
+ },
+ {
+  "id": "ARM-TR-02",
+  "table": "exercise",
+  "name": "Standing thoracic rotation",
+  "category": "trunk_rotation",
+  "equipment": [
+   "none"
+  ],
+  "instructions": "Athletic stance, arms crossed; rotate the upper body each way keeping hips still.",
+  "dose": "8 each side",
+  "progression": "Split stance",
+  "regression": "Seated",
+  "common_errors": "Hips turn",
+  "cues": "Turn from the middle back",
+  "pd_catalog_ref": "exr_p04-thoracic-rotation"
+ },
+ {
+  "id": "ARM-TR-03",
+  "table": "exercise",
+  "name": "Dead bug",
+  "category": "trunk_rotation",
+  "equipment": [
+   "mat"
+  ],
+  "instructions": "On your back, arms up, knees at 90°. Lower opposite arm and leg slowly while the low back stays down.",
+  "dose": "2x6 each side",
+  "progression": "Hold a light ball",
+  "regression": "Legs only",
+  "common_errors": "Back arches",
+  "cues": "Ribs down; slow breathing",
+  "pd_catalog_ref": "exr_p04-dead-bug"
+ },
+ {
+  "id": "ARM-TR-04",
+  "table": "exercise",
+  "name": "Hip-lead hold (stride position)",
+  "category": "trunk_rotation",
+  "equipment": [
+   "none"
+  ],
+  "instructions": "From the balance point, stride and hold landing with the glove side closed and chest still back.",
+  "dose": "5 x 3 s",
+  "progression": "Add a towel throw finish",
+  "regression": "Shorter stride",
+  "common_errors": "Chest opens early",
+  "cues": "Hips go, chest stays",
+  "pd_catalog_ref": "drl_bb-stride-line@1"
+ },
+ {
+  "id": "ARM-REC-01",
+  "table": "exercise",
+  "name": "Easy walk and breathing",
+  "category": "post_throw_recovery",
+  "equipment": [
+   "none"
+  ],
+  "instructions": "Walk 2-3 min with slow nose breathing.",
+  "dose": "2-3 min",
+  "progression": "-",
+  "regression": "-",
+  "common_errors": "Skipping it",
+  "cues": "Slow down your breathing",
+  "pd_catalog_ref": null
+ },
+ {
+  "id": "ARM-REC-02",
+  "table": "exercise",
+  "name": "Gentle cross-body shoulder stretch",
+  "category": "post_throw_recovery",
+  "equipment": [
+   "none"
+  ],
+  "instructions": "Bring the throwing arm across the chest, gently support with the other hand. No forcing.",
+  "dose": "2x20 s",
+  "progression": "-",
+  "regression": "Less range",
+  "common_errors": "Pulling hard",
+  "cues": "Gentle; should feel easy",
+  "pd_catalog_ref": "exr_bb-cross-body-stretch@1"
+ },
+ {
+  "id": "ARM-REC-03",
+  "table": "exercise",
+  "name": "Light band ER/IR flush",
+  "category": "post_throw_recovery",
+  "equipment": [
+   "very light band"
+  ],
+  "instructions": "Very light band rotations, slow, pain-free range only.",
+  "dose": "1x15 each",
+  "progression": "-",
+  "regression": "No band",
+  "common_errors": "Using a heavy band",
+  "cues": "Light and smooth",
+  "pd_catalog_ref": "exr_softball-light-band-rotations"
+ },
+ {
+  "id": "ARM-MOB-01",
+  "table": "exercise",
+  "name": "Cat-cow",
+  "category": "mobility",
+  "equipment": [
+   "mat"
+  ],
+  "instructions": "On hands and knees, round then arch the back slowly with the breath.",
+  "dose": "6-8 reps",
+  "progression": "Add thread-the-needle",
+  "regression": "Smaller range",
+  "common_errors": "Rushing",
+  "cues": "Move one segment at a time",
+  "pd_catalog_ref": "exr_bb-cat-cow@1"
+ },
+ {
+  "id": "ARM-MOB-02",
+  "table": "exercise",
+  "name": "90/90 hip switch",
+  "category": "mobility",
+  "equipment": [
+   "mat"
+  ],
+  "instructions": "Seated with both knees bent at 90°, rotate both knees side to side.",
+  "dose": "6 each side",
+  "progression": "Hands off the floor",
+  "regression": "Hands behind for support",
+  "common_errors": "Slumping",
+  "cues": "Sit tall",
+  "pd_catalog_ref": null
+ },
+ {
+  "id": "ARM-MOB-03",
+  "table": "exercise",
+  "name": "Ankle rocks",
+  "category": "mobility",
+  "equipment": [
+   "wall"
+  ],
+  "instructions": "Half-kneeling facing a wall, rock the front knee forward over the toes keeping the heel down.",
+  "dose": "8 each side",
+  "progression": "Further from wall",
+  "regression": "Closer",
+  "common_errors": "Heel lifts",
+  "cues": "Knee over little toes",
+  "pd_catalog_ref": "exr_p04-ankle-rocks"
+ },
+ {
+  "id": "ARM-MOB-04",
+  "table": "exercise",
+  "name": "Single-leg balance reach",
+  "category": "mobility",
+  "equipment": [
+   "none"
+  ],
+  "instructions": "Balance on one leg and reach the other foot forward, side and back.",
+  "dose": "3 reaches x 2 each leg",
+  "progression": "Eyes closed (coach present)",
+  "regression": "Hand on wall",
+  "common_errors": "Knee caves",
+  "cues": "Stable hip; quiet foot",
+  "pd_catalog_ref": "exr_bb-single-leg-reach@1"
+ },
+ {
+  "id": "ARM-MOB-05",
+  "table": "exercise",
+  "name": "Child's pose with side reach",
+  "category": "mobility",
+  "equipment": [
+   "mat"
+  ],
+  "instructions": "Sit back to heels with arms long, then walk both hands to each side.",
+  "dose": "2x20 s each side",
+  "progression": "-",
+  "regression": "Pillow under hips",
+  "common_errors": "Forcing range",
+  "cues": "Breathe into the side",
+  "pd_catalog_ref": null
+ },
+ {
+  "id": "ARM-RTN-01",
+  "table": "routine",
+  "name": "Pre-Throw Arm Care (8-10 min)",
+  "sport": "both",
+  "category": "arm_care",
+  "age_band": [
+   "agp_9u-10u",
+   "agp_11u-12u",
+   "agp_13u-14u",
+   "agp_15u-17u"
+  ],
+  "level": [
+   "LVL-FND",
+   "LVL-DEV",
+   "LVL-ADV",
+   "LVL-ELT"
+  ],
+  "frequency": "Before every throwing session",
+  "items": [
+   "ARM-DWU-01",
+   "ARM-DWU-02",
+   "ARM-DWU-03",
+   "ARM-DWU-06",
+   "ARM-DWU-07",
+   "ARM-SHP-01",
+   "ARM-SCP-01",
+   "ARM-RC-01",
+   "ARM-TR-02"
+  ],
+  "level_rules": {
+   "LVL-FND": "1 set each, no band (use no-band regressions)",
+   "LVL-DEV": "1 set, light band",
+   "LVL-ADV": "1-2 sets; add ARM-SHP-02",
+   "LVL-ELT": "add ARM-RC-04 (13U+)"
+  },
+  "coach_notes": "Never skip before throwing. Bands stay light; this is preparation, not strength work.",
+  "athlete_notes": "This gets your body ready to throw. Do it every time.",
+  "source_refs": [
+   "P02/A7_BB_ARM_CARE_FOUNDATION_11U-12U.md",
+   "P02/A7_BB_ARM_CARE_FOUNDATION_13U-14U.md",
+   "P03/A7_SB_ARM_CARE_11U-14U.md"
+  ]
+ },
+ {
+  "id": "ARM-RTN-02",
+  "table": "routine",
+  "name": "Post-Throw Recovery (5-8 min)",
+  "sport": "both",
+  "category": "arm_care",
+  "age_band": [
+   "agp_9u-10u",
+   "agp_11u-12u",
+   "agp_13u-14u",
+   "agp_15u-17u"
+  ],
+  "level": [
+   "LVL-FND",
+   "LVL-DEV",
+   "LVL-ADV",
+   "LVL-ELT"
+  ],
+  "frequency": "After every throwing session or game",
+  "items": [
+   "ARM-REC-01",
+   "ARM-REC-02",
+   "ARM-REC-03",
+   "ARM-TR-01",
+   "ARM-MOB-01"
+  ],
+  "coach_notes": "Light and easy. Not a treatment and not a substitute for the check-in.",
+  "athlete_notes": "Cool down your arm and body after throwing.",
+  "source_refs": [
+   "P02/A7_BB_14U_PITCHER_ARM_CARE.md",
+   "P03/A7_SB_ARM_CARE_11U-14U.md"
+  ]
+ },
+ {
+  "id": "ARM-RTN-03",
+  "table": "routine",
+  "name": "Off-Day Arm Support (12-15 min)",
+  "sport": "both",
+  "category": "arm_care",
+  "age_band": [
+   "agp_11u-12u",
+   "agp_13u-14u",
+   "agp_15u-17u"
+  ],
+  "level": [
+   "LVL-DEV",
+   "LVL-ADV",
+   "LVL-ELT"
+  ],
+  "frequency": "2 non-throwing days/wk",
+  "items": [
+   "ARM-SCP-01",
+   "ARM-SCP-02",
+   "ARM-SCP-03",
+   "ARM-RC-01",
+   "ARM-RC-02",
+   "ARM-RC-03",
+   "ARM-FW-01",
+   "ARM-FW-02",
+   "ARM-FW-03",
+   "ARM-TR-03",
+   "ARM-MOB-02",
+   "ARM-MOB-04"
+  ],
+  "coach_notes": "Band items count as high-intensity and stop under a fatigue-only pause.",
+  "athlete_notes": "Short strength work for your shoulder, back and forearm on days you do not throw.",
+  "safety_flags": [
+   "DISCLAIMER_CB1",
+   "STOP_AND_TELL_CB2",
+   "HI_ITEMS_PAUSE_ON_FATIGUE"
+  ],
+  "source_refs": [
+   "P02/A7_BB_13U_POSITION_PLAYER_ARM_CARE.md",
+   "P02/A7_BB_14U_PITCHER_ARM_CARE.md"
+  ]
+ },
+ {
+  "id": "DRL-BB-P-01",
+  "table": "drill",
+  "name": "Balance-point hold",
+  "position": [
+   "P"
+  ],
+  "age_band": "AB9+",
+  "level": [
+   "LVL-FND",
+   "LVL-DEV"
+  ],
+  "objective": "Stable posture at leg lift",
+  "setup": "Flat ground, mirror or partner",
+  "equipment": [
+   "none"
+  ],
+  "instructions": "Lift the knee to the balance point and hold 3 s; reset.",
+  "cues": "Tall, stacked, quiet head",
+  "common_errors": "Leaning back; rushing",
+  "progression": "Hold then stride",
+  "regression": "Hand on wall",
+  "dose": "2x5",
+  "counts_toward_throwing_load": false,
+  "pd_catalog_ref": "drl_bb-balance-point-hold@1"
+ },
+ {
+  "id": "DRL-BB-P-02",
+  "table": "drill",
+  "name": "Stride-line direction",
+  "position": [
+   "P"
+  ],
+  "age_band": "AB9+",
+  "level": [
+   "LVL-FND",
+   "LVL-DEV"
+  ],
+  "objective": "Stride toward the target",
+  "setup": "Tape or chalk line to the target",
+  "equipment": [
+   "tape"
+  ],
+  "instructions": "Dry stride from the set position landing on or just closed to the line.",
+  "cues": "Front foot to the line; glove to target",
+  "common_errors": "Landing open",
+  "progression": "Add ball, Easy throw",
+  "regression": "Walk-through",
+  "dose": "2x6 dry",
+  "counts_toward_throwing_load": false,
+  "pd_catalog_ref": "drl_bb-stride-line@1"
+ },
+ {
+  "id": "DRL-BB-P-03",
+  "table": "drill",
+  "name": "Towel drill",
+  "position": [
+   "P"
+  ],
+  "age_band": "AB11+",
+  "level": [
+   "LVL-DEV",
+   "LVL-ADV"
+  ],
+  "objective": "Full motion with no ball load",
+  "setup": "Partner holds a glove at release distance",
+  "equipment": [
+   "towel"
+  ],
+  "instructions": "Full delivery with a hand towel; snap the towel at the partner's glove.",
+  "cues": "Finish out front; chest over knee",
+  "common_errors": "Arm-only finish",
+  "progression": "Longer stride target",
+  "regression": "From stretch only",
+  "dose": "2x8",
+  "counts_toward_throwing_load": false,
+  "pd_catalog_ref": "drl_bb-towel-drill@1"
+ },
+ {
+  "id": "DRL-BB-P-04",
+  "table": "drill",
+  "name": "Flat-ground fastball",
+  "position": [
+   "P"
+  ],
+  "age_band": "AB11+",
+  "level": [
+   "LVL-DEV",
+   "LVL-ADV",
+   "LVL-ELT"
+  ],
+  "objective": "Command of the fastball without mound slope",
+  "setup": "Catcher at a coach-set flat-ground distance",
+  "equipment": [
+   "baseballs",
+   "catcher gear"
+  ],
+  "instructions": "From the stretch, throw fastballs at Moderate intent to glove targets.",
+  "cues": "Same motion every pitch",
+  "common_errors": "Overthrowing",
+  "progression": "Windup; Firm intent",
+  "regression": "Shorter distance",
+  "dose": "throws: REQUIRES APPROVED AGE-BAND CEILING BEFORE ACTIVATION",
+  "throws": "REQUIRES APPROVED AGE-BAND CEILING BEFORE ACTIVATION",
+  "counts_toward_throwing_load": true,
+  "ceiling_ref": "cap_bb-pitching-pitches-day-<band>",
+  "pd_catalog_ref": "drl_bb-flat-ground-fastball@1"
+ },
+ {
+  "id": "DRL-BB-P-05",
+  "table": "drill",
+  "name": "Flat-ground changeup",
+  "position": [
+   "P"
+  ],
+  "age_band": "AB11+",
+  "level": [
+   "LVL-DEV",
+   "LVL-ADV",
+   "LVL-ELT"
+  ],
+  "objective": "Arm-speed changeup feel",
+  "setup": "As P-04",
+  "equipment": [
+   "baseballs"
+  ],
+  "instructions": "Alternate fastball and changeup with the same arm speed.",
+  "cues": "Same arm speed; grip does the work",
+  "common_errors": "Slowing the arm",
+  "progression": "Call pitch late",
+  "regression": "Changeup grip in catch play only",
+  "dose": "throws blocked",
+  "throws": "REQUIRES APPROVED AGE-BAND CEILING BEFORE ACTIVATION",
+  "counts_toward_throwing_load": true,
+  "ceiling_ref": "cap_bb-pitching-pitches-day-<band>",
+  "pd_catalog_ref": "drl_bb-flat-ground-changeup@1"
+ },
+ {
+  "id": "DRL-BB-P-06",
+  "table": "drill",
+  "name": "Bullpen FB/CH to targets",
+  "position": [
+   "P"
+  ],
+  "age_band": "AB11+",
+  "level": [
+   "LVL-ADV",
+   "LVL-ELT"
+  ],
+  "objective": "Mound command and tempo",
+  "setup": "Regulation-for-age mound and distance",
+  "equipment": [
+   "baseballs",
+   "catcher gear",
+   "pitch counter"
+  ],
+  "instructions": "Throw scripted FB/CH sequences; catcher tracks strikes.",
+  "cues": "Tempo; hit the glove",
+  "common_errors": "Skipping the count log",
+  "progression": "Simulated batters",
+  "regression": "Flat ground",
+  "dose": "pitches blocked",
+  "throws": "REQUIRES APPROVED AGE-BAND CEILING BEFORE ACTIVATION",
+  "counts_toward_throwing_load": true,
+  "ceiling_ref": "cap_bb-pitching-pitches-day-<band>",
+  "pd_catalog_ref": "drl_bb-bullpen-fb-ch@1"
+ },
+ {
+  "id": "DRL-BB-P-07",
+  "table": "drill",
+  "name": "PFP comebacker and cover first",
+  "position": [
+   "P"
+  ],
+  "age_band": "AB11+",
+  "level": [
+   "LVL-DEV",
+   "LVL-ADV",
+   "LVL-ELT"
+  ],
+  "objective": "Fielding the position",
+  "setup": "Coach fungo from home; 1B fielder",
+  "equipment": [
+   "fungo",
+   "balls"
+  ],
+  "instructions": "Dry delivery, field comebacker and throw to 1B; or break to cover 1B on balls to the right side.",
+  "cues": "Finish in fielding position",
+  "common_errors": "Bee-line to the bag",
+  "progression": "Live reads",
+  "regression": "Rolled balls",
+  "dose": "throws blocked",
+  "throws": "REQUIRES APPROVED AGE-BAND CEILING BEFORE ACTIVATION",
+  "counts_toward_throwing_load": true,
+  "ceiling_ref": "cap_ba-nonpitch-throws-day-<band>",
+  "pd_catalog_ref": "drl_bb-pfp-comebacker@1"
+ },
+ {
+  "id": "DRL-BB-C-01",
+  "table": "drill",
+  "name": "Stance and receiving",
+  "position": [
+   "C"
+  ],
+  "age_band": "AB9+",
+  "level": [
+   "LVL-FND",
+   "LVL-DEV"
+  ],
+  "objective": "Quiet receiving and a stable stance",
+  "setup": "Coach soft-tosses from 15-20 ft",
+  "equipment": [
+   "catcher gear",
+   "soft balls"
+  ],
+  "instructions": "Primary and secondary stance; receive pitches and hold the catch 1 s.",
+  "cues": "Quiet glove; catch the outside of the ball",
+  "common_errors": "Stabbing",
+  "progression": "Live bullpen",
+  "regression": "Bare-hand tennis ball",
+  "dose": "3x10",
+  "counts_toward_throwing_load": false
+ },
+ {
+  "id": "DRL-BB-C-02",
+  "table": "drill",
+  "name": "Blocking",
+  "position": [
+   "C"
+  ],
+  "age_band": "AB11+",
+  "level": [
+   "LVL-DEV",
+   "LVL-ADV"
+  ],
+  "objective": "Keep the ball in front",
+  "setup": "Coach throws soft balls in the dirt",
+  "equipment": [
+   "catcher gear",
+   "soft or foam balls"
+  ],
+  "instructions": "Drop to the knees, chest over the ball, chin down.",
+  "cues": "Glove fills the gap; chest forward",
+  "common_errors": "Reaching with the glove",
+  "progression": "Angle blocks",
+  "regression": "Dry drops",
+  "dose": "2x6 each direction",
+  "counts_toward_throwing_load": false
+ },
+ {
+  "id": "DRL-BB-C-03",
+  "table": "drill",
+  "name": "Throw-downs to second",
+  "position": [
+   "C"
+  ],
+  "age_band": "AB13+",
+  "level": [
+   "LVL-ADV",
+   "LVL-ELT"
+  ],
+  "objective": "Footwork, transfer and accurate throw to 2B",
+  "setup": "Middle infielder covers 2B",
+  "equipment": [
+   "catcher gear",
+   "balls"
+  ],
+  "instructions": "Receive, transfer, footwork, throw to the bag.",
+  "cues": "Feet first, then arm; on a line",
+  "common_errors": "Arm-only throws; high release",
+  "progression": "Pop-time timer",
+  "regression": "Throw to a shorter target",
+  "dose": "throws blocked",
+  "throws": "REQUIRES APPROVED AGE-BAND CEILING BEFORE ACTIVATION",
+  "counts_toward_throwing_load": true,
+  "high_intensity": true,
+  "ceiling_ref": "cap_ba-nonpitch-high-intensity-throws-day-<band>"
+ },
+ {
+  "id": "DRL-BB-C-04",
+  "table": "drill",
+  "name": "Dry footwork and transfer",
+  "position": [
+   "C"
+  ],
+  "age_band": "AB9+",
+  "level": [
+   "LVL-FND",
+   "LVL-DEV",
+   "LVL-ADV"
+  ],
+  "objective": "Clean exchange",
+  "setup": "Partner, glove",
+  "equipment": [
+   "glove",
+   "ball"
+  ],
+  "instructions": "Receive a flip, transfer to the hand and step into throwing position without releasing.",
+  "cues": "Glove to ear; feet under",
+  "common_errors": "Fumbling the exchange",
+  "progression": "Timed reps",
+  "regression": "Slow tempo",
+  "dose": "3x8",
+  "counts_toward_throwing_load": false,
+  "pd_catalog_ref": "drl_bb-quick-exchange@1"
+ },
+ {
+  "id": "DRL-BB-C-05",
+  "table": "drill",
+  "name": "Short quick-release throws",
+  "position": [
+   "C"
+  ],
+  "age_band": "AB11+",
+  "level": [
+   "LVL-DEV",
+   "LVL-ADV"
+  ],
+  "objective": "Fast exchange to a short target",
+  "setup": "Partner at short distance",
+  "equipment": [
+   "balls"
+  ],
+  "instructions": "Receive and throw quickly at Easy-Moderate intent.",
+  "cues": "Short arm, fast feet",
+  "common_errors": "Long arm circle",
+  "progression": "Increase distance gradually",
+  "regression": "Dry",
+  "dose": "throws blocked",
+  "throws": "REQUIRES APPROVED AGE-BAND CEILING BEFORE ACTIVATION",
+  "counts_toward_throwing_load": true,
+  "ceiling_ref": "cap_ba-nonpitch-throws-day-<band>"
+ },
+ {
+  "id": "DRL-BB-C-06",
+  "table": "drill",
+  "name": "Pop-ups and bunt fielding",
+  "position": [
+   "C"
+  ],
+  "age_band": "AB11+",
+  "level": [
+   "LVL-DEV",
+   "LVL-ADV",
+   "LVL-ELT"
+  ],
+  "objective": "Find the ball, field bunts",
+  "setup": "Coach tosses or rolls",
+  "equipment": [
+   "catcher gear",
+   "balls"
+  ],
+  "instructions": "Mask off, turn back to the field for pop-ups; for bunts, scoop with two hands.",
+  "cues": "Find it, then throw the mask away from it",
+  "common_errors": "Mask in the path",
+  "progression": "Add throw to 1B (counts)",
+  "regression": "No gear",
+  "dose": "2x6",
+  "counts_toward_throwing_load": false
+ },
+ {
+  "id": "DRL-BB-IF-01",
+  "table": "drill",
+  "name": "Ready position and ground-ball fundamentals",
+  "position": [
+   "MI",
+   "CI"
+  ],
+  "age_band": "AB9+",
+  "level": [
+   "LVL-FND",
+   "LVL-DEV"
+  ],
+  "objective": "Funnel and field out front",
+  "setup": "Partner rolls from 20-30 ft",
+  "equipment": [
+   "glove",
+   "balls"
+  ],
+  "instructions": "Ready, approach, glove out front, funnel to the belt.",
+  "cues": "Wide base; glove out front",
+  "common_errors": "Fielding between the feet",
+  "progression": "Moving balls",
+  "regression": "Stationary rolls",
+  "dose": "3x8",
+  "counts_toward_throwing_load": false
+ },
+ {
+  "id": "DRL-BB-IF-02",
+  "table": "drill",
+  "name": "Field and throw to first",
+  "position": [
+   "MI",
+   "CI"
+  ],
+  "age_band": "AB9+",
+  "level": [
+   "LVL-DEV",
+   "LVL-ADV"
+  ],
+  "objective": "Field, set feet, throw on a line",
+  "setup": "Coach fungo, first baseman",
+  "equipment": [
+   "fungo",
+   "balls"
+  ],
+  "instructions": "Field, shuffle or crow-hop, throw to 1B.",
+  "cues": "Feet to target; finish the throw",
+  "common_errors": "Throwing off the back foot",
+  "progression": "Backhand/forehand",
+  "regression": "Rolled balls",
+  "dose": "throws blocked",
+  "throws": "REQUIRES APPROVED AGE-BAND CEILING BEFORE ACTIVATION",
+  "counts_toward_throwing_load": true,
+  "ceiling_ref": "cap_ba-nonpitch-throws-day-<band>",
+  "pd_catalog_ref": "drl_bb-if-field-and-throw@1"
+ },
+ {
+  "id": "DRL-BB-IF-03",
+  "table": "drill",
+  "name": "Backhand and forehand",
+  "position": [
+   "MI",
+   "CI"
+  ],
+  "age_band": "AB11+",
+  "level": [
+   "LVL-DEV",
+   "LVL-ADV"
+  ],
+  "objective": "Lateral glove work",
+  "setup": "Partner rolls to each side",
+  "equipment": [
+   "glove",
+   "balls"
+  ],
+  "instructions": "Cross-over step, field the backhand off the front foot; forehand with the glove open.",
+  "cues": "Low glove; eyes down",
+  "common_errors": "Standing up early",
+  "progression": "Add throw (counts)",
+  "regression": "Kneeling",
+  "dose": "2x6 each side",
+  "counts_toward_throwing_load": false
+ },
+ {
+  "id": "DRL-BB-IF-04",
+  "table": "drill",
+  "name": "Double-play feeds and pivots",
+  "position": [
+   "MI"
+  ],
+  "age_band": "AB11+",
+  "level": [
+   "LVL-DEV",
+   "LVL-ADV",
+   "LVL-ELT"
+  ],
+  "objective": "Feed and turn",
+  "setup": "SS and 2B pair",
+  "equipment": [
+   "glove",
+   "balls",
+   "base"
+  ],
+  "instructions": "Underhand/backhand feed; pivot at the bag and throw.",
+  "cues": "Show the ball on the feed",
+  "common_errors": "Feeding late",
+  "progression": "Live fungo",
+  "regression": "Feed only",
+  "dose": "throws blocked",
+  "throws": "REQUIRES APPROVED AGE-BAND CEILING BEFORE ACTIVATION",
+  "counts_toward_throwing_load": true,
+  "ceiling_ref": "cap_ba-nonpitch-throws-day-<band>"
+ },
+ {
+  "id": "DRL-BB-IF-05",
+  "table": "drill",
+  "name": "Slow roller charge",
+  "position": [
+   "MI",
+   "CI"
+  ],
+  "age_band": "AB11+",
+  "level": [
+   "LVL-ADV",
+   "LVL-ELT"
+  ],
+  "objective": "Attack the ball",
+  "setup": "Coach rolls slow balls",
+  "equipment": [
+   "balls"
+  ],
+  "instructions": "Charge, field, throw on the run.",
+  "cues": "Under control; throw through the target",
+  "common_errors": "Overrunning the ball",
+  "progression": "Bare-hand pickup (13U+)",
+  "regression": "Two-hand field",
+  "dose": "throws blocked",
+  "throws": "REQUIRES APPROVED AGE-BAND CEILING BEFORE ACTIVATION",
+  "counts_toward_throwing_load": true,
+  "ceiling_ref": "cap_ba-nonpitch-throws-day-<band>"
+ },
+ {
+  "id": "DRL-BB-IF-06",
+  "table": "drill",
+  "name": "Short-hop wall or partner",
+  "position": [
+   "MI",
+   "CI",
+   "1B"
+  ],
+  "age_band": "AB9+",
+  "level": [
+   "LVL-FND",
+   "LVL-DEV",
+   "LVL-ADV"
+  ],
+  "objective": "Soft hands on short hops",
+  "setup": "Partner throws short hops from 10-15 ft",
+  "equipment": [
+   "glove",
+   "soft balls"
+  ],
+  "instructions": "Pick short hops forward, backhand and forehand.",
+  "cues": "Glove through the ball",
+  "common_errors": "Stabbing down",
+  "progression": "Firmer feeds",
+  "regression": "Kneeling",
+  "dose": "3x8 (partner feeds count for feeder)",
+  "counts_toward_throwing_load": false,
+  "feeder_counts": true
+ },
+ {
+  "id": "DRL-BB-OF-01",
+  "table": "drill",
+  "name": "Drop step and route",
+  "position": [
+   "OF"
+  ],
+  "age_band": "AB9+",
+  "level": [
+   "LVL-FND",
+   "LVL-DEV"
+  ],
+  "objective": "First step and angle",
+  "setup": "Coach points direction, then tosses",
+  "equipment": [
+   "glove",
+   "balls"
+  ],
+  "instructions": "Drop step on the point, run the route, catch the toss.",
+  "cues": "Open hips; run, then catch",
+  "common_errors": "Backpedaling",
+  "progression": "Fungo fly balls",
+  "regression": "No ball",
+  "dose": "2x6 each side",
+  "counts_toward_throwing_load": false
+ },
+ {
+  "id": "DRL-BB-OF-02",
+  "table": "drill",
+  "name": "Fly-ball communication",
+  "position": [
+   "OF",
+   "MI"
+  ],
+  "age_band": "AB9+",
+  "level": [
+   "LVL-FND",
+   "LVL-DEV",
+   "LVL-ADV"
+  ],
+  "objective": "Call it and own it",
+  "setup": "Two or three fielders, coach fungo between",
+  "equipment": [
+   "fungo",
+   "balls"
+  ],
+  "instructions": "Call 'Ball' three times; others peel off.",
+  "cues": "Loud and early",
+  "common_errors": "Late calls",
+  "progression": "Add infielders",
+  "regression": "Thrown balls",
+  "dose": "10 reps",
+  "counts_toward_throwing_load": false
+ },
+ {
+  "id": "DRL-BB-OF-03",
+  "table": "drill",
+  "name": "Ground ball do-or-die and crow-hop",
+  "position": [
+   "OF"
+  ],
+  "age_band": "AB11+",
+  "level": [
+   "LVL-ADV",
+   "LVL-ELT"
+  ],
+  "objective": "Charge and throw",
+  "setup": "Coach rolls; cutoff target",
+  "equipment": [
+   "balls"
+  ],
+  "instructions": "Charge, field glove-side foot forward, crow-hop, throw to cutoff.",
+  "cues": "Through the ball; on a line",
+  "common_errors": "Looping throws",
+  "progression": "To bases",
+  "regression": "Blocking-style field",
+  "dose": "throws blocked",
+  "throws": "REQUIRES APPROVED AGE-BAND CEILING BEFORE ACTIVATION",
+  "counts_toward_throwing_load": true,
+  "ceiling_ref": "cap_ba-nonpitch-high-intensity-throws-day-<band>",
+  "high_intensity": true,
+  "pd_catalog_ref": "drl_bb-crow-hop-throw@1"
+ },
+ {
+  "id": "DRL-BB-OF-04",
+  "table": "drill",
+  "name": "Throw to cutoff",
+  "position": [
+   "OF",
+   "MI"
+  ],
+  "age_band": "AB11+",
+  "level": [
+   "LVL-DEV",
+   "LVL-ADV"
+  ],
+  "objective": "Hit the cutoff chest-high",
+  "setup": "Cutoff at coach-set distance",
+  "equipment": [
+   "balls"
+  ],
+  "instructions": "Field and throw to the cutoff's raised arms.",
+  "cues": "Low and hard, not high and long",
+  "common_errors": "Overthrowing the cut",
+  "progression": "Live runners",
+  "regression": "Shorter distance",
+  "dose": "throws blocked",
+  "throws": "REQUIRES APPROVED AGE-BAND CEILING BEFORE ACTIVATION",
+  "counts_toward_throwing_load": true,
+  "ceiling_ref": "cap_ba-nonpitch-throws-day-<band>",
+  "pd_catalog_ref": "drl_bb-of-throw-to-cutoff@1"
+ },
+ {
+  "id": "DRL-BB-OF-05",
+  "table": "drill",
+  "name": "Wall/fence awareness",
+  "position": [
+   "OF"
+  ],
+  "age_band": "AB13+",
+  "level": [
+   "LVL-ADV",
+   "LVL-ELT"
+  ],
+  "objective": "Find the fence safely",
+  "setup": "Walk the warning track; tosses near a padded fence",
+  "equipment": [
+   "balls"
+  ],
+  "instructions": "Get to the fence, feel it with the bare hand, then find the ball.",
+  "cues": "Get there, then look up",
+  "common_errors": "Running into the fence",
+  "progression": "Fungo",
+  "regression": "Walk-through",
+  "dose": "6 reps",
+  "counts_toward_throwing_load": false
+ },
+ {
+  "id": "DRL-BB-1B-01",
+  "table": "drill",
+  "name": "Footwork at the bag",
+  "position": [
+   "1B"
+  ],
+  "age_band": "AB9+",
+  "level": [
+   "LVL-FND",
+   "LVL-DEV"
+  ],
+  "objective": "Find the bag and stretch late",
+  "setup": "Infielders throw from short distance",
+  "equipment": [
+   "base",
+   "glove"
+  ],
+  "instructions": "Get to the bag, set heels, stretch to the throw after it is released.",
+  "cues": "Stretch late",
+  "common_errors": "Stretching early",
+  "progression": "Off-line throws",
+  "regression": "Dry",
+  "dose": "2x8",
+  "counts_toward_throwing_load": false
+ },
+ {
+  "id": "DRL-BB-1B-02",
+  "table": "drill",
+  "name": "Picks (short hop scoops)",
+  "position": [
+   "1B"
+  ],
+  "age_band": "AB9+",
+  "level": [
+   "LVL-DEV",
+   "LVL-ADV"
+  ],
+  "objective": "Scoop low throws",
+  "setup": "Partner throws short hops",
+  "equipment": [
+   "soft balls"
+  ],
+  "instructions": "Long stride, glove forward through the hop.",
+  "cues": "Glove to the ball",
+  "common_errors": "Pulling the glove back",
+  "progression": "Firmer feeds",
+  "regression": "Kneeling",
+  "dose": "3x6",
+  "counts_toward_throwing_load": false,
+  "feeder_counts": true
+ },
+ {
+  "id": "DRL-BB-1B-03",
+  "table": "drill",
+  "name": "Holding runners and fielding",
+  "position": [
+   "1B"
+  ],
+  "age_band": "AB13+",
+  "level": [
+   "LVL-ADV",
+   "LVL-ELT"
+  ],
+  "objective": "Hold-to-ready transition",
+  "setup": "Pitcher dry delivery",
+  "equipment": [
+   "base"
+  ],
+  "instructions": "Hold position, shuffle off on the delivery, field a fungo.",
+  "cues": "Two shuffles and ready",
+  "common_errors": "Still moving at contact",
+  "progression": "Add 3-6-3 throw",
+  "regression": "Dry",
+  "dose": "2x6",
+  "counts_toward_throwing_load": false
+ },
+ {
+  "id": "DRL-BB-1B-04",
+  "table": "drill",
+  "name": "3-6-1 / feed to pitcher covering",
+  "position": [
+   "1B",
+   "P"
+  ],
+  "age_band": "AB11+",
+  "level": [
+   "LVL-DEV",
+   "LVL-ADV"
+  ],
+  "objective": "Feed the covering pitcher",
+  "setup": "Pitcher covers 1B",
+  "equipment": [
+   "balls"
+  ],
+  "instructions": "Field and lead the pitcher to the bag with an underhand feed.",
+  "cues": "Early feed, chest-high",
+  "common_errors": "Late feed",
+  "progression": "Full speed",
+  "regression": "Walk-through",
+  "dose": "8 reps",
+  "counts_toward_throwing_load": false
+ },
+ {
+  "id": "DRL-BB-HIT-01",
+  "table": "drill",
+  "name": "Stance, load and balance dry swings",
+  "category": "hitting",
+  "position": [
+   "ALL"
+  ],
+  "age_band": "AB9+",
+  "level": [
+   "LVL-FND",
+   "LVL-DEV"
+  ],
+  "objective": "Balanced load and finish",
+  "equipment": [
+   "bat"
+  ],
+  "instructions": "Dry swings holding the finish 2 s.",
+  "cues": "Load, stride, swing, hold",
+  "common_errors": "Falling off the finish",
+  "progression": "Eyes closed",
+  "regression": "Half swings",
+  "dose": "swings ESTIMATE within cap",
+  "pd_catalog_ref": "drl_stance-load-and-balance-dry-swings",
+  "setup": "Open space, spacing ≥2 bat lengths"
+ },
+ {
+  "id": "DRL-BB-HIT-02",
+  "table": "drill",
+  "name": "Tee work (multiple locations)",
+  "category": "hitting",
+  "position": [
+   "ALL"
+  ],
+  "age_band": "AB9+",
+  "level": [
+   "LVL-FND",
+   "LVL-DEV",
+   "LVL-ADV"
+  ],
+  "objective": "Contact point by location",
+  "setup": "Tee into net",
+  "equipment": [
+   "tee",
+   "net",
+   "balls"
+  ],
+  "instructions": "Move the tee inside/middle/away; hit line drives.",
+  "cues": "Inside out front; away deeper",
+  "common_errors": "Same contact point for all",
+  "progression": "Two-tee drill",
+  "regression": "Middle only",
+  "dose": "swings ESTIMATE within cap",
+  "pd_catalog_ref": "drl_tee-work-multiple-locations"
+ },
+ {
+  "id": "DRL-BB-HIT-03",
+  "table": "drill",
+  "name": "Side soft toss",
+  "category": "hitting",
+  "position": [
+   "ALL"
+  ],
+  "age_band": "AB9+",
+  "level": [
+   "LVL-FND",
+   "LVL-DEV"
+  ],
+  "objective": "Timing a moving ball",
+  "setup": "Feeder kneels at 45°, behind a screen where possible",
+  "equipment": [
+   "net",
+   "balls"
+  ],
+  "instructions": "Feeder tosses to the contact point.",
+  "cues": "See it, hit it",
+  "common_errors": "Feeder too close or in front",
+  "progression": "Varied heights",
+  "regression": "Tee",
+  "dose": "swings ESTIMATE within cap",
+  "pd_catalog_ref": "drl_side-soft-toss-into-net",
+  "safety_note": "Feeder safety position required"
+ },
+ {
+  "id": "DRL-BB-HIT-04",
+  "table": "drill",
+  "name": "Front toss behind L-screen",
+  "category": "hitting",
+  "position": [
+   "ALL"
+  ],
+  "age_band": "AB11+",
+  "level": [
+   "LVL-DEV",
+   "LVL-ADV"
+  ],
+  "objective": "Direction and timing",
+  "setup": "L-screen at coach-set distance",
+  "equipment": [
+   "L-screen",
+   "balls"
+  ],
+  "instructions": "Underhand tosses; hitter drives the ball middle.",
+  "cues": "Middle of the field",
+  "common_errors": "Pulling off",
+  "progression": "Random location",
+  "regression": "Slower tosses",
+  "dose": "swings ESTIMATE within cap",
+  "pd_catalog_ref": "drl_front-toss-behind-l-screen"
+ },
+ {
+  "id": "DRL-BB-HIT-05",
+  "table": "drill",
+  "name": "Random-location front toss",
+  "category": "hitting",
+  "position": [
+   "ALL"
+  ],
+  "age_band": "AB11+",
+  "level": [
+   "LVL-ADV",
+   "LVL-ELT"
+  ],
+  "objective": "Adjust to location",
+  "setup": "As HIT-04",
+  "equipment": [
+   "L-screen",
+   "balls"
+  ],
+  "instructions": "Feeder varies location; hitter adjusts.",
+  "cues": "Stay through the ball",
+  "common_errors": "Guessing",
+  "progression": "Add take decisions",
+  "regression": "Called location",
+  "dose": "swings ESTIMATE within cap",
+  "pd_catalog_ref": "drl_random-location-front-toss"
+ },
+ {
+  "id": "DRL-BB-HIT-06",
+  "table": "drill",
+  "name": "Live timing coach pitch",
+  "category": "hitting",
+  "position": [
+   "ALL"
+  ],
+  "age_band": "AB9+",
+  "level": [
+   "LVL-DEV",
+   "LVL-ADV"
+  ],
+  "objective": "Timing at game-like speed",
+  "setup": "Coach pitches behind L-screen",
+  "equipment": [
+   "L-screen",
+   "balls"
+  ],
+  "instructions": "Rounds of live coach pitch.",
+  "cues": "Early load",
+  "common_errors": "Late start",
+  "progression": "Machine (sport-specific)",
+  "regression": "Front toss",
+  "dose": "swings ESTIMATE within cap",
+  "pd_catalog_ref": "drl_live-timing-coach-pitch-baseball"
+ },
+ {
+  "id": "DRL-BB-HIT-07",
+  "table": "drill",
+  "name": "Swing/take decisions",
+  "category": "hitting",
+  "position": [
+   "ALL"
+  ],
+  "age_band": "AB11+",
+  "level": [
+   "LVL-DEV",
+   "LVL-ADV",
+   "LVL-ELT"
+  ],
+  "objective": "Strike-zone judgment",
+  "setup": "Live or machine; coach calls zone",
+  "equipment": [
+   "L-screen",
+   "balls"
+  ],
+  "instructions": "Swing only at strikes; call 'ball' on takes.",
+  "cues": "Know your zone",
+  "common_errors": "Chasing",
+  "progression": "Count situations",
+  "regression": "Hitter's count only",
+  "dose": "pitches seen ESTIMATE",
+  "pd_catalog_ref": "drl_swing-take-decisions"
+ },
+ {
+  "id": "DRL-BB-HIT-08",
+  "table": "drill",
+  "name": "Bunting basics",
+  "category": "hitting",
+  "position": [
+   "ALL"
+  ],
+  "age_band": "AB9+",
+  "level": [
+   "LVL-FND",
+   "LVL-DEV",
+   "LVL-ADV"
+  ],
+  "objective": "Sacrifice and drag fundamentals",
+  "setup": "Soft toss or coach pitch; cones down lines",
+  "equipment": [
+   "balls",
+   "cones"
+  ],
+  "instructions": "Square or pivot, bat at top of zone, catch the ball with the bat.",
+  "cues": "Bat angle, not arms",
+  "common_errors": "Stabbing at the ball",
+  "progression": "Drag bunt",
+  "regression": "Tee bunts",
+  "dose": "10-15 reps ESTIMATE",
+  "pd_catalog_ref": "drl_bunting-basics-softball-emphasis"
+ },
+ {
+  "id": "DRL-BB-BR-01",
+  "table": "drill",
+  "name": "Home to first, run through",
+  "category": "baserunning",
+  "position": [
+   "ALL"
+  ],
+  "age_band": "AB9+",
+  "level": [
+   "LVL-FND",
+   "LVL-DEV"
+  ],
+  "objective": "Run through the bag",
+  "setup": "Home to 1B",
+  "equipment": [
+   "bases"
+  ],
+  "instructions": "Swing, run hard, hit the front of the bag, break down past it, look right.",
+  "cues": "Run through, not to",
+  "common_errors": "Jumping at the bag",
+  "progression": "Timer",
+  "regression": "Half speed",
+  "dose": "sprints ESTIMATE within cap",
+  "ceiling_ref": "cap_both-sprint-<band>"
+ },
+ {
+  "id": "DRL-BB-BR-02",
+  "table": "drill",
+  "name": "Rounding first (banana turn)",
+  "category": "baserunning",
+  "position": [
+   "ALL"
+  ],
+  "age_band": "AB9+",
+  "level": [
+   "LVL-FND",
+   "LVL-DEV",
+   "LVL-ADV"
+  ],
+  "objective": "Efficient turn",
+  "setup": "Cone path",
+  "equipment": [
+   "cones",
+   "bases"
+  ],
+  "instructions": "Curve out early, hit the inside corner with either foot.",
+  "cues": "Lean in",
+  "common_errors": "Wide turn",
+  "progression": "Read OF",
+  "regression": "Walk-through",
+  "dose": "sprints ESTIMATE within cap",
+  "ceiling_ref": "cap_both-sprint-<band>"
+ },
+ {
+  "id": "DRL-BB-BR-03",
+  "table": "drill",
+  "name": "Leads and secondary leads",
+  "category": "baserunning",
+  "position": [
+   "ALL"
+  ],
+  "age_band": "AB11+",
+  "level": [
+   "LVL-DEV",
+   "LVL-ADV"
+  ],
+  "objective": "Safe lead and read",
+  "setup": "Runner at 1B, pitcher dry",
+  "equipment": [
+   "bases"
+  ],
+  "instructions": "Primary lead, shuffle on delivery, read contact.",
+  "cues": "Shuffle, land, read",
+  "common_errors": "Crossing feet",
+  "progression": "Live pickoff looks",
+  "regression": "No pitcher",
+  "dose": "8 reps",
+  "ceiling_ref": "cap_both-sprint-<band>"
+ },
+ {
+  "id": "DRL-BB-BR-04",
+  "table": "drill",
+  "name": "Steal start",
+  "category": "baserunning",
+  "position": [
+   "ALL"
+  ],
+  "age_band": "AB11+",
+  "level": [
+   "LVL-ADV",
+   "LVL-ELT"
+  ],
+  "objective": "Explosive first steps",
+  "setup": "Lead off 1B",
+  "equipment": [
+   "bases"
+  ],
+  "instructions": "Crossover or jab-step start; sprint 3-5 steps.",
+  "cues": "Low and drive",
+  "common_errors": "Standing up",
+  "progression": "Full steal with slide",
+  "regression": "Starts only",
+  "dose": "sprints ESTIMATE within cap",
+  "ceiling_ref": "cap_both-sprint-<band>",
+  "pd_catalog_ref": "exr_p04-acceleration-start"
+ },
+ {
+  "id": "DRL-BB-BR-05",
+  "table": "drill",
+  "name": "Sliding (bent leg) on grass or slide mat",
+  "category": "baserunning",
+  "position": [
+   "ALL"
+  ],
+  "age_band": "AB9+",
+  "level": [
+   "LVL-FND",
+   "LVL-DEV"
+  ],
+  "objective": "Safe feet-first slide",
+  "setup": "Wet grass or slide mat, shoes off optional",
+  "equipment": [
+   "slide mat"
+  ],
+  "instructions": "From a jog, sit into a bent-leg slide, hands up.",
+  "cues": "Sit down, hands up",
+  "common_errors": "Hands down; head first",
+  "progression": "Pop-up slide",
+  "regression": "Seated practice",
+  "dose": "6 reps",
+  "safety_note": "No head-first slides in AB9-AB12"
+ },
+ {
+  "id": "DRL-BB-BR-06",
+  "table": "drill",
+  "name": "Tag-up and reads from third",
+  "category": "baserunning",
+  "position": [
+   "ALL"
+  ],
+  "age_band": "AB11+",
+  "level": [
+   "LVL-DEV",
+   "LVL-ADV",
+   "LVL-ELT"
+  ],
+  "objective": "Know when to go",
+  "setup": "Runner at 3B; coach fungo",
+  "equipment": [
+   "fungo",
+   "bases"
+  ],
+  "instructions": "Ground ball, line drive and fly-ball reads; tag on fly balls.",
+  "cues": "Line drive freeze; fly ball back to bag",
+  "common_errors": "Leaving early",
+  "progression": "Contact play",
+  "regression": "Called reads",
+  "dose": "8 reps",
+  "ceiling_ref": "cap_both-sprint-<band>"
+ },
+ {
+  "id": "DRL-SB-HIT-01",
+  "table": "drill",
+  "name": "Tee work (softball zone and riseball awareness)",
+  "category": "hitting",
+  "position": [
+   "ALL"
+  ],
+  "age_band": "AB9+",
+  "level": [
+   "LVL-FND",
+   "LVL-DEV",
+   "LVL-ADV"
+  ],
+  "objective": "Contact by location on a flatter swing plane",
+  "setup": "Tee into net, high/low settings",
+  "equipment": [
+   "tee",
+   "softballs",
+   "net"
+  ],
+  "instructions": "Hit line drives from top/middle/bottom of the zone.",
+  "cues": "Stay on top of high pitches",
+  "common_errors": "Uppercut on high tee",
+  "progression": "Two-tee",
+  "regression": "Middle only",
+  "dose": "swings ESTIMATE within cap",
+  "pd_catalog_ref": "drl_tee-work-multiple-locations"
+ },
+ {
+  "id": "DRL-SB-HIT-02",
+  "table": "drill",
+  "name": "Front toss rise-and-drop look",
+  "category": "hitting",
+  "position": [
+   "ALL"
+  ],
+  "age_band": "AB11+",
+  "level": [
+   "LVL-DEV",
+   "LVL-ADV"
+  ],
+  "objective": "Track up/down movement",
+  "setup": "L-screen; feeder tosses from a low release",
+  "equipment": [
+   "L-screen",
+   "softballs"
+  ],
+  "instructions": "Feeder varies height; take pitches above the hands.",
+  "cues": "Lay off the high one",
+  "common_errors": "Chasing up",
+  "progression": "Machine",
+  "regression": "Called height",
+  "dose": "swings ESTIMATE within cap",
+  "pd_catalog_ref": "drl_front-toss-behind-l-screen"
+ },
+ {
+  "id": "DRL-SB-HIT-03",
+  "table": "drill",
+  "name": "Live timing machine (softball speed)",
+  "category": "hitting",
+  "position": [
+   "ALL"
+  ],
+  "age_band": "AB11+",
+  "level": [
+   "LVL-ADV",
+   "LVL-ELT"
+  ],
+  "objective": "Short reaction time timing",
+  "setup": "Machine at coach-set speed and age distance; L-screen",
+  "equipment": [
+   "pitching machine",
+   "softballs"
+  ],
+  "instructions": "Rounds at game speed.",
+  "cues": "Early load; short swing",
+  "common_errors": "Late load",
+  "progression": "Speed change",
+  "regression": "Slower speed",
+  "dose": "swings ESTIMATE within cap",
+  "pd_catalog_ref": "drl_live-timing-machine-sport-specific"
+ },
+ {
+  "id": "DRL-SB-HIT-04",
+  "table": "drill",
+  "name": "Swing/take with changeup",
+  "category": "hitting",
+  "position": [
+   "ALL"
+  ],
+  "age_band": "AB11+",
+  "level": [
+   "LVL-DEV",
+   "LVL-ADV",
+   "LVL-ELT"
+  ],
+  "objective": "Stay back on off-speed",
+  "setup": "Coach pitch, mixed speeds",
+  "equipment": [
+   "softballs",
+   "L-screen"
+  ],
+  "instructions": "Swing at strikes; hold back on early read of changeup.",
+  "cues": "Load early, swing late",
+  "common_errors": "Lunging",
+  "progression": "Count situations",
+  "regression": "Called pitch",
+  "dose": "pitches seen ESTIMATE",
+  "pd_catalog_ref": "drl_swing-take-decisions"
+ },
+ {
+  "id": "DRL-SB-BS-01",
+  "table": "drill",
+  "name": "Sacrifice bunt (square and pivot)",
+  "category": "bunting_slapping",
+  "position": [
+   "ALL"
+  ],
+  "age_band": "AB9+",
+  "level": [
+   "LVL-FND",
+   "LVL-DEV"
+  ],
+  "objective": "Bunt the ball down toward 1B/3B lines",
+  "setup": "Cone targets down each line",
+  "equipment": [
+   "softballs",
+   "cones"
+  ],
+  "instructions": "Pivot, bat top of the zone, angle the bat to direct the ball.",
+  "cues": "Catch it with the bat",
+  "common_errors": "Pushing the bat",
+  "progression": "Live pitch",
+  "regression": "Tee bunts",
+  "dose": "10-15 reps ESTIMATE",
+  "pd_catalog_ref": "drl_bunting-basics-softball-emphasis"
+ },
+ {
+  "id": "DRL-SB-BS-02",
+  "table": "drill",
+  "name": "Drag bunt and slap finesse",
+  "category": "bunting_slapping",
+  "position": [
+   "ALL"
+  ],
+  "age_band": "AB11+",
+  "level": [
+   "LVL-DEV",
+   "LVL-ADV"
+  ],
+  "objective": "Left-side slap footwork and soft contact",
+  "setup": "Left-handed box; cones to the left side",
+  "equipment": [
+   "softballs",
+   "cones"
+  ],
+  "instructions": "Crossover step, keep hands back, soft slap to the left side.",
+  "cues": "Feet then hands",
+  "common_errors": "Running before contact",
+  "progression": "Live pitch",
+  "regression": "Walk-through footwork",
+  "dose": "10 reps ESTIMATE",
+  "pd_catalog_ref": "drl_slap-hitting-finesse-and-drag"
+ },
+ {
+  "id": "DRL-SB-BS-03",
+  "table": "drill",
+  "name": "Power slap",
+  "category": "bunting_slapping",
+  "position": [
+   "ALL"
+  ],
+  "age_band": "AB13+",
+  "level": [
+   "LVL-ADV",
+   "LVL-ELT"
+  ],
+  "objective": "Hard slap through the hole",
+  "setup": "Front toss",
+  "equipment": [
+   "softballs",
+   "L-screen"
+  ],
+  "instructions": "Crossover footwork into a firm, short swing at the left-side gap.",
+  "cues": "Stay through; hit it hard on the ground",
+  "common_errors": "Popping up",
+  "progression": "Machine",
+  "regression": "Tee",
+  "dose": "swings ESTIMATE within cap",
+  "pd_catalog_ref": "drl_slap-hitting-power"
+ },
+ {
+  "id": "DRL-SB-BS-04",
+  "table": "drill",
+  "name": "Bunt/slap decision game",
+  "category": "bunting_slapping",
+  "position": [
+   "ALL"
+  ],
+  "age_band": "AB13+",
+  "level": [
+   "LVL-ADV",
+   "LVL-ELT"
+  ],
+  "objective": "Read the defense",
+  "setup": "Live defense shows charge or stay",
+  "equipment": [
+   "softballs"
+  ],
+  "instructions": "Hitter reads the corners and chooses bunt, slap or swing.",
+  "cues": "Look at 3B early",
+  "common_errors": "Deciding before reading",
+  "progression": "Add count",
+  "regression": "Coach calls the play",
+  "dose": "8-10 reps"
+ },
+ {
+  "id": "DRL-SB-IF-01",
+  "table": "drill",
+  "name": "Quick-release ground balls (60-ft bases)",
+  "category": "infield",
+  "position": [
+   "MI",
+   "CI"
+  ],
+  "age_band": "AB9+",
+  "level": [
+   "LVL-FND",
+   "LVL-DEV",
+   "LVL-ADV"
+  ],
+  "objective": "Field and release fast",
+  "setup": "Coach fungo; 1B",
+  "equipment": [
+   "softballs",
+   "fungo"
+  ],
+  "instructions": "Field out front, quick exchange, short throw.",
+  "cues": "Fast hands, short arm",
+  "common_errors": "Big wind-up",
+  "progression": "Timer",
+  "regression": "Rolled balls",
+  "dose": "throws blocked",
+  "throws": "REQUIRES APPROVED AGE-BAND CEILING BEFORE ACTIVATION",
+  "counts_toward_throwing_load": true,
+  "ceiling_ref": "cap_so-nonpitch-throws-day-<band>",
+  "pd_catalog_ref": "drl_softball-infield-receive-and-throw"
+ },
+ {
+  "id": "DRL-SB-IF-02",
+  "table": "drill",
+  "name": "Corner charge on bunts",
+  "category": "infield",
+  "position": [
+   "CI",
+   "P"
+  ],
+  "age_band": "AB11+",
+  "level": [
+   "LVL-DEV",
+   "LVL-ADV"
+  ],
+  "objective": "Charge and field bunts",
+  "setup": "Coach rolls bunts; masks for corners recommended",
+  "equipment": [
+   "softballs",
+   "masks"
+  ],
+  "instructions": "Charge on the bunt read, field with two hands or a bare-hand scoop on a stopped ball, throw to the called base.",
+  "cues": "Field it on the glove side",
+  "common_errors": "Overrunning",
+  "progression": "Live bunts",
+  "regression": "No throw",
+  "dose": "throws blocked",
+  "throws": "REQUIRES APPROVED AGE-BAND CEILING BEFORE ACTIVATION",
+  "counts_toward_throwing_load": true,
+  "ceiling_ref": "cap_so-nonpitch-throws-day-<band>"
+ },
+ {
+  "id": "DRL-SB-IF-03",
+  "table": "drill",
+  "name": "Tag at second",
+  "category": "infield",
+  "position": [
+   "MI"
+  ],
+  "age_band": "AB9+",
+  "level": [
+   "LVL-DEV",
+   "LVL-ADV"
+  ],
+  "objective": "Quick tags",
+  "setup": "Catcher or coach throws to 2B",
+  "equipment": [
+   "base",
+   "softballs"
+  ],
+  "instructions": "Straddle the bag, catch, drop the tag to the front of the bag.",
+  "cues": "Let the ball come; tag down",
+  "common_errors": "Reaching out to the runner",
+  "progression": "Live runner (walk speed)",
+  "regression": "Dry tags",
+  "dose": "10 reps",
+  "counts_toward_throwing_load": false
+ },
+ {
+  "id": "DRL-SB-IF-04",
+  "table": "drill",
+  "name": "Short-hop reaction (soft balls)",
+  "category": "infield",
+  "position": [
+   "MI",
+   "CI",
+   "1B"
+  ],
+  "age_band": "AB9+",
+  "level": [
+   "LVL-FND",
+   "LVL-DEV",
+   "LVL-ADV"
+  ],
+  "objective": "Hands for short reaction time",
+  "setup": "Partner at 10-15 ft with soft balls",
+  "equipment": [
+   "glove",
+   "soft balls"
+  ],
+  "instructions": "Partner throws short hops; field and present.",
+  "cues": "Soft hands",
+  "common_errors": "Stabbing",
+  "progression": "Firmer feeds",
+  "regression": "Rolls",
+  "dose": "3x8",
+  "counts_toward_throwing_load": false,
+  "feeder_counts": true
+ },
+ {
+  "id": "DRL-SB-OF-01",
+  "table": "drill",
+  "name": "Drop step and route (softball)",
+  "category": "outfield",
+  "position": [
+   "OF"
+  ],
+  "age_band": "AB9+",
+  "level": [
+   "LVL-FND",
+   "LVL-DEV"
+  ],
+  "objective": "First step and angle",
+  "setup": "As DRL-BB-OF-01 with softballs",
+  "equipment": [
+   "softballs"
+  ],
+  "instructions": "Drop step on the point, run the route, catch the toss.",
+  "cues": "Run, then catch",
+  "common_errors": "Backpedal",
+  "progression": "Fungo",
+  "regression": "No ball",
+  "dose": "2x6 each side",
+  "counts_toward_throwing_load": false
+ },
+ {
+  "id": "DRL-SB-OF-02",
+  "table": "drill",
+  "name": "Crow-hop to target",
+  "category": "outfield",
+  "position": [
+   "OF"
+  ],
+  "age_band": "AB11+",
+  "level": [
+   "LVL-DEV",
+   "LVL-ADV"
+  ],
+  "objective": "Accurate long throw to a cutoff",
+  "setup": "Cutoff at coach-set distance",
+  "equipment": [
+   "softballs"
+  ],
+  "instructions": "Field, crow-hop, throw to the cutoff on a line.",
+  "cues": "Through the target",
+  "common_errors": "Arc",
+  "progression": "To base",
+  "regression": "Shorter",
+  "dose": "throws blocked",
+  "throws": "REQUIRES APPROVED AGE-BAND CEILING BEFORE ACTIVATION",
+  "counts_toward_throwing_load": true,
+  "ceiling_ref": "cap_so-nonpitch-high-intensity-throws-day-<band>",
+  "high_intensity": true,
+  "pd_catalog_ref": "drl_softball-outfield-crow-hop-to-target"
+ },
+ {
+  "id": "DRL-SB-OF-03",
+  "table": "drill",
+  "name": "Do-or-die and backup",
+  "category": "outfield",
+  "position": [
+   "OF"
+  ],
+  "age_band": "AB13+",
+  "level": [
+   "LVL-ADV",
+   "LVL-ELT"
+  ],
+  "objective": "Charge and back up bases",
+  "setup": "Coach fungo; runners optional",
+  "equipment": [
+   "softballs",
+   "fungo"
+  ],
+  "instructions": "Charge on ground balls with a runner going; on infield plays, run to back up the base.",
+  "cues": "Every play, go somewhere",
+  "common_errors": "Standing still",
+  "progression": "Full defense",
+  "regression": "Walk-through",
+  "dose": "throws blocked",
+  "throws": "REQUIRES APPROVED AGE-BAND CEILING BEFORE ACTIVATION",
+  "counts_toward_throwing_load": true,
+  "ceiling_ref": "cap_so-nonpitch-throws-day-<band>"
+ },
+ {
+  "id": "DRL-SB-C-01",
+  "table": "drill",
+  "name": "Receiving rise and drop",
+  "category": "catching",
+  "position": [
+   "C"
+  ],
+  "age_band": "AB11+",
+  "level": [
+   "LVL-DEV",
+   "LVL-ADV"
+  ],
+  "objective": "Receive movement low and up",
+  "setup": "Coach tosses soft balls with up/down plane",
+  "equipment": [
+   "catcher gear",
+   "soft balls"
+  ],
+  "instructions": "Receive with a firm glove; work up through the high pitch.",
+  "cues": "Beat the ball to the spot",
+  "common_errors": "Dropping the glove",
+  "progression": "Bullpen (pitcher count applies, blocked)",
+  "regression": "Bare hand",
+  "dose": "3x10",
+  "counts_toward_throwing_load": false
+ },
+ {
+  "id": "DRL-SB-C-02",
+  "table": "drill",
+  "name": "Blocking (softball)",
+  "category": "catching",
+  "position": [
+   "C"
+  ],
+  "age_band": "AB11+",
+  "level": [
+   "LVL-DEV",
+   "LVL-ADV"
+  ],
+  "objective": "Keep the ball in front",
+  "setup": "As DRL-BB-C-02 with soft softballs",
+  "equipment": [
+   "catcher gear"
+  ],
+  "instructions": "Drop, chest over the ball, chin down.",
+  "cues": "Chest forward",
+  "common_errors": "Reaching",
+  "progression": "Angle blocks",
+  "regression": "Dry",
+  "dose": "2x6",
+  "counts_toward_throwing_load": false
+ },
+ {
+  "id": "DRL-SB-C-03",
+  "table": "drill",
+  "name": "Throw-downs and pick attempts",
+  "category": "catching",
+  "position": [
+   "C"
+  ],
+  "age_band": "AB13+",
+  "level": [
+   "LVL-ADV",
+   "LVL-ELT"
+  ],
+  "objective": "Fast release to bases",
+  "setup": "Infielders cover",
+  "equipment": [
+   "catcher gear",
+   "softballs"
+  ],
+  "instructions": "Receive, transfer and throw to 2B or a back-pick to 1B/3B.",
+  "cues": "Feet first",
+  "common_errors": "Arm-only",
+  "progression": "Live runners",
+  "regression": "Short target",
+  "dose": "throws blocked",
+  "throws": "REQUIRES APPROVED AGE-BAND CEILING BEFORE ACTIVATION",
+  "counts_toward_throwing_load": true,
+  "high_intensity": true,
+  "ceiling_ref": "cap_so-nonpitch-high-intensity-throws-day-<band>",
+  "pd_catalog_ref": "drl_softball-catcher-footwork-and-transfer-basic"
+ },
+ {
+  "id": "DRL-SB-BR-01",
+  "table": "drill",
+  "name": "Home to first (slapper start)",
+  "category": "baserunning",
+  "position": [
+   "ALL"
+  ],
+  "age_band": "AB11+",
+  "level": [
+   "LVL-DEV",
+   "LVL-ADV"
+  ],
+  "objective": "Running start from the left box",
+  "setup": "Left box to 1B",
+  "equipment": [
+   "bases"
+  ],
+  "instructions": "Slap footwork into a sprint through 1B.",
+  "cues": "Contact, then run",
+  "common_errors": "Leaving before contact",
+  "progression": "Timer",
+  "regression": "Half speed",
+  "dose": "sprints ESTIMATE within cap",
+  "ceiling_ref": "cap_both-sprint-<band>"
+ },
+ {
+  "id": "DRL-SB-BR-02",
+  "table": "drill",
+  "name": "Leave on release (rocker/stack start)",
+  "category": "baserunning",
+  "position": [
+   "ALL"
+  ],
+  "age_band": "AB11+",
+  "level": [
+   "LVL-DEV",
+   "LVL-ADV"
+  ],
+  "objective": "Legal leave timing",
+  "setup": "Runner on base, coach simulates release",
+  "equipment": [
+   "bases"
+  ],
+  "instructions": "Rocker or stack start; leave on the release, not before.",
+  "cues": "Go on release",
+  "common_errors": "Early leave",
+  "progression": "Live pitcher (dry motion only)",
+  "regression": "Visual cue",
+  "dose": "8 reps",
+  "ceiling_ref": "cap_both-sprint-<band>"
+ },
+ {
+  "id": "DRL-SB-BR-03",
+  "table": "drill",
+  "name": "Delayed steal and look-back rule",
+  "category": "baserunning",
+  "position": [
+   "ALL"
+  ],
+  "age_band": "AB13+",
+  "level": [
+   "LVL-ADV",
+   "LVL-ELT"
+  ],
+  "objective": "Read the pitcher-in-circle situation",
+  "setup": "Runner at 1B, pitcher with ball in circle",
+  "equipment": [
+   "bases"
+  ],
+  "instructions": "Practice the commit decision under the look-back rule.",
+  "cues": "Commit one way",
+  "common_errors": "Stopping off the base",
+  "progression": "Live",
+  "regression": "Walk-through",
+  "dose": "6 reps"
+ },
+ {
+  "id": "DRL-SB-BR-04",
+  "table": "drill",
+  "name": "Sliding (bent leg) softball",
+  "category": "baserunning",
+  "position": [
+   "ALL"
+  ],
+  "age_band": "AB9+",
+  "level": [
+   "LVL-FND",
+   "LVL-DEV"
+  ],
+  "objective": "Safe slide",
+  "setup": "Slide mat or wet grass",
+  "equipment": [
+   "slide mat"
+  ],
+  "instructions": "Bent-leg slide, hands up.",
+  "cues": "Sit and slide",
+  "common_errors": "Hands down",
+  "progression": "Pop-up slide",
+  "regression": "Seated",
+  "dose": "6 reps",
+  "safety_note": "No head-first slides in AB9-AB12"
+ },
+ {
+  "id": "DRL-SB-OT-01",
+  "table": "drill",
+  "name": "Point-step-throw (Foundation)",
+  "category": "throwing",
+  "position": [
+   "ALL"
+  ],
+  "age_band": [
+   "agp_6u-8u",
+   "agp_9u-10u"
+  ],
+  "level": [
+   "LVL-FND"
+  ],
+  "objective": "Basic overhand sequence",
+  "setup": "Partner lines",
+  "equipment": [
+   "soft softballs"
+  ],
+  "instructions": "Point glove, step to target, throw, follow through.",
+  "cues": "Point, step, throw, follow",
+  "common_errors": "Stepping across",
+  "progression": "Add short distance",
+  "regression": "Dry",
+  "dose": "throws blocked",
+  "throws": "REQUIRES APPROVED AGE-BAND CEILING BEFORE ACTIVATION",
+  "counts_toward_throwing_load": true,
+  "ceiling_ref": "cap_so-nonpitch-throws-day-<band>",
+  "pd_catalog_ref": "drl_softball-grip-and-four-seam-check"
+ },
+ {
+  "id": "DRL-SB-OT-02",
+  "table": "drill",
+  "name": "Quick-release partner race",
+  "category": "throwing",
+  "position": [
+   "ALL"
+  ],
+  "age_band": "AB11+",
+  "level": [
+   "LVL-DEV",
+   "LVL-ADV"
+  ],
+  "objective": "Exchange speed with accuracy",
+  "setup": "Partners at short distance",
+  "equipment": [
+   "softballs"
+  ],
+  "instructions": "Catch and release fast to the partner's chest; count clean exchanges.",
+  "cues": "Quick, not hard",
+  "common_errors": "Raising intent",
+  "progression": "Longer distance",
+  "regression": "Fewer reps",
+  "dose": "throws blocked",
+  "throws": "REQUIRES APPROVED AGE-BAND CEILING BEFORE ACTIVATION",
+  "counts_toward_throwing_load": true,
+  "ceiling_ref": "cap_so-nonpitch-throws-day-<band>"
+ },
+ {
+  "id": "DRL-SB-OT-03",
+  "table": "drill",
+  "name": "Target accuracy game",
+  "category": "throwing",
+  "position": [
+   "ALL"
+  ],
+  "age_band": "AB9+",
+  "level": [
+   "LVL-FND",
+   "LVL-DEV"
+  ],
+  "objective": "Accuracy on a target",
+  "setup": "Hoop or net target",
+  "equipment": [
+   "softballs",
+   "target"
+  ],
+  "instructions": "Throw at the target; points for hits.",
+  "cues": "Look at the target",
+  "common_errors": "Overthrowing for distance",
+  "progression": "Smaller target",
+  "regression": "Closer",
+  "dose": "throws blocked",
+  "throws": "REQUIRES APPROVED AGE-BAND CEILING BEFORE ACTIVATION",
+  "counts_toward_throwing_load": true,
+  "ceiling_ref": "cap_so-nonpitch-throws-day-<band>",
+  "pd_catalog_ref": "drl_bb-target-accuracy@1"
+ },
+ {
+  "id": "DRL-SB-DEF-01",
+  "table": "drill",
+  "name": "Bunt coverage (standard)",
+  "category": "defense",
+  "position": [
+   "ALL"
+  ],
+  "age_band": "AB11+",
+  "level": [
+   "LVL-DEV",
+   "LVL-ADV"
+  ],
+  "objective": "Who charges, who covers",
+  "setup": "Full defense, coach rolls bunts",
+  "equipment": [
+   "softballs",
+   "masks for corners"
+  ],
+  "instructions": "1B/3B charge, 2B covers 1B, SS covers 2B (or 3B by call), C directs.",
+  "cues": "Catcher calls the base",
+  "common_errors": "Two fielders on the ball",
+  "progression": "Live bunter",
+  "regression": "Walk-through",
+  "dose": "8 reps; throws count",
+  "throws": "REQUIRES APPROVED AGE-BAND CEILING BEFORE ACTIVATION",
+  "counts_toward_throwing_load": true,
+  "ceiling_ref": "cap_so-nonpitch-throws-day-<band>"
+ },
+ {
+  "id": "DRL-SB-DEF-02",
+  "table": "drill",
+  "name": "Slapper defense",
+  "category": "defense",
+  "position": [
+   "ALL"
+  ],
+  "age_band": "AB13+",
+  "level": [
+   "LVL-ADV",
+   "LVL-ELT"
+  ],
+  "objective": "Defend the left-side slap",
+  "setup": "Left-handed slapper (dry/front toss)",
+  "equipment": [
+   "softballs"
+  ],
+  "instructions": "3B in, SS shades, 2B covers 1B; read slap vs bunt vs swing.",
+  "cues": "Read the hands",
+  "common_errors": "Committing early",
+  "progression": "Live slapper",
+  "regression": "Called play",
+  "dose": "8 reps",
+  "counts_toward_throwing_load": true,
+  "throws": "REQUIRES APPROVED AGE-BAND CEILING BEFORE ACTIVATION",
+  "ceiling_ref": "cap_so-nonpitch-throws-day-<band>"
+ },
+ {
+  "id": "DRL-SB-DEF-03",
+  "table": "drill",
+  "name": "Short-base relay and cut (60 ft)",
+  "category": "defense",
+  "position": [
+   "ALL"
+  ],
+  "age_band": "AB11+",
+  "level": [
+   "LVL-DEV",
+   "LVL-ADV",
+   "LVL-ELT"
+  ],
+  "objective": "Faster decisions on short bases",
+  "setup": "Full defense; coach fungo with runners",
+  "equipment": [
+   "softballs",
+   "fungo"
+  ],
+  "instructions": "Hit the cutoff, cut or let go by call, tag plays.",
+  "cues": "Communicate early",
+  "common_errors": "Holding the ball",
+  "progression": "Live runners",
+  "regression": "No runners",
+  "dose": "8-10 reps",
+  "throws": "REQUIRES APPROVED AGE-BAND CEILING BEFORE ACTIVATION",
+  "counts_toward_throwing_load": true,
+  "ceiling_ref": "cap_so-nonpitch-throws-day-<band>"
+ },
+ {
+  "id": "DRL-SB-DEF-04",
+  "table": "drill",
+  "name": "First-and-third defense",
+  "category": "defense",
+  "position": [
+   "ALL"
+  ],
+  "age_band": "AB13+",
+  "level": [
+   "LVL-ADV",
+   "LVL-ELT"
+  ],
+  "objective": "Defend the double steal",
+  "setup": "Runners at 1B and 3B",
+  "equipment": [
+   "softballs"
+  ],
+  "instructions": "Catcher options: throw through, fake-and-look, throw to pitcher (coach-called).",
+  "cues": "Know the call before the pitch",
+  "common_errors": "No call",
+  "progression": "Live",
+  "regression": "Walk-through",
+  "dose": "6 reps",
+  "throws": "REQUIRES APPROVED AGE-BAND CEILING BEFORE ACTIVATION",
+  "counts_toward_throwing_load": true,
+  "ceiling_ref": "cap_so-nonpitch-throws-day-<band>"
+ },
+ {
+  "id": "MAP-01",
+  "sport": "baseball",
+  "age_band": [
+   "agp_6u-8u"
+  ],
+  "level": "LVL-FND",
+  "position": [
+   "ALL"
+  ],
+  "phase": [
+   "ANY"
+  ],
+  "suggest": [
+   "STR-FND-01",
+   "ARM-RTN-01",
+   "DRL-BB-IF-01",
+   "DRL-BB-HIT-01",
+   "DRL-BB-BR-01"
+  ]
+ },
+ {
+  "id": "MAP-02",
+  "sport": "baseball",
+  "age_band": [
+   "agp_9u-10u"
+  ],
+  "level": "LVL-FND",
+  "position": [
+   "ALL"
+  ],
+  "phase": [
+   "PHS-OFF",
+   "PHS-PRE"
+  ],
+  "suggest": [
+   "STR-FND-01",
+   "THR-BB-YTH-01",
+   "ARM-RTN-01",
+   "ARM-RTN-02"
+  ]
+ },
+ {
+  "id": "MAP-03",
+  "sport": "baseball",
+  "age_band": [
+   "agp_9u-10u",
+   "agp_11u-12u"
+  ],
+  "level": "LVL-DEV",
+  "position": [
+   "ALL"
+  ],
+  "phase": [
+   "PHS-EARLY",
+   "PHS-COMP"
+  ],
+  "suggest": [
+   "THR-BB-INS-01",
+   "THR-BB-REC-01",
+   "ARM-RTN-01",
+   "ARM-RTN-02"
+  ]
+ },
+ {
+  "id": "MAP-04",
+  "sport": "baseball",
+  "age_band": [
+   "agp_11u-12u"
+  ],
+  "level": "LVL-DEV",
+  "position": [
+   "MI",
+   "CI",
+   "OF",
+   "UTIL"
+  ],
+  "phase": [
+   "PHS-OFF"
+  ],
+  "suggest": [
+   "STR-INT-01",
+   "THR-BB-YTH-01",
+   "ARM-RTN-03"
+  ]
+ },
+ {
+  "id": "MAP-05",
+  "sport": "baseball",
+  "age_band": [
+   "agp_11u-12u",
+   "agp_13u-14u"
+  ],
+  "level": "LVL-DEV",
+  "position": [
+   "P"
+  ],
+  "phase": [
+   "PHS-OFF",
+   "PHS-PRE"
+  ],
+  "suggest": [
+   "THR-BB-PIT-01",
+   "STR-INT-01",
+   "ARM-RTN-01",
+   "ARM-RTN-02",
+   "ARM-RTN-03"
+  ]
+ },
+ {
+  "id": "MAP-06",
+  "sport": "baseball",
+  "age_band": [
+   "agp_13u-14u"
+  ],
+  "level": "LVL-ADV",
+  "position": [
+   "P",
+   "TWO-WAY"
+  ],
+  "phase": [
+   "PHS-OFF",
+   "PHS-PRE"
+  ],
+  "suggest": [
+   "THR-BB-PIT-01",
+   "STR-EA-01",
+   "ARM-RTN-03"
+  ],
+  "note": "two_way: position throws join the pitching total"
+ },
+ {
+  "id": "MAP-07",
+  "sport": "baseball",
+  "age_band": [
+   "agp_13u-14u"
+  ],
+  "level": "LVL-ADV",
+  "position": [
+   "C"
+  ],
+  "phase": [
+   "PHS-PRE",
+   "PHS-COMP"
+  ],
+  "suggest": [
+   "THR-BB-C-01",
+   "THR-BB-INS-01",
+   "STR-EA-01"
+  ]
+ },
+ {
+  "id": "MAP-08",
+  "sport": "baseball",
+  "age_band": [
+   "agp_13u-14u",
+   "agp_15u-17u"
+  ],
+  "level": "LVL-ADV",
+  "position": [
+   "MI",
+   "CI",
+   "OF",
+   "1B",
+   "UTIL"
+  ],
+  "phase": [
+   "PHS-OFF"
+  ],
+  "suggest": [
+   "THR-BB-POS-01",
+   "STR-EA-01",
+   "ARM-RTN-03"
+  ]
+ },
+ {
+  "id": "MAP-09",
+  "sport": "baseball",
+  "age_band": [
+   "agp_15u-17u"
+  ],
+  "level": "LVL-ADV",
+  "position": [
+   "P",
+   "TWO-WAY"
+  ],
+  "phase": [
+   "PHS-OFF",
+   "PHS-PRE"
+  ],
+  "suggest": [
+   "THR-BB-PIT-02",
+   "STR-HS-01",
+   "ARM-RTN-03"
+  ]
+ },
+ {
+  "id": "MAP-10",
+  "sport": "baseball",
+  "age_band": [
+   "agp_15u-17u"
+  ],
+  "level": "LVL-ELT",
+  "position": [
+   "ALL"
+  ],
+  "phase": [
+   "PHS-OFF"
+  ],
+  "suggest": [
+   "STR-HSA-01",
+   "THR-BB-OFF-01"
+  ],
+  "note": "STR-HSA-01 heavy tier needs training age 1_3yr+ and qualified supervision"
+ },
+ {
+  "id": "MAP-11",
+  "sport": "baseball",
+  "age_band": [
+   "agp_11u-12u",
+   "agp_13u-14u",
+   "agp_15u-17u"
+  ],
+  "level": [
+   "LVL-DEV",
+   "LVL-ADV",
+   "LVL-ELT"
+  ],
+  "position": [
+   "ALL"
+  ],
+  "phase": [
+   "PHS-PRE"
+  ],
+  "suggest": [
+   "THR-BB-PRE-01",
+   "ARM-RTN-01",
+   "DRL-BB-BR-02"
+  ]
+ },
+ {
+  "id": "MAP-12",
+  "sport": "baseball",
+  "age_band": [
+   "agp_11u-12u",
+   "agp_13u-14u",
+   "agp_15u-17u"
+  ],
+  "level": [
+   "LVL-DEV",
+   "LVL-ADV",
+   "LVL-ELT"
+  ],
+  "position": [
+   "ALL"
+  ],
+  "phase": [
+   "PHS-POST"
+  ],
+  "suggest": [
+   "THR-BB-OFF-01",
+   "STR-FND-01",
+   "ARM-MOB-01"
+  ],
+  "note": "Throwing-rest block first"
+ },
+ {
+  "id": "MAP-13",
+  "sport": "softball",
+  "age_band": [
+   "agp_6u-8u",
+   "agp_9u-10u"
+  ],
+  "level": "LVL-FND",
+  "position": [
+   "ALL"
+  ],
+  "phase": [
+   "ANY"
+  ],
+  "suggest": [
+   "THR-SB-OVH-01",
+   "STR-FND-01",
+   "THR-SB-ARM-01",
+   "DRL-SB-OT-01"
+  ]
+ },
+ {
+  "id": "MAP-14",
+  "sport": "softball",
+  "age_band": [
+   "agp_11u-12u"
+  ],
+  "level": "LVL-DEV",
+  "position": [
+   "MI",
+   "CI",
+   "OF",
+   "UTIL"
+  ],
+  "phase": [
+   "PHS-OFF",
+   "PHS-PRE"
+  ],
+  "suggest": [
+   "THR-SB-POS-01",
+   "STR-INT-01",
+   "THR-SB-ARM-01"
+  ]
+ },
+ {
+  "id": "MAP-15",
+  "sport": "softball",
+  "age_band": [
+   "agp_13u-14u",
+   "agp_15u-17u"
+  ],
+  "level": "LVL-ADV",
+  "position": [
+   "MI",
+   "CI",
+   "OF",
+   "UTIL"
+  ],
+  "phase": [
+   "PHS-OFF",
+   "PHS-PRE"
+  ],
+  "suggest": [
+   "THR-SB-POS-01",
+   "STR-EA-01",
+   "THR-SB-ARM-01",
+   "DRL-SB-DEF-02"
+  ]
+ },
+ {
+  "id": "MAP-16",
+  "sport": "softball",
+  "age_band": [
+   "agp_11u-12u",
+   "agp_13u-14u",
+   "agp_15u-17u"
+  ],
+  "level": [
+   "LVL-DEV",
+   "LVL-ADV"
+  ],
+  "position": [
+   "C"
+  ],
+  "phase": [
+   "PHS-PRE",
+   "PHS-COMP"
+  ],
+  "suggest": [
+   "THR-SB-C-01",
+   "THR-SB-ARM-01",
+   "DRL-SB-C-01"
+  ]
+ },
+ {
+  "id": "MAP-17",
+  "sport": "softball",
+  "age_band": [
+   "agp_9u-10u",
+   "agp_11u-12u",
+   "agp_13u-14u",
+   "agp_15u-17u"
+  ],
+  "level": [
+   "LVL-DEV",
+   "LVL-ADV",
+   "LVL-ELT"
+  ],
+  "position": [
+   "P",
+   "TWO-WAY"
+  ],
+  "phase": [
+   "ANY"
+  ],
+  "suggest": [
+   "THR-SB-ARM-01",
+   "STR-INT-01"
+  ],
+  "blocked": [
+   "THR-SB-WM-00"
+  ],
+  "note": "Windmill volume non-assignable; overhand fielding for two-way players requires admin review"
+ },
+ {
+  "id": "MAP-18",
+  "sport": "softball",
+  "age_band": [
+   "agp_13u-14u",
+   "agp_15u-17u"
+  ],
+  "level": [
+   "LVL-ADV",
+   "LVL-ELT"
+  ],
+  "position": [
+   "ALL"
+  ],
+  "phase": [
+   "PHS-EARLY",
+   "PHS-COMP"
+  ],
+  "suggest": [
+   "THR-SB-ARM-01",
+   "DRL-SB-BS-04",
+   "DRL-SB-DEF-01",
+   "DRL-SB-DEF-03"
+  ]
+ },
+ {
+  "id": "MAP-19",
+  "sport": "softball",
+  "age_band": [
+   "agp_15u-17u"
+  ],
+  "level": "LVL-ELT",
+  "position": [
+   "ALL"
+  ],
+  "phase": [
+   "PHS-OFF"
+  ],
+  "suggest": [
+   "STR-HSA-01",
+   "THR-SB-POS-01"
+  ]
+ },
+ {
+  "id": "MAP-20",
+  "sport": "both",
+  "age_band": [
+   "agp_9u-10u",
+   "agp_11u-12u",
+   "agp_13u-14u",
+   "agp_15u-17u"
+  ],
+  "level": [
+   "LVL-FND",
+   "LVL-DEV",
+   "LVL-ADV",
+   "LVL-ELT"
+  ],
+  "position": [
+   "ALL"
+  ],
+  "phase": [
+   "PHS-EARLY",
+   "PHS-COMP"
+  ],
+  "suggest": [
+   "THR-BB-REC-01",
+   "ARM-RTN-02"
+  ],
+  "note": "Day after competition"
+ },
+ {
+  "id": "MAP-21",
+  "sport": "both",
+  "age_band": [
+   "agp_13u-14u",
+   "agp_15u-17u"
+  ],
+  "level": [
+   "LVL-ADV",
+   "LVL-ELT"
+  ],
+  "position": [
+   "ALL"
+  ],
+  "phase": [
+   "PHS-EARLY",
+   "PHS-COMP"
+  ],
+  "suggest": [
+   "STR-EA-01",
+   "STR-HS-01"
+  ],
+  "note": "In-season strength: 1-2 sessions/wk, lowest set counts, never the day before a pitching outing"
+ },
+ {
+  "id": "MAP-22",
+  "sport": "both",
+  "age_band": [
+   "ANY"
+  ],
+  "level": [
+   "ANY"
+  ],
+  "position": [
+   "ALL"
+  ],
+  "phase": [
+   "ANY"
+  ],
+  "suggest": [],
+  "note": "Multi-team athletes: outside-team throws and pitches count; map suggestions never replace the load check"
+ }
+]
