@@ -188,7 +188,7 @@ try {
       .textContent(),
     "2027",
   );
-  await page.getByLabel("Date of birth (private)", { exact: true }).fill("2015-09-01");
+  await page.getByLabel(/^Date of birth \(private\)/).fill("2015-09-01");
   await page
     .getByRole("combobox", { name: "Expected high-school graduation year", exact: true })
     .selectOption("unknown");
@@ -250,6 +250,7 @@ try {
   );
   const bookingResponse = await page.goto(h.base + "/book");
   assert.match(await bookingResponse.text(), /Lane 7/, "booking choices exist before JavaScript");
+  await page.waitForLoadState("networkidle");
   await page.getByRole("tab", { name: "Lessons", exact: true }).click();
   await page.getByRole("heading", { name: "Find my training", exact: true }).waitFor();
   assert.equal(new URL(page.url()).pathname, "/book", "Lessons stay on booking page");
