@@ -557,7 +557,8 @@ export const loadPublicCatalog = createServerOnlyFn(async () => {
 
 export const getPublicCatalogSnapshot = createServerFn({ method: "GET" }).handler(async () => {
   try {
-    return { catalog: await loadPublicCatalog(), failed: false as const };
+    const { publicRequest } = await import("./public-request");
+    return { catalog: await publicRequest(loadPublicCatalog()), failed: false as const };
   } catch {
     return { catalog: null, failed: true as const };
   }

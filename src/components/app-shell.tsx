@@ -151,11 +151,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       !("children" in item) && ["account", "contact", "about"].includes(item.id),
   );
   function menuLink(item: NavigationLink) {
-    return item.id === "account" && isPending ? (
-      <button key={item.id} type="button" disabled className="site-menu-link">
-        Account / Sign In
-      </button>
-    ) : (
+    return (
       <Link
         key={item.id}
         to={item.to}
@@ -234,11 +230,7 @@ export function AppShell({ children }: { children: ReactNode }) {
               </>
             )}
             <div className={cn(!privateWorkspace && "max-lg:hidden")}>
-              {isPending ? (
-                <Button size="sm" variant="primary" className={headerAccountClass} disabled>
-                  Account
-                </Button>
-              ) : user ? (
+              {!isPending && user ? (
                 <Button asChild size="sm" variant="primary" className={headerAccountClass}>
                   <Link to="/account">Account</Link>
                 </Button>

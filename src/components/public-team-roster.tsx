@@ -1,4 +1,7 @@
-import {TeamActivities} from "./teams/team-activities";
+import { publicCoachName } from "@/lib/public-profile-text";
+import { publicRequest } from "@/lib/public-request";
+import { CatalogStatus } from "./catalog-status";
+import { TeamActivities } from "./teams/team-activities";
 import { Button } from "./ui/button";
 import { useEffect, useState } from "react";
 import { getPublicTeamsView, getTeamStatsAccess } from "@/lib/teams/public-api";
@@ -10,23 +13,28 @@ type PublicTeam = Awaited<ReturnType<typeof getPublicTeamsView>>[number];
 export function PublicTeamRoster({
   teamId,
   sport,
+  initial,
 }: {
+  initial?: PublicTeam[] | null;
   teamId?: string;
   sport?: "Baseball" | "Softball";
 }) {
-  const [teams, setTeams] = useState<PublicTeam[]>([]);
+  const [teams, setTeams] = useState<PublicTeam[]>(initial || []);
   const [age, setAge] = useState("");
   const [season, setSeason] = useState("");
   const [error, setError] = useState("");
-  const [ready, setReady] = useState(false);
+  const [ready, setReady] = useState(Boolean(initial));
+  const [attempt, setAttempt] = useState(0);
   const [statsAccess, setStatsAccess] = useState(false);
   const { user } = useCurrentUserState();
   const signedIn = Boolean(user && !user.isDevFallback);
   useEffect(() => {
+    if (initial && attempt === 0) return;
     let active = true;
+    setTeams([]);
     setReady(false);
     setError("");
-    getPublicTeamsView()
+    publicRequest(getPublicTeamsView())
       .then((rows) => {
         if (!active) return;
         const filtered = rows.filter(
@@ -45,7 +53,7 @@ export function PublicTeamRoster({
     return () => {
       active = false;
     };
-  }, [teamId, sport]);
+  }, [teamId, sport, initial, attempt]);
   useEffect(() => {
     let active = true;
     setStatsAccess(false);
@@ -60,17 +68,21 @@ export function PublicTeamRoster({
       active = false;
     };
   }, [teamId, signedIn, user?.id]);
-  const ages = [...new Set(teams.map((t) => t.age))].sort((a, b) =>
+  const currentTeams = (initial && attempt === 0 ? initial : teams).filter(
+    (t) =>
+      (!teamId || t.id === teamId) && (!sport || t.sport.toLowerCase() === sport.toLowerCase()),
+  );
+  const ages = [...new Set(currentTeams.map((t) => t.age))].sort((a, b) =>
     a.localeCompare(b, undefined, { numeric: true }),
   );
-  const seasons = [...new Set(teams.flatMap((t) => t.seasons))].sort();
-  const visible = teams.filter(
+  const seasons = [...new Set(currentTeams.flatMap((t) => t.seasons))].sort();
+  const visible = currentTeams.filter(
     (t) => (!age || t.age === age) && (!season || t.seasons.includes(season)),
   );
   return (
     <section className="mx-auto max-w-5xl py-8" aria-label="Public team roster">
-      {teamId && statsAccess && <TeamActivities key={teamId} teamId={teamId}/>}
-      {!teamId && teams.length >= 4 && (
+      {teamId && statsAccess && <TeamActivities key={teamId} teamId={teamId} />}
+      {!teamId && currentTeams.length >= 4 && (
         <div className="mb-6 grid gap-4 sm:grid-cols-2">
           <label className="text-sm font-semibold">
             Age Group
@@ -100,12 +112,17 @@ export function PublicTeamRoster({
           </label>
         </div>
       )}
-      {ready && teams.length > 0 && !visible.length && (
+      {ready && currentTeams.length > 0 && !visible.length && (
         <p role="status">No teams match these filters. Try another age group or season.</p>
       )}
-      {!ready && <p role="status">Loading team information…</p>}
-      {error && <p role="alert">{error}</p>}
-      {ready && !error && !teams.length && <p>No team pages are available yet.</p>}
+      {(!ready || error) && (
+        <CatalogStatus
+          label="team information"
+          error={Boolean(error)}
+          retry={() => setAttempt((n) => n + 1)}
+        />
+      )}
+      {ready && !error && !currentTeams.length && <p>No team pages are available yet.</p>}
       <div className={teamId ? "grid gap-5" : "grid gap-5 md:grid-cols-2"}>
         {visible.map((t) => (
           <article key={t.id} className="flex flex-col rounded-xl border bg-paper p-5">
@@ -132,11 +149,11 @@ export function PublicTeamRoster({
                       {c.photo && (
                         <img
                           src={c.photo}
-                          alt={c.name}
+                          alt={publicCoachName(c.name)}
                           className="mb-2 size-24 rounded-lg object-cover"
                         />
                       )}
-                      <strong>{c.name}</strong>
+                      <strong>{publicCoachName(c.name)}</strong>
                       <p className="text-sm">{c.role}</p>
                       <CoachBio>{c.bio}</CoachBio>
                     </div>
@@ -150,7 +167,10 @@ export function PublicTeamRoster({
                 <h4 className="mt-5 text-xl">Team stats</h4>
                 <StatsTable stats={t.stats} />
                 <h4 className="mt-5 text-xl">Public roster</h4>
-                <p className="mt-2 text-sm">Only players with current signed public-roster consent appear here. This is not the full private team roster.</p>
+                <p className="mt-2 text-sm">
+                  Only players with current signed public-roster consent appear here. This is not
+                  the full private team roster.
+                </p>
                 {!statsAccess && (
                   <p className="mt-2 text-sm">
                     Individual stats are available to signed-in players, parents and coaches on this
@@ -186,7 +206,7 @@ export function PublicTeamRoster({
                   {t.coaches.length ? (
                     t.coaches.map((c, i) => (
                       <p key={c.name + i} className="mt-1 text-sm">
-                        {c.name} · {c.role}
+                        {publicCoachName(c.name)} · {c.role}
                       </p>
                     ))
                   ) : (

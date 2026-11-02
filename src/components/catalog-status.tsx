@@ -1,3 +1,5 @@
+import { FrontDeskHelp } from "./front-desk-help";
+
 export function CatalogStatus({
   error,
   label,
@@ -14,6 +16,7 @@ export function CatalogStatus({
           ? `We couldn’t load ${label}. Try again, or contact the front desk.`
           : `Loading ${label}…`}
       </p>
+      <FrontDeskHelp />
       {error && (
         <div className="mt-3 flex flex-wrap gap-3">
           <button

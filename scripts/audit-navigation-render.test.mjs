@@ -97,7 +97,7 @@ test("public navigation, sport links and purchase availability agree with the li
               loader: "js",
               resolveDir: process.cwd(),
               contents: {
-                router: `import {createElement} from 'react';export const Link=({to,search,hash,children,...props})=>createElement('a',{...props,href:to+(search?'?'+new URLSearchParams(Object.entries(search).filter(([,v])=>v!==undefined&&v!==null)):'')+(hash?'#'+hash:'')},children);export const Outlet=()=>null;export const createFileRoute=()=>options=>({...options,useSearch:()=>({view:'watch',game:undefined}),useLoaderData:()=>globalThis.__auditNav.path==='/games'?{games:globalThis.__auditNav.gameRows,loaded:true}:globalThis.__auditNav.path==='/'?{catalog:{catalog:globalThis.__auditNav.catalog,failed:false},homepage:{content:{coaches:[],testimonials:[]},failed:false},journal:{feed:null,failed:false}}:globalThis.__auditNav.events});export const useNavigate=()=>value=>{globalThis.__auditNav.navigate=value;return Promise.resolve();};export const useRouterState=({select})=>select({location:{pathname:globalThis.__auditNav.path}});`,
+                router: `import {createElement} from 'react';export const Link=({to,search,hash,children,...props})=>createElement('a',{...props,href:to+(search?'?'+new URLSearchParams(Object.entries(search).filter(([,v])=>v!==undefined&&v!==null)):'')+(hash?'#'+hash:'')},children);export const Outlet=()=>null;export const createFileRoute=()=>options=>({...options,useSearch:()=>({view:'watch',game:undefined}),useLoaderData:()=>globalThis.__auditNav.path==='/games'?{games:globalThis.__auditNav.gameRows,loaded:true}:globalThis.__auditNav.path==='/'?{catalog:{catalog:globalThis.__auditNav.catalog,failed:false},homepage:{content:{coaches:[],testimonials:[]},failed:false},journal:{feed:null,failed:false}}:globalThis.__auditNav.path==='/training'?{catalog:{catalog:globalThis.__auditNav.catalog,failed:false},people:[]}:globalThis.__auditNav.path==='/teams'?{events:globalThis.__auditNav.events,teams:[]}:globalThis.__auditNav.events});export const useNavigate=()=>value=>{globalThis.__auditNav.navigate=value;return Promise.resolve();};export const useRouterState=({select})=>select({location:{pathname:globalThis.__auditNav.path}});`,
                 user: "export const useCurrentUser=()=>globalThis.__auditNav.user;export const useCurrentUserState=()=>({user:globalThis.__auditNav.user,isPending:false});",
                 gates:
                   "export const SignedIn=({children})=>globalThis.__auditNav.user?children:null;export const SignedOut=({children})=>globalThis.__auditNav.user?null:children;",
@@ -244,7 +244,15 @@ test("public navigation, sport links and purchase availability agree with the li
       [...document.querySelectorAll('[aria-label="Teams destinations"] a')].map(
         (a) => a.textContent,
       ),
-      ["Baseball", "Softball", "Coaches", "Tryouts", "Players", "Parent & Player Handbook", "Explore all teams"],
+      [
+        "Baseball",
+        "Softball",
+        "Coaches",
+        "Tryouts",
+        "Players",
+        "Parent & Player Handbook",
+        "Explore all teams",
+      ],
     );
     const choices = [...document.querySelectorAll('[aria-label="Teams destinations"] a')];
     assert.deepEqual(
@@ -347,7 +355,7 @@ test("public navigation, sport links and purchase availability agree with the li
     assert.doesNotMatch(document.body.textContent, /Tryouts is for baseball and softball/);
     assert.doesNotMatch(document.body.textContent, /Free · request a tryout|Earn a roster spot/);
     assert.equal([...document.querySelectorAll('a[href="/tryouts"]')].length, 2);
-    const listing = document.querySelector('a[href*="Oklahoma+Prospects+Academy"]');
+    const listing = document.querySelector('a[href*="Prospects+Sports+Academy"]');
     assert.match(listing?.textContent ?? "", /Prospects Sports Academy/);
     assert.match(document.body.textContent, /Leave a Google review/);
     assert.match(document.body.textContent, /Prospects Sports Facility/);

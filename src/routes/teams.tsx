@@ -1,6 +1,8 @@
+import { getPublicTeamsView } from "@/lib/teams/public-api";
+import { publicRequest } from "@/lib/public-request";
 import { ACTIVE_SEASON } from "@/lib/active-season";
 import { PublicTeamRoster } from "@/components/public-team-roster";
-import {pageHead} from "@/lib/seo";
+import { pageHead } from "@/lib/seo";
 import { createFileRoute, Link, Outlet, useRouterState } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { ContinueIn } from "@/components/continue-in";
@@ -21,7 +23,14 @@ export const Route = createFileRoute("/teams")({
       "Baseball and softball teams in Broken Arrow. Free individual tryout requests at every age; group event dates appear when published.",
       false,
     ),
-  loader: () => getPublicTryoutEvents(),
+  staleTime: 0,
+  loader: async () => {
+    const [events, teams] = await Promise.all([
+      publicRequest(getPublicTryoutEvents()).catch(() => null),
+      publicRequest(getPublicTeamsView()).catch(() => null),
+    ]);
+    return { events, teams };
+  },
   component: TeamsPage,
 });
 
@@ -32,8 +41,8 @@ function deskFor(role: ClubRole | null) {
 }
 
 function TeamsPage() {
-  const pathname=useRouterState({select:s=>s.location.pathname});
-  return pathname !== "/teams" && pathname !== "/teams/" ? <Outlet/> : <TeamsOverview/>;
+  const pathname = useRouterState({ select: (s) => s.location.pathname });
+  return pathname !== "/teams" && pathname !== "/teams/" ? <Outlet /> : <TeamsOverview />;
 }
 function TeamsOverview() {
   const { user, isPending } = useCurrentUserState();
@@ -92,12 +101,13 @@ function TeamsOverview() {
         </section>
       ) : null}
       <TeamsPublic />
-      </main>
+    </main>
   );
 }
 
 function TeamsPublic() {
-  const events = Route.useLoaderData();
+  const { events: eventData, teams } = Route.useLoaderData();
+  const events = eventData || [];
   const hasBaseballDates = events.some((event) => event.sport === "Baseball");
   const hasSoftballDates = events.some((event) => event.sport === "Softball");
   const [age, setAge] = useState<(typeof AGE_GROUPS)[number] | null>(null);
@@ -124,22 +134,52 @@ function TeamsPublic() {
         }
       />
 
-      <section id="explore-teams" className="mx-auto max-w-5xl px-5 py-10"><h2 className="text-3xl">Explore our teams</h2><PublicTeamRoster /></section>
-      <section className="mx-auto max-w-5xl px-5 pb-10"><h2 className="text-2xl">Team payments</h2><p className="mt-2 text-muted">Only pay after the office confirms the team, fee, and amount. Include the player’s name and age group. Debit or credit only.</p><div className="mt-4 flex flex-wrap gap-4"><Button asChild><Link to="/family">Open your family team account</Link></Button><Button asChild variant="outline"><Link to="/contact">Ask the office for a team invoice</Link></Button></div></section>
+      {!eventData && (
+        <div role="alert" className="mx-auto max-w-5xl px-5 py-4">
+          Tryout dates could not be loaded.{" "}
+          <a className="underline" href="/teams">
+            Reload team information
+          </a>{" "}
+          or{" "}
+          <Link className="underline" to="/contact">
+            contact the academy
+          </Link>
+          .
+        </div>
+      )}
+      <section id="explore-teams" className="mx-auto max-w-5xl px-5 py-10">
+        <h2 className="text-3xl">Explore our teams</h2>
+        <PublicTeamRoster initial={teams} />
+      </section>
+      <section className="mx-auto max-w-5xl px-5 pb-10">
+        <h2 className="text-2xl">Team payments</h2>
+        <p className="mt-2 text-muted">
+          Only pay after the office confirms the team, fee, and amount. Include the player’s name
+          and age group. Debit or credit only.
+        </p>
+        <div className="mt-4 flex flex-wrap gap-4">
+          <Button asChild>
+            <Link to="/family">Open your family team account</Link>
+          </Button>
+          <Button asChild variant="outline">
+            <Link to="/contact">Ask the office for a team invoice</Link>
+          </Button>
+        </div>
+      </section>
       <section id="softball" className="scroll-mt-24 bg-navy py-10 text-fg-inverse">
         <div className="mx-auto max-w-3xl px-5">
-          <p className="text-xs font-semibold tracking-[0.16em] text-powder uppercase">
-            Softball
-          </p>
+          <p className="text-xs font-semibold tracking-[0.16em] text-powder uppercase">Softball</p>
           <h2 className="mt-2 text-4xl">Softball tryouts</h2>
           <p className="mt-3 text-fg-soft">
             Baseball and softball use the same tryout request form.{" "}
-            {hasSoftballDates
-              ? "Published softball group dates are listed below. A request does not reserve a roster spot."
-              : "No softball group date is posted yet. Individual requests stay on the tryouts page."}
+            {!eventData
+              ? "Group dates are temporarily unavailable. You can still request an individual tryout."
+              : hasSoftballDates
+                ? "Published softball group dates are listed below. A request does not reserve a roster spot."
+                : "No softball group date is posted yet. Individual requests stay on the tryouts page."}
           </p>
           <div className="mt-5 text-ink">
-            <TryoutSchedule events={events} sport="Softball" />
+            {eventData && <TryoutSchedule events={events} sport="Softball" />}
           </div>
           <div className="mt-6">
             <Button asChild>
@@ -158,7 +198,7 @@ function TeamsPublic() {
             ? "Free. No payment to request a tryout. Check in 15 minutes before your confirmed group event."
             : "Free individual evaluation requests. A coach will confirm any private appointment."}
         </p>
-        <TryoutSchedule events={events} sport="Baseball" />
+        {eventData && <TryoutSchedule events={events} sport="Baseball" />}
         <p className="mt-4">
           Do not see a group event for your age?{" "}
           <Link to="/tryouts" search={{ sport: "Baseball" }} hash="register" className="underline">

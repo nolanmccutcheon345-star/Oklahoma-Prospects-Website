@@ -1,3 +1,4 @@
+import { ACTIVE_SEASON_YEAR } from "@/lib/active-season";
 import { useEffect, useState } from "react";
 import { getRegistrationAthletes, claimAthleteRegistration } from "@/lib/portal-api";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
@@ -107,7 +108,10 @@ export function AthleteRegistrationFields({
       )}
       {error && <p role="alert">{error}</p>}
       <label>
-        Date of birth (private)
+        Date of birth (private){" "}
+        <span className="text-maroon" aria-hidden="true">
+          *
+        </span>
         <input
           className={field}
           type="date"
@@ -131,7 +135,10 @@ export function AthleteRegistrationFields({
         </label>
       )}
       <label>
-        Expected high-school graduation year
+        Expected high-school graduation year{" "}
+        <span className="text-maroon" aria-hidden="true">
+          *
+        </span>
         <select
           className={field}
           required
@@ -140,9 +147,19 @@ export function AthleteRegistrationFields({
         >
           <option value="">Select a year</option>
           <option value="unknown">Not sure yet</option>
-          {Array.from({ length: 35 }, (_, i) => new Date().getFullYear() - 10 + i).map((y) => (
+          {value.graduationYear &&
+            value.graduationYear !== "unknown" &&
+            Number(value.graduationYear) < ACTIVE_SEASON_YEAR - 11 && (
+              <option value={value.graduationYear}>{value.graduationYear} (saved year)</option>
+            )}
+          {Array.from({ length: 25 }, (_, i) => ACTIVE_SEASON_YEAR + i).map((y) => (
             <option key={y}>{y}</option>
           ))}
+          <optgroup label="Already graduated">
+            {Array.from({ length: 11 }, (_, i) => ACTIVE_SEASON_YEAR - 1 - i).map((y) => (
+              <option key={y}>{y}</option>
+            ))}
+          </optgroup>
         </select>
       </label>
       <label>

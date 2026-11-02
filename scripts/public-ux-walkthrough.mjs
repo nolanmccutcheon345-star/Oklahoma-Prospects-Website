@@ -154,7 +154,12 @@ try {
     if (width === 1280) await page.screenshot({ path: output + "/teams-desktop.png" });
   }
   await page.setViewportSize({ width: 390, height: 844 });
-  await page.goto(h.base + "/training");
+  const trainingResponse = await page.goto(h.base + "/training");
+  assert.match(
+    await trainingResponse.text(),
+    /Choose your lesson/,
+    "lessons exist before JavaScript",
+  );
   await page.waitForLoadState("networkidle");
   await page.getByRole("heading", { name: "Find my training", exact: true }).waitFor();
   await page.getByLabel("Age on lesson date", { exact: true }).selectOption("youth");
@@ -175,6 +180,14 @@ try {
   assert.equal(await page.getByRole("heading", { name: /Step 1 of 3/ }).count(), 1);
   await page.getByLabel(/^Age group/).selectOption("12U");
   await page.getByLabel(/^Player name/).fill("Synthetic Audit Player");
+  assert.equal(
+    await page
+      .getByRole("combobox", { name: "Expected high-school graduation year", exact: true })
+      .locator("option")
+      .nth(2)
+      .textContent(),
+    "2027",
+  );
   await page.getByLabel("Date of birth (private)", { exact: true }).fill("2015-09-01");
   await page
     .getByRole("combobox", { name: "Expected high-school graduation year", exact: true })
@@ -235,7 +248,15 @@ try {
     1,
     "reload does not resubmit",
   );
-  await page.goto(h.base + "/book");
+  const bookingResponse = await page.goto(h.base + "/book");
+  assert.match(await bookingResponse.text(), /Lane 7/, "booking choices exist before JavaScript");
+  await page.getByRole("tab", { name: "Lessons", exact: true }).click();
+  await page.getByRole("heading", { name: "Find my training", exact: true }).waitFor();
+  assert.equal(new URL(page.url()).pathname, "/book", "Lessons stay on booking page");
+  await page.getByRole("tab", { name: "Training Plans", exact: true }).click();
+  await page.getByRole("heading", { name: "Monthly training plans", exact: true }).waitFor();
+  assert.equal(new URL(page.url()).pathname, "/book", "Plans stay on booking page");
+  await page.getByRole("tab", { name: "Cage Rentals", exact: true }).click();
   await page.getByText("1. Choose your spaces", { exact: true }).waitFor();
   await page.getByLabel("Lane 7 · Baseball / Softball", { exact: true }).check();
   await page.getByRole("button", { name: "Continue to date & time", exact: true }).click();
