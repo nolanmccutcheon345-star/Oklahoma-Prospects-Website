@@ -1,10 +1,9 @@
-/** Public cage-pass highlight. Owner decision (Nov 2 2026): All-Star is the featured tier. */
-export const FEATURED_CAGE_PLAN_ID = "all-star";
-
-export function cagePlanIsHighlighted(
-  plan: { id: string; featured: boolean },
-  plans: readonly { featured: boolean }[],
-): boolean {
-  if (plans.some((item) => item.featured)) return plan.featured;
-  return plan.id === FEATURED_CAGE_PLAN_ID;
+/** Public cage-pass highlight. Only the stored admin `featured` flag turns it on. */
+export function membershipFeatureAppearance(plan: { featured: boolean; badge?: string }): {
+  featured: boolean;
+  badge: string;
+} {
+  const custom = (plan.badge ?? "").trim();
+  if (!plan.featured) return { featured: false, badge: "" };
+  return { featured: true, badge: custom || "Featured" };
 }

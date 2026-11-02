@@ -4,6 +4,7 @@ import type { PublicCatalog } from "@/lib/ops";
 import { formatDollars } from "@/lib/pricing";
 import { readServicePresentation, type ServicePresentation } from "@/lib/service-presentation";
 import { canPurchase } from "@/lib/purchase-availability";
+import { membershipFeatureAppearance } from "@/lib/membership-display";
 import { useLiveCatalog } from "@/lib/use-catalog";
 import { CatalogStatus } from "./catalog-status";
 import { Button } from "./ui/button";
@@ -109,19 +110,19 @@ export function MembershipCard({
   availability,
   preview = false,
   checkoutStatus = "loading",
-  highlighted,
 }: {
   plan: PublicCatalog["cagePlans"][number];
   availability?: PublicCatalog["purchaseAvailability"];
   preview?: boolean;
   checkoutStatus?: "loading" | "ready" | "error";
-  /** Visual featured treatment. Defaults to the catalog flag. */
-  highlighted?: boolean;
 }) {
   const presentation = readServicePresentation(plan.presentation);
-  const showFeatured = highlighted ?? plan.featured;
-  const badge =
-    presentation.badge || (plan.featured ? "Best value" : showFeatured ? "Featured" : "");
+  const appearance = membershipFeatureAppearance({
+    featured: plan.featured,
+    badge: presentation.badge,
+  });
+  const showFeatured = appearance.featured;
+  const badge = appearance.badge;
   return (
     <article
       data-featured={showFeatured ? "true" : "false"}
