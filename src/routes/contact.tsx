@@ -1,6 +1,6 @@
 import { SocialLinks } from "@/components/social-links";
 import { pageHead } from "@/lib/seo";
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, stripSearchParams } from "@tanstack/react-router";
 import { ArrowUpRight } from "lucide-react";
 import { ContactForm } from "@/components/inquiry-form";
 import { HoursChip } from "@/components/hours-chip";
@@ -23,6 +23,7 @@ export const Route = createFileRoute("/contact")({
         ? search.subject.trim().slice(0, 200)
         : undefined,
   }),
+  search: { middlewares: [stripSearchParams({ subject: undefined })] },
   component: ContactPage,
 });
 
