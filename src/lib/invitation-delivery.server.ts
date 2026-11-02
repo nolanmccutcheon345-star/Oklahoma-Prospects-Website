@@ -1,6 +1,9 @@
 import {
   noticeReleaseAllowed,
   releaseUnsubmittedNoticeClaim,
+  previewNoticeRelease,
+  approveNoticeReleases,
+  dispatchNoticeReleases,
 } from "./notifications/release-control.server";
 import { randomUUID } from "node:crypto";
 import type { Sql } from "./db";
@@ -79,6 +82,70 @@ export async function queueInvitationEmail(sql: Sql, actor: string, id: string) 
     }>`select status from invitation_delivery where invitation_id=${id}`;
     return { status: row.status };
   });
+}
+
+/** The owner reviews this exact invitation in place; merely opening it never approves mail. */
+export async function prepareInvitationEmail(sql: Sql, actor: string, id: string, env: Env) {
+  await queueInvitationEmail(sql, actor, id);
+  const owner = await currentOwner(sql, actor);
+  const review = owner ? await previewNoticeRelease(sql, actor, env, "invitation", id) : null;
+  const blockers = [
+    ...(!owner ? ["An owner must review and send this invitation from Front Office."] : []),
+    ...(!env.RESEND_API_KEY || !(env.RESEND_FROM_EMAIL || env.EMAIL_FROM)
+      ? ["Email delivery is not configured. The invitation is saved; no email was sent."]
+      : []),
+    ...(env.INVITATION_EMAIL_PAUSED === "true" ? ["Invitation email delivery is paused."] : []),
+    ...(env.SQUARE_DEPLOY_CONTEXT !== "production" || (env.CONTEXT && env.CONTEXT !== "production")
+      ? ["Send invitations from the production owner workspace."]
+      : []),
+  ];
+  return { review, blockers };
+}
+
+/** Approval and dispatch stay tied to the exact owner-reviewed recipient/content digest. */
+export async function sendReviewedInvitationEmail(
+  sql: Sql,
+  actor: string,
+  id: string,
+  digest: string,
+  env: Env,
+  send: typeof fetch = fetch,
+) {
+  const { review, blockers } = await prepareInvitationEmail(sql, actor, id, env);
+  if (blockers.length) throw Error(blockers.join(" "));
+  if (!review || review.digest !== digest)
+    throw Error("Invitation changed. Review it again before sending.");
+  // A repeated click must not approve or submit another copy of an accepted email.
+  if (review.approvalStatus === "sent")
+    return {
+      status: "accepted",
+      message: "The email provider already accepted this invitation. Check delivery below.",
+    };
+  const items = [{ queue: "invitation" as const, id, digest }];
+  await approveNoticeReleases(sql, actor, env, { items, confirmed: true });
+  const { results } = await dispatchNoticeReleases(
+    sql,
+    actor,
+    env,
+    { items, confirmed: true },
+    send,
+  );
+  const status = results[0].status;
+  const [delivery] = await sql<{
+    next_attempt_at: Date;
+    attempts: number;
+  }>`select next_attempt_at,attempts from invitation_delivery where invitation_id=${id}`;
+  return {
+    status,
+    message:
+      status === "accepted"
+        ? "Email provider accepted the invitation. Check delivery to confirm recipient-server delivery."
+        : status === "review"
+          ? "Delivery needs owner review; retries stopped to avoid a duplicate email."
+          : status === "processing"
+            ? "A delivery attempt is already in progress. Check delivery before retrying."
+            : `Email has not been accepted by the provider. Review and retry after ${new Date(delivery.next_attempt_at).toISOString()}. The same invitation will be reused.`,
+  };
 }
 export function invitationEmailBody(invite: Invite, env: Env): Body {
   const origin =

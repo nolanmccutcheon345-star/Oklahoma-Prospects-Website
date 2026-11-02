@@ -524,12 +524,15 @@ try {
     0,
   );
   assert.ok(!coach.bodies.join("").includes("PRIVATE-MEDICAL-CANARY"));
-  await coach.page.getByRole("button", { name: "Create & send invitation", exact: true }).click();
+  await coach.page.getByRole("button", { name: "Create & review invitation", exact: true }).click();
   await coach.page
     .getByText(
-      "Invitation saved and queued. Email delivery is paused or unconfigured; no email was sent by this attempt.",
+      "Invitation saved. Review the email below; an owner can choose Send invitation to submit it.",
       { exact: true },
     )
+    .waitFor();
+  await coach.page
+    .getByText("An owner must review and send this invitation from Front Office.", { exact: true })
     .waitFor();
   assert.equal(
     (await h.sql`select * from invitation_delivery where provider_message_id is not null`).length,
@@ -540,6 +543,44 @@ try {
       await h.sql`select * from club_invites where team_id='base' and invited_by='coach' and role='parent' and status='pending'`
     ).length,
     1,
+  );
+  // The owner's newly created account invitation stays visible in the same workflow.
+  // This dev build must never send a real email, even from the new review control.
+  await owner.page.goto(origin + "/office?section=staff");
+  await owner.page.getByRole("button", { name: "Invite User", exact: true }).click();
+  const accountForm = owner.page
+    .locator("form")
+    .filter({ has: owner.page.getByRole("button", { name: "Review invitation", exact: true }) });
+  await accountForm.getByLabel("Name", { exact: true }).fill("Synthetic invited parent");
+  await accountForm.getByLabel("Email", { exact: true }).fill("new-parent@example.invalid");
+  await accountForm.getByRole("button", { name: "Review invitation", exact: true }).click();
+  await owner.page
+    .getByRole("heading", { name: "Finish sending your invitation", exact: true })
+    .waitFor();
+  const invitationReview = owner.page.locator('[aria-label="Invitation email"]');
+  await invitationReview
+    .getByRole("heading", { name: "Review and send this invitation", exact: true })
+    .waitFor();
+  assert.match(await invitationReview.innerText(), /new-parent@example.invalid/);
+  assert.match(await invitationReview.innerText(), /\/invitations/);
+  assert.equal(
+    await invitationReview
+      .getByRole("button", { name: "Send invitation", exact: true })
+      .isEnabled(),
+    false,
+  );
+  assert.equal(
+    await owner.page.getByLabel("Access status", { exact: true }).inputValue(),
+    "invited",
+  );
+  assert.ok(
+    await owner.page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1),
+  );
+  await invitationReview.scrollIntoViewIfNeeded();
+  await owner.page.screenshot({ path: shots + "/invitation-review-mobile.png", fullPage: false });
+  assert.equal(
+    (await h.sql`select * from invitation_delivery where provider_message_id is not null`).length,
+    0,
   );
   await coach.page.goto(origin + "/coach");
   await coach.page.getByText("Operational checklist", { exact: true }).waitFor();
