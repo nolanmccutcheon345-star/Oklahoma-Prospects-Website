@@ -150,7 +150,11 @@ function Paid() {
         </section>
       ) : null}
       {payment?.merchandise && (
-        <Link className="my-4 inline-flex min-h-11 items-center underline" to="/merchandise">
+        <Link
+          className="my-4 inline-flex min-h-11 items-center underline"
+          to="/merchandise"
+          search={{ view: "orders" }}
+        >
           Open My shop orders
         </Link>
       )}
