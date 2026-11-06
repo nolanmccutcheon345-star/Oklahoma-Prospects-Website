@@ -9,6 +9,7 @@ import { getShop, quoteShop, myShopOrders } from "@/lib/shop/api";
 import { submitSquarePayment } from "@/lib/commerce/api";
 import { matchesShopFilters, inShopCollection } from "@/lib/shop/collections";
 import { cartSchema, type Cart } from "@/lib/shop/contracts";
+import type { ShopView } from "@/lib/shop/navigation";
 type Shop = Awaited<ReturnType<typeof getShop>>;
 const inputClass =
   "mt-1 min-h-11 w-full min-w-0 rounded-lg border border-line bg-white px-3 py-2 text-base";
@@ -22,18 +23,21 @@ const concepts = [
 export function Shop({
   selectedProductSlug,
   initialData,
+  view,
+  setView,
 }: {
   selectedProductSlug?: string;
   initialData?: Shop;
+  view: ShopView;
+  setView: (view: ShopView) => void;
 }) {
-  const { user } = useCurrentUserState();
+  const { user, isPending } = useCurrentUserState();
   const userId = user?.id;
   const [data, setData] = useState<Shop | undefined>(initialData);
   const selectedProduct = data?.products.find((p) => p.slug === selectedProductSlug);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
   const [cart, setCart] = useState<Cart>([]);
-  const [view, setView] = useState("shop");
   const [busy, setBusy] = useState(false);
   const [category, setCategory] = useState("");
   const [filters, setFilters] = useState<Record<string, string>>({});
@@ -50,9 +54,7 @@ export function Shop({
   });
   const [consent, setConsent] = useState(false);
   const [requestId, setRequestId] = useState("");
-  const [orders, setOrders] = useState<Awaited<ReturnType<typeof myShopOrders>>>([]);
   useEffect(() => {
-    setOrders([]);
     setCheckout(undefined);
     setAddress({
       name: "",
@@ -65,7 +67,6 @@ export function Shop({
     });
     setConsent(false);
     setRequestId(crypto.randomUUID());
-    setView("shop");
   }, [userId]);
   useEffect(() => {
     void getShop()
@@ -158,19 +159,9 @@ export function Shop({
               <ShoppingBag className="mr-2 size-4" />
               Bag ({count})
             </Button>
-            {user && (
-              <Button
-                variant="outline"
-                onClick={() =>
-                  void run(async () => {
-                    setOrders(await myShopOrders());
-                    setView("orders");
-                  })
-                }
-              >
-                My shop orders
-              </Button>
-            )}
+            <Button variant="outline" onClick={() => setView("orders")}>
+              My shop orders
+            </Button>
           </div>
         </div>
       </section>
@@ -185,7 +176,9 @@ export function Shop({
             {message}
           </p>
         )}
-        {!data ? (
+        {view === "orders" ? (
+          <ShopOrdersPanel key={userId || "guest"} userId={userId} isPending={isPending} />
+        ) : !data ? (
           <p role="status">Loading the collection…</p>
         ) : (
           <>
@@ -559,7 +552,6 @@ export function Shop({
                                     const saved = rows.find(
                                       (order) => order.id === checkout.orderId,
                                     );
-                                    setOrders(rows);
                                     setView("orders");
                                     if (
                                       saved &&
@@ -598,20 +590,6 @@ export function Shop({
                 )}
               </section>
             )}
-            {view === "orders" && user && (
-              <section>
-                <h2 className="text-3xl">My shop orders</h2>
-                <Button
-                  className="my-4"
-                  variant="outlineDark"
-                  disabled={busy}
-                  onClick={() => void run(async () => setOrders(await myShopOrders()))}
-                >
-                  Refresh status
-                </Button>
-                <Orders rows={orders} />
-              </section>
-            )}
           </>
         )}
         <div className="mt-10 border-t border-line pt-6 text-sm text-muted">
@@ -631,6 +609,70 @@ export function Shop({
         </div>
       </div>
     </main>
+  );
+}
+export function ShopOrdersPanel({ userId, isPending }: { userId?: string; isPending: boolean }) {
+  const [orders, setOrders] = useState<Awaited<ReturnType<typeof myShopOrders>>>();
+  const [error, setError] = useState("");
+  const [refresh, setRefresh] = useState(0);
+  useEffect(() => {
+    let current = true;
+    setOrders(undefined);
+    setError("");
+    if (!isPending && userId) {
+      void myShopOrders()
+        .then((rows) => {
+          if (current) setOrders(rows);
+        })
+        .catch(() => {
+          if (current) setError("Your shop orders could not load. Please try again.");
+        });
+    }
+    return () => {
+      current = false;
+    };
+  }, [userId, isPending, refresh]);
+  const loading = !orders && !error;
+  return (
+    <section aria-labelledby="shop-orders-heading">
+      <h2 id="shop-orders-heading" className="text-3xl">
+        My shop orders
+      </h2>
+      {isPending ? (
+        <p role="status" className="mt-4">
+          Checking your account…
+        </p>
+      ) : !userId ? (
+        <div className="mt-4 rounded-xl border border-line bg-paper-2 p-5">
+          <p>Sign in to view your shop orders and delivery updates.</p>
+          <Button asChild className="mt-4">
+            <Link to="/login" search={{ next: "/merchandise?view=orders" }}>
+              Sign in to view orders
+            </Link>
+          </Button>
+        </div>
+      ) : (
+        <>
+          <Button
+            className="my-4"
+            variant="outlineDark"
+            disabled={loading}
+            onClick={() => setRefresh((value) => value + 1)}
+          >
+            {error ? "Try again" : "Refresh status"}
+          </Button>
+          {loading ? (
+            <p role="status">Loading your shop orders…</p>
+          ) : error ? (
+            <p role="alert" className="text-maroon">
+              {error}
+            </p>
+          ) : (
+            <Orders rows={orders!} />
+          )}
+        </>
+      )}
+    </section>
   );
 }
 function Product({

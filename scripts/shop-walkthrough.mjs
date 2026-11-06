@@ -103,6 +103,23 @@ try {
   await page.goto(h.base + "/merchandise");
   await page.getByRole("heading", { name: "Our first collection is taking shape." }).waitFor();
   await assertPublicShop();
+  await page.getByRole("button", { name: "My shop orders", exact: true }).click();
+  await page.waitForURL(h.base + "/merchandise?view=orders");
+  await page
+    .getByText("Sign in to view your shop orders and delivery updates.", { exact: true })
+    .waitFor();
+  await page.getByRole("button", { name: "My shop orders", exact: true }).click();
+  assert.equal(await page.getByRole("heading", { name: "My shop orders", exact: true }).count(), 1);
+  await page.getByRole("link", { name: "Sign in to view orders", exact: true }).click();
+  await page.waitForURL(h.base + "/login?next=%2Fmerchandise%3Fview%3Dorders");
+  await page.getByLabel("Email", { exact: true }).waitFor();
+  await page.goBack();
+  await page.getByRole("link", { name: "Sign in to view orders", exact: true }).waitFor();
+  await page.goForward();
+  await page.getByLabel("Email", { exact: true }).waitFor();
+  await page.goBack();
+  await page.getByRole("button", { name: "Shop collection", exact: true }).click();
+  await page.waitForURL(h.base + "/merchandise");
   for (const width of [320, 390, 768, 1280]) {
     await page.setViewportSize({ width, height: 900 });
     assert.equal(
@@ -251,8 +268,37 @@ try {
   const ownerCookie = await loginCookie("shop-owner@example.invalid");
   assert.match((await rpc(ownerCookie, "getShopOffice")).body, /vendorCostCents/);
   const ready = page.waitForResponse((r) => r.url().includes("/api/auth/get-session"));
-  await page.goto(h.base + "/login?next=%2Foffice%3Fsection%3Dshop");
+  await page.goto(h.base + "/merchandise?view=orders");
   await ready;
+  await page.getByRole("link", { name: "Sign in to view orders", exact: true }).click();
+  await page.getByLabel("Email", { exact: true }).fill("shop-owner@example.invalid");
+  await page.getByLabel("Password", { exact: true }).fill(password);
+  await page.getByRole("button", { name: "Sign in", exact: true }).click();
+  await page.waitForURL(h.base + "/merchandise?view=orders");
+  await page.getByText("No shop orders yet.", { exact: true }).waitFor();
+  // Synthetic ledger rows only: no provider calls, charges, fulfillment or emails.
+  for (const [id, userId, label] of [
+    ["orders-own-fixture", "fixture-owner", "SYNTHETIC own order item"],
+    ["orders-other-fixture", "fixture-nonowner-parent", "SYNTHETIC other household item"],
+  ]) {
+    await h.sql`insert into commerce_orders(id,request_key,user_id,email,product_id,kind,snapshot,total_cents) values(${id},${id},${userId},'synthetic@example.invalid','shop','merchandise',${JSON.stringify({ lines: [{ label, cents: 1200 }] })}::jsonb,1200)`;
+    await h.sql`insert into shop_order_details(order_id,user_id,request_hash,vendor_body,vendor_cap_cents,product_revisions,tax_evidence) values(${id},${userId},${id},'{}'::jsonb,0,'{}'::jsonb,'{}'::jsonb)`;
+  }
+  await page.getByRole("button", { name: "Refresh status", exact: true }).click();
+  await page.getByText("SYNTHETIC own order item", { exact: false }).waitFor();
+  assert.equal(await page.getByText("SYNTHETIC other household item", { exact: false }).count(), 0);
+  await page.getByRole("button", { name: "Shop collection", exact: true }).click();
+  await page.goBack();
+  await page.getByText("SYNTHETIC own order item", { exact: false }).waitFor();
+  await page.goForward();
+  await page.getByRole("button", { name: "My shop orders", exact: true }).click();
+  await page.getByText("SYNTHETIC own order item", { exact: false }).waitFor();
+  await page.context().clearCookies();
+  await page.reload();
+  await page.getByRole("link", { name: "Sign in to view orders", exact: true }).waitFor();
+  assert.equal(await page.getByText("SYNTHETIC own order item", { exact: false }).count(), 0);
+  assert.match((await rpc("", "myShopOrders")).body, /Sign in/);
+  await page.goto(h.base + "/login?next=%2Foffice%3Fsection%3Dshop");
   await page.getByLabel("Email", { exact: true }).fill("shop-owner@example.invalid");
   await page.getByLabel("Password", { exact: true }).fill(password);
   await page.getByRole("button", { name: "Sign in", exact: true }).click();

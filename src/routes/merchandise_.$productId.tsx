@@ -2,7 +2,9 @@ import { createFileRoute, notFound } from "@tanstack/react-router";
 import { getShop } from "@/lib/shop/api";
 import { Shop } from "@/components/shop";
 import { pageHead } from "@/lib/seo";
+import { shopSearch } from "@/lib/shop/navigation";
 export const Route = createFileRoute("/merchandise_/$productId")({
+  validateSearch: shopSearch,
   loader: async ({ params }) => {
     // Internal draft identifiers are never public product URLs, even after publication.
     if (params.productId.toLowerCase().startsWith("draft-")) throw notFound();
@@ -22,5 +24,14 @@ export const Route = createFileRoute("/merchandise_/$productId")({
 function ProductPage() {
   const { productId } = Route.useParams();
   const data = Route.useLoaderData();
-  return <Shop selectedProductSlug={productId} initialData={data} />;
+  const { view = "shop" } = Route.useSearch();
+  const navigate = Route.useNavigate();
+  return (
+    <Shop
+      selectedProductSlug={productId}
+      initialData={data}
+      view={view}
+      setView={(next) => void navigate({ search: { view: next === "shop" ? undefined : next } })}
+    />
+  );
 }
