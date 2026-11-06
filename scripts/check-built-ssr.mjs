@@ -11,6 +11,7 @@ const nonces = new Set();
 for (const [path, status] of [
   ["/", 200],
   ["/__audit_missing_page__", 404],
+  ["/merchandise/draft-c9cf69a3-0000-4000-8000-000000000000", 404],
   ["/login?next=%2Faccount", 200],
   ["/games", 200],
   ["/games?view=watch", 200],

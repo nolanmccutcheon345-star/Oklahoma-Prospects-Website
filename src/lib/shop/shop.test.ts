@@ -955,6 +955,10 @@ test("coming soon: publishes photos without supplier setup, blocks quotes and pa
     const shop = await publicShop(sql);
     const preview = shop.products.find((v) => v.id === id)!;
     assert.equal(preview.coming_soon, true);
+    assert.match(preview.slug, /^product-[a-f0-9]{20}$/);
+    assert.notEqual(preview.slug, id);
+    assert.equal((await publicShop(sql)).products.find((v) => v.id === id)?.slug, preview.slug);
+    assert.equal((await read()).id, id, "Public URLs do not rewrite product identity");
     assert.equal(p.published, true, "Coming soon alone publishes a legacy editor save");
     assert.equal(preview.variants.length, 0);
     assert.equal(shop.checkout, false);
