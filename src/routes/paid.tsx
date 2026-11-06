@@ -171,7 +171,7 @@ function Paid() {
         <Button asChild>
           <Link to="/family">Open billing history</Link>
         </Button>
-        <Button variant="outline" asChild>
+        <Button variant="outlineDark" asChild>
           <Link to="/login" search={{ next: "/family" }}>
             Create or sign into your account
           </Link>

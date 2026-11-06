@@ -90,7 +90,7 @@ export function PeopleDirectory({
                     <Link
                       to="/teams/$teamId"
                       params={{ teamId: t.id }}
-                      className="font-semibold underline"
+                      className="inline-flex min-h-6 items-center font-semibold underline"
                     >
                       {t.name}
                     </Link>
