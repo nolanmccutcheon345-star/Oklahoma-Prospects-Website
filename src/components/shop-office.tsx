@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useCurrentUserState } from "@/lib/auth/use-current-user";
 import { Button } from "./ui/button";
 import {
   getShopOffice,
@@ -25,6 +26,9 @@ type Office = Awaited<ReturnType<typeof getShopOffice>>;
 type Product = Office["products"][number];
 type Run = (work: () => Promise<unknown>) => Promise<void>;
 export function ShopOffice({ changed }: { changed: () => void }) {
+  const { user, isPending } = useCurrentUserState();
+  const userId = user?.id;
+  const [authorizedUserId, setAuthorizedUserId] = useState<string>();
   const [data, setData] = useState<Office>(),
     [id, setId] = useState(""),
     [title, setTitle] = useState(""),
@@ -37,9 +41,16 @@ export function ShopOffice({ changed }: { changed: () => void }) {
   }
   useEffect(() => {
     let active = true;
+    setData(undefined);
+    setAuthorizedUserId(undefined);
+    setMessage("");
+    if (isPending || !userId) return;
     void getShopOffice()
       .then((v) => {
-        if (active) setData(v);
+        if (active) {
+          setData(v);
+          setAuthorizedUserId(userId);
+        }
       })
       .catch((e) => {
         if (active) setMessage(e.message);
@@ -47,7 +58,7 @@ export function ShopOffice({ changed }: { changed: () => void }) {
     return () => {
       active = false;
     };
-  }, []);
+  }, [userId, isPending]);
   async function run(work: () => Promise<unknown>) {
     if (busy) return;
     setBusy(true);
@@ -63,6 +74,9 @@ export function ShopOffice({ changed }: { changed: () => void }) {
       setBusy(false);
     }
   }
+  // Render no management UI until this identity has passed the server owner check.
+  if (isPending || !userId || authorizedUserId !== userId || !data)
+    return <p role={message ? "alert" : "status"}>{message || "Loading shop controls…"}</p>;
   return (
     <section className="mt-6 min-w-0 rounded-xl border border-line p-4 sm:p-6">
       <h2 className="text-3xl">Shop owner controls</h2>

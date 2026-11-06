@@ -70,7 +70,7 @@ function Page() {
     return <OfficeLoading />;
   }
   if (!user) return <RedirectToSignIn />;
-  return <OfficePage />;
+  return <OfficePage key={user.id} />;
 }
 
 function OfficePage() {

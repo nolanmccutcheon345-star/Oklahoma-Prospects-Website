@@ -1,13 +1,12 @@
-import { lazy, Suspense, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { ShoppingBag, Truck, ShieldCheck, PackageCheck } from "lucide-react";
 import { Button } from "./ui/button";
 import { SquareCard } from "./commerce/square-card";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
 import { formatMoney } from "@/lib/pricing";
-import { getShop, canManageShop, quoteShop, myShopOrders } from "@/lib/shop/api";
+import { getShop, quoteShop, myShopOrders } from "@/lib/shop/api";
 import { submitSquarePayment } from "@/lib/commerce/api";
-const ShopOffice = lazy(() => import("./shop-office").then((m) => ({ default: m.ShopOffice })));
 import { matchesShopFilters, inShopCollection } from "@/lib/shop/collections";
 import { cartSchema, type Cart } from "@/lib/shop/contracts";
 type Shop = Awaited<ReturnType<typeof getShop>>;
@@ -20,25 +19,17 @@ const concepts = [
   ["Structured cap", "Navy / Columbia blue"],
   ["Canvas tote", "Natural"],
 ];
-export function Shop({ selectedProductId }: { selectedProductId?: string }) {
+export function Shop({
+  selectedProductSlug,
+  initialData,
+}: {
+  selectedProductSlug?: string;
+  initialData?: Shop;
+}) {
   const { user } = useCurrentUserState();
-  const [ownerId, setOwnerId] = useState<string | null>(null);
   const userId = user?.id;
-  const canManage = Boolean(userId && ownerId === userId);
-  useEffect(() => {
-    let current = true;
-    void canManageShop()
-      .then((v) => {
-        if (current) setOwnerId(v && userId ? userId : null);
-      })
-      .catch(() => {
-        if (current) setOwnerId(null);
-      });
-    return () => {
-      current = false;
-    };
-  }, [userId]);
-  const [data, setData] = useState<Shop>();
+  const [data, setData] = useState<Shop | undefined>(initialData);
+  const selectedProduct = data?.products.find((p) => p.slug === selectedProductSlug);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
   const [cart, setCart] = useState<Cart>([]);
@@ -148,9 +139,7 @@ export function Shop({ selectedProductId }: { selectedProductId?: string }) {
             Prospects Sports Academy · Official shop
           </p>
           <h1 className="mt-3 text-4xl sm:text-6xl">
-            {selectedProductId
-              ? data?.products.find((p) => p.id === selectedProductId)?.title || "Club collection"
-              : "Wear the colors."}
+            {selectedProductSlug ? selectedProduct?.title || "Club collection" : "Wear the colors."}
           </h1>
           <p className="mt-4 max-w-xl text-lg text-white/85">
             From the dugout to the stands. Gear for our players, families, and coaches.
@@ -159,7 +148,7 @@ export function Shop({ selectedProductId }: { selectedProductId?: string }) {
             <Button
               variant="outline"
               onClick={() => {
-                if (selectedProductId) window.location.href = "/merchandise";
+                if (selectedProductSlug) window.location.href = "/merchandise";
                 else setView("shop");
               }}
             >
@@ -200,7 +189,7 @@ export function Shop({ selectedProductId }: { selectedProductId?: string }) {
           <p role="status">Loading the collection…</p>
         ) : (
           <>
-            {view === "shop" && !selectedProductId && (
+            {view === "shop" && !selectedProductSlug && (
               <>
                 {!data.checkout && (
                   <div className="mb-6 rounded-xl border border-line bg-paper-2 p-5">
@@ -381,16 +370,16 @@ export function Shop({ selectedProductId }: { selectedProductId?: string }) {
                 </div>
               </>
             )}
-            {view === "shop" && selectedProductId && (
+            {view === "shop" && selectedProductSlug && (
               <section>
                 <a href="/merchandise" className="mb-5 inline-block underline">
                   Back to the collection
                 </a>
-                {data.products.find((p) => p.id === selectedProductId) ? (
+                {selectedProduct ? (
                   <Product
                     detail
-                    product={data.products.find((p) => p.id === selectedProductId)!}
-                    add={(id) => add(selectedProductId, id)}
+                    product={selectedProduct}
+                    add={(id) => add(selectedProduct.id, id)}
                   />
                 ) : (
                   <p>This product is not currently available.</p>
@@ -639,27 +628,7 @@ export function Shop({ selectedProductId }: { selectedProductId?: string }) {
             . Report delivery or quality problems within 30 days. Please use each product’s size
             guide before ordering.
           </p>
-          {canManage && (
-            <Button
-              variant="outlineDark"
-              className="mt-5"
-              onClick={() => setView(view === "office" ? "shop" : "office")}
-            >
-              Shop owner controls
-            </Button>
-          )}
         </div>
-        {view === "office" && canManage && (
-          <Suspense fallback={<p role="status">Loading shop controls…</p>}>
-            <ShopOffice
-              changed={() =>
-                void getShop()
-                  .then(setData)
-                  .catch(() => setError("Refresh the collection to see your changes."))
-              }
-            />
-          </Suspense>
-        )}
       </div>
     </main>
   );
@@ -777,7 +746,7 @@ function Product({
         {!detail && (
           <a
             className="mb-4 block min-h-10 py-2 text-center underline"
-            href={`/merchandise/${encodeURIComponent(p.id)}`}
+            href={`/merchandise/${encodeURIComponent(p.slug)}`}
           >
             View product details
           </a>

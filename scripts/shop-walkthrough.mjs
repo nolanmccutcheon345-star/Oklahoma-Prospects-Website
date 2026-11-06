@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { hashPassword } from "better-auth/crypto";
 import { chromium } from "playwright";
+import { toJSONAsync } from "seroval";
 import { PGLiteSocketServer } from "@electric-sql/pglite-socket";
 import { readFile, mkdir } from "node:fs/promises";
 import { resolve, extname } from "node:path";
@@ -81,8 +82,27 @@ try {
     });
   });
 
+  async function assertPublicShop() {
+    assert.equal(
+      await page.getByRole("button", { name: "Shop owner controls", exact: true }).count(),
+      0,
+    );
+    assert.equal(
+      await page.getByRole("heading", { name: "Shop owner controls", exact: true }).count(),
+      0,
+    );
+    assert.equal(
+      await page
+        .getByText("I approved the physical sample and production artwork", { exact: true })
+        .count(),
+      0,
+    );
+    assert.equal(await page.getByLabel("New product title", { exact: true }).count(), 0);
+    assert.equal(await page.locator('a[href^="/merchandise/draft-"]').count(), 0);
+  }
   await page.goto(h.base + "/merchandise");
   await page.getByRole("heading", { name: "Our first collection is taking shape." }).waitFor();
+  await assertPublicShop();
   for (const width of [320, 390, 768, 1280]) {
     await page.setViewportSize({ width, height: 900 });
     assert.equal(
@@ -116,6 +136,7 @@ try {
   await page.getByRole("link", { name: "View product details", exact: true }).click();
   await page.waitForURL(h.base + "/merchandise/fixture-shop");
   await page.getByRole("link", { name: "Back to the collection" }).waitFor();
+  await assertPublicShop();
   assert.ok(
     await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),
     "product detail reflows",
@@ -156,14 +177,86 @@ try {
   await h.sql`insert into account(id,"accountId","providerId","userId",password,"createdAt","updatedAt") values('fixture-owner','fixture-owner','credential','fixture-owner',${hashed},now(),now())`;
   await h.sql`insert into profiles(user_id,email,name,role,family_id) values('fixture-owner','shop-owner@example.invalid','SYNTHETIC Shop Owner','admin','fixture-shop-family')`;
   await h.sql`insert into owner_grants(email,user_id) values('shop-owner@example.invalid','fixture-owner')`;
+  await h.sql`insert into club_state(id,payload,rev) values('oklahoma-prospects',${JSON.stringify(h.api.emptyClub())}::jsonb,1)`;
+  // Exercise the compiled HTTP boundary, not only the absence of a button.
+  const manifest = await readFile("dist/server/server.js", "utf8");
+  const ids = new Map(
+    [
+      ...manifest.matchAll(
+        /"([a-f0-9]{64})":\s*\{\s*functionName: "([^"]+)_createServerFn_handler"/g,
+      ),
+    ].map((m) => [m[2], m[1]]),
+  );
+  async function rpc(cookie, name, method = "GET", data) {
+    assert.ok(ids.has(name), `Missing compiled function ${name}`);
+    const payload = data === undefined ? undefined : JSON.stringify(await toJSONAsync({ data }));
+    return fixtureRequest(async () => {
+      const r = await handler(
+        new Request(h.base + "/_serverFn/" + ids.get(name), {
+          method,
+          headers: {
+            cookie,
+            origin: h.base,
+            "sec-fetch-site": "same-origin",
+            "x-tsr-serverFn": "true",
+            accept: "application/json",
+            "content-type": "application/json",
+          },
+          ...(method === "POST" ? { body: payload } : {}),
+        }),
+      );
+      return { status: r.status, body: await r.text() };
+    });
+  }
+  async function loginCookie(email) {
+    const r = await handler(
+      new Request(h.base + "/api/auth/sign-in/email", {
+        method: "POST",
+        headers: {
+          origin: h.base,
+          "content-type": "application/json",
+          "sec-fetch-site": "same-origin",
+        },
+        body: JSON.stringify({ email, password }),
+      }),
+    );
+    assert.equal(r.status, 200, await r.text());
+    return r.headers
+      .getSetCookie()
+      .map((c) => c.split(";")[0])
+      .join("; ");
+  }
+  const deniedCookies = [""];
+  for (const role of ["parent", "coach", "admin"]) {
+    const id = "fixture-nonowner-" + role,
+      email = id + "@example.invalid";
+    await h.sql`insert into "user"(id,email,name,"emailVerified","createdAt","updatedAt") values(${id},${email},${id},true,now(),now())`;
+    await h.sql`insert into account(id,"accountId","providerId","userId",password,"createdAt","updatedAt") values(${id},${id},'credential',${id},${hashed},now(),now())`;
+    await h.sql`insert into profiles(user_id,email,name,role,family_id) values(${id},${email},${id},${role},${id})`;
+    deniedCookies.push(await loginCookie(email));
+  }
+  for (const cookie of deniedCookies) {
+    const denied = await rpc(cookie, "getShopOffice");
+    assert.match(denied.body, /Sign in|Owner access required/);
+    assert.doesNotMatch(denied.body, /vendorCostCents|default_markup_bps|SYNTHETIC Test Hoodie/);
+    const mutation = await rpc(cookie, "createShopDraft", "POST", {
+      title: "UNAUTHORIZED SHOP DRAFT",
+    });
+    assert.match(mutation.body, /Sign in|Owner access required/);
+  }
+  assert.equal(
+    (await h.sql`select id from shop_products where title='UNAUTHORIZED SHOP DRAFT'`).length,
+    0,
+  );
+  const ownerCookie = await loginCookie("shop-owner@example.invalid");
+  assert.match((await rpc(ownerCookie, "getShopOffice")).body, /vendorCostCents/);
   const ready = page.waitForResponse((r) => r.url().includes("/api/auth/get-session"));
-  await page.goto(h.base + "/login?next=%2Fmerchandise");
+  await page.goto(h.base + "/login?next=%2Foffice%3Fsection%3Dshop");
   await ready;
   await page.getByLabel("Email", { exact: true }).fill("shop-owner@example.invalid");
   await page.getByLabel("Password", { exact: true }).fill(password);
   await page.getByRole("button", { name: "Sign in", exact: true }).click();
-  await page.waitForURL(h.base + "/merchandise");
-  await page.getByRole("button", { name: "Shop owner controls", exact: true }).click();
+  await page.waitForURL(h.base + "/office?section=shop");
   await page.getByText("Fulfill Engine connection & launch", { exact: true }).waitFor();
   assert.equal(
     (
@@ -173,7 +266,6 @@ try {
   );
   await h.sql`delete from shop_products where id like 'launch-%'`;
   await page.reload();
-  await page.getByRole("button", { name: "Shop owner controls", exact: true }).click();
   await page.getByRole("button", { name: "Save product", exact: true }).waitFor();
   await page.getByLabel("Description", { exact: true }).fill("SYNTHETIC owner saved description");
   await page.getByLabel("Stripe Tax product category code", { exact: true }).fill("txcd_00000000");
@@ -278,7 +370,9 @@ try {
     200,
     "coming soon image is public",
   );
-  await page.getByRole("button", { name: "Shop owner controls", exact: true }).click();
+  await page.goto(h.base + "/merchandise");
+  await page.getByRole("heading", { name: "Wear the colors.", exact: true }).waitFor();
+  await assertPublicShop();
   await page.getByRole("button", { name: /^Headwear \(1\)$/ }).click();
   await page.getByLabel("Sport", { exact: true }).selectOption("softball");
   await page.getByLabel("Age group", { exact: true }).selectOption("youth");
@@ -302,12 +396,30 @@ try {
     })
     .waitFor();
   await page.getByRole("button", { name: "Clear filters", exact: true }).click();
+  const publicHref = await previewCard
+    .getByRole("link", { name: "View product details", exact: true })
+    .getAttribute("href");
+  assert.match(publicHref, /^\/merchandise\/product-[a-f0-9]{20}$/);
+  // No product record was renamed merely to produce a safe public URL.
+  assert.ok(savedDraft.id.startsWith("draft-"));
+  for (const path of ["/merchandise/" + savedDraft.id, "/merchandise/not-published"]) {
+    const r = await fixtureRequest(async () => {
+      const response = await handler(new Request(h.base + path));
+      return { status: response.status, body: await response.text() };
+    });
+    assert.equal(r.status, 404, path);
+    assert.doesNotMatch(
+      r.body,
+      /SYNTHETIC Photo Draft|Shop owner controls|physical sample and production artwork/,
+    );
+  }
   await previewCard.getByRole("link", { name: "View product details", exact: true }).click();
   await page.getByText("Coming soon · Not available to order", { exact: true }).waitFor();
   assert.equal(
     await page.getByRole("button", { name: "Coming soon", exact: true }).isDisabled(),
     true,
   );
+  await assertPublicShop();
   assert.equal(
     await page.getByText(/Infinity|NaN/).count(),
     0,
@@ -320,8 +432,25 @@ try {
       "coming soon detail reflow " + width,
     );
   }
-  await page.getByRole("link", { name: "Back to the collection", exact: true }).click();
-  await page.getByRole("button", { name: "Shop owner controls", exact: true }).click();
+  // Re-check the same public preview with no owner session.
+  await page.context().clearCookies();
+  await page.reload();
+  await page.getByText("Coming soon · Not available to order", { exact: true }).waitFor();
+  await assertPublicShop();
+  await page.goBack();
+  await page.goForward();
+  await page.getByText("Coming soon · Not available to order", { exact: true }).waitFor();
+  await assertPublicShop();
+  await page.goto(h.base + "/office?section=shop");
+  await page.waitForURL(/\/login/);
+  assert.equal(
+    await page.getByRole("heading", { name: "Shop owner controls", exact: true }).count(),
+    0,
+  );
+  await page.getByLabel("Email", { exact: true }).fill("shop-owner@example.invalid");
+  await page.getByLabel("Password", { exact: true }).fill(password);
+  await page.getByRole("button", { name: "Sign in", exact: true }).click();
+  await page.waitForURL(h.base + "/office?section=shop");
   await draft.getByRole("button", { name: "Remove product from shop", exact: true }).click();
   await draft.getByRole("button", { name: "Confirm archive", exact: true }).click();
   await page.getByRole("status").filter({ hasText: "Saved." }).waitFor();
@@ -329,6 +458,12 @@ try {
     (await h.sql`select archived from shop_products where id=${savedDraft.id}`)[0].archived,
     true,
   );
+  const archivedResponse = await fixtureRequest(async () => {
+    const response = await handler(new Request(h.base + publicHref));
+    await response.text();
+    return response.status;
+  });
+  assert.equal(archivedResponse, 404, "archived product public alias is unavailable");
   await page.getByLabel("Show archived products", { exact: true }).check();
   await draft.getByRole("button", { name: "Restore as draft", exact: true }).click();
   await page.getByRole("status").filter({ hasText: "Saved." }).waitFor();
@@ -347,7 +482,7 @@ try {
   await page.screenshot({ path: output + "/owner-mobile.png", fullPage: true });
   assert.deepEqual(errors, []);
   console.log(
-    "PASS shop lookbook, variant/quantity/cart persistence, mobile reflow, guest privacy, owner CRUD/pricing, photo normalization/private images, product detail, custom collections, combined filters, coming-soon publication/images/detail and disabled-payment guard.",
+    "PASS public routes contain no owner controls, raw draft routes return 404, guest/non-owner RPC denied, real owner Office Shop preserved; shop lookbook, variant/quantity/cart persistence, mobile reflow, guest privacy, owner CRUD/pricing, photo normalization/private images, product detail, custom collections, combined filters, coming-soon publication/images/detail and disabled-payment guard.",
   );
 } catch (e) {
   if (browser)
