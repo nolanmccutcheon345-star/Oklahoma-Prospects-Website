@@ -22,7 +22,7 @@ export const Route = createFileRoute("/events")({
     pageHead(
       "/events",
       "Camps & Clinics",
-      "Explore upcoming baseball and softball camps and clinics at Oklahoma Prospects.",
+      "Explore upcoming baseball and softball camps and clinics at Prospects Sports Academy.",
     ),
   component: EventsPage,
 });

@@ -515,7 +515,7 @@ export async function saveCenterAppointmentFor(
     if (!input.eventId || input.status === "proposed") {
       const email = typeof request.payload.email === "string" ? request.payload.email.trim() : "";
       if (/^[^\s@,;<>]+@[^\s@,;<>]+\.[^\s@,;<>]+$/.test(email))
-        await tx`insert into tryout_center_notices(id,request_id,email,category,subject,body,reply_to,dedupe_key) values(${randomUUID()},${input.requestId},${email},'appointment',${"Oklahoma Prospects — appointment " + input.status},${String(request.payload.player || "Player") + "\n" + body + "\nCoach: " + coach.name + "\n" + (input.status === "proposed" ? "This is a proposal only; space is not reserved. Reply to your coach to agree on a time." : input.status === "cancelled" ? "Do not attend this cancelled appointment. Reply to your coach to arrange another time." : "Reply to your coach with questions or changes.")},${coach.email},${input.actionId + ":family"}) on conflict(dedupe_key) do nothing`;
+        await tx`insert into tryout_center_notices(id,request_id,email,category,subject,body,reply_to,dedupe_key) values(${randomUUID()},${input.requestId},${email},'appointment',${"Prospects Sports Academy — appointment " + input.status},${String(request.payload.player || "Player") + "\n" + body + "\nCoach: " + coach.name + "\n" + (input.status === "proposed" ? "This is a proposal only; space is not reserved. Reply to your coach to agree on a time." : input.status === "cancelled" ? "Do not attend this cancelled appointment. Reply to your coach to arrange another time." : "Reply to your coach with questions or changes.")},${coach.email},${input.actionId + ":family"}) on conflict(dedupe_key) do nothing`;
     }
     return { ok: true };
   });
