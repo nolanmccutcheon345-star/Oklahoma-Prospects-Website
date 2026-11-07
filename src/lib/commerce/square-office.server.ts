@@ -173,6 +173,7 @@ export async function sendPaymentNotifications(orderId?: string, ownerOnly = fal
   await sql`insert into payment_notifications(id,order_id,kind)
     select 'owner-booking:' || o.id,o.id,'owner-booking' from commerce_orders o
     where o.payment_provider='square' and o.payment_environment=${c.environment} and o.status='paid'
+      and not (o.kind='event' and o.snapshot->'eventRegistration'->'thanksgivingDetails' is not null)
       and o.paid_at>now()-interval '1 day'
       and (${orderId || null}::text is null or o.id=${orderId || null})
       and exists(select 1 from booking_records b where b.order_id=o.id and b.status='confirmed' and b.ends_at>now())
