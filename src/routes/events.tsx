@@ -16,7 +16,8 @@ import {
   campAgeError,
   eventTypes,
 } from "@/lib/training-events-contracts";
-import { chicagoDate } from "@/lib/scheduling";
+import { thanksgivingGroup, thanksgivingDetailsSchema } from "@/lib/thanksgiving-camp";
+import { chicagoDate, chicagoInstant } from "@/lib/scheduling";
 export const Route = createFileRoute("/events")({
   head: () =>
     pageHead(
@@ -383,16 +384,18 @@ function Sessions({
     </ul>
   );
 }
-function EventRegistration({
+export function EventRegistration({
   event,
   family,
   name,
   email,
+  onCheckoutPrepared,
 }: {
   event: Event;
   family?: Awaited<ReturnType<typeof getEventFamily>>;
   name: string;
   email: string;
+  onCheckoutPrepared?: () => void;
 }) {
   const [player, setPlayer] = useState(""),
     [consent, setConsent] = useState(false),
@@ -402,10 +405,17 @@ function EventRegistration({
         : "package",
     ),
     [dates, setDates] = useState<string[]>([]),
+    [parentName, setParentName] = useState(name),
+    [parentPhone, setParentPhone] = useState(""),
+    [sport, setSport] = useState<"Baseball" | "Softball">("Baseball"),
     [busy, setBusy] = useState(false),
     [error, setError] = useState(""),
     [prepared, setPrepared] = useState<Awaited<ReturnType<typeof startEventCheckout>>>();
   const request = useRef(crypto.randomUUID());
+  const group = thanksgivingGroup(event.id);
+  const details = group
+    ? thanksgivingDetailsSchema.safeParse({ parentName, parentPhone, sport, ageGroup: group.value })
+    : undefined;
   let purchase: ReturnType<typeof campPurchase> | undefined;
   try {
     purchase = campPurchase(event, { option, dates });
@@ -427,12 +437,99 @@ function EventRegistration({
         {event.minAge !== undefined || event.maxAge !== undefined ? " on the first camp day" : ""}
       </p>
       <Sessions event={event} />
+      {group && (
+        <fieldset disabled={busy || !!prepared} className="grid gap-3 rounded-xl bg-paper-2 p-4">
+          <legend className="font-semibold">Parent contact & player sport</legend>
+          <label>
+            Parent or guardian name
+            <input
+              required
+              className="office-control w-full"
+              name="parentName"
+              autoComplete="name"
+              maxLength={120}
+              value={parentName}
+              onChange={(e) => {
+                setParentName(e.target.value);
+                changeChoice();
+              }}
+            />
+          </label>
+          <label>
+            Parent email
+            <input className="office-control w-full" type="email" value={email} readOnly />
+            <span className="text-sm">Confirmation goes to your verified account email.</span>
+          </label>
+          <label>
+            Parent phone
+            <input
+              required
+              className="office-control w-full"
+              type="tel"
+              name="parentPhone"
+              autoComplete="tel"
+              maxLength={30}
+              value={parentPhone}
+              onChange={(e) => {
+                setParentPhone(e.target.value);
+                changeChoice();
+              }}
+            />
+          </label>
+          <label>
+            Player sport
+            <select
+              className="office-control w-full"
+              value={sport}
+              onChange={(e) => {
+                setSport(e.target.value as "Baseball" | "Softball");
+                changeChoice();
+              }}
+            >
+              <option>Baseball</option>
+              <option>Softball</option>
+            </select>
+          </label>
+          {!details?.success && (
+            <p className="text-sm">
+              Enter a parent or guardian name and a phone number with at least 10 digits to
+              continue.
+            </p>
+          )}
+          <p className="text-sm">
+            Player name and age come from the household player selected below. Parent contact
+            details stay in the authorized office. Card details are handled by Square.
+          </p>
+        </fieldset>
+      )}
       <p>
         {event.location} ·{" "}
         {purchase
           ? formatMoney(purchase.totalCents) + " total per player"
           : "Select camp days to see your total"}
       </p>
+      {group && purchase && (
+        <p className="rounded-xl border border-line p-4 text-sm">
+          Full refund with at least 24 hours’ cancellation notice before the first selected session.
+          For this selection, give notice by{" "}
+          <strong>
+            {new Date(
+              Math.min(...purchase.sessions.map((s) => +chicagoInstant(s.date, s.start))) -
+                24 * 60 * 60 * 1000,
+            ).toLocaleString("en-US", {
+              timeZone: "America/Chicago",
+              dateStyle: "full",
+              timeStyle: "short",
+            })}{" "}
+            Central Time
+          </strong>
+          . After that, no refund. Contact Steve at{" "}
+          <a className="underline" href="tel:+19187602719">
+            (918) 760-2719
+          </a>
+          .
+        </p>
+      )}
       {event.pricingMode === "both" && (
         <fieldset disabled={!!prepared || busy} className="grid gap-2">
           <legend className="font-semibold">How would you like to register?</legend>
@@ -559,7 +656,15 @@ function EventRegistration({
             is pending.
           </p>
           <Button
-            disabled={!player || !!ageError || !consent || !purchase || busy || !!prepared}
+            disabled={
+              !player ||
+              !!ageError ||
+              !consent ||
+              !purchase ||
+              busy ||
+              !!prepared ||
+              (group && !details?.success)
+            }
             onClick={async () => {
               setBusy(true);
               setError("");
@@ -567,6 +672,7 @@ function EventRegistration({
                 setPrepared(
                   await startEventCheckout({
                     data: {
+                      thanksgivingDetails: details?.success ? details.data : undefined,
                       eventId: event.id,
                       athleteId: player,
                       revision: event.revision,
@@ -577,6 +683,7 @@ function EventRegistration({
                     },
                   }),
                 );
+                onCheckoutPrepared?.();
               } catch (e) {
                 setError((e as Error).message);
               } finally {
