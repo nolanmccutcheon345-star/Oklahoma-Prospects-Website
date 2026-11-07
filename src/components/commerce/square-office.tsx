@@ -80,6 +80,14 @@ export function SquareOffice() {
               ? `Connected configuration: ${data.config.environment}. Verify the location and complete Sandbox acceptance before enabling live payments.`
               : "Square is not configured. Checkout remains closed; no unpaid booking can be confirmed."}
           </p>
+          {data.config?.environment === "sandbox" && (
+            <p role="status">
+              Temporary camp readiness check: checkout scope {data.config.checkoutScope};
+              email credential configured {data.campMailReadiness.credentialConfigured ? "yes" : "no"};
+              email sender configured {data.campMailReadiness.senderConfigured ? "yes" : "no"}.
+              This check does not send a message or charge a card.
+            </p>
+          )}
           <p>
             Owner activity emails cover saved site changes. Cage-booking emails also go to the
             designated facility staff. Other activity is checked every minute.
