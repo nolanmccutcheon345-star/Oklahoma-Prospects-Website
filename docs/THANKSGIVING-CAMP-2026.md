@@ -6,6 +6,8 @@ Dedicated `/thanksgiving-camp` page, homepage and tryouts-page links. The existi
 
 Dates: November 23–25, 2026. Ages 6–9U: 9–11:30 a.m. Central. Ages 10U–14U: 1–3:30 p.m. Central. One day $45, two days $90, all three $120 (including when all three individual checkboxes are selected). Both age groups share a conservative maximum of 150 registrations per day, including payment holds and office enrollments.
 
+Activities: baseball includes hitting, fielding, pitching, baserunning and games. Softball is hitting and defense only, with no pitching, following the corrected v4 flyer direction. No old camp flyer is embedded on this page.
+
 Approved policy: full refund with at least 24 hours' cancellation notice before the start of the first day selected in the registration. After that, no refund. The precise deadline appears at checkout. Full-camp deadlines are Sunday November 22 at 9 a.m. for the younger group and 1 p.m. for the older group. Refunds remain office-reviewed through existing payment controls; this feature does not automatically issue refunds or alter unrelated policies.
 
 ## Owner setup after release

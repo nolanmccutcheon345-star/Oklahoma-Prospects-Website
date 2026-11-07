@@ -428,7 +428,7 @@ export async function thanksgivingEmailTest(userId: string, orderId: string, sen
     throw new Error("Camp email tests require an isolated non-production Square Sandbox.");
   const m = await import("./thanksgiving-mail-test.server");
   const sql = await getSql();
-  const config = { ...c, context: process.env.CONTEXT };
+  const config = { ...c, context: process.env.SQUARE_DEPLOY_CONTEXT || process.env.CONTEXT };
   if (!send)
     return { review: await m.reviewCampMailTest(sql, userId, orderId, config), results: [] };
   assertPaymentRequest();

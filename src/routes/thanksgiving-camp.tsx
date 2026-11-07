@@ -71,7 +71,7 @@ export function ThanksgivingCampPage() {
               <span className="text-powder">Camp.</span>
             </h1>
             <p className="mt-5 max-w-lg text-lg text-fg-soft">
-              Three days to build skills, play games and train with Prospects coaches.
+              Three days to build skills and train with Prospects coaches.
             </p>
             <p className="mt-5 flex items-center gap-3 text-xl font-semibold">
               <CalendarDays aria-hidden="true" />
@@ -122,7 +122,12 @@ export function ThanksgivingCampPage() {
         <section className="grid gap-6 md:grid-cols-2">
           <div>
             <h2 className="text-3xl">Work on your game.</h2>
-            <p className="mt-3 text-muted">Hitting, fielding, pitching, baserunning and games.</p>
+            <p className="mt-3 text-muted">
+              <strong>Baseball:</strong> Hitting, fielding, pitching, baserunning and games.
+            </p>
+            <p className="mt-3 text-muted">
+              <strong>Softball:</strong> Hitting and defense only. No pitching.
+            </p>
             <h3 className="mt-6 text-xl">Your camp coaches</h3>
             <p className="mt-2">{THANKSGIVING_CAMP.coaches.join(" · ")}</p>
           </div>

@@ -116,6 +116,12 @@ try {
     await page.setViewportSize({ width, height: 900 });
     await page.goto(origin);
     await page.getByRole("heading", { name: "Register your player." }).waitFor();
+    await page
+      .getByText("Softball: Hitting and defense only. No pitching.", { exact: true })
+      .waitFor();
+    await page
+      .getByText("Baseball: Hitting, fielding, pitching, baserunning and games.", { exact: true })
+      .waitFor();
     assert.equal(
       await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
       true,

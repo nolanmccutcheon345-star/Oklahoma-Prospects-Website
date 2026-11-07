@@ -67,7 +67,7 @@ export async function createThanksgivingDraftsFor(sql: Sql, userId: string) {
         minAge: group.minAge,
         maxAge: group.maxAge,
         description:
-          "Baseball and softball: hitting, fielding, pitching, baserunning and games with Steve McCutcheon, Nolan McCutcheon and Billy Ramey.",
+          "Baseball: hitting, fielding, pitching, baserunning and games. Softball: hitting and defense only. No softball pitching. Camp coaches: Steve McCutcheon, Nolan McCutcheon and Billy Ramey.",
         priceCents: THANKSGIVING_CAMP.packagePriceCents,
         pricingMode: "both",
         dayPriceCents: THANKSGIVING_CAMP.dayPriceCents,
