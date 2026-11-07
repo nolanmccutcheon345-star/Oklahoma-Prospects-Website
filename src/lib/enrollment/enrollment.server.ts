@@ -1,3 +1,4 @@
+import { rosterWaiver } from "./athlete-link.server";
 import { randomUUID } from "node:crypto";
 import type { Sql } from "../db";
 import { secured } from "../coordinator/access.server";
@@ -166,13 +167,8 @@ export async function enrollmentCase(sql: Sql, actor: string, input: unknown) {
     const [health] = await tx<{
       present: boolean;
     }>`select exists(select 1 from enrollment_medical where case_id=${c.row.id}) as present`;
-    const links = await tx<{
-      athlete_id: string;
-    }>`select athlete_id from team_dev_roster_links where team_id=${c.team.id} and roster_player_id=${caseInput.parse(input).playerId} and ended_at is null`;
-    const athleteId = links.length === 1 ? links[0].athlete_id : null;
-    const [waiver] = await tx<{
-      current: boolean;
-    }>`select exists(select 1 from club_waivers where athlete_id=${athleteId} and signed_at<=now() and signed_at+interval '1 year'>now()) as current`;
+    const waiver = await rosterWaiver(tx, c.team.id, caseInput.parse(input).playerId);
+    const athleteId = waiver.athleteId;
     const [concussion] = await tx<{
       current: boolean;
     }>`select exists(select 1 from enrollment_concussion_acknowledgments where case_id=${c.row.id} and acknowledged_at<=now() and acknowledged_at+interval '1 year'>now()) as current`;
@@ -196,6 +192,8 @@ export async function enrollmentCase(sql: Sql, actor: string, input: unknown) {
       waiverCurrent: waiver.current,
       concussionCurrent: concussion.current,
       athleteLinked: Boolean(athleteId),
+      athleteId: c.guardian ? athleteId : null,
+      athleteLinkStatus: waiver.status,
       packetSigned: signatures.length > 0,
       acknowledgmentUpdate:
         signatures.length > 0 && !signatures.some((s) => s.packetDigest === packet.digest),

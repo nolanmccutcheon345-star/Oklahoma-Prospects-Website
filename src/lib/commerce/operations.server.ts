@@ -62,7 +62,7 @@ export async function earnings(userId: string) {
   if (active) return active;
   const me = await staffIdentity(userId);
   if (me.role !== "admin" && me.role !== "coach" && !me.canInstruct)
-    throw new Error("Coach access required.");
+    throw new Error("Coach access requires an active coach assignment. Contact the club administrator.");
   const file = await readWorkingFile();
   const coachId = assignedCoachIdFor(me, file);
   const rows = await sql<{

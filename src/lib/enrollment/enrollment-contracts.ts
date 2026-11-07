@@ -82,6 +82,8 @@ export type CaseSummary = {
   waiverCurrent: boolean;
   concussionCurrent: boolean;
   athleteLinked: boolean;
+  athleteId: string | null;
+  athleteLinkStatus: "linked" | "missing" | "review-required";
   packetSigned: boolean;
   acknowledgmentUpdate: boolean;
   clearedAt: string | null;

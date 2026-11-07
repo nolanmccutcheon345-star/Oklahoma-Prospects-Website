@@ -173,6 +173,7 @@ export async function sendPaymentNotifications(orderId?: string, ownerOnly = fal
   await sql`insert into payment_notifications(id,order_id,kind)
     select 'owner-booking:' || o.id,o.id,'owner-booking' from commerce_orders o
     where o.payment_provider='square' and o.payment_environment=${c.environment} and o.status='paid'
+      and not (o.kind='event' and o.snapshot->'eventRegistration'->'thanksgivingDetails' is not null)
       and o.paid_at>now()-interval '1 day'
       and (${orderId || null}::text is null or o.id=${orderId || null})
       and exists(select 1 from booking_records b where b.order_id=o.id and b.status='confirmed' and b.ends_at>now())
@@ -414,4 +415,28 @@ export async function setupMonthlyPlans(userId: string) {
     userId,
     configuredPlanVariation,
   );
+}
+
+export async function thanksgivingEmailTest(userId: string, orderId: string, send = false) {
+  await requirePaymentOwner(userId);
+  const c = squareConfig();
+  if (
+    c.environment !== "sandbox" ||
+    process.env.CONTEXT === "production" ||
+    process.env.SQUARE_DEPLOY_CONTEXT === "production"
+  )
+    throw new Error("Camp email tests require an isolated non-production Square Sandbox.");
+  const m = await import("./thanksgiving-mail-test.server");
+  const sql = await getSql();
+  const config = { ...c, context: process.env.SQUARE_DEPLOY_CONTEXT || process.env.CONTEXT };
+  if (!send)
+    return { review: await m.reviewCampMailTest(sql, userId, orderId, config), results: [] };
+  assertPaymentRequest();
+  await rateLimit("owner-thanksgiving-email-test", 3);
+  const key = process.env.RESEND_API_KEY || "";
+  const from = process.env.RESEND_FROM_EMAIL || process.env.EMAIL_FROM || "";
+  return {
+    review: await m.reviewCampMailTest(sql, userId, orderId, config),
+    results: await m.sendCampMailTest(sql, userId, orderId, config, { key, from }),
+  };
 }

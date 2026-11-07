@@ -1,12 +1,21 @@
+import {
+  noticeReleaseAllowed,
+  releaseUnsubmittedNoticeClaim,
+  previewNoticeRelease,
+  approveNoticeReleases,
+  dispatchNoticeReleases,
+} from "./notifications/release-control.server";
 import { randomUUID } from "node:crypto";
 import type { Sql } from "./db";
 import { authEmailAllowed } from "./auth/email.server";
+import { authorizedTeamInvitation } from "./teams/invitations.server";
 type Env = Record<string, string | undefined>;
 type Invite = {
   id: string;
   email: string;
   role: string;
   family_id: string | null;
+  team_id: string | null;
   invited_by: string;
   expires_at: Date;
   status: string;
@@ -23,7 +32,8 @@ async function currentOwner(tx: Sql, actor: string) {
 }
 export async function invitationIssuerAuthorized(
   tx: Sql,
-  invite: Pick<Invite, "role" | "family_id" | "invited_by">,
+  invite: Pick<Invite, "role" | "family_id" | "invited_by"> &
+    Partial<Pick<Invite, "team_id" | "email">>,
 ) {
   if (invite.role.endsWith("_coordinator")) {
     try {
@@ -35,12 +45,14 @@ export async function invitationIssuerAuthorized(
       return false;
     }
   }
+  if (invite.team_id) return authorizedTeamInvitation(tx, invite.invited_by, invite);
   if (await currentOwner(tx, invite.invited_by)) return true;
   if (invite.role !== "parent" || !invite.family_id) return false;
   return (
     (
       await tx`select u.id from "user" u join profiles p on p.user_id=u.id join household_members m on m.user_id=u.id
-    where u.id=${invite.invited_by} and u."emailVerified" and u."disabledAt" is null and p.role='parent' and m.household_id=${invite.family_id}`
+    where u.id=${invite.invited_by} and u."emailVerified" and u."disabledAt" is null and p.role='parent' and m.household_id=${invite.family_id}
+    and not exists(select 1 from organization_operational_access a where a.user_id=u.id and a.financial_restricted)`
     ).length > 0
   );
 }
@@ -49,7 +61,11 @@ async function managedInvitation(tx: Sql, actor: string, id: string) {
   if (
     !invite ||
     !(await invitationIssuerAuthorized(tx, invite)) ||
-    !((await currentOwner(tx, actor)) || actor === invite.invited_by)
+    !(
+      (await currentOwner(tx, actor)) ||
+      actor === invite.invited_by ||
+      (await authorizedTeamInvitation(tx, actor, invite))
+    )
   )
     throw new Error("Invitation management is unavailable for this account.");
   return invite;
@@ -67,7 +83,71 @@ export async function queueInvitationEmail(sql: Sql, actor: string, id: string) 
     return { status: row.status };
   });
 }
-function emailBody(invite: Invite, env: Env): Body {
+
+/** The owner reviews this exact invitation in place; merely opening it never approves mail. */
+export async function prepareInvitationEmail(sql: Sql, actor: string, id: string, env: Env) {
+  await queueInvitationEmail(sql, actor, id);
+  const owner = await currentOwner(sql, actor);
+  const review = owner ? await previewNoticeRelease(sql, actor, env, "invitation", id) : null;
+  const blockers = [
+    ...(!owner ? ["An owner must review and send this invitation from Front Office."] : []),
+    ...(!env.RESEND_API_KEY || !(env.RESEND_FROM_EMAIL || env.EMAIL_FROM)
+      ? ["Email delivery is not configured. The invitation is saved; no email was sent."]
+      : []),
+    ...(env.INVITATION_EMAIL_PAUSED === "true" ? ["Invitation email delivery is paused."] : []),
+    ...(env.SQUARE_DEPLOY_CONTEXT !== "production" || (env.CONTEXT && env.CONTEXT !== "production")
+      ? ["Send invitations from the production owner workspace."]
+      : []),
+  ];
+  return { review, blockers };
+}
+
+/** Approval and dispatch stay tied to the exact owner-reviewed recipient/content digest. */
+export async function sendReviewedInvitationEmail(
+  sql: Sql,
+  actor: string,
+  id: string,
+  digest: string,
+  env: Env,
+  send: typeof fetch = fetch,
+) {
+  const { review, blockers } = await prepareInvitationEmail(sql, actor, id, env);
+  if (blockers.length) throw Error(blockers.join(" "));
+  if (!review || review.digest !== digest)
+    throw Error("Invitation changed. Review it again before sending.");
+  // A repeated click must not approve or submit another copy of an accepted email.
+  if (review.approvalStatus === "sent")
+    return {
+      status: "accepted",
+      message: "The email provider already accepted this invitation. Check delivery below.",
+    };
+  const items = [{ queue: "invitation" as const, id, digest }];
+  await approveNoticeReleases(sql, actor, env, { items, confirmed: true });
+  const { results } = await dispatchNoticeReleases(
+    sql,
+    actor,
+    env,
+    { items, confirmed: true },
+    send,
+  );
+  const status = results[0].status;
+  const [delivery] = await sql<{
+    next_attempt_at: Date;
+    attempts: number;
+  }>`select next_attempt_at,attempts from invitation_delivery where invitation_id=${id}`;
+  return {
+    status,
+    message:
+      status === "accepted"
+        ? "Email provider accepted the invitation. Check delivery to confirm recipient-server delivery."
+        : status === "review"
+          ? "Delivery needs owner review; retries stopped to avoid a duplicate email."
+          : status === "processing"
+            ? "A delivery attempt is already in progress. Check delivery before retrying."
+            : `Email has not been accepted by the provider. Review and retry after ${new Date(delivery.next_attempt_at).toISOString()}. The same invitation will be reused.`,
+  };
+}
+export function invitationEmailBody(invite: Invite, env: Env): Body {
   const origin =
     env.SQUARE_DEPLOY_CONTEXT === "production" && (!env.CONTEXT || env.CONTEXT === "production")
       ? "https://prospectssports.club"
@@ -78,7 +158,7 @@ function emailBody(invite: Invite, env: Env): Body {
     from: (env.RESEND_FROM_EMAIL || env.EMAIL_FROM)!,
     to: [invite.email],
     subject: "Prospects Sports Academy — account invitation",
-    text: `You have been invited to the Prospects Sports Academy ${invite.family_id ? "household guardian" : invite.role.replaceAll("_", " ")} workspace.\n\nSign in or create your account using this exact email address, verify your email, then open:\n${new URL("/invitations", origin).href}\n\nThis invitation expires ${new Date(invite.expires_at).toISOString()}. It does not accept a team fee, sign an agreement or make a payment. Any team offer must be reviewed separately in your family account.\n\nIf this invitation was unexpected, contact the academy through ${new URL("/contact", origin).href}.`,
+    text: `You have been invited to the Prospects Sports Academy ${invite.family_id ? "household guardian" : invite.role.replaceAll("_", " ")} workspace.\n\nSign in or create your account using this exact email address, verify your email, then open:\n${new URL("/invitations", origin).href}\n\nThis invitation expires ${new Date(invite.expires_at).toISOString()}. It does not accept a team fee, sign an agreement or make a payment. Any team offer must be reviewed separately in your family account.${invite.role === "parent" && invite.team_id ? `\n\nAfter accepting your invitation, open your Team Hub for announcements, schedules, attendance replies and family conversations with your coaches:\n${new URL("/team-hub", origin).href}\nUse the same verified email each time. Save this link on your phone. Team Hub access does not complete enrollment, accept fees or authorize payments.` : ""}\n\nIf this invitation was unexpected, contact the academy through ${new URL("/contact", origin).href}.`,
   };
 }
 export async function deliverInvitationEmails(
@@ -95,11 +175,12 @@ export async function deliverInvitationEmails(
     return { accepted: 0, failed: 0, skipped: true };
   const candidates = await sql<{
     invitation_id: string;
-  }>`select invitation_id from invitation_delivery where (${onlyId || null}::text is null or invitation_id=${onlyId || null}) and
+  }>`select invitation_id from invitation_delivery where exists(select 1 from notice_release_approvals a where a.queue='invitation' and a.source_id=invitation_id and a.approved) and (${onlyId || null}::text is null or invitation_id=${onlyId || null}) and
     ((status='pending' and next_attempt_at<=now()) or (status='processing' and lease_until<now())) order by requested_at limit 2`;
   let accepted = 0,
     failed = 0;
   for (const candidate of candidates) {
+    if (!(await noticeReleaseAllowed(sql, "invitation", candidate.invitation_id, env))) continue;
     const lease = randomUUID();
     const claimed = await sql.transaction(async (tx) => {
       const [row] = await tx<{
@@ -128,7 +209,7 @@ export async function deliverInvitationEmails(
         await tx`update invitation_delivery set status='review',lease_token=null,lease_until=null where invitation_id=${invite.id}`;
         return null;
       }
-      const body = row.request_body || emailBody(invite, env);
+      const body = row.request_body || invitationEmailBody(invite, env);
       await tx`update invitation_delivery set status='processing',lease_token=${lease},lease_until=now()+interval '2 minutes',attempts=attempts+1,
         first_attempt_at=coalesce(first_attempt_at,now()),request_body=${JSON.stringify(body)}::jsonb where invitation_id=${invite.id}`;
       return { invite, body };
@@ -142,6 +223,10 @@ export async function deliverInvitationEmails(
       continue;
     }
     try {
+      if (!(await noticeReleaseAllowed(sql, "invitation", claimed.invite.id, env, claimed.body))) {
+        await releaseUnsubmittedNoticeClaim(sql, "invitation", claimed.invite.id, lease);
+        continue;
+      }
       const response = await send("https://api.resend.com/emails", {
         method: "POST",
         headers: {

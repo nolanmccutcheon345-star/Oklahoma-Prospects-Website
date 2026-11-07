@@ -221,10 +221,19 @@ export const linkTeamDevelopmentRoster = createServerFn({ method: "POST" })
         ?.roster.find((p) => p.id === data.rosterPlayerId);
       if (!player) throw new Error("Roster player not found on that team.");
       const athlete = await tx.query<{ id: string }>(
-        "select id from club_athletes where id=$1",
-        [data.athleteId],
+        "select id from club_athletes where id=$1 and household_id=$2",
+        [data.athleteId, player.familyId],
       );
-      if (!athlete.length) throw new Error("Athlete record not found.");
+      if (!athlete.length || player.withdrawn)
+        throw new Error("Choose an active roster athlete in the same verified household.");
+      const recruiting = await tx.query<{ athlete_id: string }>(
+        "select athlete_id from recruiting_roster_links where team_id=$1 and roster_id=$2",
+        [data.teamId, data.rosterPlayerId],
+      );
+      if (recruiting.some((link) => link.athlete_id !== data.athleteId))
+        throw new Error(
+          "Recruiting and roster identities conflict. Review the existing link before changing this athlete.",
+        );
       await tx.query(
         "update team_dev_roster_links set ended_at=now(),ended_by=$1 where team_id=$2 and roster_player_id=$3 and ended_at is null",
         [context.userId, data.teamId, data.rosterPlayerId],

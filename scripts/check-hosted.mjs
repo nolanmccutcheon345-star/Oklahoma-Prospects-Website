@@ -62,6 +62,15 @@ for (const path of ["/visit", "/check-in", "/checkin"]) {
   console.log(`PASS 301 ${path} -> /visits`);
 }
 
+// Verify the deployed edge path, not only the application-level redirect.
+for (const path of ["/contact?subject=", "/contact?subject=%20%20"]) {
+  const response = await request(path);
+  assert.equal(response.status, 301, `${path}: edge canonical redirect`);
+  assert.equal(new URL(response.headers.get("location"), origin).href,
+    new URL("/contact", origin).href, `${path}: empty subject removed without a redirect loop`);
+  console.log(`PASS 301 ${path} -> /contact`);
+}
+
 // The health endpoint is a GET-only diagnostic. A missing DB should be an
 // explicit 503, never a forged "isolated" hash or a deployment-wide 500.
 const healthResponse = await request("/api/health");

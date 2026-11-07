@@ -1,3 +1,4 @@
+import { rosterWaiver } from "./athlete-link.server";
 import type { Sql } from "../db";
 import { withFinancialContext, isFinancialGuardian } from "../finance/context.server";
 import { enrollmentScope } from "./access.server";
@@ -75,14 +76,11 @@ export async function enrollmentGuide(
           cleared_at: string | null;
           medical: boolean;
           concussion: boolean;
-          waiver: boolean;
-          linked: boolean;
         }>`select c.id,c.cleared_at::text,
           exists(select 1 from enrollment_medical m where m.case_id=c.id) as medical,
-          exists(select 1 from enrollment_concussion_acknowledgments a where a.case_id=c.id and a.acknowledged_at<=now() and a.acknowledged_at+interval '1 year'>now()) as concussion,
-          exists(select 1 from team_dev_roster_links l join club_waivers w on w.athlete_id=l.athlete_id where l.team_id=c.team_id and l.roster_player_id=c.player_id and l.ended_at is null and w.signed_at<=now() and w.signed_at+interval '1 year'>now()) as waiver,
-          (select count(*)=1 from team_dev_roster_links l where l.team_id=c.team_id and l.roster_player_id=c.player_id and l.ended_at is null) as linked
+          exists(select 1 from enrollment_concussion_acknowledgments a where a.case_id=c.id and a.acknowledged_at<=now() and a.acknowledged_at+interval '1 year'>now()) as concussion
           from enrollment_cases c where c.team_id=${team.id} and c.player_id=${player.id} and c.season_key=${season}`;
+        const waiver = await rosterWaiver(tx, team.id, player.id);
         const financialPlayer = c.club.teams
           .find((t) => t.id === team.id)
           ?.roster.find((p) => p.id === player.id);
@@ -101,15 +99,16 @@ export async function enrollmentGuide(
           signature &&
           record?.medical &&
           record?.concussion &&
-          record?.waiver &&
-          record?.linked,
+          waiver.current &&
+          waiver.athleteId,
         );
         const missing = [
           !signature && "review and sign the current team packet",
           !record?.medical && "complete emergency and medical information",
           !record?.concussion && "complete the annual concussion acknowledgment",
-          !record?.waiver && "sign the annual facility waiver",
-          !record?.linked && "ask Prospects to link the roster athlete to the athlete record",
+          waiver.athleteId && !waiver.current && "sign the annual facility waiver",
+          !waiver.athleteId &&
+            "ask Prospects to verify the roster athlete link; do not add a duplicate athlete or sign again",
         ]
           .filter(Boolean)
           .join("; ");

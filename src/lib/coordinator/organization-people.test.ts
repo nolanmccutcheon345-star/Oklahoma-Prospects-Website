@@ -1,3 +1,4 @@
+import { approveSyntheticNotices } from "../notifications/release-control.test-fixture";
 import test, { after } from "node:test";
 import assert from "node:assert/strict";
 import { readFile, readdir } from "node:fs/promises";
@@ -302,6 +303,11 @@ test("inactive current assignee survives unrelated follow-up and queued delivery
     saveCenterWorkFor(sql, "owner", { ...value, id: "new-request", actionId: randomUUID() }),
     /active approved/,
   );
+  await approveSyntheticNotices(sql, "center", {
+    SQUARE_DEPLOY_CONTEXT: "dev",
+    CONTEXT: "dev",
+    RESEND_FROM_EMAIL: "club@example.invalid",
+  });
   let sends = 0;
   await deliverCenterNotifications(
     sql,

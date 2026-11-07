@@ -12,7 +12,7 @@ const player=z.object({
  agreement:z.object({version:short,signedBy:short,signedAt:short}).strict(),
  rosterConsent:z.object({version:short,text:text,signedBy:short,signerEmail:short,signedAt:short,revokedAt:short.optional()}).strict().optional(),
  feeLock:z.object({amount:money,lockedAt:short,policyVersion:short,components:numbers}).strict().nullable().optional(),
- planLock:z.object({dep:money,deadline:short,planType:short,rows:z.array(z.object({date:short,amount:money}).strict()).max(100)}).strict().nullable().optional(),
+ planLock:z.object({dep:money,deadline:short,planType:short,rows:z.array(z.object({date:short,amount:money,label:short.optional()}).strict()).max(100)}).strict().nullable().optional(),
  credits:z.array(z.object({label:short,amount:money}).strict()).max(1000).optional(),
  payments:z.array(z.object({date:short,amount:money,fee:money,charged:money,method:short,label:short,receipt:short}).strict()).max(2000).optional(),
  cards:z.array(z.object({brand:short,last4:z.string().max(4),exp:short,primary:z.boolean()}).strict()).max(20).optional(),

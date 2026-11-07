@@ -190,7 +190,7 @@ test("delivery recheck cannot fall back to legacy grants for restricted suspende
     assert.equal(delivered.accepted, 0);
     assert.equal(
       (await sql`select status from tryout_center_notices where id=${queued.id}`)[0].status,
-      "skipped",
+      "pending", // Unapproved historical content remains held, not processed or deleted.
     );
     await sql`update organization_operational_access set status='active' where user_id='sara'`;
     await sql`update "user" set "emailVerified"=false where id='sara'`;

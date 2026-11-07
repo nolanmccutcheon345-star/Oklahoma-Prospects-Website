@@ -1,3 +1,7 @@
+import {
+  noticeReleaseAllowed,
+  releaseUnsubmittedNoticeClaim,
+} from "../notifications/release-control.server";
 import { createHash, randomUUID } from "node:crypto";
 import type { Sql } from "../db";
 import { tryoutEmailAllowed } from "../tryout-notifications.server";
@@ -155,6 +159,7 @@ export async function deliverProgramEventNotices(
   sql: Sql,
   env: Record<string, string | undefined>,
   send: typeof fetch = fetch,
+  onlyIds?: string[],
 ) {
   if (
     !env.RESEND_API_KEY ||
@@ -166,10 +171,11 @@ export async function deliverProgramEventNotices(
   )
     return { accepted: 0, failed: 0, skipped: true };
   const candidates =
-    await sql<Notice>`select * from coordinator_program_notices where (status='pending' and next_attempt_at<=now()) or (status='processing' and lease_until<now()) order by created_at limit 10`;
+    await sql<Notice>`select * from coordinator_program_notices where exists(select 1 from notice_release_approvals a where a.queue='program' and a.source_id=id::text and a.approved) and (${onlyIds || null}::text[] is null or id::text=any(${onlyIds || null}::text[])) and ((status='pending' and next_attempt_at<=now()) or (status='processing' and lease_until<now())) order by created_at limit 10`;
   let accepted = 0,
     failed = 0;
   for (const c of candidates) {
+    if (!(await noticeReleaseAllowed(sql, "program", c.id, env))) continue;
     if (!tryoutEmailAllowed(c.email, env)) continue;
     const token = randomUUID();
     const n = await sql.transaction(async (tx) => {
@@ -205,6 +211,10 @@ export async function deliverProgramEventNotices(
       await sql`select id from coordinator_program_notices where id=${n.id} and status='processing' and lease_token=${token} and lease_until>now()`;
     if (!leased) continue;
     try {
+      if (!(await noticeReleaseAllowed(sql, "program", n.id, env, n.request_body))) {
+        await releaseUnsubmittedNoticeClaim(sql, "program", n.id, token);
+        continue;
+      }
       const r = await send("https://api.resend.com/emails", {
         method: "POST",
         headers: {

@@ -47,8 +47,10 @@ import { Route as RecruitingRouteImport } from './routes/recruiting'
 import { Route as RegistrationsRouteImport } from './routes/registrations'
 import { Route as SitemapDotxmlRouteImport } from './routes/sitemap[.]xml'
 import { Route as SoftballRouteImport } from './routes/softball'
+import { Route as TeamHubRouteImport } from './routes/team-hub'
 import { Route as TeamsRouteImport } from './routes/teams'
 import { Route as TermsRouteImport } from './routes/terms'
+import { Route as ThanksgivingCampRouteImport } from './routes/thanksgiving-camp'
 import { Route as TrainingRouteImport } from './routes/training'
 import { Route as TryoutsRouteImport } from './routes/tryouts'
 import { Route as TwoFactorRouteImport } from './routes/two-factor'
@@ -282,6 +284,11 @@ const SoftballRoute = SoftballRouteImport.update({
   path: '/softball',
   getParentRoute: () => rootRouteImport,
 } as any)
+const TeamHubRoute = TeamHubRouteImport.update({
+  id: '/team-hub',
+  path: '/team-hub',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const TeamsRoute = TeamsRouteImport.update({
   id: '/teams',
   path: '/teams',
@@ -290,6 +297,11 @@ const TeamsRoute = TeamsRouteImport.update({
 const TermsRoute = TermsRouteImport.update({
   id: '/terms',
   path: '/terms',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ThanksgivingCampRoute = ThanksgivingCampRouteImport.update({
+  id: '/thanksgiving-camp',
+  path: '/thanksgiving-camp',
   getParentRoute: () => rootRouteImport,
 } as any)
 const TrainingRoute = TrainingRouteImport.update({
@@ -543,8 +555,10 @@ export interface FileRoutesByFullPath {
   '/registrations': typeof RegistrationsRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/softball': typeof SoftballRoute
+  '/team-hub': typeof TeamHubRoute
   '/teams': typeof TeamsRouteWithChildren
   '/terms': typeof TermsRoute
+  '/thanksgiving-camp': typeof ThanksgivingCampRoute
   '/training': typeof TrainingRoute
   '/tryouts': typeof TryoutsRoute
   '/two-factor': typeof TwoFactorRoute
@@ -627,8 +641,10 @@ export interface FileRoutesByTo {
   '/registrations': typeof RegistrationsRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/softball': typeof SoftballRoute
+  '/team-hub': typeof TeamHubRoute
   '/teams': typeof TeamsRouteWithChildren
   '/terms': typeof TermsRoute
+  '/thanksgiving-camp': typeof ThanksgivingCampRoute
   '/training': typeof TrainingRoute
   '/tryouts': typeof TryoutsRoute
   '/two-factor': typeof TwoFactorRoute
@@ -712,8 +728,10 @@ export interface FileRoutesById {
   '/registrations': typeof RegistrationsRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/softball': typeof SoftballRoute
+  '/team-hub': typeof TeamHubRoute
   '/teams': typeof TeamsRouteWithChildren
   '/terms': typeof TermsRoute
+  '/thanksgiving-camp': typeof ThanksgivingCampRoute
   '/training': typeof TrainingRoute
   '/tryouts': typeof TryoutsRoute
   '/two-factor': typeof TwoFactorRoute
@@ -798,8 +816,10 @@ export interface FileRouteTypes {
     | '/registrations'
     | '/sitemap.xml'
     | '/softball'
+    | '/team-hub'
     | '/teams'
     | '/terms'
+    | '/thanksgiving-camp'
     | '/training'
     | '/tryouts'
     | '/two-factor'
@@ -882,8 +902,10 @@ export interface FileRouteTypes {
     | '/registrations'
     | '/sitemap.xml'
     | '/softball'
+    | '/team-hub'
     | '/teams'
     | '/terms'
+    | '/thanksgiving-camp'
     | '/training'
     | '/tryouts'
     | '/two-factor'
@@ -966,8 +988,10 @@ export interface FileRouteTypes {
     | '/registrations'
     | '/sitemap.xml'
     | '/softball'
+    | '/team-hub'
     | '/teams'
     | '/terms'
+    | '/thanksgiving-camp'
     | '/training'
     | '/tryouts'
     | '/two-factor'
@@ -1051,8 +1075,10 @@ export interface RootRouteChildren {
   RegistrationsRoute: typeof RegistrationsRoute
   SitemapDotxmlRoute: typeof SitemapDotxmlRoute
   SoftballRoute: typeof SoftballRoute
+  TeamHubRoute: typeof TeamHubRoute
   TeamsRoute: typeof TeamsRouteWithChildren
   TermsRoute: typeof TermsRoute
+  ThanksgivingCampRoute: typeof ThanksgivingCampRoute
   TrainingRoute: typeof TrainingRoute
   TryoutsRoute: typeof TryoutsRoute
   TwoFactorRoute: typeof TwoFactorRoute
@@ -1362,6 +1388,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SoftballRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/team-hub': {
+      id: '/team-hub'
+      path: '/team-hub'
+      fullPath: '/team-hub'
+      preLoaderRoute: typeof TeamHubRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/teams': {
       id: '/teams'
       path: '/teams'
@@ -1374,6 +1407,13 @@ declare module '@tanstack/react-router' {
       path: '/terms'
       fullPath: '/terms'
       preLoaderRoute: typeof TermsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/thanksgiving-camp': {
+      id: '/thanksgiving-camp'
+      path: '/thanksgiving-camp'
+      fullPath: '/thanksgiving-camp'
+      preLoaderRoute: typeof ThanksgivingCampRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/training': {
@@ -1747,8 +1787,10 @@ const rootRouteChildren: RootRouteChildren = {
   RegistrationsRoute: RegistrationsRoute,
   SitemapDotxmlRoute: SitemapDotxmlRoute,
   SoftballRoute: SoftballRoute,
+  TeamHubRoute: TeamHubRoute,
   TeamsRoute: TeamsRouteWithChildren,
   TermsRoute: TermsRoute,
+  ThanksgivingCampRoute: ThanksgivingCampRoute,
   TrainingRoute: TrainingRoute,
   TryoutsRoute: TryoutsRoute,
   TwoFactorRoute: TwoFactorRoute,

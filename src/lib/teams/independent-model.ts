@@ -17,6 +17,11 @@ export const independentTermsSchema = z
     seasonKey: z.string().uuid(),
     uniformDeposit: cents,
     uniformDue: date,
+    /** Owner-published individual accommodation; never a team-wide default. */
+    depositInstallments: z
+      .array(z.object({ amount: cents.positive(), due: date }).strict())
+      .length(2)
+      .optional(),
     monthlyDues: cents,
     firstDue: date,
     billingDay: z.number().int().min(1).max(31),
@@ -46,7 +51,7 @@ export type IndependentInstallment = {
 
 /** Present historical installment labels without changing accepted financial records. */
 export function independentInstallmentLabel(row: { kind?: string; label: string }) {
-  return row.kind === "uniform" || row.label === "Uniform deposit" ? "Initial deposit" : row.label;
+  return row.label === "Uniform deposit" ? "Initial deposit" : row.label;
 }
 
 export function independentSchedule(b: IndependentBudget): IndependentInstallment[] {
@@ -74,7 +79,32 @@ export function independentSchedule(b: IndependentBudget): IndependentInstallmen
       : 0;
     return { id, kind, base, amount, processing: amount - base, due, label };
   };
-  const rows = [row("uniform", "uniform", t.uniformDeposit, t.uniformDue, "Initial deposit")];
+  const deposits = t.depositInstallments;
+  if (deposits) {
+    if (deposits.reduce((sum, part) => sum + part.amount, 0) !== t.uniformDeposit)
+      throw Error("Deposit installments must total the initial deposit.");
+    if (
+      deposits[0].due !== t.uniformDue ||
+      !deposits[0].due ||
+      !deposits[1].due ||
+      deposits[1].due <= deposits[0].due ||
+      deposits[1].due > t.firstDue
+    )
+      throw Error(
+        "Use two increasing deposit dates, starting on the deposit due date and ending on or before monthly dues begin.",
+      );
+  }
+  const rows = deposits
+    ? deposits.map((part, index) =>
+        row(
+          `uniform:split:${index + 1}`,
+          "uniform",
+          part.amount,
+          part.due,
+          `Initial deposit — payment ${index + 1} of ${deposits.length}`,
+        ),
+      )
+    : [row("uniform", "uniform", t.uniformDeposit, t.uniformDue, "Initial deposit")];
   const [year, month] = t.firstDue.split("-").map(Number);
   for (let i = 0; i < 36; i++) {
     const start = new Date(Date.UTC(year, month - 1 + i, 1, 12));
@@ -223,6 +253,9 @@ export function independentPublishedPolicy(
     "Payments to Prospects — per player. Independent team expenses are set and collected separately by the team.\n\n" +
     (b.parentExplanation ? feeExplanationText(b.parentExplanation) + "\n\n" : "") +
     b.policy +
+    (b.independent?.depositInstallments
+      ? "\n\nOwner-approved individual deposit accommodation: the two deposit payments listed below apply only to this player and supersede general handbook language disallowing alternative payment arrangements for these deposit dates only. No scholarship, hardship exemption, discount, waived balance or change to monthly dues is granted. The family must separately review and accept this financial agreement."
+      : "") +
     "\n\n" +
     b.independent!.processingExplanation +
     "\n\n" +

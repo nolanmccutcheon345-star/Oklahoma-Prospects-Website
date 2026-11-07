@@ -1,0 +1,456 @@
+/* Prospects Sports Academy visual theme. Existing hub behavior is retained. */
+
+.hub {
+  --hub-navy: #0a203a;
+  --hub-blue: #b3e1fa;
+  --hub-maroon: #b90830;
+  --hub-line: #d8e2ec;
+  min-height: 100vh;
+  background: #eef2f6;
+  color: #152c43;
+}
+.hub-preview {
+  background: #061321;
+  color: #b8cadb;
+  padding: 10px max(24px, calc((100vw - 1436px) / 2));
+  border-bottom: 1px solid #203b54;
+  font-size: 12px;
+  letter-spacing: 0.02em;
+}
+.hub-preview b {
+  color: #d8edfb;
+  letter-spacing: 0.08em;
+}
+.hub-preview .hub-btn {
+  color: #d8edfb;
+  border-color: #456079;
+  background: #132b42;
+  min-height: 36px;
+  padding: 6px 12px;
+  font-size: 12px;
+}
+.hub-top {
+  position: relative;
+  isolation: isolate;
+  display: grid;
+  grid-template-columns: minmax(200px, 1fr) minmax(320px, 560px);
+  grid-template-rows: 1fr auto;
+  column-gap: 42px;
+  row-gap: 0;
+  padding: 18px max(32px, calc((100vw - 1436px) / 2));
+  background: radial-gradient(ellipse at 65% 20%, #193f63 0, transparent 65%), #08192f;
+  border-bottom: 3px solid #b3e1fa;
+  box-shadow: 0 3px 0 #a3072b;
+}
+.hub-top::before {
+  content: "";
+  grid-column: 2;
+  grid-row: 1 / 3;
+  display: block;
+  width: 100%;
+  aspect-ratio: 706 / 396;
+  /* Show only the supplied stadium artwork; phone and social UI stay outside this viewport. */
+  background: url("/brand/team-hub-reference.jpeg") center center / 100% auto no-repeat;
+  border: 1px solid #426a8e;
+  box-shadow: 0 15px 40px #0005;
+}
+.hub-top::after {
+  content: "";
+  pointer-events: none;
+  position: absolute;
+  z-index: -1;
+  inset: 0;
+  background: linear-gradient(
+    125deg,
+    transparent 22%,
+    #b9083024 22.1%,
+    #b9083024 23.5%,
+    transparent 23.6%,
+    transparent 25%,
+    #86ccef18 25.1%,
+    #86ccef18 25.4%,
+    transparent 25.5%
+  );
+}
+.hub-top > div:first-child {
+  align-self: end;
+  grid-column: 1;
+  grid-row: 1;
+  padding-bottom: 22px;
+}
+.hub-kicker {
+  font-size: 12px;
+  letter-spacing: 0.22em;
+  color: #b3e1fa;
+}
+.hub h1 {
+  font-family: Impact, "Arial Narrow", system-ui, sans-serif;
+  font-size: clamp(3rem, 5vw, 4.8rem);
+  font-weight: 900;
+  font-style: italic;
+  line-height: 1.06;
+  text-transform: uppercase;
+  letter-spacing: -0.025em;
+  text-shadow: 0 3px 0 #0005;
+}
+.hub-user {
+  grid-column: 1;
+  grid-row: 2;
+  padding-bottom: 28px;
+  flex-direction: row-reverse;
+  justify-content: flex-end;
+}
+.hub-user-name b {
+  font-size: 14px;
+}
+.hub-avatar {
+  background: #c5e8fb;
+  border: 2px solid #81b7d7;
+}
+.hub-avatar.staff {
+  background: #9a1236;
+  border-color: #be4260;
+}
+.hub-layout {
+  max-width: 1500px;
+  min-height: 570px;
+}
+.hub-side {
+  background: #0c2138;
+  color: #c6d9eb;
+  border: 0;
+  padding: 30px 18px;
+}
+.hub-side label {
+  letter-spacing: 0.14em;
+  font-size: 11px;
+  color: #9bb7ce;
+}
+.hub-side select {
+  background-color: #18334d;
+  color: #f2f8fc;
+  border-color: #3d5b75;
+  font-size: 13px;
+}
+.hub-nav {
+  gap: 8px;
+}
+.hub-nav button {
+  color: #c5d8e9;
+  border-radius: 6px;
+  font-size: 14px;
+}
+.hub-nav button:hover {
+  background: #193751;
+  color: #fff;
+}
+.hub-nav button[data-state="active"] {
+  background: #b90830;
+  box-shadow:
+    inset 3px 0 0 #b3e1fa,
+    0 4px 14px #0002;
+  color: #fff;
+}
+.hub-nav button[data-state="active"] .hub-badge {
+  color: #fff;
+  background: #ffffff2b;
+}
+.hub-side-note {
+  color: #a8c0d5;
+  border-color: #30475f;
+  line-height: 1.65;
+  font-size: 12px;
+}
+.hub-side-note svg {
+  color: #b3e1fa;
+  margin-bottom: 6px;
+}
+.hub-main {
+  padding: 32px;
+}
+.hub-heading h2 {
+  font-weight: 850;
+  letter-spacing: -0.04em;
+  font-size: 1.8rem;
+}
+.hub-heading p {
+  font-size: 13px;
+}
+.hub-card {
+  border-radius: 9px;
+  box-shadow: 0 5px 18px #102e4607;
+  padding: 24px;
+}
+.hub-card.urgent {
+  border-top-color: #b90830;
+}
+.hub-card h3 {
+  letter-spacing: -0.025em;
+  font-weight: 800;
+}
+.hub-badge {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.055em;
+  padding: 5px 8px;
+}
+.hub-badge.urgent {
+  color: #9b1235;
+  background: #fbe9ee;
+}
+.hub-meta time {
+  font-size: 12px;
+}
+.hub-body {
+  font-size: 15px;
+  line-height: 1.75;
+}
+.hub-btn {
+  border-radius: 5px;
+  font-size: 13px;
+  font-weight: 750;
+  transition:
+    background-color 0.15s ease,
+    border-color 0.15s ease;
+}
+.hub-btn:hover:not(:disabled) {
+  background: #edf5fb;
+  border-color: #6794b4;
+}
+.hub-btn.primary {
+  background: #b90830;
+  border-color: #b90830;
+  color: #fff;
+  box-shadow: 0 3px 9px #a3072b1c;
+}
+.hub-btn.primary:hover:not(:disabled) {
+  background: #940927;
+  border-color: #940927;
+}
+.hub-btn.blue {
+  background: #b3e1fa;
+  border-color: #b3e1fa;
+}
+.hub-aside > .hub-card:first-child {
+  background: linear-gradient(140deg, #173959, #0b2038);
+  color: #e3edf6;
+  border: 1px solid #234763;
+  border-top: 3px solid #b3e1fa;
+}
+.hub-aside > .hub-card:first-child h3 {
+  color: #fff;
+}
+.hub-aside > .hub-card:first-child .hub-body {
+  color: #c8d9e8;
+}
+.hub-number {
+  color: #9b1235;
+  background: #f8eaf0;
+}
+.hub-message.mine {
+  background: #d9ecf8;
+  border: 1px solid #bfd7e8;
+}
+.hub-connection {
+  font-size: 12px;
+}
+.hub-modal {
+  border-top: 4px solid #b90830;
+  box-shadow: 0 24px 80px #0005;
+}
+.hub button:focus-visible,
+.hub a:focus-visible,
+.hub input:focus-visible,
+.hub select:focus-visible,
+.hub textarea:focus-visible {
+  outline: 3px solid #3788c6;
+  outline-offset: 3px;
+}
+.hub-side button:focus-visible,
+.hub-preview button:focus-visible {
+  outline-color: #b3e1fa;
+}
+@media (width <= 1150px) {
+  .hub-top {
+    grid-template-columns: 1fr 1.25fr;
+    gap: 24px;
+  }
+  .hub-top > div:first-child {
+    padding-bottom: 0;
+  }
+  .hub-user {
+    padding-bottom: 10px;
+  }
+  .hub-main {
+    padding: 26px 22px;
+  }
+}
+@media (width <= 700px) {
+  .hub-preview {
+    padding: 10px 16px;
+    gap: 8px;
+    font-size: 10px;
+  }
+  .hub-preview > span {
+    flex: 1;
+    min-width: 180px;
+  }
+  .hub-preview b {
+    display: block;
+  }
+  .hub-preview .hub-btn {
+    font-size: 11px;
+    padding: 6px 10px;
+  }
+  .hub-top {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-rows: auto auto;
+    padding: 16px;
+    gap: 18px 12px;
+  }
+  .hub-top::before {
+    grid-column: 1 / -1;
+    grid-row: 1;
+    max-width: 480px;
+    justify-self: center;
+  }
+  .hub-top > div:first-child {
+    grid-column: 1;
+    grid-row: 2;
+    padding: 0;
+  }
+  .hub-user {
+    grid-column: 2;
+    grid-row: 2;
+    padding: 0;
+    align-self: center;
+  }
+  .hub h1 {
+    font-size: 2.6rem;
+  }
+  .hub-kicker {
+    font-size: 9px;
+    letter-spacing: 0.18em;
+    margin-bottom: 5px !important;
+  }
+  .hub-side {
+    padding: 18px 16px 12px;
+  }
+  .hub-side label {
+    font-size: 10px;
+    margin-bottom: 6px;
+  }
+  .hub-side select {
+    min-height: 44px;
+  }
+  .hub-nav {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    margin-top: 12px;
+    gap: 4px;
+    padding-bottom: 0;
+  }
+  .hub-nav button {
+    min-width: 0;
+    flex-wrap: wrap;
+    white-space: normal;
+    font-size: 12px;
+    min-height: 44px;
+    padding: 10px 8px;
+    gap: 6px;
+  }
+  .hub-nav button[data-state="active"] {
+    box-shadow: inset 0 -3px 0 #b3e1fa;
+  }
+  .hub-nav .hub-badge {
+    padding: 2px 5px;
+    font-size: 10px;
+  }
+  .hub-main {
+    padding: 24px 16px;
+  }
+  .hub-heading h2 {
+    font-size: 1.6rem;
+  }
+  .hub-card {
+    padding: 19px;
+  }
+  .hub h3 {
+    font-size: 1.2rem;
+  }
+  .hub-body {
+    font-size: 14px;
+  }
+  .hub-card-foot {
+    gap: 10px;
+  }
+  .hub-ack-count {
+    font-size: 12px;
+  }
+}
+@media (width <= 360px) {
+  .hub-nav {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .hub-nav button {
+    font-size: 12px;
+    padding-inline: 8px;
+    gap: 6px;
+  }
+  .hub-preview > span {
+    min-width: 150px;
+  }
+  .hub-preview .hub-btn {
+    padding-inline: 8px;
+    font-size: 10px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .hub-btn {
+    transition: none;
+  }
+}
+
+.hub a.hub-btn {
+  color: inherit;
+}
+.hub a.hub-btn.primary {
+  color: white;
+}
+.hub-tab-panel {
+  outline-offset: 4px;
+}
+.hub-quicklinks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 22px;
+}
+.hub .hub-side a {
+  color: #c5d8e9;
+}
+.hub .hub-side .hub-btn {
+  background: #18334d;
+  border-color: #456079;
+  margin-top: 12px;
+  width: 100%;
+}
+.hub-empty a {
+  display: inline-flex;
+  min-height: 44px;
+  align-items: center;
+  margin: 8px;
+  text-decoration: underline;
+}
+.hub-loading {
+  padding: 32px;
+}
+.hub-post-form {
+  margin-bottom: 20px;
+}
+.hub-event-details {
+  margin-bottom: 12px;
+}
+.hub-status a {
+  text-decoration: underline;
+}

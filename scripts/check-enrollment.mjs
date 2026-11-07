@@ -8,7 +8,7 @@ import { chromium } from "playwright";
 import { hashPassword } from "better-auth/crypto";
 import { enrollmentFixture, prepareOrganization } from "../src/lib/enrollment/test-fixture.ts";
 import { enrollmentCase } from "../src/lib/enrollment/enrollment.server.ts";
-import { defaultBudget } from "../src/lib/teams/fee-model.ts";
+import { defaultBudget, pricingKeys, calculateFees } from "../src/lib/teams/fee-model.ts";
 import { mutateFeePlan } from "../src/lib/teams/fee.server.ts";
 for (const name of [
   "DATABASE_URL",
@@ -27,6 +27,8 @@ let socket,
 const shots = "artifacts/enrollment";
 await mkdir(shots, { recursive: true });
 try {
+  for (const team of h.club.teams) for (const player of team.roster) player.teamId = team.id;
+  await h.sql`update club_state set payload=${JSON.stringify(h.club)}::jsonb where id='oklahoma-prospects'`;
   await prepareOrganization(h.sql);
   const inviteId = randomUUID();
   await h.sql`insert into club_invites(id,token_hash,email,role,family_id,team_id,invited_by,expires_at) values(${inviteId},${inviteId},'guardian@example.invalid','parent','home-guardian','base','owner',now()+interval '7 days')`;
@@ -65,6 +67,11 @@ try {
     await enrollmentCase(h.sql, "guardian", { teamId, playerId: teamId + "-player" });
     await h.sql`insert into team_activities(id,team_id,payload,updated_by) values(${randomUUID()},${teamId},${JSON.stringify({ kind: "practice", title: "Synthetic practice", date: "2026-01-01", startTime: "15:00", status: "scheduled" })}::jsonb,'owner')`;
   }
+  // Real saved athletes and explicit recruiting links, with no development link or pre-seeded waiver.
+  for (const teamId of ["base", "soft"]) {
+    await h.sql`insert into club_athletes(id,user_id,household_email,name,birth_date) values(${teamId + "-athlete"},'guardian','guardian@example.invalid',${"Synthetic " + teamId + " athlete"},'2014-02-01')`;
+    await h.sql`insert into recruiting_roster_links(athlete_id,team_id,roster_id,linked_by) values(${teamId + "-athlete"},${teamId},${teamId + "-player"},'owner')`;
+  }
   const password = randomUUID() + "Aa9!",
     hashed = await hashPassword(password);
   for (const id of ["guardian", "coach", "coordinator", "owner"])
@@ -74,6 +81,7 @@ try {
   await socket.start();
   Object.assign(process.env, {
     DATABASE_URL: "postgresql://postgres@" + socket.getServerConn() + "/postgres",
+    APP_BASE_URL: origin,
     BETTER_AUTH_URL: origin,
     BETTER_AUTH_SECRET: randomUUID() + randomUUID(),
     VITE_AUTH_ENABLED: "true",
@@ -184,6 +192,37 @@ try {
       ).includes(`playerId=${teamId}-player`),
       "The guide follows the selected athlete without showing the previous player's steps",
     );
+    await p.getByRole("link", { name: "Review or sign annual waiver", exact: true }).click();
+    await p
+      .getByLabel("Athlete", { exact: true })
+      .locator('option[value="' + teamId + '-athlete"]')
+      .waitFor({ state: "attached" });
+    assert.equal(await p.getByLabel("Athlete", { exact: true }).inputValue(), teamId + "-athlete");
+    await p.getByLabel("Responsible adult name", { exact: true }).fill("Synthetic Guardian");
+    await p.getByLabel("Adult mobile", { exact: true }).fill("555-010-1212");
+    await p.getByLabel("Emergency contact", { exact: true }).fill("Synthetic Emergency");
+    await p.getByLabel("Emergency phone", { exact: true }).fill("555-010-3434");
+    await p
+      .getByLabel("Electronic signature (full legal name)", { exact: true })
+      .fill("Synthetic Guardian");
+    await p.getByLabel("Participant", { exact: true }).selectOption("minor");
+    await p.getByLabel("Relationship to participant", { exact: true }).selectOption("parent");
+    for (const checkbox of await p.locator('form input[type="checkbox"]').all())
+      await checkbox.check();
+    await p.getByRole("button", { name: "Sign the annual waiver", exact: true }).click();
+    await p.getByText(/Your signed waiver is saved/).waitFor();
+    assert.equal(
+      (await h.sql`select id from club_waivers where athlete_id=${teamId + "-athlete"}`).length,
+      1,
+    );
+    await p.reload();
+    await p.getByText(/A current waiver is already on file/).waitFor();
+    assert.equal(
+      await p.getByRole("button", { name: "Sign the annual waiver", exact: true }).count(),
+      0,
+    );
+    await p.getByRole("link", { name: "Return to player enrollment", exact: true }).click();
+    await p.getByRole("link", { name: "Review saved annual waiver", exact: true }).waitFor();
     await p.getByRole("button", { name: "Sign this packet", exact: true }).waitFor();
     await p.getByRole("link", { name: "View memberships", exact: true }).waitFor();
     assert.match(await p.locator("body").innerText(), /full published price/);
@@ -223,6 +262,11 @@ try {
     .waitFor();
   assert.equal((await h.sql`select * from square_payments`).length, 0);
   assert.equal((await h.sql`select * from team_collection_authorizations`).length, 0);
+  assert.equal(
+    new URL(p.url()).searchParams.get("playerId"),
+    "base-player",
+    "Switching players updates the saved page context",
+  );
   await p.reload();
   await p
     .getByText("Review and accept your player's fee agreement — Complete", { exact: true })
@@ -251,6 +295,13 @@ try {
     "375px layout must fit",
   );
   await p.screenshot({ path: shots + "/guardian-mobile.png", fullPage: false });
+  const returningGuardian = await signedIn("guardian", 390);
+  await returningGuardian.page.getByLabel("Athlete and season").selectOption("base:base-player");
+  await returningGuardian.page
+    .getByRole("link", { name: "Review saved annual waiver", exact: true })
+    .waitFor();
+  assert.equal((await h.sql`select id from club_waivers`).length, 2);
+  assert.equal((await h.sql`select id from team_dev_roster_links`).length, 0);
   const coach = await signedIn("coach", 1280);
   await coach.page.getByLabel("Athlete and season").selectOption("base:base-player");
   await coach.page
@@ -266,6 +317,11 @@ try {
       .count(),
     0,
   );
+  await coach.page
+    .getByText("Your current annual facility waiver is on file. No new signature is needed.", {
+      exact: true,
+    })
+    .waitFor();
   assert.ok(!coach.bodies.join("").includes("PRIVATE-MEDICAL-CANARY"));
   const coordinator = await signedIn("coordinator", 390);
   await coordinator.page.getByLabel("Athlete and season").selectOption("soft:soft-player");
@@ -342,9 +398,220 @@ try {
     true,
     "Team checkbox reflects the resumed signature setting",
   );
+  // Exercise the organization-managed publication path against the compiled server,
+  // alongside the existing independent-family acceptance workflow above.
+  const organizationBudget = {
+    ...defaultBudget(),
+    poEnabled: false,
+    start: "2098-02-01",
+    end: "2098-06-25",
+    baseline: 10,
+    billableMonthsOverride: 6,
+    billableMonthsReason: "Synthetic owner-reviewed six-month billing term.",
+    membershipMonthly: 10000,
+    fullOrg: 50000,
+    tournamentEstimate: 650000,
+    uniformEstimate: 25000,
+    costs: [{ id: "fixed", name: "Synthetic season coaching and travel", cents: 893000 }],
+    contingencyBps: 1250,
+    processingBps: 300,
+    processingFixed: 0,
+    roundTo: 2500,
+    pricingInheritance: { version: 1, overrides: [...pricingKeys] },
+    eventPaymentSchedule: undefined,
+    paymentSchedule: {
+      mode: "percent",
+      rows: [
+        { full: 7000, po: 7000, due: "" },
+        { full: 1500, po: 1500, due: "2098-01-05" },
+        { full: 1500, po: 1500, due: "" },
+      ],
+    },
+    deadlineOverride: "2098-01-25",
+    policy: "Synthetic reviewed payment and refund terms.",
+    reinstatement: "Synthetic owner review after all enrollment requirements.",
+    parentExplanation: {
+      initialDeposit: "Upfront uniforms and tournament commitments.",
+      monthlyDues: "Included facility and program services.",
+      teamExpenses: "Personal equipment and gate admission are separate.",
+      additionalNotes: "",
+    },
+    readiness: {
+      schedule: true,
+      gas: true,
+      hotels: true,
+      other: true,
+      processing: true,
+      noUniform: false,
+    },
+  };
+  await mutateFeePlan(h.sql, "owner", {
+    action: "save",
+    teamId: "soft",
+    revision: 0,
+    budget: organizationBudget,
+    uniforms: [],
+    expenses: [],
+  });
+  await owner.page.goto(origin + "/account?desk=team-finances");
+  await owner.page.getByLabel("Team", { exact: true }).selectOption("soft");
+  await owner.page
+    .locator('[aria-label="Selected team fee plan"]')
+    .getByLabel("Organization fee per full player ($)", { exact: true })
+    .fill("600");
+  await owner.page.getByRole("button", { name: "Save draft & expenses", exact: true }).click();
+  await owner.page
+    .getByText("Draft saved. Publish after reviewing the fee and policy.", { exact: true })
+    .waitFor();
+  assert.equal(
+    (await h.sql`select payload from team_fee_plans where team_id='soft'`)[0].payload.published,
+    undefined,
+  );
+  await owner.page.reload();
+  await owner.page.getByLabel("Team", { exact: true }).selectOption("soft");
+  assert.equal(
+    await owner.page
+      .locator('[aria-label="Selected team fee plan"]')
+      .getByLabel("Organization fee per full player ($)", { exact: true })
+      .inputValue(),
+    "600",
+  );
+  await owner.page.getByRole("button", { name: "Review & publish fees", exact: true }).click();
+  const reviewed = owner.page.locator('[aria-label="Player obligations to publish"]');
+  await reviewed.waitFor();
+  const expectedTotal = calculateFees({ ...organizationBudget, fullOrg: 60000 }).full;
+  assert.ok(
+    (await reviewed.innerText()).includes(
+      new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(
+        expectedTotal / 100,
+      ),
+    ),
+  );
+  await reviewed.scrollIntoViewIfNeeded();
+  await owner.page.screenshot({ path: shots + "/publication-review-desktop.png", fullPage: false });
+  owner.page.once("dialog", (dialog) => dialog.accept());
+  await owner.page
+    .getByRole("button", { name: "Save & publish approved fees", exact: true })
+    .click();
+  await owner.page.getByText(/^Fees published\./).waitFor();
+  const published = (await h.sql`select payload from team_fee_plans where team_id='soft'`)[0]
+    .payload;
+  assert.equal(published.published.full, expectedTotal);
+  assert.deepEqual(
+    published.published.schedules.full.map((r) => r.amount),
+    [
+      Math.round(expectedTotal * 0.7),
+      Math.round(expectedTotal * 0.15),
+      Math.round(expectedTotal * 0.15),
+    ],
+  );
+  assert.equal((await h.sql`select * from square_payments`).length, 0);
+  assert.equal((await h.sql`select * from team_collection_authorizations`).length, 0);
+  await owner.page.setViewportSize({ width: 375, height: 900 });
+  await owner.page.getByRole("button", { name: "Review & publish fees", exact: true }).click();
+  await reviewed.scrollIntoViewIfNeeded();
+  assert.ok(
+    await owner.page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1),
+  );
+  await owner.page.screenshot({ path: shots + "/publication-review-mobile.png", fullPage: false });
+  // Both funding models expose scoped invitations without granting financial writes.
+  await coach.page.goto(origin + "/account?desk=team-finances");
+  await coach.page.getByText("Team invitations", { exact: true }).click();
+  await coach.page
+    .getByRole("button", { name: "Refresh invitation status", exact: true })
+    .waitFor();
+  assert.equal(
+    await coach.page.getByRole("button", { name: "Review & publish fees", exact: true }).count(),
+    0,
+  );
+  assert.ok(!coach.bodies.join("").includes("PRIVATE-MEDICAL-CANARY"));
+  await coach.page.getByRole("button", { name: "Create & review invitation", exact: true }).click();
+  await coach.page
+    .getByText(
+      "Invitation saved. Review the email below; an owner can choose Send invitation to submit it.",
+      { exact: true },
+    )
+    .waitFor();
+  await coach.page
+    .getByText("An owner must review and send this invitation from Front Office.", { exact: true })
+    .waitFor();
+  assert.equal(
+    (await h.sql`select * from invitation_delivery where provider_message_id is not null`).length,
+    0,
+  );
+  assert.equal(
+    (
+      await h.sql`select * from club_invites where team_id='base' and invited_by='coach' and role='parent' and status='pending'`
+    ).length,
+    1,
+  );
+  // The owner's newly created account invitation stays visible in the same workflow.
+  // This dev build must never send a real email, even from the new review control.
+  await owner.page.goto(origin + "/office?section=staff");
+  await owner.page.getByRole("button", { name: "Invite User", exact: true }).click();
+  const accountForm = owner.page
+    .locator("form")
+    .filter({ has: owner.page.getByRole("button", { name: "Review invitation", exact: true }) });
+  await accountForm.getByLabel("Name", { exact: true }).fill("Synthetic invited parent");
+  await accountForm.getByLabel("Email", { exact: true }).fill("new-parent@example.invalid");
+  await accountForm.getByRole("button", { name: "Review invitation", exact: true }).click();
+  await owner.page
+    .getByRole("heading", { name: "Finish sending your invitation", exact: true })
+    .waitFor();
+  const invitationReview = owner.page.locator('[aria-label="Invitation email"]');
+  await invitationReview
+    .getByRole("heading", { name: "Review and send this invitation", exact: true })
+    .waitFor();
+  assert.match(await invitationReview.innerText(), /new-parent@example.invalid/);
+  assert.equal(
+    await invitationReview.locator("h4").evaluate((node) => node === document.activeElement),
+    true,
+  );
+  assert.match(await invitationReview.innerText(), /\/invitations/);
+  assert.equal(
+    await invitationReview
+      .getByRole("button", { name: "Send invitation", exact: true })
+      .isEnabled(),
+    false,
+  );
+  assert.equal(
+    await owner.page.getByRole("combobox", { name: /^Access status/ }).inputValue(),
+    "invited",
+  );
+  assert.ok(
+    await owner.page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1),
+  );
+  await invitationReview.scrollIntoViewIfNeeded();
+  await owner.page.screenshot({ path: shots + "/invitation-review-mobile.png", fullPage: false });
+  assert.equal(
+    (await h.sql`select * from invitation_delivery where provider_message_id is not null`).length,
+    0,
+  );
+  await coach.page.goto(origin + "/coach");
+  await coach.page.getByText("Operational checklist", { exact: true }).waitFor();
+  await coach.page.getByText("Edit roster details", { exact: true }).first().click();
+  const position = coach.page.getByLabel("Positions (comma separated)", { exact: true }).first();
+  const newPositions = (await position.inputValue()) === "P,2B" ? "P,SS" : "P,2B";
+  await position.fill(newPositions);
+  await coach.page.getByText("You have unsaved coach changes.", { exact: true }).waitFor();
+  await coach.page
+    .getByRole("button", { name: "Save roster details", exact: true })
+    .first()
+    .click();
+  await coach.page.getByText("Coach changes saved.", { exact: true }).waitFor();
+  await coach.page.reload();
+  await coach.page.getByText("Edit roster details", { exact: true }).first().click();
+  assert.equal(
+    await coach.page
+      .getByLabel("Positions (comma separated)", { exact: true })
+      .first()
+      .inputValue(),
+    newPositions,
+  );
+  await coach.page.getByText(/Annual waiver: On file/).waitFor();
   assert.deepEqual(errors, []);
   console.log(
-    "PASS: real compiled guardian signatures for baseball and softball, optional-media independence, medical privacy, assigned-coach scope, scoped coordinator attendance, mobile layouts. Synthetic payments only in domain tests; no live pilot certified.",
+    "PASS: real compiled annual waiver save, reload, fresh-session and coach status; guardian signatures for baseball and softball, optional-media independence, medical privacy, assigned-coach scope, scoped coordinator attendance, draft save/reload, reviewed fee publication, scoped invitation queueing and mobile layouts. Synthetic providers only; no live pilot certified.",
   );
 } catch (error) {
   console.error("Browser errors:", errors);

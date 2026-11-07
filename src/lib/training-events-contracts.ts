@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { thanksgivingDetailsSchema, thanksgivingGroup } from "./thanksgiving-camp";
 export const eventTypes = {
   camp: "Camp",
   clinic: "Clinic",
@@ -80,6 +81,7 @@ export const eventCheckoutSchema = z
     revision: z.number().int().positive(),
     requestId: z.string().uuid(),
     consent: z.literal(true),
+    thanksgivingDetails: thanksgivingDetailsSchema.optional(),
     option: z.enum(["package", "days"]).optional(),
     dates: z.array(date).max(30).optional(),
   })
@@ -110,7 +112,9 @@ export function campPurchase(
     throw Error("Full-camp registration includes every day.");
   const sessions = event.sessions.filter((s) => dates.includes(s.date));
   const totalCents =
-    option === "package" ? event.priceCents : (event.dayPriceCents || 0) * dates.length;
+    option === "package" || (thanksgivingGroup(event.id) && dates.length === 3)
+      ? event.priceCents
+      : (event.dayPriceCents || 0) * dates.length;
   if (!Number.isSafeInteger(totalCents) || totalCents <= 0)
     throw Error("Camp pricing is unavailable.");
   return { option, dates, sessions, totalCents };

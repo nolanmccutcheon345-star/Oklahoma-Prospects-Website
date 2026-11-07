@@ -189,7 +189,7 @@ export async function checkIn(userId: string, bookingId: string) {
 export async function coachBookings(userId: string) {
   const me = await staffIdentity(userId);
   if (me.role !== "admin" && me.role !== "coach" && !me.canInstruct)
-    throw new Error("Coach access required.");
+    throw new Error("Coach access requires an active coach assignment. Contact the club administrator.");
   const file = await readWorkingFile();
   const coachId = assignedCoachIdFor(me, file);
   const sql = await getSql();
@@ -213,7 +213,7 @@ export async function completeSession(userId: string, bookingId: string, notes: 
   sessionCompletionInput.parse({ id: bookingId, notes });
   const me = await staffIdentity(userId);
   if (me.role !== "coach" && me.role !== "admin" && !me.canInstruct)
-    throw new Error("Coach access required.");
+    throw new Error("Coach access requires an active coach assignment. Contact the club administrator.");
   throw new Error(
     "Open the booked guided lesson and use Publish & Complete Session to save attendance, tracking and the recap together.",
   );

@@ -1,3 +1,4 @@
+import { approveSyntheticNotices } from "../notifications/release-control.test-fixture";
 import {
   requireGrant,
   secured,
@@ -1314,6 +1315,7 @@ test("follow-up assignment, tryout attendance and delivery history use independe
       RESEND_FROM_EMAIL: "staff@example.invalid",
       TRYOUT_EMAIL_TEST_RECIPIENTS: "softball@example.invalid",
     };
+    await approveSyntheticNotices(sql, "center", env, ["internal-task"]);
     assert.equal((await deliverCenterNotifications(sql, env, transport)).failed, 1);
     assert.equal(attempts, 1);
     await sql`update tryout_center_notices set next_attempt_at=now() where id='internal-task'`;
@@ -2722,6 +2724,16 @@ test("roster eligibility withdrawal and expiry block existing sessions without a
     await sql`update coordinator_roster_clearances set expires_at='2099-01-01' where id=${clearance.id}`;
     await sql`delete from staff_authorities where email='owner@example.invalid' and capability='staff_approvals.review'`;
     await assert.rejects(ops.addEligibleRosterAthlete(sql, "zero", add), /not authorized/);
+    // Owner transport does not replace the exact domain capability checks.
+    await assert.rejects(ops.ownerRosterEligibility(sql, "owner", { search: "" }));
+    await assert.rejects(ops.clearRosterEligibility(sql, "owner", clearance));
+    await assert.rejects(
+      ops.revokeRosterEligibility(sql, "owner", {
+        id: clearance.id,
+        revision: 1,
+        reason: "Owner no longer has review authority",
+      }),
+    );
     await sql`insert into staff_authorities values('owner@example.invalid','staff_approvals.review')`;
     await ops.revokeRosterEligibility(sql, "owner", {
       id: clearance.id,
@@ -2917,6 +2929,7 @@ test("communications require independent grants, confirmed current recipients, o
       previewDigest: preview.previewDigest,
       confirm: true,
     });
+    await approveSyntheticNotices(sql, "team", {});
     assert.deepEqual(await c.deliverTeamNotices(sql), { sent: 1, blocked: 0 });
     assert.deepEqual(await c.deliverTeamNotices(sql), { sent: 0, blocked: 0 });
     const read = await c.teamNoticeHistory(sql, "softball", { sport: "softball", teamId: "soft" });
@@ -2945,6 +2958,7 @@ test("communications require independent grants, confirmed current recipients, o
       previewDigest: p.previewDigest,
       confirm: true,
     });
+    await approveSyntheticNotices(sql, "team", {}, [revoked.id]);
     await assign("softball", "softball", ["communications.read"], "teams", ["soft"]);
     assert.deepEqual(await c.deliverTeamNotices(sql), { sent: 0, blocked: 1 });
     await assign("softball", "softball", ["communications.program.request", "communications.read"]);
@@ -2973,6 +2987,7 @@ test("communications require independent grants, confirmed current recipients, o
       confirm: true,
       reason: "Owner reviewed exact teams and notice",
     });
+    await approveSyntheticNotices(sql, "team", {});
     assert.deepEqual(await c.deliverTeamNotices(sql), { sent: 1, blocked: 0 });
     await assert.rejects(
       c.previewTeamNotice(sql, "softball", { ...mass, id: randomUUID(), teamIds: ["base"] }),
@@ -3407,6 +3422,7 @@ test("program family notices commit atomically, retain exact retries and stop af
         status: attempts.length === 1 ? 503 : 200,
       });
     }) as typeof fetch;
+    await approveSyntheticNotices(sql, "program", env);
     assert.equal((await delivery.deliverProgramEventNotices(sql, env, send)).failed, 1);
     await sql`update coordinator_program_notices set next_attempt_at=now()`;
     assert.equal(
@@ -3430,6 +3446,7 @@ test("program family notices commit atomically, retain exact retries and stop af
       revision: 1,
       action: "unenroll",
     });
+    await approveSyntheticNotices(sql, "program", env);
     await sql`delete from household_members where user_id='parent'`;
     await delivery.deliverProgramEventNotices(sql, env, send);
     assert.equal(attempts.length, 2);
@@ -3441,6 +3458,7 @@ test("program family notices commit atomically, retain exact retries and stop af
     );
     await sql`insert into household_members(household_id,user_id) values('notice-family','parent')`;
     await ops.saveProgramEnrollment(sql, "zero", { ...enrollment, revision: 2, action: "enroll" });
+    await approveSyntheticNotices(sql, "program", env);
     await sql`update coordinator_assignments set permissions='{}',revision=revision+1 where user_id='zero'`;
     await delivery.deliverProgramEventNotices(sql, env, send);
     assert.equal(attempts.length, 2);

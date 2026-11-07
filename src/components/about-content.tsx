@@ -38,6 +38,7 @@ export function AboutContent({ content }: { content: AboutDocument }) {
           <BrandImage
             src="/brand/facility.jpg"
             alt="Indoor practice lanes at Prospects Sports Facility"
+            priority
             width={1536}
             height={1152}
             className="aspect-[4/3] w-full object-cover"

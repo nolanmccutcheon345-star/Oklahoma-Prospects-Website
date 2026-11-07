@@ -30,7 +30,7 @@ async function identity(userId: string): Promise<Identity> {
     player.parents.some(parent => parent.email.trim().toLowerCase() === me.email)
     || (me.role === "player" && player.email.trim().toLowerCase() === me.email));
   if (matched?.familyId) familyId = matched.familyId;
-  return { ...me, primaryRole:me.role, role:me.role==='admin'?'admin':me.canTeamCoach?'coach':me.role, familyId };
+  return { ...me, primaryRole:me.role, role:me.role==='admin'?'admin':me.canTeamCoach?'coach':me.role==='coach'&&me.coachInactive?'parent':me.role, familyId };
 }
 
 async function loadRaw(sql?:Sql,lock=false){ return readStoredClub(sql||await getSql(),lock); }

@@ -6,15 +6,25 @@ test("homepage and teams route consume the published tryout source, never a fixe
   const home = await readFile("src/routes/index.tsx", "utf8");
   const teams = await readFile("src/routes/teams.tsx", "utf8");
   const tryouts = await readFile("src/routes/tryouts.tsx", "utf8");
-  for (const [page, content] of [["teams", teams], ["tryouts", tryouts]]) {
-    assert.match(content, /loader:\s*\(\) => getPublicTryoutEvents\(\)/, page + " missing canonical schedule loader");
-  }
+  assert.match(
+    tryouts,
+    /loader:\s*\(\) => getPublicTryoutEvents\(\)/,
+    "tryouts missing canonical schedule loader",
+  );
+  assert.match(
+    teams,
+    /loader:\s*async \(\) => \{[\s\S]*?publicRequest\(getPublicTryoutEvents\(\)\)/,
+    "teams must load the canonical schedule with bounded recovery",
+  );
   assert.doesNotMatch(home, /Nov\s*14|Nov\s*15|2026-11-14|2026-11-15/);
   assert.equal((home.match(/to="\/tryouts"/g) || []).length, 2);
   assert.match(home, />Tryouts</);
   assert.doesNotMatch(home, /Free · request a tryout|Earn a roster spot/);
   assert.doesNotMatch(home, /getPublicTryoutEvents\(\)/);
-  assert.match(teams.slice(teams.indexOf("function TeamsPublic()")), /const events = Route\.useLoaderData\(\)/);
+  assert.match(
+    teams.slice(teams.indexOf("function TeamsPublic()")),
+    /const \{ events: eventData, teams \} = Route\.useLoaderData\(\)/,
+  );
   assert.match(teams, /TryoutSchedule events=\{events\} sport="Baseball"/);
   assert.match(teams, /TryoutSchedule events=\{events\} sport="Softball"/);
   assert.match(teams, /hasSoftballDates\s*\?/);

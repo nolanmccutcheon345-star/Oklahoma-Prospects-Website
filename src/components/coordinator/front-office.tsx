@@ -1,4 +1,5 @@
 import { RegistrationProfileFilters } from "../registration-profile-filters";
+import { TeamInvitations } from "../teams/team-invitations";
 import type { RegistrationFilters } from "@/lib/registration-filters";
 import { RegistrationProfileSummary } from "@/components/registration-profile-summary";
 import { PlayerPublicationRequest } from "./player-publication";
@@ -142,8 +143,16 @@ export function CoordinatorFrontOffice() {
           <p className="text-powder">PROSPECTS SPORTS ACADEMY</p>
           <h1 className="text-3xl">Coordinator Front Office</h1>
           <p>Recruiting, teams, and operations within your approved access.</p>
-          {(allowed("standards.draft") || allowed("enrollment.read")) && <a href="/handbooks" className="inline-flex min-h-11 items-center underline">Handbooks & Team Standards</a>}
-          {(allowed("enrollment.read") || allowed("enrollment.manage")) && <a href="/enrollment" className="inline-flex min-h-11 items-center underline">Operational enrollment</a>}
+          {(allowed("standards.draft") || allowed("enrollment.read")) && (
+            <a href="/handbooks" className="inline-flex min-h-11 items-center underline">
+              Handbooks & Team Standards
+            </a>
+          )}
+          {(allowed("enrollment.read") || allowed("enrollment.manage")) && (
+            <a href="/enrollment" className="inline-flex min-h-11 items-center underline">
+              Operational enrollment
+            </a>
+          )}
         </div>
       </header>
       <div className="mx-auto grid max-w-6xl gap-5 p-5">
@@ -209,6 +218,9 @@ export function CoordinatorFrontOffice() {
                   </Button>
                 ))}
             </nav>
+            {teamId && allowed("enrollment.manage") && allowed("contacts.read") && (
+              <TeamInvitations key={teamId} teamId={teamId} />
+            )}
             {current === "overview" ? (
               <section className="rounded-xl bg-white p-5">
                 <h2 className="text-2xl">Your approved access</h2>
@@ -288,13 +300,15 @@ function CoordinatorModule({
     [],
   );
   const [occupied, setOccupied] = useState<Awaited<ReturnType<typeof api.getCoordinatorCages>>>([]);
-  const [athleteFilters,setAthleteFilters]=useState<RegistrationFilters>();
+  const [athleteFilters, setAthleteFilters] = useState<RegistrationFilters>();
   const [before, setBefore] = useState<HistoryCursor>();
   const [nextCursor, setNextCursor] = useState<HistoryCursor | null>(null);
   const [loaded, setLoaded] = useState(false);
   const load = useCallback(async () => {
     if (tab === "recruiting" && (allowed("recruiting.read") || allowed("tryouts.read"))) {
-      const page = await api.getCoordinatorRecruiting({ data: { sport, teamId, before, athleteFilters } });
+      const page = await api.getCoordinatorRecruiting({
+        data: { sport, teamId, before, athleteFilters },
+      });
       setRecruits(page.items);
       setNextCursor(page.nextCursor);
     }
@@ -373,7 +387,7 @@ function CoordinatorModule({
           <Button
             variant="outlineDark"
             disabled={!nextCursor || !loaded || busy}
-            onClick={() => nextCursor && (setAthleteFilters(undefined),setBefore(nextCursor))}
+            onClick={() => nextCursor && (setAthleteFilters(undefined), setBefore(nextCursor))}
           >
             Older records
           </Button>
@@ -385,7 +399,14 @@ function CoordinatorModule({
         <>
           {tab === "recruiting" && (
             <>
-              <h2 className="text-2xl">Recruiting & Tryout Registrations</h2><RegistrationProfileFilters busy={busy} onApply={filters=>{setBefore(undefined);setAthleteFilters(filters);}}/>
+              <h2 className="text-2xl">Recruiting & Tryout Registrations</h2>
+              <RegistrationProfileFilters
+                busy={busy}
+                onApply={(filters) => {
+                  setBefore(undefined);
+                  setAthleteFilters(filters);
+                }}
+              />
               {loaded &&
                 (allowed("recruiting.read") || allowed("tryouts.read")) &&
                 !recruits.length && <p>No registrations in this scope.</p>}
@@ -396,7 +417,8 @@ function CoordinatorModule({
                   </h3>
                   <p>
                     {r.positions} · {r.status}
-                  </p><RegistrationProfileSummary profile={r.profile||{}}/>
+                  </p>
+                  <RegistrationProfileSummary profile={r.profile || {}} />
                   {r.email && (
                     <p>
                       Guardian: {r.parent} · {r.email} · {r.phone}

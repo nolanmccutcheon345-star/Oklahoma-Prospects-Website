@@ -1,57 +1,140 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Button } from "./ui/button";
-import { sendInvitationEmail, checkInvitationDelivery } from "@/lib/invitation-delivery-api";
-export function InvitationDelivery({ id }: { id: string }) {
-  const [busy, setBusy] = useState(false),
-    [error, setError] = useState(""),
-    [notice, setNotice] = useState("");
-  async function run(send: boolean) {
+import {
+  reviewInvitationEmail,
+  sendReviewedInvitation,
+  checkInvitationDelivery,
+} from "@/lib/invitation-delivery-api";
+
+export function InvitationDelivery({
+  id,
+  onUpdate,
+  autoReview = false,
+}: {
+  id: string;
+  onUpdate?: () => Promise<void>;
+  autoReview?: boolean;
+}) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
+  const [preview, setPreview] = useState<Awaited<ReturnType<typeof reviewInvitationEmail>>>();
+  const reviewHeading = useRef<HTMLHeadingElement>(null);
+  useEffect(() => {
+    if (preview) reviewHeading.current?.focus();
+  }, [preview]);
+  useEffect(() => {
+    let active = true;
+    setPreview(undefined);
+    setNotice("");
+    setError("");
+    if (autoReview) {
+      setBusy(true);
+      reviewInvitationEmail({ data: { id } })
+        .then((result) => {
+          if (active) setPreview(result);
+        })
+        .catch((e) => {
+          if (active)
+            setError(e instanceof Error ? e.message : "Could not load invitation review.");
+        })
+        .finally(() => {
+          if (active) setBusy(false);
+        });
+    }
+    return () => {
+      active = false;
+    };
+  }, [id, autoReview]);
+  async function run(action: "review" | "send" | "check") {
     setBusy(true);
     setError("");
     setNotice("");
     try {
-      if (send) {
-        const r = await sendInvitationEmail({ data: { id } });
+      if (action === "review") {
+        setPreview(await reviewInvitationEmail({ data: { id } }));
+      } else if (action === "send" && preview?.review) {
+        const result = await sendReviewedInvitation({
+          data: { id, digest: preview.review.digest, confirmed: true },
+        });
+        setNotice(result.message);
+        setPreview(undefined);
+        await onUpdate?.();
+      } else if (action === "check") {
+        const result = await checkInvitationDelivery({ data: { id } });
         setNotice(
-          r.skipped
-            ? "Invitation remains queued. Email delivery is paused or not configured; no email was sent by this attempt."
-            : r.status === "accepted"
-              ? "Email provider accepted the invitation. Check delivery to confirm recipient-server delivery."
-              : r.status === "review"
-                ? "Delivery needs owner review; automatic retries stopped to avoid a duplicate email."
-                : `Invitation email status: ${r.status}. This does not mean the invitation was accepted by the recipient.`,
+          `Email: ${result.status}; delivery: ${result.delivery}. Account invitation: ${result.invitation}. Delivery does not prove the recipient read or accepted the invitation.`,
         );
-      } else {
-        const r = await checkInvitationDelivery({ data: { id } });
-        setNotice(
-          `Email: ${r.status}; delivery: ${r.delivery}. Account invitation: ${r.invitation}. Delivery does not prove the recipient read the message or accepted an agreement.`,
-        );
+        await onUpdate?.();
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : "Invitation delivery unavailable.");
+      if (action === "send") setPreview(undefined);
     } finally {
       setBusy(false);
     }
   }
+  const review = preview?.review;
+  const canSend =
+    review && !preview.blockers.length && ["held", "approved"].includes(review.approvalStatus);
   return (
-    <div className="mt-2 grid gap-2">
+    <div className="mt-2 grid gap-3" aria-label="Invitation email">
       <div className="flex flex-wrap gap-2">
-        <Button type="button" size="sm" disabled={busy} onClick={() => void run(true)}>
-          Send invitation email
+        <Button type="button" size="sm" disabled={busy} onClick={() => void run("review")}>
+          {busy ? "Working…" : "Review invitation email"}
         </Button>
         <Button
           type="button"
           size="sm"
           variant="outlineDark"
           disabled={busy}
-          onClick={() => void run(false)}
+          onClick={() => void run("check")}
         >
           Check email delivery
         </Button>
       </div>
+      {preview && (
+        <div className="grid gap-3 rounded-xl border border-line bg-white p-4">
+          <h4 ref={reviewHeading} tabIndex={-1} className="font-semibold">
+            Review and send this invitation
+          </h4>
+          {preview.blockers.map((message) => (
+            <p key={message} role="status">
+              {message}
+            </p>
+          ))}
+          {review && (
+            <>
+              <p className="break-words">
+                <strong>To:</strong> {review.recipients.join(", ")}
+              </p>
+              <p>
+                <strong>Subject:</strong> {review.subject}
+              </p>
+              <p className="whitespace-pre-wrap break-words text-sm">{review.text}</p>
+              {review.approvalStatus === "sent" ? (
+                <p role="status">
+                  The email provider already accepted this invitation. Use Check email delivery for
+                  its current status.
+                </p>
+              ) : review.approvalStatus === "invalid" ? (
+                <p role="status">This delivery needs owner review before it can be retried.</p>
+              ) : (
+                <p className="text-sm">
+                  Send invitation approves and submits only this message to the email provider.
+                </p>
+              )}
+              <Button type="button" disabled={busy || !canSend} onClick={() => void run("send")}>
+                Send invitation
+              </Button>
+            </>
+          )}
+        </div>
+      )}
       <p className="text-sm">
-        This control sends the general account invitation. Eligible parent invitations with published fees also queue separate fee instructions automatically. Repeated sends for the same invitation retry the
-        original message without intentionally sending another copy.
+        Recipients create their own password, verify the invited email and accept access. Fee
+        instructions remain separate. Retrying this invitation reuses the original message to
+        prevent duplicate emails.
       </p>
       {notice && (
         <p role="status" className="text-sm">

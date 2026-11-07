@@ -49,6 +49,7 @@ function MembershipsPage() {
       />
       <section className="bg-paper py-12">
         <div className="mx-auto max-w-6xl px-5">
+          <h2 className="mb-6 text-3xl">Household cage passes</h2>
           <MembershipPlans cta="Start All-Star" />
           <h2 className="mt-10 text-2xl">Team plans · 4 visits / month</h2>
           <p className="mt-2 text-sm">Team plans are scheduled and invoiced by Front Office.</p>

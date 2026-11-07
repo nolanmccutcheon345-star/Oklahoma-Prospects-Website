@@ -1,3 +1,4 @@
+import { rosterAthlete } from "./athlete-link.server";
 import { randomUUID } from "node:crypto";
 import type { Sql } from "../db";
 import { secured } from "../coordinator/access.server";
@@ -32,12 +33,6 @@ const dayInChicago = () =>
     month: "2-digit",
     day: "2-digit",
   }).format(new Date());
-async function athleteLink(tx: Sql, teamId: string, playerId: string) {
-  const links = await tx<{
-    athlete_id: string;
-  }>`select athlete_id from team_dev_roster_links where team_id=${teamId} and roster_player_id=${playerId} and ended_at is null`;
-  return links.length === 1 ? links[0].athlete_id : null;
-}
 export async function seasonProgress(sql: Sql, actor: string, raw: unknown) {
   const i = caseInput.parse(raw);
   return secured(sql, actor, "enrollment.progress.read", async (tx) => {
@@ -77,7 +72,7 @@ export async function seasonProgress(sql: Sql, actor: string, raw: unknown) {
       adultPhone: string;
       revision: number;
     }>`select adult_name as "adultName",adult_phone as "adultPhone",revision from enrollment_travel_contacts where case_id=${c.row.id} and ${c.guardian || c.scope.owner || c.team.coach}`;
-    const athleteId = await athleteLink(tx, i.teamId, i.playerId);
+    const athleteId = (await rosterAthlete(tx, i.teamId, i.playerId)).athleteId;
     const assessments =
       detailed && athleteId
         ? await tx<{
@@ -178,8 +173,8 @@ export async function saveProgress(sql: Sql, actor: string, raw: unknown) {
     } else if (i.action === "checkpoint") {
       if (!c.scope.owner && !c.team.coach)
         throw Error("Assigned coach or owner access required for development feedback.");
-      const athleteId = await athleteLink(tx, i.teamId, i.playerId);
-      if (!athleteId) throw Error("Link the athlete in the existing development workspace first.");
+      const athleteId = (await rosterAthlete(tx, i.teamId, i.playerId)).athleteId;
+      if (!athleteId) throw Error("Ask the office to verify the roster athlete link first.");
       if (i.completedOn && (i.completedOn > dayInChicago() || i.feedback.length < 20))
         throw Error(
           "Completed feedback needs a real past/today date and meaningful observations and next steps.",

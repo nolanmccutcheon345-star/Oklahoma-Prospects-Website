@@ -42,6 +42,8 @@ jobs:
         run: node scripts/check-reviewed-release.mjs
       - run: npm run verify:build
       - run: npx playwright install --with-deps chromium
+      - name: Isolated parent Team Hub walkthrough
+        run: node --import tsx scripts/check-team-hub.mjs
       - name: Isolated organization enrollment walkthrough
         run: node --import tsx scripts/check-enrollment.mjs
       - name: Isolated independent team financial walkthrough
@@ -63,6 +65,8 @@ jobs:
         env:
           NETLIFY: "true"
           PUBLIC_UX_SCREENSHOTS: artifacts/guided-lessons/public-ux
+      - name: Isolated Thanksgiving Camp walkthrough
+        run: node --import tsx scripts/check-thanksgiving-camp.mjs
       - name: Isolated membership and homepage walkthrough
         run: node scripts/membership-homepage-walkthrough.mjs
         env:
@@ -89,10 +93,12 @@ jobs:
             artifacts/shop
             artifacts/membership
             artifacts/journal
+            artifacts/team-hub
             artifacts/enrollment
             artifacts/independent-finances
             artifacts/coordinator
             artifacts/tournament-finder
+            artifacts/thanksgiving-camp
           if-no-files-found: ignore
       - name: Read-only hosted HTTP smoke
         if: github.event_name == 'workflow_dispatch' && inputs.hosted_origin != 'skip'

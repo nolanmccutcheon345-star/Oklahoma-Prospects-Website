@@ -1,3 +1,4 @@
+import { approveSyntheticNotices } from "./notifications/release-control.test-fixture";
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFile, readdir } from "node:fs/promises";
@@ -104,6 +105,13 @@ test("migrated outbox retries immutable requests, recovers leases and stops expi
       0,
     );
     assert.equal(calls.length, 0);
+    assert.equal((await deliverTryoutNotifications(sql, env, send)).accepted, 0);
+    assert.equal(
+      calls.length,
+      0,
+      "Old queued tryout notices stay held even with scheduler enabled",
+    );
+    await approveSyntheticNotices(sql, "tryout", env);
     assert.equal((await deliverTryoutNotifications(sql, env, send)).failed, 1);
     const [failed] = await sql`select * from tryout_notification_outbox`;
     assert.equal(failed.status, "pending");
@@ -133,7 +141,7 @@ test("migrated outbox retries immutable requests, recovers leases and stops expi
     await deliverTryoutNotifications(sql, env, send);
     assert.equal(
       (await sql`select status from tryout_notification_outbox`)[0].status,
-      "superseded",
+      "pending", // Changed content invalidates approval; preserve the original row on hold.
     );
     assert.equal(calls.length, 2);
   } finally {

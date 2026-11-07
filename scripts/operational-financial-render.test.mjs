@@ -10,6 +10,7 @@ import { sampleClub } from "../src/lib/teams/seed.ts";
 import { operationalClubView } from "../src/lib/teams/operational-view.ts";
 
 const mocks = {
+  "@/lib/enrollment/api": `export const getTeamWaiverReadiness=async()=>[];`,
   "./fee-workspace": `import React from 'react';export const TeamFeeWorkspace=({teamId})=>React.createElement('div',{'data-financial-team':teamId||'all'},'Financial fee workspace');`,
   "./team-financial-management": `export const TeamFinancialManagement=()=>null;`,
   "./team-activities": `export const TeamActivities=()=>null;`,
@@ -308,6 +309,7 @@ test("owner event editor sends frozen financial revision and offers explicit ref
     },
   };
   const mocks = {
+  "@/lib/enrollment/api": `export const getTeamWaiverReadiness=async()=>[];`,
     "@/lib/teams/fee-api": `export const getFinancialEventCommitments=async()=>{globalThis.__financialEvents.reads++;return globalThis.__financialEvents.data;};export const saveFinancialEventCommitment=async({data})=>{globalThis.__financialEvents.saved.push(data);throw Error('Financial basis changed. Refresh.');};export const admitFinancialEventCommitment=async({data})=>{globalThis.__financialEvents.saved.push(data);return {version:10};};`,
   };
   try {

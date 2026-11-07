@@ -40,7 +40,11 @@ function Invitations() {
             <p className="mt-4">
               No pending invitations for this account. If an invitation expired, was revoked, or
               used a different email, contact Prospects for a corrected invitation. Existing
-              accepted access is available in your account.
+              accepted access is available in your account.{" "}
+              <a className="underline" href="/team-hub">
+                Open Team Hub
+              </a>
+              .
             </p>
           ) : null}
           {rows.map((r) => (
@@ -97,6 +101,15 @@ function Invitations() {
           <Link to="/account" className="underline">
             {enrollmentInvitation ? "Open account and continue enrollment" : "Open account"}
           </Link>
+          {enrollmentInvitation && (
+            <>
+              {" "}
+              ·{" "}
+              <a href="/team-hub" className="underline">
+                Open your Team Hub
+              </a>
+            </>
+          )}
         </p>
       ) : null}
     </main>

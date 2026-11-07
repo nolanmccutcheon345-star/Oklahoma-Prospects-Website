@@ -8,7 +8,6 @@ export const LOCAL_BUSINESS_JSONLD = {
   description: `${CLUB.name} at the ${CLUB.venueName}. Book indoor batting cages, private baseball and softball lessons, and competitive teams in Broken Arrow, Oklahoma. Est. 2008.`,
   url: LINKS.site,
   telephone: CLUB.phoneTel,
-  email: CLUB.email,
   image: `${LINKS.site.replace(/\/$/, "")}/brand/facility.jpg`,
   address: {
     "@type": "PostalAddress",
@@ -32,7 +31,7 @@ export const LOCAL_BUSINESS_JSONLD = {
       closes: "20:00",
     },
   ],
-  sameAs: [LINKS.googleReview, LINKS.maps],
+  sameAs: [LINKS.facebook, LINKS.instagram],
   brand: {
     "@type": "Brand",
     name: CLUB.name,

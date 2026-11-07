@@ -19,7 +19,12 @@ const text = (f: FormData, k: string) => String(f.get(k) || "");
 export function EnrollmentWorkspace({
   initialTeamId,
   initialPlayerId,
-}: { initialTeamId?: string; initialPlayerId?: string } = {}) {
+  onSelectionChange,
+}: {
+  initialTeamId?: string;
+  initialPlayerId?: string;
+  onSelectionChange?: (teamId?: string, playerId?: string) => void;
+} = {}) {
   const [home, setHome] = useState<Home>(),
     [selected, setSelected] = useState(
       initialTeamId && initialPlayerId ? initialTeamId + ":" + initialPlayerId : "",
@@ -28,6 +33,9 @@ export function EnrollmentWorkspace({
     [error, setError] = useState(""),
     [notice, setNotice] = useState(""),
     [busy, setBusy] = useState(false);
+  useEffect(() => {
+    setSelected(initialTeamId && initialPlayerId ? initialTeamId + ":" + initialPlayerId : "");
+  }, [initialTeamId, initialPlayerId]);
   const loadHome = () => api.getEnrollmentHome().then(setHome);
   useEffect(() => {
     loadHome().catch((e) => setError(e.message));
@@ -116,7 +124,15 @@ export function EnrollmentWorkspace({
             <select
               className={enrollmentField}
               value={selected}
-              onChange={(e) => setSelected(e.target.value)}
+              disabled={busy}
+              onChange={(e) => {
+                setSelected(e.target.value);
+                setNotice("");
+                const player = home.candidates.find(
+                  (p) => p.teamId + ":" + p.playerId === e.target.value,
+                );
+                onSelectionChange?.(player?.teamId, player?.playerId);
+              }}
             >
               <option value="">Choose an athlete</option>
               {home.candidates.map((p) => (
@@ -398,12 +414,19 @@ function CaseWorkspace({
         <h3 className="text-xl">Annual waiver</h3>
         <p>
           {s.athleteLinked
-            ? "Use your existing annual facility waiver."
-            : "The office must link this roster athlete to the existing athlete record before waiver status can be verified."}
+            ? s.waiverCurrent
+              ? "Your current annual facility waiver is on file. No new signature is needed."
+              : "Sign the annual facility waiver for your linked athlete."
+            : "Prospects must verify this roster athlete’s existing record before waiver status can be confirmed. Do not add a duplicate athlete or sign again to fix a missing link."}
         </p>
-        <a href="/waiver" className="inline-flex min-h-11 items-center underline">
-          Review or sign annual waiver
-        </a>
+        {s.guardian && s.athleteId && (
+          <a
+            href={`/waiver?${new URLSearchParams({ ...ids, athleteId: s.athleteId })}`}
+            className="inline-flex min-h-11 items-center underline"
+          >
+            {s.waiverCurrent ? "Review saved annual waiver" : "Review or sign annual waiver"}
+          </a>
+        )}
       </section>
       {data.canViewFinancial && (
         <section

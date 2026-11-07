@@ -1,9 +1,18 @@
+import {
+  noticeReleaseAllowed,
+  releaseUnsubmittedNoticeClaim,
+} from "./notifications/release-control.server";
 import { randomUUID } from "node:crypto";
 import type { Sql } from "./db";
 import { tryoutEmailAllowed } from "./tryout-notifications.server";
 import { centerStaff, queueCenterNotice } from "./tryout-center.server";
 type Env = Record<string, string | undefined>;
-export async function deliverCenterNotifications(sql: Sql, env: Env, send: typeof fetch = fetch) {
+export async function deliverCenterNotifications(
+  sql: Sql,
+  env: Env,
+  send: typeof fetch = fetch,
+  onlyIds?: string[],
+) {
   if (
     !env.RESEND_API_KEY ||
     !(env.RESEND_FROM_EMAIL || env.EMAIL_FROM) ||
@@ -26,7 +35,7 @@ export async function deliverCenterNotifications(sql: Sql, env: Env, send: typeo
     assignee_id: string;
     updated_at: Date;
   }>`select w.request_id,w.assignee_id,w.updated_at from office_request_work w join club_requests r on r.id=w.request_id where r.kind in ('tryout','team-inquiry') and w.follow_up_date<=(now() at time zone 'America/Chicago')::date and w.follow_up not in ('closed','accepted') limit 100`;
-  for (const w of due) {
+  for (const w of onlyIds ? [] : due) {
     const recipient = staff.find((s) => s.id === w.assignee_id);
     const [allowed] = recipient
       ? await sql`select coordinator_recipient_allowed(${recipient.id},${w.request_id}) as allowed`
@@ -45,8 +54,9 @@ export async function deliverCenterNotifications(sql: Sql, env: Env, send: typeo
     id: string;
     email: string;
     recipient_id: string | null;
-  }>`select id,email,recipient_id from tryout_center_notices where (status='pending' and next_attempt_at<=now()) or (status='processing' and lease_until<now()) order by created_at,id limit 30`;
+  }>`select id,email,recipient_id from tryout_center_notices where exists(select 1 from notice_release_approvals a where a.queue='center' and a.source_id=id and a.approved) and (${onlyIds || null}::text[] is null or id=any(${onlyIds || null}::text[])) and ((status='pending' and next_attempt_at<=now()) or (status='processing' and lease_until<now())) order by created_at,id limit 30`;
   for (const c of candidates) {
+    if (!(await noticeReleaseAllowed(sql, "center", c.id, env))) continue;
     if (c.recipient_id && !staff.some((s) => s.id === c.recipient_id && s.email === c.email)) {
       await sql`update tryout_center_notices set status='skipped' where id=${c.id} and status in ('pending','processing')`;
       continue;
@@ -104,6 +114,10 @@ export async function deliverCenterNotifications(sql: Sql, env: Env, send: typeo
       await sql`select id from tryout_center_notices where id=${n.id} and status='processing' and lease_token=${lease} and (coordinator_actor_id is null or coordinator_typed_notice_allowed(coordinator_actor_id,request_id,email,coordinator_permission)) and (recipient_id is null or (coordinator_recipient_allowed(recipient_id,request_id) and exists(select 1 from "user" u where u.id=recipient_id and lower(trim(u.email))=lower(trim(tryout_center_notices.email)))))`;
     if (!current) continue;
     try {
+      if (!(await noticeReleaseAllowed(sql, "center", n.id, env, n.body))) {
+        await releaseUnsubmittedNoticeClaim(sql, "center", n.id, lease);
+        continue;
+      }
       const response = await send("https://api.resend.com/emails", {
         method: "POST",
         headers: {

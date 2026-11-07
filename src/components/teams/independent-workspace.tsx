@@ -759,6 +759,23 @@ function ProspectsSettings({ space: s, run, busy }: { space: Space; run: Run; bu
     [playerId, setPlayerId] = useState(""),
     [payerId, setPayerId] = useState(""),
     [reason, setReason] = useState("");
+  const [splitDeposit, setSplitDeposit] = useState(false);
+  const [firstDepositAmount, setFirstDepositAmount] = useState(0);
+  const [firstDepositDue, setFirstDepositDue] = useState("");
+  const [secondDepositDue, setSecondDepositDue] = useState("");
+  const individualBudget: FeeBudget = splitDeposit
+    ? {
+        ...b,
+        independent: {
+          ...b.independent!,
+          uniformDue: firstDepositDue,
+          depositInstallments: [
+            { amount: firstDepositAmount, due: firstDepositDue },
+            { amount: b.independent!.uniformDeposit - firstDepositAmount, due: secondDepositDue },
+          ],
+        },
+      }
+    : b;
   const base = { teamId: s.teamId, revision: s.planRevision, basisVersion: s.basisVersion };
   return (
     <details className="rounded-xl border border-line p-4">
@@ -860,6 +877,7 @@ function ProspectsSettings({ space: s, run, busy }: { space: Space; run: Run; bu
               onChange={(v) => {
                 setPlayerId(v);
                 setPayerId("");
+                setSplitDeposit(false);
               }}
             >
               <option value="">Choose player</option>
@@ -879,6 +897,60 @@ function ProspectsSettings({ space: s, run, busy }: { space: Space; run: Run; bu
                   </option>
                 ))}
             </Select>
+            <label className="flex min-h-11 items-center gap-2">
+              <input
+                type="checkbox"
+                checked={splitDeposit}
+                disabled={busy || !playerId}
+                onChange={(e) => {
+                  setSplitDeposit(e.target.checked);
+                  if (e.target.checked) {
+                    setFirstDepositAmount(Math.floor(b.independent!.uniformDeposit / 2));
+                    setFirstDepositDue(b.independent!.uniformDue);
+                    setSecondDepositDue("");
+                  }
+                }}
+              />
+              Split this player's initial deposit into two payments
+            </label>
+            {splitDeposit && (
+              <div className="grid gap-3 rounded-lg border border-line p-3">
+                <p>
+                  Individual offer only. The two amounts must equal the initial deposit. Processing
+                  is calculated separately for each payment. Both deposits must be due before or on
+                  the first monthly due date. Paid or accrued deposits cannot be reshaped here.
+                </p>
+                <Field
+                  label="First deposit payment ($)"
+                  type="number"
+                  value={firstDepositAmount / 100}
+                  onChange={(v) => setFirstDepositAmount(Math.round(Number(v) * 100))}
+                />
+                <p>
+                  Second deposit payment:{" "}
+                  {money(b.independent!.uniformDeposit - firstDepositAmount)} before processing.
+                </p>
+                <Field
+                  label="First deposit payment due"
+                  type="date"
+                  value={firstDepositDue}
+                  onChange={setFirstDepositDue}
+                />
+                <Field
+                  label="Second deposit payment due"
+                  type="date"
+                  value={secondDepositDue}
+                  onChange={setSecondDepositDue}
+                />
+                <Schedule budget={individualBudget} />
+                <details>
+                  <summary className="min-h-11 cursor-pointer">
+                    Preview individual parent agreement
+                  </summary>
+                  <p className="whitespace-pre-wrap">{previewPolicy(individualBudget)}</p>
+                </details>
+              </div>
+            )}
             <Text
               label="Reason and treatment of existing obligations"
               value={reason}
@@ -895,7 +967,7 @@ function ProspectsSettings({ space: s, run, busy }: { space: Space; run: Run; bu
                         action: "independentOffer",
                         playerId,
                         payerUserId: payerId,
-                        budget: b,
+                        budget: individualBudget,
                         adminBudget,
                         reason,
                       },
@@ -1022,7 +1094,13 @@ function PlayerProspects({
           the transaction and any applicable refund; the recorded history is preserved.
         </p>
       )}
-      {p.canAccept && !s.plan?.independentCancellation && (
+      {p.canAccept && !p.acceptancePreview && (
+        <p role="status">
+          This offer needs owner review before acceptance. Existing accepted obligations and payment
+          history remain available; contact Prospects for a corrected individual schedule.
+        </p>
+      )}
+      {p.canAccept && p.acceptancePreview && !s.plan?.independentCancellation && (
         <details>
           <summary className="min-h-11 cursor-pointer font-semibold">
             Review and accept Prospects terms
@@ -2039,7 +2117,13 @@ export function IndependentWorkspace({ teamId, playerId }: { teamId?: string; pl
         <Configure key={t.id} team={t} run={run} busy={busy} />
       ))}
       {data?.spaces.map((s) => (
-        <SpaceView key={s.id} space={playerId ? { ...s, prospects: s.prospects.filter(p => p.id === playerId) } : s} spaces={data.spaces} run={run} busy={busy} />
+        <SpaceView
+          key={s.id}
+          space={playerId ? { ...s, prospects: s.prospects.filter((p) => p.id === playerId) } : s}
+          spaces={data.spaces}
+          run={run}
+          busy={busy}
+        />
       ))}
       {data && !data.spaces.length && !data.availableTeams.length && (
         <p className="text-sm">

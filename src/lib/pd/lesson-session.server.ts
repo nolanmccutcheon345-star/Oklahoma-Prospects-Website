@@ -84,6 +84,8 @@ async function access(
   lock = false,
   allowOperationalDraft = false,
 ) {
+  if (me.role !== "admin" && "coachInactive" in me && me.coachInactive)
+    throw new Error("An active coach assignment is required. Contact the club administrator.");
   const operationalOnly = me.role !== "admin" && me.role !== "coach" && !me.canInstruct;
   // Only the guarded open/save entry points opt into operational drafts. A new
   // legacy caller must not silently inherit access to private lesson history.

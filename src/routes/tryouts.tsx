@@ -5,7 +5,6 @@ import { ContactForm, TryoutForm } from "@/components/inquiry-form";
 import { PageHero } from "@/components/page-hero";
 import { TryoutSchedule } from "@/components/tryout-schedule";
 import { Button } from "@/components/ui/button";
-import { CLUB } from "@/lib/club";
 
 import { getPublicTryoutEvents } from "@/lib/tryout-events-api";
 
@@ -49,6 +48,13 @@ function TryoutsPage() {
           </>
         }
       />
+
+      <aside className="border-y border-line bg-powder/30 px-5 py-5" aria-label="Thanksgiving Camp">
+        <div className="mx-auto flex max-w-3xl flex-wrap items-center justify-between gap-3">
+          <p className="font-semibold">Baseball & softball · Ages 6–14U · $45/day or $120 for all 3 days</p>
+          <Button asChild variant="maroon"><Link to="/thanksgiving-camp">Thanksgiving Camp — Nov. 23–25 — Register Now</Link></Button>
+        </div>
+      </aside>
 
       <section id="schedule" className="scroll-mt-24 bg-paper-2 py-10">
         <div className="mx-auto max-w-3xl px-5">
@@ -95,7 +101,7 @@ function TryoutsPage() {
       </section>
 
       <section id="team-inquiry" className="py-10">
-        <div className="mx-auto grid max-w-3xl gap-8 px-5 lg:grid-cols-[1.2fr_0.8fr]">
+        <div className="mx-auto max-w-3xl px-5">
           <div>
             <p className="text-xs font-semibold tracking-[0.16em] text-maroon uppercase">
               Tryout questions
@@ -115,20 +121,6 @@ function TryoutsPage() {
               Your information is used to respond to this inquiry via email.
             </p>
           </div>
-          <aside className="rounded-2xl bg-ink p-5 text-fg-inverse">
-            <h2 className="text-3xl">Questions about tryouts?</h2>
-            <p className="mt-3 text-fg-soft">
-              Baseball and softball. Ask about the right age group or evaluation.
-            </p>
-            <Button asChild className="mt-5 w-full">
-              <Link to="/contact">Contact</Link>
-            </Button>
-            <p className="mt-5 text-sm text-fg-soft">
-              {CLUB.addressLine1}
-              <br />
-              {CLUB.addressLine2}
-            </p>
-          </aside>
         </div>
       </section>
     </main>
