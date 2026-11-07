@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import {
   getSquareOffice,
+  reviewThanksgivingTestEmails,
+  sendThanksgivingTestEmails,
   testSiteActivityAlerts,
   sendOwnerBookingAlerts,
   prepareSquareMonthlyPlans,
@@ -25,6 +27,12 @@ export function SquareOffice() {
     Awaited<ReturnType<typeof prepareSquareMonthlyPlans>>
   >([]);
   const [emailCheckId, setEmailCheckId] = useState<string>();
+  const [campOrderId, setCampOrderId] = useState("");
+  const [campMailReview, setCampMailReview] =
+    useState<Awaited<ReturnType<typeof reviewThanksgivingTestEmails>>["review"]>();
+  const [campMailResults, setCampMailResults] = useState<
+    Awaited<ReturnType<typeof sendThanksgivingTestEmails>>["results"]
+  >([]);
   const refundKey = useRef(crypto.randomUUID());
   async function load() {
     setData(await getSquareOffice());
@@ -175,6 +183,81 @@ export function SquareOffice() {
           >
             {emailCheckId ? "Check test email delivery" : "Send receipt test to my email"}
           </Button>
+          {data.config?.environment === "sandbox" && (
+            <details className="rounded-lg border p-4">
+              <summary className="min-h-11 cursor-pointer font-semibold">
+                Thanksgiving Camp email acceptance
+              </summary>
+              <p>
+                Use only your own synthetic, verified-paid Sandbox camp order. This sends labeled
+                tests, not live reservations. It does not charge a card or process other alerts.
+              </p>
+              <label className="my-3 block">
+                Sandbox camp order ID
+                <input
+                  className="ml-2 rounded border p-2"
+                  value={campOrderId}
+                  maxLength={192}
+                  onChange={(e) => {
+                    setCampOrderId(e.target.value);
+                    setCampMailReview(undefined);
+                    setCampMailResults([]);
+                  }}
+                />
+              </label>
+              <Button
+                variant="outlineDark"
+                disabled={busy || !campOrderId.trim()}
+                onClick={() =>
+                  void action(async () => {
+                    const result = await reviewThanksgivingTestEmails({
+                      data: { orderId: campOrderId.trim() },
+                    });
+                    setCampMailReview(result.review);
+                  }, "Review the two destinations below before sending.")
+                }
+              >
+                Review camp email test
+              </Button>
+              {campMailReview && (
+                <div className="mt-3 grid gap-3">
+                  <p>
+                    Parent test: {campMailReview.parentEmail}
+                    <br />
+                    Academy test: {campMailReview.academyEmail}
+                    <br />
+                    {campMailReview.title} · {formatMoney(campMailReview.totalCents)}
+                  </p>
+                  <Button
+                    disabled={busy}
+                    onClick={() =>
+                      void action(async () => {
+                        const result = await sendThanksgivingTestEmails({
+                          data: { orderId: campMailReview.orderId },
+                        });
+                        setCampMailResults(result.results);
+                        if (
+                          result.results.length !== 2 ||
+                          result.results.some((r) => r.status !== "accepted")
+                        )
+                          throw new Error(
+                            "One or both camp tests are still pending. An explicit retry sends only the remaining message. Check both inboxes before retrying an uncertain result.",
+                          );
+                      }, "Both labeled camp tests were accepted by the email provider. Verify arrival in both inboxes; acceptance alone is not delivery.")
+                    }
+                  >
+                    Send labeled Sandbox camp tests
+                  </Button>
+                  {campMailResults.map((r) => (
+                    <p className="text-sm break-all" key={r.kind}>
+                      {r.kind}: {r.status}
+                      {r.providerMessageId ? ` · Provider message ${r.providerMessageId}` : ""}
+                    </p>
+                  ))}
+                </div>
+              )}
+            </details>
+          )}
           <details>
             <summary className="min-h-11 cursor-pointer">Configure cage booking windows</summary>
             <p>
@@ -247,9 +330,18 @@ export function SquareOffice() {
               >
                 Connect {data.config.environment} membership events
               </Button>
-              <Button disabled={busy} variant="outlineDark" onClick={()=>void action(
-                ()=>checkSquareMembershipWebhooks(),'Existing payment and membership events are configured and verified. No settings changed.',
-              )}>Check membership events without changes</Button>
+              <Button
+                disabled={busy}
+                variant="outlineDark"
+                onClick={() =>
+                  void action(
+                    () => checkSquareMembershipWebhooks(),
+                    "Existing payment and membership events are configured and verified. No settings changed.",
+                  )
+                }
+              >
+                Check membership events without changes
+              </Button>
             </section>
           ) : null}
           <h3 className="text-xl">Payments</h3>

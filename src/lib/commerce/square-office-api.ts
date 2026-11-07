@@ -88,11 +88,11 @@ export const prepareSquareMembershipWebhooks = createServerFn({ method: "POST" }
     return m.verifySquareWebhooks(context.userId, true);
   });
 
-export const checkSquareMembershipWebhooks = createServerFn({method:'POST'})
+export const checkSquareMembershipWebhooks = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
-  .handler(async ({context})=>{
-    const m=await import('./square-office.server');
-    return m.verifySquareWebhooks(context.userId,false,true);
+  .handler(async ({ context }) => {
+    const m = await import("./square-office.server");
+    return m.verifySquareWebhooks(context.userId, false, true);
   });
 
 export const testSiteActivityAlerts = createServerFn({ method: "POST" })
@@ -100,4 +100,19 @@ export const testSiteActivityAlerts = createServerFn({ method: "POST" })
   .handler(async ({ context }) => {
     const m = await import("../site-alerts.server");
     return m.testSiteAlerts(context.userId);
+  });
+
+export const reviewThanksgivingTestEmails = createServerFn({ method: "GET" })
+  .middleware([authMiddleware])
+  .validator(z.object({ orderId: z.string().min(1).max(192) }).strict())
+  .handler(async ({ context, data }) => {
+    const m = await import("./square-office.server");
+    return m.thanksgivingEmailTest(context.userId, data.orderId);
+  });
+export const sendThanksgivingTestEmails = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
+  .validator(z.object({ orderId: z.string().min(1).max(192) }).strict())
+  .handler(async ({ context, data }) => {
+    const m = await import("./square-office.server");
+    return m.thanksgivingEmailTest(context.userId, data.orderId, true);
   });

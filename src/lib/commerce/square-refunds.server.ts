@@ -82,7 +82,7 @@ export async function applySquareRefundBalance(
     await sql`update commerce_orders set status='refunded',subscription_setup_status=null,updated_at=now()
       where id=${reference.order_id} and not coalesce((snapshot->>'recurring')::boolean,false)`;
     await sql`update payment_notifications set status='resolved' where order_id=${reference.order_id}
-      and status='pending' and kind in ('receipt','owner-booking')`;
+      and status='pending' and kind in ('receipt','owner-booking','thanksgiving-registration')`;
   }
   const {syncTeamPayment}=await import("../teams/payment.server");
   await syncTeamPayment(sql,reference.order_id);

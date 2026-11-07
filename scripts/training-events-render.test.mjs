@@ -55,6 +55,7 @@ test("camp registration UI, calendar, and admin event editor use authoritative d
   };
   globalThis.__eventsFixture = fixture;
   const mocks = {
+    "@/lib/thanksgiving-camp-api": `export const createThanksgivingDrafts=async()=>({created:true});`,
     "@/lib/coordinator/organization-events-api": `export const getPublicOperationalEvents=async()=>[{id:"unpriced",name:"Office enrolled camp",description:"Public office camp",sessions:[]}];`,
     "@tanstack/react-router": `import React from 'react';export const createFileRoute=()=>()=>({});export const Link=({children,to,...p})=>React.createElement('a',{href:to},children);`,
     "@/lib/auth/use-current-user": `export const useCurrentUser=()=>({id:'parent',displayName:'Parent',primaryEmail:'parent@example.invalid'});`,

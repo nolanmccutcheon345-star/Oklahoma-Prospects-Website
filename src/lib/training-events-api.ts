@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { authMiddleware } from "./auth/middleware";
 import { paymentAuth } from "./commerce/payment-auth";
+import { thanksgivingGroup } from "./thanksgiving-camp";
 import { trainingEventSchema, eventCheckoutSchema } from "./training-events-contracts";
 export const getTrainingEvents = createServerFn({ method: "GET" }).handler(async () => {
   const { getSql } = await import("./db");
@@ -33,6 +34,8 @@ export const startEventCheckout = createServerFn({ method: "POST" })
   .middleware([paymentAuth])
   .validator(eventCheckoutSchema)
   .handler(async ({ data, context }) => {
+    if (thanksgivingGroup(data.eventId) && !(process.env.RESEND_API_KEY && (process.env.RESEND_FROM_EMAIL || process.env.EMAIL_FROM)))
+      throw Error("Camp confirmation email is unavailable. Please contact Steve before registering. No payment has been taken.");
     const { assertPaymentRequest } = await import("./commerce/square-payments.server");
     assertPaymentRequest();
     const { rateLimit } = await import("./commerce/checkout.server");

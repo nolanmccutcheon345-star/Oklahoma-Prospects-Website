@@ -1,3 +1,4 @@
+import { thanksgivingMail } from "./thanksgiving-mail";
 import type { Sql } from "../db";
 import { BOOKABLE_LANES } from "../club";
 
@@ -59,9 +60,14 @@ export async function deliverPaymentNotifications(
     customer_name: string | null;
     total_cents: number;
     order_kind: string;
-  }>`select n.*,o.email,o.kind as order_kind,o.receipt_url,o.total_cents,u.name as customer_name,o.snapshot->>'title' as title from payment_notifications n join commerce_orders o on o.id=n.order_id left join "user" u on u.id=o.user_id where n.status='pending' and o.payment_provider='square' and o.payment_environment=${c.environment}
+    order_status: string;
+    event_registration: {
+      location?: string;
+      thanksgivingDetails?: { ageGroup: "6-9U" | "10U-14U" };
+    } | null;
+  }>`select n.*,o.email,o.kind as order_kind,o.status as order_status,o.snapshot->'eventRegistration' as event_registration,o.receipt_url,o.total_cents,u.name as customer_name,o.snapshot->>'title' as title from payment_notifications n join commerce_orders o on o.id=n.order_id left join "user" u on u.id=o.user_id where n.status='pending' and o.payment_provider='square' and o.payment_environment=${c.environment}
     and (${orderId || null}::text is null or o.id=${orderId || null})
-    and (${ownerOnly}=false or n.kind in ('owner-booking','owner-payment-review'))
+    and (${ownerOnly}=false or n.kind in ('owner-booking','owner-payment-review','thanksgiving-registration'))
     and (${ownerTest?.userId || null}::text is null or (o.user_id=${ownerTest?.userId || null} and lower(o.email)=lower(${ownerTest?.email || null}) and n.kind='receipt' and o.receipt_url is not null))
     order by case when n.kind like 'owner-%' then 0 else 1 end,n.created_at limit ${ownerTest ? 1 : 4}`;
   const accepted: string[] = [];
@@ -79,6 +85,14 @@ export async function deliverPaymentNotifications(
           await sql`update payment_notifications set status='sandbox-suppressed' where id=${n.id}`;
         return;
       }
+      const camp = n.order_kind === "event" && n.event_registration?.thanksgivingDetails;
+      const campAlert = n.kind === "thanksgiving-registration";
+      // Never route an unrelated or refunded order through the dedicated camp alert.
+      if (campAlert && (!camp || n.order_status !== "paid")) return;
+      if (camp && n.kind === "receipt" && !ownerTest && n.order_status !== "paid") return;
+      const campReceipt = Boolean(
+        camp && n.kind === "receipt" && n.order_status === "paid" && !ownerTest,
+      );
       const teamNotice = n.kind.startsWith("team-");
       const teamText =
         n.kind === "team-primary-failed"
@@ -90,8 +104,9 @@ export async function deliverPaymentNotifications(
         dispute = n.kind === "dispute",
         ownerBooking = n.kind === "owner-booking",
         ownerReview = n.kind === "owner-payment-review";
-      const recipients =
-        dispute || ownerBooking || ownerReview
+      const recipients = campAlert
+        ? ["prospectssportsacademy@gmail.com"]
+        : dispute || ownerBooking || ownerReview
           ? (
               await sql<{
                 email: string;
@@ -100,7 +115,7 @@ export async function deliverPaymentNotifications(
           : [n.email];
       if (!recipients.length) return;
       const bookings =
-        ownerBooking || (!ownerTest && n.kind === "receipt")
+        campAlert || ownerBooking || (!ownerTest && n.kind === "receipt")
           ? await sql<{
               starts_at: Date;
               ends_at: Date;
@@ -113,10 +128,32 @@ export async function deliverPaymentNotifications(
         n.kind === "receipt" &&
         bookings.length > 0 &&
         bookings.every((b) => b.status === "confirmed");
+      const campSessions = bookingNoticeDetails(
+        bookings.map((b) => ({ ...b, resources: [] })),
+      ).replaceAll("Coach session\n", "");
+      const campConfirmed =
+        (campAlert || campReceipt) &&
+        bookings.length > 0 &&
+        bookings.every((b) => b.status === "confirmed");
+      if ((campAlert || campReceipt) && !campConfirmed) return;
       const amount = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(
         n.total_cents / 100,
       );
       const ownerText = `${n.order_kind === "merchandise" ? "Merchandise order requires fulfillment or refund review." : ownerReview ? "Payment needs review — no booking was confirmed." : "Paid booking recorded."}\nCustomer: ${n.customer_name || n.email}\nEmail: ${n.email}\nProduct: ${n.title}\nOrder total: ${amount}\n${details}\nOrder: ${n.order_id}\nOpen the owner controls: ${c.origin}${n.order_kind === "merchandise" ? "/merchandise" : "/office"}`;
+      const campMessage =
+        campAlert || campReceipt
+          ? thanksgivingMail({
+              kind: campAlert ? "thanksgiving-registration" : "receipt",
+              title: n.title,
+              ageGroup: camp ? camp.ageGroup : "",
+              sessions: campSessions,
+              location: n.event_registration?.location || "See your camp registration",
+              totalCents: n.total_cents,
+              orderId: n.order_id,
+              receiptUrl: n.receipt_url,
+              origin: c.origin,
+            })
+          : undefined;
       try {
         const response = await send("https://api.resend.com/emails", {
           method: "POST",
@@ -128,42 +165,47 @@ export async function deliverPaymentNotifications(
           body: JSON.stringify({
             from,
             to: recipients,
-            subject: teamNotice
-              ? "Action needed - team installment payment"
-              : ownerTest
-                ? "Prospects Sports Academy — Sandbox booking receipt test"
-                : ownerBooking
-                  ? `New paid booking — ${n.title} — ${amount}`
-                  : ownerReview
-                    ? "Action needed — payment requires review"
+            subject: campMessage
+              ? campMessage.subject
+              : teamNotice
+                ? "Action needed - team installment payment"
+                : ownerTest
+                  ? "Prospects Sports Academy — Sandbox booking receipt test"
+                  : ownerBooking
+                    ? `New paid booking — ${n.title} — ${amount}`
+                    : ownerReview
+                      ? "Action needed — payment requires review"
+                      : dispute
+                        ? "Square payment dispute needs review"
+                        : failed
+                          ? "Update your membership payment card"
+                          : confirmedBooking
+                            ? "Thank you for booking with Prospects Sports Academy!"
+                            : "Prospects Sports Academy payment receipt",
+            text: campMessage
+              ? campMessage.text
+              : teamNotice
+                ? `${teamText}\n\nInstallment attempted: ${amount}. Athlete and team: ${n.title}.\nReview your team account: ${c.origin}/family.\nContact Front Office through ${c.origin}/contact.`
+                : ownerTest
+                  ? `This is a Sandbox receipt check from your saved test payment for ${n.title}. No real money was charged. This is not an active booking confirmation; the test booking may already have been cancelled or refunded. View the saved test billing record at ${c.origin}/family. Square Sandbox receipt: ${n.receipt_url}`
+                  : ownerBooking || ownerReview
+                    ? ownerText
                     : dispute
-                      ? "Square payment dispute needs review"
+                      ? `A Square payment dispute requires owner review. Open ${c.origin}/office and review the deadline in Square.`
                       : failed
-                        ? "Update your membership payment card"
+                        ? `Your membership renewal could not be collected. Update your card in your account: ${c.origin}/family. New credits are issued only after a successful payment.`
                         : confirmedBooking
-                          ? "Thank you for booking with Prospects Sports Academy!"
-                          : "Prospects Sports Academy payment receipt",
-            text: teamNotice
-              ? `${teamText}\n\nInstallment attempted: ${amount}. Athlete and team: ${n.title}.\nReview your team account: ${c.origin}/family.\nContact Front Office through ${c.origin}/contact.`
-              : ownerTest
-                ? `This is a Sandbox receipt check from your saved test payment for ${n.title}. No real money was charged. This is not an active booking confirmation; the test booking may already have been cancelled or refunded. View the saved test billing record at ${c.origin}/family. Square Sandbox receipt: ${n.receipt_url}`
-                : ownerBooking || ownerReview
-                  ? ownerText
-                  : dispute
-                    ? `A Square payment dispute requires owner review. Open ${c.origin}/office and review the deadline in Square.`
-                    : failed
-                      ? `Your membership renewal could not be collected. Update your card in your account: ${c.origin}/family. New credits are issued only after a successful payment.`
-                      : confirmedBooking
-                        ? `Hello${n.customer_name ? " " + n.customer_name : ""}!\n\nThank you for booking with Prospects Sports Academy! We appreciate you choosing our facility and look forward to seeing you at your reserved time:\n\n${details}\n\nYour payment for ${n.title} is confirmed.\n\nLocation: 3804 S. Elm Pl., Suite A, Broken Arrow, OK 74011.\n\nView your booking and billing history at ${c.origin}/family. Receipt: ${n.receipt_url || c.origin + "/paid?order_id=" + n.order_id}\n\nSee you soon!\nThe Prospects Sports Academy Team`
-                        : n.order_kind === "merchandise"
-                          ? `Your payment for ${n.title} is confirmed. Your items will be made after fulfillment review. View your order and shipping updates at ${c.origin}/merchandise (My shop orders). Receipt: ${n.receipt_url || c.origin + "/merchandise"}`
-                          : `Your payment for ${n.title} is confirmed.\n${details ? details + "\n" : ""}View your booking and billing history at ${c.origin}/family. Receipt: ${n.receipt_url || c.origin + "/paid?order_id=" + n.order_id}`,
+                          ? `Hello${n.customer_name ? " " + n.customer_name : ""}!\n\nThank you for booking with Prospects Sports Academy! We appreciate you choosing our facility and look forward to seeing you at your reserved time:\n\n${details}\n\nYour payment for ${n.title} is confirmed.\n\nLocation: 3804 S. Elm Pl., Suite A, Broken Arrow, OK 74011.\n\nView your booking and billing history at ${c.origin}/family. Receipt: ${n.receipt_url || c.origin + "/paid?order_id=" + n.order_id}\n\nSee you soon!\nThe Prospects Sports Academy Team`
+                          : n.order_kind === "merchandise"
+                            ? `Your payment for ${n.title} is confirmed. Your items will be made after fulfillment review. View your order and shipping updates at ${c.origin}/merchandise (My shop orders). Receipt: ${n.receipt_url || c.origin + "/merchandise"}`
+                            : `Your payment for ${n.title} is confirmed.\n${details ? details + "\n" : ""}View your booking and billing history at ${c.origin}/family. Receipt: ${n.receipt_url || c.origin + "/paid?order_id=" + n.order_id}`,
           }),
           signal: AbortSignal.timeout(10000),
         });
         if (response.ok) {
           const result = (await response.json()) as { id?: string };
           if (!result.id) return;
+          // 'sent' records provider acceptance, not verified inbox delivery.
           await sql`update payment_notifications set status='sent',sent_at=now() where id=${n.id}`;
           accepted.push(result.id);
         }
