@@ -416,3 +416,27 @@ export async function setupMonthlyPlans(userId: string) {
     configuredPlanVariation,
   );
 }
+
+export async function thanksgivingEmailTest(userId: string, orderId: string, send = false) {
+  await requirePaymentOwner(userId);
+  const c = squareConfig();
+  if (
+    c.environment !== "sandbox" ||
+    process.env.CONTEXT === "production" ||
+    process.env.SQUARE_DEPLOY_CONTEXT === "production"
+  )
+    throw new Error("Camp email tests require an isolated non-production Square Sandbox.");
+  const m = await import("./thanksgiving-mail-test.server");
+  const sql = await getSql();
+  const config = { ...c, context: process.env.CONTEXT };
+  if (!send)
+    return { review: await m.reviewCampMailTest(sql, userId, orderId, config), results: [] };
+  assertPaymentRequest();
+  await rateLimit("owner-thanksgiving-email-test", 3);
+  const key = process.env.RESEND_API_KEY || "";
+  const from = process.env.RESEND_FROM_EMAIL || process.env.EMAIL_FROM || "";
+  return {
+    review: await m.reviewCampMailTest(sql, userId, orderId, config),
+    results: await m.sendCampMailTest(sql, userId, orderId, config, { key, from }),
+  };
+}
