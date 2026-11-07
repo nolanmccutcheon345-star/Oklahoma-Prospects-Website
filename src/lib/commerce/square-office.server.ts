@@ -81,11 +81,6 @@ export async function squareOffice(userId: string) {
         (process.env.CONTEXT === "production" ? "production" : "sandbox"),
     ),
     config: squarePublicConfig(),
-    // Temporary owner-only Sandbox readiness diagnostics. Never expose values.
-    campMailReadiness: {
-      credentialConfigured: Boolean(process.env.RESEND_API_KEY),
-      senderConfigured: Boolean(process.env.RESEND_FROM_EMAIL || process.env.EMAIL_FROM),
-    },
     payments,
     refunds,
     disputes,
