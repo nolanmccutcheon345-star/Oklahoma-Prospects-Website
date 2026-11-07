@@ -62,7 +62,9 @@ export async function earnings(userId: string) {
   if (active) return active;
   const me = await staffIdentity(userId);
   if (me.role !== "admin" && me.role !== "coach" && !me.canInstruct)
-    throw new Error("Coach access requires an active coach assignment. Contact the club administrator.");
+    throw new Error(
+      "Coach access requires an active coach assignment. Contact the club administrator.",
+    );
   const file = await readWorkingFile();
   const coachId = assignedCoachIdFor(me, file);
   const rows = await sql<{
@@ -85,6 +87,42 @@ export async function recordSettlement(userId: string, bookingId: string, refere
   throw new Error(
     "Use Front Office → Finance → Payout Center to approve, record and reconcile this payment. Entering a reference alone does not mark it paid.",
   );
+}
+
+export async function officeBookingReference(userId: string, reference: string) {
+  const me = await clubIdentity(userId);
+  if (me.role !== "admin") throw new Error("Owner access required.");
+  if (!reference.trim() || reference.length > 150) throw new Error("Enter a booking reference.");
+  const sql = await getSql();
+  const [booking] = await sql<{
+    id: string;
+    product_id: string;
+    customer_email: string | null;
+    customer_name: string | null;
+    starts_at: Date;
+    ends_at: Date;
+    resources: string[];
+    status: string;
+    checked_in_at: Date | null;
+    order_id: string | null;
+    order_status: string | null;
+    total_cents: number | null;
+  }>`select b.id,b.product_id,coalesce(o.email,u.email) as customer_email,u.name as customer_name,
+    b.starts_at,b.ends_at,b.resources,b.status,b.checked_in_at,b.order_id,
+    o.status as order_status,o.total_cents
+    from operational_booking_schedule b left join commerce_orders o on o.id=b.order_id
+    left join "user" u on u.id=b.user_id where b.id=${reference.trim()}`;
+  if (!booking) return null;
+  const payments = booking.order_id
+    ? await sql<{
+        id: string;
+        environment: string;
+        status: string;
+        amount_cents: number;
+        refunded_cents: number;
+      }>`select id,environment,status,amount_cents,refunded_cents from square_payments where order_id=${booking.order_id} order by id`
+    : [];
+  return { ...booking, payments };
 }
 
 export async function officeOperations(userId: string) {
