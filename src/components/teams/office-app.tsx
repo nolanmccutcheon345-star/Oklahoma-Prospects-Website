@@ -14,6 +14,7 @@ import { officeAddPlayer, officeAddTeam, officeRemoveTeam, officeSaveTeamSeasons
 import { AGE_GROUPS } from "@/lib/club";
 import { balance, docsComplete } from "@/lib/teams/pricing";
 import { Section } from "./ui";
+import { AssignPlayersPanel } from "./assign-players-panel";
 import { money } from "./ui";
 
 export function OfficeApp({
@@ -62,6 +63,7 @@ export function OfficeApp({
           <h2 id="team-coach-assignments-title" className="text-2xl font-bold text-ink">Teams & coaches administration</h2>
           <p className="my-3 text-sm text-muted">Create baseball or softball teams, build coach profiles, and assign head or assistant coaches to teams.</p>
           <RosterTools club={club} onChange={onChange} />
+          {financial?.owner&&onReload&&<AssignPlayersPanel club={club} onReload={onReload}/>}
           <CoachManagement club={club} onSave={onSave} />
           {financial?.owner&&onReload&&<TeamFinancialManagement club={club} financial={financial} onReload={onReload}/>}
         </section>
@@ -416,7 +418,7 @@ function RosterTools({
           setError("");
           try {
             const row = await officeAddPlayer({
-              data: { teamId, name: playerName, parentName, parentEmail, rosterRole: new FormData(event.currentTarget).get("rosterRole") as RosterRole },
+              data: { teamId, name: playerName, parentName, parentEmail, rosterRole: new FormData(event.currentTarget).get("rosterRole") as RosterRole, additionalTeamReason: String(new FormData(event.currentTarget).get("additionalTeamReason") ?? "") },
             });
             onChange(row.club);
             setPlayerName("");
@@ -469,6 +471,10 @@ function RosterTools({
               className="min-h-11 rounded-md border border-line px-3"
             />
             <RosterRoleSelect teamId={teamId}/>
+            <label className="grid gap-1 text-sm" htmlFor="office-add-second-team-reason">
+              Reason, only if this player is already on another team
+              <input id="office-add-second-team-reason" name="additionalTeamReason" maxLength={500} className="min-h-11 rounded-md border border-line px-3" />
+            </label>
             <Button type="submit" disabled={busy || !teamId}>
               Add player and link family
             </Button>

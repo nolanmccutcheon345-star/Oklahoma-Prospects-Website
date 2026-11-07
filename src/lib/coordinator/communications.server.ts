@@ -23,6 +23,7 @@ import {
   noticePermission,
 } from "./communication-contracts";
 import type { Sport } from "./contracts";
+import { teamAnnouncementRecipientIds } from "../teams/recipients.server";
 const canonical = (v: unknown): unknown =>
   Array.isArray(v)
     ? v.map(canonical)
@@ -69,21 +70,11 @@ async function prepare(tx: Sql, actor: string, v: Proposal) {
     await checkScope(tx, actor, noticePermission(v.kind), team.sport, id);
     const t = record?.payload.teams.find((t) => t.id === id);
     if (!t) throw new CoordinatorDenied();
-    const roster = t.roster.filter((p) => !p.withdrawn),
-      families = roster.map((p) => p.familyId).filter(Boolean),
-      players = roster.map((p) => p.id);
-    const emails = [
-      t.coachEmail,
-      ...t.staff.map((s) => s.email),
-      ...roster.flatMap((p) => [p.email, ...p.parents.map((g) => g.email)]),
-    ]
-      .filter(Boolean)
-      .map((e) => e.trim().toLowerCase());
-    const rows = await tx<{
-      id: string;
-    }>`select distinct u.id from "user" u left join profiles p on p.user_id=u.id where u."emailVerified" and u."disabledAt" is null and not exists(select 1 from organization_operational_access o where o.user_id=u.id and o.financial_restricted) and (lower(trim(u.email))=any(${emails}::text[]) or exists(select 1 from person_player_links l where l.user_id=u.id and l.player_id=any(${players}::text[])) or exists(select 1 from club_households h where (h.id=any(${families}::text[]) or lower(trim(h.primary_email))=any(${emails}::text[])) and (exists(select 1 from person_guardian_links g where g.user_id=u.id and g.household_id=h.id) or (coalesce(p.role,'parent')<>'player' and exists(select 1 from household_members m where m.user_id=u.id and m.household_id=h.id)))) or exists(select 1 from owner_grants o where o.user_id=u.id and o.email=lower(trim(u.email)) and o.revoked_at is null)) order by u.id`;
-    recipients[id] = rows.map((r) => r.id);
-    teams.push({ id, name: team.name, recipientCount: rows.length });
+    // t136u: only active members of this team, their guardians and the team's own
+    // staff accounts. Staff households are not reached unless they are guardians.
+    const recipientIds = await teamAnnouncementRecipientIds(tx, t);
+    recipients[id] = recipientIds;
+    teams.push({ id, name: team.name, recipientCount: recipientIds.length });
   }
   let target: unknown = null;
   if (v.kind === "practice") {

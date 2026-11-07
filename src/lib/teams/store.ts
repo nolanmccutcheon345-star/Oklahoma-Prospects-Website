@@ -1,8 +1,6 @@
-import { assertRosterAssignment } from "./po-roster.server";
-import { rosterAddInput, inquiryRosterInput, assertPORosterSpace, type RosterRole } from "./po-roster";
+import { rosterAddInput, inquiryRosterInput } from "./po-roster";
 import {z} from "zod";
 import {parseClubSave} from "./contracts";
-import { assertTeamInquiryPlacement } from "./inquiry-placement";
 import { withFinancialContext, loadFinancialContextInTransaction, lockFinancialExecution, recordFinancialTeamPaymentInTransaction, commitFinancialClubTermsInTransaction, commitFinancialCatalogPriceInTransaction, previewFinancialAdmissionInTransaction, admitFinancialEntitiesForOwnerInTransaction } from "../finance/context.server";
 import { financialClubTermsChangeSchema, financialAdmissionSchema } from "../finance/context-contracts";
 import { readStoredClub, writeStoredClub, persistClubSave, mutateStoredClub, scopedClubResult } from "./club-store.server";
@@ -15,9 +13,11 @@ import { getProfile } from "@/lib/club-data";
 import { clubIdentity } from "@/lib/identity.server";
 import { scopeClub, coachHoldsTeam } from "./privacy";
 import { emptyClub, sampleClub } from "./seed";
-import type { ClubRecord, Player, Team } from "./types";
+import type { ClubRecord, Team } from "./types";
 import type { ClubRole } from "@/lib/club-data";
 import { seasonSaveInput, persistTeamSeasons } from "./season-save.server";
+import { blankPlayer, slug } from "./blank-player";
+import { assertSecondTeamReason, householdGuardian, liveTeamsFor, recordAssignment, reviewTeamInquiryForOffice } from "./roster-assignment.server";
 import { recordTeamRosterConsent, revokeTeamRosterConsent } from './roster-consent';
 
 type Identity = { primaryRole:ClubRole; playerIds:string[]; guardianHouseholdIds:string[]; email: string; familyId: string; familyIds:string[]; role: ClubRole; name: string };
@@ -167,65 +167,6 @@ export const getPlayerRecord = createServerFn({ method: "POST" })
 
 export { getProfile };
 
-function slug(value: string) {
-  return value.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 24) || "new";
-}
-
-function blankPlayer(input: {
-  teamId: string;
-  familyId: string;
-  name: string;
-  parentName: string;
-  parentEmail: string;
-  rosterRole: RosterRole;
-}): Player {
-  return {
-    id: `p-${slug(input.name)}-${Date.now().toString(36).slice(-4)}`,
-    teamId: input.teamId,
-    familyId: input.familyId,
-    name: input.name,
-    number: "",
-    positions: [],
-    bats: "R",
-    throws: "R",
-    gradYear: "",
-    school: "",
-    height: "",
-    weight: "",
-    email: "",
-    parents: [{ name: input.parentName, rel: "guardian", phone: "", email: input.parentEmail }],
-    roleType: input.rosterRole,
-    coachChild: false,
-    joinedOn: new Date().toISOString().slice(0, 10),
-    withdrawn: false,
-    agreement: { version: "", signedBy: "", signedAt: "" },
-    feeLock: null,
-    planLock: null,
-    credits: [],
-    payments: [],
-    cards: [],
-    planType: "four",
-    depositPaid: false,
-    uniformWaived: false,
-    order: { number: "", sizes: {}, submitted: false },
-    docs: { waiver: false, birthCert: false, insurance: false, physical: false },
-    emergency: {
-      allergies: "",
-      conditions: "",
-      insurer: "",
-      policyNo: "",
-      physician: "",
-      pickup: [],
-      notes: "",
-    },
-    publicProfile: { enabled: false, bio: "", slug: "" },
-    prefs: { email: true, sms: true },
-    reenroll: false,
-    cageOverage: 0,
-    stats: {},
-    rsvp: {},
-  };
-}
 
 export const officeAddTeam = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
@@ -321,8 +262,13 @@ async function addRosterPlayer(userId:string,me:Identity,data:z.infer<typeof ros
     const email=data.parentEmail.trim().toLowerCase();
     await tx`insert into club_households(id,primary_email) values(${'fam-'+randomUUID()},${email}) on conflict(primary_email) do nothing`;
     const [household]=await tx<{id:string}>`select id from club_households where primary_email=${email}`;
-    const player=blankPlayer({teamId:team.id,familyId:household.id,name:data.name,parentName:data.parentName||'Parent',parentEmail:email,rosterRole:data.rosterRole});
+    const guardian=await householdGuardian(tx,household.id);
+    const others=await liveTeamsFor(tx,club,{teamId:team.id,householdId:household.id,name:data.name});
+    if(others.length&&me.role!=='admin')throw new Error("This player is already on another team. Ask Front Office to place them on a second team.");
+    const additionalTeamReason=assertSecondTeamReason(club,others,data.additionalTeamReason);
+    const player=blankPlayer({teamId:team.id,familyId:household.id,name:data.name,parentName:data.parentName||'Parent',parentEmail:guardian.email,rosterRole:data.rosterRole});
     team.roster.push(player);
+    await recordAssignment(tx,{actor:userId,action:'assign',teamId:team.id,status:'active',source:me.role==='admin'?'office':'coach',rosterPlayerId:player.id,householdId:household.id,additionalTeamReason});
     if(ownerOnly)await tx`update profiles set family_id=${household.id} where lower(email)=${email}`;
     club.audit.unshift({at:new Date().toISOString(),action:ownerOnly?'player':'coach-roster-add',detail:`Added ${player.name} to ${team.name}`});
   });
@@ -347,6 +293,7 @@ export const coachRemoveRosterPlayer=createServerFn({method:'POST'}).middleware(
       const {endRosterDevelopmentLink}=await import("../team-development/runtime.server");
       await endRosterDevelopmentLink(tx,{teamId:team.id,rosterPlayerId:player.id,actorId:context.userId});
       team.roster=team.roster.filter(p=>p.id!==data.playerId);
+      await recordAssignment(tx,{actor:context.userId,action:'remove',teamId:team.id,status:'removed',source:me.role==='admin'?'office':'coach',rosterPlayerId:player.id,reason:'Removed from roster.'});
       club.audit.unshift({at:new Date().toISOString(),action:'coach-roster-remove',detail:`Removed player from ${team.name}`});
     });
     const result=await clubResponse(context.userId,me);if(!result.ok)throw new Error("Club is not open.");return result;
@@ -356,44 +303,5 @@ export const reviewTeamInquiry=createServerFn({method:'POST'}).middleware([authM
  .validator(inquiryRosterInput)
  .handler(async({context,data})=>{
   const me=await identity(context.userId);if(me.role!=='admin')throw new Error('Front office only.');
-  const sql=await getSql();
-  return sql.transaction(async tx=>{
-   await lockFinancialExecution(tx);
-   const financial=await loadFinancialContextInTransaction(tx,context.userId,"owner");
-   const [request]=await tx<{kind:string;payload:{player:string;parent:string;email:string;sport:string;age:string;preferredTeamId?:string;preferredCoachId?:string;rosterPlayerId?:string;athleteId?:string;school?:string;graduationYear?:string}}> `select kind,payload from club_requests where id=${data.id} for update`;
-   if(!request||!['tryout','team-inquiry'].includes(request.kind))throw new Error('Choose a tryout or team inquiry.');
-   const [row]=await tx<{payload:ClubRecord;rev:number}>`select payload,rev from club_state where id='oklahoma-prospects' for update`;
-   if(!row)throw new Error('Open the club record first.');
-   const club={...row.payload,_rev:row.rev},team=club.teams.find(t=>t.id===data.teamId);
-   if(!team)throw new Error('Choose a current team.');
-   if(request.payload.rosterPlayerId)return {ok:true,message:'This registration is already on a roster.'};
-   assertTeamInquiryPlacement(request.payload,team,data.acknowledgePreferenceOverride);
-   if(data.stage==='offer'||data.stage==='accepted') {
-    if(financial.mode==='basis') { if(data.rosterRole==='po') assertPORosterSpace(team); }
-    else await assertRosterAssignment(tx,team,data.rosterRole!, '',data.id);
-   }
-   const leadId='inquiry-'+data.id,prior=club.leads.find(l=>l.id===leadId);
-   const lead={id:leadId,name:request.payload.player,age:request.payload.age,stage:data.stage,grades:prior?.grades||{},teamId:team.id};
-   club.leads=[...club.leads.filter(l=>l.id!==leadId),lead];
-   let rosterPlayerId:string|undefined;
-   if(data.stage==='accepted'){
-    const email=z.string().email().parse(request.payload.email).toLowerCase();
-    await tx`insert into club_households(id,primary_email) values(${'fam-'+randomUUID()},${email}) on conflict(primary_email) do nothing`;
-    const [household]=await tx<{id:string}>`select id from club_households where primary_email=${email}`;
-    const player=blankPlayer({teamId:team.id,familyId:household.id,name:request.payload.player,parentName:request.payload.parent,parentEmail:email,rosterRole:data.rosterRole!});
-    player.school=request.payload.school||'';player.gradYear=/^\d{4}$/.test(request.payload.graduationYear||'')?request.payload.graduationYear!:'';
-    if(request.payload.athleteId){
-     const [current]=await tx<{school:string;graduation_year:number|null;education_confirmed_at:unknown}>`select school,graduation_year,education_confirmed_at from club_athletes where id=${request.payload.athleteId}`;
-     if(current?.education_confirmed_at){player.school=current.school;player.gradYear=current.graduation_year?.toString()||'';}
-     await tx`insert into recruiting_roster_links(athlete_id,team_id,roster_id,linked_by) values(${request.payload.athleteId},${team.id},${player.id},${context.userId})`;
-    }
-    team.roster.push(player);rosterPlayerId=player.id;
-    await tx`insert into club_invites(id,token_hash,email,team_id,family_id,invited_by,role,expires_at) values(${randomUUID()},${randomUUID()},${email},${team.id},${household.id},${context.userId},'parent',now()+interval '7 days')`;
-   }
-   const revision=club._rev;club._rev++;club._savedAt=new Date().toISOString();
-   await tx`update club_requests set status=case when ${data.stage}='accepted' then 'accepted' else status end,payload=payload||${JSON.stringify({stage:data.stage,teamId:team.id,...(data.rosterRole?{rosterRole:data.rosterRole}:{}),...(rosterPlayerId?{rosterPlayerId}:{})})}::jsonb where id=${data.id}`;
-   await writeRaw(club,revision,tx);
-   if(rosterPlayerId) await (await import("./fee-notifications.server")).queueFeeReadyInTransaction(tx,context.userId,{teamId:team.id,playerId:rosterPlayerId});
-   return {ok:true,message:rosterPlayerId?'Added to the roster. Ask the guardian to sign in at /invitations to accept access.':'Registration stage saved.'};
-  });
+  return reviewTeamInquiryForOffice(await getSql(),context.userId,data);
  });
