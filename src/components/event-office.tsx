@@ -119,13 +119,13 @@ export function EventOffice() {
       )}
       <details className="rounded-xl border p-4">
         <summary className="min-h-11 cursor-pointer font-semibold">Thanksgiving Camp setup</summary>
-        <p className="my-3 text-sm">Create the two age-group drafts without changing existing events. Review the cancellation policy, active coaches and schedule conflicts before publishing each draft. Both groups share a maximum of 150 players per day.</p>
+        <p className="my-3 text-sm">Temporary Sandbox preparation: add three private scheduling fixtures with non-deliverable emails, no accounts or invitations, then create the two age-group drafts. Review the cancellation policy, active coaches and schedule conflicts before publishing each draft. Both groups share a maximum of 150 players per day.</p>
         <Button variant="outlineDark" disabled={busy} onClick={async () => {
           setBusy(true); setError(""); setNotice("");
           try { await createThanksgivingDrafts(); await load(); setNotice("Thanksgiving Camp drafts are ready for owner review. Registration is not opened automatically."); }
           catch (e) { setError((e as Error).message); }
           finally { setBusy(false); }
-        }}>Create Thanksgiving Camp drafts</Button>
+        }}>Prepare isolated fixtures and camp drafts</Button>
       </details>
       {edit && (
         <form

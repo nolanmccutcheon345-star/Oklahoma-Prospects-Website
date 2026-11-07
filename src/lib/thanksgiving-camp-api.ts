@@ -19,5 +19,16 @@ export const createThanksgivingDrafts = createServerFn({ method: "POST" })
   .handler(async ({ context }) => {
     const { getSql } = await import("./db");
     const { createThanksgivingDraftsFor } = await import("./thanksgiving-camp.server");
-    return createThanksgivingDraftsFor(await getSql(), context.userId);
+    const { squareConfig } = await import("./commerce/square.server");
+    const { prepareThanksgivingSandboxFixtures } =
+      await import("./thanksgiving-sandbox-fixtures.server");
+    const config = squareConfig();
+    const sql = await getSql();
+    await prepareThanksgivingSandboxFixtures(sql, context.userId, {
+      environment: config.environment,
+      origin: config.origin,
+      context: process.env.SQUARE_DEPLOY_CONTEXT || process.env.CONTEXT,
+      runtimeContext: process.env.CONTEXT,
+    });
+    return createThanksgivingDraftsFor(sql, context.userId);
   });
