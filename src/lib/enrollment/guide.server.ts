@@ -113,7 +113,9 @@ export async function enrollmentGuide(
           .filter(Boolean)
           .join("; ");
         const finance = admitted ? await financialState(tx, c, team.id, player.id) : null;
-        const accepted = Boolean(finance?.agreementSigned && !fee?.independent?.offer);
+        // A proposed amendment does not undo the signed agreement or its payments.
+        const accepted = Boolean(finance?.agreementSigned);
+        const amendmentPending = Boolean(accepted && fee?.independent?.offer);
         const canceled = Boolean(plan?.independentCancellation || fee?.independent?.cancellation);
         const environment =
           config?.environment || (env.SQUARE_ENVIRONMENT === "sandbox" ? "sandbox" : "production");
@@ -169,23 +171,30 @@ export async function enrollmentGuide(
             href: url + "#enrollment-documents",
           },
           {
-            title: "Review and accept your player's fee agreement",
-            status: accepted
-              ? "Complete"
-              : !admitted || !plan?.published
-                ? "Waiting for Prospects"
-                : canceled
-                  ? "Not applicable"
-                  : "Action needed",
+            title: amendmentPending
+              ? "Review proposed changes to your accepted fee agreement"
+              : "Review and accept your player's fee agreement",
+            status:
+              amendmentPending && !canceled
+                ? "Action needed"
+                : accepted
+                  ? "Complete"
+                  : !admitted || !plan?.published
+                    ? "Waiting for Prospects"
+                    : canceled
+                      ? "Not applicable"
+                      : "Action needed",
             detail: !admitted
               ? "Prospects must finish linking your player's fee account. Your team access is connected; contact the office to make the correct fees available."
-              : accepted
-                ? "Your accepted agreement is saved. Download it in Payments to Prospects."
-                : canceled
-                  ? "Future billing is canceled. Existing balances and accepted history remain available."
-                  : !plan?.published
-                    ? "Prospects has not published this player's fee offer."
-                    : "Sign the current enrollment packet first, then review the published coverage, dates and exact player terms before accepting.",
+              : amendmentPending && !canceled
+                ? "Your accepted agreement is saved. A separate individual offer is awaiting review; it has not replaced your accepted terms. Review the exact proposed changes in Payments to Prospects, or contact the office if unexpected. Do not repay a completed deposit or re-sign the existing agreement."
+                : accepted
+                  ? "Your accepted agreement is saved. Download it in Payments to Prospects."
+                  : canceled
+                    ? "Future billing is canceled. Existing balances and accepted history remain available."
+                    : !plan?.published
+                      ? "Prospects has not published this player's fee offer."
+                      : "Sign the current enrollment packet first, then review the published coverage, dates and exact player terms before accepting.",
             href: url + "#enrollment-payments",
           },
           {
