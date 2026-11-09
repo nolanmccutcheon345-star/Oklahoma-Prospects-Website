@@ -42,6 +42,8 @@ jobs:
         run: node scripts/check-reviewed-release.mjs
       - run: npm run verify:build
       - run: npx playwright install --with-deps chromium
+      - name: Isolated command center navigation walkthrough
+        run: node scripts/check-office-command-center.mjs
       - name: Isolated parent Team Hub walkthrough
         run: node --import tsx scripts/check-team-hub.mjs
       - name: Isolated organization enrollment walkthrough

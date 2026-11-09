@@ -1,3 +1,4 @@
+import { OfficeCommandCenter } from "./office-command-center";
 import { JournalEditor } from "./journal/editor";
 import { WebsiteContentEditor } from "./website-content-editor";
 import { AboutPageEditor } from "./about-page-editor";
@@ -149,6 +150,7 @@ export function OfficeWorkspace({
             </a>
           )}
           {schedule}
+          <OfficeCommandCenter onSection={go} />
           <section className="grid gap-3">
             <h2 className="text-2xl">Quick actions</h2>
             <div className="flex flex-wrap gap-2">
