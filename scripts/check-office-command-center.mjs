@@ -48,13 +48,13 @@ test("command center opens existing modules, searches and recovers without exter
         for (const tool of group.tools) {
           if (tool.section) {
             await page
-              .getByRole("button", { name: tool.label + " " + tool.description, exact: true })
+              .getByRole("button", { name: tool.label })
               .click();
             assert.equal(await page.evaluate(() => globalThis.__selected), tool.section);
           } else
             assert.equal(
               await page
-                .getByRole("link", { name: tool.label + " " + tool.description, exact: true })
+                .getByRole("link", { name: tool.label })
                 .getAttribute("href"),
               tool.href,
             );
