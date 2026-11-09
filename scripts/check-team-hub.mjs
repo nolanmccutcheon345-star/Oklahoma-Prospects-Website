@@ -151,7 +151,6 @@ try {
   assert.equal(await p.getByRole("button", { name: "Post update", exact: true }).count(), 0);
   assert.equal(await p.getByRole("link", { name: "Coach workspace", exact: true }).count(), 0);
   await p.getByRole("link", { name: "Payments & family documents" }).waitFor();
-  await p.getByRole("button", { name: "View camp details", exact: true }).waitFor();
   for (const width of [320, 390, 1280]) {
     await p.setViewportSize({ width, height: 900 });
     await p.screenshot({ path: shots + "/parent-" + width + ".png", fullPage: false });
@@ -164,6 +163,7 @@ try {
       "Navigation fits at " + width,
     );
   }
+  await p.getByRole("button", { name: "View camp details", exact: true }).waitFor();
   await p.getByRole("button", { name: "Got it, Coach", exact: true }).click();
   await p.getByRole("button", { name: "Acknowledged", exact: true }).waitFor();
   await p.reload();
