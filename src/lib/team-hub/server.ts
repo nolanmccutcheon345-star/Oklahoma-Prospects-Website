@@ -1,3 +1,4 @@
+import { listTrainingEvents } from "../training-events.server";
 import { createHash } from "node:crypto";
 import type { Sql } from "../db";
 import { enrollmentScope } from "../enrollment/access.server";
@@ -130,6 +131,26 @@ export async function readHub(sql: Sql, actor: string, raw: unknown = {}) {
       user_id: string;
     }>`select post_key,user_id from team_hub_acknowledgments where team_id=${selected} and post_key=any(${posts.map((p) => p.key)}::text[])`;
     const events = await eventsFor(tx, s.team);
+    // Reuse the public catalog projection so archived/cancelled and operational
+    // schedule changes obey the same rules as registration. No roster data is sent.
+    const camps = (await listTrainingEvents(tx))
+      .filter(
+        (e) => e.type === "camp" && (e.sport === "Both" || e.sport.toLowerCase() === s.team.sport),
+      )
+      .map((e) => ({
+        id: e.id,
+        title: e.name,
+        priceCents: e.priceCents,
+        dayPriceCents: e.dayPriceCents,
+        pricingMode: e.pricingMode || "package",
+        registrationOpen: e.registrationOpen,
+        sessions: [...e.operationalSessions, ...e.additionalSessions]
+          .filter(
+            (session) => session.status !== "cancelled" && new Date(session.endsAt) > new Date(),
+          )
+          .sort((a, b) => a.startsAt.localeCompare(b.startsAt)),
+      }))
+      .filter((e) => e.sessions.length);
     const players = playersFor(s);
     const responses = await tx<{
       event_id: string;
@@ -160,6 +181,7 @@ export async function readHub(sql: Sql, actor: string, raw: unknown = {}) {
         coach: s.team.headCoach,
         manage: s.manage,
         players,
+        camps,
         posts: posts.map((p) => ({
           ...p,
           acknowledged: acknowledgments.some((a) => a.post_key === p.key && a.user_id === actor),

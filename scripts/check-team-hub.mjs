@@ -26,6 +26,9 @@ const shots = "artifacts/team-hub";
 await mkdir(shots, { recursive: true });
 try {
   h.club.teams[0].announcements = [];
+  h.club.teams[0].headCoach = "";
+  const campId = randomUUID();
+  await h.sql`insert into training_events(id,payload,revision,updated_by) values(${campId},${JSON.stringify({ id: campId, revision: 1, name: "Synthetic academy camp", type: "camp", sport: "Both", description: "Synthetic fixture only", priceCents: 12000, dayPriceCents: 4500, pricingMode: "both", location: "Synthetic facility", sessions: [{ date: "2098-01-10", start: "09:00", end: "14:00" }], coachIds: [], capacity: 150, status: "published", policy: "Synthetic policy" })}::jsonb,1,'owner')`;
   h.club.teams[0].practices = [
     {
       id: "practice",
@@ -143,6 +146,11 @@ try {
 
   const guardian = await signedIn("guardian", 390),
     p = guardian.page;
+  await p.getByText(/Coach to be announced/).waitFor();
+  await p.getByRole("heading", { name: "Synthetic academy camp" }).waitFor();
+  assert.equal(await p.getByRole("button", { name: "Post update", exact: true }).count(), 0);
+  assert.equal(await p.getByRole("link", { name: "Coach workspace", exact: true }).count(), 0);
+  await p.getByRole("link", { name: "Payments & family documents" }).waitFor();
   for (const width of [320, 390, 1280]) {
     await p.setViewportSize({ width, height: 900 });
     await p.screenshot({ path: shots + "/parent-" + width + ".png", fullPage: false });
@@ -155,11 +163,14 @@ try {
       "Navigation fits at " + width,
     );
   }
+  await p.getByRole("button", { name: "View camp details", exact: true }).waitFor();
   await p.getByRole("button", { name: "Got it, Coach", exact: true }).click();
   await p.getByRole("button", { name: "Acknowledged", exact: true }).waitFor();
   await p.reload();
   await p.getByRole("button", { name: "Acknowledged", exact: true }).waitFor();
   await p.getByRole("tab", { name: "Schedule", exact: true }).click();
+  await p.getByRole("heading", { name: "Synthetic academy camp" }).waitFor();
+  assert.equal(await p.getByRole("link", { name: "Manage schedule", exact: true }).count(), 0);
   await p.getByLabel("Synthetic athlete attendance for Team practice").selectOption("going");
   await p.getByText("Attendance reply saved.", { exact: true }).waitFor();
   await p.getByRole("tab", { name: "Messages", exact: true }).click();
