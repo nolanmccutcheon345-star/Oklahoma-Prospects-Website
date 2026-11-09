@@ -1,3 +1,4 @@
+import { startVisiblePolling } from "@/lib/visible-polling";
 import { RegistrationProfileFilters } from "../registration-profile-filters";
 import { TeamInvitations } from "../teams/team-invitations";
 import type { RegistrationFilters } from "@/lib/registration-filters";
@@ -47,11 +48,10 @@ export function CoordinatorFrontOffice() {
             setError(e.message);
           }
         });
-    void refresh();
-    const timer = setInterval(() => void refresh(), 30000);
+    const stopPolling = startVisiblePolling(refresh, 30000);
     return () => {
       active = false;
-      clearInterval(timer);
+      stopPolling();
     };
   }, []);
   if (error)
