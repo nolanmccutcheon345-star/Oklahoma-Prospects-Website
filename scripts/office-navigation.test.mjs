@@ -17,7 +17,7 @@ test("front office sidebar and mobile More navigate to every workspace and prese
     async ({ host, act }) => {
       const nav = host.querySelector('nav[aria-label="Front Office"]');
       const expected = [
-        "Dashboard",
+        "Command Center",
         "Requests",
         "Teams & Players",
         "Team Development",
@@ -37,7 +37,7 @@ test("front office sidebar and mobile More navigate to every workspace and prese
         [...nav.querySelectorAll("button")].map((b) => b.textContent),
         expected,
       );
-      assert.equal(nav.querySelector('[aria-current="page"]').textContent, "Dashboard");
+      assert.equal(nav.querySelector('[aria-current="page"]').textContent, "Command Center");
       for (const b of nav.querySelectorAll("button")) await act(async () => b.click());
       assert.equal(new Set(selected).size, expected.length);
       assert.match(host.textContent, /Existing workspace tools/);
