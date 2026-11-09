@@ -19,6 +19,10 @@ test("evaluation registration follows sport across teams and clears stale player
     name: "Coach",
     teams: [{ id: "assigned", name: "Assigned baseball", sport: "baseball", age: "13U" }],
     evaluations: [],
+    evaluators: [
+      { id: "active", name: "Active Coach", active: true },
+      { id: "former", name: "Former Coach", active: false },
+    ],
     candidates: [
       {
         id: "b1",
@@ -77,6 +81,28 @@ test("evaluation registration follows sport across teams and clears stale player
     root = createRoot(host);
   try {
     await act(async () => root.render(createElement(TryoutEvaluations)));
+    const evaluatorSelect = [...host.querySelectorAll("select")].find((s) =>
+      [...s.options].some((o) => o.textContent === "All evaluators"),
+    );
+    assert.deepEqual(
+      [...evaluatorSelect.options].map((o) => o.value),
+      ["", "active"],
+    );
+    const inactiveToggle = [...host.querySelectorAll("input[type=checkbox]")].find((c) =>
+      c.closest("label")?.textContent.includes("Show inactive evaluators"),
+    );
+    assert.equal(inactiveToggle.checked, false);
+    await act(async () => inactiveToggle.click());
+    assert.deepEqual(
+      [...evaluatorSelect.options].map((o) => o.value),
+      ["", "active", "former"],
+    );
+    await act(async () => {
+      evaluatorSelect.value = "former";
+      evaluatorSelect.dispatchEvent(new dom.window.Event("change", { bubbles: true }));
+    });
+    await act(async () => inactiveToggle.click());
+    assert.equal(evaluatorSelect.value, "");
     await act(async () =>
       [...host.querySelectorAll("button")].find((b) => b.textContent === "New evaluation").click(),
     );

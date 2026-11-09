@@ -50,7 +50,7 @@ try {
   });
   const password = randomUUID() + "Aa9!",
     hashed = await hashPassword(password);
-  for (const id of ["guardian", "coach", "stranger"])
+  for (const id of ["guardian", "coach", "stranger", "owner"])
     await h.sql`insert into account(id,"accountId","providerId","userId",password,"createdAt","updatedAt") values(${id},${id},'credential',${id},${hashed},now(),now())`;
   socket = new PGLiteSocketServer({ db: h.db, host: "127.0.0.1", port: 0, maxConnections: 20 });
   await socket.start();
@@ -196,6 +196,133 @@ try {
     .waitFor();
   await p.reload();
   await p.getByRole("heading", { name: "Synthetic coach follow-up", exact: true }).waitFor();
+  // Owner-only soft removal through the real built UI. Never touch customer records.
+  async function openConversation(page, playerId = "") {
+    await page.goto(origin + "/team-hub");
+    await page.getByRole("heading", { name: "The team bulletin", exact: true }).waitFor();
+    await page.getByRole("tab", { name: "Messages", exact: true }).click();
+    await page.getByLabel("Conversation", { exact: true }).selectOption(playerId);
+  }
+  const privateBody = "Synthetic private family question",
+    teamBody = "Synthetic shared team message for removal";
+  await openConversation(p);
+  await p.getByLabel("Your message", { exact: true }).fill(teamBody);
+  await p.getByRole("button", { name: "Send message", exact: true }).click();
+  await p.getByText("Message saved in this conversation.", { exact: true }).waitFor();
+  await p.getByText(teamBody, { exact: true }).waitFor();
+  for (const reader of [p, coach.page]) {
+    for (const playerId of ["", "base-player"]) {
+      await openConversation(reader, playerId);
+      await reader.getByText(playerId ? privateBody : teamBody, { exact: true }).waitFor();
+      assert.equal(
+        await reader.getByRole("button", { name: "Remove message", exact: true }).count(),
+        0,
+        "Parents and coaches cannot remove either kind of message",
+      );
+    }
+  }
+  const coachDesk = await coach.context.newPage();
+  coachDesk.setDefaultTimeout(20000);
+  coachDesk.on("pageerror", (e) => errors.push(e.message));
+  async function openCoachChat() {
+    await coachDesk.goto(origin + "/coach");
+    await coachDesk
+      .locator("summary")
+      .filter({ hasText: /^Team chat$/ })
+      .click();
+  }
+  await openCoachChat();
+  await coachDesk.getByText(teamBody, { exact: true }).waitFor();
+  assert.equal(
+    await coachDesk.getByRole("button", { name: "Remove message", exact: true }).count(),
+    0,
+  );
+
+  const owner = await signedIn("owner", 1280);
+  async function removeThroughConfirmation(body, accept) {
+    const dialogs = [];
+    let finish;
+    const done = new Promise((resolve) => {
+      finish = resolve;
+    });
+    const handle = async (dialog) => {
+      dialogs.push({ type: dialog.type(), message: dialog.message() });
+      if (dialog.type() === "prompt") await dialog.accept("Synthetic duplicate message cleanup");
+      else {
+        if (accept) await dialog.accept();
+        else await dialog.dismiss();
+        finish();
+      }
+    };
+    owner.page.on("dialog", handle);
+    try {
+      await owner.page
+        .locator(".hub-message")
+        .filter({ has: owner.page.getByText(body, { exact: true }) })
+        .getByRole("button", { name: "Remove message", exact: true })
+        .click();
+      await done;
+      assert.equal(dialogs.length, 2);
+      assert.equal(dialogs[0].type, "prompt");
+      assert.match(dialogs[0].message, /Reason/);
+      assert.equal(dialogs[1].type, "confirm");
+      assert.ok(
+        dialogs[1].message.includes(`by guardian: “${body.slice(0, 120)}”`),
+        "Confirmation names the exact author and excerpt",
+      );
+    } finally {
+      owner.page.off("dialog", handle);
+    }
+  }
+  for (const [channel, playerId, body, table] of [
+    ["family", "base-player", privateBody, "team_hub_family_messages"],
+    ["team", "", teamBody, "team_chat_messages"],
+  ]) {
+    await openConversation(owner.page, playerId);
+    await owner.page.getByText(body, { exact: true }).waitFor();
+    const [source] = await h.sql.query(`select id from ${table} where body=$1`, [body]);
+    assert.ok(source);
+    await removeThroughConfirmation(body, false);
+    await owner.page.getByText(body, { exact: true }).waitFor();
+    assert.equal(
+      (
+        await h.sql`select message_id from team_message_removals where channel=${channel} and message_id=${source.id}`
+      ).length,
+      0,
+      "Cancelling confirmation leaves the message and audit unchanged",
+    );
+    await removeThroughConfirmation(body, true);
+    await owner.page.getByText(body, { exact: true }).waitFor({ state: "detached" });
+    for (const reader of [p, coach.page, owner.page]) {
+      await openConversation(reader, playerId);
+      await reader.getByText("Start the conversation.", { exact: true }).waitFor();
+      assert.equal(await reader.getByText(body, { exact: true }).count(), 0);
+    }
+    const [receipt] =
+      await h.sql`select actor_id,reason,author,excerpt,removed_at from team_message_removals where channel=${channel} and message_id=${source.id}`;
+    assert.equal(receipt.actor_id, "owner");
+    assert.equal(receipt.reason, "Synthetic duplicate message cleanup");
+    assert.equal(receipt.author, "guardian");
+    assert.equal(receipt.excerpt, body.slice(0, 120));
+    assert.ok(receipt.removed_at);
+    assert.equal(
+      (await h.sql.query(`select id from ${table} where id=$1 and body=$2`, [source.id, body]))
+        .length,
+      1,
+      "Original historical message is preserved",
+    );
+    const events =
+      await h.sql`select actor_id,after_state from audit_events where action='message.remove' and target_id=${source.id}`;
+    assert.equal(events.length, 1);
+    assert.equal(events[0].actor_id, "owner");
+    assert.equal(events[0].after_state.reason, receipt.reason);
+    assert.equal(events[0].after_state.excerpt, undefined);
+    assert.equal(events[0].after_state.body, undefined);
+  }
+  await openCoachChat();
+  await coachDesk.getByText("No messages yet.", { exact: true }).waitFor();
+  assert.equal(await coachDesk.getByText(teamBody, { exact: true }).count(), 0);
+  assert.equal((await h.sql`select message_id from team_message_removals`).length, 2);
   const stranger = await signedIn("stranger", 390);
   await stranger.page.getByRole("link", { name: "Review invitations", exact: true }).waitFor();
   assert.doesNotMatch(
@@ -204,7 +331,7 @@ try {
   );
   assert.deepEqual(errors, []);
   console.log(
-    "PASS Team Hub: mobile layout, real sign-in, persistent acknowledgments and family messages, attendance, coach updates, and unlinked-account guidance.",
+    "PASS Team Hub: mobile layout, real sign-in, persistent acknowledgments and family messages, attendance, coach updates, owner-only confirmed/cancelled team and family removal across Hub and Coach Desk, preserved audit/history, and unlinked-account guidance.",
   );
 } catch (error) {
   console.error(error);

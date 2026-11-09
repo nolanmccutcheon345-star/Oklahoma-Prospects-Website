@@ -6,6 +6,7 @@
  * passing this harness does not certify a provider writer or authorize cutover.
  */
 import assert from "node:assert/strict";
+import { isTargetAccountRowLock } from "./account-lock-checkpoint.mjs";
 import { readdir, readFile } from "node:fs/promises";
 import { setTimeout as delay } from "node:timers/promises";
 import pg from "pg";
@@ -134,11 +135,11 @@ async function assertPristineDatabase(client: pg.Client) {
   assert.equal(objects.count, 0, "Public schema is not empty; refusing to migrate or reuse it.");
 }
 
-type AfterQuery = (text: string) => Promise<void> | void;
+type AfterQuery = (text: string, parameters: unknown[]) => Promise<void> | void;
 function sqlFor(client: pg.Client, afterQuery?: AfterQuery, nested = false): Sql {
   const run = async <T>(text: string, params: unknown[] = []): Promise<T[]> => {
     const result = await client.query(text, params);
-    await afterQuery?.(text.trim().replace(/\s+/g, " ").toLowerCase());
+    await afterQuery?.(text.trim().replace(/\s+/g, " ").toLowerCase(), params);
     return result.rows as T[];
   };
   const sql = (async <T>(parts: TemplateStringsArray, ...values: unknown[]) =>
@@ -794,12 +795,8 @@ async function verifyAccessGrantDisableRaces(
   let paused = false;
   const granted = Promise.allSettled([
     saveAssignment(
-      sqlFor(granting, async (query) => {
-        if (
-          !paused &&
-          query.startsWith("select lower(trim(u.email))") &&
-          query.endsWith("for update of u")
-        ) {
+      sqlFor(granting, async (query, parameters) => {
+        if (!paused && isTargetAccountRowLock(query, parameters, parent)) {
           paused = true;
           reached.resolve();
           await release.promise;

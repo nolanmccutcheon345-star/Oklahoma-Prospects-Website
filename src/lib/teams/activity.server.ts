@@ -1,3 +1,4 @@
+import { enrollmentScope } from "../enrollment/access.server";
 import { financialPrincipalInTransaction } from "../finance/principal.server";
 import { lockFinancialExecution, financialSourceModeInTransaction } from "../finance/context.server";
 import { withScheduledHotels } from "./travel-budget";
@@ -56,9 +57,10 @@ export async function teamActivityWorkspace(sql: Sql, userId: string, teamId: st
     author: string;
     body: string;
     at: string;
-  }>`select id::text,author,body,created_at::text as at from (select m.* from team_chat_messages m where team_id=${teamId} and (not exists(select 1 from coordinator_notice_messages n where n.message_id=m.id) or exists(select 1 from coordinator_notice_messages n where n.message_id=m.id and ${userId}=any(n.recipient_ids)) or ${me.role === "admin"}) order by created_at desc limit 100) m order by created_at`;
+  }>`select id::text,author,body,created_at::text as at from (select m.* from team_chat_messages m where not exists(select 1 from team_message_removals r where r.channel='team' and r.message_id=m.id) and team_id=${teamId} and (not exists(select 1 from coordinator_notice_messages n where n.message_id=m.id) or exists(select 1 from coordinator_notice_messages n where n.message_id=m.id and ${userId}=any(n.recipient_ids)) or ${me.role === "admin"}) order by created_at desc limit 100) m order by created_at`;
   return {
     financialMode: mode,
+    canRemoveMessages: await sql.transaction(async tx => (await enrollmentScope(tx, userId)).owner),
     owner: me.role === "admin",
     manage,
     teamName: t.name,

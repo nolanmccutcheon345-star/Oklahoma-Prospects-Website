@@ -1,3 +1,4 @@
+import { assertNoNewRosterDuplicates, preserveRosterRemovals } from "./roster-cleanup";
 import type { Sql } from "../db";
 import { isDeepStrictEqual } from "node:util";
 import {
@@ -36,6 +37,8 @@ export async function writeStoredClub(tx: Sql, club: ClubRecord, expectedRev?: n
     const previous = await readStoredClub(tx, true);
     if (!previous || previous._rev !== expectedRev)
       throw new Error("The club changed. Reload before saving.");
+    preserveRosterRemovals(previous, club);
+    assertNoNewRosterDuplicates(previous, club);
     if (mode === "legacy") {
       const independent = await tx<{ team_id: string }>`select team_id from team_fee_plans where payload->'budget'->>'fundingModel'='independent'`;
       for (const { team_id } of independent) {
@@ -118,6 +121,16 @@ export async function persistClubSave(
         const old = stored.teams.find(t => t.id === team.id)?.roster.find(p => p.id === player.id);
         if (JSON.stringify(player.credits || []) !== JSON.stringify(old?.credits || []) || (player.uniformWaived && !old?.uniformWaived))
           throw Error("New discretionary credits and uniform waivers are unavailable. Apply verified fundraising through Finance; preserve historical credits.");
+      }
+      for (const team of stored.teams) for (const player of team.roster) {
+        const next = merged.teams.flatMap(t => t.roster).find(p => p.id === player.id);
+        if (!next || (!player.withdrawn && next.withdrawn)) throw Error('Use the confirmed per-player removal action. Roster history cannot be deleted by Save.');
+      }
+      // Removal metadata is server-owned and cannot be forged by a bulk save.
+      for (const team of merged.teams) for (const player of team.roster) {
+        const old = stored.teams.flatMap(t => t.roster).find(p => p.id === player.id);
+        if (old?.rosterRemoval) player.rosterRemoval = structuredClone(old.rosterRemoval);
+        else delete player.rosterRemoval;
       }
       const {reconcileRosterEducation}=await import("../athlete-registration.server");
       await reconcileRosterEducation(tx,userId,stored,merged);

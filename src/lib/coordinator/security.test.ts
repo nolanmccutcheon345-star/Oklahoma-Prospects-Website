@@ -3747,3 +3747,114 @@ test("coordinators see only explicitly published team prices within current rost
     await db.close();
   }
 });
+
+test("cleanup shows disabled identities, requires exact removal confirmation and preserves independent roles", async () => {
+  const { db, sql, assign } = await fixture();
+  try {
+    const grant = await assign("coach", "baseball", ["recruiting.read"]);
+    await sql`update "user" set "disabledAt"=now(),"emailVerified"=false where id='coach'`;
+    const account = (await staffWorkspace(sql, "owner")).accounts.find((a) => a.id === "coach");
+    assert.equal(account?.name, "coach");
+    assert.equal(account?.email, "coach@example.invalid");
+    assert.equal(account?.account_status, "inactive");
+    const removal = {
+      ...grant,
+      status: "removed" as const,
+      permissions: [],
+      reason: "No longer coordinator",
+      confirmedName: "coach",
+      confirmedEmail: "coach@example.invalid",
+    };
+    await assert.rejects(
+      saveAssignment(sql, "owner", { ...removal, confirmedEmail: "wrong@example.invalid" }),
+      /exact account/,
+    );
+    await assert.rejects(saveAssignment(sql, "parent", removal));
+    await saveAssignment(sql, "owner", removal);
+    const [role] = await sql`select role from profiles where user_id='coach'`;
+    assert.equal(role.role, "coach");
+    const [audit] = await sql<{
+      actor_id: string;
+      details: { reason: string; target: { email: string } };
+      created_at: Date;
+    }>`select actor_id,details,created_at from coordinator_audit where target_id='coach' and result='allowed' order by id desc limit 1`;
+    assert.equal(audit.actor_id, "owner");
+    assert.equal(audit.details.reason, removal.reason);
+    assert.equal(audit.details.target.email, removal.confirmedEmail);
+    assert.ok(audit.created_at);
+    const [reportEvent] = await sql<{
+      actor_id: string;
+      after_state: { reason: string; sport: string; status: string };
+    }>`select actor_id,after_state from audit_events where action='staff.role.remove' and target_id='coach'`;
+    assert.equal(reportEvent.actor_id, "owner");
+    assert.deepEqual(reportEvent.after_state, {
+      reason: removal.reason,
+      sport: "baseball",
+      status: "removed",
+    });
+    await sql`update "user" set "disabledAt"=null,"emailVerified"=true where id='coach'`;
+    await assert.rejects(
+      saveAssignment(sql, "owner", { ...grant, revision: grant.revision + 1 }),
+      /cannot be reactivated/,
+    );
+  } finally {
+    await db.close();
+  }
+});
+
+test("account deactivation confirms exact identity, revokes sessions and preserves account and records", async () => {
+  const { deactivateAccountFor } = await import("../account-deactivation.server");
+  const { db, sql } = await fixture();
+  try {
+    const input = {
+      userId: "coach",
+      confirmedName: "coach",
+      confirmedEmail: "coach@example.invalid",
+      reason: "Synthetic cleanup test",
+      confirm: true,
+    };
+    await sql`insert into "session"(id,token,"userId","expiresAt","createdAt","updatedAt") values('cleanup-session','cleanup-token','coach',now()+interval '1 day',now(),now())`;
+    const before = await sql`select payload from club_state where id='oklahoma-prospects'`;
+    await sql`insert into tryout_evaluations(id,team_id,evaluator_id,evaluator_name,player_name,age_group,sport,evaluation_date,status,recommendation,payload) values('cleanup-evaluation','base','coach','coach','Synthetic Athlete','13U','baseball','2026-01-01','submitted','callback','{}'::jsonb)`;
+    const evaluationsBefore = await sql`select * from tryout_evaluations`;
+    await assert.rejects(deactivateAccountFor(sql, "parent", input));
+    await sql`insert into "user"(id,email,name,"emailVerified","createdAt","updatedAt") values('restricted-owner','restricted-owner@example.invalid','Restricted Owner',true,now(),now())`;
+    await sql`insert into profiles(user_id,email,name,role) values('restricted-owner','restricted-owner@example.invalid','Restricted Owner','admin')`;
+    await sql`insert into owner_grants(email,user_id) values('restricted-owner@example.invalid','restricted-owner')`;
+    await sql`insert into organization_operational_access(user_id,status,financial_restricted,updated_by) values('restricted-owner','removed',true,'owner')`;
+    await assert.rejects(deactivateAccountFor(sql, "restricted-owner", input), /not authorized/);
+    assert.equal((await sql`select "disabledAt" from "user" where id='coach'`)[0].disabledAt, null);
+    assert.equal((await sql`select id from "session" where "userId"='coach'`).length, 1);
+    assert.deepEqual(await sql`select * from tryout_evaluations`, evaluationsBefore);
+    assert.equal(
+      (await sql`select id from audit_events where action='account.deactivate'`).length,
+      0,
+    );
+    await assert.rejects(
+      deactivateAccountFor(sql, "owner", { ...input, confirmedName: "Wrong person" }),
+      /identity changed/,
+    );
+    await assert.rejects(deactivateAccountFor(sql, "owner", { ...input, reason: "" }));
+    await deactivateAccountFor(sql, "owner", input);
+    const [account] = await sql`select "disabledAt" from "user" where id='coach'`;
+    assert.ok(account.disabledAt);
+    assert.deepEqual(await sql`select * from tryout_evaluations`, evaluationsBefore);
+    assert.equal((await sql`select id from "session" where "userId"='coach'`).length, 0);
+    assert.deepEqual(
+      await sql`select payload from club_state where id='oklahoma-prospects'`,
+      before,
+    );
+    const [event] = await sql<{
+      actor_id: string;
+      after_state: { reason: string; target: { email: string } };
+      created_at: Date;
+    }>`select actor_id,after_state,created_at from audit_events where action='account.deactivate' and target_id='coach'`;
+    assert.equal(event.actor_id, "owner");
+    assert.equal(event.after_state.reason, input.reason);
+    assert.equal(event.after_state.target.email, input.confirmedEmail);
+    assert.ok(event.created_at);
+    assert.equal((await deactivateAccountFor(sql, "owner", input)).alreadyInactive, true);
+  } finally {
+    await db.close();
+  }
+});

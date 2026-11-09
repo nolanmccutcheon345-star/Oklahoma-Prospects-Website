@@ -6,7 +6,9 @@ import type { ClubRole } from "./club-data";
 export async function clubIdentity(userId: string) {
   return resolveIdentity(await getSql(), userId);
 }
-export async function resolveIdentity(sql: Sql, userId: string) {
+export async function resolveIdentity(sql: Sql, userId: string, inTransaction = false) {
+  // Transactional callers already own the outer transaction and must not nest it.
+  const transaction: Sql['transaction'] = inTransaction ? work => work(sql) : work => sql.transaction(work);
   const { requireUnrestrictedLegacyAccess } = await import("./coordinator/access.server");
   await requireUnrestrictedLegacyAccess(sql, userId);
   const [user] = await sql.query<{
@@ -21,7 +23,7 @@ export async function resolveIdentity(sql: Sql, userId: string) {
     throw new Error("Verify your email before opening your household records.");
   const email = user.email.trim().toLowerCase();
   // A migration authorizes exactly two owner emails. Claim once, only after verification.
-  await sql.transaction(async (tx) => {
+  await transaction(async (tx) => {
     const claimed = await tx.query(
       "update owner_grants set user_id=$1 where email=$2 and user_id is null and revoked_at is null returning email",
       [userId, email],
@@ -47,7 +49,7 @@ export async function resolveIdentity(sql: Sql, userId: string) {
     );
     if (grants.length) role = "admin";
   }
-  await sql.transaction(async (tx) => {
+  await transaction(async (tx) => {
     await tx`insert into club_households(id,primary_email) values(${"fam-" + randomUUID()},${email}) on conflict(primary_email) do nothing`;
     await tx`insert into household_members(household_id,user_id) select id,${userId} from club_households where primary_email=${email} on conflict do nothing`;
   });

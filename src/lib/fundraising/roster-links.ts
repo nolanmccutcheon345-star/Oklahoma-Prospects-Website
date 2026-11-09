@@ -1,3 +1,4 @@
+import { lockFinancialExecution } from "../finance/execution.server";
 import type { Sql } from "../db";
 import { resolveIdentity } from "../identity.server";
 import type { ClubRecord } from "../teams/types";
@@ -18,20 +19,20 @@ export async function realTeams(sql: Sql) {
   );
   return row && !row.demo ? row.payload.teams : [];
 }
-export async function rosterChoicesFor(sql: Sql, userId: string) {
-  const me = await resolveIdentity(sql, userId);
+async function rosterChoicesWithAuthority(sql: Sql, userId: string, inTransaction = false) {
+  const me = await resolveIdentity(sql, userId, inTransaction);
   if (me.role === "player")
     throw new AppError("A parent or authorized administrator must manage player fundraising.", 403);
   const teams = await realTeams(sql);
-  return teams.flatMap((t) =>
+  const choices = teams.flatMap((t) =>
     t.roster
       .filter(
         (p) =>
-          me.role === "admin" ||
+          !p.withdrawn && !p.rosterRemoval && (me.role === "admin" ||
           me.familyIds.includes(p.familyId) ||
           p.parents.some((parent) =>
             [me.email, ...me.householdEmails].includes(parent.email.trim().toLowerCase()),
-          ),
+          )),
       )
       .map((p) => ({
         teamId: t.id,
@@ -42,20 +43,38 @@ export async function rosterChoicesFor(sql: Sql, userId: string) {
         playerName: p.name,
       })),
   );
+  return {choices, admin: me.role === "admin"};
+}
+export async function rosterChoicesFor(sql: Sql, userId: string, inTransaction = false) {
+  return (await rosterChoicesWithAuthority(sql, userId, inTransaction)).choices;
 }
 export async function requireRosterChoice(
   sql: Sql,
   userId: string,
   teamId: unknown,
   playerId: unknown,
+  inTransaction = false,
 ) {
   if (typeof teamId !== "string" || typeof playerId !== "string")
     throw new AppError("Select your roster player and team.");
-  const choice = (await rosterChoicesFor(sql, userId)).find(
+  const current = await rosterChoicesWithAuthority(sql, userId, inTransaction);
+  const choice = current.choices.find(
     (p) => p.teamId === teamId && p.rosterPlayerId === playerId,
   );
   if (!choice) throw new AppError("This roster player is not available to your household.", 403);
-  return choice;
+  return {...choice, admin: current.admin};
+}
+/** All new links and relinks share the cleanup gate; recheck identity after acquiring it.
+ * A preflight choice is display-only and never authorizes a later write. */
+export async function withActiveRosterChoice<T>(
+  sql: Sql, userId: string, teamId: unknown, playerId: unknown,
+  work: (tx: Sql, choice: Awaited<ReturnType<typeof requireRosterChoice>>) => Promise<T>,
+): Promise<T> {
+  return sql.transaction(async tx => {
+    await lockFinancialExecution(tx);
+    const choice = await requireRosterChoice(tx, userId, teamId, playerId, true);
+    return work(tx, choice);
+  });
 }
 export async function linkedPlayer(sql: Sql, id: string) {
   const [link] = await sql.query<{ team_id: string; roster_player_id: string }>(

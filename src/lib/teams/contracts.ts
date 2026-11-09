@@ -9,6 +9,7 @@ const staff=z.object({id,name:short,role:short,monthly:money,childId:id,applyAmo
 const player=z.object({
  id,teamId:id,familyId:id,name:short,number:short,positions:strings,bats:short,throws:short,gradYear:short,school:short,height:short,weight:short,email:short,
  parents:z.array(z.object({name:short,rel:short,phone:short,email:short}).strict()).max(10),roleType:z.enum(['full','po']),coachChild:z.boolean(),joinedOn:short,withdrawn:z.boolean(),
+ rosterRemoval:z.object({actorId:id,at:short,reason:z.string().max(1000),requestId:id,canonicalPlayerId:id.optional()}).strict().optional(),
  agreement:z.object({version:short,signedBy:short,signedAt:short}).strict(),
  rosterConsent:z.object({version:short,text:text,signedBy:short,signerEmail:short,signedAt:short,revokedAt:short.optional()}).strict().optional(),
  feeLock:z.object({amount:money,lockedAt:short,policyVersion:short,components:numbers}).strict().nullable().optional(),

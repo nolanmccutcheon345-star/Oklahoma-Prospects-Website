@@ -1,3 +1,4 @@
+import { RemoveMessageButton } from "@/components/teams/remove-message-button";
 import { currentSeason } from "@/lib/recruiting-contracts";
 import { useEffect, useState } from "react";
 import { Button } from "../ui/button";
@@ -451,6 +452,7 @@ export function TeamActivities({
             {data.messages.map((m) => (
               <article key={m.id} className="my-3 border-b py-2">
                 <strong>{m.author}</strong>
+                <RemoveMessageButton owner={data.canRemoveMessages} teamId={teamId} message={m} onRemoved={reload} />
                 <p className="whitespace-pre-wrap break-words">{m.body}</p>
                 <time className="text-xs">
                   {new Date(m.at).toLocaleString("en-US", { timeZone: "America/Chicago" })} CT

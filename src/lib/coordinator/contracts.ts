@@ -100,6 +100,9 @@ export const assignmentInput = z
     permissions: z.array(z.enum(permissionKeys)).max(permissionKeys.length),
     confirm: z.literal(true),
     independentRolesReviewed: z.boolean(),
+    reason: z.string().trim().min(10).max(500).optional(),
+    confirmedName: z.string().optional(),
+    confirmedEmail: z.string().optional(),
   })
   .strict();
 export type AssignmentInput = z.infer<typeof assignmentInput>;

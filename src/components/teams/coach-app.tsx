@@ -1,3 +1,5 @@
+import { duplicateRosterPlayer } from "@/lib/teams/roster-cleanup";
+import { RosterCleanupControls } from "./roster-cleanup-controls";
 import { getTeamWaiverReadiness } from "@/lib/enrollment/api";
 import type { TeamFinancialView } from "@/lib/teams/financial-view";
 import { TournamentFinder } from "./tournament-finder";
@@ -9,7 +11,7 @@ import { TeamActivities } from "./team-activities";
 import { formatClockTime } from "@/lib/time-display";
 import { PrivatePlayerBirthday } from "@/components/commerce/player-birthdays";
 import { useState, useEffect } from "react";
-import { coachAddRosterPlayer, coachRemoveRosterPlayer } from "@/lib/teams/store";
+import { coachAddRosterPlayer } from "@/lib/teams/store";
 import { Link } from "@tanstack/react-router";
 import { Button } from "@/components/ui/button";
 import type { ClubRecord, Team } from "@/lib/teams/types";
@@ -23,12 +25,14 @@ const FILTERS = ["all", "action", "unsigned", "sizes", "paperwork", "pitchers"] 
 
 export function CoachApp({
   club,
+  canRemove = false,
   financial,
   onChange,
   onSave,
   onReload,
 }: {
   club: ClubRecord;
+  canRemove?: boolean;
   financial?: TeamFinancialView | null;
   onChange: (club: ClubRecord) => void;
   onSave: (next?: ClubRecord) => Promise<boolean>;
@@ -104,7 +108,8 @@ export function CoachApp({
         return sum + (ev?.fee ?? 0);
       }, 0);
 
-  const roster = team.roster.filter((p) => {
+  const activeRoster = team.roster.filter(p => !p.withdrawn);
+  const roster = activeRoster.filter((p) => {
     if (q && !p.name.toLowerCase().includes(q.toLowerCase())) return false;
     if (filter === "unsigned") return !signed(p);
     if (filter === "sizes") return !p.order.submitted;
@@ -131,7 +136,7 @@ export function CoachApp({
           </Chip>
         ))}
       </div>
-      <p className="text-sm text-muted">Roster {team.roster.length}/10 funding</p>
+      <p className="text-sm text-muted">Roster {activeRoster.length}/10 funding</p>
       <p className="text-xs text-muted">
         {team.eventBudget
           ? `${Math.round((spent / team.eventBudget) * 100)}% of budget`
@@ -149,7 +154,7 @@ export function CoachApp({
       <Section
         title="Operational checklist"
         defaultOpen
-        count={team.roster.filter((p) => !isCleared(p)).length}
+        count={activeRoster.filter((p) => !isCleared(p)).length}
       >
         <p className="mb-2 text-sm">
           Annual waiver status comes from the saved signature. Other document checks are office
@@ -162,11 +167,11 @@ export function CoachApp({
           <p role="alert">{currentWaivers.error}</p>
         ) : null}
         <ul className="grid gap-1 text-sm">
-          <li>Unsigned: {team.roster.filter((p) => !signed(p)).length}</li>
-          <li>Deposits outstanding: {team.roster.filter((p) => !depositPaid(p)).length}</li>
-          <li>Sizes missing: {team.roster.filter((p) => !p.order.submitted).length}</li>
+          <li>Unsigned: {activeRoster.filter((p) => !signed(p)).length}</li>
+          <li>Deposits outstanding: {activeRoster.filter((p) => !depositPaid(p)).length}</li>
+          <li>Sizes missing: {activeRoster.filter((p) => !p.order.submitted).length}</li>
           <li>
-            Paperwork incomplete or unverified: {team.roster.filter((p) => !docsComplete(p)).length}
+            Paperwork incomplete or unverified: {activeRoster.filter((p) => !docsComplete(p)).length}
           </li>
           <li>Pitchers on rest: {team.pitchLog.filter((o) => restDays(o.pitches) > 0).length}</li>
         </ul>
@@ -206,12 +211,15 @@ export function CoachApp({
             e.preventDefault();
             const form = e.currentTarget;
             const fd = new FormData(form);
+            const existing=duplicateRosterPlayer(team,String(fd.get("name")),String(fd.get("parentEmail")));
+            if(existing && (existing.withdrawn || !window.confirm(`This player already exists: ${existing.name} (${existing.id}). Link to this existing roster record instead of creating another? Cancel leaves everything unchanged.`))) {setRosterError(existing.withdrawn?'An inactive matching record exists. Ask Front Office to review it.':'Add cancelled.');return;}
             setRosterBusy(true);
             setRosterError("");
             try {
               const row = await coachAddRosterPlayer({
                 data: {
                   teamId: team.id,
+                  existingPlayerId: existing?.id,
                   rosterRole: String(fd.get("rosterRole")) as RosterRole,
                   name: String(fd.get("name")),
                   parentName: String(fd.get("parentName")),
@@ -293,35 +301,7 @@ export function CoachApp({
                         : "Checklist needs review"}
                   </span>
                 </span>
-                <button
-                  type="button"
-                  disabled={rosterBusy || p.withdrawn}
-                  className="min-h-11 rounded border px-2 text-sm"
-                  onClick={async () => {
-                    if (
-                      !window.confirm(
-                        `Remove ${p.name} from the active roster for ${team.name}? Independent financial records and accepted obligations remain in place. Financial withdrawal requires a separate Front Office action.`,
-                      )
-                    )
-                      return;
-                    setRosterBusy(true);
-                    setRosterError("");
-                    try {
-                      const row = await coachRemoveRosterPlayer({
-                        data: { teamId: team.id, playerId: p.id },
-                      });
-                      onChange(row.club);
-                    } catch (err) {
-                      setRosterError(
-                        err instanceof Error ? err.message : "Could not remove player.",
-                      );
-                    } finally {
-                      setRosterBusy(false);
-                    }
-                  }}
-                >
-                  Remove player
-                </button>
+                {canRemove && <RosterCleanupControls teamId={team.id} playerId={p.id} onDone={()=>void onReload()} mergeCandidates={activeRoster.filter(x=>x.id!==p.id).map(x=>({id:x.id,name:x.name}))} />}
               </div>
               <details className="rounded border p-3">
                 <summary className="min-h-11 cursor-pointer">Edit roster details</summary>

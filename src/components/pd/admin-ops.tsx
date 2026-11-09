@@ -1233,10 +1233,16 @@ export function AdminAccountsDesk({
                   >
                     Account Settings
                   </Button>
+                  {row.status === "inactive" && (
+                    <p role="status">
+                      Already inactive. Sign-in is blocked; saved evaluations and financial records
+                      remain.
+                    </p>
+                  )}
                   {row.owner || row.status === "inactive" ? null : (
                     <details>
                       <summary className="min-h-11 cursor-pointer px-3 py-2 text-sm">
-                        More actions
+                        Deactivate account
                       </summary>
                       <p className="max-w-sm text-sm">
                         Deactivation blocks sign-in, ends active sessions, and disables staff
@@ -1247,7 +1253,25 @@ export function AdminAccountsDesk({
                         armedLabel="Confirm Deactivation"
                         onConfirm={async () => {
                           try {
-                            await deleteAccount({ data: { userId: row.user_id } });
+                            const reason = window.prompt(
+                              "Reason for deactivating this account (at least 10 characters):",
+                            );
+                            if (
+                              !reason ||
+                              !window.confirm(
+                                `Deactivate ${row.name} (${row.email}), ID ${row.user_id}? Sign-in and sessions will end. Evaluations, payments and historical records remain.`,
+                              )
+                            )
+                              return;
+                            await deleteAccount({
+                              data: {
+                                userId: row.user_id,
+                                confirmedName: row.name,
+                                confirmedEmail: row.email,
+                                reason,
+                                confirm: true,
+                              },
+                            });
                             await refresh();
                           } catch (e) {
                             setError(e instanceof Error ? e.message : "Could not deactivate user.");

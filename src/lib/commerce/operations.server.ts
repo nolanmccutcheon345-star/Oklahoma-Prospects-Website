@@ -1,3 +1,4 @@
+import { readAdministrativeAuditEvents } from "./audit-report.server";
 import { lockFinancialExecution } from "../finance/execution.server";
 import { clubIdentity as staffIdentity } from "../identity.server";
 import { getSql } from "../db";
@@ -139,14 +140,7 @@ export async function officeOperations(userId: string) {
    (select count(*)::integer from athlete_assessments) as verified_assessments,
    (select coalesce(sum(total_cents),0) from commerce_orders where status='paid') as paid_cents,
    (select count(*)::integer from commerce_orders where status='payment_review') as open_review`,
-    sql<{
-      id: number;
-      actor_id: string;
-      action: string;
-      target_table: string;
-      target_id: string;
-      created_at: Date;
-    }>`select id,actor_id,action,target_table,target_id,created_at from audit_events order by id desc limit 100`,
+    readAdministrativeAuditEvents(sql, userId),
     sql<{
       id: string;
       name: string;

@@ -1,3 +1,4 @@
+import { RosterCleanupControls } from "./roster-cleanup-controls";
 import { useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { DeskCard, NumRows } from "@/components/teams/desk-kit";
@@ -163,6 +164,7 @@ export function RosterBoard({ team }: { team: OsTeam }) {
                     {clear.reason}
                   </span>
                 </button>
+                {os.perms.admin && <RosterCleanupControls teamId={team.id} playerId={player.id} mergeCandidates={active.filter(p=>p.id!==player.id).map(p=>({id:p.id,name:p.name}))} />}
                 {os.canSign(player) ? (
                   <button
                     type="button"
