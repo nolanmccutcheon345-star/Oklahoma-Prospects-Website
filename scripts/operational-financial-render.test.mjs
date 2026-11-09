@@ -25,7 +25,7 @@ const mocks = {
   "@/components/team-development/coach-panel": `export const TeamDevelopmentCoachPanel=()=>null;`,
   "@/components/team-development/admin-panel": `export const TeamDevelopmentAdminPanel=()=>null;`,
   "@/lib/team-coach-directory-api": `export const getAssignableTeamCoaches=async()=>[];`,
-  "@/lib/teams/store": `export const officeAddPlayer=async()=>{};export const officeAddTeam=async()=>{};export const officeRemoveTeam=async()=>{};export const officeSaveTeamSeasons=async()=>{};export const coachAddRosterPlayer=async()=>{};export const coachRemoveRosterPlayer=async()=>{};`,
+  "@/lib/teams/store": `export const officeAddPlayer=async()=>{};export const officeAddTeam=async()=>{};export const officeRemoveTeam=async()=>{};export const officeSaveTeamSeasons=async()=>{};export const coachAddRosterPlayer=async()=>{};export const coachRemoveRosterPlayer=async()=>{};export const previewRosterRemoval=async()=>{};export const previewRosterMerge=async()=>{};export const mergeRosterDuplicates=async()=>{};`,
   "@tanstack/react-router": `import React from 'react';export const Link=({to,children,...props})=>React.createElement('a',{href:to,...props},children);`,
 };
 async function component(file, name) {

@@ -1,3 +1,4 @@
+import { RemoveMessageButton } from "@/components/teams/remove-message-button";
 import { useCallback, useEffect, useRef, useState } from "react";
 import * as Tabs from "@radix-ui/react-tabs";
 import {
@@ -584,6 +585,7 @@ export function TeamHubWorkspace() {
                       <b>{m.author}</b>
                       <p>{m.body}</p>
                       <small>{stamp(m.at)}</small>
+                      <RemoveMessageButton owner={hub.canRemoveMessages} teamId={selected!} channel={playerId ? "family" : "team"} message={m} onRemoved={reload} />
                     </div>
                   ))}
                 </div>

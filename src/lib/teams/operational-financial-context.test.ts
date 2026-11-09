@@ -18,7 +18,7 @@ import { sampleClub } from "./seed";
 import { scopeClub } from "./privacy";
 import { parseClubSave } from "./contracts";
 import { operationalClubView, mergeOperationalSave } from "./operational-view";
-import { persistClubSave, readStoredClub, scopedClubResult } from "./club-store.server";
+import { persistClubSave, readStoredClub, scopedClubResult, mutateStoredClub } from "./club-store.server";
 import { teamFinancialView } from "./financial-view.server";
 import {
   initializeFinancialBasisForOwner,
@@ -256,7 +256,12 @@ test("operational transfers, contacts, schedule and staff edits preserve scoped 
     assert.deepEqual(await financial(sql, id), before[id]);
   const remove = structuredClone(saved.club);
   remove.teams[1].roster = remove.teams[1].roster.filter((r) => r.id !== p.id);
-  await persistClubSave(sql, "owner", owner, { club: remove, baseRev: saved.club._rev });
+  await assert.rejects(persistClubSave(sql, "owner", owner, { club: remove, baseRev: saved.club._rev }), /confirmed per-player removal/);
+  await mutateStoredClub(sql, 'owner', 'owner', saved.club._rev, async (_tx, next) => {
+    const player = next.teams.flatMap(t => t.roster).find(x => x.id === p.id)!;
+    player.withdrawn = true;
+    player.rosterRemoval = {actorId:'owner',at:'2030-01-01',reason:'Synthetic removal',requestId:'synthetic-removal'};
+  });
   assert.deepEqual(
     await financial(sql, "parent"),
     before.parent,
@@ -579,4 +584,29 @@ test("captured parent-role coaches retain only their previously effective pay ac
       false,
     ),
   );
+});
+
+
+test("roster cleanup persists across reload and bulk save without changing frozen obligations", async()=>{
+ const {sql,club,p}=await fixture();await capture(sql);await activate(sql);
+ const before=await financial(sql,'parent');
+ await mutateStoredClub(sql,'owner','owner',club._rev,async(_tx,next)=>{
+  const target=next.teams.flatMap(t=>t.roster).find(x=>x.id===p.id)!;
+  target.withdrawn=true;target.rosterRemoval={actorId:'owner',at:'2030-01-01T00:00:00Z',reason:'Synthetic cleanup',requestId:'synthetic-request'};
+ });
+ let stored=(await readStoredClub(sql))!;
+ assert.equal(stored.teams.flatMap(t=>t.roster).find(x=>x.id===p.id)!.withdrawn,true);
+ assert.deepEqual(await financial(sql,'parent'),before);
+ const view=operationalClubView(stored,'admin',owner);
+ const target=view.teams.flatMap(t=>t.roster).find(x=>x.id===p.id)!;target.withdrawn=false;delete target.rosterRemoval;
+ await persistClubSave(sql,'owner',owner,{club:view,baseRev:stored._rev});
+ stored=(await readStoredClub(sql))!;
+ assert.equal(stored.teams.flatMap(t=>t.roster).find(x=>x.id===p.id)!.withdrawn,true);
+ assert.equal(stored.teams.flatMap(t=>t.roster).find(x=>x.id===p.id)!.rosterRemoval!.reason,'Synthetic cleanup');
+ assert.deepEqual(await financial(sql,'parent'),before);
+ const forged=operationalClubView(stored,'admin',owner);
+ const active=forged.teams.flatMap(t=>t.roster).find(x=>x.id!==p.id)!;
+ active.rosterRemoval={actorId:'forged',at:'2030-01-01',reason:'forged',requestId:'forged',canonicalPlayerId:p.id};
+ await persistClubSave(sql,'owner',owner,{club:forged,baseRev:stored._rev});
+ assert.equal((await readStoredClub(sql))!.teams.flatMap(t=>t.roster).find(x=>x.id===active.id)!.rosterRemoval,undefined);
 });

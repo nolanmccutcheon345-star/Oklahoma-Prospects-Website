@@ -83,3 +83,13 @@ export const lessonTermIdInput = z
   .object({ id, basisVersion: z.number().int().positive().optional() })
   .strict();
 export const userIdInput = z.object({ userId: id }).strict();
+
+export const deactivateAccountInput = z
+  .object({
+    userId: id,
+    confirmedName: z.string().min(1),
+    confirmedEmail: z.string().email(),
+    reason: z.string().trim().min(10).max(500),
+    confirm: z.literal(true),
+  })
+  .strict();

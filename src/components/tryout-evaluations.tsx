@@ -1,5 +1,5 @@
-import {RegistrationProfileFilters} from "./registration-profile-filters";
-import {emptyRegistrationFilters,type RegistrationFilters} from "@/lib/registration-filters";
+import { RegistrationProfileFilters } from "./registration-profile-filters";
+import { emptyRegistrationFilters, type RegistrationFilters } from "@/lib/registration-filters";
 import { RegistrationProfileSummary } from "@/components/registration-profile-summary";
 import { getEvaluationReviews, markEvaluationReviewed } from "@/lib/front-office-api";
 import { CLUB } from "@/lib/club";
@@ -61,7 +61,7 @@ export function TryoutEvaluations({
   const [reviews, setReviews] = useState<Awaited<ReturnType<typeof getEvaluationReviews>>>([]);
   const [reviewError, setReviewError] = useState("");
   const [reviewsLoaded, setReviewsLoaded] = useState(false);
-  const [athleteFilters,setAthleteFilters]=useState(emptyRegistrationFilters);
+  const [athleteFilters, setAthleteFilters] = useState(emptyRegistrationFilters);
   const [workspace, setWorkspace] = useState<EvaluationWorkspace>();
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
@@ -76,12 +76,13 @@ export function TryoutEvaluations({
     [sportFilter, setSportFilter] = useState(""),
     [dateFilter, setDateFilter] = useState(""),
     [coachFilter, setCoachFilter] = useState(""),
+    [showInactiveEvaluators, setShowInactiveEvaluators] = useState(false),
     [statusFilter, setStatusFilter] = useState("");
-  async function refresh(filters:RegistrationFilters=athleteFilters) {
+  async function refresh(filters: RegistrationFilters = athleteFilters) {
     setLoading(true);
     setError("");
     try {
-      setWorkspace(await getTryoutEvaluations({data:filters}));
+      setWorkspace(await getTryoutEvaluations({ data: filters }));
     } catch (e) {
       setWorkspace(undefined);
       setError(e instanceof Error ? e.message : "Could not load evaluations.");
@@ -260,13 +261,21 @@ export function TryoutEvaluations({
       ].map((t) => [t.id, t]),
     ).values(),
   ];
-  const coachOptions = [
-    ...new Map(workspace.evaluations.map((r) => [r.evaluatorId, r.evaluatorName])).entries(),
-  ];
+  const coachOptions = (workspace.evaluators || []).filter(
+    (e) => e.active || showInactiveEvaluators,
+  );
 
   return (
     <div className="grid gap-5">
-      {!form && <RegistrationProfileFilters onApply={f=>{setAthleteFilters(f);void refresh(f);}} busy={loading} />}
+      {!form && (
+        <RegistrationProfileFilters
+          onApply={(f) => {
+            setAthleteFilters(f);
+            void refresh(f);
+          }}
+          busy={loading}
+        />
+      )}
       {workspace.owner && !reviewsLoaded && !reviewError && (
         <p role="status">Loading review status…</p>
       )}
@@ -412,20 +421,42 @@ export function TryoutEvaluations({
                   onChange={(e) => setDateFilter(e.target.value)}
                 />
               </Field>
-              <Field label="Evaluator">
-                <select
-                  className={control}
-                  value={coachFilter}
-                  onChange={(e) => setCoachFilter(e.target.value)}
-                >
-                  <option value="">All evaluators</option>
-                  {coachOptions.map(([id, name]) => (
-                    <option key={id} value={id}>
-                      {name}
-                    </option>
-                  ))}
-                </select>
-              </Field>
+              <div>
+                <Field label="Evaluator">
+                  <select
+                    className={control}
+                    value={coachFilter}
+                    onChange={(e) => setCoachFilter(e.target.value)}
+                  >
+                    <option value="">All evaluators</option>
+                    {coachOptions.map(({ id, name, active }) => (
+                      <option key={id} value={id}>
+                        {name}
+                        {active ? "" : " (inactive)"}
+                      </option>
+                    ))}
+                  </select>
+                </Field>
+                <label className="flex min-h-11 items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={showInactiveEvaluators}
+                    onChange={(e) => {
+                      setShowInactiveEvaluators(e.target.checked);
+                      if (
+                        !e.target.checked &&
+                        !workspace.evaluators?.some((u) => u.id === coachFilter && u.active)
+                      )
+                        setCoachFilter("");
+                    }}
+                  />
+                  Show inactive evaluators
+                </label>
+                <p className="text-sm">
+                  All evaluators includes historical records, even when inactive names are hidden
+                  from this list.
+                </p>
+              </div>
               <Field label="Status">
                 <select
                   className={control}
@@ -630,7 +661,9 @@ export function TryoutEvaluations({
                     }}
                   >
                     <option value="">Walk-in / enter a player</option>
-                    {candidate?.profile && <RegistrationProfileSummary profile={candidate.profile}/>}
+                    {candidate?.profile && (
+                      <RegistrationProfileSummary profile={candidate.profile} />
+                    )}
                     {form.registrationId && !candidate ? (
                       <option value={form.registrationId}>
                         {form.playerName} · Saved registration

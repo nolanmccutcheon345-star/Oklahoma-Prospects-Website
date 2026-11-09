@@ -310,7 +310,31 @@ test("persistent evaluations enforce staff/team access, author attribution, retr
     });
     assert.equal(revised.ageGroup, "8U");
     assert.equal(revised.revision, 2);
+    const beforeCleanup = await evaluationWorkspaceFor(sql, "owner");
+    assert.ok(beforeCleanup.evaluators.some((e) => e.id === "other" && e.active));
+    assert.ok(
+      beforeCleanup.evaluators.some((e) => e.id === "owner" && e.active),
+      "Owners remain active evaluators without a club_staff row",
+    );
+    await sql`insert into pd_working_file(id,payload) values('club',${JSON.stringify({ coaches: [{ email: "other@example.invalid", active: false }] })}::jsonb) on conflict(id) do update set payload=excluded.payload`;
+    assert.equal(
+      (await evaluationWorkspaceFor(sql, "owner")).evaluators.some(
+        (e) => e.id === "other" && e.active,
+      ),
+      false,
+      "PD deactivation overrides stale active club_staff",
+    );
     await sql`update club_staff set active=false where id='coach'`;
+    const afterCleanup = await evaluationWorkspaceFor(sql, "owner");
+    assert.deepEqual(afterCleanup.evaluations, beforeCleanup.evaluations);
+    assert.equal(afterCleanup.evaluators.find((e) => e.id === "coach")?.active, false);
+    await sql`update "user" set "disabledAt"=now() where id='assistant'`;
+    assert.equal(
+      (await evaluationWorkspaceFor(sql, "owner")).evaluators.some(
+        (e) => e.id === "assistant" && e.active,
+      ),
+      false,
+    );
     await assert.rejects(() => evaluationWorkspaceFor(sql, "coach"), /active staff/);
   } finally {
     await db.close();

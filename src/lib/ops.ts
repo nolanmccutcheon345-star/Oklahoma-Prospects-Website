@@ -19,7 +19,7 @@ import {
   lessonTermIdInput,
   serviceInput,
   staffInput,
-  userIdInput,
+  deactivateAccountInput,
 } from "./ops-contracts";
 
 export type ServiceKind =
@@ -841,26 +841,11 @@ export const saveAccount = createServerFn({ method: "POST" })
     return { id: userId, invitation: undefined as string | undefined };
   });
 
+// Compatibility name: this action only deactivates; it never deletes an account.
 export const deleteAccount = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
-  .validator(userIdInput)
+  .validator(deactivateAccountInput)
   .handler(async ({ context, data }) => {
-    await requireAdmin(context.userId);
-    if (data.userId === context.userId) {
-      throw new Error("You cannot delete the account you are signed in with.");
-    }
-    const sql = await getSql();
-    const users = await sql<{ email: string }>`
-      select email from "user" where id = ${data.userId}
-    `;
-    if (!users[0]) return { ok: true as const };
-    if (await isOwnerEmail(users[0].email)) {
-      throw new Error("Owner accounts stay locked.");
-    }
-    await sql.transaction(async (tx) => {
-      await tx`update "user" set "disabledAt"=now(), "updatedAt"=now() where id=${data.userId}`;
-      await tx`update club_staff set active=false where user_id=${data.userId}`;
-      await tx`delete from "session" where "userId"=${data.userId}`;
-    });
-    return { ok: true as const };
+    const { deactivateAccountFor } = await import("./account-deactivation.server");
+    return deactivateAccountFor(await getSql(), context.userId, data);
   });

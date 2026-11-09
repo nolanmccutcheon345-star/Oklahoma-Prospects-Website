@@ -1,3 +1,4 @@
+import { RemoveMessageButton } from "@/components/teams/remove-message-button";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import * as api from "@/lib/coordinator/api";
 import {
@@ -341,6 +342,7 @@ export function TeamMessageReview({ teams }: { teams: { id: string; name: string
             {m.author} · {m.operational ? "Reviewed operational" : "Withheld pending review"}
           </strong>
           <p className="whitespace-pre-wrap">{m.body}</p>
+          <RemoveMessageButton owner={Boolean(data?.canRemoveMessages)} teamId={teamId} message={m} onRemoved={load} />
           <Button
             disabled={busy}
             variant="outlineDark"

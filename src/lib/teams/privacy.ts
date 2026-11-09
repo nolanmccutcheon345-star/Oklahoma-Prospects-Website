@@ -37,6 +37,7 @@ export function scopeClub(
   identity: { email: string; familyId: string; familyIds?:string[];playerIds?:string[];guardianHouseholdIds?:string[] },
 ): ClubRecord {
   if (role === "admin") return club;
+  club = {...club, teams: club.teams.map(team => ({...team, roster: team.roster.map(player => {const {rosterRemoval: _privateCleanup, ...visible} = player;return visible;})}))};
 
   const next: ClubRecord = {
     teams: [], catalog: club.catalog, uniforms: club.uniforms, alumni: club.alumni,
@@ -239,7 +240,7 @@ export function canFetchTeam(
   if (!team) return false;
   if (role === "admin") return true;
   if (role === "coach") return coachHoldsTeam(club, identity.email, teamId);
-  return team.roster.some((p) => visiblePlayer(p,role,identity));
+  return team.roster.some((p) => !p.withdrawn && visiblePlayer(p,role,identity));
 }
 
 export function canFetchPlayer(

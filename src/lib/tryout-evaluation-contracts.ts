@@ -105,6 +105,7 @@ export type EvaluationWorkspace = {
   teams: EvaluationTeam[];
   candidates: EvaluationCandidate[];
   evaluations: SavedEvaluation[];
+  evaluators: { id: string; name: string; active: boolean }[];
 };
 export const RECOMMENDATIONS = {
   undecided: "Undecided",

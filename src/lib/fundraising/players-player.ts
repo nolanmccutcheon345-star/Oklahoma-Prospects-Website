@@ -1,4 +1,4 @@
-import { requireRosterChoice } from "./roster-links";
+import { withActiveRosterChoice } from "./roster-links";
 import { getSql } from "../db";
 import { recordConsent } from "./publication";
 import {
@@ -65,16 +65,11 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
         .bind(...(b.action === "approve" ? [id] : [b.action === "resume" ? 1 : 0, id]))
         .run();
     } else {
-      const choice = await requireRosterChoice(
-        await getSql(),
-        user.userId,
-        b.teamId,
-        b.rosterPlayerId,
-      );
-      const v = playerInput({ ...b, team: choice.teamName });
-      await (
-        await getSql()
-      ).transaction(async (tx) => {
+      await withActiveRosterChoice(await getSql(), user.userId, b.teamId, b.rosterPlayerId, async (tx, choice) => {
+        const [current] = await tx.query<{owner_id:string}>("SELECT owner_id FROM fundraising_players WHERE id=$1 FOR UPDATE", [id]);
+        if (!current) throw new AppError("Player not found.", 404);
+        if (!choice.admin && current.owner_id !== user.userId) throw new AppError("You cannot edit this player.", 403);
+        const v = playerInput({ ...b, team: choice.teamName });
         await tx.query(
           "UPDATE fundraising_players SET name=$1,team=$2,number=$3,goal=$4,story=$5,approved=$6,team_id=$9,roster_player_id=$10,active=CASE WHEN owner_id=$8 THEN 1 ELSE active END WHERE id=$7",
           [
@@ -83,7 +78,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
             v.number,
             v.goal,
             v.story,
-            admin ? 1 : 0,
+            choice.admin ? 1 : 0,
             id,
             user.userId,
             choice.teamId,
@@ -94,7 +89,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
           tx,
           id,
           user.userId,
-          p.owner_id === user.userId ? "accept" : "invalidate",
+          current.owner_id === user.userId ? "accept" : "invalidate",
         );
       });
     }

@@ -63,13 +63,16 @@ export function FamilyApp({
 }) {
   const t = copy[lang];
   const mine = club.teams.flatMap((team) =>
-    team.roster.filter((p) => (familyIds||[familyId]).includes(p.familyId)||playerIds.includes(p.id)).map((p) => ({ team, player: p })),
+    team.roster.filter((p) => !p.withdrawn && ((familyIds||[familyId]).includes(p.familyId)||playerIds.includes(p.id))).map((p) => ({ team, player: p })),
   );
+  const retained = !playerAccount && !financial && club.teams.flatMap(team=>team.roster.filter(p=>p.withdrawn && (familyIds||[familyId]).includes(p.familyId)).map(player=>({team,player})));
+  const retainedRecords = retained && retained.length>0 ? <section className="rounded border p-3"><h2>Retained financial records</h2><p>These players are no longer on the active roster. Accepted obligations remain unchanged.</p>{retained.map(({team,player})=><div key={player.id} className="border-t py-2"><p>{player.name} · {team.name}</p><p>Accepted amount: {player.feeLock?money(player.feeLock.amount):'Not recorded'} · Outstanding: {player.feeLock?money(balance(player,player.feeLock.amount)):'Review with Front Office'}</p><p>Agreement: {player.agreement.signedAt?`${player.agreement.signedBy}, ${player.agreement.signedAt}`:'Not signed'}</p>{(player.payments||[]).map((p,i)=><p key={i}>{p.date} · {p.method} · {money(p.amount)} · {p.receipt}</p>)}</div>)}</section> : null;
   const [active, setActive] = useState(mine[0]?.player.id ?? "");
   const row = mine.find((m) => m.player.id === active) ?? mine[0];
   if (!row) {
     return (
       <div className="grid gap-3">
+      {retainedRecords}
       {financial&&<FamilyFinancialRecords financial={financial} familyId={familyId}/>}
       <div className="rounded-2xl bg-paper-2 p-5 shadow-border">
         <h2 className="text-2xl">No player is linked to this login.</h2>
@@ -116,6 +119,7 @@ export function FamilyApp({
       {financial&&<FamilyFinancialRecords financial={financial} familyId={familyId}/>}
       {!financial&&<TeamFeeWorkspace teamId={team.id}/>}
       <TeamActivities key={team.id} teamId={team.id} onSaved={onReload}/>
+      {retainedRecords}
       <TeamDevelopmentFamilyPanel teamId={team.id} rosterPlayerId={player.id} />
       {mine.length > 1 ? (
         <div className="flex flex-wrap gap-2">
