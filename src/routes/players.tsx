@@ -7,7 +7,7 @@ export const Route = createFileRoute("/players")({
     pageHead(
       "/players",
       "Players",
-      "Explore Oklahoma Prospects recruiting profiles, verified measurements and team statistics.",
+      "Explore Prospects recruiting profiles, verified measurements and team statistics.",
     ),
   component: Players,
 });
