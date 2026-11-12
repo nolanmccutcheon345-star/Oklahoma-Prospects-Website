@@ -25,11 +25,17 @@ export const Route = createFileRoute("/articles/")({
       <JournalMasthead />
       <div
         role="status"
+        aria-busy="true"
         className="mx-auto grid max-w-6xl gap-6 p-6 md:grid-cols-3"
         aria-label="Loading articles"
       >
+        <span className="sr-only">Loading articles…</span>
         {[1, 2, 3].map((n) => (
-          <div key={n} className="h-80 animate-pulse rounded-2xl bg-gray-200" />
+          <div
+            key={n}
+            aria-hidden="true"
+            className="h-80 rounded-2xl border border-line bg-white motion-safe:animate-pulse"
+          />
         ))}
       </div>
     </main>
@@ -38,7 +44,10 @@ export const Route = createFileRoute("/articles/")({
     <main id="main" className="p-8">
       <h1 className="text-3xl">Articles could not be loaded</h1>
       <p>Please try again.</p>
-      <button onClick={reset} className="mt-4 rounded bg-powder px-5 py-3">
+      <button
+        onClick={reset}
+        className="mt-4 min-h-11 rounded bg-powder px-5 py-3 font-semibold text-ink"
+      >
         Retry
       </button>
     </main>
@@ -208,7 +217,7 @@ function Newsroom() {
         )}
         <button
           type="button"
-          className="text-sm underline"
+          className="inline-flex min-h-11 items-center text-sm font-semibold underline"
           onClick={() => void router.invalidate()}
         >
           Refresh articles

@@ -95,7 +95,15 @@ function FacilityPage() {
               { src: "/brand/wordmark.png", cap: "A place to grow" },
             ].map((shot) => (
               <figure key={shot.cap} className="overflow-hidden rounded-xl bg-navy">
-                <img src={shot.src} alt={shot.cap} className="aspect-4/3 w-full object-cover" />
+                <img
+                  src={shot.src}
+                  alt={
+                    shot.src.endsWith("/wordmark.png")
+                      ? "Prospects Sports Academy wordmark"
+                      : shot.cap
+                  }
+                  className="aspect-4/3 w-full object-cover"
+                />
                 <figcaption className="px-4 py-3 text-xs font-semibold tracking-widest uppercase">
                   {shot.cap}
                 </figcaption>
