@@ -364,3 +364,16 @@ it("v6: coach, parent and player responses do not leak owner financial policy in
  const scoped = scopeClub(raw, "parent", {email:"ty@prospectsbaseball.club",familyId:"fam-cade",familyIds:["fam-cade"]});
  assert.deepEqual(mergeSave(raw, scoped, "parent", {email:"ty@prospectsbaseball.club",familyId:"fam-cade",familyIds:["fam-cade"]}).settings, raw.settings);
 });
+
+it('only admin bulk saves rename a team while preserving its roster and financial fields', () => {
+  const stored = club();
+  const incoming = structuredClone(stored);
+  incoming.teams[0].name = 'Prospects 8U';
+  const identity = { email: 'owner@example.com', familyId: '' };
+  const renamed = mergeSave(stored, incoming, 'admin', identity);
+  assert.equal(renamed.teams[0].name, 'Prospects 8U');
+  assert.deepEqual(renamed.teams[0], {...stored.teams[0], name:'Prospects 8U'});
+  for (const role of ['coach','parent','player']) {
+    assert.equal(mergeSave(stored,incoming,role,identity).teams[0].name, stored.teams[0].name);
+  }
+});
