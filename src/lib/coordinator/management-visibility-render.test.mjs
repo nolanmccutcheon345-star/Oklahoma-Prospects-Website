@@ -14,7 +14,13 @@ test("existing assignment opens all permission categories and independent public
   };
   const workspace = {
     accounts: [
-      { id: "adult", name: "Synthetic Staff", email: "staff@example.invalid", role: "parent" },
+      {
+        id: "adult",
+        name: "Synthetic Staff",
+        email: "staff@example.invalid",
+        role: "parent",
+        account_status: "active",
+      },
     ],
     assignments: [
       {
@@ -86,9 +92,17 @@ test("existing assignment opens all permission categories and independent public
         assert.equal(saves.length, 0);
         assert.equal(publications.length, 0);
         await act(async () => options[0].click());
-        dom.window.confirm = () => true;
+        let confirmation = "";
+        dom.window.confirm = (message) => {
+          confirmation = message;
+          return true;
+        };
         await act(async () => button("Save Permissions").click());
         assert.equal(saves.length, 1);
+        assert.match(confirmation, /Synthetic Staff/);
+        assert.match(confirmation, /staff@example.invalid/);
+        assert.match(confirmation, /account ID adult/);
+        assert.match(confirmation, /Account: active/);
         assert.equal(saves[0].permissions.length, 1);
         assert.deepEqual(saves[0].teamIds, []);
         assert.equal(publications.length, 0);

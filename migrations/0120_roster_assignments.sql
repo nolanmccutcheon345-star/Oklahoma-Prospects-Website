@@ -55,13 +55,13 @@ select 'backfill:'||(t->>'id')||':'||(p->>'id'), t->>'id', p->>'id',
  (select r.id from club_requests r where r.payload->>'rosterPlayerId'=p->>'id' order by r.created_at limit 1),
  (select h.id from club_households h where h.id=p->>'familyId'),
  case when p->'withdrawn'='true'::jsonb then 'removed' else 'active' end,
- 'backfill','migration:0119','migration:0119'
+ 'backfill','migration:0120','migration:0120'
 from club_state c
 cross join lateral jsonb_array_elements(case when jsonb_typeof(c.payload->'teams')='array' then c.payload->'teams' else '[]'::jsonb end) t
 cross join lateral jsonb_array_elements(case when jsonb_typeof(t->'roster')='array' then t->'roster' else '[]'::jsonb end) p
 where c.id='oklahoma-prospects' and not c.demo and coalesce(t->>'id','')<>'' and coalesce(p->>'id','')<>''
 on conflict do nothing;
 insert into roster_assignment_audit(assignment_id,actor_id,action,from_status,to_status,reason)
-select a.id,'migration:0119','backfill',null,a.status,'Recorded from the live roster at migration time.'
+select a.id,'migration:0120','backfill',null,a.status,'Recorded from the live roster at migration time.'
 from roster_assignments a
 where a.source='backfill' and not exists (select 1 from roster_assignment_audit x where x.assignment_id=a.id);

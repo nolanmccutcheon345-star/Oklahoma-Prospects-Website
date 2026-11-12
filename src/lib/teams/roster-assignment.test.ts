@@ -212,10 +212,10 @@ test("team announcements reach only that team's active members' guardians, never
   }
 });
 
-test("migration 0119 backfill is idempotent and treats withdrawn entries as removed", async () => {
+test("migration 0120 backfill is idempotent and treats withdrawn entries as removed", async () => {
   const { sql, db } = await enrollmentFixture();
   try {
-    const raw = readFileSync("migrations/0119_roster_assignments.sql", "utf8");
+    const raw = readFileSync("migrations/0120_roster_assignments.sql", "utf8");
     const club = await readStoredClub(sql);
     club!.teams[1].roster[0].withdrawn = true;
     await sql`update club_state set payload=${JSON.stringify(club)}::jsonb where id='oklahoma-prospects'`;

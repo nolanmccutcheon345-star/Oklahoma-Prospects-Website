@@ -1,6 +1,11 @@
-import {registrationFilters,registrationFilterSql,type RegistrationFilters} from "./registration-filters";
+import {
+  registrationFilters,
+  registrationFilterSql,
+  type RegistrationFilters,
+} from "./registration-filters";
 import { registrationSummary } from "./athlete-registration-contracts";
 import type { Sql } from "./db";
+import { coachNotDeactivated } from "./teams/coach-status.server";
 import { centerAccessFor } from "./tryout-center-access.server";
 import { chicagoDate } from "./scheduling";
 import { coachHoldsTeam } from "./teams/privacy";
@@ -107,14 +112,45 @@ export async function evaluationWorkspaceFor(
   filters?: RegistrationFilters,
 ): Promise<EvaluationWorkspace> {
   const { me, teams } = await evaluationAccess(sql, userId);
-  const f=registrationFilters.parse(filters||{});
-  const requests=await sql.query<RequestRow>(`select r.id,r.kind,r.payload from club_requests r where r.kind in ('tryout','team-inquiry') and ${registrationFilterSql('$1')} order by ${f.sort==='player'?"lower(r.payload->>'player'),":""}r.created_at desc,r.id desc limit 100 offset $2`,[JSON.stringify(f),f.page*100]);
+  const f = registrationFilters.parse(filters || {});
+  const requests = await sql.query<RequestRow>(
+    `select r.id,r.kind,r.payload from club_requests r where r.kind in ('tryout','team-inquiry') and ${registrationFilterSql("$1")} order by ${f.sort === "player" ? "lower(r.payload->>'player')," : ""}r.created_at desc,r.id desc limit 100 offset $2`,
+    [JSON.stringify(f), f.page * 100],
+  );
   const candidates = requests
     .map((row) => candidateFor(row, teams))
     .filter((c) => c.name && ["baseball", "softball"].includes(c.sport));
   const rows =
     await sql<EvaluationRow>`select * from tryout_evaluations order by evaluation_date desc,updated_at desc,id`;
+  // Current staff is authoritative for the default picker; history only augments it.
+  const eligibleEvaluators = await sql<{
+    id: string;
+    name: string;
+    email: string;
+    owner: boolean;
+  }>`select u.id,u.name,lower(trim(u.email)) as email,
+    (p.role='admin' and exists(select 1 from owner_grants g where g.user_id=u.id and g.email=lower(trim(u.email)) and g.revoked_at is null)) as owner
+    from "user" u left join profiles p on p.user_id=u.id
+    where u."disabledAt" is null and u."emailVerified"=true and (
+      (p.role='admin' and exists(select 1 from owner_grants g where g.user_id=u.id and g.email=lower(trim(u.email)) and g.revoked_at is null))
+      or (not exists(select 1 from coordinator_assignments c where c.user_id=u.id and c.status<>'removed')
+        and (is_tryout_staff(u.id,u.email) or (coalesce(p.role,'parent')<>'player' and exists(select 1 from registration_readers r where r.user_id=u.id and r.email=lower(trim(u.email)) and r.active and r.can_manage_tryouts)))))
+    order by u.name,u.id`;
+  const evaluators = new Map<string, { id: string; name: string; active: boolean }>();
+  for (const account of eligibleEvaluators) {
+    if (account.owner || (await coachNotDeactivated(sql, account.id, account.email)))
+      evaluators.set(account.id, { id: account.id, name: account.name, active: true });
+  }
+  for (const row of rows) {
+    if (!evaluators.has(row.evaluator_id))
+      evaluators.set(row.evaluator_id, {
+        id: row.evaluator_id,
+        name: row.evaluator_name,
+        active: false,
+      });
+  }
   return {
+    evaluators: [...evaluators.values()],
     owner: me.role === "admin",
     name: me.name,
     teams,

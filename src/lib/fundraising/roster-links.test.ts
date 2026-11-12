@@ -3,12 +3,12 @@ import assert from "node:assert/strict";
 import { readFile, readdir } from "node:fs/promises";
 import { PGlite } from "@electric-sql/pglite";
 import type { Sql } from "../db";
-import { requireRosterChoice, rosterChoicesFor, publicRoster, linkedPlayer } from "./roster-links";
+import { requireRosterChoice, rosterChoicesFor, publicRoster, linkedPlayer, withActiveRosterChoice } from "./roster-links";
 import { recordConsent } from "./publication";
 import { playerDestination } from "./shared";
 test("actual roster links isolate households, consent and team/player pairs", async () => {
   const db = new PGlite();
-  const wrap = (query: PGlite["query"]): Sql => {
+  const wrap = (query: PGlite["query"], inTransaction = false): Sql => {
     const sql = (async (parts: TemplateStringsArray, ...v: unknown[]) =>
       (
         await query(
@@ -17,8 +17,10 @@ test("actual roster links isolate households, consent and team/player pairs", as
         )
       ).rows) as Sql;
     sql.query = (async (q: string, v: unknown[] = []) => (await query(q, v)).rows) as Sql["query"];
-    sql.transaction = (work) =>
-      db.transaction((tx) => work(wrap(tx.query.bind(tx) as PGlite["query"])));
+    sql.transaction = (work) => {
+      if (inTransaction) throw Error('Nested transactions are not supported.');
+      return db.transaction((tx) => work(wrap(tx.query.bind(tx) as PGlite["query"], true)));
+    };
     return sql;
   };
   try {
@@ -118,6 +120,40 @@ test("actual roster links isolate households, consent and team/player pairs", as
     await assert.rejects(publicRoster(sql, "baseball-team", "a"), /unavailable/,
       "Withdrawing guardian consent must also revoke the direct public player page");
     await recordConsent(sql, "fund", "parent", "accept");
+    // A choice loaded before cleanup never authorizes a subsequent create/relink.
+    const earlierChoice = await requireRosterChoice(sql, 'parent', 'baseball-team', 'a');
+    assert.equal(earlierChoice.rosterPlayerId, 'a');
+    for (const tombstone of [{withdrawn:true}, {withdrawn:false,rosterRemoval:{actorId:'owner',at:'2030-01-01',reason:'Synthetic merged duplicate',requestId:'synthetic',canonicalPlayerId:'survivor'}}]) {
+      const retired=structuredClone(club);
+      Object.assign(retired.teams[0].roster[0],tombstone);
+      await sql`UPDATE club_state SET payload=${JSON.stringify(retired)}::jsonb`;
+      assert.equal((await rosterChoicesFor(sql,'parent')).some(p=>p.rosterPlayerId==='a'),false);
+      assert.equal((await rosterChoicesFor(sql,'owner')).some(p=>p.rosterPlayerId==='a'),false);
+      let wrote=false;
+      for(const actor of ['parent','owner']) await assert.rejects(withActiveRosterChoice(sql,actor,'baseball-team','a',async()=>{wrote=true;}),/not available/);
+      assert.equal(wrote,false,'cleanup discovered inside transaction prevents create/relink callback');
+      assert.ok(await linkedPlayer(sql,'fund'),'existing consented historical page remains accessible');
+      assert.equal((await publicRoster(sql,'baseball-team','a')).player?.id,'fund');
+      assert.equal((await sql`select roster_player_id from fundraising_players where id='fund'`)[0].roster_player_id,'a','historical linkage remains unchanged');
+    }
+    await sql`UPDATE club_state SET payload=${JSON.stringify(club)}::jsonb`;
+    let checkedInsideGate=false;
+    await withActiveRosterChoice(sql,'parent','baseball-team','a',async(tx,choice)=>{
+      checkedInsideGate=true;assert.equal(choice.rosterPlayerId,'a');
+      assert.equal((await tx`select id from financial_execution_gate where id='oklahoma-prospects'`).length,1);
+    });
+    assert.equal(checkedInsideGate,true);
+    // Revocation after preflight still permits household work, but never owner powers.
+    const guardianClub=structuredClone(club);
+    guardianClub.teams[0].roster[0].parents.push({email:'owner@example.invalid'});
+    await sql`UPDATE club_state SET payload=${JSON.stringify(guardianClub)}::jsonb`;
+    assert.equal((await requireRosterChoice(sql,'owner','baseball-team','a')).admin,true);
+    await sql`UPDATE owner_grants SET revoked_at=now() WHERE user_id='owner'`;
+    const postRevocation=await withActiveRosterChoice(sql,'owner','baseball-team','a',async(tx,choice)=>{
+      const [page]=await tx.query<{owner_id:string}>("SELECT owner_id FROM fundraising_players WHERE id=$1 FOR UPDATE",['fund']);
+      return {autoApprove:choice.admin,mayEdit:choice.admin||page.owner_id==='owner'};
+    });
+    assert.deepEqual(postRevocation,{autoApprove:false,mayEdit:false},'revoked owner who remains guardian cannot edit another owner page or auto-approve');
     await sql`UPDATE club_state SET demo=true`;
     assert.equal(await linkedPlayer(sql, "fund"), null);
     assert.deepEqual(await publicRoster(sql), { teams: [] },
@@ -130,4 +166,25 @@ test("actual roster links isolate households, consent and team/player pairs", as
   } finally {
     await db.close();
   }
+});
+
+
+test('fundraising create and relink acquire cleanup gate before the transactional choice recheck', async()=>{
+ const source=await readFile(new URL('./roster-links.ts',import.meta.url),'utf8');
+ const helper=source.slice(source.indexOf('export async function withActiveRosterChoice'));
+ assert.ok(helper.indexOf('await lockFinancialExecution(tx)') < helper.indexOf('await requireRosterChoice(tx'));
+ for(const file of ['players.ts','players-player.ts']) {
+  const handler=await readFile(new URL(file,import.meta.url),'utf8');
+  assert.match(handler,/await withActiveRosterChoice\(/);
+  assert.doesNotMatch(handler,/await requireRosterChoice\(/);
+  assert.match(handler,/choice.admin \? 1 : 0/);
+ }
+});
+
+test('create response and relink authorization use transaction-current owner status',async()=>{
+ const create=await readFile(new URL('./players.ts',import.meta.url),'utf8');
+ const edit=await readFile(new URL('./players-player.ts',import.meta.url),'utf8');
+ assert.match(create,/const approved = await withActiveRosterChoice/);
+ assert.match(create,/return choice.admin/);
+ assert.match(edit,/if \(!choice.admin && current.owner_id !== user.userId\)/);
 });

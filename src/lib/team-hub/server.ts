@@ -1,3 +1,4 @@
+import { listTrainingEvents } from "../training-events.server";
 import { createHash } from "node:crypto";
 import type { Sql } from "../db";
 import { enrollmentScope } from "../enrollment/access.server";
@@ -130,6 +131,26 @@ export async function readHub(sql: Sql, actor: string, raw: unknown = {}) {
       user_id: string;
     }>`select post_key,user_id from team_hub_acknowledgments where team_id=${selected} and post_key=any(${posts.map((p) => p.key)}::text[])`;
     const events = await eventsFor(tx, s.team);
+    // Reuse the public catalog projection so archived/cancelled and operational
+    // schedule changes obey the same rules as registration. No roster data is sent.
+    const camps = (await listTrainingEvents(tx))
+      .filter(
+        (e) => e.type === "camp" && (e.sport === "Both" || e.sport.toLowerCase() === s.team.sport),
+      )
+      .map((e) => ({
+        id: e.id,
+        title: e.name,
+        priceCents: e.priceCents,
+        dayPriceCents: e.dayPriceCents,
+        pricingMode: e.pricingMode || "package",
+        registrationOpen: e.registrationOpen,
+        sessions: [...e.operationalSessions, ...e.additionalSessions]
+          .filter(
+            (session) => session.status !== "cancelled" && new Date(session.endsAt) > new Date(),
+          )
+          .sort((a, b) => a.startsAt.localeCompare(b.startsAt)),
+      }))
+      .filter((e) => e.sessions.length);
     const players = playersFor(s);
     const responses = await tx<{
       event_id: string;
@@ -143,14 +164,14 @@ export async function readHub(sql: Sql, actor: string, raw: unknown = {}) {
           body: string;
           at: string;
           mine: boolean;
-        }>`select id::text,author,body,to_char(created_at at time zone 'UTC','YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') as at,author_id=${actor} as mine from (select * from team_hub_family_messages where team_id=${selected} and player_id=${playerId} and family_id=${familyId} order by created_at desc limit 100) m order by created_at,id`
+        }>`select id::text,author,body,to_char(created_at at time zone 'UTC','YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') as at,author_id=${actor} as mine from (select * from team_hub_family_messages f where not exists(select 1 from team_message_removals r where r.channel='family' and r.message_id=f.id) and team_id=${selected} and player_id=${playerId} and family_id=${familyId} order by created_at desc limit 100) m order by created_at,id`
       : await tx<{
           id: string;
           author: string;
           body: string;
           at: string;
           mine: boolean;
-        }>`select id::text,author,body,to_char(created_at at time zone 'UTC','YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') as at,user_id=${actor} as mine from (select m.* from team_chat_messages m where team_id=${selected} and (not exists(select 1 from coordinator_notice_messages n where n.message_id=m.id) or exists(select 1 from coordinator_notice_messages n where n.message_id=m.id and ${actor}=any(n.recipient_ids)) or ${access.owner}) order by created_at desc limit 100) m order by created_at,id`;
+        }>`select id::text,author,body,to_char(created_at at time zone 'UTC','YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') as at,user_id=${actor} as mine from (select m.* from team_chat_messages m where not exists(select 1 from team_message_removals r where r.channel='team' and r.message_id=m.id) and team_id=${selected} and (not exists(select 1 from coordinator_notice_messages n where n.message_id=m.id) or exists(select 1 from coordinator_notice_messages n where n.message_id=m.id and ${actor}=any(n.recipient_ids)) or ${access.owner}) order by created_at desc limit 100) m order by created_at,id`;
     return {
       me: identity,
       teams,
@@ -159,7 +180,9 @@ export async function readHub(sql: Sql, actor: string, raw: unknown = {}) {
         name: s.team.name,
         coach: s.team.headCoach,
         manage: s.manage,
+        canRemoveMessages: access.owner,
         players,
+        camps,
         posts: posts.map((p) => ({
           ...p,
           acknowledged: acknowledgments.some((a) => a.post_key === p.key && a.user_id === actor),

@@ -67,6 +67,7 @@ export type Player = {
   coachChild: boolean;
   joinedOn: string;
   withdrawn: boolean;
+  rosterRemoval?: { actorId: string; at: string; reason: string; requestId: string; canonicalPlayerId?: string };
   agreement: { version: string; signedBy: string; signedAt: string };
   rosterConsent?: {
     version: string;

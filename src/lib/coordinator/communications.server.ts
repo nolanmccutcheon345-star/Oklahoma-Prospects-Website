@@ -1,3 +1,4 @@
+import { enrollmentScope } from "../enrollment/access.server";
 import { noticeReleaseAllowed } from "../notifications/release-control.server";
 import { createHash, randomUUID } from "node:crypto";
 import type { z } from "zod";
@@ -363,16 +364,18 @@ export async function reviewableTeamMessages(
       operational: boolean;
       created_at: string;
     }>(
-      `select m.id,m.author,m.body,coordinator_message_digest(m) "sourceDigest",coalesce(r.operational and r.source_digest=coordinator_message_digest(m),false) operational,to_char(m.created_at at time zone 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"') created_at from team_chat_messages m left join coordinator_message_reviews r on r.message_id=m.id where m.team_id=$1 and ($2::timestamptz is null or (m.created_at,m.id::text)<($2::timestamptz,$3::text)) order by m.created_at desc,m.id desc limit 101`,
+      `select m.id,m.author,m.body,coordinator_message_digest(m) "sourceDigest",coalesce(r.operational and r.source_digest=coordinator_message_digest(m),false) operational,to_char(m.created_at at time zone 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"') created_at from team_chat_messages m left join coordinator_message_reviews r on r.message_id=m.id where not exists(select 1 from team_message_removals d where d.channel='team' and d.message_id=m.id) and m.team_id=$1 and ($2::timestamptz is null or (m.created_at,m.id::text)<($2::timestamptz,$3::text)) order by m.created_at desc,m.id desc limit 101`,
       [v.teamId, v.before?.at || null, v.before?.id || ""],
     );
     const items = rows.slice(0, 100),
       last = items.at(-1);
+    const canRemoveMessages = (await enrollmentScope(tx, actor)).owner;
     await audit(tx, actor, "staff.communications.review", v.teamId, "allowed", {
       count: items.length,
     });
     return {
       items,
+      canRemoveMessages,
       nextCursor: rows.length > 100 && last ? { at: last.created_at, id: last.id } : null,
     };
   });
@@ -388,8 +391,9 @@ export async function reviewTeamMessage(
     const [m] = await tx<{
       team_id: string;
       digest: string;
-    }>`select team_id,coordinator_message_digest(m) digest from team_chat_messages m where id=${v.id} for update`;
-    if (!m || m.digest !== v.sourceDigest) throw Error("Message changed. Review the current text.");
+    }>`select team_id,coordinator_message_digest(m) digest from team_chat_messages m where id=${v.id} and not exists(select 1 from team_message_removals d where d.channel='team' and d.message_id=m.id) for update`;
+    const [removed] = await tx`select message_id from team_message_removals where channel='team' and message_id=${v.id}`;
+    if (!m || removed || m.digest !== v.sourceDigest) throw Error("Message changed. Review the current text.");
     const team = await teamScope(tx, m.team_id);
     await tx`insert into coordinator_message_reviews(message_id,source_digest,operational,reviewer_id) values(${v.id},${m.digest},${v.operational},${actor}) on conflict(message_id) do update set source_digest=excluded.source_digest,operational=excluded.operational,reviewer_id=excluded.reviewer_id,reviewed_at=now()`;
     await audit(

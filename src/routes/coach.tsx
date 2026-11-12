@@ -181,6 +181,7 @@ function CoachPage() {
       </div>
       <fieldset disabled={saving} className="min-w-0">
         <CoachApp
+          canRemove={state.ok && state.role === "admin"}
           club={club}
           financial={state.financial}
           onReload={async () => {

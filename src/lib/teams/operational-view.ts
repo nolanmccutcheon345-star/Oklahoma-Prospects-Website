@@ -161,6 +161,7 @@ export function operationalClubView(club: ClubRecord, role: Role, identity: Iden
           "coachChild",
           "joinedOn",
           "withdrawn",
+          "rosterRemoval",
           "rosterConsent",
           "order",
           "docs",

@@ -1,15 +1,15 @@
-import { lazy, Suspense, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { ShoppingBag, Truck, ShieldCheck, PackageCheck } from "lucide-react";
 import { Button } from "./ui/button";
 import { SquareCard } from "./commerce/square-card";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
 import { formatMoney } from "@/lib/pricing";
-import { getShop, canManageShop, quoteShop, myShopOrders } from "@/lib/shop/api";
+import { getShop, quoteShop, myShopOrders } from "@/lib/shop/api";
 import { submitSquarePayment } from "@/lib/commerce/api";
-const ShopOffice = lazy(() => import("./shop-office").then((m) => ({ default: m.ShopOffice })));
 import { matchesShopFilters, inShopCollection } from "@/lib/shop/collections";
 import { cartSchema, type Cart } from "@/lib/shop/contracts";
+import type { ShopView } from "@/lib/shop/navigation";
 type Shop = Awaited<ReturnType<typeof getShop>>;
 const inputClass =
   "mt-1 min-h-11 w-full min-w-0 rounded-lg border border-line bg-white px-3 py-2 text-base";
@@ -20,29 +20,24 @@ const concepts = [
   ["Structured cap", "Navy / Columbia blue"],
   ["Canvas tote", "Natural"],
 ];
-export function Shop({ selectedProductId }: { selectedProductId?: string }) {
-  const { user } = useCurrentUserState();
-  const [ownerId, setOwnerId] = useState<string | null>(null);
+export function Shop({
+  selectedProductSlug,
+  initialData,
+  view,
+  setView,
+}: {
+  selectedProductSlug?: string;
+  initialData?: Shop;
+  view: ShopView;
+  setView: (view: ShopView) => void;
+}) {
+  const { user, isPending } = useCurrentUserState();
   const userId = user?.id;
-  const canManage = Boolean(userId && ownerId === userId);
-  useEffect(() => {
-    let current = true;
-    void canManageShop()
-      .then((v) => {
-        if (current) setOwnerId(v && userId ? userId : null);
-      })
-      .catch(() => {
-        if (current) setOwnerId(null);
-      });
-    return () => {
-      current = false;
-    };
-  }, [userId]);
-  const [data, setData] = useState<Shop>();
+  const [data, setData] = useState<Shop | undefined>(initialData);
+  const selectedProduct = data?.products.find((p) => p.slug === selectedProductSlug);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
   const [cart, setCart] = useState<Cart>([]);
-  const [view, setView] = useState("shop");
   const [busy, setBusy] = useState(false);
   const [category, setCategory] = useState("");
   const [filters, setFilters] = useState<Record<string, string>>({});
@@ -59,9 +54,7 @@ export function Shop({ selectedProductId }: { selectedProductId?: string }) {
   });
   const [consent, setConsent] = useState(false);
   const [requestId, setRequestId] = useState("");
-  const [orders, setOrders] = useState<Awaited<ReturnType<typeof myShopOrders>>>([]);
   useEffect(() => {
-    setOrders([]);
     setCheckout(undefined);
     setAddress({
       name: "",
@@ -74,7 +67,6 @@ export function Shop({ selectedProductId }: { selectedProductId?: string }) {
     });
     setConsent(false);
     setRequestId(crypto.randomUUID());
-    setView("shop");
   }, [userId]);
   useEffect(() => {
     void getShop()
@@ -148,9 +140,7 @@ export function Shop({ selectedProductId }: { selectedProductId?: string }) {
             Prospects Sports Academy · Official shop
           </p>
           <h1 className="mt-3 text-4xl sm:text-6xl">
-            {selectedProductId
-              ? data?.products.find((p) => p.id === selectedProductId)?.title || "Club collection"
-              : "Wear the colors."}
+            {selectedProductSlug ? selectedProduct?.title || "Club collection" : "Wear the colors."}
           </h1>
           <p className="mt-4 max-w-xl text-lg text-white/85">
             From the dugout to the stands. Gear for our players, families, and coaches.
@@ -159,7 +149,7 @@ export function Shop({ selectedProductId }: { selectedProductId?: string }) {
             <Button
               variant="outline"
               onClick={() => {
-                if (selectedProductId) window.location.href = "/merchandise";
+                if (selectedProductSlug) window.location.href = "/merchandise";
                 else setView("shop");
               }}
             >
@@ -169,19 +159,9 @@ export function Shop({ selectedProductId }: { selectedProductId?: string }) {
               <ShoppingBag className="mr-2 size-4" />
               Bag ({count})
             </Button>
-            {user && (
-              <Button
-                variant="outline"
-                onClick={() =>
-                  void run(async () => {
-                    setOrders(await myShopOrders());
-                    setView("orders");
-                  })
-                }
-              >
-                My shop orders
-              </Button>
-            )}
+            <Button variant="outline" onClick={() => setView("orders")}>
+              My shop orders
+            </Button>
           </div>
         </div>
       </section>
@@ -196,11 +176,13 @@ export function Shop({ selectedProductId }: { selectedProductId?: string }) {
             {message}
           </p>
         )}
-        {!data ? (
+        {view === "orders" ? (
+          <ShopOrdersPanel key={userId || "guest"} userId={userId} isPending={isPending} />
+        ) : !data ? (
           <p role="status">Loading the collection…</p>
         ) : (
           <>
-            {view === "shop" && !selectedProductId && (
+            {view === "shop" && !selectedProductSlug && (
               <>
                 {!data.checkout && (
                   <div className="mb-6 rounded-xl border border-line bg-paper-2 p-5">
@@ -381,16 +363,16 @@ export function Shop({ selectedProductId }: { selectedProductId?: string }) {
                 </div>
               </>
             )}
-            {view === "shop" && selectedProductId && (
+            {view === "shop" && selectedProductSlug && (
               <section>
                 <a href="/merchandise" className="mb-5 inline-block underline">
                   Back to the collection
                 </a>
-                {data.products.find((p) => p.id === selectedProductId) ? (
+                {selectedProduct ? (
                   <Product
                     detail
-                    product={data.products.find((p) => p.id === selectedProductId)!}
-                    add={(id) => add(selectedProductId, id)}
+                    product={selectedProduct}
+                    add={(id) => add(selectedProduct.id, id)}
                   />
                 ) : (
                   <p>This product is not currently available.</p>
@@ -570,7 +552,6 @@ export function Shop({ selectedProductId }: { selectedProductId?: string }) {
                                     const saved = rows.find(
                                       (order) => order.id === checkout.orderId,
                                     );
-                                    setOrders(rows);
                                     setView("orders");
                                     if (
                                       saved &&
@@ -609,20 +590,6 @@ export function Shop({ selectedProductId }: { selectedProductId?: string }) {
                 )}
               </section>
             )}
-            {view === "orders" && user && (
-              <section>
-                <h2 className="text-3xl">My shop orders</h2>
-                <Button
-                  className="my-4"
-                  variant="outlineDark"
-                  disabled={busy}
-                  onClick={() => void run(async () => setOrders(await myShopOrders()))}
-                >
-                  Refresh status
-                </Button>
-                <Orders rows={orders} />
-              </section>
-            )}
           </>
         )}
         <div className="mt-10 border-t border-line pt-6 text-sm text-muted">
@@ -639,29 +606,73 @@ export function Shop({ selectedProductId }: { selectedProductId?: string }) {
             . Report delivery or quality problems within 30 days. Please use each product’s size
             guide before ordering.
           </p>
-          {canManage && (
-            <Button
-              variant="outlineDark"
-              className="mt-5"
-              onClick={() => setView(view === "office" ? "shop" : "office")}
-            >
-              Shop owner controls
-            </Button>
-          )}
         </div>
-        {view === "office" && canManage && (
-          <Suspense fallback={<p role="status">Loading shop controls…</p>}>
-            <ShopOffice
-              changed={() =>
-                void getShop()
-                  .then(setData)
-                  .catch(() => setError("Refresh the collection to see your changes."))
-              }
-            />
-          </Suspense>
-        )}
       </div>
     </main>
+  );
+}
+export function ShopOrdersPanel({ userId, isPending }: { userId?: string; isPending: boolean }) {
+  const [orders, setOrders] = useState<Awaited<ReturnType<typeof myShopOrders>>>();
+  const [error, setError] = useState("");
+  const [refresh, setRefresh] = useState(0);
+  useEffect(() => {
+    let current = true;
+    setOrders(undefined);
+    setError("");
+    if (!isPending && userId) {
+      void myShopOrders()
+        .then((rows) => {
+          if (current) setOrders(rows);
+        })
+        .catch(() => {
+          if (current) setError("Your shop orders could not load. Please try again.");
+        });
+    }
+    return () => {
+      current = false;
+    };
+  }, [userId, isPending, refresh]);
+  const loading = !orders && !error;
+  return (
+    <section aria-labelledby="shop-orders-heading">
+      <h2 id="shop-orders-heading" className="text-3xl">
+        My shop orders
+      </h2>
+      {isPending ? (
+        <p role="status" className="mt-4">
+          Checking your account…
+        </p>
+      ) : !userId ? (
+        <div className="mt-4 rounded-xl border border-line bg-paper-2 p-5">
+          <p>Sign in to view your shop orders and delivery updates.</p>
+          <Button asChild className="mt-4">
+            <Link to="/login" search={{ next: "/merchandise?view=orders" }}>
+              Sign in to view orders
+            </Link>
+          </Button>
+        </div>
+      ) : (
+        <>
+          <Button
+            className="my-4"
+            variant="outlineDark"
+            disabled={loading}
+            onClick={() => setRefresh((value) => value + 1)}
+          >
+            {error ? "Try again" : "Refresh status"}
+          </Button>
+          {loading ? (
+            <p role="status">Loading your shop orders…</p>
+          ) : error ? (
+            <p role="alert" className="text-maroon">
+              {error}
+            </p>
+          ) : (
+            <Orders rows={orders!} />
+          )}
+        </>
+      )}
+    </section>
   );
 }
 function Product({
@@ -777,7 +788,7 @@ function Product({
         {!detail && (
           <a
             className="mb-4 block min-h-10 py-2 text-center underline"
-            href={`/merchandise/${encodeURIComponent(p.id)}`}
+            href={`/merchandise/${encodeURIComponent(p.slug)}`}
           >
             View product details
           </a>

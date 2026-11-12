@@ -20,7 +20,8 @@ export async function staffWorkspace(sql: Sql, userId: string) {
       role: string;
       instructor: boolean;
       legacy_reader: boolean;
-    }>`select u.id,u.name,u.email,coalesce(p.role,'parent') as role,coalesce(pp.instructor,false) as instructor,coalesce(r.active,false) as legacy_reader from "user" u left join profiles p on p.user_id=u.id left join person_profiles pp on pp.user_id=u.id left join registration_readers r on r.user_id=u.id where u."disabledAt" is null and u."emailVerified"=true order by u.name`;
+      account_status: string;
+    }>`select u.id,u.name,u.email,case when u."disabledAt" is not null then 'inactive' when not u."emailVerified" then 'unverified' else 'active' end as account_status,coalesce(p.role,'parent') as role,coalesce(pp.instructor,false) as instructor,coalesce(r.active,false) as legacy_reader from "user" u left join profiles p on p.user_id=u.id left join person_profiles pp on pp.user_id=u.id left join registration_readers r on r.user_id=u.id where (u."disabledAt" is null and u."emailVerified"=true) or exists(select 1 from coordinator_assignments ca where ca.user_id=u.id) order by u.name`;
     const assignments = await tx<
       import("./access.server").Grant
     >`select user_id,sport,role,status,coverage,team_ids,permissions,revision,independent_roles from coordinator_assignments order by user_id,sport`;
@@ -57,11 +58,20 @@ export async function saveAssignmentInTransaction(tx: Sql, actor: string, raw: A
   if (actor === input.userId) throw new CoordinatorDenied();
   const [target] = await tx<{
     email: string;
+    name: string;
+    eligible: boolean;
     role: string;
     instructor: boolean;
-  }>`select lower(trim(u.email)) as email,coalesce(p.role,'parent') as role,coalesce(pp.instructor,false) as instructor from "user" u left join profiles p on p.user_id=u.id left join person_profiles pp on pp.user_id=u.id where u.id=${input.userId} and u."disabledAt" is null and u."emailVerified"=true for update of u`;
-  if (!target || target.role === "player")
+  }>`select u.name, (u."disabledAt" is null and u."emailVerified"=true) as eligible,lower(trim(u.email)) as email,coalesce(p.role,'parent') as role,coalesce(pp.instructor,false) as instructor from "user" u left join profiles p on p.user_id=u.id left join person_profiles pp on pp.user_id=u.id where u.id=${input.userId} for update of u`;
+  if (!target || (input.status !== "removed" && (!target.eligible || target.role === "player")))
     throw new Error("Choose an active, verified adult staff account.");
+  if (
+    input.status === "removed" &&
+    (!input.reason ||
+      input.confirmedName !== target.name ||
+      input.confirmedEmail?.trim().toLowerCase() !== target.email)
+  )
+    throw new Error("Confirm the exact account name and email and provide a removal reason.");
   const [legacy] =
     await tx`select user_id from registration_readers where user_id=${input.userId} and active=true`;
   if (legacy && input.status === "active")
@@ -81,7 +91,7 @@ export async function saveAssignmentInTransaction(tx: Sql, actor: string, raw: A
     );
   if (input.coverage === "sport" && input.teamIds.length)
     throw new Error("Sport-wide access must not contain team IDs.");
-  for (const id of input.teamIds)
+  for (const id of input.status === "removed" ? [] : input.teamIds)
     if ((await teamScope(tx, id)).sport !== input.sport) throw new CoordinatorDenied();
   const [old] = await tx<{
     revision: number;
@@ -90,6 +100,9 @@ export async function saveAssignmentInTransaction(tx: Sql, actor: string, raw: A
     team_ids: string[];
     status: string;
   }>`select revision,permissions,coverage,team_ids,status from coordinator_assignments where user_id=${input.userId} and sport=${input.sport} for update`;
+  if (input.status === "removed" && !old) throw new Error("No saved role exists to remove.");
+  if (old?.status === "removed" && input.status !== "removed")
+    throw new Error("Removed roles cannot be reactivated here.");
   if ((old?.revision || 0) !== input.revision)
     throw new Error("Permissions changed. Reload before saving.");
   // Assignment itself is identity only. The first save must have no grants.
@@ -122,9 +135,13 @@ export async function saveAssignmentInTransaction(tx: Sql, actor: string, raw: A
         team_ids: input.teamIds,
       },
       independentRoles: independent,
+      reason: input.reason || null,
+      target: { id: input.userId, name: target.name, email: target.email },
     },
     input.sport,
   );
+  if (input.status === "removed")
+    await tx`insert into audit_events(actor_id,action,target_table,target_id,after_state) values(${actor},'staff.role.remove','coordinator_assignments',${input.userId},${JSON.stringify({ reason: input.reason, sport: input.sport, status: "removed" })}::jsonb)`;
   return { ok: true };
 }
 export async function saveLeadership(

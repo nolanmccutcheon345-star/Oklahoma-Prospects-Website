@@ -1,3 +1,4 @@
+import { RemoveMessageButton } from "@/components/teams/remove-message-button";
 import { useCallback, useEffect, useRef, useState } from "react";
 import * as Tabs from "@radix-ui/react-tabs";
 import {
@@ -138,7 +139,22 @@ export function TeamHubWorkspace() {
     selected = data?.selected;
   const current = data?.teams.find((t) => t.id === selected);
   const actionable = hub?.posts.filter((p) => p.urgent && !p.acknowledged).length || 0;
-  const next = hub?.events.find((e) => !e.cancelled && e.date >= chicagoDate());
+  const next =
+    hub &&
+    [
+      ...hub.events
+        .filter((e) => !e.cancelled && e.date >= chicagoDate())
+        .map((e) => ({ ...e, camp: false })),
+      ...hub.camps.flatMap((c) =>
+        c.sessions.map((s) => ({
+          title: c.title,
+          date: s.date,
+          time: s.start,
+          location: s.location,
+          camp: true,
+        })),
+      ),
+    ].sort((a, b) => (a.date + a.time).localeCompare(b.date + b.time))[0];
   return (
     <main id="main" className="hub">
       <header className="hub-top">
@@ -240,6 +256,16 @@ export function TeamHubWorkspace() {
             <a href="/account" className="hub-btn">
               Account & enrollment
             </a>
+            <a href="/family" className="hub-btn">
+              Payments & family documents
+            </a>
+            <a href="/waiver" className="hub-btn">
+              Annual waiver
+            </a>
+            <p className="hub-side-note">
+              For arrival check-in, follow your coach or front office instructions. A schedule reply
+              is not check-in.
+            </p>
             {hub.manage && (
               <a href="/coach" className="hub-btn">
                 Coach workspace
@@ -260,7 +286,7 @@ export function TeamHubWorkspace() {
                 </h2>
                 <p>
                   {hub.name}
-                  {hub.coach ? ` · Coach ${hub.coach}` : ""}
+                  {hub.coach?.trim() ? ` · Coach ${hub.coach}` : " · Coach to be announced"}
                   {current?.season ? ` · ${current.season}` : ""}
                 </p>
               </div>
@@ -365,6 +391,7 @@ export function TeamHubWorkspace() {
               )}
               <div className="hub-grid">
                 <div className="hub-stack">
+                  <CampCards camps={hub.camps} />
                   {!hub.posts.length && (
                     <div className="hub-empty">
                       No updates yet. Your coach’s announcements will appear here.
@@ -425,7 +452,7 @@ export function TeamHubWorkspace() {
                           style={{ marginTop: 16 }}
                           onClick={() => setTab("schedule")}
                         >
-                          View schedule & reply
+                          {next.camp ? "View camp details" : "View schedule & reply"}
                         </button>
                       </>
                     ) : (
@@ -457,7 +484,13 @@ export function TeamHubWorkspace() {
                 reserve a cage.
               </p>
               <div className="hub-stack">
-                {!hub.events.length && <div className="hub-empty">No events scheduled yet.</div>}
+                <CampCards camps={hub.camps} />
+                {!hub.events.length && (
+                  <div className="hub-empty">
+                    No team practices or games scheduled yet. Ask your coach or the front office for
+                    the team schedule.
+                  </div>
+                )}
                 {hub.events.map((e) => (
                   <article className="hub-card" key={e.id}>
                     <div className="hub-meta">
@@ -552,6 +585,7 @@ export function TeamHubWorkspace() {
                       <b>{m.author}</b>
                       <p>{m.body}</p>
                       <small>{stamp(m.at)}</small>
+                      <RemoveMessageButton owner={hub.canRemoveMessages} teamId={selected!} channel={playerId ? "family" : "team"} message={m} onRemoved={reload} />
                     </div>
                   ))}
                 </div>
@@ -605,7 +639,8 @@ export function TeamHubWorkspace() {
               <div className="hub-card">
                 <h3>{hub.name}</h3>
                 <p className="hub-body">
-                  {hub.players.length} players{hub.coach ? ` · Coach ${hub.coach}` : ""}
+                  {hub.players.length} players
+                  {hub.coach?.trim() ? ` · Coach ${hub.coach}` : " · Coach to be announced"}
                 </p>
                 {hub.players.map((p) => (
                   <div key={p.id} className="hub-row">
@@ -656,4 +691,42 @@ export function TeamHubWorkspace() {
       )}
     </main>
   );
+}
+
+function CampCards({ camps }: { camps: NonNullable<HubData["workspace"]>["camps"] }) {
+  const money = (cents: number) =>
+    new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency: "USD",
+      maximumFractionDigits: 2,
+    }).format(cents / 100);
+  return camps.map((camp) => (
+    <article className="hub-card" key={camp.id}>
+      <span className="hub-badge">Academy camp · Separate registration</span>
+      <h3>{camp.title}</h3>
+      <ul className="hub-body">
+        {camp.sessions.map((session) => (
+          <li key={session.sessionKey}>
+            {day(session.date)} · {clock(session.start)}–{clock(session.end)} CT ·{" "}
+            {session.location}
+          </li>
+        ))}
+      </ul>
+      <p className="hub-body">
+        {camp.pricingMode !== "days" && `${money(camp.priceCents)} full camp`}
+        {camp.pricingMode === "both" && " / "}
+        {camp.pricingMode !== "package" &&
+          camp.dayPriceCents !== undefined &&
+          `${money(camp.dayPriceCents)} per day`}
+      </p>
+      <p className="hub-status">
+        Optional academy event, not a team assignment. Review ages, availability and registration
+        requirements before booking.{" "}
+        {camp.registrationOpen ? "" : "Registration is currently closed."}
+      </p>
+      <a className="hub-btn" href="/events">
+        View camp details & registration
+      </a>
+    </article>
+  ));
 }

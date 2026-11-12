@@ -66,6 +66,14 @@ test("team activity editor saves per-game data; family view is read-only with gr
       {
         name: "activity-fixture",
         setup(b) {
+          b.onResolve({ filter: /^@\/lib\/teams\/message-removal-api$/ }, (a) => ({
+            path: a.path,
+            namespace: "removal-fixture",
+          }));
+          b.onLoad({ filter: /.*/, namespace: "removal-fixture" }, () => ({
+            contents: `export const removeChatMessage=async()=>({ok:true});`,
+            loader: "js",
+          }));
           b.onResolve({ filter: /^@\/lib\/teams\/activity-api$/ }, (a) => ({
             path: a.path,
             namespace: "fixture",

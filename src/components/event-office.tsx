@@ -1,3 +1,4 @@
+import { createThanksgivingDrafts } from "@/lib/thanksgiving-camp-api";
 import { useEffect, useState } from "react";
 import { getEventOffice, saveEvent } from "@/lib/training-events-api";
 import {
@@ -108,6 +109,7 @@ export function EventOffice() {
                           Days: {r.sessions?.map((s) => s.date).join(", ")}
                         </span>
                       </p>
+                      {r.thanksgiving_details && <p className="text-sm">Parent: {r.thanksgiving_details.parentName} · {r.thanksgiving_details.parentPhone}<br />{r.thanksgiving_details.sport} · {r.thanksgiving_details.ageGroup}</p>}
                     </div>
                   ))}
               </details>
@@ -115,6 +117,16 @@ export function EventOffice() {
           ))}
         </div>
       )}
+      <details className="rounded-xl border p-4">
+        <summary className="min-h-11 cursor-pointer font-semibold">Thanksgiving Camp setup</summary>
+        <p className="my-3 text-sm">Create the two age-group drafts without changing existing events. Review the cancellation policy, active coaches and schedule conflicts before publishing each draft. Both groups share a maximum of 150 players per day.</p>
+        <Button variant="outlineDark" disabled={busy} onClick={async () => {
+          setBusy(true); setError(""); setNotice("");
+          try { await createThanksgivingDrafts(); await load(); setNotice("Thanksgiving Camp drafts are ready for owner review. Registration is not opened automatically."); }
+          catch (e) { setError((e as Error).message); }
+          finally { setBusy(false); }
+        }}>Create Thanksgiving Camp drafts</Button>
+      </details>
       {edit && (
         <form
           key={edit.id}

@@ -29,6 +29,7 @@ export const rosterAddInput = z
   .object({
     teamId: z.string().min(1).max(150),
     name: z.string().trim().min(1).max(200),
+    existingPlayerId: z.string().min(1).max(150).optional(),
     parentName: z.string().trim().max(200),
     parentEmail: z.string().trim().email().max(254),
     rosterRole: z.enum(["full", "po"]),

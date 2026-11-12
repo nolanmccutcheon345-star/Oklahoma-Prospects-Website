@@ -203,3 +203,48 @@ test("hub access requires current verified adult and active coaching or guardian
     await db.close();
   }
 });
+
+test("hub exposes published camp sessions without creating team RSVPs or leaking registrations", async () => {
+  const { db, sql } = await enrollmentFixture();
+  try {
+    const camp = {
+      id: randomUUID(),
+      revision: 1,
+      name: "Future academy camp",
+      type: "camp",
+      sport: "Both",
+      description: "Synthetic skills camp",
+      priceCents: 12000,
+      dayPriceCents: 4500,
+      pricingMode: "both",
+      location: "Synthetic facility",
+      sessions: [{ date: "2098-11-23", start: "09:00", end: "14:00" }],
+      coachIds: [],
+      capacity: 150,
+      status: "published",
+      policy: "Synthetic policy",
+    };
+    for (const status of ["published", "draft", "cancelled"])
+      await sql`insert into training_events(id,payload,revision,updated_by) values(${status === "published" ? camp.id : randomUUID()},${JSON.stringify({ ...camp, status, id: status === "published" ? camp.id : randomUUID() })}::jsonb,1,'owner')`;
+    const hub = (await readHub(sql, "guardian", { teamId: "base" })).workspace!;
+    assert.equal(hub.camps.length, 1);
+    assert.equal(hub.camps[0].priceCents, 12000);
+    assert.equal(hub.camps[0].dayPriceCents, 4500);
+    assert.equal(hub.camps[0].sessions[0].date, "2098-11-23");
+    assert.doesNotMatch(JSON.stringify(hub.camps), /coachIds|snapshot|household|policy/);
+    await assert.rejects(
+      writeHub(sql, "guardian", {
+        kind: "rsvp",
+        teamId: "base",
+        eventId: camp.id,
+        playerId: "base-player",
+        response: "going",
+      }),
+      /no longer available/,
+    );
+    await sql`update training_events set payload=jsonb_set(payload,'{status}','"cancelled"'::jsonb) where id=${camp.id}`;
+    assert.equal((await readHub(sql, "guardian", { teamId: "base" })).workspace!.camps.length, 0);
+  } finally {
+    await db.close();
+  }
+});

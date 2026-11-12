@@ -1,4 +1,7 @@
-import { rosterAddInput, inquiryRosterInput } from "./po-roster";
+import { duplicateRosterPlayer, assertSafeRosterMerge } from "./roster-cleanup";
+import { balance } from "./pricing";
+import { assertRosterAssignment } from "./po-roster.server";
+import { rosterAddInput, inquiryRosterInput, assertPORosterSpace, type RosterRole } from "./po-roster";
 import {z} from "zod";
 import {parseClubSave} from "./contracts";
 import { withFinancialContext, loadFinancialContextInTransaction, lockFinancialExecution, recordFinancialTeamPaymentInTransaction, commitFinancialClubTermsInTransaction, commitFinancialCatalogPriceInTransaction, previewFinancialAdmissionInTransaction, admitFinancialEntitiesForOwnerInTransaction } from "../finance/context.server";
@@ -13,7 +16,7 @@ import { getProfile } from "@/lib/club-data";
 import { clubIdentity } from "@/lib/identity.server";
 import { scopeClub, coachHoldsTeam } from "./privacy";
 import { emptyClub, sampleClub } from "./seed";
-import type { ClubRecord, Team } from "./types";
+import type { ClubRecord, Player, Team } from "./types";
 import type { ClubRole } from "@/lib/club-data";
 import { seasonSaveInput, persistTeamSeasons } from "./season-save.server";
 import { blankPlayer, slug } from "./blank-player";
@@ -229,13 +232,14 @@ export const officeAddTeam = createServerFn({ method: "POST" })
 
 export const officeRemoveTeam = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
-  .validator(z.object({teamId:z.string().min(1).max(150),baseRev:z.number().int().nonnegative()}).strict())
+  .validator(z.object({teamId:z.string().min(1).max(150),baseRev:z.number().int().nonnegative(),confirmedTeamName:z.string().min(1).max(200)}).strict())
   .handler(async ({context,data}) => {
     const me=await identity(context.userId);
     if(me.role!=="admin") throw new Error("Front office only.");
     await mutateStoredClub(await getSql(),context.userId,'owner',data.baseRev,async(tx,stored)=>{
       const team=stored.teams.find(t=>t.id===data.teamId);
       if(!team)throw new Error("Team not found.");
+      if(data.confirmedTeamName!==team.name)throw new Error("Type the exact team name to confirm whole-team removal.");
       if(team.roster.length||team.tournamentIds.length||team.practices.length||team.messages.length)
         throw new Error("This team has roster or activity records. Remove or transfer them before deleting the team.");
       await tx`update team_dev_roster_links set ended_at=now(),ended_by=${context.userId} where team_id=${team.id} and ended_at is null`;
@@ -260,6 +264,10 @@ async function addRosterPlayer(userId:string,me:Identity,data:z.infer<typeof ros
     const team=club.teams.find(t=>t.id===data.teamId);
     if(!team||me.role!=='admin'&&!coachHoldsTeam(club,me.email,team.id))throw new Error("Not assigned to this team.");
     const email=data.parentEmail.trim().toLowerCase();
+    const existing=duplicateRosterPlayer(team,data.name,email);
+    if(existing && data.existingPlayerId===existing.id && !existing.withdrawn)return;
+    if(data.existingPlayerId)throw Error('The selected existing player changed or is no longer active. Review the roster again.');
+    if(existing) throw Error(`Duplicate roster player: ${existing.name} (${existing.id}). Open the existing record or cancel; no new player was created.`);
     await tx`insert into club_households(id,primary_email) values(${'fam-'+randomUUID()},${email}) on conflict(primary_email) do nothing`;
     const [household]=await tx<{id:string}>`select id from club_households where primary_email=${email}`;
     const guardian=await householdGuardian(tx,household.id);
@@ -278,26 +286,82 @@ export const coachAddRosterPlayer=createServerFn({method:'POST'}).middleware([au
   .handler(async({context,data})=>addRosterPlayer(context.userId,await identity(context.userId),data,false));
 export const officeAddPlayer=createServerFn({method:'POST'}).middleware([authMiddleware]).validator(rosterAddInput)
   .handler(async({context,data})=>addRosterPlayer(context.userId,await identity(context.userId),data,true));
-export const coachRemoveRosterPlayer=createServerFn({method:'POST'}).middleware([authMiddleware])
-  .validator(z.object({teamId:z.string().min(1).max(150),playerId:z.string().min(1).max(150)}).strict())
-  .handler(async({context,data})=>{
-    const me=await identity(context.userId);
-    if(me.role!=='admin'&&me.role!=='coach')throw new Error("Coach access required.");
-    await mutateStoredClub(await getSql(),context.userId,me.role==='admin'?'owner':'read',undefined,async(tx,club,financial)=>{
-      const team=club.teams.find(t=>t.id===data.teamId);
-      if(!team||me.role!=='admin'&&!coachHoldsTeam(club,me.email,team.id))throw new Error("Not assigned to this team.");
-      const player=team.roster.find(p=>p.id===data.playerId);
-      if(!player)throw new Error("Player not found.");
-      const independent=financial.feePlans.some(p=>p.team_id===team.id&&p.payload.budget.fundingModel==='independent');
-      if(financial.mode==='legacy'&&!independent&&(player.payments.length||player.feeLock||player.planLock||player.credits.length))throw new Error("Player has billing records. Contact Front Office to handle a transfer or withdrawal.");
-      const {endRosterDevelopmentLink}=await import("../team-development/runtime.server");
-      await endRosterDevelopmentLink(tx,{teamId:team.id,rosterPlayerId:player.id,actorId:context.userId});
-      team.roster=team.roster.filter(p=>p.id!==data.playerId);
-      await recordAssignment(tx,{actor:context.userId,action:'remove',teamId:team.id,status:'removed',source:me.role==='admin'?'office':'coach',rosterPlayerId:player.id,reason:'Removed from roster.'});
-      club.audit.unshift({at:new Date().toISOString(),action:'coach-roster-remove',detail:`Removed player from ${team.name}`});
-    });
-    const result=await clubResponse(context.userId,me);if(!result.ok)throw new Error("Club is not open.");return result;
+const cleanupTarget = z.object({teamId:z.string().min(1).max(150),playerId:z.string().min(1).max(150)}).strict();
+const cleanupCommand = cleanupTarget.extend({baseRev:z.number().int().nonnegative(),expectedDue:z.number().finite().nonnegative().nullable(),reason:z.string().trim().min(1).max(1000),requestId:z.string().uuid(),confirmed:z.literal(true)}).strict();
+function cleanupDue(financial: Awaited<ReturnType<typeof loadFinancialContextInTransaction>>, teamId:string, player:Player) {
+  const source=financial.club.teams.find(t=>t.id===teamId)?.roster.find(p=>p.id===player.id) || player;
+  return source.feeLock ? balance(source,source.feeLock.amount) : null;
+}
+export const previewRosterRemoval=createServerFn({method:'POST'}).middleware([authMiddleware]).validator(cleanupTarget)
+ .handler(async({context,data})=>{
+  const me=await identity(context.userId);if(me.role!=='admin')throw Error('Front office only.');
+  return withFinancialContext(await getSql(),context.userId,'owner',async(tx,financial)=>{
+   const club=await readStoredClub(tx,true),team=club?.teams.find(t=>t.id===data.teamId),player=team?.roster.find(p=>p.id===data.playerId);
+   if(!club||!team||!player)throw Error('Player not found.');
+   return {teamId:team.id,playerId:player.id,baseRev:club._rev,teamName:team.name,playerName:player.name,parentEmail:player.parents.map(p=>p.email).filter(Boolean).join(', '),due:cleanupDue(financial,team.id,player)};
   });
+ });
+/** Kept under its old export for compatibility; removal is now strictly owner-only. */
+export const coachRemoveRosterPlayer=createServerFn({method:'POST'}).middleware([authMiddleware]).validator(cleanupCommand)
+ .handler(async({context,data})=>{
+  const me=await identity(context.userId);if(me.role!=='admin')throw Error('Front office only.');
+  await mutateStoredClub(await getSql(),context.userId,'owner',undefined,async(tx,club,financial)=>{
+   const team=club.teams.find(t=>t.id===data.teamId),player=team?.roster.find(p=>p.id===data.playerId);
+   if(!team||!player)throw Error('Player not found.');
+   if(player.rosterRemoval?.requestId===data.requestId)return;
+   if(player.rosterRemoval)throw Error('This player is already removed. Reload the roster.');
+   if(club._rev!==data.baseRev||cleanupDue(financial,team.id,player)!==data.expectedDue)throw Error('The roster or balance changed. Review the removal again.');
+   const at=new Date().toISOString();
+   player.withdrawn=true;
+   player.rosterRemoval={actorId:context.userId,at,reason:data.reason,requestId:data.requestId};
+   const {endRosterDevelopmentLink}=await import('../team-development/runtime.server');
+   await endRosterDevelopmentLink(tx,{teamId:team.id,rosterPlayerId:player.id,actorId:context.userId});
+   const detail=JSON.stringify({teamId:team.id,playerId:player.id,player:player.name,parentEmail:player.parents.map(p=>p.email),outstandingBalance:data.expectedDue,...player.rosterRemoval});
+   club.audit.unshift({at,action:'roster-remove',detail});
+   await tx`insert into club_audit(user_id,action,detail) values(${context.userId},'roster-remove',${detail})`;
+   await recordAssignment(tx,{actor:context.userId,action:'remove',teamId:team.id,status:'removed',source:'office',rosterPlayerId:player.id,reason:data.reason});
+   await tx`insert into audit_events(actor_id,action,target_table,target_id,after_state) values(${context.userId},'roster.remove','club_roster',${player.id},${JSON.stringify({teamId:team.id,reason:data.reason,removed:true})}::jsonb)`;
+  });
+  const result=await clubResponse(context.userId,me);if(!result.ok)throw Error('Club is not open.');return result;
+ });
+const mergeTarget=cleanupTarget.extend({survivorId:z.string().min(1).max(150)}).strict();
+async function verifyMerge(tx:Sql,club:ClubRecord,data:z.infer<typeof mergeTarget>,financial:Awaited<ReturnType<typeof loadFinancialContextInTransaction>>) {
+ const team=club.teams.find(t=>t.id===data.teamId),duplicate=team?.roster.find(p=>p.id===data.playerId),survivor=team?.roster.find(p=>p.id===data.survivorId);
+ if(!team||!duplicate||!survivor)throw Error('Choose two players on the same team.');
+ assertSafeRosterMerge(survivor,duplicate);
+ if(financial.basis?.agreements.some(a=>a.originalPlayerId===duplicate.id)||financial.basis?.playerAliases.some(a=>a.playerId===duplicate.id))throw Error('The duplicate has an immutable financial identity. Separate financial review is required.');
+ if(team.pitchLog.some(p=>p.playerId===duplicate.id)||Object.values(team.attendance).some(a=>Object.hasOwn(a,duplicate.id)))throw Error('The duplicate has activity history. Separate review is required.');
+ const [links]=await tx<{linked:boolean}>`select exists(select 1 from recruiting_roster_links where roster_id=${duplicate.id} union all select 1 from team_dev_roster_links where roster_player_id=${duplicate.id} union all select 1 from person_player_links where player_id=${duplicate.id} union all select 1 from team_hub_family_messages where player_id=${duplicate.id} union all select 1 from team_hub_rsvps where player_id=${duplicate.id} union all select 1 from enrollment_cases where player_id=${duplicate.id} union all select 1 from team_collection_authorizations where player_id=${duplicate.id} union all select 1 from fundraising_players where roster_player_id=${duplicate.id} union all select 1 from commerce_orders where snapshot->'teamFee'->>'playerId'=${duplicate.id} union all select 1 from club_requests where payload->>'rosterPlayerId'=${duplicate.id}) as linked`;
+ if(links.linked)throw Error('The duplicate has athlete, evaluation, account or communication links. Separate identity review is required; no histories were moved.');
+ return {team,duplicate,survivor};
+}
+export const previewRosterMerge=createServerFn({method:'POST'}).middleware([authMiddleware]).validator(mergeTarget)
+ .handler(async({context,data})=>{
+  const me=await identity(context.userId);if(me.role!=='admin')throw Error('Front office only.');
+  return withFinancialContext(await getSql(),context.userId,'owner',async(tx,financial)=>{
+   const club=await readStoredClub(tx,true);if(!club)throw Error('Club is not open.');
+   const {team,duplicate,survivor}=await verifyMerge(tx,club,data,financial);
+   return {teamId:team.id,playerId:duplicate.id,survivorId:survivor.id,baseRev:club._rev,teamName:team.name,duplicateName:duplicate.name,survivorName:survivor.name,parentEmail:duplicate.parents.map(p=>p.email).join(', ')};
+  });
+ });
+export const mergeRosterDuplicates=createServerFn({method:'POST'}).middleware([authMiddleware]).validator(mergeTarget.extend({baseRev:z.number().int().nonnegative(),reason:z.string().trim().min(1).max(1000),requestId:z.string().uuid(),confirmed:z.literal(true)}).strict())
+ .handler(async({context,data})=>{
+  const me=await identity(context.userId);if(me.role!=='admin')throw Error('Front office only.');
+  await mutateStoredClub(await getSql(),context.userId,'owner',undefined,async(tx,club,financial)=>{
+   const prior=club.teams.find(t=>t.id===data.teamId)?.roster.find(p=>p.id===data.playerId)?.rosterRemoval;
+   if(prior?.requestId===data.requestId&&prior.canonicalPlayerId===data.survivorId)return;
+   if(club._rev!==data.baseRev)throw Error('The roster changed. Review the merge again.');
+   const {team,duplicate,survivor}=await verifyMerge(tx,club,data,financial),at=new Date().toISOString();
+   duplicate.withdrawn=true;
+   duplicate.rosterRemoval={actorId:context.userId,at,reason:data.reason,requestId:data.requestId,canonicalPlayerId:survivor.id};
+   const detail=JSON.stringify({teamId:team.id,duplicateId:duplicate.id,survivorId:survivor.id,...duplicate.rosterRemoval});
+   club.audit.unshift({at,action:'roster-merge',detail});
+   await tx`insert into club_audit(user_id,action,detail) values(${context.userId},'roster-merge',${detail})`;
+   await recordAssignment(tx,{actor:context.userId,action:'remove',teamId:team.id,status:'removed',source:'office',rosterPlayerId:duplicate.id,reason:`Merged duplicate into ${survivor.id}: ${data.reason}`});
+   await tx`insert into audit_events(actor_id,action,target_table,target_id,after_state) values(${context.userId},'roster.merge','club_roster',${duplicate.id},${JSON.stringify({teamId:team.id,reason:data.reason,removed:true,canonicalPlayerId:survivor.id})}::jsonb)`;
+  });
+  const result=await clubResponse(context.userId,me);if(!result.ok)throw Error('Club is not open.');return result;
+ });
 
 export const reviewTeamInquiry=createServerFn({method:'POST'}).middleware([authMiddleware])
  .validator(inquiryRosterInput)

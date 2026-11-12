@@ -1,8 +1,8 @@
--- Generated from migrations/0119_roster_assignments.sql; do not edit this copy.
+-- Generated from migrations/0120_roster_assignments.sql; do not edit this copy.
 CREATE TABLE IF NOT EXISTS _migrations (name TEXT PRIMARY KEY, applied_at TIMESTAMPTZ NOT NULL DEFAULT now());
 DO $netlify_apply$
 BEGIN
-  IF NOT EXISTS (SELECT 1 FROM _migrations WHERE name = '0119_roster_assignments.sql') THEN
+  IF NOT EXISTS (SELECT 1 FROM _migrations WHERE name = '0120_roster_assignments.sql') THEN
 -- t136u: explicit Front Office roster assignments (additive only).
 -- One row per (team, roster player) placement plus pre-roster tryout offers. The
 -- live roster in club_state remains the operational source; this table records
@@ -60,18 +60,18 @@ select 'backfill:'||(t->>'id')||':'||(p->>'id'), t->>'id', p->>'id',
  (select r.id from club_requests r where r.payload->>'rosterPlayerId'=p->>'id' order by r.created_at limit 1),
  (select h.id from club_households h where h.id=p->>'familyId'),
  case when p->'withdrawn'='true'::jsonb then 'removed' else 'active' end,
- 'backfill','migration:0119','migration:0119'
+ 'backfill','migration:0120','migration:0120'
 from club_state c
 cross join lateral jsonb_array_elements(case when jsonb_typeof(c.payload->'teams')='array' then c.payload->'teams' else '[]'::jsonb end) t
 cross join lateral jsonb_array_elements(case when jsonb_typeof(t->'roster')='array' then t->'roster' else '[]'::jsonb end) p
 where c.id='oklahoma-prospects' and not c.demo and coalesce(t->>'id','')<>'' and coalesce(p->>'id','')<>''
 on conflict do nothing;
 insert into roster_assignment_audit(assignment_id,actor_id,action,from_status,to_status,reason)
-select a.id,'migration:0119','backfill',null,a.status,'Recorded from the live roster at migration time.'
+select a.id,'migration:0120','backfill',null,a.status,'Recorded from the live roster at migration time.'
 from roster_assignments a
 where a.source='backfill' and not exists (select 1 from roster_assignment_audit x where x.assignment_id=a.id);
 
-    INSERT INTO _migrations (name) VALUES ('0119_roster_assignments.sql');
+    INSERT INTO _migrations (name) VALUES ('0120_roster_assignments.sql');
   END IF;
 END
 $netlify_apply$;

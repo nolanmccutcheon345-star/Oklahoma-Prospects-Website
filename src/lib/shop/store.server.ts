@@ -77,6 +77,11 @@ export async function publicShop(sql: Sql) {
     square: checkout ? squarePublicConfig() : null,
     products: products.map((p) => ({
       id: p.id,
+      // Locally-created products keep their internal draft ID after publication.
+      // Give approved public products a URL without rewriting stored records/cart IDs.
+      slug: p.id.startsWith("draft-")
+        ? "product-" + createHash("sha256").update(p.id).digest("hex").slice(0, 20)
+        : p.id,
       title: p.title,
       description: p.description,
       category: p.category,

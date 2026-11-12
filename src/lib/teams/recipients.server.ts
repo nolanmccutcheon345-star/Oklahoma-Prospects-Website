@@ -6,8 +6,8 @@ import type { Player, Team } from "./types";
  * notices and team announcements.
  *
  * A player is active only when they are on the live roster of an open team, are
- * not withdrawn, and their Front Office assignment (migration 0119) is `active`.
- * A roster entry without an assignment row is a placement recorded before 0119
+ * not withdrawn, and their Front Office assignment (migration 0120) is `active`.
+ * A roster entry without an assignment row is a placement recorded before 0120
  * or by another existing roster tool and is treated as active, so existing fee
  * notices are not silently dropped. An `invited`, `accepted` or `removed`
  * assignment always excludes the player.

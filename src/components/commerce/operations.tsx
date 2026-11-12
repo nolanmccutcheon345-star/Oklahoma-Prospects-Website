@@ -1,3 +1,4 @@
+import { AdministrativeAuditEvents } from "./administrative-audit";
 import {LessonExceptionReport} from "../pd/booked-guided-lesson";
 import {LessonAssignments} from "./lesson-assignments";
 import {MyFinance} from "../finance/my-finance";
@@ -201,19 +202,7 @@ export function OfficeOperations({view="all"}:{view?:"all"|"bookings"|"reports"}
           </>
         ) : null}
       </details>
-      <details>
-        <summary className="min-h-11 cursor-pointer text-xl">
-          Recent administrative audit events
-        </summary>
-        <ul>
-          {data?.events.map((e) => (
-            <li className="mt-2 break-words" key={e.id}>
-              {new Date(e.created_at).toLocaleString()} · {e.action} · {e.target_table} ·{" "}
-              {e.target_id} · actor {e.actor_id}
-            </li>
-          ))}
-        </ul>
-      </details>
+      <AdministrativeAuditEvents events={data?.events || []} />
       <ContractorEarnings />
       </>}
     </section>

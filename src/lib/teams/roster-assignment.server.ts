@@ -12,6 +12,7 @@ import { assertRosterAssignment } from "./po-roster.server";
 import { assertPORosterSpace, inquiryRosterInput } from "./po-roster";
 import { assertTeamInquiryPlacement } from "./inquiry-placement";
 import { blankPlayer } from "./blank-player";
+import { duplicateRosterPlayer } from "./roster-cleanup";
 import { assignmentStatusByPlayer, type AssignmentStatus } from "./recipients.server";
 import {
   ADDITIONAL_TEAM_REASON_MIN,
@@ -236,6 +237,11 @@ export async function reviewTeamInquiryForOffice(
     let rosterPlayerId: string | undefined;
     if (data.stage === "accepted") {
       const email = z.string().email().parse(request.payload.email).toLowerCase();
+      const duplicate = duplicateRosterPlayer(team, request.payload.player, email);
+      if (duplicate)
+        throw Error(
+          `Duplicate roster player: ${duplicate.name} (${duplicate.id}). Open the existing record or cancel; no new player was created.`,
+        );
       await tx`insert into club_households(id,primary_email) values(${"fam-" + randomUUID()},${email}) on conflict(primary_email) do nothing`;
       const [household] = await tx<{
         id: string;

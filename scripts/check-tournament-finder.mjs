@@ -274,7 +274,7 @@ try {
   await office.getByRole("heading", { name: "Manual demo event", exact: true }).waitFor();
   await owner.page.reload();
   await owner.page.getByRole("heading", { name: "Manual demo event", exact: true }).waitFor();
-  await owner.page.getByRole("button", { name: "Dashboard", exact: true }).first().click();
+  await owner.page.getByRole("button", { name: "Command Center", exact: true }).first().click();
   await owner.page.waitForURL(/section=dashboard/);
   await owner.page.goBack();
   await owner.page.locator("[data-tournament-finder]").waitFor();

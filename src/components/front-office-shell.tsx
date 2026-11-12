@@ -1,7 +1,7 @@
 import { useState, type ReactNode } from "react";
 import { UserButton } from "@/lib/auth/gates";
 export const OFFICE_SECTIONS = [
-  ["dashboard", "Dashboard"],
+  ["dashboard", "Command Center"],
   ["requests", "Requests"],
   ["teams", "Teams & Players"],
   ["development", "Team Development"],
@@ -42,9 +42,9 @@ export function FrontOfficeShell({
         <div className="mx-auto flex max-w-7xl flex-wrap items-start justify-between gap-3">
           <div>
             <p className="text-xs font-semibold tracking-widest text-powder">OKLAHOMA PROSPECTS</p>
-            <h1 className="mt-1 text-3xl">Front Office</h1>
+            <h1 className="mt-1 text-3xl">Command Center</h1>
             <p className="mt-1 text-sm text-fg-soft">
-              Manage today’s schedule, tryout requests, teams, and payments.
+              One academy workspace for operations, teams, money and communication.
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-3 text-sm">

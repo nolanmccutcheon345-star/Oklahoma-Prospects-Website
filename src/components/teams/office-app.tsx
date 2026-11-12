@@ -1,3 +1,5 @@
+import { duplicateRosterPlayer } from "@/lib/teams/roster-cleanup";
+import { RosterCleanupControls } from "./roster-cleanup-controls";
 import { TeamFinancialManagement } from "./team-financial-management";
 import type { TeamFinancialView } from "@/lib/teams/financial-view";
 import { ACTIVE_SEASON } from "@/lib/active-season";
@@ -404,11 +406,14 @@ function RosterTools({
             finally { setBusy(false); }
           }}>Save seasons</Button><Button type="button" variant="outlineDark" disabled={busy} onClick={async () => {
           if (!window.confirm(`Delete ${team.name}? This cannot be undone. Teams with roster or activity records cannot be deleted.`)) return;
+          if (window.prompt(`Type the team name exactly to remove the whole team: ${team.name}`) !== team.name) return;
           setBusy(true);setError("");
-          try { const row=await officeRemoveTeam({data:{teamId:team.id,baseRev:club._rev}});onChange(row.club);if(teamId===team.id)setTeamId(row.club.teams[0]?.id??""); }
+          try { const row=await officeRemoveTeam({data:{teamId:team.id,baseRev:club._rev,confirmedTeamName:team.name}});onChange(row.club);if(teamId===team.id)setTeamId(row.club.teams[0]?.id??""); }
           catch(err){setError(err instanceof Error?err.message:"Could not delete team.");}
           finally{setBusy(false);}
-        }}>Remove team</Button></div>)}
+        }}>Remove whole team</Button>
+        {team.roster.filter(p=>!p.withdrawn).map(player=><div key={player.id} className="rounded border p-2"><p>{player.name}</p><RosterCleanupControls teamId={team.id} playerId={player.id} onDone={onChange} mergeCandidates={team.roster.filter(p=>!p.withdrawn&&p.id!==player.id).map(p=>({id:p.id,name:p.name}))}/></div>)}
+        </div>)}
       </div>
       <form
         className="grid gap-2"
@@ -417,8 +422,11 @@ function RosterTools({
           setBusy(true);
           setError("");
           try {
+            const selectedTeam=club.teams.find(t=>t.id===teamId);
+            const existing=selectedTeam&&duplicateRosterPlayer(selectedTeam,playerName,parentEmail);
+            if(existing && (existing.withdrawn || !window.confirm(`This player already exists: ${existing.name} (${existing.id}). Link to this existing roster record instead of creating another? Cancel leaves everything unchanged.`))) {setError(existing.withdrawn?'An inactive matching record exists. Review the retained record.':'Add cancelled.');return;}
             const row = await officeAddPlayer({
-              data: { teamId, name: playerName, parentName, parentEmail, rosterRole: new FormData(event.currentTarget).get("rosterRole") as RosterRole, additionalTeamReason: String(new FormData(event.currentTarget).get("additionalTeamReason") ?? "") },
+              data: { teamId, existingPlayerId:existing?.id, name: playerName, parentName, parentEmail, rosterRole: new FormData(event.currentTarget).get("rosterRole") as RosterRole, additionalTeamReason: String(new FormData(event.currentTarget).get("additionalTeamReason") ?? "") },
             });
             onChange(row.club);
             setPlayerName("");

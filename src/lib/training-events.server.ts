@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { THANKSGIVING_CAMP, thanksgivingGroup, thanksgivingEventMatches, type ThanksgivingDetails } from "./thanksgiving-camp";
 import { operationalEvent } from "./coordinator/organization-events.server";
 import {
   operationalEventSessions,
@@ -29,6 +30,7 @@ import {
 } from "./commerce/store.server";
 
 export type EventSnapshot = {
+  thanksgivingDetails?: ThanksgivingDetails;
   sessionKeys?: string[];
   minAge?: number;
   maxAge?: number;
@@ -188,7 +190,8 @@ export async function eventOffice(sql: Sql, userId: string) {
       total_cents: number;
       order_id: string;
       sessions: TrainingEvent["sessions"];
-    }>`select r.id,r.event_id,a.name as player,o.email,r.status,o.total_cents,r.order_id,o.snapshot->'eventRegistration'->'sessions' as sessions from training_event_registrations r join club_athletes a on a.id=r.athlete_id join commerce_orders o on o.id=r.order_id order by r.created_at desc`,
+      thanksgiving_details: ThanksgivingDetails | null;
+    }>`select r.id,r.event_id,a.name as player,o.email,r.status,o.total_cents,r.order_id,o.snapshot->'eventRegistration'->'sessions' as sessions,o.snapshot->'eventRegistration'->'thanksgivingDetails' as thanksgiving_details from training_event_registrations r join club_athletes a on a.id=r.athlete_id join commerce_orders o on o.id=r.order_id order by r.created_at desc`,
     eventCoaches(sql),
   ]);
   return {
@@ -206,6 +209,8 @@ export async function saveTrainingEvent(
   await owner(sql, userId);
   const e = trainingEventSchema.parse(raw);
   const coaches = availableCoaches || (await eventCoaches(sql));
+  if (thanksgivingGroup(e.id) && e.status === "published" && (!thanksgivingEventMatches(e) || /awaiting owner approval/i.test(e.policy)))
+    throw Error("Review the Thanksgiving Camp details and enter the approved registration/cancellation policy before publishing.");
   if (e.coachIds.some((id) => !coaches.some((c) => c.id === id)))
     throw Error("Choose active coaches from the directory.");
   if (
@@ -407,6 +412,8 @@ async function eventAvailable(
   }>`select birth_date::text as birth_date from club_athletes where id=${athleteId}`;
   const ageError = campAgeError(row.payload, player?.birth_date);
   if (ageError) throw Error(ageError);
+  if (thanksgivingGroup(id) && !thanksgivingEventMatches(row.payload))
+    throw Error("Camp details need office review. No payment has been taken.");
   const purchase = campPurchase(row.payload, choice);
   if (windows(purchase)[0].start <= new Date())
     throw Error("Registration is closed for the selected camp days.");
@@ -429,6 +436,13 @@ async function eventAvailable(
     throw Error(
       "Checkout already exists for this player and a selected day. Complete it or wait ten minutes.",
     );
+  if (thanksgivingGroup(id)) {
+    const groupIds = THANKSGIVING_CAMP.groups.map((g) => g.id);
+    const occupied = await sql<{ sessions: TrainingEvent["sessions"] }>`select o.snapshot->'eventRegistration'->'sessions' as sessions from commerce_orders o where o.product_id=any(${groupIds}::text[]) and o.id<>${orderId} and (exists(select 1 from training_event_registrations r where r.order_id=o.id and r.status='confirmed') or (${checkPending} and (o.status='pending' and o.hold_until>now() or exists(select 1 from square_payment_attempts a where a.order_id=o.id and a.status in ('pending','unknown')))))`;
+    const manual = await sql<{ date: string; count: number }>`select (b.starts_at at time zone 'America/Chicago')::date::text as date,count(*)::int as count from operational_event_enrollments n join operational_booking_schedule b on b.id=n.booking_id where n.event_id=any(${groupIds}::text[]) and n.status='active' and b.status='confirmed' and b.order_id is null group by (b.starts_at at time zone 'America/Chicago')::date`;
+    if (purchase.dates.some((date) => occupied.filter((r) => r.sessions?.some((s) => s.date === date)).length + (manual.find((r) => r.date === date)?.count || 0) >= THANKSGIVING_CAMP.capacity))
+      throw Error("Thanksgiving Camp is full on a selected day. No payment has been taken.");
+  }
   const delivery = await operationalEventSessions(sql, id, purchase.sessions, row.payload.location);
   const operational = await operationalEvent(sql, id);
   const operationalUsage = await operationalEventSeatUsage(sql, id);
@@ -485,6 +499,10 @@ export async function prepareEventCheckout(
     me = await authorizedPlayer(sql, userId, input.athleteId);
   return sql.transaction(async (tx) => {
     await lockFinancialExecution(tx);
+    const group = thanksgivingGroup(input.eventId);
+    if (group && (!input.thanksgivingDetails || input.thanksgivingDetails.ageGroup !== group.value))
+      throw Error("Complete the parent contact, sport and age group for Thanksgiving Camp.");
+    if (!group && input.thanksgivingDetails) throw Error("Camp registration details do not match this event.");
     const [prior] = await tx<
       SquareOrder & { request_key: string }
     >`select * from commerce_orders where request_key=${input.requestId} for update`;
@@ -493,6 +511,7 @@ export async function prepareEventCheckout(
         prior.user_id !== userId ||
         prior.product_id !== input.eventId ||
         prior.athlete_id !== input.athleteId ||
+        (["parentName", "parentPhone", "sport", "ageGroup"] as const).some((key) => prior.snapshot.eventRegistration?.thanksgivingDetails?.[key] !== input.thanksgivingDetails?.[key]) ||
         (prior.snapshot.eventRegistration?.option || "package") !== (input.option || "package") ||
         ((input.option || "package") === "days" &&
           JSON.stringify([...(input.dates || [])].sort()) !==
@@ -542,6 +561,7 @@ export async function prepareEventCheckout(
       needsSlot: false,
       consentAt: new Date().toISOString(),
       eventRegistration: {
+        thanksgivingDetails: input.thanksgivingDetails,
         id: e.id,
         revision: e.revision,
         minAge: e.minAge,
@@ -647,4 +667,6 @@ export async function fulfillEventPayment(sql: Sql, order: SquareOrder, environm
   }
   await sql`insert into training_event_registrations(id,event_id,athlete_id,user_id,order_id,status) values(${randomUUID()},${order.product_id!},${order.athlete_id!},${order.user_id},${order.id},'confirmed')`;
   await sql`insert into payment_notifications(id,order_id,kind) values(${"receipt:" + order.id},${order.id},'receipt') on conflict do nothing`;
+  if (order.snapshot.eventRegistration?.thanksgivingDetails)
+    await sql`insert into payment_notifications(id,order_id,kind) values(${"thanksgiving-registration:" + order.id},${order.id},'thanksgiving-registration') on conflict do nothing`;
 }

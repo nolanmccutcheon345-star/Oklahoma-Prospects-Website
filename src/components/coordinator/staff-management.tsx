@@ -89,6 +89,13 @@ export function StaffRoleManagement() {
       setValue(undefined);
       return;
     }
+    if (!source?.accounts.some((a) => a.id === userId)) {
+      setError(
+        "Account identity is missing. Access changes are blocked until the identity is resolved.",
+      );
+      setValue(undefined);
+      return;
+    }
     const row = source?.assignments.find((a) => a.user_id === userId && a.sport === sport);
     setValue({
       userId,
@@ -125,10 +132,23 @@ export function StaffRoleManagement() {
     }
   }
   async function save(next = value) {
+    if (!next) return;
+    const userId = next.userId;
+    const account = data?.accounts.find((a) => a.id === userId);
+    if (!account) {
+      setError("Account identity could not be verified. Reload before changing access.");
+      return;
+    }
+    if (next.status === "removed") {
+      const reason = window.prompt(
+        "Reason for removing this coordinator role (at least 10 characters):",
+      );
+      if (!reason) return;
+      next = { ...next, reason, confirmedName: account.name, confirmedEmail: account.email };
+    }
     if (
-      !next ||
       !window.confirm(
-        `Save ${next.sport} coordinator access for ${data?.accounts.find((a) => a.id === next.userId)?.name}? ${next.permissions.length} explicit permissions; ${next.coverage === "sport" ? "all teams in this sport" : next.teamIds.length + " selected teams"}. Status: ${next.status}.`,
+        `Save ${next.sport} coordinator access for ${account.name} (${account.email}), account ID ${account.id}? Account: ${account.account_status}. Status: ${next.status}. ${next.permissions.length} explicit permissions. Evaluations, payments and independent roles remain unchanged.`,
       )
     )
       return;
@@ -310,8 +330,12 @@ export function StaffRoleManagement() {
                   variant="outlineDark"
                   onClick={() => choose(assignment.user_id, assignment.sport)}
                 >
-                  {data.accounts.find((account) => account.id === assignment.user_id)?.name ||
-                    "Unavailable account"}
+                  {(() => {
+                    const account = data.accounts.find((a) => a.id === assignment.user_id);
+                    return account
+                      ? `${account.name} · ${account.email} · ${account.account_status}`
+                      : `Missing account identity (${assignment.user_id}); changes blocked`;
+                  })()}
                   {" · "}
                   {assignment.sport} coordinator · {assignment.status} ·{" "}
                   {assignment.permissions.length} permissions
@@ -330,7 +354,7 @@ export function StaffRoleManagement() {
               <option value="">Choose an account</option>
               {data.accounts.map((a) => (
                 <option key={a.id} value={a.id}>
-                  {a.name} · {a.email}
+                  {a.name} · {a.email} · {a.account_status}
                 </option>
               ))}
             </select>
@@ -341,6 +365,12 @@ export function StaffRoleManagement() {
           </p>
           {value && (
             <>
+              <p>
+                Account: {data.accounts.find((a) => a.id === value.userId)?.name} ·{" "}
+                {data.accounts.find((a) => a.id === value.userId)?.email} ·{" "}
+                {data.accounts.find((a) => a.id === value.userId)?.account_status} · ID:{" "}
+                {value.userId}
+              </p>
               <details className="rounded border border-line p-3">
                 <summary>Withdraw all coordinator access</summary>
                 <p>
@@ -357,7 +387,7 @@ export function StaffRoleManagement() {
                     const reason = String(new FormData(e.currentTarget).get("resetReason") || "");
                     if (
                       !window.confirm(
-                        "Withdraw all coordinator access for this person in both sports?",
+                        `Withdraw all coordinator access for ${data.accounts.find((a) => a.id === value.userId)?.name} (${data.accounts.find((a) => a.id === value.userId)?.email}), ID ${value.userId}, in both sports?`,
                       )
                     )
                       return;
@@ -597,7 +627,14 @@ export function StaffRoleManagement() {
                 here.
               </p>
               <div className="flex flex-wrap gap-2">
-                <Button disabled={busy} onClick={() => void save()}>
+                <Button
+                  disabled={
+                    busy ||
+                    value.status === "removed" ||
+                    data.accounts.find((a) => a.id === value.userId)?.account_status !== "active"
+                  }
+                  onClick={() => void save()}
+                >
                   {value.revision ? "Save Permissions" : "Assign Role With Zero Permissions"}
                 </Button>
                 {!!value.revision && (
@@ -610,7 +647,12 @@ export function StaffRoleManagement() {
                       Revoke All Coordinator Permissions
                     </Button>
                     <Button
-                      disabled={busy}
+                      disabled={
+                        busy ||
+                        value.status === "removed" ||
+                        data.accounts.find((a) => a.id === value.userId)?.account_status !==
+                          "active"
+                      }
                       variant="outlineDark"
                       onClick={() =>
                         void save({
