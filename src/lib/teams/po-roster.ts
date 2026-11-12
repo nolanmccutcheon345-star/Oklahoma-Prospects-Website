@@ -33,6 +33,7 @@ export const rosterAddInput = z
     parentName: z.string().trim().max(200),
     parentEmail: z.string().trim().email().max(254),
     rosterRole: z.enum(["full", "po"]),
+    additionalTeamReason: z.string().trim().max(500).default(""),
   })
   .strict();
 export const inquiryRosterInput = z
@@ -42,6 +43,7 @@ export const inquiryRosterInput = z
     stage: z.enum(["registered", "evaluated", "offer", "accepted", "waitlist"]),
     rosterRole: z.enum(["full", "po"]).optional(),
     acknowledgePreferenceOverride: z.boolean().default(false),
+    additionalTeamReason: z.string().trim().max(500).default(""),
   })
   .strict()
   .refine(

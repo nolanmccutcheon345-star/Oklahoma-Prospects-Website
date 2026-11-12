@@ -154,6 +154,7 @@ for (const baselineVersion of [66, 76, 79])
             "0116_notice_release_controls.sql",
             "0117_parent_team_hub.sql",
             "0119_team_message_removal.sql",
+            "0120_roster_assignments.sql",
           ],
         );
       for (const { name } of late) {

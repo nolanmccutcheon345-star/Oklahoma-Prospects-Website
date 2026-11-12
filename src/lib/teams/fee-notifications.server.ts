@@ -18,6 +18,7 @@ import { playerView } from "./fee.server";
 import { organizationDay } from "./fee-model";
 import { isIndependent } from "./independent-model";
 import type { ClubRecord } from "./types";
+import { assignmentStatusByPlayer, isActiveRosterMember } from "./recipients.server";
 
 type Env = Record<string, string | undefined>;
 type Filter = { teamId?: string; playerId?: string; familyId?: string; recipient?: string };
@@ -69,6 +70,8 @@ async function candidates(tx: Sql, actor: string, filter: Filter = {}): Promise<
       plan.status === "closed"
     )
       continue;
+    // t136u: fee notices reach only active, assigned members of this team.
+    const assignments = await assignmentStatusByPlayer(tx, t.id);
     for (const p of t.roster) {
       if (
         (filter.playerId && p.id !== filter.playerId) ||
@@ -77,7 +80,10 @@ async function candidates(tx: Sql, actor: string, filter: Filter = {}): Promise<
         continue;
       if (
         p.withdrawn ||
-        !operational.roster.some((v) => v.id === p.id && !v.withdrawn && v.familyId === p.familyId)
+        !operational.roster.some(
+          (v) => v.id === p.id && !v.withdrawn && v.familyId === p.familyId,
+        ) ||
+        !isActiveRosterMember(operational, p.id, assignments)
       )
         continue;
       const record = plan.players[p.id];
