@@ -1,3 +1,4 @@
+import { FacilityBlocks } from "./commerce/facility-blocks";
 import { OfficeCommandCenter } from "./office-command-center";
 import { JournalEditor } from "./journal/editor";
 import { WebsiteContentEditor } from "./website-content-editor";
@@ -223,6 +224,7 @@ export function OfficeWorkspace({
               <a className="inline-flex min-h-11 items-center text-sm underline" href="/book">
                 Check cage availability
               </a>
+              <FacilityBlocks />
               <OfficeOperations view="bookings" />
               <StaffBookingChanges />
             </>
@@ -271,7 +273,9 @@ export function OfficeWorkspace({
             <a href="/handbooks" className="inline-flex min-h-11 items-center underline">
               Handbooks & Team Standards
             </a>
-            <a href="/enrollment" className="inline-flex min-h-11 items-center underline">Enrollment pilot & season progress</a>
+            <a href="/enrollment" className="inline-flex min-h-11 items-center underline">
+              Enrollment pilot & season progress
+            </a>
             <AboutPageEditor />
           </details>
           <AdminServicesDesk />
