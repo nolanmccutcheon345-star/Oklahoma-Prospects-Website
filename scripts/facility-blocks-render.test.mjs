@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { build } from "esbuild";
 import { chromium } from "playwright";
 
-test("owner block form retries identical payload and explicitly releases only selected block", async () => {
+test("owner block form retries identical payload and requires explicit release confirmation", async () => {
   const out = await build({
     stdin: {
       contents: `import React from 'react';import {createRoot} from 'react-dom/client';import {FacilityBlocks} from './src/components/commerce/facility-blocks';createRoot(document.getElementById('root')).render(React.createElement(FacilityBlocks));`,
@@ -29,7 +29,7 @@ test("owner block form retries identical payload and explicitly releases only se
       globalThis.__calls=[];globalThis.__rows=[];globalThis.__fail=true;
       export async function getFacilityBlocks(){return globalThis.__rows;}
       export async function createFacilityBlock({data}){globalThis.__calls.push(data);if(globalThis.__fail){globalThis.__fail=false;throw Error('Synthetic uncertain response');}globalThis.__rows=[{id:data.id,title:data.title,startsAt:'2099-11-15T22:00:00Z',endsAt:'2099-11-16T00:00:00Z',laneIds:data.laneIds,status:'confirmed'}];return {ok:true};}
-      export async function cancelFacilityBlock({data}){globalThis.__cancel=data.id;globalThis.__rows=globalThis.__rows.map(r=>({...r,status:'cancelled'}));return {ok:true};}
+      export async function cancelFacilityBlock({data}){globalThis.__cancel=data.id;globalThis.__rows=globalThis.__rows.map(r=>r.id===data.id?({...r,status:'cancelled'}):r);return {ok:true};}
     `,
             loader: "js",
           }));
