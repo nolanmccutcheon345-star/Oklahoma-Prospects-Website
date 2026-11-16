@@ -67,7 +67,9 @@ export function CatalogAndBook({
   const [athleteError, setAthleteError] = useState("");
   const instructorLessons = instructor
     ? selectedInstructor
-      ? catalog.lessons.filter((s) => selectedInstructor.serviceIds.includes(s.id))
+      ? catalog.lessons.filter((s) =>
+          (selectedInstructor.offeredServiceIds ?? selectedInstructor.serviceIds).includes(s.id),
+        )
       : []
     : catalog.lessons;
   const lessons = instructorLessons.filter(
@@ -75,9 +77,9 @@ export function CatalogAndBook({
       (sport === "all" ||
         people.some(
           (p) =>
-            p.bookable &&
+            p.instructor &&
             p.sports.includes(sport as "baseball" | "softball") &&
-            p.serviceIds.includes(item.id),
+            (p.offeredServiceIds ?? p.serviceIds).includes(item.id),
         )) &&
       (agePath === "all" ||
         (agePath === "youth" ? YOUTH_PRODUCTS.has(item.id) : !YOUTH_PRODUCTS.has(item.id))),
@@ -332,6 +334,24 @@ export function CatalogAndBook({
               .
             </p>
           )}
+          {instructorsLoaded &&
+            lessons.length > 0 &&
+            (sport !== "all" || instructor) &&
+            !people.some(
+              (person) =>
+                person.bookable &&
+                (!instructor || person.coachId === instructor) &&
+                (sport === "all" || person.sports.includes(sport as "baseball" | "softball")) &&
+                lessons.some((lesson) => person.serviceIds.includes(lesson.id)),
+            ) && (
+              <p role="status" className="mt-3 rounded-xl border p-4">
+                These lessons are offered, but matching instructors have not published bookable
+                hours yet.{" "}
+                <Link to="/contact" className="underline">
+                  Contact the office to arrange a time.
+                </Link>
+              </p>
+            )}
           <p className="mt-2 mb-5 text-sm text-muted">
             Explore a discipline, then choose your next session. Youth lessons for 11U and under do
             not require an assessment. Other private lessons require a completed player assessment.

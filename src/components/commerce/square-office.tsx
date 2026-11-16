@@ -77,7 +77,9 @@ export function SquareOffice() {
         <>
           <p>
             {data.config
-              ? `Connected configuration: ${data.config.environment}. Verify the location and complete Sandbox acceptance before enabling live payments.`
+              ? data.config.environment === "production"
+                ? "Configured environment: production. Review transaction and reconciliation records below for live payment outcomes. Sandbox acceptance refers to testing in a separate sandbox environment."
+                : "Configured environment: sandbox. Verify the location and complete Sandbox acceptance before enabling live payments."
               : "Square is not configured. Checkout remains closed; no unpaid booking can be confirmed."}
           </p>
           <p>
