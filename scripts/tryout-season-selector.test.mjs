@@ -8,3 +8,20 @@ test('scheduled tryout choice uses published sport, season and ages; switching s
  await act(async()=>host.querySelector('input[value="individual"]').click());assert.equal(select('Scheduled tryout'),undefined);assert.equal([...host.querySelectorAll('label')].find(l=>l.textContent.includes('Preferred season')).querySelector('input').value,'Spring 2027');assert.ok([...host.querySelectorAll('label')].some(l=>l.textContent.includes('Preferred season')));
  });
 });
+
+test('switching from scheduled event to a sport without events uses individual fallback', async () => {
+ const events = [{id:'baseball',sport:'Baseball',season:'Summer 2027',ageGroups:['12U'],date:'2027-01-09',startTime:'13:00',endTime:'14:00',location:'Test Facility'}];
+ await withRendered('src/components/inquiry-form.tsx','TryoutForm',{publishedEvents:events,initialEventId:'baseball'},{'@/lib/auth/use-current-user':'export const useCurrentUserState=()=>({user:null,isPending:false});','@/lib/portal-api':'export const getRegistrationAthletes=async()=>[]; export const claimAthleteRegistration=async()=>({ok:true}); export const sendInquiry=async()=>{throw Error("No requests sent by this test")};','@/lib/tryout-events-api':'export const getPublicTryoutTeams=async()=>[];'},async({host,act,change})=>{
+ const select=label=>[...host.querySelectorAll('label')].find(l=>l.textContent.trim().startsWith(label))?.querySelector('select');
+ await change(select('Sport'),'Softball');
+ assert.equal(select('Scheduled tryout'),undefined);
+ assert.equal(host.querySelector('input[value="scheduled"]').disabled,true);
+ assert.equal(host.querySelector('input[value="individual"]').checked,true);
+ assert.match(host.textContent,/No group tryouts are currently posted for softball/);
+ assert.equal([...host.querySelectorAll('label')].find(l=>l.textContent.includes('Preferred season')).querySelector('input').value,'Spring 2027');
+ await change(select('Sport'),'Baseball');
+ assert.equal(host.querySelector('input[value="individual"]').checked,true);
+ await act(async()=>host.querySelector('input[value="scheduled"]').click());
+ assert.equal(select('Scheduled tryout').value,'');
+ });
+});

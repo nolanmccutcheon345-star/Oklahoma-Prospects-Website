@@ -84,7 +84,7 @@ jobs:
       # Run the real interaction loop first so interface failures are found promptly.
       - run: npm test
       - run: npm run lint
-      - run: npm audit --audit-level=high
+      - run: node scripts/dependency-audit.mjs
       - uses: actions/upload-artifact@v4
         if: always()
         with:

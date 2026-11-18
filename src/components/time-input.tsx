@@ -10,8 +10,7 @@ export function TimeInput({value, defaultValue, onChange, onBlur, name, ...props
   }, [value]);
   return <>
     <input {...props} type="text" placeholder={props.placeholder || "1:00pm"} value={text}
-      pattern={/\s*(1[0-2]|[1-9]):[0-5][0-9]\s*([aA][mM]|[pP][mM])\s*/.source}
-      title={props.title || "Enter a time such as 6:00 PM."}
+      pattern="(1[0-2]|[1-9]):[0-5][0-9]\s*([aA][mM]|[pP][mM])"
       onChange={event => {
         const entered = event.target.value;
         setText(entered);
