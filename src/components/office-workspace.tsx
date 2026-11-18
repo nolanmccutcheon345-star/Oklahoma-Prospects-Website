@@ -1,5 +1,7 @@
 import { FacilityBlocks } from "./commerce/facility-blocks";
 import { OfficeCommandCenter } from "./office-command-center";
+import { TryoutEventEditor } from "./tryout-event-editor";
+import { OrganizationPeople } from "./coordinator/organization-people";
 import { JournalEditor } from "./journal/editor";
 import { WebsiteContentEditor } from "./website-content-editor";
 import { AboutPageEditor } from "./about-page-editor";
@@ -8,7 +10,7 @@ import { StaffRoleManagement } from "./coordinator/staff-management";
 import { OperationsHealth } from "./operations-health";
 import { FinanceWorkspace } from "./finance/finance-workspace";
 import { EventOffice } from "./event-office";
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { useNavigate, useSearch } from "@tanstack/react-router";
 import { FrontOfficeShell, type OfficeSection } from "./front-office-shell";
 import { OfficeRequests } from "./commerce/office-requests";
@@ -32,6 +34,20 @@ import { useLiveCatalog } from "@/lib/use-catalog";
 import type { ClubRecord } from "@/lib/teams/types";
 import { Button } from "./ui/button";
 import { TeamDevelopmentAdminPanel } from "./team-development/admin-panel";
+function OfficeEditor({ title, children }: { title: string; children: ReactNode }) {
+  const [opened, setOpened] = useState(false);
+  return (
+    <details
+      className="rounded-xl border border-line p-4"
+      onToggle={(event) => {
+        if (event.currentTarget.open) setOpened(true);
+      }}
+    >
+      <summary className="min-h-11 cursor-pointer font-semibold">{title}</summary>
+      {opened ? children : null}
+    </details>
+  );
+}
 export function OfficeWorkspace({
   club,
   financial,
@@ -176,7 +192,16 @@ export function OfficeWorkspace({
       )}
       {section === "events" && <EventOffice />}
       {section === "articles" && <JournalEditor />}
-      {section === "requests" && <OfficeRequests />}
+      {section === "requests" && (
+        <>
+          <div className="mb-6">
+            <OfficeEditor title="Publish group tryout dates">
+              <TryoutEventEditor />
+            </OfficeEditor>
+          </div>
+          <OfficeRequests />
+        </>
+      )}
       {section === "teams" && (
         <>
           <a
@@ -290,6 +315,9 @@ export function OfficeWorkspace({
       )}
       {section === "staff" && (
         <div className="grid gap-6">
+          <OfficeEditor title="Instructor availability & public profiles">
+            <OrganizationPeople />
+          </OfficeEditor>
           <StaffRoleManagement />
           <AdminAccountsDesk
             initialPerson={person}

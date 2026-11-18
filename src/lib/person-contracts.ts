@@ -74,6 +74,8 @@ export type PublicPerson = SharedProfile & {
   instructor: boolean;
   bookable: boolean;
   serviceIds: string[];
+  /** Approved, assigned lessons; unlike serviceIds, does not require published hours. */
+  offeredServiceIds?: string[];
   teams: { id: string; name: string; role: string; sport: string; seasons: string[] }[];
 };
 export const emptySharedProfile = (name = ""): SharedProfile => ({
