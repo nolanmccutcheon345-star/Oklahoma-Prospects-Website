@@ -4,10 +4,16 @@ import { tryoutEventInput } from "../tryout-events-contracts";
 export const scopedTryoutListInput = z
   .object({ teamId: id, before: historyCursor.optional() })
   .strict();
-const { sport: _sport, status: _status, ...eventFields } = tryoutEventInput.shape;
+const {
+  sport: _sport,
+  status: _status,
+  enrollmentMode: _mode,
+  ...eventFields
+} = tryoutEventInput.shape;
 export const scopedTryoutSaveInput = z
   .object({
     ...eventFields,
+    capacity: z.number().int().min(1).max(1000),
     teamId: id,
     coachId: id,
     laneIds: practiceInput.shape.laneIds,

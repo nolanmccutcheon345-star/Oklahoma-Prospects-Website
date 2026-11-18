@@ -25,9 +25,11 @@ export function PublicTeamRoster({
   const [error, setError] = useState("");
   const [ready, setReady] = useState(Boolean(initial));
   const [attempt, setAttempt] = useState(0);
-  const [statsAccess, setStatsAccess] = useState(false);
-  const { user } = useCurrentUserState();
-  const signedIn = Boolean(user && !user.isDevFallback);
+  const [access, setAccess] = useState<{ userId: string; teamId: string; allowed: boolean } | null>(null);
+  const { user, isPending } = useCurrentUserState();
+  const userId = user?.id;
+  const signedIn = Boolean(!isPending && user && !user.isDevFallback);
+  const statsAccess = Boolean(signedIn && access?.userId === user?.id && access?.teamId === teamId && access?.allowed);
   useEffect(() => {
     if (initial && attempt === 0) return;
     let active = true;
@@ -56,18 +58,18 @@ export function PublicTeamRoster({
   }, [teamId, sport, initial, attempt]);
   useEffect(() => {
     let active = true;
-    setStatsAccess(false);
-    if (teamId && signedIn) {
+    setAccess(null);
+    if (teamId && signedIn && userId) {
       getTeamStatsAccess({ data: { teamId } })
         .then((row) => {
-          if (active) setStatsAccess(row.allowed);
+          if (active) setAccess({userId, teamId, allowed: row.allowed});
         })
         .catch(() => {});
     }
     return () => {
       active = false;
     };
-  }, [teamId, signedIn, user?.id]);
+  }, [teamId, signedIn, userId]);
   const currentTeams = (initial && attempt === 0 ? initial : teams).filter(
     (t) =>
       (!teamId || t.id === teamId) && (!sport || t.sport.toLowerCase() === sport.toLowerCase()),
@@ -81,7 +83,7 @@ export function PublicTeamRoster({
   );
   return (
     <section className="mx-auto max-w-5xl py-8" aria-label="Public team roster">
-      {teamId && statsAccess && <TeamActivities key={teamId} teamId={teamId} />}
+      {teamId && statsAccess && <TeamActivities key={`${user?.id}:${teamId}`} teamId={teamId} />}
       {!teamId && currentTeams.length >= 4 && (
         <div className="mb-6 grid gap-4 sm:grid-cols-2">
           <label className="text-sm font-semibold">
@@ -166,38 +168,10 @@ export function PublicTeamRoster({
                 </p>
                 <h4 className="mt-5 text-xl">Team stats</h4>
                 <StatsTable stats={t.stats} />
-                <h4 className="mt-5 text-xl">Public roster</h4>
+                <h4 className="mt-5 text-xl">Private roster</h4>
                 <p className="mt-2 text-sm">
-                  Only players with current signed public-roster consent appear here. This is not
-                  the full private team roster.
+                  Player names are visible only to authorized staff signed in to this team.
                 </p>
-                {!statsAccess && (
-                  <p className="mt-2 text-sm">
-                    Individual stats are available to signed-in players, parents and coaches on this
-                    team.
-                  </p>
-                )}
-                <ul className="mt-2 grid gap-2">
-                  {t.players.map((p) => (
-                    <li key={p.id} className="rounded-lg border px-3 py-2">
-                      {statsAccess ? (
-                        <a
-                          className="inline-flex min-h-11 items-center underline"
-                          href={`/teams/${encodeURIComponent(t.id)}/players/${encodeURIComponent(p.id)}`}
-                        >
-                          {p.number ? `#${p.number} ` : ""}
-                          {p.name} · View stats
-                        </a>
-                      ) : (
-                        <span>
-                          {p.number ? `#${p.number} ` : ""}
-                          {p.name}
-                        </span>
-                      )}
-                    </li>
-                  ))}
-                </ul>
-                {!t.players.length && <p>No players are currently listed publicly.</p>}
               </>
             ) : (
               <>

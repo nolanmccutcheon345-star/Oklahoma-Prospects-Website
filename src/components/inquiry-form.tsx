@@ -164,8 +164,22 @@ export function TryoutForm({
   }
   function nextStep() {
     if (!formRef.current?.reportValidity()) return;
-    if(step===0){const checked=athleteRegistrationInput.safeParse(athleteProfile);if(!checked.success){setError(checked.error.issues.map(i=>i.message).join(' '));return;}}
-    setError('');goToStep(step + 1);
+    if (step === 0) {
+      const profile = athleteRegistrationInput.safeParse(athleteProfile);
+      if (!profile.success) {
+        setError(profile.error.issues.map((issue) => issue.message).join(" "));
+        return;
+      }
+    }
+    if (step === 1) {
+      const details = inquiryInput.safeParse(requestData());
+      if (!details.success) {
+        setError(details.error.issues.map((issue) => issue.message).join(" "));
+        return;
+      }
+    }
+    setError("");
+    goToStep(step + 1);
   }
   const [consent, setConsent] = useState(false);
   const [values, setValues] = useState<TryoutValues>({
@@ -215,7 +229,8 @@ export function TryoutForm({
     };
   }, [intent]);
   const selectedEvent = events.find((e) => e.id === eventId);
-  const scheduled = intent === "register" && mode === "scheduled";
+  const sportEvents = events.filter((event) => event.sport === values.sport);
+  const scheduled = intent === "register" && mode === "scheduled" && sportEvents.length > 0;
   const eligibleTeams = teams.filter(
     (t) => t.sport === values.sport && t.age.toLowerCase() === values.age.toLowerCase(),
   );
@@ -236,6 +251,23 @@ export function TryoutForm({
       preferredCoachId: "",
     }));
   }
+  function requestData() {
+    return {
+      ...values,
+      athleteProfile,
+      kind: intent === "register" ? "tryout" : "team-inquiry",
+      requestId,
+      sport: values.sport as "Baseball" | "Softball",
+      autoEnroll: false,
+      ...(intent === "register"
+        ? {
+            requestType: scheduled ? "scheduled" : "individual",
+            requestedEventId: scheduled ? eventId : "",
+            requestConsent: consent,
+          }
+        : {}),
+    };
+  }
   async function onSubmit(event: FormEvent) {
     event.preventDefault();
     if (intent === "register" && step < 2) { nextStep(); return; }
@@ -251,21 +283,7 @@ export function TryoutForm({
     setBusy(true);
     setError("");
     try {
-      const data = inquiryInput.parse({
-          ...values,
-          athleteProfile,
-          kind: intent === "register" ? "tryout" : "team-inquiry",
-          requestId,
-          sport: values.sport as "Baseball" | "Softball",
-          autoEnroll: false,
-          ...(intent === "register"
-            ? {
-                requestType: mode,
-                requestedEventId: scheduled ? eventId : "",
-                requestConsent: consent,
-              }
-            : {}),
-      });
+      const data = inquiryInput.parse(requestData());
       const result=await sendInquiry({ data });
       if('claimToken' in result)setClaimToken(String(result.claimToken||''));
       setSent(true);
@@ -308,6 +326,9 @@ export function TryoutForm({
         </p>
       )}
       <fieldset hidden={intent === "register" && step !== 0} disabled={intent === "register" && step !== 0} className="grid min-w-0 gap-4" aria-label="Player and contact information">
+      {intent === "register" && <p className="text-sm">
+        New to Prospects? You can request a tryout here without an account or a USSSA Player ID.
+      </p>}
       <AthleteRegistrationFields value={athleteProfile} onChange={setAthleteProfile} onName={player=>setValues(v=>({...v,player}))}/>
       {intent === "register" && (
         <fieldset className="grid gap-2 rounded-xl border bg-paper p-4 sm:grid-cols-2">
@@ -323,7 +344,9 @@ export function TryoutForm({
                 type="radio"
                 name="tryout-type"
                 value={value}
-                checked={mode === value}
+                checked={value === "scheduled" ? scheduled : !scheduled}
+                disabled={value === "scheduled" && sportEvents.length === 0}
+                aria-describedby={sportEvents.length === 0 ? "tryout-schedule-status" : undefined}
                 onChange={() => {
                   setMode(value);
                   setEventId("");
@@ -338,6 +361,13 @@ export function TryoutForm({
               {label}
             </label>
           ))}
+          {sportEvents.length === 0 && (
+            <p id="tryout-schedule-status" className="text-sm text-muted sm:col-span-2">
+              No group tryouts are currently posted for {values.sport.toLowerCase()}. You can
+              continue with an individual evaluation request and add your preferred date in the
+              player notes. Staff will confirm the next step.
+            </p>
+          )}
         </fieldset>
       )}
       <label className="text-sm font-semibold">
@@ -347,11 +377,14 @@ export function TryoutForm({
           className={fieldClass}
           value={values.sport}
           onChange={(e) => {
+            const sport = e.target.value;
+            const nextMode = events.some((event) => event.sport === sport) ? mode : "individual";
+            setMode(nextMode);
             setEventId("");
             setValues((v) => ({
               ...v,
-              sport: e.target.value,
-              season: mode === "individual" ? ACTIVE_SEASON : "",
+              sport,
+              season: nextMode === "individual" ? ACTIVE_SEASON : "",
               preferredTeamId: "",
               preferredCoachId: "",
             }));
@@ -372,14 +405,12 @@ export function TryoutForm({
               onChange={(e) => selectEvent(e.target.value)}
             >
               <option value="">Choose a published tryout</option>
-              {publishedEvents
-                .filter((e) => e.sport === values.sport)
-                .map((e) => (
-                  <option key={e.id} value={e.id}>
-                    {e.season} · {e.ageGroups.join(" / ")} · {e.date} ·{" "}
-                    {formatClockTime(e.startTime)} Central
-                  </option>
-                ))}
+              {sportEvents.map((event) => (
+                <option key={event.id} value={event.id}>
+                  {event.season} · {event.ageGroups.join(" / ")} · {event.date} ·{" "}
+                  {formatClockTime(event.startTime)} Central
+                </option>
+              ))}
             </select>
           </label>
           {selectedEvent ? (
@@ -394,9 +425,7 @@ export function TryoutForm({
             </div>
           ) : (
             <p className="text-sm text-muted">
-              {events.some((e) => e.sport === values.sport)
-                ? "Choose an event to see its season, time and location."
-                : "No group tryouts are currently scheduled for this sport. Choose Individual Evaluation to request an appointment."}
+              Choose an event to see its season, time and location.
             </p>
           )}
         </>
@@ -491,6 +520,24 @@ export function TryoutForm({
         <legend className="px-2 font-semibold">
           Player details {intent === "register" && <span className="text-maroon">— mandatory</span>}
         </legend>
+        {intent === "register" && (
+          <div className="flex flex-wrap gap-2">
+            <Button
+              type="button"
+              variant="outlineDark"
+              onClick={() => setValues((v) => ({ ...v, positions: "New player / still learning" }))}
+            >
+              New player / still learning
+            </Button>
+            <Button
+              type="button"
+              variant="outlineDark"
+              onClick={() => setValues((v) => ({ ...v, notes: "No additional notes" }))}
+            >
+              No additional notes
+            </Button>
+          </div>
+        )}
         <label className="text-sm font-semibold">
           Player positions {intent === "register" && <span className="text-maroon">*</span>}
           <input
@@ -502,7 +549,7 @@ export function TryoutForm({
             onChange={(e) => setValues((v) => ({ ...v, positions: e.target.value }))}
           />
           <span className="mt-1 block text-xs font-normal text-muted">
-            List primary and other positions. Beginners can enter “New player / still learning.”
+            List the positions your player has tried.
           </span>
         </label>
         <label className="text-sm font-semibold">
@@ -517,7 +564,7 @@ export function TryoutForm({
             onChange={(e) => setValues((v) => ({ ...v, notes: e.target.value }))}
           />
           <span className="mt-1 block text-xs font-normal text-muted">
-            Enter “No additional notes” if there is nothing else to share.
+            Share any experience, goals, or details that would help the coach.
           </span>
         </label>
         {intent === "register" && (

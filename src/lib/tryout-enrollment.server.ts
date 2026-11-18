@@ -45,7 +45,7 @@ export async function matchTryoutApplicants(tx: Sql) {
     age_groups: string[];
     sport: string;
     season: string;
-  }>`select id,capacity,age_groups,sport,season from tryout_events where status='published' and not exists(select 1 from coordinator_tryout_scopes scope where scope.event_id=tryout_events.id) and (event_date+start_time::time) at time zone 'America/Chicago'>now() order by event_date,start_time,id for update`;
+  }>`select id,capacity,age_groups,sport,season from tryout_events where status='published' and enrollment_mode='automatic' and not exists(select 1 from coordinator_tryout_scopes scope where scope.event_id=tryout_events.id) and (event_date+start_time::time) at time zone 'America/Chicago'>now() order by event_date,start_time,id for update`;
   for (const event of events) {
     const requests = await tx<{
       id: string;
@@ -86,6 +86,7 @@ export async function recordInquiryFor(
   profile?: {userId:string|null;data:import("./athlete-registration-contracts").AthleteRegistrationInput;householdEmail:string|null},
 ) {
   return sql.transaction(async (tx) => {
+    let requestOnlyEvent = false;
     if(profile){const {lockFinancialExecution}=await import("./finance/execution.server");await lockFinancialExecution(tx);}
     if (input.kind === "tryout") {
       if (input.requestType) {
@@ -105,6 +106,7 @@ export async function recordInquiryFor(
             throw new Error(
               "This tryout changed or is no longer available. Refresh and choose a published event.",
             );
+          requestOnlyEvent = event.enrollmentMode === "request-only";
           const [scope] = await tx<{
             team_id: string;
           }>`select team_id from coordinator_tryout_scopes where event_id=${event.id}`;
@@ -176,7 +178,7 @@ export async function recordInquiryFor(
       const {saveRegistrationProfile}=await import('./athlete-registration.server');
       ({claimToken}=await saveRegistrationProfile(tx,input.requestId,profile.userId,profile.data,String(input.player),String(input.email),String(input.sport),String(input.season),String(input.age),profile.householdEmail));
     }
-    if (input.kind === "tryout") await matchTryoutApplicants(tx);
+    if (input.kind === "tryout" && !requestOnlyEvent) await matchTryoutApplicants(tx);
     return { ok: true, reference: input.requestId, claimToken };
   });
 }

@@ -124,3 +124,47 @@ test("invalid and past blocks do not reserve occupancy", async () => {
     await db.close();
   }
 });
+
+test("existing customer occupancy rejects the entire multi-space block without touching customer data", async () => {
+  const { db, sql } = await fixture();
+  try {
+    const booking = await holdWindow(sql, {
+      orderId: null,
+      userId: "other",
+      athleteId: null,
+      productId: "synthetic-customer",
+      start: new Date("2099-11-15T22:00:00Z"),
+      end: new Date("2099-11-16T00:00:00Z"),
+      resources: ["lane:3-4"],
+    });
+    await sql`update booking_records set status='confirmed' where id=${booking}`;
+    const before = await sql`select * from booking_occupancy order by resource_id,slot_at`;
+    await assert.rejects(
+      () =>
+        createFacilityBlock(sql, "steve", {
+          id: randomUUID(),
+          title: "Synthetic overlapping workout",
+          date: "2099-11-15",
+          time: "16:00",
+          duration: 120,
+          laneIds: ["1", "3-4"],
+        }),
+      /already reserved/,
+    );
+    assert.deepEqual(
+      await sql`select * from booking_occupancy order by resource_id,slot_at`,
+      before,
+    );
+    assert.equal((await sql`select * from facility_blocks`).length, 0);
+    assert.equal((await sql`select * from booking_records`).length, 1);
+    await assert.rejects(() => cancelFacilityBlock(sql, "steve", { id: randomUUID() }));
+    assert.deepEqual(
+      await sql`select * from booking_occupancy order by resource_id,slot_at`,
+      before,
+    );
+    await sql`insert into organization_operational_access(user_id,status,financial_restricted,updated_by) values('steve','suspended',true,'steve')`;
+    await assert.rejects(() => facilityBlocks(sql, "steve"));
+  } finally {
+    await db.close();
+  }
+});

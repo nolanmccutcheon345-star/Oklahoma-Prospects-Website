@@ -354,7 +354,7 @@ export async function saveCenterAppointmentFor(
         start_time: string;
         end_time: string;
         location: string;
-        capacity: number;
+        capacity: number | null;
         status: string;
       }>`select *,event_date::text as event_date from tryout_events where id=${input.eventId} for update`;
       if (!event) throw new Error("Event not found.");
@@ -391,7 +391,7 @@ export async function saveCenterAppointmentFor(
           const [count] = await tx<{
             count: number;
           }>`select count(*)::int as count from tryout_enrollments where event_id=${input.eventId} and status='enrolled' and request_id<>${input.requestId}`;
-          if (count.count >= event.capacity) throw new Error("This group event is full.");
+          if (event.capacity !== null && count.count >= event.capacity) throw new Error("This group event is full.");
         }
       }
     } else if (input.status !== "cancelled") {

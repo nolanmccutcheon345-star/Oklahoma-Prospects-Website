@@ -31,8 +31,8 @@ export function TryoutSchedule({
             {event.location}
           </p>
           <p className="mt-2 text-sm">
-            Capacity: {event.capacity}. Submit your player information below. A request does not
-            reserve a place in this event.
+            {event.capacity !== null && <>Capacity: {event.capacity}. </>}Submit your player
+            information below. A request does not reserve a place in this event.
           </p>
           <Button asChild className="mt-4">
             <Link
