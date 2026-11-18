@@ -9,6 +9,7 @@ import { resolveIdentity } from "../identity.server";
 import type { ClubRecord } from "./types";
 import { coachHoldsTeam } from "./privacy";
 import { teamSeasons } from "./seasons";
+import { canReadStaffRoster } from "./staff-roster";
 import { canReadTeamStats } from "./public-view";
 import {
   activityInput,
@@ -58,6 +59,7 @@ export async function teamActivityWorkspace(sql: Sql, userId: string, teamId: st
     body: string;
     at: string;
   }>`select id::text,author,body,created_at::text as at from (select m.* from team_chat_messages m where not exists(select 1 from team_message_removals r where r.channel='team' and r.message_id=m.id) and team_id=${teamId} and (not exists(select 1 from coordinator_notice_messages n where n.message_id=m.id) or exists(select 1 from coordinator_notice_messages n where n.message_id=m.id and ${userId}=any(n.recipient_ids)) or ${me.role === "admin"}) order by created_at desc limit 100) m order by created_at`;
+  const showRoster = canReadStaffRoster(t, me);
   return {
     financialMode: mode,
     canRemoveMessages: await sql.transaction(async tx => (await enrollmentScope(tx, userId)).owner),
@@ -66,10 +68,10 @@ export async function teamActivityWorkspace(sql: Sql, userId: string, teamId: st
     teamName: t.name,
     seasons: teamSeasons(t),
     record: t.record,
-    players: t.roster
+    players: (showRoster ? t.roster : [])
       .filter((p) => !p.withdrawn)
       .map((p) => ({ id: p.id, name: p.name, number: p.number, stats: p.stats })),
-    activities: rows.map((r) => ({ ...r.payload, revision: r.revision, ...(mode === "basis" ? {entryFee:0} : {}) })),
+    activities: rows.map((r) => ({ ...r.payload, stats: showRoster ? r.payload.stats : [], revision: r.revision, ...(mode === "basis" ? {entryFee:0} : {}) })),
     messages,
   };
 }
