@@ -1,7 +1,7 @@
 import { ACTIVE_SEASON } from "@/lib/active-season";
 import { formatClockTime } from "@/lib/time-display";
 import { TimeInput } from "@/components/time-input";
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useId, useState, type FormEvent } from "react";
 import { Button } from "./ui/button";
 import {
   getAdminTryoutEvents,
@@ -25,6 +25,7 @@ const blank = (): TryoutEventInput => ({
   status: "draft",
 });
 export function TryoutEventEditor() {
+  const fieldId = useId();
   const [enrollments, setEnrollments] = useState<
     Awaited<ReturnType<typeof getAdminTryoutEnrollments>>
   >([]);
@@ -133,9 +134,10 @@ export function TryoutEventEditor() {
         ))}
       </ul>
       <form onSubmit={submit} className="grid gap-3 sm:grid-cols-2">
-        <label>
-          Sport
+        <div>
+          <label htmlFor={`${fieldId}-sport`}> Sport</label>
           <select
+            id={`${fieldId}-sport`}
             className={field}
             value={draft.sport}
             onChange={(e) =>
@@ -145,7 +147,7 @@ export function TryoutEventEditor() {
             <option>Baseball</option>
             <option>Softball</option>
           </select>
-        </label>
+        </div>
         <label>
           Season
           <input
@@ -207,9 +209,10 @@ export function TryoutEventEditor() {
             onChange={(e) => setDraft({ ...draft, location: e.target.value })}
           />
         </label>
-        <label>
-          Enrollment mode
+        <div>
+          <label htmlFor={`${fieldId}-enrollment-mode`}> Enrollment mode</label>
           <select
+            id={`${fieldId}-enrollment-mode`}
             className={field}
             disabled={draft.revision > 0}
             value={draft.enrollmentMode ?? "automatic"}
@@ -224,7 +227,7 @@ export function TryoutEventEditor() {
             <option value="request-only">Request only — no automatic enrollment or notices</option>
             <option value="automatic">Automatic enrollment — capacity and family notices</option>
           </select>
-        </label>
+        </div>
         {draft.enrollmentMode === "request-only" ? (
           <p className="text-sm self-center">
             No enrollment limit is set. Staff must separately confirm attendance and facility
@@ -244,9 +247,10 @@ export function TryoutEventEditor() {
             />
           </label>
         )}
-        <label>
-          Status
+        <div>
+          <label htmlFor={`${fieldId}-status`}> Status</label>
           <select
+            id={`${fieldId}-status`}
             className={field}
             value={draft.status}
             onChange={(e) =>
@@ -257,7 +261,7 @@ export function TryoutEventEditor() {
             <option value="published">Published</option>
             <option value="cancelled">Cancelled</option>
           </select>
-        </label>
+        </div>
         <Button type="submit" disabled={busy} className="self-end">
           {busy ? "Saving…" : draft.revision ? "Save changes" : "Create event"}
         </Button>
