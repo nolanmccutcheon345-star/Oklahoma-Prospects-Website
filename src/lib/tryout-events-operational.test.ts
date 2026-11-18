@@ -116,9 +116,10 @@ test("organization tryout events preserve owner access, consent, event locks and
     assert.deepEqual(await operationalTryoutEnrollmentsFor(sql, "steve"), enrollments);
     assert.deepEqual(
       Object.keys((await adminTryoutEventsFor(sql, "steve"))[0]).sort(),
-      Object.keys(event).sort(),
+      [...Object.keys(event), "enrollmentMode"].sort(),
     );
     current = (await adminTryoutEventsFor(sql, "steve"))[0];
+    assert.equal(current.enrollmentMode, "automatic", "legacy input keeps automatic enrollment");
     await assert.rejects(
       () => saveTryoutEventFor(sql, "steve", { ...current, status: "draft" }),
       /Cancel/,

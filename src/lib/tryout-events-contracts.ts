@@ -25,10 +25,16 @@ export const tryoutEventInput = z
     startTime: time,
     endTime: time,
     location: z.string().trim().min(1).max(500),
-    capacity: z.number().int().min(1).max(1000),
+    capacity: z.number().int().min(1).max(1000).nullable(),
+    enrollmentMode: z.enum(["automatic", "request-only"]).optional(),
     status: z.enum(["draft", "published", "cancelled"]),
   })
   .strict()
+  .refine(
+    (value) =>
+      value.enrollmentMode === "request-only" ? value.capacity === null : value.capacity !== null,
+    "Request-only events have no capacity limit; automatic enrollment requires a capacity.",
+  )
   .refine(
     (value) => value.endTime > value.startTime,
     "End time must follow start time on the same day.",
