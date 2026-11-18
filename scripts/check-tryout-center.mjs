@@ -243,7 +243,7 @@ try {
     announcement.id,
   );
   assert.equal(
-    await guest.getByRole("combobox", { name: "Age group", exact: true }).inputValue(),
+    await guest.getByRole("combobox", { name: /^Age group\s*\*/ }).inputValue(),
     "13U",
   );
   assert.deepEqual(await counts(), beforePublication);
