@@ -155,6 +155,7 @@ for (const baselineVersion of [66, 76, 79])
             "0117_parent_team_hub.sql",
             "0119_team_message_removal.sql",
             "0120_tryout_request_only.sql",
+            "0120_facility_blocks.sql",
           ],
         );
       for (const { name } of late) {
@@ -244,4 +245,14 @@ test("shop collection upgrade preserves published products and pricing while ass
   } finally {
     await db.close();
   }
+});
+
+test("facility block migration appends after published tryout version without losing ledger identity", async () => {
+  assert.equal(netlifyMigrationSlug("0120_tryout_request_only.sql"), "0120_tryout-request-only");
+  assert.equal(netlifyMigrationSlug("0120_facility_blocks.sql"), "0121_facility-blocks");
+  const sql = wrapMigration(
+    "0120_facility_blocks.sql",
+    await readFile(new URL("../migrations/0120_facility_blocks.sql", import.meta.url), "utf8"),
+  );
+  assert.match(sql, /name = '0120_facility_blocks.sql'/);
 });
