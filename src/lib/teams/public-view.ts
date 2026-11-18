@@ -1,9 +1,9 @@
+import { canReadStaffRoster } from "./staff-roster";
 import { teamSeasons } from "./seasons";
-import { hasPublicRosterConsent } from "../roster-consent";
 import type { ClubRecord, Team } from "./types";
 
 const norm = (value: string | undefined) => value?.trim().toLowerCase() || "";
-type Viewer = {role: string; email: string; familyId?: string; familyIds?: string[]; householdEmails?: string[]; playerIds?:string[];guardianHouseholdIds?:string[]};
+type Viewer = {canTeamCoach?: boolean; role: string; email: string; familyId?: string; familyIds?: string[]; householdEmails?: string[]; playerIds?:string[];guardianHouseholdIds?:string[]};
 
 /** Membership authorizes statistics only; never full financial/medical player records. */
 export function canReadTeamStats(team: Team, me: Viewer): boolean {
@@ -51,11 +51,11 @@ export function publicTeamView(team: Team) {
     seasons: teamSeasons(team),
     record: {w: team.record.w, l: team.record.l, t: team.record.t},
     stats: aggregateTeamStats(team), coaches: teamCoaches(team),
-    // Public player identities require the current signed public-roster agreement.
-    // A team membership, private profile setting, or unsigned historical record is not consent.
-    players: team.roster
-      .filter(p => !p.withdrawn && hasPublicRosterConsent(p.rosterConsent))
-      .map(p => ({id: p.id, name: p.name, number: p.number})),
+    // Owner's November 16 privacy requirement: public team responses never
+    // include roster identities, even when historical publication consent exists.
+    // Keep the empty field for compatible clients; staff use the authenticated,
+    // team-scoped staff roster endpoint. Do not change stored consent or records.
+    players: [] as Array<{ id: string; name: string; number: string }>,
   };
 }
 
@@ -64,7 +64,7 @@ export function publicTeamsView(club: ClubRecord) {
 }
 
 export function playerStatsView(team: Team, playerId: string, me: Viewer) {
-  if (!canReadTeamStats(team, me)) throw new Error("Individual player stats are available only to this team's players, parents and coaches.");
+  if (!canReadStaffRoster(team, me)) throw new Error("Individual player stats are available only to authorized team staff.");
   const p = team.roster.find(p => p.id === playerId && p.teamId === team.id && !p.withdrawn);
   if (!p) throw new Error("Player not found on this team.");
   return {id: p.id, name: p.name, number: p.number, teamId: team.id, teamName: team.name,

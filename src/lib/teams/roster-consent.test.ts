@@ -20,7 +20,7 @@ test('parent roster consent preserves signed financial agreements and stays priv
   assert.equal(parseClubSave({club:reloaded,baseRev:club._rev}).club.teams[0].roster[0].rosterConsent?.text,ROSTER_CONSENT_TEXT);
   assert.equal(reloaded.teams[0].roster[0].rosterConsent.signedAt,'2026-10-09T21:00:00.000Z');
   const publicView=JSON.stringify(publicTeamView(team));
-  assert.ok(publicView.includes(player.name));
+  assert.ok(!publicView.includes(player.name));
   assert.ok(!publicView.includes(viewer.email));
   assert.ok(!publicView.includes('Parent Guardian'));
 });
@@ -34,7 +34,7 @@ test('new annual waiver requires explicit roster consent and saves owner-approve
   assert.ok(!WAIVER_TEXT.includes('Oklahoma Prospects'));
 });
 
-test('only linked guardians can revoke consent; revocation persists and signing again restores public identity',()=>{
+test('only linked guardians can revoke consent; revocation persists and signing again preserves consent without publishing identity',()=>{
  const club=sampleClub(),team=club.teams[0],player=team.roster[0];
  const input={teamId:team.id,playerId:player.id,signerName:'Guardian',consent:true as const};
  const viewer={role:'parent',email:'guardian@example.test',familyIds:[player.familyId]};
@@ -47,5 +47,7 @@ test('only linked guardians can revoke consent; revocation persists and signing 
  assert.ok(!publicTeamView(saved.teams[0]).players.some(p=>p.id===player.id));
  assert.equal(player.withdrawn,false);
  recordTeamRosterConsent(club,input,viewer);
- assert.ok(publicTeamView(team).players.some(p=>p.id===player.id));
+ assert.ok(!publicTeamView(team).players.some(p=>p.id===player.id));
+ assert.ok(player.rosterConsent?.signedAt);
+ assert.ok(!player.rosterConsent?.revokedAt);
 });
