@@ -1,3 +1,4 @@
+import { startVisiblePolling } from "@/lib/visible-polling";
 import { useEffect, useState } from "react";
 import { getCoordinatorEntry } from "@/lib/coordinator/api";
 
@@ -13,11 +14,10 @@ export function CoordinatorAccountLink() {
         .catch(() => {
           if (active) setAvailable(false);
         });
-    void refresh();
-    const timer = setInterval(() => void refresh(), 30000);
+    const stopPolling = startVisiblePolling(refresh, 30000);
     return () => {
       active = false;
-      clearInterval(timer);
+      stopPolling();
     };
   }, []);
   if (!available) return null;

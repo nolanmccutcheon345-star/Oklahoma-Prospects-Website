@@ -1,3 +1,4 @@
+import { startVisiblePolling } from "@/lib/visible-polling";
 import { useEffect, useState } from "react";
 import {
   loadTrainingInbox,
@@ -14,7 +15,7 @@ export function TrainingInbox() {
     if (preview) return;
     let active = true;
     const refresh = () =>
-      void loadTrainingInbox()
+      loadTrainingInbox()
         .then((v) => {
           if (active) {
             setItems(v);
@@ -25,13 +26,10 @@ export function TrainingInbox() {
           if (active)
             setError("Training notices could not refresh. Open My Training to check readiness.");
         });
-    refresh();
-    window.addEventListener("focus", refresh);
-    const timer = window.setInterval(refresh, 60000);
+    const stopPolling = startVisiblePolling(refresh, 60000);
     return () => {
       active = false;
-      window.clearInterval(timer);
-      window.removeEventListener("focus", refresh);
+      stopPolling();
     };
   }, [preview]);
   if (preview) return null;

@@ -1,3 +1,4 @@
+import { startVisiblePolling } from "@/lib/visible-polling";
 import { useEffect, useState } from "react";
 import { getPublicProgramContent } from "@/lib/coordinator/api";
 export function PublicProgramUpdates({ sport }: { sport: "baseball" | "softball" }) {
@@ -13,11 +14,10 @@ export function PublicProgramUpdates({ sport }: { sport: "baseball" | "softball"
         .catch(() => {
           if (active) setRows([]);
         });
-    void load();
-    const timer = setInterval(() => void load(), 60000);
+    const stopPolling = startVisiblePolling(load, 60000);
     return () => {
       active = false;
-      clearInterval(timer);
+      stopPolling();
     };
   }, [sport]);
   if (!rows.length) return null;
