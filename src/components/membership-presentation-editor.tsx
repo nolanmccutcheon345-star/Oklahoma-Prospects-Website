@@ -121,8 +121,12 @@ export function MembershipPresentationEditor({
             checked={value.featured}
             onChange={(e) => onChange({ ...value, featured: e.target.checked })}
           />
-          Highlight this plan
+          Featured plan (badge + maroon highlight)
         </label>
+        <p className="text-sm text-muted sm:col-span-2">
+          Any checked plan shows the featured treatment on the public site. More than one plan can
+          be featured, and a custom badge replaces the word Featured.
+        </p>
         <label>
           Comparison resource
           <select

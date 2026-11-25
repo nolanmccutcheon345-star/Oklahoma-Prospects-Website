@@ -517,6 +517,15 @@ export function AdminServicesDesk() {
                 className={fieldClass}
               />
             </label>
+            <label className="flex min-h-11 items-center gap-3 text-sm font-semibold">
+              <input
+                type="checkbox"
+                className="size-6 shrink-0"
+                checked={editing.featured}
+                onChange={(event) => setEditing({ ...editing, featured: event.target.checked })}
+              />
+              Featured — shows a Featured badge and maroon highlight on the public card
+            </label>
             {editing.kind === "cage_plan" ? (
               <MembershipPresentationEditor value={editing} onChange={setEditing} services={rows} />
             ) : (

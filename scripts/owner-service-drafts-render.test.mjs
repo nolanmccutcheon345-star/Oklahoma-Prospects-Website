@@ -235,6 +235,63 @@ test("owner adoption cancel, stale revisions, reload errors, empty recovery and 
   }
 });
 
+test("owner services editor loads and saves Featured for lesson memberships and cage passes", async () => {
+  const saved = [];
+  const membership = {
+    ...existing,
+    id: "m2",
+    kind: "membership",
+    name: "Performance plan",
+    featured: false,
+    period: "/ month",
+  };
+  const cagePass = {
+    ...existing,
+    id: "all-star",
+    kind: "cage_plan",
+    name: "All-Star",
+    featured: true,
+    period: "/ month",
+  };
+  globalThis.ownerServiceUi = {
+    terms: async () => ({ services: [membership, cagePass], basisVersion: 9 }),
+    drafts: async () => [],
+    save: async (data) => {
+      saved.push(data);
+    },
+  };
+  try {
+    await render(async ({ host, act }) => {
+      const edit = (name) =>
+        [...host.querySelectorAll("li")]
+          .find((item) => item.textContent.includes(name))
+          .querySelector("button");
+      await act(async () => edit("Performance plan").click());
+      const featured = control(host, "Featured —");
+      assert.equal(featured.type, "checkbox");
+      assert.equal(featured.checked, false, "loads the stored featured value");
+      assert.ok(featured.labels[0].textContent.includes("maroon highlight"));
+      await act(async () => featured.click());
+      await act(async () => button(host, "Save").click());
+      assert.equal(saved.length, 1);
+      assert.equal(saved[0].id, "m2");
+      assert.equal(saved[0].kind, "membership");
+      assert.equal(saved[0].featured, true);
+      assert.equal(host.querySelector("form"), null);
+      await act(async () => edit("All-Star").click());
+      const cageFeatured = control(host, "Featured —");
+      assert.equal(cageFeatured.checked, true, "a second service can stay featured");
+      await act(async () => cageFeatured.click());
+      await act(async () => button(host, "Save").click());
+      assert.equal(saved[1].id, "all-star");
+      assert.equal(saved[1].kind, "cage_plan");
+      assert.equal(saved[1].featured, false);
+    });
+  } finally {
+    delete globalThis.ownerServiceUi;
+  }
+});
+
 test("owner draft approval remains available before financial basis activation", async () => {
   const saved = [];
   globalThis.ownerServiceUi = {
