@@ -1,5 +1,11 @@
 import { randomUUID } from "node:crypto";
-import { THANKSGIVING_CAMP, thanksgivingGroup, thanksgivingEventMatches, type ThanksgivingDetails } from "./thanksgiving-camp";
+import {
+  THANKSGIVING_CAMP,
+  thanksgivingGroup,
+  thanksgivingEventMatches,
+  thanksgivingCampIsCurrent,
+  type ThanksgivingDetails,
+} from "./thanksgiving-camp";
 import { operationalEvent } from "./coordinator/organization-events.server";
 import {
   operationalEventSessions,
@@ -169,8 +175,13 @@ export async function listTrainingEvents(sql: Sql) {
     }),
   );
   // Only originally public upcoming copy is eligible. Operational dates cannot publish historical/private copy.
+  // Thanksgiving age groups stay listed through the last camp date in America/Chicago so both sessions remain visible on the final day after the morning group ends.
   return projected
-    .filter((e) => windows(e).some((w) => w.end > new Date()))
+    .filter((e) =>
+      thanksgivingGroup(e.id)
+        ? thanksgivingCampIsCurrent()
+        : windows(e).some((w) => w.end > new Date()),
+    )
     .sort((a, b) => +windows(a)[0].start - +windows(b)[0].start);
 }
 
