@@ -20,6 +20,7 @@ const mocks = {
   "@/components/finance/my-finance": `export const MyFinance=()=>null;`,
   "@/components/commerce/player-birthdays": `export const PrivatePlayerBirthday=()=>null;`,
   "./team-coach-profile-editor": `export const TeamCoachProfileEditor=()=>null;`,
+  "./assign-players-panel": `export const AssignPlayersPanel=()=>null;`,
   "@/components/teams/roster-role-select": `export const RosterRoleSelect=()=>null;`,
   "@/components/team-development/family-panel": `export const TeamDevelopmentFamilyPanel=()=>null;`,
   "@/components/team-development/coach-panel": `export const TeamDevelopmentCoachPanel=()=>null;`,
