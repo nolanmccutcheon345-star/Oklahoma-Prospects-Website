@@ -180,6 +180,49 @@ try {
   await owner.page.goto(origin + "/registrations?registration=fixture-registration");
   await owner.page.getByText("Synthetic guardian requested a callback", { exact: true }).waitFor();
   await owner.page.screenshot({ path: shots + "/owner-registration.png", fullPage: true });
+  // Owner publication is request-only by default: no invented cap, notices or reservations.
+  await owner.page.goto(origin + "/registrations");
+  await owner.page.getByRole("button", { name: "Access & group events", exact: true }).click();
+  const editor = owner.page
+    .locator("section")
+    .filter({ has: owner.page.getByRole("heading", { name: "Tryout schedule", exact: true }) });
+  await editor.getByRole("button", { name: "New event", exact: true }).waitFor();
+  assert.equal(
+    await editor.getByLabel("Enrollment mode", { exact: true }).inputValue(),
+    "request-only",
+  );
+  assert.equal(await editor.getByLabel("Capacity", { exact: true }).count(), 0);
+  const counts = async () =>
+    (
+      await sql`select (select count(*) from tryout_enrollments)::int as enrollments,(select count(*) from tryout_notification_outbox)::int as notices,(select count(*) from booking_records)::int as bookings,(select count(*) from booking_occupancy)::int as occupancy`
+    )[0];
+  const beforePublication = await counts();
+  await editor.getByLabel("Season", { exact: true }).fill("Spring 2099");
+  await editor.getByLabel("Age groups, separated by commas", { exact: true }).fill("13U");
+  await editor.getByLabel("Date", { exact: true }).fill("2099-01-06");
+  await editor.getByLabel("Start time (Central)", { exact: true }).fill("2:00pm");
+  await editor.getByLabel("End time (Central)", { exact: true }).fill("4:00pm");
+  await editor.getByLabel("Location", { exact: true }).fill("Synthetic request-only venue");
+  await editor.getByLabel("Status", { exact: true }).selectOption("published");
+  await editor.getByRole("button", { name: "Create event", exact: true }).click();
+  await editor.getByRole("status").filter({ hasText: "Event saved" }).waitFor();
+  const [announcement] =
+    await sql`select * from tryout_events where location='Synthetic request-only venue'`;
+  assert.equal(announcement.enrollment_mode, "request-only");
+  assert.equal(announcement.capacity, null);
+  assert.deepEqual(await counts(), beforePublication);
+  await owner.page.reload();
+  await owner.page.getByRole("button", { name: "Access & group events", exact: true }).click();
+  const row = editor.locator("li").filter({ hasText: "Synthetic request-only venue" });
+  await row.getByRole("button", { name: "Edit event", exact: true }).click();
+  assert.equal(await editor.getByLabel("Enrollment mode", { exact: true }).isDisabled(), true);
+  assert.equal(await editor.getByLabel("Capacity", { exact: true }).count(), 0);
+  await owner.page.setViewportSize({ width: 390, height: 844 });
+  assert.equal(
+    await owner.page.locator("html").evaluate((el) => el.scrollWidth > el.clientWidth + 1),
+    false,
+  );
+  await editor.screenshot({ path: shots + "/owner-request-only.png" });
   const parent = await signedIn("parent@example.invalid");
   await parent.page.goto(origin + "/registrations");
   await parent.page.getByRole("heading", { name: "Access needed", exact: true }).waitFor();
@@ -189,6 +232,21 @@ try {
   const guest = await anonymous.newPage();
   await guest.goto(origin + "/registrations");
   await guest.waitForURL(/login/);
+  await guest.goto(origin + "/tryouts");
+  const publicEvent = guest.locator("article").filter({ hasText: "Synthetic request-only venue" });
+  await publicEvent.getByRole("link", { name: "Request This Tryout" }).waitFor();
+  assert.doesNotMatch(await publicEvent.innerText(), /Capacity:/);
+  await publicEvent.getByRole("link", { name: "Request This Tryout" }).click();
+  await guest.getByRole("combobox", { name: /^Scheduled tryout/ }).waitFor();
+  assert.equal(
+    await guest.getByRole("combobox", { name: /^Scheduled tryout/ }).inputValue(),
+    announcement.id,
+  );
+  assert.equal(
+    await guest.getByRole("combobox", { name: /^Age group\s*\*/ }).inputValue(),
+    "13U",
+  );
+  assert.deepEqual(await counts(), beforePublication);
   assert.deepEqual(failures, []);
   console.log(
     "PASS: mobile coach registration, shared notes, appointment occupancy, linked evaluation, owner view, parent/guest denial. No live data or messages.",

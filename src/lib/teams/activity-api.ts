@@ -5,6 +5,8 @@ export const getTeamActivities = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
   .validator(teamKey)
   .handler(async ({ context, data }) => {
+    const { setResponseHeader } = await import("@tanstack/react-start/server");
+    setResponseHeader("Cache-Control", "private, no-store");
     const { getSql } = await import("../db");
     const { teamActivityWorkspace } = await import("./activity.server");
     return teamActivityWorkspace(await getSql(), context.userId, data.teamId);

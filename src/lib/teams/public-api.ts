@@ -30,6 +30,8 @@ export const getTeamPlayerStats = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
   .validator(teamInput.extend({ playerId: z.string().min(1).max(150) }).strict())
   .handler(async ({ context, data }) => {
+    const { setResponseHeader } = await import("@tanstack/react-start/server");
+    setResponseHeader("Cache-Control", "private, no-store");
     const { loadPublicClub } = await import("./public-view.server");
     const { clubIdentity } = await import("../identity.server");
     const [club, me] = await Promise.all([loadPublicClub(), clubIdentity(context.userId)]);

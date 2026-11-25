@@ -65,7 +65,7 @@ export function OfficeApp({
           <h2 id="team-coach-assignments-title" className="text-2xl font-bold text-ink">Teams & coaches administration</h2>
           <p className="my-3 text-sm text-muted">Create baseball or softball teams, build coach profiles, and assign head or assistant coaches to teams.</p>
           <RosterTools club={club} onChange={onChange} />
-          {financial?.owner&&onReload&&<AssignPlayersPanel club={club} onReload={onReload}/>}
+          {(!financial||financial.owner)&&onReload&&<AssignPlayersPanel club={club} onReload={onReload}/>}
           <CoachManagement club={club} onSave={onSave} />
           {financial?.owner&&onReload&&<TeamFinancialManagement club={club} financial={financial} onReload={onReload}/>}
         </section>

@@ -1,7 +1,20 @@
-import type { ClubRecord } from "./types";
+import type { ClubRecord, Team } from "./types";
 
 type StaffViewer = { role: string; email: string; canTeamCoach?: boolean };
 const normalized = (email?: string) => email?.trim().toLowerCase() || "";
+
+/** Shared server-only decision for roster identities, including player statistics. */
+export function canReadStaffRoster(team: Team, me: StaffViewer | null): boolean {
+  if (!me || team.closed) return false;
+  const email = normalized(me.email);
+  const assignedCoach = Boolean(
+    email &&
+    (me.role === "coach" || (me.role === "parent" && me.canTeamCoach)) &&
+    (normalized(team.coachEmail) === email ||
+      team.staff.some((staff) => normalized(staff.email) === email)),
+  );
+  return me.role === "admin" || assignedCoach;
+}
 
 /** Minimal private projection. Call only with a server-resolved identity. */
 export function staffTeamRosterView(
@@ -12,14 +25,7 @@ export function staffTeamRosterView(
   if (!club || club._demo || !me) return null;
   const team = club.teams.find((row) => row.id === teamId && !row.closed);
   if (!team) return null;
-  const email = normalized(me.email);
-  const assignedCoach = Boolean(
-    email &&
-    (me.role === "coach" || (me.role === "parent" && me.canTeamCoach)) &&
-    (normalized(team.coachEmail) === email ||
-      team.staff.some((staff) => normalized(staff.email) === email)),
-  );
-  if (me.role !== "admin" && !assignedCoach) return null;
+  if (!canReadStaffRoster(team, me)) return null;
   return {
     teamId: team.id,
     teamName: team.name,

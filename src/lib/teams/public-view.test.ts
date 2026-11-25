@@ -5,7 +5,7 @@ import {parseClubSave} from "./contracts";
 import {publicTeamsView, playerStatsView, canReadTeamStats, aggregateTeamStats, teamCoaches} from "./public-view";
 import { ROSTER_CONSENT_VERSION, ROSTER_CONSENT_TEXT } from "../roster-consent";
 
-test("public team view publishes names, coaches and totals without individual stats or private records", () => {
+test("public team view publishes coaches and totals but never roster identities without individual stats or private records", () => {
   const club=sampleClub(); club._demo=false;
   const team=club.teams[0], p=team.roster[0];
   p.stats={ab:10,h:4,hr:1}; p.emergency.notes="secret medical";
@@ -15,8 +15,8 @@ test("public team view publishes names, coaches and totals without individual st
     signedBy: "Guardian", signerEmail: "guardian@example.test", signedAt: "2026-10-13T10:00:00Z",
   };
   const publicTeam=publicTeamsView(club).find(t=>t.id===team.id)!;
-  assert(publicTeam.players.some(row=>row.name===p.name));
-  assert.deepEqual(Object.keys(publicTeam.players[0]).sort(),["id","name","number"]);
+  assert.deepEqual(publicTeam.players, []);
+  for (const player of team.roster) assert(!JSON.stringify(publicTeam).includes(player.name));
   const json=JSON.stringify(publicTeam);
   for(const secret of [p.parents[0].email,"secret medical","feeLock","familyId","coachEmail","backgroundCheck"]) assert(!json.includes(secret), secret);
   assert.equal(publicTeam.record.w, team.record.w);
@@ -25,7 +25,7 @@ test("public team view publishes names, coaches and totals without individual st
   team.closed=true; assert(!publicTeamsView(club).some(t=>t.id===team.id));
 });
 
-test("public roster excludes minors without a current signed roster-publication agreement", () => {
+test("public roster excludes identities regardless of historical publication consent", () => {
   const club = sampleClub();
   club._demo = false;
   const team = club.teams[0];
@@ -42,7 +42,7 @@ test("public roster excludes minors without a current signed roster-publication 
     signerEmail: "guardian@example.test",
     signedAt: "2026-10-13T10:00:00Z",
   };
-  assert.deepEqual(publicPlayers().map(p => p.id), [player.id]);
+  assert.deepEqual(publicPlayers(), [], "even current signed consent does not override staff-only roster policy");
 
   player.rosterConsent.version = "outdated";
   assert.equal(publicPlayers().length, 0, "outdated consent is not valid for this release");
@@ -63,20 +63,22 @@ test("public roster excludes minors without a current signed roster-publication 
   assert.equal(publicPlayers().length, 0, "withdrawn players are never published");
 });
 
-test("team members can read teammate stats, unrelated and former members cannot; detail is stats only", () => {
+test("staff can read individual stats; members retain activity access without roster identity access", () => {
   const club=sampleClub(), team=club.teams[0], other=club.teams[1];
   const own=team.roster[0], teammate=team.roster[1];
   own.familyId="isolated-household"; own.parents=[{...own.parents[0],email:"isolated-parent@example.invalid"}];
   const parent={role:"parent",email:own.parents[0].email,familyId:own.familyId};
   assert(canReadTeamStats(team,parent));
-  const detail=playerStatsView(team,teammate.id,parent);
+  assert.throws(()=>playerStatsView(team,teammate.id,parent),/authorized team staff/);
+  const staff={role:"coach",email:team.coachEmail};
+  const detail=playerStatsView(team,teammate.id,staff);
   assert.deepEqual(detail.stats,teammate.stats);
   assert.deepEqual(Object.keys(detail).sort(),["id","name","number","stats","teamId","teamName"]);
   assert(canReadTeamStats(team,{role:"player",email:own.email||"member@example.invalid",familyIds:[own.familyId],playerIds:[own.id]}));
   assert(canReadTeamStats(team,{role:"coach",email:team.coachEmail.toUpperCase()}));
   assert(!canReadTeamStats(team,{role:"coach",email:other.coachEmail}));
   assert.throws(()=>playerStatsView(team,teammate.id,{role:"parent",email:"outsider@example.invalid"}));
-  assert.throws(()=>playerStatsView(team,other.roster[0].id,parent),/not found/);
+  assert.throws(()=>playerStatsView(team,other.roster[0].id,staff),/not found/);
   own.withdrawn=true; assert(!canReadTeamStats(team,parent));
   team.closed=true; assert(!canReadTeamStats(team,{role:"coach",email:team.coachEmail}));
 });

@@ -120,7 +120,9 @@ test("assigned coaches manage schedules/results, family chat stays scoped, prici
     for (const who of ["parent", "player"]) {
       const v = await teamActivityWorkspace(sql, who, t.id);
       assert.equal(v.manage, false);
-      assert.equal(v.activities[0].stats[0].values.h, 2);
+      assert.deepEqual(v.activities[0].stats, []);
+      assert.deepEqual(v.players, []);
+      assert.equal(v.activities[0].title, "Opponent");
       await postTeamChat(sql, who, { teamId: t.id, body: "Team message " + who });
     }
     await assert.rejects(() => teamActivityWorkspace(sql, "stranger", t.id), /Access/);
@@ -146,18 +148,20 @@ test("assigned coaches manage schedules/results, family chat stays scoped, prici
     await assert.rejects(() => saveTeamActivity(sql, "coach", edit), /changed/);
     view = await teamActivityWorkspace(sql, "parent", t.id);
     assert.deepEqual(view.record, { w: 2, l: 2, t: 0 });
-    assert.equal(view.players[0].stats.h, 3);
+    assert.deepEqual(view.players, []);
+    assert.deepEqual(view.activities[0].stats, []);
     let [stored] = await sql<{
       payload: ClubRecord;
     }>`select payload from club_state where id='oklahoma-prospects'`;
     assert.equal(publicTeamView(stored.payload.teams[0]).record.l, 2);
     assert.equal(
       playerStatsView(stored.payload.teams[0], p.id, {
-        role: "parent",
-        email: "parent@example.invalid",
+        role: "coach",
+        email: "coach@example.invalid",
       }).stats.h,
       3,
     );
+    view = await teamActivityWorkspace(sql, "coach", t.id);
     await saveTeamActivity(sql, "coach", { ...view.activities[0], status: "cancelled" });
     view = await teamActivityWorkspace(sql, "coach", t.id);
     assert.deepEqual(view.record, { w: 2, l: 1, t: 0 });

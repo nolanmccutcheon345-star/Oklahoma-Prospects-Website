@@ -60,14 +60,17 @@ function AuthenticatedRoster({ teamId }: { teamId: string }) {
         {roster.teamName} · {activeCount} active players
       </p>
       <p className="mt-2 text-sm">
-        This private list includes players without public-roster consent. Public visitors only see
-        players with current signed consent. No privacy settings have changed.
+        This private list is available only to authorized staff. Player names are not listed publicly.
       </p>
       <ul className="mt-4 grid gap-2">
         {roster.players.map((player) => (
           <li key={player.id} className="rounded-lg border px-3 py-3">
             {player.number ? `#${player.number} ` : ""}
-            {player.name}
+            {player.withdrawn ? player.name : (
+              <a className="inline-flex min-h-11 items-center underline" href={`/teams/${encodeURIComponent(teamId)}/players/${encodeURIComponent(player.id)}`}>
+                {player.name} · View stats
+              </a>
+            )}
             {player.withdrawn && <span className="ml-2 text-sm">— Withdrawn</span>}
           </li>
         ))}

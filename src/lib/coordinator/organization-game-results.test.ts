@@ -330,7 +330,7 @@ test("final correction reverses the previous result while preserving all other f
     const publicView = publicTeamView(team);
     assert.deepEqual(
       publicView.players.map((p) => p.id),
-      ["base-p1"],
+      [],
     );
     assert.deepEqual(
       team.roster.map((p) => p.rosterConsent),

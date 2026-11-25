@@ -138,7 +138,7 @@ test("public consent and withdrawal protections remain independent of staff acce
     publicTeamsView(club)
       .find((t) => t.id === team.id)!
       .players.map((p) => p.id);
-  assert.deepEqual(publicIds(), [player.id]);
+  assert.deepEqual(publicIds(), []);
   player.rosterConsent.revokedAt = "2026-10-02T00:00:00Z";
   assert.deepEqual(publicIds(), []);
   assert(staffTeamRosterView(club, team.id, owner)!.players.some((p) => p.id === player.id));

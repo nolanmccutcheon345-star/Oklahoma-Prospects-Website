@@ -1,8 +1,8 @@
--- Generated from migrations/0120_roster_assignments.sql; do not edit this copy.
+-- Generated from migrations/0122_roster_assignments.sql; do not edit this copy.
 CREATE TABLE IF NOT EXISTS _migrations (name TEXT PRIMARY KEY, applied_at TIMESTAMPTZ NOT NULL DEFAULT now());
 DO $netlify_apply$
 BEGIN
-  IF NOT EXISTS (SELECT 1 FROM _migrations WHERE name = '0120_roster_assignments.sql') THEN
+  IF NOT EXISTS (SELECT 1 FROM _migrations WHERE name = '0122_roster_assignments.sql') THEN
 -- t136u: explicit Front Office roster assignments (additive only).
 -- One row per (team, roster player) placement plus pre-roster tryout offers. The
 -- live roster in club_state remains the operational source; this table records
@@ -71,7 +71,7 @@ select a.id,'migration:0120','backfill',null,a.status,'Recorded from the live ro
 from roster_assignments a
 where a.source='backfill' and not exists (select 1 from roster_assignment_audit x where x.assignment_id=a.id);
 
-    INSERT INTO _migrations (name) VALUES ('0120_roster_assignments.sql');
+    INSERT INTO _migrations (name) VALUES ('0122_roster_assignments.sql');
   END IF;
 END
 $netlify_apply$;

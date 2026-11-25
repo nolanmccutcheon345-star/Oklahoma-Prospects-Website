@@ -161,7 +161,7 @@ function TeamsPublic() {
           <Button asChild>
             <Link to="/family">Open your family team account</Link>
           </Button>
-          <Button asChild variant="outline">
+          <Button asChild variant="outlineDark">
             <Link to="/contact">Ask the office for a team invoice</Link>
           </Button>
         </div>

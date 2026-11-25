@@ -176,6 +176,10 @@ try {
   await page.screenshot({ path: output + "/training-mobile.png" });
   await page.goto(h.base + "/tryouts");
   await page.waitForLoadState("networkidle");
+  assert.ok(await page.getByRole("radio", { name: "Scheduled Tryout" }).isDisabled());
+  assert.ok(await page.getByRole("radio", { name: "Individual Evaluation" }).isChecked());
+  assert.equal(await page.getByRole("combobox", { name: /^Scheduled tryout/ }).count(), 0);
+  await page.getByText(/No group tryouts are currently posted for baseball/).waitFor();
   await page.getByRole("button", { name: "Continue to player details", exact: true }).click();
   assert.equal(await page.getByRole("heading", { name: /Step 1 of 3/ }).count(), 1);
   await page.getByLabel(/^Age group/).selectOption("12U");
@@ -214,9 +218,12 @@ try {
     1,
     "required details cannot be skipped",
   );
-  await page.getByLabel(/^Player positions/).fill("New player / still learning");
-  await page.getByLabel(/^Player notes/).fill("Synthetic request for isolated release acceptance.");
-  await page.getByLabel(/^USSSA Player ID status/).selectOption("unknown");
+  await page.getByRole("button", { name: "New player / still learning", exact: true }).click();
+  await page.getByLabel(/^Player notes/).fill("   ");
+  await page.getByLabel(/^USSSA Player ID status/).selectOption("not-registered");
+  await page.getByRole("button", { name: "Continue to review", exact: true }).click();
+  await page.getByRole("alert").filter({ hasText: "Add player experience, goals or notes" }).waitFor();
+  await page.getByRole("button", { name: "No additional notes", exact: true }).click();
   await page.getByRole("button", { name: "Continue to review", exact: true }).click();
   await page.getByRole("heading", { name: /Step 3 of 3/ }).waitFor();
   assert.match(

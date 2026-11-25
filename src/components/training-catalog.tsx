@@ -2,6 +2,7 @@ import { CatalogStatus } from "@/components/catalog-status";
 import { AthleteSelector, athleteScope } from "@/components/pd/athlete-selector";
 import { getPublicPeople } from "@/lib/person-api";
 import type { PublicPerson } from "@/lib/person-contracts";
+import { membershipFeatureAppearance } from "@/lib/membership-display";
 import { canPurchase } from "@/lib/purchase-availability";
 import { ASSESSMENT_PRODUCTS, YOUTH_PRODUCTS, formatDollars } from "@/lib/pricing";
 import { Link } from "@tanstack/react-router";
@@ -591,7 +592,7 @@ const planGroups = [
   },
 ];
 
-function TrainingPlanCard({
+export function TrainingPlanCard({
   plan,
   hasAssessment,
   availability,
@@ -604,7 +605,8 @@ function TrainingPlanCard({
   setupFee: number;
   checkoutStatus: string;
 }) {
-  const featured = plan.id === "m2" || plan.tier === "performance";
+  const appearance = membershipFeatureAppearance({ featured: plan.featured });
+  const featured = appearance.featured;
   const assessmentFirst = ["m1", "m2", "m3"].includes(plan.id);
   const ready = canPurchase(availability, "membership", plan.id);
   const benefits = plan.includes.filter((line) => !/^Four (30|60|75)-minute/.test(line));
@@ -618,13 +620,14 @@ function TrainingPlanCard({
           : plan.detail;
   return (
     <article
-      className={`flex min-w-0 flex-col rounded-2xl p-5 ${featured ? "bg-maroon text-fg-inverse" : "bg-paper-2 shadow-border"}`}
+      data-featured={featured ? "true" : "false"}
+      className={`flex min-w-0 flex-col rounded-2xl p-5 ${featured ? "bg-maroon text-fg-inverse ring-2 ring-powder ring-offset-2 ring-offset-paper" : "bg-paper-2 shadow-border"}`}
     >
-      {featured && (
-        <p className="text-xs font-semibold tracking-widest text-powder uppercase">
-          Core monthly plan
+      {featured && appearance.badge ? (
+        <p className="w-fit rounded-full bg-powder px-3 py-1 text-xs font-bold text-navy">
+          {appearance.badge}
         </p>
-      )}
+      ) : null}
       <h4 className="mt-1 font-display text-2xl uppercase">{plan.name}</h4>
       <p className={`mt-2 text-sm ${featured ? "text-fg-soft" : "text-muted"}`}>{audience}</p>
       <p className="mt-3 pd-num font-display text-3xl">

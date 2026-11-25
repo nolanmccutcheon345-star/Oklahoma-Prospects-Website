@@ -6,7 +6,7 @@ import {
   type TryoutEventInput,
 } from "./tryout-events-contracts";
 import { matchTryoutApplicants, queueTryoutNotice } from "./tryout-enrollment.server";
-const fields = `id,sport,season,age_groups as "ageGroups",event_date::text as date,start_time as "startTime",end_time as "endTime",location,capacity,status,revision`;
+const fields = `id,sport,season,age_groups as "ageGroups",event_date::text as date,start_time as "startTime",end_time as "endTime",location,capacity,enrollment_mode as "enrollmentMode",status,revision`;
 export async function publicTryoutEventsFor(sql: Sql) {
   try {
     return await sql.query<TryoutEvent>(
@@ -55,9 +55,18 @@ export async function saveTryoutEventFor(sql: Sql, userId: string, raw: TryoutEv
 }
 /** Internal executor; callers must enforce their own authority and authoritative scope. */
 export async function saveTryoutEventInTransaction(tx: Sql, userId: string, raw: TryoutEventInput) {
-  const input = tryoutEventInput.parse(raw);
+  const parsed = tryoutEventInput.parse(raw);
+  const input = { ...parsed, enrollmentMode: parsed.enrollmentMode ?? "automatic" };
+  // The shared executor is also used by scoped coordinator scheduling.
+  // This non-reserving mode is exclusively an owner publication operation.
+  if (input.enrollmentMode === "request-only") await requireOrganizationOperations(tx, userId);
   // Matchers and editors acquire event locks in the same order.
   await tx`select id from tryout_events order by event_date,start_time,id for update`;
+  const [existingMode] = await tx<{
+    enrollment_mode: string;
+  }>`select enrollment_mode from tryout_events where id=${input.id}`;
+  if (existingMode && existingMode.enrollment_mode !== input.enrollmentMode)
+    throw new Error("An event's enrollment mode cannot change. Create a separate event instead.");
   const [reserved] =
     await tx`select event_id from tryout_event_reservations where event_id=${input.id}`;
   if (reserved)
@@ -67,7 +76,11 @@ export async function saveTryoutEventInTransaction(tx: Sql, userId: string, raw:
   const active = await tx<{
     id: string;
   }>`select id from tryout_enrollments where event_id=${input.id} and status='enrolled'`;
-  if (input.capacity < active.length)
+  if (input.enrollmentMode === "request-only" && active.length)
+    throw new Error(
+      "This request-only event now has confirmed attendees. Manage those appointments before changing it.",
+    );
+  if (input.capacity !== null && input.capacity < active.length)
     throw new Error("Capacity cannot be lower than existing enrollments.");
   if (active.length) {
     const [prior] = await tx<{
@@ -88,8 +101,8 @@ export async function saveTryoutEventInTransaction(tx: Sql, userId: string, raw:
   }
   if (input.revision === 0) {
     const rows =
-      await tx`insert into tryout_events(id,sport,season,age_groups,event_date,start_time,end_time,location,capacity,status,updated_by)
-        values(${input.id},${input.sport},${input.season},${input.ageGroups},${input.date},${input.startTime},${input.endTime},${input.location},${input.capacity},${input.status},${userId}) on conflict(id) do nothing returning id`;
+      await tx`insert into tryout_events(id,sport,season,age_groups,event_date,start_time,end_time,location,capacity,enrollment_mode,status,updated_by)
+        values(${input.id},${input.sport},${input.season},${input.ageGroups},${input.date},${input.startTime},${input.endTime},${input.location},${input.capacity},${input.enrollmentMode},${input.status},${userId}) on conflict(id) do nothing returning id`;
     if (!rows.length) throw new Error("This event already exists. Refresh before editing.");
   } else {
     const rows =
@@ -106,7 +119,7 @@ export async function saveTryoutEventInTransaction(tx: Sql, userId: string, raw:
       input.status === "cancelled" ? "cancelled" : "updated",
     );
   }
-  await matchTryoutApplicants(tx);
+  if (input.enrollmentMode !== "request-only") await matchTryoutApplicants(tx);
   await audit(tx, userId, "organization.tryout-events.save", input.id, "allowed");
   return { ok: true };
 }

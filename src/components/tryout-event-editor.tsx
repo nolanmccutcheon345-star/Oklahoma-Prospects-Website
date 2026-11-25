@@ -1,7 +1,7 @@
 import { ACTIVE_SEASON } from "@/lib/active-season";
 import { formatClockTime } from "@/lib/time-display";
 import { TimeInput } from "@/components/time-input";
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useId, useState, type FormEvent } from "react";
 import { Button } from "./ui/button";
 import {
   getAdminTryoutEvents,
@@ -20,10 +20,12 @@ const blank = (): TryoutEventInput => ({
   startTime: "",
   endTime: "",
   location: "",
-  capacity: 20,
+  capacity: null,
+  enrollmentMode: "request-only",
   status: "draft",
 });
 export function TryoutEventEditor() {
+  const fieldId = useId();
   const [enrollments, setEnrollments] = useState<
     Awaited<ReturnType<typeof getAdminTryoutEnrollments>>
   >([]);
@@ -76,9 +78,10 @@ export function TryoutEventEditor() {
     <section className="mb-8 rounded-xl border bg-paper-2 p-5">
       <h2 className="text-3xl">Tryout schedule</h2>
       <p className="mt-2 text-sm">
-        Owner-managed events. Times are America/Chicago. Published events enroll matching requests
-        while capacity allows. Notification status shows pending delivery, provider acceptance, or
-        owner review.
+        Owner-managed events. Times are America/Chicago. Request-only publication lists an event for
+        families to request; it does not enroll players, queue notices, or reserve coaches or
+        facilities. Existing automatic-enrollment events keep their capacity and notification
+        behavior.
       </p>
       {error ? (
         <p role="alert" className="mt-3 text-maroon">
@@ -109,8 +112,12 @@ export function TryoutEventEditor() {
               {event.sport} · {event.season} · {event.ageGroups.join(", ")}
             </strong>
             <p>
-              {event.date} · {formatClockTime(event.startTime)}–{formatClockTime(event.endTime)} CT · {event.location} · Capacity{" "}
-              {event.capacity} · {event.status}
+              {event.date} · {formatClockTime(event.startTime)}–{formatClockTime(event.endTime)} CT
+              · {event.location} ·{" "}
+              {event.enrollmentMode === "request-only"
+                ? "Request only · No enrollment limit"
+                : `Capacity ${event.capacity}`}{" "}
+              · {event.status}
             </p>
             <Button disabled={busy} variant="outlineDark" onClick={() => edit(event)}>
               Edit event
@@ -127,9 +134,10 @@ export function TryoutEventEditor() {
         ))}
       </ul>
       <form onSubmit={submit} className="grid gap-3 sm:grid-cols-2">
-        <label>
-          Sport
+        <div>
+          <label htmlFor={`${fieldId}-sport`}> Sport</label>
           <select
+            id={`${fieldId}-sport`}
             className={field}
             value={draft.sport}
             onChange={(e) =>
@@ -139,7 +147,7 @@ export function TryoutEventEditor() {
             <option>Baseball</option>
             <option>Softball</option>
           </select>
-        </label>
+        </div>
         <label>
           Season
           <input
@@ -201,21 +209,48 @@ export function TryoutEventEditor() {
             onChange={(e) => setDraft({ ...draft, location: e.target.value })}
           />
         </label>
-        <label>
-          Capacity
-          <input
-            required
-            type="number"
-            min={1}
-            max={1000}
-            className={field}
-            value={draft.capacity}
-            onChange={(e) => setDraft({ ...draft, capacity: Number(e.target.value) })}
-          />
-        </label>
-        <label>
-          Status
+        <div>
+          <label htmlFor={`${fieldId}-enrollment-mode`}> Enrollment mode</label>
           <select
+            id={`${fieldId}-enrollment-mode`}
+            className={field}
+            disabled={draft.revision > 0}
+            value={draft.enrollmentMode ?? "automatic"}
+            onChange={(e) =>
+              setDraft({
+                ...draft,
+                enrollmentMode: e.target.value as "automatic" | "request-only",
+                capacity: e.target.value === "request-only" ? null : 20,
+              })
+            }
+          >
+            <option value="request-only">Request only — no automatic enrollment or notices</option>
+            <option value="automatic">Automatic enrollment — capacity and family notices</option>
+          </select>
+        </div>
+        {draft.enrollmentMode === "request-only" ? (
+          <p className="text-sm self-center">
+            No enrollment limit is set. Staff must separately confirm attendance and facility
+            arrangements.
+          </p>
+        ) : (
+          <label>
+            Capacity
+            <input
+              required
+              type="number"
+              min={1}
+              max={1000}
+              className={field}
+              value={draft.capacity ?? ""}
+              onChange={(e) => setDraft({ ...draft, capacity: Number(e.target.value) })}
+            />
+          </label>
+        )}
+        <div>
+          <label htmlFor={`${fieldId}-status`}> Status</label>
+          <select
+            id={`${fieldId}-status`}
             className={field}
             value={draft.status}
             onChange={(e) =>
@@ -226,7 +261,7 @@ export function TryoutEventEditor() {
             <option value="published">Published</option>
             <option value="cancelled">Cancelled</option>
           </select>
-        </label>
+        </div>
         <Button type="submit" disabled={busy} className="self-end">
           {busy ? "Saving…" : draft.revision ? "Save changes" : "Create event"}
         </Button>
