@@ -1,3 +1,4 @@
+import { TeamNameEditor } from "./team-name-editor";
 import { duplicateRosterPlayer } from "@/lib/teams/roster-cleanup";
 import { RosterCleanupControls } from "./roster-cleanup-controls";
 import { TeamFinancialManagement } from "./team-financial-management";
@@ -262,6 +263,7 @@ function CoachManagement({ club, onSave }: {
         {club.teams.length === 0 ? <p className="text-sm">Create a baseball or softball team above to begin.</p> : club.teams.map(team => (
           <div key={team.id} className="my-3 grid gap-2 rounded-lg border border-line p-3">
             <h4 className="font-semibold">{team.name} · {team.sport} · {team.age}</h4>
+            <TeamNameEditor club={club} teamId={team.id} onSave={onSave} />
             <label className="grid gap-1 text-sm">Head coach
               <select disabled={saving} value={team.coachEmail} onChange={e => {
                 const coach = coaches.find(c => c.email === e.target.value);
