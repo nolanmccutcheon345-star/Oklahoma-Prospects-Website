@@ -1,3 +1,4 @@
+import { RACHAEL_CAGE_SERVICE, RACHAEL_COACH_ID, RACHAEL_CAGE_TERMS } from "@/lib/rachael-cage";
 import { AthleteSelector, athleteScope } from "@/components/pd/athlete-selector";
 import {PlayerBirthdays} from '@/components/commerce/player-birthdays';
 import { checkoutLessonService } from "@/lib/commerce/coach-services";
@@ -28,14 +29,17 @@ export const Route = createFileRoute("/pay")({
 });
 function PayPage() {
   const search = Route.useSearch();
+  const rachaelCage = search.id === RACHAEL_CAGE_SERVICE && (!search.kind || search.kind === "lesson");
+  const preferredCoach = rachaelCage ? RACHAEL_COACH_ID : search.instructor || "";
   const user = useCurrentUser();
   const [context, setContext] = useState<Awaited<ReturnType<typeof getCheckoutContext>> | null>(
     null,
   );
   const [lessonSport,setLessonSport]=useState<"baseball"|"softball"|"">("");
   const [athleteId, setAthleteId] = useState("");
-  const [coachId, setCoachId] = useState(search.instructor || "");
-  useEffect(()=>{setCoachId(search.instructor||" ".trim());},[search.instructor]);
+  const [selectedCoach, setCoachId] = useState(preferredCoach);
+  const coachId = rachaelCage ? RACHAEL_COACH_ID : selectedCoach;
+  useEffect(() => { setCoachId(preferredCoach); }, [preferredCoach]);
   const [autoAssignCoach, setAutoAssignCoach] = useState(false);
   const [assigningCoach, setAssigningCoach] = useState(false);
   const [autoCoachError, setAutoCoachError] = useState("");
@@ -159,7 +163,7 @@ function PayPage() {
   }, [product, context, input, assessed, locked, enrollmentHelp]);
   // A result from an older basket or code can never supply the displayed/payment total.
   const discountKey = JSON.stringify({ ...input, requestId: undefined, consent: undefined });
-  const normalizedCode = discountText.trim().toUpperCase();
+  const normalizedCode = rachaelCage ? "" : discountText.trim().toUpperCase();
   const applied =
     discountPreview?.key === discountKey && discountPreview.code === normalizedCode
       ? discountPreview
@@ -473,6 +477,7 @@ function PayPage() {
               />
             </label>
           </div>
+          {rachaelCage && <p className="rounded-xl border border-line p-4">{RACHAEL_CAGE_TERMS}</p>}
           {needsAthlete && context?.athletes.length ? (
             <AthleteSelector athletes={context.athletes} value={athleteId} onChange={setAthleteId} scope={athleteScope(context.athleteScopeRole)} />
           ) : null}
@@ -481,7 +486,7 @@ function PayPage() {
               <Link to="/family" className="underline">
                 Add your athlete in the family portal
               </Link>{" "}
-              before checkout. Assessment history stays with that athlete’s account.
+              before checkout.{!rachaelCage && " Assessment history stays with that athlete’s account."}
             </p>
           ) : null}
           {enrollmentHelp ? (
@@ -536,7 +541,7 @@ function PayPage() {
               <legend className="font-semibold">
                 Choose your available time · {quote.duration} minutes
               </legend>
-              {kind !== "cage" ? (
+              {kind !== "cage" && !rachaelCage ? (
                 <label className="grid gap-1">
                   Instructor
                   <select
@@ -566,7 +571,7 @@ function PayPage() {
               ) : null}
               {kind !== "cage" && coachId && context && !context.coachAvailability.some(c=>c.id===coachId&&c.serviceIds.includes(checkoutLessonService(quote)))?<p role="status">This instructor is assigned to this lesson, but has no published hours long enough for it. Ask the instructor or Front Office to publish availability.</p>:null}
               {kind !== "cage" && context && !context.coaches.some(c=>c.serviceIds.includes(checkoutLessonService(quote))) ? <p role="status">No instructor is assigned to this service yet. Contact Front Office to check the service assignment.</p> : null}
-              {kind !== "cage" ? (
+              {kind !== "cage" && !rachaelCage ? (
                 <label className="flex min-h-11 items-center gap-3 rounded-lg border border-line bg-paper-2 p-3">
                   <input
                     type="checkbox"
@@ -651,12 +656,12 @@ function PayPage() {
                   setTime("");
                   setDateNotice("Choose a start time below. All times are Central Time.");
                 }}>Show next available date · {new Date(`${nextAvailable.date}T12:00:00Z`).toLocaleDateString("en-US", { timeZone: "America/Chicago", weekday: "short", month: "short", day: "numeric" })}</Button>
-                  : user && coachId && athleteId && kind !== "cage" && date ? <p className="text-sm">No openings found in the following 28 days. Try another instructor or <Link to="/contact" className="underline">contact the office</Link>.</p> : null}
+                  : user && coachId && athleteId && kind !== "cage" && date ? <p className="text-sm">No openings found in the following 28 days. {rachaelCage ? "For help, " : "Try another instructor or "}<Link to="/contact" className="underline">contact the office</Link>.</p> : null}
                 </div>
               )}
             </fieldset>
           ) : null}
-          {!recurring ? (
+          {!recurring && !rachaelCage ? (
             <fieldset className="grid gap-3 rounded-xl border border-line p-4">
               <legend className="font-semibold">Discount code (optional)</legend>
               <label className="grid gap-1">

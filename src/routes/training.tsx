@@ -69,7 +69,7 @@ function TrainingPage({ initialPeople }: { initialPeople: PublicPerson[] | null 
           actions={
             <>
               <Button asChild>
-                <a href="/training#find-training">Find My Training</a>
+                <a href="#find-training">Find My Training</a>
               </Button>
               <Button asChild variant="outline">
                 <a href="/training?view=plans#memberships">Compare Monthly Plans</a>
