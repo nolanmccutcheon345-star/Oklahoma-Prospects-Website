@@ -29,7 +29,7 @@ export function SiteFooter() {
           </p>
         </div>
         <nav aria-label="Programs">
-          <h2 className="text-xs font-semibold tracking-[0.14em] text-powder uppercase">Programs</h2>
+          <h2 className="font-sans text-xs font-semibold tracking-[0.14em] text-powder uppercase">Programs</h2>
           <ul className="mt-3 grid gap-1 text-sm">
             <li><Link className="inline-flex min-h-11 items-center underline" to="/teams">Teams</Link></li>
             <li><Link className="inline-flex min-h-11 items-center underline" to="/training">Training</Link></li>
@@ -39,7 +39,7 @@ export function SiteFooter() {
           </ul>
         </nav>
         <nav aria-label="Facility and booking">
-          <h2 className="text-xs font-semibold tracking-[0.14em] text-powder uppercase">Facility & booking</h2>
+          <h2 className="font-sans text-xs font-semibold tracking-[0.14em] text-powder uppercase">Facility & booking</h2>
           <ul className="mt-3 grid gap-1 text-sm">
             <li><Link className="inline-flex min-h-11 items-center underline" to="/facility">Facility & Rates</Link></li>
             <li><Link className="inline-flex min-h-11 items-center underline" to="/book">Book a cage</Link></li>
@@ -54,7 +54,7 @@ export function SiteFooter() {
           </ul>
         </nav>
         <nav aria-label="Policies & contact">
-          <h2 className="text-xs font-semibold tracking-[0.14em] text-powder uppercase">Policies & contact</h2>
+          <h2 className="font-sans text-xs font-semibold tracking-[0.14em] text-powder uppercase">Policies & contact</h2>
           <ul className="mt-3 grid gap-1 text-sm">
             <li><Link className="inline-flex min-h-11 items-center underline" to="/contact">Contact</Link></li>
             <li><Link className="inline-flex min-h-11 items-center underline" to="/about">About</Link></li>
