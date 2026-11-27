@@ -1,5 +1,3 @@
-import { CLUB } from "./club";
-
 /** Public team label: retire old brand names, drop internal -BSB/-SB codes, and normalize 8u → 8U. */
 export function publicTeamName(name: string) {
   const cleaned = name
@@ -66,4 +64,3 @@ export function joinMeta(...parts: Array<string | false | null | undefined>) {
   return parts.filter((part): part is string => Boolean(part && String(part).trim())).join(" · ");
 }
 
-export const PUBLIC_EMAIL_PLACEHOLDER = `Email to be confirmed — call or text ${CLUB.phoneDisplay}`;
