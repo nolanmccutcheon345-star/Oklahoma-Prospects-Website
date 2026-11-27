@@ -79,6 +79,29 @@ export const navigationGroups: Record<NavigationGroupId, NavigationGroup> = {
   },
 };
 
+
+function destinationKey(link: NavigationLink) {
+  return link.search ? `${link.to}?${JSON.stringify(link.search)}` : link.to;
+}
+
+/** In the full mobile menu, omit group links that already appear as a top-level item or in a later group. */
+export function mobileMenuChildren(group: NavigationGroup, navigation: NavigationItem[]) {
+  const topLevel = new Set(
+    navigation
+      .filter((item): item is NavigationLink => !("children" in item))
+      .map(destinationKey),
+  );
+  const groups = navigation.filter((item): item is NavigationGroup => "children" in item);
+  const later = new Set(
+    groups
+      .slice(groups.findIndex((item) => item.id === group.id) + 1)
+      .flatMap((item) => item.children.map(destinationKey)),
+  );
+  return group.children.filter(
+    (child) => !topLevel.has(destinationKey(child)) && !later.has(destinationKey(child)),
+  );
+}
+
 /** The same destinations feed desktop navigation and the mobile accordion. */
 export function publicNavigation(signedIn: boolean): NavigationItem[] {
   return [

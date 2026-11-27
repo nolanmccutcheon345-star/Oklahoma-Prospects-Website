@@ -22,6 +22,7 @@ import {
   publicNavigation,
   navigationGroups,
   navigationActive,
+  mobileMenuChildren,
   type NavigationGroupId,
   type NavigationLink,
 } from "@/lib/site-navigation";
@@ -420,7 +421,7 @@ export function AppShell({ children }: { children: ReactNode }) {
                       className="site-menu-children"
                       aria-label={`${item.label} subpages`}
                     >
-                      {item.children.map(menuLink)}
+                      {mobileMenuChildren(item, navigation).map(menuLink)}
                     </div>
                   </div>
                 ) : (

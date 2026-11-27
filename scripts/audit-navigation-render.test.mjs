@@ -148,6 +148,24 @@ test("public navigation, sport links and purchase availability agree with the li
     );
     const wordmark = document.querySelector("[data-club-wordmark]");
     assert.equal(wordmark?.textContent?.replace(/\s+/g, " ").trim(), "Prospects Sports Academy");
+    assert.equal(
+      document.querySelector(".club-wordmark-gap")?.hasAttribute("aria-hidden"),
+      false,
+      "wordmark space is part of the accessible name",
+    );
+    function accessibleName(node) {
+      if (!node || (node.getAttribute && node.getAttribute("aria-hidden") === "true")) return "";
+      if (node.nodeType === 3) return node.textContent || "";
+      if (node.tagName === "IMG") return node.getAttribute("alt") || "";
+      const labelled = node.getAttribute?.("aria-label");
+      if (labelled) return labelled;
+      return [...node.childNodes].map(accessibleName).join("");
+    }
+    const home = document.querySelector('header a[href="/"]');
+    assert.equal(
+      accessibleName(home).replace(/\s+/g, " ").trim(),
+      "Prospects Sports Academy",
+    );
     assert.deepEqual(
       [...wordmark.querySelectorAll(".club-wordmark-line")].map((node) =>
         node.textContent.replace(/\s+/g, " ").trim(),
@@ -215,7 +233,17 @@ test("public navigation, sport links and purchase availability agree with the li
       assert.equal(groupButton(name).getAttribute("aria-expanded"), "false");
     await act(async () => groupButton("Training").click());
     assert.equal(document.getElementById("site-menu-Training").hidden, false);
-    assert.equal(document.getElementById("site-menu-Training").querySelectorAll("a").length, 6);
+    assert.equal(document.getElementById("site-menu-Training").querySelectorAll("a").length, 4);
+    assert.equal(
+      document.getElementById("site-menu-Training").querySelector('a[href="/facility"]'),
+      null,
+      "Facility is only a top-level mobile item",
+    );
+    assert.equal(
+      document.getElementById("site-menu-Training").querySelector('a[href="/memberships"]'),
+      null,
+      "Cage Memberships is not repeated under Training",
+    );
     await act(async () => groupButton("Memberships").click());
     assert.equal(document.getElementById("site-menu-Training").hidden, true);
     const memberships = document.getElementById("site-menu-Memberships");
@@ -223,6 +251,17 @@ test("public navigation, sport links and purchase availability agree with the li
     assert.equal(
       memberships.querySelector('a[href="/training?view=plans"]').textContent,
       "Training Memberships",
+    );
+    assert.equal(memberships.querySelector('a[href="/memberships"]')?.textContent, "Cage Memberships");
+    assert.equal(
+      menu.querySelectorAll('a[href="/facility"]').length,
+      1,
+      "Facility appears once in the mobile menu",
+    );
+    assert.equal(
+      menu.querySelectorAll('a[href="/memberships"]').length,
+      1,
+      "Cage Memberships appears once in the mobile menu",
     );
     assert.equal(menu.querySelector('a[href="/login?next=%2Faccount"]').textContent, "Sign In");
     assert.equal(menu.querySelector('a[href="/about"]').textContent, "About");
