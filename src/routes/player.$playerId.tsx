@@ -9,7 +9,7 @@ export const Route = createFileRoute("/player/$playerId")({
     pageHead(
       "/player/" + encodeURIComponent(params.playerId),
       "Player recruiting profile",
-      "Oklahoma Prospects player recruiting profile.",
+      "Prospects player recruiting profile.",
     ),
   component: Page,
 });
