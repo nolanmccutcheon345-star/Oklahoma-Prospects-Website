@@ -16,7 +16,11 @@ import {
   campAgeError,
   eventTypes,
 } from "@/lib/training-events-contracts";
-import { thanksgivingGroup, thanksgivingDetailsSchema } from "@/lib/thanksgiving-camp";
+import {
+  thanksgivingGroup,
+  thanksgivingDetailsSchema,
+  thanksgivingEventAgeLabel,
+} from "@/lib/thanksgiving-camp";
 import { chicagoDate, chicagoInstant } from "@/lib/scheduling";
 export const Route = createFileRoute("/events")({
   head: () =>
@@ -196,10 +200,8 @@ export function EventsPage() {
                   <div>
                     <dt className="font-semibold">Ages</dt>
                     <dd>
-                      {campAgeLabel(e)}
-                      {e.minAge !== undefined || e.maxAge !== undefined
-                        ? " on the first camp day"
-                        : ""}
+                      {thanksgivingEventAgeLabel(e.id) ||
+                        `${campAgeLabel(e)}${e.minAge !== undefined || e.maxAge !== undefined ? " on the first camp day" : ""}`}
                     </dd>
                   </div>
                   <div>
@@ -433,8 +435,8 @@ export function EventRegistration({
   return (
     <div className="mt-4 grid gap-4">
       <p>
-        {campAgeLabel(event)}
-        {event.minAge !== undefined || event.maxAge !== undefined ? " on the first camp day" : ""}
+        {thanksgivingEventAgeLabel(event.id) ||
+          `${campAgeLabel(event)}${event.minAge !== undefined || event.maxAge !== undefined ? " on the first camp day" : ""}`}
       </p>
       <Sessions event={event} />
       {group && (

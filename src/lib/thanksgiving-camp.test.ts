@@ -16,7 +16,13 @@ import { campPurchase, type TrainingEvent } from "./training-events-contracts";
 import { fulfillSquarePayment, type SquareOrder } from "./commerce/square-payments.server";
 import type { Square } from "square";
 
-import { THANKSGIVING_CAMP, thanksgivingDetailsSchema } from "./thanksgiving-camp";
+import {
+  THANKSGIVING_CAMP,
+  thanksgivingDetailsSchema,
+  thanksgivingCampIsCurrent,
+  thanksgivingCampAgeRangeLabel,
+  thanksgivingEventAgeLabel,
+} from "./thanksgiving-camp";
 import { getThanksgivingEvents } from "./thanksgiving-camp.server";
 
 test("Thanksgiving camp payment, capacity, retry and privacy invariants", async (t) => {
@@ -228,4 +234,17 @@ test("Thanksgiving pricing and Central Time refund deadlines match selected sess
       group.value === "6-9U" ? "Sunday 9:00 AM" : "Tuesday 1:00 PM",
     );
   }
+});
+
+test("Thanksgiving promo stays visible through Nov 25 Central Time and hides after midnight", () => {
+  assert.equal(thanksgivingCampAgeRangeLabel(), "6–14U");
+  assert.equal(thanksgivingEventAgeLabel(THANKSGIVING_CAMP.groups[0].id), "Ages 6–9U");
+  assert.equal(thanksgivingEventAgeLabel(THANKSGIVING_CAMP.groups[1].id), "Ages 10U–14U");
+  assert.equal(thanksgivingEventAgeLabel("not-a-camp"), undefined);
+  // CST is UTC-6 in November. Visible on and before the last camp date.
+  assert.equal(thanksgivingCampIsCurrent(new Date("2026-11-23T06:00:00.000Z")), true); // Nov 23 12:00 AM CT
+  assert.equal(thanksgivingCampIsCurrent(new Date("2026-11-25T17:00:00.000Z")), true); // Nov 25 11:00 AM CT
+  assert.equal(thanksgivingCampIsCurrent(new Date("2026-11-26T05:59:59.000Z")), true); // Nov 25 11:59:59 PM CT
+  assert.equal(thanksgivingCampIsCurrent(new Date("2026-11-26T06:00:00.000Z")), false); // Nov 26 12:00 AM CT
+  assert.equal(thanksgivingCampIsCurrent(new Date("2026-11-26T18:00:00.000Z")), false); // Nov 26 noon CT
 });

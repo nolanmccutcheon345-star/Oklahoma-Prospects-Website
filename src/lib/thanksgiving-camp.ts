@@ -1,3 +1,4 @@
+import { chicagoDate } from "./scheduling";
 import { z } from "zod";
 import type { TrainingEvent } from "./training-events-contracts";
 
@@ -33,6 +34,26 @@ export const THANKSGIVING_CAMP = {
   ],
 } as const;
 export const thanksgivingGroup = (id: string) => THANKSGIVING_CAMP.groups.find((g) => g.id === id);
+
+export function thanksgivingCampLastDate() {
+  return THANKSGIVING_CAMP.dates[THANKSGIVING_CAMP.dates.length - 1];
+}
+
+/** Inclusive: visible through the last camp date in America/Chicago, hidden starting the next calendar day. */
+export function thanksgivingCampIsCurrent(now = new Date()) {
+  return chicagoDate(now) <= thanksgivingCampLastDate();
+}
+
+/** Combined public age range derived from the camp's session groups (6–9U and 10U–14U → 6–14U). */
+export function thanksgivingCampAgeRangeLabel() {
+  const ages = THANKSGIVING_CAMP.groups.flatMap((g) => [g.minAge, g.maxAge]);
+  return `${Math.min(...ages)}–${Math.max(...ages)}U`;
+}
+
+export function thanksgivingEventAgeLabel(eventId: string) {
+  const group = thanksgivingGroup(eventId);
+  return group ? `Ages ${group.label}` : undefined;
+}
 export const thanksgivingDetailsSchema = z
   .object({
     parentName: z.string().trim().min(1, "Enter the parent or guardian name.").max(120),
