@@ -1,7 +1,6 @@
 import type { Sql } from "../db";
 import { owner } from "./store.server";
-
-const MAX_WIDTH = 1600;
+import { allowedShopImageWidth } from "./image-widths";
 
 export async function shopImageResponse(
   sql: Sql,
@@ -44,12 +43,11 @@ export async function shopImageResponse(
       }
     : privateHeaders;
   let body: Buffer = Buffer.from(image.png_base64, "base64");
-  const size =
-    typeof width === "number" && Number.isFinite(width) ? Math.round(width) : undefined;
-  if (size && size > 0) {
+  const size = allowedShopImageWidth(width);
+  if (size) {
     const sharp = (await import("sharp")).default;
     body = await sharp(body)
-      .resize({ width: Math.min(size, MAX_WIDTH), withoutEnlargement: true })
+      .resize({ width: size, withoutEnlargement: true })
       .png()
       .toBuffer();
   }

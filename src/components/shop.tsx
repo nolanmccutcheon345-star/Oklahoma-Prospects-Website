@@ -10,12 +10,15 @@ import { submitSquarePayment } from "@/lib/commerce/api";
 import { matchesShopFilters, inShopCollection } from "@/lib/shop/collections";
 import { cartSchema, type Cart } from "@/lib/shop/contracts";
 import type { ShopView } from "@/lib/shop/navigation";
+import { allowedShopImageWidth } from "@/lib/shop/image-widths";
 type Shop = Awaited<ReturnType<typeof getShop>>;
 function shopImageSrc(url: string | undefined, width: number) {
   if (!url) return url || "";
   if (!url.startsWith("/api/shop/images/")) return url;
+  const size = allowedShopImageWidth(width);
+  if (!size) return url;
   const joiner = url.includes("?") ? "&" : "?";
-  return `${url}${joiner}w=${width}`;
+  return `${url}${joiner}w=${size}`;
 }
 const SHOP_PAGE_SIZE = 16;
 const inputClass =
