@@ -83,12 +83,11 @@ export const navigationGroups: Record<NavigationGroupId, NavigationGroup> = {
 export function publicNavigation(signedIn: boolean): NavigationItem[] {
   return [
     { id: "home", label: "Home", to: "/" },
-    { id: "articles", label: "Articles & News", to: "/articles" },
-    navigationGroups.Training,
     navigationGroups.Teams,
+    navigationGroups.Training,
     navigationGroups.Memberships,
-    { id: "shop", label: "Shop", to: "/merchandise" },
-    { id: "games", label: "Games", to: "/games" },
+    { id: "facility", label: "Facility", to: "/facility" },
+    { id: "articles", label: "Articles & News", to: "/articles" },
     signedIn
       ? { id: "account", label: "Account", to: "/account" }
       : { id: "account", label: "Sign In", to: "/login", search: { next: "/account" } },
@@ -103,7 +102,7 @@ export function navigationActive(item: NavigationItem, path: string, search = ""
     if (item.id === "Memberships") return path === "/memberships" || plans;
     if (item.id === "Training")
       return (
-        !plans && ["/training", "/book", "/facility", "/instructors", "/events"].includes(path)
+        !plans && ["/training", "/book", "/instructors", "/events"].includes(path)
       );
     return [
       "/teams",
@@ -115,6 +114,7 @@ export function navigationActive(item: NavigationItem, path: string, search = ""
       "/player",
       "/player-profiles",
       "/recruiting",
+      "/handbook",
     ].some((p) => path === p || path.startsWith(p + "/"));
   }
   if (item.id === "training-memberships") return plans;

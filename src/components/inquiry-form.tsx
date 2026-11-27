@@ -329,7 +329,6 @@ export function TryoutForm({
       {intent === "register" && <p className="text-sm">
         New to Prospects? You can request a tryout here without an account or a USSSA Player ID.
       </p>}
-      <AthleteRegistrationFields value={athleteProfile} onChange={setAthleteProfile} onName={player=>setValues(v=>({...v,player}))}/>
       {intent === "register" && (
         <fieldset className="grid gap-2 rounded-xl border bg-paper p-4 sm:grid-cols-2">
           <legend className="px-2 font-semibold">Choose your next step</legend>
@@ -520,6 +519,7 @@ export function TryoutForm({
         <legend className="px-2 font-semibold">
           Player details {intent === "register" && <span className="text-maroon">— mandatory</span>}
         </legend>
+        <AthleteRegistrationFields value={athleteProfile} onChange={setAthleteProfile} onName={player=>setValues(v=>({...v,player}))}/>
         {intent === "register" && (
           <div className="flex flex-wrap gap-2">
             <Button

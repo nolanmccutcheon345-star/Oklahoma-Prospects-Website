@@ -9,6 +9,7 @@ import { useCurrentUserState } from "@/lib/auth/use-current-user";
 import { CoachBio } from "./coach-bio";
 import { StatsTable } from "./team-stats-table";
 import { publicRecordLabel } from "@/lib/public-record";
+import { publicTeamName, sortSeasonLabels } from "@/lib/public-labels";
 type PublicTeam = Awaited<ReturnType<typeof getPublicTeamsView>>[number];
 export function PublicTeamRoster({
   teamId,
@@ -77,7 +78,7 @@ export function PublicTeamRoster({
   const ages = [...new Set(currentTeams.map((t) => t.age))].sort((a, b) =>
     a.localeCompare(b, undefined, { numeric: true }),
   );
-  const seasons = [...new Set(currentTeams.flatMap((t) => t.seasons))].sort();
+  const seasons = sortSeasonLabels([...new Set(currentTeams.flatMap((t) => t.seasons))]);
   const visible = currentTeams.filter(
     (t) => (!age || t.age === age) && (!season || t.seasons.includes(season)),
   );
@@ -128,71 +129,82 @@ export function PublicTeamRoster({
       <div className={teamId ? "grid gap-5" : "grid gap-5 md:grid-cols-2"}>
         {visible.map((t) => (
           <article key={t.id} className="flex flex-col rounded-xl border bg-paper p-5">
-            <h3 className="text-2xl">{t.name}</h3>
+            {teamId ? (
+              <h1 className="text-2xl">{publicTeamName(t.name)}</h1>
+            ) : (
+              <h3 className="text-2xl">{publicTeamName(t.name)}</h3>
+            )}
             <p className="mt-2 capitalize">
               {t.sport} · {t.age}
             </p>
-            <div className="mt-3 flex flex-wrap gap-2">
-              {t.seasons.map((season) => (
-                <span
-                  key={season}
-                  className="rounded-full bg-paper-2 px-3 py-1 text-sm font-semibold"
-                >
-                  {season}
-                </span>
-              ))}
-            </div>
+            {t.seasons.length ? (
+              <div className="mt-3 flex flex-wrap gap-2">
+                {sortSeasonLabels(t.seasons).map((season) => (
+                  <span
+                    key={season}
+                    className="rounded-full bg-paper-2 px-3 py-1 text-sm font-semibold"
+                  >
+                    {season}
+                  </span>
+                ))}
+              </div>
+            ) : null}
             {teamId ? (
               <>
-                <h4 className="mt-5 text-xl">Coaches</h4>
                 {t.coaches.length ? (
-                  t.coaches.map((c, i) => (
-                    <div key={c.name + i} className="mt-3 rounded-lg bg-paper-2 p-4">
-                      {c.photo && (
-                        <img
-                          src={c.photo}
-                          alt={publicCoachName(c.name)}
-                          className="mb-2 size-24 rounded-lg object-cover"
-                        />
-                      )}
-                      <strong>{publicCoachName(c.name)}</strong>
-                      <p className="text-sm">{c.role}</p>
-                      <CoachBio>{c.bio}</CoachBio>
-                    </div>
-                  ))
-                ) : (
-                  <p>Coaches have not been assigned yet.</p>
-                )}
-                <p className="mt-5 font-semibold">
-                  {publicRecordLabel(t.record) ?? "Season results not published yet."}
-                </p>
-                <h4 className="mt-5 text-xl">Team stats</h4>
-                <StatsTable stats={t.stats} />
-                <h4 className="mt-5 text-xl">Private roster</h4>
+                  <>
+                    <h2 className="mt-5 text-xl">Coaches</h2>
+                    {t.coaches.map((c, i) => (
+                      <div key={c.name + i} className="mt-3 rounded-lg bg-paper-2 p-4">
+                        {c.photo && (
+                          <img
+                            src={c.photo}
+                            alt={publicCoachName(c.name)}
+                            className="mb-2 size-24 rounded-lg object-cover"
+                          />
+                        )}
+                        <strong>{publicCoachName(c.name)}</strong>
+                        <p className="text-sm">{c.role}</p>
+                        <CoachBio>{c.bio}</CoachBio>
+                      </div>
+                    ))}
+                  </>
+                ) : null}
+                {publicRecordLabel(t.record) ? (
+                  <p className="mt-5 font-semibold">{publicRecordLabel(t.record)}</p>
+                ) : null}
+                {t.stats && Object.keys(t.stats).length ? (
+                  <>
+                    <h2 className="mt-5 text-xl">Team stats</h2>
+                    <StatsTable stats={t.stats} />
+                  </>
+                ) : null}
+                <h2 className="mt-5 text-xl">Private roster</h2>
                 <p className="mt-2 text-sm">
                   Player names are visible only to authorized staff signed in to this team.
                 </p>
+                <Button asChild className="mt-6">
+                  <a href="/tryouts">Request a tryout</a>
+                </Button>
               </>
             ) : (
               <>
-                <div className="mt-4">
-                  <h4 className="font-semibold">Coaching assignments</h4>
-                  {t.coaches.length ? (
-                    t.coaches.map((c, i) => (
+                {t.coaches.length ? (
+                  <div className="mt-4">
+                    <h4 className="font-semibold">Coaching assignments</h4>
+                    {t.coaches.map((c, i) => (
                       <p key={c.name + i} className="mt-1 text-sm">
                         {publicCoachName(c.name)} · {c.role}
                       </p>
-                    ))
-                  ) : (
-                    <p className="mt-1 text-sm text-muted">Coaches to be announced</p>
-                  )}
-                </div>
-                <p className="mt-4 mb-5 font-semibold">
-                  {publicRecordLabel(t.record) ?? "Season results not published yet."}
-                </p>
+                    ))}
+                  </div>
+                ) : null}
+                {publicRecordLabel(t.record) ? (
+                  <p className="mt-4 mb-5 font-semibold">{publicRecordLabel(t.record)}</p>
+                ) : null}
                 <Button asChild className="mt-auto w-full">
                   <a
-                    aria-label={`View team: ${t.name}`}
+                    aria-label={`View team: ${publicTeamName(t.name)}`}
                     href={"/teams/" + encodeURIComponent(t.id)}
                   >
                     View Team

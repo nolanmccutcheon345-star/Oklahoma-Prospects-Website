@@ -1,6 +1,6 @@
 # Oklahoma Prospects
 
-The live club product for **[prospectsbaseball.club](https://prospectsbaseball.club)**.
+The live club product for **[prospectssports.club](https://prospectssports.club)**.
 
 Reserved indoor cages in Broken Arrow, Oklahoma. Baseball and softball. Est. 2008.
 
@@ -8,12 +8,12 @@ This repository **is** the website and the phone app — same product, one codeb
 
 ## What this replaced
 
-The previous static HTML marketing site in this repository is gone. `prospectsbaseball.club` now serves this app.
+The app at `prospectssports.club` replaced the previous static HTML marketing site.
 
 ## Stack
 
 - TanStack Start (React 19) + Vite + Tailwind
-- Netlify production host (`oklahoma-prospects` → `prospectsbaseball.club`)
+- Netlify production host (`oklahoma-prospects` → `prospectssports.club`)
 - Persistent Postgres in hosted environments; in-memory PGlite is for local development only
 
 ## Scripts
@@ -27,14 +27,15 @@ npm test
 npm run lint
 NETLIFY=true CONTEXT=deploy-preview npm run build
 npm run verify:build
-npm run verify:hosted -- https://prospectsbaseball.club # read-only HTTP smoke
+npm run verify:hosted -- https://prospectssports.club # read-only HTTP smoke
 ```
 
 ## Domain
 
 | Host | Role |
 | --- | --- |
-| [prospectsbaseball.club](https://prospectsbaseball.club) | this app |
+| [prospectssports.club](https://prospectssports.club) | Canonical production site |
+| prospectsbaseball.club | Legacy domain, 301 → prospectssports.club |
 | www.prospectsbaseball.club | 301 → apex |
 | book.prospectsbaseball.club | 301 into this app |
 | app.prospectsbaseball.club | 301 into this app |

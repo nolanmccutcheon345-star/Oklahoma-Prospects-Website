@@ -4,6 +4,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useSyncExternalStore } from "react";
 import { Button } from "@/components/ui/button";
 import { PageHero } from "@/components/page-hero";
+import { TrainingNav } from "@/components/training-nav";
 import { SignedIn, SignedOut } from "@/lib/auth/gates";
 import { PdErrorBoundary } from "@/components/pd/error-boundary";
 import { CatalogAndBook } from "@/components/training-catalog";
@@ -61,7 +62,7 @@ function TrainingPage({ initialPeople }: { initialPeople: PublicPerson[] | null 
       <PdErrorBoundary section="Train · catalog">
         <PageHero
           eyebrow="Player development"
-          title="Train with purpose. Build your game."
+          title="Coaching with purpose. Plans that fit."
           compact
 
           copy="Find the right training for your athlete. Explore private lessons, player assessments, and monthly development programs for baseball and softball."
@@ -95,6 +96,7 @@ function TrainingPage({ initialPeople }: { initialPeople: PublicPerson[] | null 
             </>
           }
         />
+        <TrainingNav current={search.view === "plans" ? "plans" : "lessons"} />
         <CatalogAndBook
           view={search.view || "lessons"}
           instructor={search.instructor}

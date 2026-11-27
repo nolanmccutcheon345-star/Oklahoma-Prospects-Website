@@ -11,6 +11,13 @@ import { matchesShopFilters, inShopCollection } from "@/lib/shop/collections";
 import { cartSchema, type Cart } from "@/lib/shop/contracts";
 import type { ShopView } from "@/lib/shop/navigation";
 type Shop = Awaited<ReturnType<typeof getShop>>;
+function shopImageSrc(url: string | undefined, width: number) {
+  if (!url) return url || "";
+  if (!url.startsWith("/api/shop/images/")) return url;
+  const joiner = url.includes("?") ? "&" : "?";
+  return `${url}${joiner}w=${width}`;
+}
+const SHOP_PAGE_SIZE = 16;
 const inputClass =
   "mt-1 min-h-11 w-full min-w-0 rounded-lg border border-line bg-white px-3 py-2 text-base";
 const concepts = [
@@ -41,8 +48,12 @@ export function Shop({
   const [busy, setBusy] = useState(false);
   const [category, setCategory] = useState("");
   const [filters, setFilters] = useState<Record<string, string>>({});
+  const [page, setPage] = useState(1);
   const [team, setTeam] = useState("");
   const [checkout, setCheckout] = useState<Awaited<ReturnType<typeof quoteShop>>>();
+  useEffect(() => {
+    setPage(1);
+  }, [filters, category, team]);
   const [address, setAddress] = useState({
     name: "",
     address1: "",
@@ -131,6 +142,7 @@ export function Shop({
         (!category || p.category === category) &&
         (!team || p.team_label === team),
     ) ?? [];
+  const visiblePage = visibleProducts.slice(0, page * SHOP_PAGE_SIZE);
   const count = cart.reduce((sum, i) => sum + i.quantity, 0);
   return (
     <main id="main" className="min-w-0">
@@ -289,6 +301,7 @@ export function Shop({
                           setFilters({});
                           setCategory("");
                           setTeam("");
+                          setPage(1);
                         }}
                       >
                         Clear filters
@@ -301,10 +314,17 @@ export function Shop({
                       </p>
                     )}
                     <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-                      {visibleProducts.map((p) => (
+                      {visiblePage.map((p) => (
                         <Product key={p.id} product={p} add={(id) => add(p.id, id)} />
                       ))}
                     </div>
+                    {visiblePage.length < visibleProducts.length ? (
+                      <div className="mt-6 flex justify-center">
+                        <Button type="button" variant="outlineDark" onClick={() => setPage((n) => n + 1)}>
+                          Show more products
+                        </Button>
+                      </div>
+                    ) : null}
                   </>
                 }
                 {!data.products.length && (
@@ -601,7 +621,7 @@ export function Shop({
           <p className="mt-3">
             Questions about sizing, a damaged item, or a delivery?{" "}
             <Link to="/contact" className="underline">
-              Contact Oklahoma Prospects
+              Contact the front desk
             </Link>
             . Report delivery or quality problems within 30 days. Please use each product’s size
             guide before ordering.
@@ -708,7 +728,7 @@ function Product({
           </span>
         )}
         <img
-          src={selectedPhoto?.url || p.image_url}
+          src={shopImageSrc(selectedPhoto?.url || p.image_url, detail ? 900 : 600)}
           alt={selectedPhoto?.alt || p.title}
           loading="lazy"
           width="600"
@@ -727,7 +747,7 @@ function Product({
                 className="overflow-hidden rounded-lg border border-line focus-visible:outline-2 focus-visible:outline-navy"
               >
                 <img
-                  src={image.url}
+                  src={shopImageSrc(image.url, 200)}
                   alt={image.alt}
                   width="150"
                   height="150"

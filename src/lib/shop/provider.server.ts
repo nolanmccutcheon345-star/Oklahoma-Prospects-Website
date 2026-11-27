@@ -187,8 +187,8 @@ export function orderBody(address: Record<string, string>, email: string, items:
     items,
     shipping: "STANDARD",
     packing_slip: {
-      store_name: "Oklahoma Prospects",
-      message: "Thank you for supporting Oklahoma Prospects.",
+      store_name: "Prospects Sports Academy",
+      message: "Thank you for supporting Prospects Sports Academy.",
     },
   };
 }

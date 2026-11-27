@@ -14,6 +14,7 @@ import type { ClubRole } from "@/lib/club-data";
 import { getSql, type Sql } from "@/lib/db";
 import { isOwnerEmail } from "@/lib/owners";
 import { clubIdentity } from "./identity.server";
+import { publicLessonDiscipline } from "./public-labels";
 import {
   accountInput,
   lessonTermIdInput,
@@ -355,10 +356,7 @@ export function defaultCoachSplit(service: {
 }
 
 function toLesson(row: ClubService): LessonService {
-  const discipline =
-    row.discipline === "Hitting" || row.discipline === "Catching" || row.discipline === "Fielding"
-      ? row.discipline
-      : "Pitching";
+  const discipline = publicLessonDiscipline(row);
   return {
     id: row.id,
     name: row.name,

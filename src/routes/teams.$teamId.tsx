@@ -3,11 +3,15 @@ import { PublishedTeamFees } from "@/components/teams/published-team-fees";
 import { createFileRoute, Outlet, useRouterState } from "@tanstack/react-router";
 import { PublicTeamRoster } from "@/components/public-team-roster";
 import { StaffTeamRoster } from "@/components/teams/staff-team-roster";
-import { CLUB } from "@/lib/club";
+import { pageHead } from "@/lib/seo";
 export const Route = createFileRoute("/teams/$teamId")({
-  head: () => ({
-    meta: [{ title: `Team roster | ${CLUB.name}` }, { name: "robots", content: "noindex" }],
-  }),
+  head: ({ params }) =>
+    pageHead(
+      "/teams/" + params.teamId,
+      "Team",
+      "Public team page for Prospects Sports Academy baseball and softball families.",
+      true,
+    ),
   component: Page,
 });
 function Page() {
@@ -20,8 +24,7 @@ function Page() {
     return <Outlet />;
   return (
     <main id="main">
-      <h1 className="mx-auto max-w-3xl px-5 pt-8">Team roster</h1>
-      <a className="inline-flex min-h-11 items-center px-5 underline" href="/teams">
+      <a className="inline-flex min-h-11 items-center px-5 pt-8 underline" href="/teams">
         All teams
       </a>
       <div className="mx-auto max-w-3xl px-5">

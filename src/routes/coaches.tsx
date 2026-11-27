@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { getPublicPeople } from "@/lib/person-api";
 import { PeopleDirectory } from "@/components/people-directory";
+import { LeadershipPlaceholders } from "@/components/leadership-placeholders";
 import { PageHero } from "@/components/page-hero";
 import { pageHead } from "@/lib/seo";
 export const Route = createFileRoute("/coaches")({
@@ -20,6 +21,7 @@ export const Route = createFileRoute("/coaches")({
         copy="Meet the coaches guiding our athletes’ development and leading our baseball and softball teams."
         compact
       />
+      <LeadershipPlaceholders />
       <PeopleDirectory people={Route.useLoaderData()} kind="coaches" />
     </main>
   ); },

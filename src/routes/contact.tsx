@@ -53,7 +53,7 @@ function ContactPage() {
           <p className="text-xs font-semibold tracking-[0.16em] text-powder uppercase">
             {CLUB.name}
           </p>
-          <h2 className="mt-2 text-3xl">Find our house.</h2>
+          <h2 className="mt-2 text-3xl">Visit Prospects Sports Facility.</h2>
           <HoursChip className="mt-4" />
           <p className="mt-4 text-fg-soft">
             {CLUB.addressLine1}
