@@ -21,6 +21,18 @@ import {
   publicAboutFor,
   saveAboutFor,
 } from "./website-content.server";
+import { retireBrand } from "./seo";
+import type { AboutContent } from "./website-content-contracts";
+
+function expectedPublicAbout(content: AboutContent | null) {
+  if (!content) return content;
+  return Object.fromEntries(
+    Object.entries(content).map(([key, value]) => [
+      key,
+      typeof value === "string" ? retireBrand(value) : value,
+    ]),
+  );
+}
 import { emptySharedProfile } from "./person-contracts";
 import { publicPeopleFor } from "./person-public.server";
 
@@ -261,7 +273,7 @@ test("editable membership and homepage publication preserve financial records an
     assert.equal((await publicHomepageFor(sql)).testimonials.length, 3);
     assert.ok((await websiteEditorFor(sql, "owner")).audit.length >= 8);
     const initialAbout = await aboutEditorFor(sql, "owner");
-    assert.deepEqual(await publicAboutFor(sql), initialAbout.published);
+    assert.deepEqual(await publicAboutFor(sql), expectedPublicAbout(initialAbout.published));
     const aboutInput = {
       revision: initialAbout.revision,
       action: "draft",
@@ -279,7 +291,7 @@ test("editable membership and homepage publication preserve financial records an
     assert.equal(draft.draft.title, "Unpublished synthetic draft");
     assert.deepEqual(
       await publicAboutFor(sql),
-      initialAbout.published,
+      expectedPublicAbout(initialAbout.published),
       "Saving drafts never changes public content",
     );
     await assert.rejects(
