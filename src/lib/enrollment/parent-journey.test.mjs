@@ -269,6 +269,56 @@ for (const order of ["invite-before-publish", "publish-before-player-and-invite"
           ),
           /two different/,
         );
+        // An owner-published amendment must not look like the original signature
+        // disappeared, or cause the guide to ask for initial acceptance again.
+        const beforeAmendment = await acceptedFeeAgreement(sql, "invitee", {
+          teamId: "base",
+          playerId: "base-player",
+          seasonId: budget.independent.seasonKey,
+        });
+        const [currentPlan] = await sql`select revision from team_fee_plans where team_id='base'`;
+        await mutateFeePlan(sql, "owner", {
+          action: "independentOffer",
+          teamId: "base",
+          playerId: "base-player",
+          revision: currentPlan.revision,
+          budget,
+          payerUserId: "invitee",
+          reason: "Synthetic proposed future-term review",
+        });
+        const [savedPlan] = await sql`select payload from team_fee_plans where team_id='base'`;
+        const [savedClub] = await sql`select payload from club_state where id='oklahoma-prospects'`;
+        for (const actor of ["invitee", "owner"]) {
+          const amended = (await enrollmentGuide(sql, actor, {})).players.find(
+            (p) => p.teamId === "base",
+          );
+          assert.equal(
+            amended.steps[3].title,
+            "Review proposed changes to your accepted fee agreement",
+          );
+          assert.equal(amended.steps[3].status, "Action needed");
+          assert.match(amended.steps[3].detail, /accepted agreement is saved/);
+          assert.match(amended.steps[3].detail, /has not replaced your accepted terms/);
+          assert.equal(amended.steps[5].status, "Autopay unavailable");
+          assert.doesNotMatch(amended.steps[5].detail, /Accept the fee agreement first/);
+          assert.equal(amended.parentComplete, false);
+        }
+        assert.deepEqual(
+          (await sql`select payload from team_fee_plans where team_id='base'`)[0].payload,
+          savedPlan.payload,
+        );
+        assert.deepEqual(
+          (await sql`select payload from club_state where id='oklahoma-prospects'`)[0].payload,
+          savedClub.payload,
+        );
+        assert.deepEqual(
+          await acceptedFeeAgreement(sql, "invitee", {
+            teamId: "base",
+            playerId: "base-player",
+            seasonId: budget.independent.seasonKey,
+          }),
+          beforeAmendment,
+        );
       } finally {
         globalThis.__pgSqlPromise__ = previous;
         delete process.env.DATABASE_URL;
