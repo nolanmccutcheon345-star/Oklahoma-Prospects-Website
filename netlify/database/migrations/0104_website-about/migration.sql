@@ -20,7 +20,7 @@ select 'about', content, content, now() from (select jsonb_build_object(
   'title', 'Developing athletes. Building confidence.',
   'intro', 'Baseball and softball bring us together. Purposeful practice, clear instruction, and a commitment to improvement move us forward.',
   'storyTitle', 'Our academy. Your place to grow.',
-  'story', E'Prospects Sports Academy brings baseball and softball instruction, competitive teams, and indoor practice together in Broken Arrow, Oklahoma.\n\nFrom an athlete learning the fundamentals to a player preparing for the next level of competition, our programs create opportunities to learn, practice, and grow. Families can explore Oklahoma Prospects teams, book private lessons, attend camps and clinics, or reserve indoor cage time.',
+  'story', E'Prospects Sports Academy brings baseball and softball instruction, competitive teams, and indoor practice together in Broken Arrow, Oklahoma.\n\nFrom an athlete learning the fundamentals to a player preparing for the next level of competition, our programs create opportunities to learn, practice, and grow. Families can explore Prospects Sports Academy teams, book private lessons, attend camps and clinics, or reserve indoor cage time.',
   'missionTitle', 'Our mission',
   'mission', 'Help athletes build their skills, confidence, and love for the game through purposeful training and a supportive team environment. We value effort, accountability, and steady progress.',
   'philosophyTitle', 'How we develop players',

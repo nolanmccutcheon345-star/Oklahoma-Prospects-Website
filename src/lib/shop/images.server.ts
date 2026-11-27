@@ -43,7 +43,8 @@ export async function shopImageResponse(
       }
     : privateHeaders;
   let body: Buffer = Buffer.from(image.png_base64, "base64");
-  const size = allowedShopImageWidth(width);
+  // Public catalog images never exceed 900, including when w is omitted or invalid.
+  const size = allowedShopImageWidth(width) ?? (isPublic ? 900 : undefined);
   if (size) {
     const sharp = (await import("sharp")).default;
     body = await sharp(body)

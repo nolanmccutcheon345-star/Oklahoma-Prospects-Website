@@ -311,6 +311,15 @@ test("editable membership and homepage publication preserve financial records an
     // Reapplying the additive migration must never replace an owner's published edits.
     await db.exec(await readFile("migrations/0104_website_about.sql", "utf8"));
     assert.deepEqual(await publicAboutFor(sql), published.published);
+    const leftover = "Families can explore Oklahoma Prospects teams in Broken Arrow.";
+    await sql`update website_pages set published_content = jsonb_set(published_content, '{story}', to_jsonb(${leftover}::text)) where id='about'`;
+    const publicAbout = await publicAboutFor(sql);
+    assert.match(publicAbout?.story || "", /Prospects Sports Academy teams/);
+    assert.doesNotMatch(publicAbout?.story || "", /Oklahoma Prospects/);
+    const [stored] = await sql<{
+      story: string;
+    }>`select published_content->>'story' as story from website_pages where id='about'`;
+    assert.equal(stored.story, leftover);
     await sql`update owner_grants set revoked_at=now() where user_id='owner'`;
     await assert.rejects(saveHomepageFor(sql, "owner", { revision: 1, featuredCoachIds: [] }));
     await assert.rejects(
