@@ -65,6 +65,8 @@ export async function publicPeopleFor(sql: Sql) {
         : clubRows[0].payload
       : null;
   const eligible = await bookableCoaches(sql, file.coaches, { operational: false });
+  const offerings = await bookableCoaches(sql, file.coaches);
+  const approvedLessonIds = new Set(approvedProducts(products).map((service) => service.id));
   const available = await coachesWithAvailability(
     sql,
     file.coaches,
@@ -206,6 +208,11 @@ export async function publicPeopleFor(sql: Sql) {
         ...c,
         bookable: c.instructor && Boolean(a),
         serviceIds: c.instructor ? a?.serviceIds || [] : [],
+        offeredServiceIds: c.instructor
+          ? (offerings.find((coach) => coach.id === c.coachId)?.serviceIds || []).filter((id) =>
+              approvedLessonIds.has(id),
+            )
+          : [],
       };
     })
     .sort((a, b) => (a.displayOrder || 0) - (b.displayOrder || 0) || a.name.localeCompare(b.name));
