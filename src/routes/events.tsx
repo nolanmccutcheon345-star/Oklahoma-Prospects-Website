@@ -7,6 +7,7 @@ import { submitSquarePayment } from "@/lib/commerce/api";
 import { useCurrentUser } from "@/lib/auth/use-current-user";
 import { SquareCard } from "@/components/commerce/square-card";
 import { PageHero } from "@/components/page-hero";
+import { TrainingNav } from "@/components/training-nav";
 import { Button } from "@/components/ui/button";
 import { formatMoney } from "@/lib/pricing";
 import { formatClockTime } from "@/lib/time-display";
@@ -16,6 +17,7 @@ import {
   campAgeError,
   eventTypes,
 } from "@/lib/training-events-contracts";
+import { publicEventTypeLabel, publicSportLabel } from "@/lib/public-labels";
 import {
   thanksgivingGroup,
   thanksgivingDetailsSchema,
@@ -27,7 +29,7 @@ export const Route = createFileRoute("/events")({
     pageHead(
       "/events",
       "Camps & Clinics",
-      "Explore upcoming baseball and softball camps and clinics at Oklahoma Prospects.",
+      "Explore upcoming baseball and softball camps and clinics at Prospects Sports Academy.",
     ),
   component: EventsPage,
 });
@@ -99,6 +101,7 @@ export function EventsPage() {
         compact
         copy="Explore upcoming baseball and softball camps, clinics, and skills sessions. See dates, ages, pricing, and registration details."
       />
+      <TrainingNav current="events" />
       <div className="mx-auto grid max-w-5xl gap-6 px-5 py-6">
         {error && (
           <p role="alert" className="text-maroon">
@@ -178,7 +181,7 @@ export function EventsPage() {
           </section>
         )}
         {!events ? (
-          <p role="status">Loading events…</p>
+          <p role="status" className="min-h-96">Loading events…</p>
         ) : !shown.length ? (
           <p className="rounded-xl border p-5">
             No upcoming events {view === "calendar" ? "in this selection" : "are published yet"}.
@@ -192,7 +195,7 @@ export function EventsPage() {
                 className="grid content-start gap-3 rounded-2xl border border-line bg-white p-5"
               >
                 <p className="text-xs font-semibold uppercase text-maroon">
-                  {eventTypes[e.type]} · {e.sport}
+                  {publicEventTypeLabel(eventTypes[e.type] || e.type)} · {publicSportLabel(e.sport)}
                 </p>
                 <h2 className="text-3xl">{e.name}</h2>
                 <p className="whitespace-pre-wrap">{e.description}</p>

@@ -97,7 +97,7 @@ try {
     await dialog.waitFor();
     assert.equal(await page.evaluate(() => document.body.style.overflow), "hidden");
     if (width < 1024) {
-      assert.equal(await dialog.locator(".site-menu-content > *").count(), 10);
+      assert.equal(await dialog.locator(".site-menu-content > *").count(), 9);
       assert.equal(
         await dialog.getByRole("link", { name: "Book a Cage", exact: true }).isVisible(),
         false,
@@ -184,21 +184,6 @@ try {
   assert.equal(await page.getByRole("heading", { name: /Step 1 of 3/ }).count(), 1);
   await page.getByLabel(/^Age group/).selectOption("12U");
   await page.getByLabel(/^Player name/).fill("Synthetic Audit Player");
-  assert.equal(
-    await page
-      .getByRole("combobox", { name: "Expected high-school graduation year", exact: true })
-      .locator("option")
-      .nth(2)
-      .textContent(),
-    "2027",
-  );
-  await page.getByLabel(/^Date of birth \(private\)/).fill("2015-09-01");
-  await page
-    .getByRole("combobox", { name: "Expected high-school graduation year", exact: true })
-    .selectOption("unknown");
-  await page
-    .getByRole("combobox", { name: "School status", exact: true })
-    .selectOption("homeschool");
   await page.getByLabel(/^Parent \/ Guardian/).fill("Synthetic Audit Guardian");
   await page
     .locator("form")
@@ -218,6 +203,21 @@ try {
     1,
     "required details cannot be skipped",
   );
+  assert.equal(
+    await page
+      .getByRole("combobox", { name: "Expected high-school graduation year", exact: true })
+      .locator("option")
+      .nth(2)
+      .textContent(),
+    "2027",
+  );
+  await page.getByLabel(/^Date of birth \(private\)/).fill("2015-09-01");
+  await page
+    .getByRole("combobox", { name: "Expected high-school graduation year", exact: true })
+    .selectOption("unknown");
+  await page
+    .getByRole("combobox", { name: "School status", exact: true })
+    .selectOption("homeschool");
   await page.getByRole("button", { name: "New player / still learning", exact: true }).click();
   await page.getByLabel(/^Player notes/).fill("   ");
   await page.getByLabel(/^USSSA Player ID status/).selectOption("not-registered");

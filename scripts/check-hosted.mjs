@@ -54,6 +54,21 @@ for (const [path, expected] of pages) {
   console.log(`PASS ${expected} ${path}: HTML, security headers, fresh script nonce, private cache`);
 }
 
+const manifestResponse = await request("/__grok/manifest.webmanifest");
+assert.equal(manifestResponse.status, 200, "Web app manifest is available");
+assert.match(manifestResponse.headers.get("content-type") || "", /^application\/manifest\+json\b/);
+const manifest = await manifestResponse.json();
+assert.equal(manifest.start_url, "/");
+assert.equal(manifest.display, "standalone");
+for (const size of ["192x192", "512x512"]) {
+  const icon = manifest.icons.find((entry) => entry.sizes === size && entry.type === "image/png");
+  assert.ok(icon, `Expected a ${size} app icon`);
+  const response = await request(icon.src);
+  assert.equal(response.status, 200, `${size} app icon is available`);
+  assert.match(response.headers.get("content-type") || "", /^image\/png\b/);
+}
+console.log("PASS 200 web app manifest and icons");
+
 for (const path of ["/visit", "/check-in", "/checkin"]) {
   const response = await request(path);
   assert.equal(response.status, 301, `${path}: permanent redirect`);

@@ -22,6 +22,7 @@ import {
   publicNavigation,
   navigationGroups,
   navigationActive,
+  mobileMenuChildren,
   type NavigationGroupId,
   type NavigationLink,
 } from "@/lib/site-navigation";
@@ -36,7 +37,7 @@ function ClubWordmark({ name }: { name: string }) {
       {lines.map((line, index) => (
         <span className="club-wordmark-line" key={line}>
           {index > 0 ? (
-            <span className="club-wordmark-gap" aria-hidden="true">
+            <span className="club-wordmark-gap">
               {" "}
             </span>
           ) : null}
@@ -187,19 +188,18 @@ export function AppShell({ children }: { children: ReactNode }) {
         <div className="mx-auto flex min-h-16 max-w-6xl flex-wrap items-center justify-between gap-2 overflow-visible px-2.5 py-2 sm:gap-3 sm:px-4">
           <Link
             to="/"
-            aria-label={`${CLUB.name} home`}
             className="flex min-w-0 flex-1 basis-48 items-center gap-2 overflow-visible no-underline sm:gap-3"
           >
             <img
               src="/brand/mark.png"
-              alt="Prospects Sports Academy"
+              alt=""
               width={40}
               height={40}
               className="size-8 shrink-0 object-contain min-[400px]:size-10"
             />
             <span className="min-w-0 overflow-visible">
               <ClubWordmark name={CLUB.name} />
-              <span className="mt-1 block text-[0.56rem] leading-tight font-medium tracking-[0.04em] text-fg-soft uppercase min-[400px]:text-[0.65rem] min-[400px]:tracking-[0.14em]">
+              <span aria-hidden="true" className="mt-1 block text-[0.56rem] leading-tight font-medium tracking-[0.04em] text-fg-soft uppercase min-[400px]:text-[0.65rem] min-[400px]:tracking-[0.14em]">
                 Baseball & softball ·{" "}
                 <span className="whitespace-nowrap">Est. {CLUB.established}</span>
               </span>
@@ -271,8 +271,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         >
           <ul
             className={cn(
-              "relative mx-auto grid max-w-6xl",
-              privateWorkspace ? "grid-cols-6" : "grid-cols-7",
+              "relative mx-auto grid max-w-6xl grid-cols-6",
             )}
           >
             {!privateWorkspace
@@ -422,7 +421,7 @@ export function AppShell({ children }: { children: ReactNode }) {
                       className="site-menu-children"
                       aria-label={`${item.label} subpages`}
                     >
-                      {item.children.map(menuLink)}
+                      {mobileMenuChildren(item, navigation).map(menuLink)}
                     </div>
                   </div>
                 ) : (

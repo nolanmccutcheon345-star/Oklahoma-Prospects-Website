@@ -21,6 +21,18 @@ import {
   publicAboutFor,
   saveAboutFor,
 } from "./website-content.server";
+import { retireBrand } from "./seo";
+import type { AboutContent } from "./website-content-contracts";
+
+function expectedPublicAbout(content: AboutContent | null) {
+  if (!content) return content;
+  return Object.fromEntries(
+    Object.entries(content).map(([key, value]) => [
+      key,
+      typeof value === "string" ? retireBrand(value) : value,
+    ]),
+  );
+}
 import { emptySharedProfile } from "./person-contracts";
 import { publicPeopleFor } from "./person-public.server";
 
@@ -261,7 +273,7 @@ test("editable membership and homepage publication preserve financial records an
     assert.equal((await publicHomepageFor(sql)).testimonials.length, 3);
     assert.ok((await websiteEditorFor(sql, "owner")).audit.length >= 8);
     const initialAbout = await aboutEditorFor(sql, "owner");
-    assert.deepEqual(await publicAboutFor(sql), initialAbout.published);
+    assert.deepEqual(await publicAboutFor(sql), expectedPublicAbout(initialAbout.published));
     const aboutInput = {
       revision: initialAbout.revision,
       action: "draft",
@@ -279,7 +291,7 @@ test("editable membership and homepage publication preserve financial records an
     assert.equal(draft.draft.title, "Unpublished synthetic draft");
     assert.deepEqual(
       await publicAboutFor(sql),
-      initialAbout.published,
+      expectedPublicAbout(initialAbout.published),
       "Saving drafts never changes public content",
     );
     await assert.rejects(
@@ -311,6 +323,15 @@ test("editable membership and homepage publication preserve financial records an
     // Reapplying the additive migration must never replace an owner's published edits.
     await db.exec(await readFile("migrations/0104_website_about.sql", "utf8"));
     assert.deepEqual(await publicAboutFor(sql), published.published);
+    const leftover = "Families can explore Oklahoma Prospects teams in Broken Arrow.";
+    await sql`update website_pages set published_content = jsonb_set(published_content, '{story}', to_jsonb(${leftover}::text)) where id='about'`;
+    const publicAbout = await publicAboutFor(sql);
+    assert.match(publicAbout?.story || "", /Prospects Sports Academy teams/);
+    assert.doesNotMatch(publicAbout?.story || "", /Oklahoma Prospects/);
+    const [stored] = await sql<{
+      story: string;
+    }>`select published_content->>'story' as story from website_pages where id='about'`;
+    assert.equal(stored.story, leftover);
     await sql`update owner_grants set revoked_at=now() where user_id='owner'`;
     await assert.rejects(saveHomepageFor(sql, "owner", { revision: 1, featuredCoachIds: [] }));
     await assert.rejects(

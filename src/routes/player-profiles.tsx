@@ -37,16 +37,37 @@ function Page() {
   }, [user?.id]);
   if (isPending)
     return (
-      <main id="main" className="p-5">
-        Checking access…
+      <main id="main" className="mx-auto max-w-3xl px-5 py-16">
+        <p className="text-xs font-semibold tracking-[0.16em] text-maroon uppercase">Recruiting</p>
+        <h1 className="mt-3 text-4xl">Recruiting profiles</h1>
+        <p role="status" className="mt-4">
+          Checking access…
+        </p>
       </main>
     );
   if (!user || user.isDevFallback)
     return (
-      <main id="main" className="p-5">
-        <a className="underline" href="/login?next=%2Fplayer-profiles">
-          Sign in to manage recruiting profiles
-        </a>
+      <main id="main" className="mx-auto max-w-3xl px-5 py-16">
+        <p className="text-xs font-semibold tracking-[0.16em] text-maroon uppercase">Recruiting</p>
+        <h1 className="mt-3 text-4xl">Recruiting profiles</h1>
+        <p className="mt-4 max-w-xl">
+          Sign in to manage recruiting profiles, photos, and measurement verification. Public
+          player profiles stay on the player directory.
+        </p>
+        <div className="mt-6 flex flex-wrap gap-4">
+          <a
+            className="inline-flex min-h-11 items-center rounded bg-maroon px-4 text-white"
+            href="/login?next=%2Fplayer-profiles"
+          >
+            Sign in to manage recruiting profiles
+          </a>
+          <a className="inline-flex min-h-11 items-center underline" href="/players">
+            Player directory
+          </a>
+          <a className="inline-flex min-h-11 items-center underline" href="/recruiting">
+            Recruiting
+          </a>
+        </div>
       </main>
     );
   const player = data?.players.find((p) => p.id === selected);
