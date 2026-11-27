@@ -164,14 +164,12 @@ export function TryoutForm({
   }
   function nextStep() {
     if (!formRef.current?.reportValidity()) return;
-    if (step === 0) {
+    if (step === 1) {
       const profile = athleteRegistrationInput.safeParse(athleteProfile);
       if (!profile.success) {
         setError(profile.error.issues.map((issue) => issue.message).join(" "));
         return;
       }
-    }
-    if (step === 1) {
       const details = inquiryInput.safeParse(requestData());
       if (!details.success) {
         setError(details.error.issues.map((issue) => issue.message).join(" "));
