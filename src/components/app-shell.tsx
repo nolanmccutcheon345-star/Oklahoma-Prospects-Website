@@ -36,7 +36,7 @@ function ClubWordmark({ name }: { name: string }) {
       {lines.map((line, index) => (
         <span className="club-wordmark-line" key={line}>
           {index > 0 ? (
-            <span className="club-wordmark-gap" aria-hidden="true">
+            <span className="club-wordmark-gap">
               {" "}
             </span>
           ) : null}
