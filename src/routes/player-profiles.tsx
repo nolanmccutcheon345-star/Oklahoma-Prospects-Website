@@ -37,8 +37,12 @@ function Page() {
   }, [user?.id]);
   if (isPending)
     return (
-      <main id="main" className="p-5">
-        Checking access…
+      <main id="main" className="mx-auto max-w-3xl px-5 py-16">
+        <p className="text-xs font-semibold tracking-[0.16em] text-maroon uppercase">Recruiting</p>
+        <h1 className="mt-3 text-4xl">Recruiting profiles</h1>
+        <p role="status" className="mt-4">
+          Checking access…
+        </p>
       </main>
     );
   if (!user || user.isDevFallback)
