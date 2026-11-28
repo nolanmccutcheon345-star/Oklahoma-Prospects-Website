@@ -54,7 +54,7 @@ function HomeRoute() {
   );
 }
 
-function Home({ homepage, journal, people }: { homepage: Awaited<ReturnType<typeof getPublicHomepage>>; journal: Awaited<ReturnType<typeof getHomepageJournal>> }) {
+function Home({ homepage, journal, people }: { homepage: Awaited<ReturnType<typeof getPublicHomepage>>; journal: Awaited<ReturnType<typeof getHomepageJournal>>; people: PublicPerson[] | null }) {
   const catalog = useLiveCatalog();
   return (
     <main id="main">
