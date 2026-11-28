@@ -204,6 +204,7 @@ export async function publicPeopleFor(sql: Sql) {
       const a = available.find((a) => a.id === c.coachId);
       return {
         ...c,
+        specialties: c.instructor && !c.specialties.length ? a?.specialties || [] : c.specialties,
         bookable: c.instructor && Boolean(a),
         serviceIds: c.instructor ? a?.serviceIds || [] : [],
       };
