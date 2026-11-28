@@ -6,6 +6,13 @@ export function LeadershipPlaceholders() {
       </h2>
       <div className="mt-6 grid gap-5 md:grid-cols-2">
         <article className="rounded-xl border border-line bg-paper p-5">
+          <img
+            src="/brand/steve-owner-website-photo.webp"
+            alt="Steve McCutcheon at the ballpark"
+            width={1296}
+            height={1616}
+            className="mb-4 h-auto w-full max-w-xs rounded-lg"
+          />
           <h3 className="text-2xl">Steve McCutcheon</h3>
           <p className="text-sm font-semibold">Owner &amp; Founder</p>
           <p className="mt-3 text-sm">
