@@ -91,5 +91,11 @@
   [headers.values]
     Cache-Control = "public, max-age=31536000, immutable"
 
+
+[[headers]]
+  for = "/__grok/manifest.webmanifest"
+  [headers.values]
+    Content-Type = "application/manifest+json; charset=utf-8"
+
 # Legacy domain visitor redirects live in netlify/edge-functions/canonical-domain.js.
 # API callbacks and POSTs must reach the server without redirects.

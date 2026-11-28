@@ -124,8 +124,6 @@ function Login() {
       {notice?<p role="status" className="mb-4 rounded-lg bg-paper-2 p-3">{notice}</p>:null}
       {resetToken ? <p className="mb-4">Choose a new password, then select Save new password. If this link has expired or was already used, return to sign in and request a fresh reset link.</p> : null}
       {!resetToken ? <>
-      <Button type="button" variant="outlineDark" disabled={busy} onClick={async()=>{setBusy(true);setError("");try{const result=await authClient.requestPasswordReset({email,redirectTo:window.location.origin+"/login"});if(result.error)throw new Error(result.error.message);setNotice("If this email has an account, a reset link has been sent.");}catch(e){setError(e instanceof Error?e.message:"Could not request password reset.");}finally{setBusy(false);}}}>Forgot password? Enter your email below, then tap here</Button>
-
       {authEnabled && GROK_PROVIDERS.length > 0 ? (
         <div className="mt-6 grid gap-2">
           {GROK_PROVIDERS.map((provider) => (
@@ -185,6 +183,31 @@ function Login() {
             className="mt-1.5 block min-h-11 w-full rounded-md border border-line bg-paper-2 px-3"
           />
         </label>
+        {!resetToken ? (
+          <button
+            type="button"
+            className="min-h-11 text-left text-sm font-semibold text-maroon underline"
+            disabled={busy}
+            onClick={async () => {
+              setBusy(true);
+              setError("");
+              try {
+                const result = await authClient.requestPasswordReset({
+                  email,
+                  redirectTo: window.location.origin + "/login",
+                });
+                if (result.error) throw new Error(result.error.message);
+                setNotice("If this email has an account, a reset link has been sent.");
+              } catch (e) {
+                setError(e instanceof Error ? e.message : "Could not request password reset.");
+              } finally {
+                setBusy(false);
+              }
+            }}
+          >
+            Forgot password?
+          </button>
+        ) : null}
         {error ? (
           <p id="login-error" className="text-sm text-maroon" role="alert">
             {error}

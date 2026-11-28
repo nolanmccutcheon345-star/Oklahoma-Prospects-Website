@@ -98,7 +98,9 @@ test("camp registration UI, calendar, and admin event editor use authoritative d
   const button = (text) => [...host.querySelectorAll("button")].find((b) => b.textContent === text);
   try {
     await act(async () => root.render(createElement(EventsPage)));
-    assert.equal(host.querySelector('[aria-label="Training"]'), null);
+    const trainingNav = host.querySelector('nav[aria-label="Training"]');
+    assert.ok(trainingNav);
+    assert.equal(trainingNav.querySelector('a[href="/events"]')?.getAttribute("aria-current"), "page");
     assert.match(host.textContent, /Summer Skills Clinic/);
     assert.match(host.textContent, /Current facility/);
     assert.match(host.textContent, /Office enrolled camp/);

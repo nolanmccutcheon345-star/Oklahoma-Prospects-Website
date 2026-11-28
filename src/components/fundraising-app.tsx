@@ -810,8 +810,8 @@ export default function FundraisingApp({
                   <div>
                     <strong>One player. One link. A season of support.</strong>
                     <p>
-                      Your sponsorship is recorded for {player.name} and paid directly to Oklahoma
-                      Prospects.
+                      Your sponsorship is recorded for {player.name} and paid directly to Prospects
+                      Sports Academy.
                     </p>
                   </div>
                 </div>

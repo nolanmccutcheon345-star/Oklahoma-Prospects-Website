@@ -2,12 +2,13 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { getRecruitingDirectory } from "@/lib/recruiting-api";
 import { pageHead } from "@/lib/seo";
+import { joinMeta } from "@/lib/public-labels";
 export const Route = createFileRoute("/players")({
   head: () =>
     pageHead(
       "/players",
       "Players",
-      "Explore Oklahoma Prospects recruiting profiles, verified measurements and team statistics.",
+      "Explore Prospects recruiting profiles, verified measurements and team statistics.",
     ),
   component: Players,
 });
@@ -28,12 +29,12 @@ function Players() {
         Recruiting profiles shared with parent permission. Measurements are marked verified only
         after staff review.
       </p>
-      <a
-        className="inline-flex min-h-11 items-center rounded bg-maroon px-4 text-white"
-        href="/player-profiles"
-      >
-        Manage profiles & verification
-      </a>
+      <p className="my-3 text-sm">
+        Families and college coaches can browse published profiles below.{" "}
+        <a className="underline" href="/player-profiles">
+          Manage profiles & verification
+        </a>
+      </p>
       <div className="my-5 grid gap-3 sm:grid-cols-2">
         <label>
           Find a player
@@ -60,7 +61,7 @@ function Players() {
       {error ? (
         <p role="alert">{error}</p>
       ) : !rows ? (
-        <p>Loading players…</p>
+        <p role="status" className="min-h-80">Loading players…</p>
       ) : (
         <div className="grid gap-4 sm:grid-cols-2">
           {rows
@@ -98,8 +99,10 @@ function Players() {
                 </div>
                 <h2 className="text-2xl">{p.name}</h2>
                 <p>
-                  {p.profile.gradYear && "Class of " + p.profile.gradYear + " · "}
-                  {p.profile.positions}
+                  {joinMeta(
+                    p.profile.gradYear ? "Class of " + p.profile.gradYear : "",
+                    p.profile.positions,
+                  )}
                 </p>
                 <p>
                   {p.teams

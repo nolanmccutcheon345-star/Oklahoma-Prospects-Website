@@ -96,7 +96,7 @@ export function ShopOffice({ changed }: { changed: () => void }) {
               checkout stay on our website.
             </p>
             <ol className="my-3 list-decimal space-y-2 pl-5 text-sm">
-              <li>Request the free Platform Connect account for Oklahoma Prospects.</li>
+              <li>Request the free Platform Connect account for Prospects Sports Academy.</li>
               <li>
                 Confirm access to the exact Richardson, Nike, Under Armour and adidas styles. The
                 Game and EvoShield are not verified.

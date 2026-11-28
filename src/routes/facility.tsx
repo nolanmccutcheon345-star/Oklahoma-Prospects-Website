@@ -36,8 +36,7 @@ function FacilityPage() {
     <main id="main">
       <PageHero
         eyebrow="Indoor baseball & softball · Broken Arrow"
-        title="Your next rep."
-        accent="Your next level."
+        title="Seven indoor lanes. Built for reps."
         copy="Book a cage, plan a team workout, or work with an instructor."
         image="/brand/facility.jpg"
         actions={
@@ -56,8 +55,7 @@ function FacilityPage() {
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <h2 className="text-3xl">Hours</h2>
-            <p className="mt-1 text-muted">{CLUB.hoursWeekday}</p>
-            <p className="text-muted">{CLUB.hoursWeekend}</p>
+            <p className="mt-1 text-muted">{CLUB.hoursWeekday}<br />{CLUB.hoursWeekend}</p>
           </div>
           <HoursChip tone="onLight" />
         </div>
@@ -134,7 +132,7 @@ function FacilityPage() {
           <p className="text-xs font-semibold tracking-[0.16em] text-powder uppercase">
             {CLUB.venueName}
           </p>
-          <p className="mt-2 font-display text-3xl">Find our house.</p>
+          <p className="mt-2 font-display text-3xl">Visit Prospects Sports Facility.</p>
           <p className="mt-3 text-fg-soft">
             {CLUB.addressLine1}
             <br />

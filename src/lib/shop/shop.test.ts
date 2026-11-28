@@ -600,6 +600,36 @@ test("Printify management: owner scope, product CRUD, pricing revisions and priv
     await db.close();
   }
 });
+test("public shop images cap at 900 when w is missing or invalid; private images stay original", async () => {
+  const { sql, db } = await fixture();
+  try {
+    const id = await publishPrintify(sql);
+    const [p] = await sql<
+      import("./contracts").ShopProduct
+    >`select * from shop_products where id=${id}`;
+    const imageId = p.gallery[0].id;
+    const inspect = async (userId: string | null, width?: number) => {
+      const response = await shopImageResponse(sql, imageId, userId, width);
+      assert.equal(response.status, 200);
+      const body = Buffer.from(await response.arrayBuffer());
+      return { width: body.readUInt32BE(16), cache: response.headers.get("Cache-Control") };
+    };
+    for (const width of [undefined, 0, Number("abc"), -100, 1600, 900]) {
+      const out = await inspect(null, width);
+      assert.equal(out.width, 900, `public width for ${String(width)}`);
+      assert.equal(out.cache, "public, max-age=86400, stale-while-revalidate=604800");
+    }
+    assert.equal((await inspect(null, 401)).width, 600);
+    await archiveProduct(sql, "owner", id, p.revision, true);
+    for (const width of [undefined, 0, Number("abc"), -100]) {
+      const out = await inspect("owner", width);
+      assert.equal(out.width, 1000, `private original for ${String(width)}`);
+      assert.equal(out.cache, "private, no-store");
+    }
+  } finally {
+    await db.close();
+  }
+});
 test("Printify quotes pass exact shipping with markup overrides and reject manufacturing changes", async () => {
   const { sql, db } = await fixture();
   try {

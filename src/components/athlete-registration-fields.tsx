@@ -149,16 +149,14 @@ export function AthleteRegistrationFields({
           <option value="unknown">Not sure yet</option>
           {value.graduationYear &&
             value.graduationYear !== "unknown" &&
-            Number(value.graduationYear) < ACTIVE_SEASON_YEAR - 11 && (
+            Number(value.graduationYear) < ACTIVE_SEASON_YEAR - 1 && (
               <option value={value.graduationYear}>{value.graduationYear} (saved year)</option>
             )}
           {Array.from({ length: 25 }, (_, i) => ACTIVE_SEASON_YEAR + i).map((y) => (
             <option key={y}>{y}</option>
           ))}
-          <optgroup label="Already graduated">
-            {Array.from({ length: 11 }, (_, i) => ACTIVE_SEASON_YEAR - 1 - i).map((y) => (
-              <option key={y}>{y}</option>
-            ))}
+          <optgroup label="Already graduated / post-grad">
+            <option value={String(ACTIVE_SEASON_YEAR - 1)}>{ACTIVE_SEASON_YEAR - 1} (post-grad)</option>
           </optgroup>
         </select>
       </label>

@@ -31,6 +31,8 @@ export function PageHero({
           <BrandImage priority
             src={image}
             alt=""
+            width={1536}
+            height={1152}
             className="absolute inset-0 -z-20 size-full object-cover object-[center_36%]"
           />
           <div className="absolute inset-0 -z-10 bg-gradient-to-r from-ink via-ink/88 to-ink/45" />

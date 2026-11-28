@@ -70,8 +70,8 @@ function Home({ homepage, journal }: { homepage: Awaited<ReturnType<typeof getPu
             Broken Arrow · Indoor baseball & softball
           </p>
           <h1 className="mt-3 max-w-xl font-display text-5xl leading-[0.9] font-extrabold italic sm:text-6xl">
-            <span className="block">BUILD YOUR GAME.</span>
-            <span className="block">TRAIN WITH PURPOSE.</span>
+            <span className="block">BASEBALL & SOFTBALL.</span>
+            <span className="block">BUILT FOR THE WORK.</span>
           </h1>
           <p className="mt-5 max-w-md text-[1.05rem] leading-relaxed text-fg-soft">
             Indoor baseball and softball training in Broken Arrow. Rent a batting cage, book private
@@ -80,6 +80,9 @@ function Home({ homepage, journal }: { homepage: Awaited<ReturnType<typeof getPu
           <div className="mt-7 flex flex-wrap gap-3">
             <Button asChild>
               <Link to="/book">Book a cage</Link>
+            </Button>
+            <Button asChild variant="outline">
+              <Link to="/training">Book coaching</Link>
             </Button>
             <Button asChild variant="outline">
               <Link to="/tryouts">Tryouts</Link>

@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 
 // Runs against the generated Netlify server, without a listener or any account,
 // database, or payment mutation. Browser hydration still needs a hosted preview.
@@ -7,6 +8,20 @@ process.env.CONTEXT = "deploy-preview";
 const { default: fetch, config } = await import("../.netlify/v1/functions/server.mjs");
 assert.equal(config.path, "/*");
 assert.equal(config.preferStatic, true);
+const publishDirectory = new URL("../dist/client/", import.meta.url);
+const manifestPath = "/__grok/manifest.webmanifest";
+const manifest = JSON.parse(await readFile(new URL(manifestPath.slice(1), publishDirectory), "utf8"));
+assert.equal(manifest.display, "standalone");
+assert.equal(manifest.start_url, "/");
+for (const size of ["192x192", "512x512"]) {
+  const icon = manifest.icons.find((entry) => entry.sizes === size && entry.type === "image/png");
+  assert.ok(icon, `Expected a ${size} app icon`);
+  const png = await readFile(new URL(icon.src.slice(1), publishDirectory));
+  const pixels = Number(size.split("x")[0]);
+  assert.equal(png.readUInt32BE(16), pixels);
+  assert.equal(png.readUInt32BE(20), pixels);
+}
+console.log("PASS packaged web app manifest and icons");
 const nonces = new Set();
 for (const [path, status] of [
   ["/", 200],
@@ -35,6 +50,7 @@ for (const [path, status] of [
       "Every rendered script must match the CSP nonce",
     );
   assert.ok(html.includes('property="csp-nonce"'), "Client hydration needs the server nonce");
+  if (path === "/") assert.ok(html.includes(`href="${manifestPath}"`), "Home links to the packaged manifest");
   if (path === "/games") {
     assert.match(html, /Games are temporarily unavailable\./,
       "Missing production database must show a truthful Games unavailable state, not HTTP 500");

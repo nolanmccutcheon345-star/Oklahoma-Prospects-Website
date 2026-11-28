@@ -1,5 +1,5 @@
 import { Link } from "@tanstack/react-router";
-import { CircleDot, Users, Diamond, Star, Shield, Grid2X2 } from "lucide-react";
+import { Users, Diamond, Star, Shield, Grid2X2 } from "lucide-react";
 import type { PublicCatalog } from "@/lib/ops";
 import { formatDollars } from "@/lib/pricing";
 import { readServicePresentation, type ServicePresentation } from "@/lib/service-presentation";
@@ -17,8 +17,18 @@ export function CardIcon({
   icon: ServicePresentation["icon"];
   className?: string;
 }) {
+  if (icon === "baseball") {
+    return (
+      <img
+        src="/brand/mark.png"
+        alt=""
+        width={48}
+        height={48}
+        className={className + " object-contain"}
+      />
+    );
+  }
   const Icon = {
-    baseball: CircleDot,
     team: Users,
     field: Diamond,
     star: Star,

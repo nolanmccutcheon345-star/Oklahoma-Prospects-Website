@@ -269,6 +269,11 @@ export function AdminServicesDesk() {
           <p className="mt-1 text-sm text-muted">
             Lessons, packages, memberships, cages. Changes show on Train, Book, and Pay.
           </p>
+          <p className="mt-2 rounded-lg bg-paper-2 p-3 text-sm">
+            To feature a cage pass or monthly plan on the public Memberships page, edit that service
+            and turn on Featured. Use one featured plan at a time. No catalog change is saved until
+            you press Save.
+          </p>
         </div>
         <Button
           type="button"

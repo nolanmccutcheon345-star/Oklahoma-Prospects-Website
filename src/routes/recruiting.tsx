@@ -16,7 +16,7 @@ function RecruitingPage() {
         eyebrow="Development"
         title="Start with"
         accent="where they are."
-        copy="We do not publish other programs’ alumni. A conversation with a Prospects coach is the next honest step."
+        copy="Prospects coaches help families with verified measurements, honest evaluations, and college-fit guidance. A conversation with a coach is the next step."
         actions={
           <>
             <Button asChild>
@@ -51,7 +51,7 @@ function RecruitingPage() {
             },
           ].map((step) => (
             <li key={step.n} className="flex gap-5 py-6">
-              <span className="font-display text-5xl font-extrabold text-maroon">
+              <span className="w-12 shrink-0 font-display text-5xl font-extrabold whitespace-nowrap text-maroon tabular-nums">
                 {step.n}
               </span>
               <div>
