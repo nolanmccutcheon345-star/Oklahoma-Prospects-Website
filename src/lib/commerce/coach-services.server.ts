@@ -1,3 +1,4 @@
+import { RACHAEL_CAGE_SERVICE, RACHAEL_COACH_ID } from "../rachael-cage";
 import { availableOperationalServices } from "../coordinator/organization-services.server";
 import {
   operationalCoachAvailability,
@@ -61,6 +62,7 @@ export async function bookableCoaches(
     where staff.active=true and staff.email<>''
       and (account.id is null or account."disabledAt" is null)
       and service.active=true and service.kind='lesson'
+      and (service.id<>${RACHAEL_CAGE_SERVICE} or offer.profit_split=0)
     group by staff.id, staff.name, staff.email order by staff.name, staff.id`;
   const seen = new Set<string>();
   return rows.flatMap((row) => {
@@ -73,7 +75,9 @@ export async function bookableCoaches(
     );
     if (coach?.active === false || seen.has(id) || setting?.directory_active === false) return [];
     const serviceIds = row.service_ids.filter(
-      (id) => !setting?.unavailable_service_ids.includes(id),
+      (serviceId) =>
+        !setting?.unavailable_service_ids.includes(serviceId) &&
+        (serviceId !== RACHAEL_CAGE_SERVICE || id === RACHAEL_COACH_ID),
     );
     if (!serviceIds.length) return [];
     seen.add(id);

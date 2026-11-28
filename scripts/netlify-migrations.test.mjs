@@ -158,6 +158,8 @@ for (const baselineVersion of [66, 76, 79])
             "0120_facility_blocks.sql",
             "0124_jose_martin_softball_team_name.sql",
             "0125_prospects_8u_team_name.sql",
+            "0122_roster_assignments.sql",
+            "0122_rachael_cage_booking.sql",
           ],
         );
       for (const { name } of late) {
@@ -297,6 +299,67 @@ test("Jose Martin's team rename preserves the existing roster, dues, and team ID
         payload: { ...payload, teams: [baseball, { ...softball, name: "12U B Maroon" }] },
       },
     ]);
+  } finally {
+    await db.close();
+  }
+});
+
+test("a database released through the two team renames can append the pending migrations", async () => {
+  const source = new URL("../migrations/", import.meta.url);
+  const ordered = pendingMigrations(await readdir(source), [])
+    .map(({ name }) => ({
+      name,
+      slug: netlifyMigrationSlug(name),
+    }))
+    .sort((a, b) => a.slug.localeCompare(b.slug));
+  assert.deepEqual(
+    ordered.slice(-4).map(({ slug }) => slug),
+    [
+      "0124_jose-martin-softball-team-name",
+      "0125_prospects-8u-team-name",
+      "0126_roster-assignments",
+      "0127_rachael-cage-booking",
+    ],
+  );
+  const db = new PGlite();
+  try {
+    for (const { name } of ordered.slice(0, -2)) {
+      await db.exec(wrapMigration(name, await readFile(new URL(name, source), "utf8")));
+    }
+    const teamRelease = (await db.query("select * from _migrations order by name")).rows;
+    for (const { name, slug } of ordered.slice(-2)) {
+      const generated = await readFile(
+        new URL(`../netlify/database/migrations/${slug}/migration.sql`, import.meta.url),
+        "utf8",
+      );
+      assert.equal(generated, wrapMigration(name, await readFile(new URL(name, source), "utf8")));
+      await db.exec(generated);
+      await db.exec(generated);
+    }
+    assert.deepEqual(
+      (
+        await db.query(
+          "select * from _migrations where name not in ('0122_rachael_cage_booking.sql', '0122_roster_assignments.sql') order by name",
+        )
+      ).rows,
+      teamRelease,
+    );
+    assert.deepEqual(
+      (
+        await db.query(
+          "select name from _migrations where name in ('0122_rachael_cage_booking.sql', '0122_roster_assignments.sql') order by name",
+        )
+      ).rows,
+      [{ name: "0122_rachael_cage_booking.sql" }, { name: "0122_roster_assignments.sql" }],
+    );
+    assert.deepEqual(
+      (
+        await db.query(
+          "select active, requires_assessment from club_services where id='rachael-cage-60'",
+        )
+      ).rows,
+      [{ active: false, requires_assessment: false }],
+    );
   } finally {
     await db.close();
   }

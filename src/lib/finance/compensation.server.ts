@@ -1,5 +1,6 @@
 import { assertFinancialInstructorRecognition } from "./identity-scope.server";
 import type { Sql } from "../db";
+import { isRachaelCageLesson } from "../rachael-cage";
 import {
   loadFinancialContextInTransaction,
   loadFinancialLessonsInTransaction,
@@ -128,7 +129,13 @@ export async function recognizeFinancialLessonInTransaction(
       file?.coachPayouts?.find((p: any) => p.coachId === coachId && p.serviceId === productId)
         ?.splitPct;
   }
-  if (split !== undefined && Number.isFinite(split) && split >= 0 && split <= 100) {
+  if (
+    !isRachaelCageLesson(order.snapshot.kind, productId) &&
+    split !== undefined &&
+    Number.isFinite(split) &&
+    split >= 0 &&
+    split <= 100
+  ) {
     const gross =
       order.snapshot.recurring || order.snapshot.kind === "package"
         ? Math.round(order.snapshot.regularCents / Math.max(1, order.snapshot.credits))

@@ -15,6 +15,9 @@ const lateVersions = {
   // Main published tryout request-only version 0120 before PR 273. Preserve
   // the facility ledger key and allocate a new append-only Netlify version.
   "0120_facility_blocks.sql": "0121",
+  // The team renames can ship first. Preserve both application ledger keys.
+  "0122_roster_assignments.sql": "0126",
+  "0122_rachael_cage_booking.sql": "0127",
   "0028_staff_directory.sql": "0041",
   "0030_fundraising_publication_consent.sql": "0036",
   "0031_fundraising_roster_links.sql": "0037",

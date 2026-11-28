@@ -1,3 +1,4 @@
+import { RACHAEL_CAGE_SERVICE, RACHAEL_COACH_ID, RACHAEL_CAGE_TERMS } from "@/lib/rachael-cage";
 import { CatalogStatus } from "@/components/catalog-status";
 import { AthleteSelector, athleteScope } from "@/components/pd/athlete-selector";
 import { getPublicPeople } from "@/lib/person-api";
@@ -76,8 +77,11 @@ export function CatalogAndBook({
       ? catalog.lessons.filter((s) => selectedInstructor.serviceIds.includes(s.id))
       : []
     : catalog.lessons;
+  const rachaelCage = instructor === RACHAEL_COACH_ID &&
+    instructorLessons.some((item) => item.id === RACHAEL_CAGE_SERVICE);
   const lessons = instructorLessons.filter(
     (item) =>
+      item.id !== RACHAEL_CAGE_SERVICE &&
       (sport === "all" ||
         people.some(
           (p) =>
@@ -170,11 +174,29 @@ export function CatalogAndBook({
           <h2 className="text-xl">Online lesson checkout temporarily unavailable</h2>
           <p>
             Lessons and development memberships cannot be purchased online until secure checkout is
-            verified. You can review assessment options below. Cage availability remains on Book.
+            verified. {!rachaelCage && "You can review assessment options below."} Cage availability remains on Book.
           </p>
         </aside>
       ) : null}
-      {instructor && (
+      {rachaelCage && view === "lessons" ? (
+        <section id="find-training" className="scroll-mt-40 rounded-2xl border border-line bg-paper-2 p-5">
+          <h2 className="text-3xl">Book with Coach Rachael</h2>
+          <p className="mt-2">{RACHAEL_CAGE_TERMS}</p>
+          {canPurchase(catalog.purchaseAvailability, "lesson", RACHAEL_CAGE_SERVICE) ? (
+            <Button asChild className="mt-4">
+              <Link to="/pay" search={{ kind: "lesson", id: RACHAEL_CAGE_SERVICE, instructor: RACHAEL_COACH_ID }}>
+                Choose a Time
+              </Link>
+            </Button>
+          ) : (
+            <p className="mt-4" role="status">Online booking is unavailable right now. Contact Front Office for help.</p>
+          )}
+          <Link to="/training" search={{ view: "lessons" }} className="ml-4 inline-flex min-h-11 items-center underline">
+            Choose any instructor
+          </Link>
+        </section>
+      ) : null}
+      {instructor && !rachaelCage && (
         <aside className="mb-5 rounded-xl border p-4">
           {instructorsLoaded && (
             <p>
@@ -196,7 +218,7 @@ export function CatalogAndBook({
           </a>
         </aside>
       )}
-      <div hidden={view === "plans"}>
+      <div hidden={view === "plans" || rachaelCage}>
         <section
           id="find-training"
           aria-label="Find my training"
