@@ -1,4 +1,5 @@
 import type { Sql } from "../db";
+import { isRachaelCageLesson } from "../rachael-cage";
 import { budgetCategory, teamBudgetLedger, teamExpenseTotals } from "./team-budget";
 import { createHash } from "node:crypto";
 import {
@@ -143,6 +144,7 @@ export async function sourceData(
     recordedAt: string;
   }[] = [];
   for (const live of earnings) {
+    if (isRachaelCageLesson(live.snapshot?.kind, live.product_id)) continue;
     // Attendance and provider ledgers stay live; compensation identity and
     // duration are the separately approved financial booking, never reassignment.
     const lesson = lessonContexts.get(live.booking_id)!;
