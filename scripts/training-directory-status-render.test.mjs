@@ -111,3 +111,43 @@ test("a successfully loaded directory can report a genuinely unknown instructor"
     },
   );
 });
+
+test("Rachael's dedicated booking shows the separate cage price without visible evaluations", async () => {
+  const service = {
+    id: "rachael-cage-60",
+    name: "Cage fee",
+    discipline: "Pitching",
+    price: 35,
+    minutes: 60,
+    purpose: "Cage fee only",
+    requiresAssessment: false,
+  };
+  const coach = {
+    ...person,
+    name: "Rachael Blake",
+    coachId: "c-d5ae129775a2e0118a85541172a72fd5",
+    serviceIds: ["s2", service.id],
+  };
+  catalog.lessons.push(service);
+  catalog.purchaseAvailability = { ready: true, scope: "all" };
+  try {
+    await render({ instructor: coach.coachId, initialPeople: [coach] }, async () => [coach],
+      async ({ host }) => {
+        const offer = host.querySelector("#find-training:not([hidden] *)");
+        assert.match(offer?.textContent ?? "", /Book with Coach Rachael/);
+        assert.match(offer?.textContent ?? "", /\$35 pays Prospects for one hour of cage time/);
+        assert.match(offer?.textContent ?? "", /Pay Coach Rachael separately/);
+        assert.match(offer?.textContent ?? "", /No evaluation required/);
+        assert.match(offer?.textContent ?? "", /Choose a Time/);
+        assert.equal(host.querySelector("#assessments:not([hidden] *)"), null);
+      });
+    await render({ initialPeople: [person, coach] }, async () => [person, coach],
+      async ({ host }) => {
+        assert.doesNotMatch(host.textContent, /Book with Coach Rachael/);
+        assert.match(host.textContent, /Fixture Pitching Lesson/);
+      });
+  } finally {
+    catalog.lessons.pop();
+    delete catalog.purchaseAvailability;
+  }
+});
