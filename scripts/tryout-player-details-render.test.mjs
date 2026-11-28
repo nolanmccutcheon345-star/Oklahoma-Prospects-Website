@@ -33,14 +33,14 @@ test("three-step tryout retains mandatory player details; USSSA unknown and new-
       assert.match(document.querySelector('h3').textContent,/Step 1/,'empty first step cannot advance');
       await change(control('Age group'),'12U');
       await change(control('Player name'),'Test Player');
-      await change(control('Date of birth (private)'),'2014-09-01');
-      await change(control('Expected high-school graduation year'),'unknown');
-      await change(control('School status'),'homeschool');
       await change(control('Parent / Guardian'),'Test Guardian');
       await change(control('Phone'),'9185550123');
       await change(control('Email'),'test@example.invalid');
       await act(async()=>[...document.querySelectorAll('button')].find(b=>b.textContent==='Continue to player details').click());
       assert.match(document.querySelector('h3').textContent,/Step 2/,JSON.stringify([...document.querySelectorAll('input,select')].filter(e=>!e.checkValidity()).map(e=>({label:e.closest('label')?.textContent,value:e.value}))));
+      await change(control('Date of birth (private)'),'2014-09-01');
+      await change(control('Expected high-school graduation year'),'unknown');
+      await change(control('School status'),'homeschool');
       assert.match(document.body.textContent, /Player details — mandatory/);
       for (const name of ["Player positions", "Player notes", "USSSA Player ID status"]) {
         const field = control(name);

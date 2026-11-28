@@ -1,4 +1,5 @@
-import { publicCoachName, publicProfileText } from "@/lib/public-profile-text";
+import { publicCoachName, publicProfileText } from "@/lib/public-profile-text"
+import { publicTeamName } from "@/lib/public-labels";
 import { useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { CoachBio } from "./coach-bio";
@@ -92,7 +93,7 @@ export function PeopleDirectory({
                       params={{ teamId: t.id }}
                       className="inline-flex min-h-6 items-center font-semibold underline"
                     >
-                      {t.name}
+                      {publicTeamName(t.name)}
                     </Link>
                     <p className="text-sm">{t.role}</p>
                     <div className="mt-1 flex flex-wrap gap-1">

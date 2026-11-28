@@ -212,7 +212,7 @@ export async function createShopQuote(
   const quote: Quote = {
     productId: "shop",
     kind: "merchandise",
-    title: "Oklahoma Prospects merchandise",
+    title: "Prospects Sports Academy merchandise",
     totalCents: total,
     regularCents: total,
     setupCents: 0,

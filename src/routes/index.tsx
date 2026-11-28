@@ -17,6 +17,7 @@ import { HoursChip } from "@/components/hours-chip";
 import { MembershipPlans } from "@/components/membership-plans";
 
 import { Button } from "@/components/ui/button";
+import { ThanksgivingCampPromo } from "@/components/thanksgiving-camp-promo";
 import { CANCEL_POLICY, CLUB, LINKS, PROOF } from "@/lib/club";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
 
@@ -69,8 +70,8 @@ function Home({ homepage, journal }: { homepage: Awaited<ReturnType<typeof getPu
             Broken Arrow · Indoor baseball & softball
           </p>
           <h1 className="mt-3 max-w-xl font-display text-5xl leading-[0.9] font-extrabold italic sm:text-6xl">
-            <span className="block">BUILD YOUR GAME.</span>
-            <span className="block">TRAIN WITH PURPOSE.</span>
+            <span className="block">BASEBALL & SOFTBALL.</span>
+            <span className="block">BUILT FOR THE WORK.</span>
           </h1>
           <p className="mt-5 max-w-md text-[1.05rem] leading-relaxed text-fg-soft">
             Indoor baseball and softball training in Broken Arrow. Rent a batting cage, book private
@@ -79,6 +80,9 @@ function Home({ homepage, journal }: { homepage: Awaited<ReturnType<typeof getPu
           <div className="mt-7 flex flex-wrap gap-3">
             <Button asChild>
               <Link to="/book">Book a cage</Link>
+            </Button>
+            <Button asChild variant="outline">
+              <Link to="/training">Book coaching</Link>
             </Button>
             <Button asChild variant="outline">
               <Link to="/tryouts">Tryouts</Link>
@@ -93,12 +97,7 @@ function Home({ homepage, journal }: { homepage: Awaited<ReturnType<typeof getPu
         <div className="absolute inset-x-0 bottom-0 h-1 bg-gradient-to-r from-maroon from-70% to-powder" />
       </section>
 
-      <aside className="border-y border-line bg-powder/30 px-5 py-5" aria-label="Thanksgiving Camp">
-        <div className="mx-auto flex max-w-3xl flex-wrap items-center justify-between gap-3">
-          <p className="font-semibold">Baseball & softball · Ages 6–14U · $45/day or $120 for all 3 days</p>
-          <Button asChild variant="maroon"><Link to="/thanksgiving-camp">Thanksgiving Camp — Nov. 23–25 — Register Now</Link></Button>
-        </div>
-      </aside>
+      <ThanksgivingCampPromo />
 
       <section className="bg-ink">
         <div className="mx-auto grid max-w-3xl grid-cols-4 gap-px border-t border-fg-inverse/10">

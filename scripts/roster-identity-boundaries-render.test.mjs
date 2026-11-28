@@ -23,6 +23,7 @@ async function fixture(entry, label) {
       path.endsWith("public-profile-text") ? 'export const publicCoachName=x=>x;' :
       path.endsWith("public-request") ? 'export const publicRequest=x=>x;' :
       path.endsWith("public-record") ? 'export const publicRecordLabel=()=>null;' :
+      path.endsWith("public-labels") ? 'export const publicTeamName=x=>x;export const sortSeasonLabels=x=>[...x];' :
       path.endsWith("club") ? 'export const CLUB={name:"Synthetic academy"};' :
       'export const StatsTable=()=>null;export const CatalogStatus=()=>null;export const Button=()=>null;export const CoachBio=()=>null;'
     }));

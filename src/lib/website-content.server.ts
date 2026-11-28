@@ -11,8 +11,10 @@ import {
   type PublicTestimonial,
   aboutContentInput,
   aboutSaveInput,
+  type AboutContent,
   type AboutEditorData,
 } from "./website-content-contracts";
+import { retireBrand } from "./seo";
 
 async function owner<T>(sql: Sql, actor: string, work: (tx: Sql) => Promise<T>) {
   return sql.transaction(async (tx) => {
@@ -32,12 +34,27 @@ async function aboutPage(sql: Sql): Promise<AboutEditorData> {
     published: row.published ? aboutContentInput.parse(row.published) : null,
   };
 }
+function retireBrandInAbout(content: AboutContent): AboutContent {
+  return aboutContentInput.parse({
+    eyebrow: retireBrand(content.eyebrow),
+    title: retireBrand(content.title),
+    intro: retireBrand(content.intro),
+    storyTitle: retireBrand(content.storyTitle),
+    story: retireBrand(content.story),
+    missionTitle: retireBrand(content.missionTitle),
+    mission: retireBrand(content.mission),
+    philosophyTitle: retireBrand(content.philosophyTitle),
+    philosophy: retireBrand(content.philosophy),
+    seoTitle: retireBrand(content.seoTitle),
+    seoDescription: retireBrand(content.seoDescription),
+  });
+}
 export async function publicAboutFor(sql: Sql) {
   // Public responses never select draft content, editor identities or audit records.
   const [row] = await sql<{
     content: unknown;
   }>`select published_content as content from website_pages where id='about'`;
-  return row?.content ? aboutContentInput.parse(row.content) : null;
+  return row?.content ? retireBrandInAbout(aboutContentInput.parse(row.content)) : null;
 }
 export async function aboutEditorFor(sql: Sql, actor: string) {
   return owner(sql, actor, (tx) => aboutPage(tx));

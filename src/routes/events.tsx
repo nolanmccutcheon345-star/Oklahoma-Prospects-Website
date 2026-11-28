@@ -7,6 +7,7 @@ import { submitSquarePayment } from "@/lib/commerce/api";
 import { useCurrentUser } from "@/lib/auth/use-current-user";
 import { SquareCard } from "@/components/commerce/square-card";
 import { PageHero } from "@/components/page-hero";
+import { TrainingNav } from "@/components/training-nav";
 import { Button } from "@/components/ui/button";
 import { formatMoney } from "@/lib/pricing";
 import { formatClockTime } from "@/lib/time-display";
@@ -16,14 +17,19 @@ import {
   campAgeError,
   eventTypes,
 } from "@/lib/training-events-contracts";
-import { thanksgivingGroup, thanksgivingDetailsSchema } from "@/lib/thanksgiving-camp";
+import { publicEventTypeLabel, publicSportLabel } from "@/lib/public-labels";
+import {
+  thanksgivingGroup,
+  thanksgivingDetailsSchema,
+  thanksgivingEventAgeLabel,
+} from "@/lib/thanksgiving-camp";
 import { chicagoDate, chicagoInstant } from "@/lib/scheduling";
 export const Route = createFileRoute("/events")({
   head: () =>
     pageHead(
       "/events",
       "Camps & Clinics",
-      "Explore upcoming baseball and softball camps and clinics at Oklahoma Prospects.",
+      "Explore upcoming baseball and softball camps and clinics at Prospects Sports Academy.",
     ),
   component: EventsPage,
 });
@@ -95,6 +101,7 @@ export function EventsPage() {
         compact
         copy="Explore upcoming baseball and softball camps, clinics, and skills sessions. See dates, ages, pricing, and registration details."
       />
+      <TrainingNav current="events" />
       <div className="mx-auto grid max-w-5xl gap-6 px-5 py-6">
         {error && (
           <p role="alert" className="text-maroon">
@@ -174,7 +181,7 @@ export function EventsPage() {
           </section>
         )}
         {!events ? (
-          <p role="status">Loading events…</p>
+          <p role="status" className="min-h-96">Loading events…</p>
         ) : !shown.length ? (
           <p className="rounded-xl border p-5">
             No upcoming events {view === "calendar" ? "in this selection" : "are published yet"}.
@@ -188,7 +195,7 @@ export function EventsPage() {
                 className="grid content-start gap-3 rounded-2xl border border-line bg-white p-5"
               >
                 <p className="text-xs font-semibold uppercase text-maroon">
-                  {eventTypes[e.type]} · {e.sport}
+                  {publicEventTypeLabel(eventTypes[e.type] || e.type)} · {publicSportLabel(e.sport)}
                 </p>
                 <h2 className="text-3xl">{e.name}</h2>
                 <p className="whitespace-pre-wrap">{e.description}</p>
@@ -196,10 +203,8 @@ export function EventsPage() {
                   <div>
                     <dt className="font-semibold">Ages</dt>
                     <dd>
-                      {campAgeLabel(e)}
-                      {e.minAge !== undefined || e.maxAge !== undefined
-                        ? " on the first camp day"
-                        : ""}
+                      {thanksgivingEventAgeLabel(e.id) ||
+                        `${campAgeLabel(e)}${e.minAge !== undefined || e.maxAge !== undefined ? " on the first camp day" : ""}`}
                     </dd>
                   </div>
                   <div>
@@ -433,8 +438,8 @@ export function EventRegistration({
   return (
     <div className="mt-4 grid gap-4">
       <p>
-        {campAgeLabel(event)}
-        {event.minAge !== undefined || event.maxAge !== undefined ? " on the first camp day" : ""}
+        {thanksgivingEventAgeLabel(event.id) ||
+          `${campAgeLabel(event)}${event.minAge !== undefined || event.maxAge !== undefined ? " on the first camp day" : ""}`}
       </p>
       <Sessions event={event} />
       {group && (

@@ -79,16 +79,38 @@ export const navigationGroups: Record<NavigationGroupId, NavigationGroup> = {
   },
 };
 
+
+function destinationKey(link: NavigationLink) {
+  return link.search ? `${link.to}?${JSON.stringify(link.search)}` : link.to;
+}
+
+/** In the full mobile menu, omit group links that already appear as a top-level item or in a later group. */
+export function mobileMenuChildren(group: NavigationGroup, navigation: NavigationItem[]) {
+  const topLevel = new Set(
+    navigation
+      .filter((item): item is NavigationLink => !("children" in item))
+      .map(destinationKey),
+  );
+  const groups = navigation.filter((item): item is NavigationGroup => "children" in item);
+  const later = new Set(
+    groups
+      .slice(groups.findIndex((item) => item.id === group.id) + 1)
+      .flatMap((item) => item.children.map(destinationKey)),
+  );
+  return group.children.filter(
+    (child) => !topLevel.has(destinationKey(child)) && !later.has(destinationKey(child)),
+  );
+}
+
 /** The same destinations feed desktop navigation and the mobile accordion. */
 export function publicNavigation(signedIn: boolean): NavigationItem[] {
   return [
     { id: "home", label: "Home", to: "/" },
-    { id: "articles", label: "Articles & News", to: "/articles" },
-    navigationGroups.Training,
     navigationGroups.Teams,
+    navigationGroups.Training,
     navigationGroups.Memberships,
-    { id: "shop", label: "Shop", to: "/merchandise" },
-    { id: "games", label: "Games", to: "/games" },
+    { id: "facility", label: "Facility", to: "/facility" },
+    { id: "articles", label: "Articles & News", to: "/articles" },
     signedIn
       ? { id: "account", label: "Account", to: "/account" }
       : { id: "account", label: "Sign In", to: "/login", search: { next: "/account" } },
@@ -103,7 +125,7 @@ export function navigationActive(item: NavigationItem, path: string, search = ""
     if (item.id === "Memberships") return path === "/memberships" || plans;
     if (item.id === "Training")
       return (
-        !plans && ["/training", "/book", "/facility", "/instructors", "/events"].includes(path)
+        !plans && ["/training", "/book", "/instructors", "/events"].includes(path)
       );
     return [
       "/teams",
@@ -115,6 +137,7 @@ export function navigationActive(item: NavigationItem, path: string, search = ""
       "/player",
       "/player-profiles",
       "/recruiting",
+      "/handbook",
     ].some((p) => path === p || path.startsWith(p + "/"));
   }
   if (item.id === "training-memberships") return plans;

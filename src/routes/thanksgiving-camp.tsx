@@ -2,7 +2,11 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { CalendarDays, Clock3, MapPin, Phone } from "lucide-react";
 import { pageHead } from "@/lib/seo";
-import { THANKSGIVING_CAMP, thanksgivingGroup } from "@/lib/thanksgiving-camp";
+import {
+  THANKSGIVING_CAMP,
+  thanksgivingGroup,
+  thanksgivingCampIsCurrent,
+} from "@/lib/thanksgiving-camp";
 import { getThanksgivingCamp } from "@/lib/thanksgiving-camp-api";
 import { getEventFamily } from "@/lib/training-events-api";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
@@ -57,6 +61,9 @@ export function ThanksgivingCampPage() {
     };
   }, [userId]);
   const event = camp?.events.find((e) => e.id === selected);
+  const campIsCurrent = thanksgivingCampIsCurrent();
+  const registrationAvailable =
+    !!camp?.paymentsAvailable && camp.events.some((e) => e.registrationOpen);
   return (
     <main id="main">
       <section className="relative overflow-hidden bg-ink text-white">
@@ -78,9 +85,11 @@ export function ThanksgivingCampPage() {
               November 23–25, 2026
             </p>
             <p className="mt-2 text-fg-soft">Monday–Wednesday · Broken Arrow, Oklahoma</p>
-            <Button asChild className="mt-7">
-              <a href="#register">Choose your session</a>
-            </Button>
+            {(campIsCurrent || registrationAvailable) && (
+              <Button asChild className="mt-7">
+                <a href="#register">Choose your session</a>
+              </Button>
+            )}
           </div>
           <div className="self-center rounded-2xl border border-white/20 bg-white/5 p-6">
             <p className="text-sm font-semibold tracking-wide text-powder uppercase">
@@ -201,14 +210,25 @@ export function ThanksgivingCampPage() {
               Checking registration availability…
             </p>
           )}
-          {camp && (!camp.paymentsAvailable || !camp.events.some((e) => e.registrationOpen)) ? (
-            <p role="status" className="mt-5 rounded-xl bg-paper-2 p-4">
-              Online registration is not open at this time. Please contact Steve at{" "}
-              <a href="tel:+19187602719" className="underline">
-                (918) 760-2719
-              </a>{" "}
-              for the latest camp availability. This page has not reserved a place or taken payment.
-            </p>
+          {camp && !registrationAvailable ? (
+            campIsCurrent ? (
+              <p role="status" className="mt-5 rounded-xl bg-paper-2 p-4">
+                Online registration is not open at this time. Please contact Steve at{" "}
+                <a href="tel:+19187602719" className="underline">
+                  (918) 760-2719
+                </a>{" "}
+                for the latest camp availability. This page has not reserved a place or taken
+                payment.
+              </p>
+            ) : (
+              <p role="status" className="mt-5 rounded-xl bg-paper-2 p-4">
+                This camp has ended. Check{" "}
+                <Link to="/events" className="underline">
+                  Camps & Clinics
+                </Link>{" "}
+                for upcoming events.
+              </p>
+            )
           ) : (
             camp && (
               <>

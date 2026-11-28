@@ -26,32 +26,37 @@ export function CatalogAndBook({
   instructor?: string;
   initialPeople?: PublicPerson[] | null;
 }) {
-  const [peopleError, setPeopleError] = useState(false),
-    [peopleAttempt, setPeopleAttempt] = useState(0);
-  const [people, setPeople] = useState<PublicPerson[]>(initialPeople || []),
-    [instructorsLoaded, setInstructorsLoaded] = useState(Boolean(initialPeople));
+  const [peopleAttempt, setPeopleAttempt] = useState(0);
+  const [people, setPeople] = useState<PublicPerson[]>(initialPeople ?? []);
+  const [peopleStatus, setPeopleStatus] = useState<"loading" | "ready" | "error">(
+    initialPeople ? "ready" : "loading",
+  );
   useEffect(() => {
-    if (initialPeople && peopleAttempt === 0) return;
+    if (initialPeople && peopleAttempt === 0) {
+      setPeople(initialPeople);
+      setPeopleStatus("ready");
+      return;
+    }
     let active = true;
-    setInstructorsLoaded(false);
-    setPeopleError(false);
+    setPeopleStatus("loading");
     publicRequest(getPublicPeople())
       .then((p) => {
-        if (active) setPeople(p);
+        if (active) {
+          setPeople(p);
+          setPeopleStatus("ready");
+        }
       })
       .catch(() => {
         if (active) {
           setPeople([]);
-          setPeopleError(true);
+          setPeopleStatus("error");
         }
-      })
-      .finally(() => {
-        if (active) setInstructorsLoaded(true);
       });
     return () => {
       active = false;
     };
   }, [initialPeople, peopleAttempt]);
+  const instructorsLoaded = peopleStatus === "ready";
   const selectedInstructor = people.find((p) => p.coachId === instructor && p.instructor);
   const user = useCurrentUser();
   const userId = user?.id;
@@ -147,14 +152,14 @@ export function CatalogAndBook({
   const activeGroup = availableGroups.find((group) => group === discipline) ?? availableGroups[0];
   return (
     <div className="mx-auto max-w-6xl px-5 py-8">
-      {peopleError && (
+      {peopleStatus === "error" && (
         <CatalogStatus
           label="instructor information"
           error
           retry={() => setPeopleAttempt((n) => n + 1)}
         />
       )}
-      {!instructorsLoaded && !peopleError && <p role="status">Checking instructor availability…</p>}
+      {peopleStatus === "loading" && <p role="status">Checking instructor availability…</p>}
       {catalog.checkoutStatus === "error" && (
         <CatalogStatus label="secure checkout availability" error retry={catalog.retry} />
       )}
@@ -171,19 +176,21 @@ export function CatalogAndBook({
       ) : null}
       {instructor && (
         <aside className="mb-5 rounded-xl border p-4">
-          <p>
-            Requested instructor:{" "}
-            <strong>
-              {selectedInstructor?.name ||
-                (instructorsLoaded
-                  ? "This instructor is not currently listed for online lessons."
-                  : "Checking instructor availability…")}
-            </strong>
-          </p>
-          <p className="text-sm">
-            Choose an offered lesson below. Availability and assessment requirements are confirmed
-            at checkout.
-          </p>
+          {instructorsLoaded && (
+            <p>
+              Requested instructor:{" "}
+              <strong>
+                {selectedInstructor?.name ??
+                  "This instructor is not currently listed for online lessons."}
+              </strong>
+            </p>
+          )}
+          {instructorsLoaded && selectedInstructor && (
+            <p className="text-sm">
+              Choose an offered lesson below. Availability and assessment requirements are confirmed
+              at checkout.
+            </p>
+          )}
           <a href="/training" className="inline-flex min-h-11 items-center underline">
             Choose any instructor
           </a>
@@ -321,7 +328,7 @@ export function CatalogAndBook({
 
         <section id="lessons" className="mt-10 scroll-mt-40" aria-label="Lesson booking">
           <h2 className="text-3xl">Choose your lesson</h2>
-          {sport !== "all" && !instructorsLoaded && (
+          {sport !== "all" && peopleStatus === "loading" && (
             <p role="status">Loading instructors for this sport…</p>
           )}
           {instructorsLoaded && !lessons.length && (
