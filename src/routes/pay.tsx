@@ -1,6 +1,7 @@
 import { AthleteSelector, athleteScope } from "@/components/pd/athlete-selector";
 import {PlayerBirthdays} from '@/components/commerce/player-birthdays';
-import { checkoutLessonService } from "@/lib/commerce/coach-services";
+import { GuestLessonTimes } from "@/components/commerce/guest-lesson-times";
+import { checkoutLessonService, distinctLessonInstructors } from "@/lib/commerce/coach-services";
 import { pageHead } from "@/lib/seo";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -337,6 +338,13 @@ function PayPage() {
       paymentLock.current = false;
     }
   }
+  const guestLesson = !user && kind === "lesson" && product?.kind === "lesson" && !enrollmentHelp;
+  const guestCoaches = guestLesson
+    ? distinctLessonInstructors(
+        (context?.coachAvailability ?? []).filter((coach) => coach.serviceIds.includes(product.id)),
+        coachId,
+      )
+    : [];
   const needsAthlete = kind !== "cage" && kind !== "cage-plan";
   const recurring = quote?.recurring || kind === "membership" || kind === "cage-plan";
   return (
@@ -399,7 +407,21 @@ function PayPage() {
         </div>
       ) : null}
       {user && needsAthlete && !prepared ? <PlayerBirthdays /> : null}
-      {product && !prepared ? (
+      {guestLesson && product ? (
+        <div className="mt-6 grid gap-4">
+          <h2 className="text-3xl">{product.name}</h2>
+          <p>{product.minutes} minutes · {formatMoney(Math.round(product.price * 100))}</p>
+          <GuestLessonTimes
+            key={product.id}
+            productId={product.id}
+            coachId={coachId || (guestCoaches.length === 1 ? guestCoaches[0].id : "")}
+            coaches={guestCoaches}
+            initialDate={search.date}
+            onChangeCoach={setCoachId}
+          />
+        </div>
+      ) : null}
+      {product && !prepared && !guestLesson ? (
         <form onSubmit={submit} className="mt-6 grid gap-5">
           <article className="rounded-2xl bg-ink p-5 text-white">
             <h2 className="text-3xl">{product.name}</h2>
@@ -554,9 +576,13 @@ function PayPage() {
                     }}
                   >
                     <option value="">Select an instructor</option>
-                    {context?.coaches
-                      .filter((c) => c.serviceIds.includes(checkoutLessonService(quote)))
-                      .map((c) => (
+                    {distinctLessonInstructors(
+                      (context?.coaches ?? []).filter((c) => c.serviceIds.includes(checkoutLessonService(quote))),
+                      coachId,
+                      new Set(context?.coachAvailability
+                        .filter((c) => c.serviceIds.includes(checkoutLessonService(quote)))
+                        .map((c) => c.id)),
+                    ).map((c) => (
                         <option key={c.id} value={c.id}>
                           {c.name}
                         </option>

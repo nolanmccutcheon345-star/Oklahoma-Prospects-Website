@@ -16,6 +16,18 @@ export const getCheckoutQuote = createServerFn({ method: "POST" })
     await rateLimit("checkout-quote", 100);
     return availableSlots(data, context.paymentUserId);
   });
+// Public browsing returns only start times. Quoting, athlete checks and payment stay authenticated.
+export const getPublicLessonTimes = createServerFn({ method: "POST" })
+  .validator(z.object({
+    productId: z.string().min(1).max(150),
+    coachId: z.string().min(1).max(150),
+    date: z.string().length(10),
+  }).strict())
+  .handler(async ({ data }) => {
+    const { publicLessonTimes, rateLimit } = await import("./checkout.server");
+    await rateLimit("public-lesson-times", 100);
+    return publicLessonTimes(data);
+  });
 export const startCheckout = createServerFn({ method: "POST" })
   .middleware([paymentAuth])
   .validator(checkoutInput)
