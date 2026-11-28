@@ -1,3 +1,4 @@
+import { hasOneRachaelCage, isRachaelCageLesson } from "../rachael-cage";
 import { operationalCoachAvailability } from "../operational-person.server";
 import {
   availableOperationalServices,
@@ -182,7 +183,10 @@ export async function quoteForRequest(
     };
     await requireCoachService(sql, file.coaches, input.coachId, spaceProduct);
     const { lessonResources } = await import("./operations.server");
-    quote.resources = [`coach:${input.coachId}`, ...(await lessonResources(spaceProduct, sql))];
+    const resources = await lessonResources(spaceProduct, sql);
+    if (isRachaelCageLesson(quote.kind, quote.productId) && !hasOneRachaelCage(resources))
+      throw new Error("This booking needs one assigned cage. Contact Front Office.");
+    quote.resources = [`coach:${input.coachId}`, ...resources];
   }
   if (athleteId && quote.needsSlot) quote.resources.push(`athlete:${athleteId}`);
   return { me, quote, athleteId, file };
@@ -310,6 +314,12 @@ export async function beginCheckout(input: CheckoutInput, verifiedUserId?: strin
       );
       if (quote.kind !== "cage")
         await requireCoachService(tx, file.coaches, input.coachId, checkoutLessonService(quote));
+      if (isRachaelCageLesson(quote.kind, quote.productId)) {
+        const { lessonResources } = await import("./operations.server");
+        const lanes = await lessonResources(quote.productId, tx);
+        if (!hasOneRachaelCage(lanes) || !quote.resources.includes(lanes[0]))
+          throw new Error("The cage assignment changed. Choose a time again.");
+      }
       const window = validateWindow(input.date, input.time, quote.duration);
       if (
         quote.kind !== "cage" &&

@@ -1,3 +1,4 @@
+import { isRachaelCageLesson } from "./rachael-cage.js";
 import { processingInclusiveCents } from "./processing-prices.js";
 /** Historical seed/test fixtures only. Live prices come exclusively from club_services. */
 export const NET_PRICES = {
@@ -45,7 +46,7 @@ export function eligibility(kind: string, id: string, assessmentCompleted: boole
   // In-person plans can enroll before assessment; their first included session
   // becomes the assessment, with the admin-configured fee in the first month.
   const assessmentIncludedPlan = kind === "membership" && ["m1", "m2", "m3"].includes(id);
-  const locked = !assessmentCompleted && athleteSpecific && !eligibleAssessment && !(kind === "lesson" && YOUTH_PRODUCTS.has(id)) && !assessmentIncludedPlan;
+  const locked = !assessmentCompleted && athleteSpecific && !eligibleAssessment && !(kind === "lesson" && YOUTH_PRODUCTS.has(id)) && !assessmentIncludedPlan && !isRachaelCageLesson(kind, id);
   return {
     locked,
     assessment,

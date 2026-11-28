@@ -1,3 +1,4 @@
+import { hasOneRachaelCage, isRachaelCageLesson, RACHAEL_CAGE_CENTS, RACHAEL_CAGE_MINUTES, RACHAEL_COACH_ID } from "../rachael-cage";
 import { requireCoachService } from "./coach-services.server";
 import { checkoutLessonService } from "./coach-services";
 import { createHash } from "node:crypto";
@@ -422,6 +423,21 @@ export async function paySquareOrder(
       const { validateEventPayment } = await import("../training-events.server");
       await validateEventPayment(tx, current, identity);
     } else await assertStoredOrderAllowed(tx, current, identity);
+    if (isRachaelCageLesson(current.snapshot.kind, current.snapshot.productId)) {
+      const window = current.snapshot.bookingWindow;
+      const { lessonResources } = await import("./operations.server");
+      const lanes = await lessonResources(current.snapshot.productId, tx);
+      if (!window || window.coachId !== RACHAEL_COACH_ID ||
+          !current.snapshot.resources.includes(`coach:${RACHAEL_COACH_ID}`) ||
+          !hasOneRachaelCage(current.snapshot.resources) || !hasOneRachaelCage(lanes) ||
+          !current.snapshot.resources.includes(lanes[0]) ||
+          +new Date(window.end) - +new Date(window.start) !== RACHAEL_CAGE_MINUTES * 60000 ||
+          current.total_cents !== RACHAEL_CAGE_CENTS ||
+          current.snapshot.totalCents !== RACHAEL_CAGE_CENTS ||
+          current.snapshot.regularCents !== RACHAEL_CAGE_CENTS ||
+          current.snapshot.recurring || current.snapshot.assessment || current.snapshot.discount)
+        throw new Error("This cage booking changed. Restart checkout. No payment was submitted.");
+    }
     if (current.snapshot.bookingWindow) {
       const window = current.snapshot.bookingWindow;
       if (current.snapshot.kind !== "cage") {
