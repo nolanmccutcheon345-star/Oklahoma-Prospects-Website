@@ -156,6 +156,7 @@ for (const baselineVersion of [66, 76, 79])
             "0119_team_message_removal.sql",
             "0120_tryout_request_only.sql",
             "0120_facility_blocks.sql",
+            "0124_jose_martin_softball_team_name.sql",
           ],
         );
       for (const { name } of late) {
@@ -255,4 +256,47 @@ test("facility block migration appends after published tryout version without lo
     await readFile(new URL("../migrations/0120_facility_blocks.sql", import.meta.url), "utf8"),
   );
   assert.match(sql, /name = '0120_facility_blocks.sql'/);
+});
+
+test("Jose Martin's team rename preserves the existing roster, dues, and team IDs", async () => {
+  const name = "0124_jose_martin_softball_team_name.sql";
+  const migration = wrapMigration(
+    name,
+    await readFile(new URL(`../migrations/${name}`, import.meta.url), "utf8"),
+  );
+  const db = new PGlite();
+  try {
+    await db.exec(
+      "create table club_state(id text primary key, demo boolean, payload jsonb, rev integer, updated_at timestamptz)",
+    );
+    const softball = {
+      id: "t-prospects-12u-navy-sb-tskv",
+      sport: "softball",
+      age: "12U",
+      name: "Prospects 12u Navy",
+      headCoach: "Jose Martin",
+      roster: [{ id: "synthetic-player" }],
+      orgFee: 450,
+    };
+    const baseball = {
+      ...softball,
+      id: "t-prospects-12u-maroon-bsb-l25g",
+      sport: "baseball",
+      name: "Prospects 12U Maroon",
+    };
+    const payload = { teams: [baseball, softball], other: "preserved" };
+    await db.query("insert into club_state values ('oklahoma-prospects', false, $1, 7, now())", [
+      payload,
+    ]);
+    await db.exec(migration);
+    await db.exec(migration);
+    assert.deepEqual((await db.query("select payload, rev from club_state")).rows, [
+      {
+        rev: 8,
+        payload: { ...payload, teams: [baseball, { ...softball, name: "12U B Maroon" }] },
+      },
+    ]);
+  } finally {
+    await db.close();
+  }
 });
