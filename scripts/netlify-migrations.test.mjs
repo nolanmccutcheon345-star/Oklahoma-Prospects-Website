@@ -251,6 +251,7 @@ test("shop collection upgrade preserves published products and pricing while ass
 test("facility block migration appends after published tryout version without losing ledger identity", async () => {
   assert.equal(netlifyMigrationSlug("0120_tryout_request_only.sql"), "0120_tryout-request-only");
   assert.equal(netlifyMigrationSlug("0120_facility_blocks.sql"), "0121_facility-blocks");
+  assert.equal(netlifyMigrationSlug("0122_rachael_cage_booking.sql"), "0123_rachael-cage-booking");
   const sql = wrapMigration(
     "0120_facility_blocks.sql",
     await readFile(new URL("../migrations/0120_facility_blocks.sql", import.meta.url), "utf8"),

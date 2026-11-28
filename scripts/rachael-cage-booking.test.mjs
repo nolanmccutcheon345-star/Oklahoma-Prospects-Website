@@ -100,6 +100,27 @@ test("a simulated paid Rachael booking occupies the coach and one cage for 60 mi
     );
     assert.equal((await sql`select id from booking_records`).length, 1);
     assert.deepEqual((await api.availableSlots({ ...input, date }, "parent")).slots, []);
+
+    // Complete an earlier synthetic booking through the same guided-lesson service.
+    const past = api.validateWindow("2026-01-12", "16:00", 60, new Date("2026-01-11"));
+    await sql`insert into booking_records(id,order_id,user_id,athlete_id,coach_id,product_id,starts_at,ends_at,resources,status)
+      values('past-booking','conflict-fixture','parent','athlete',${coachId},${productId},${past.start.toISOString()},${past.end.toISOString()},${JSON.stringify(quote.resources)}::jsonb,'confirmed')`;
+    await sql`insert into "user"(id,name,email,"emailVerified","createdAt","updatedAt")
+      values('coach','Test Coach','coach@audit.example.invalid',true,now(),now())`;
+    await sql`insert into profiles(user_id,name,email,role) values('coach','Test Coach','coach@audit.example.invalid','coach')`;
+    const instructor = await api.clubIdentity("coach");
+    const result = await sql.transaction((tx) =>
+      api.completeSessionInTransaction(
+        tx,
+        instructor,
+        file,
+        "past-booking",
+        "Completed the session.",
+        "Pitching",
+      ),
+    );
+    assert.deepEqual(result, { ok: true, assessmentCompleted: false });
+    assert.equal((await sql`select * from contractor_earnings`).length, 0);
   } finally {
     await close();
   }
