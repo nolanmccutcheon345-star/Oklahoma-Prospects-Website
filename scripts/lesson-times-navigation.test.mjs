@@ -68,7 +68,7 @@ test("checkout finds next instructor opening, accepts a time, and Train uses dis
   const mocks = {
     "@tanstack/react-router": `import {createElement} from 'react';export const Link=({to,search,children,...p})=>createElement('a',{...p,href:to+(search?'?'+new URLSearchParams(search):'')},children);export const createFileRoute=()=>o=>({...o,useSearch:()=>globalThis.__lessonUi.search});export const useRouterState=({select})=>select({location:{pathname:globalThis.__lessonUi.path}});`,
     "@/lib/auth/use-current-user": `const user={id:'parent',displayName:'Test Parent',primaryEmail:'parent@example.invalid'};export const useCurrentUser=()=>user;export const useCurrentUserState=()=>({user,isPending:false});`,
-    "@/lib/commerce/api": `export const getCheckoutContext=()=>globalThis.__lessonUi.context();export const getCheckoutQuote=(...a)=>globalThis.__lessonUi.quote(...a);export const startCheckout=()=>{throw Error('No payment in this test')};export const submitSquarePayment=()=>{throw Error('No payment in this test')};`,
+    "@/lib/commerce/api": `export const getPublicLessonTimes=()=>{throw Error("Unexpected public availability call")};export const getCheckoutContext=()=>globalThis.__lessonUi.context();export const getCheckoutQuote=(...a)=>globalThis.__lessonUi.quote(...a);export const startCheckout=()=>{throw Error('No payment in this test')};export const submitSquarePayment=()=>{throw Error('No payment in this test')};`,
     "@/components/commerce/square-card": `export const SquareCard=()=>null;`,
     "@/lib/seo": `export const pageHead=()=>({});`,
   };

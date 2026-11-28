@@ -188,6 +188,44 @@ export async function quoteForRequest(
   return { me, quote, athleteId, file };
 }
 
+async function appointmentOccupancy(
+  sql: Awaited<ReturnType<typeof getSql>>,
+  resources: string[],
+  firstDate: string,
+  lastDate: string,
+) {
+  return sql<{ slot_at: Date }>`select b.slot_at
+    from booking_occupancy b join booking_records r on r.id=b.booking_id
+    where r.status in ('confirmed','completed') and b.resource_id=any(${resources}::text[])
+      and b.slot_at >= ${firstDate}::date - interval '1 day'
+      and b.slot_at < ${lastDate}::date + interval '2 days'`;
+}
+
+export async function publicLessonTimes(input: { productId: string; coachId: string; date: string }) {
+  assertSameSiteRequest();
+  if (!withinBookingHorizon(input.date, NEXT_LESSON_DAYS))
+    return { slots: [], nextAvailable: null };
+  const sql = await getSql();
+  const [product] = approvedProducts(await availableOperationalServices(sql, await sql<Product>`
+    select id,kind,name,price,minutes,credits,remote,expires_days,hours,discipline,active
+    from club_services where id=${input.productId} and kind='lesson' and active=true
+  `));
+  if (!product || product.id === "s6") return { slots: [], nextAvailable: null };
+  const file = await readWorkingFile(sql);
+  const schedule = await operationalCoachAvailability(sql, file.coaches, file.availability);
+  await requireCoachService(sql, schedule.coaches, input.coachId, product.id);
+  const { lessonResources } = await import("./operations.server");
+  const resources = [`coach:${input.coachId}`, ...(await lessonResources(product.id, sql))];
+  const occupied = await appointmentOccupancy(sql, resources, input.date, calendarDay(input.date, NEXT_LESSON_DAYS));
+  return availableLessonTimes({
+    date: input.date,
+    duration: product.minutes,
+    coachId: input.coachId,
+    availability: schedule.availability,
+    occupied,
+  });
+}
+
 export async function availableSlots(input: CheckoutInput, verifiedUserId?: string) {
   const { quote, file } = await quoteForRequest(input, false, verifiedUserId);
   if (!quote.needsSlot || !input.date || !validDate(input.date))
@@ -195,11 +233,7 @@ export async function availableSlots(input: CheckoutInput, verifiedUserId?: stri
   const sql = await getSql();
   const firstDate = input.date < chicagoDate() ? chicagoDate() : input.date;
   const lastDate = quote.kind === "cage" ? firstDate : calendarDay(firstDate, NEXT_LESSON_DAYS);
-  const occupied = await sql<{
-    resource_id: string;
-    slot_at: Date;
-  }>`select resource_id,slot_at from booking_occupancy b join booking_records r on r.id=b.booking_id left join commerce_orders o on o.id=r.order_id
-    where r.status in ('confirmed','completed') and resource_id = any(${quote.resources}::text[]) and slot_at >= ${firstDate}::date - interval '1 day' and slot_at < ${lastDate}::date + interval '2 days'`;
+  const occupied = await appointmentOccupancy(sql, quote.resources, firstDate, lastDate);
   if (quote.kind !== "cage")
     return {
       quote,

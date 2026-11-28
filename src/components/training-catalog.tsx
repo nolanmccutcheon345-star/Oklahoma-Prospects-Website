@@ -186,10 +186,20 @@ export function CatalogAndBook({
             </p>
           )}
           {instructorsLoaded && selectedInstructor && (
-            <p className="text-sm">
-              Choose an offered lesson below. Availability and assessment requirements are confirmed
-              at checkout.
-            </p>
+            <>
+              <p className="text-sm">Choose a lesson to see times. Athlete eligibility is confirmed at checkout.</p>
+              {view === "lessons" && (
+                <ul className="mt-3 grid gap-1 sm:grid-cols-2">
+                  {instructorLessons.filter((lesson) => !lesson.group).map((lesson) => (
+                    <li key={lesson.id}>
+                      <Link className="inline-flex min-h-11 items-center underline" to="/pay" search={{ kind: "lesson", id: lesson.id, instructor }}>
+                        View times · {lesson.name}
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </>
           )}
           <a href="/training" className="inline-flex min-h-11 items-center underline">
             Choose any instructor
@@ -295,30 +305,13 @@ export function CatalogAndBook({
           <div className="mt-4 flex flex-wrap gap-3">
             {lessons
               .filter((item) => ASSESSMENT_PRODUCTS.has(item.id))
-              .map((item) =>
-                canPurchase(catalog.purchaseAvailability, "lesson", item.id) ? (
-                  <Button
-                    asChild
-                    key={item.id}
-                    className="h-auto min-h-12 max-w-full whitespace-normal break-words text-center"
-                  >
-                    <Link to="/pay" search={{ kind: "lesson", id: item.id, instructor }}>
-                      Book {item.name}
-                    </Link>
-                  </Button>
-                ) : (
-                  <Button
-                    key={item.id}
-                    disabled
-                    className="h-auto min-h-12 max-w-full whitespace-normal break-words text-center"
-                  >
-                    {item.name} ·{" "}
-                    {catalog.checkoutStatus !== "loading"
-                      ? "checkout unavailable"
-                      : "loading checkout…"}
-                  </Button>
-                ),
-              )}
+              .map((item) => (
+                <Button asChild key={item.id} className="h-auto min-h-12 max-w-full whitespace-normal text-center">
+                  <Link to="/pay" search={{ kind: "lesson", id: item.id, instructor }}>
+                    View times · {item.name}
+                  </Link>
+                </Button>
+              ))}
           </div>
           <p className="mt-3 text-sm text-fg-soft">
             Already completed an assessment? Select your athlete in the booking section below. If
@@ -459,8 +452,6 @@ export function CatalogAndBook({
                         !ASSESSMENT_PRODUCTS.has(item.id) &&
                         !YOUTH_PRODUCTS.has(item.id)
                       }
-                      ready={canPurchase(catalog.purchaseAvailability, "lesson", item.id)}
-                      athleteSelected={Boolean(user && selectedAthlete)}
                     />
                   ))}
               </div>
@@ -697,17 +688,13 @@ export function TrainingPlanCard({
             </Button>
           </>
         ) : (
-          <Button
-            disabled
-            className="h-auto min-h-12 w-full whitespace-normal"
-            variant={featured ? "outline" : "primary"}
-          >
+          <p className="text-sm">
             {groupPlan(plan)
               ? "Schedule not yet published"
               : availability || checkoutStatus === "error"
-                ? "Checkout unavailable"
-                : "Loading checkout…"}
-          </Button>
+                ? "Online enrollment is temporarily unavailable."
+                : null}
+          </p>
         )}
       </div>
     </article>
@@ -717,17 +704,12 @@ export function TrainingPlanCard({
 function ServiceCard({
   item,
   locked,
-  ready,
-  athleteSelected,
   instructor,
 }: {
   item: LessonService;
   locked: boolean;
-  ready: boolean;
-  athleteSelected: boolean;
   instructor?: string;
 }) {
-  const assessment = ASSESSMENT_PRODUCTS.has(item.id);
   return (
     <article className="flex min-w-0 flex-col rounded-xl bg-paper-2 p-4 shadow-border">
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -742,29 +724,15 @@ function ServiceCard({
       )}
       {locked && <p className="mt-3 text-sm font-semibold">Assessment required before booking.</p>}
       <div className="mt-auto pt-4">
-        {locked ? (
-          <Button asChild variant="outlineDark" className="w-full">
-            <a href="#assessments">Book an Assessment</a>
-          </Button>
-        ) : !ready ? (
-          <Button disabled className="w-full">
-            Checkout unavailable
-          </Button>
-        ) : assessment || athleteSelected ? (
-          <Button asChild variant="maroon" className="h-auto min-h-12 w-full whitespace-normal">
-            <Link
-              to="/pay"
-              search={{ kind: "lesson", id: item.id, instructor }}
-              aria-label={`View available times for ${item.name}`}
-            >
-              View Available Times
-            </Link>
-          </Button>
-        ) : (
-          <Button asChild variant="outlineDark" className="w-full">
-            <a href="#lesson-booking">Select an athlete to book</a>
-          </Button>
-        )}
+        <Button asChild variant="maroon" className="h-auto min-h-12 w-full whitespace-normal">
+          <Link
+            to="/pay"
+            search={{ kind: "lesson", id: item.id, instructor }}
+            aria-label={`View available times for ${item.name}`}
+          >
+            View Available Times
+          </Link>
+        </Button>
       </div>
     </article>
   );
