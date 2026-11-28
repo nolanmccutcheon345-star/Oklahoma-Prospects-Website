@@ -157,6 +157,7 @@ for (const baselineVersion of [66, 76, 79])
             "0120_tryout_request_only.sql",
             "0120_facility_blocks.sql",
             "0124_jose_martin_softball_team_name.sql",
+            "0125_prospects_8u_team_name.sql",
           ],
         );
       for (const { name } of late) {
