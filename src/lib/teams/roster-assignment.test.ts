@@ -82,7 +82,11 @@ test("only Front Office can list, assign or change roster assignments", async ()
       );
     }
     assert.equal((await sql`select * from roster_assignments`).length, 0);
+    const fees = await sql`select * from team_fee_plans order by team_id`;
+    const notices = await sql`select * from fee_ready_notifications order by id`;
     const result = await assignToTeam(sql, "owner", account("base", "ath-1"));
+    assert.deepEqual(await sql`select * from team_fee_plans order by team_id`, fees);
+    assert.deepEqual(await sql`select * from fee_ready_notifications order by id`, notices);
     assert.equal(result.ok, true);
     const rows = await sql`select status,source from roster_assignments`;
     assert.deepEqual(rows.map((r) => [r.status, r.source]), [["active", "account"]]);
