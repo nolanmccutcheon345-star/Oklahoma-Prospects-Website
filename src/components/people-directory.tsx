@@ -120,7 +120,9 @@ export function PeopleDirectory({
                 href={`/training?instructor=${encodeURIComponent(p.coachId)}`}
                 className="mt-auto flex min-h-12 items-center justify-center rounded-lg bg-maroon px-4 py-3 font-semibold text-white"
               >
-                View Lessons & Availability
+                {kind === "instructors"
+                  ? `Book with Coach ${publicCoachName(p.name).replace(/^Coach\s+/i, "")}`
+                  : "View Lessons & Availability"}
               </a>
             )}
             {kind === "instructors" && !p.bookable && (

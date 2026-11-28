@@ -157,8 +157,8 @@ test("checkout finds next instructor opening, accepts a time, and Train uses dis
       [...menu.querySelectorAll("a")].map((a) => a.textContent),
       [
         "Book a Cage",
+        "Book a Lesson",
         "Facility & Rates",
-        "Instructors",
         "Training & Lessons",
         "Cage Memberships",
         "Camps & Clinics",

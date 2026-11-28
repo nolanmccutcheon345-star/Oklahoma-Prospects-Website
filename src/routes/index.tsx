@@ -79,10 +79,10 @@ function Home({ homepage, journal }: { homepage: Awaited<ReturnType<typeof getPu
           </p>
           <div className="mt-7 flex flex-wrap gap-3">
             <Button asChild>
-              <Link to="/book">Book a cage</Link>
+              <Link to="/book">Book a Cage</Link>
             </Button>
             <Button asChild variant="outline">
-              <Link to="/training">Book coaching</Link>
+              <Link to="/instructors">Book a Lesson</Link>
             </Button>
             <Button asChild variant="outline">
               <Link to="/tryouts">Tryouts</Link>
