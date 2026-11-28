@@ -120,7 +120,9 @@ export function PeopleDirectory({
                 href={`/training?instructor=${encodeURIComponent(p.coachId)}`}
                 className="mt-auto flex min-h-12 items-center justify-center rounded-lg bg-maroon px-4 py-3 font-semibold text-white"
               >
-                View Lessons & Availability
+                {kind === "instructors"
+                  ? `Book with Coach ${publicCoachName(p.name).replace(/^Coach\s+/i, "")}`
+                  : "View Lessons & Availability"}
               </a>
             )}
             {kind === "instructors" && !p.bookable && (
@@ -144,6 +146,44 @@ export function PeopleDirectory({
           for help.
         </p>
       )}
+    </section>
+  );
+}
+
+/** A short path into the published instructor directory and coach-specific booking. */
+export function InstructorChoices({ people }: { people: PublicPerson[] | null }) {
+  const instructors = people?.filter((person) => person.instructor && person.bookable) ?? [];
+  if (!instructors.length) return null;
+  return (
+    <section aria-labelledby="instructor-choices" className="mx-auto max-w-6xl px-5 py-8">
+      <h2 id="instructor-choices" className="text-3xl">Choose an instructor</h2>
+      <ul className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        {instructors.map((person) => {
+          const name = publicCoachName(person.name);
+          const initials = name.replace(/^Coach\s+/i, "").split(/\s+/).slice(0, 2).map((part) => part[0]).join("");
+          return (
+            <li key={person.id}>
+              <Link
+                to="/training"
+                search={{ instructor: person.coachId }}
+                className="flex min-h-20 items-center gap-3 rounded-xl border border-line bg-paper p-3 hover:underline"
+              >
+                {person.photo ? (
+                  <img src={person.photo} alt="" width={56} height={56} loading="lazy" className="size-14 shrink-0 rounded-full object-cover" />
+                ) : (
+                  <span aria-hidden="true" className="grid size-14 shrink-0 place-items-center rounded-full bg-paper-2 font-semibold">{initials}</span>
+                )}
+                <span>
+                  <span className="block font-semibold">{name}</span>
+                  <span className="block text-sm text-muted">{person.specialties.join(" · ")}</span>
+                  <span className="block text-sm">View lesson times</span>
+                </span>
+              </Link>
+            </li>
+          );
+        })}
+      </ul>
+      <Link to="/instructors" className="mt-3 inline-flex min-h-11 items-center font-semibold underline">See all instructors</Link>
     </section>
   );
 }

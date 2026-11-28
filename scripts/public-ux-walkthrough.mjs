@@ -109,8 +109,8 @@ try {
       true,
     );
     assert.equal(
-      await dialog.getByRole("link", { name: "Instructors", exact: true }).isVisible(),
-      true,
+      await dialog.getByRole("link", { name: "Book a Lesson", exact: true }).getAttribute("href"),
+      "/instructors",
     );
     if (width < 1024) {
       await dialog.getByRole("button", { name: "Memberships", exact: true }).click();

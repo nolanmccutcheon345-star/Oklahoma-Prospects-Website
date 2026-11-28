@@ -44,8 +44,8 @@ export const navigationGroups: Record<NavigationGroupId, NavigationGroup> = {
     label: "Training",
     children: [
       { id: "book", label: "Book a Cage", to: "/book" },
+      { id: "instructors", label: "Book a Lesson", to: "/instructors" },
       { id: "facility", label: "Facility & Rates", to: "/facility" },
-      { id: "instructors", label: "Instructors", to: "/instructors" },
       { id: "lessons", label: "Training & Lessons", to: "/training" },
       cageMemberships,
       { id: "camps", label: "Camps & Clinics", to: "/events" },
