@@ -1,3 +1,4 @@
+import { isRachaelCageLesson, RACHAEL_CAGE_CENTS, RACHAEL_CAGE_MINUTES, RACHAEL_COACH_ID } from "../rachael-cage";
 import { z } from "zod";
 import { ASSESSMENT_LOCK_MESSAGE, eligibility } from "../pricing";
 import { BOOKABLE_LANES } from "../club";
@@ -83,6 +84,14 @@ export function calculateQuote(
     !(product.id === "s6" && input.kind === "lesson")
   )
     throw new Error("Product type does not match.");
+  if (isRachaelCageLesson(input.kind, product.id)) {
+    if (input.coachId !== RACHAEL_COACH_ID)
+      throw new Error("This cage booking is available only with Coach Rachael.");
+    if (Math.round(Number(product.price) * 100) !== RACHAEL_CAGE_CENTS || product.minutes !== RACHAEL_CAGE_MINUTES)
+      throw new Error("This booking is temporarily unavailable. Contact Front Office.");
+    if (input.discountCode)
+      throw new Error("Discount codes do not apply to this fixed cage price.");
+  }
   const assessmentFirst = !completed && input.kind === "membership" && ["m1","m2","m3"].includes(product.id);
   const fee = cages.find(p => p.id === "assessment-setup");
   if (assessmentFirst && !fee) throw new Error("The first-month assessment fee is unavailable. Contact Front Office.");

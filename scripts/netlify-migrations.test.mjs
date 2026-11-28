@@ -157,6 +157,7 @@ for (const baselineVersion of [66, 76, 79])
             "0120_tryout_request_only.sql",
             "0120_facility_blocks.sql",
             "0122_roster_assignments.sql",
+            "0122_rachael_cage_booking.sql",
           ],
         );
       for (const { name } of late) {
@@ -256,4 +257,19 @@ test("facility block migration appends after published tryout version without lo
     await readFile(new URL("../migrations/0120_facility_blocks.sql", import.meta.url), "utf8"),
   );
   assert.match(sql, /name = '0120_facility_blocks.sql'/);
+});
+
+test("roster and Rachael migrations use distinct Netlify versions and retain their ledger keys", async () => {
+  for (const [name, slug] of [
+    ["0122_roster_assignments.sql", "0122_roster-assignments"],
+    ["0122_rachael_cage_booking.sql", "0123_rachael-cage-booking"],
+  ]) {
+    assert.equal(netlifyMigrationSlug(name), slug);
+    const source = await readFile(new URL(`../migrations/${name}`, import.meta.url), "utf8");
+    const generated = await readFile(
+      new URL(`../netlify/database/migrations/${slug}/migration.sql`, import.meta.url),
+      "utf8",
+    );
+    assert.equal(generated, wrapMigration(name, source));
+  }
 });
