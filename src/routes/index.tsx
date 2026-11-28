@@ -1,3 +1,7 @@
+import { InstructorChoices } from "@/components/people-directory";
+import { getPublicPeople } from "@/lib/person-api";
+import type { PublicPerson } from "@/lib/person-contracts";
+import { publicRequest } from "@/lib/public-request";
 import { getHomepageJournal } from "@/lib/journal/api";
 import { JournalStrip } from "@/components/journal/public";
 import { getPublicCatalogSnapshot } from "@/lib/ops";
@@ -30,12 +34,13 @@ export const Route = createFileRoute("/")({
       false,
     ),
   loader: async () => {
-    const [catalog, homepage, journal] = await Promise.all([
+    const [catalog, homepage, journal, people] = await Promise.all([
       getPublicCatalogSnapshot(),
       getPublicHomepage(),
       getHomepageJournal(),
+      publicRequest(getPublicPeople()).catch(() => null),
     ]);
-    return { catalog, homepage, journal };
+    return { catalog, homepage, journal, people };
   },
   component: HomeRoute,
 });
@@ -44,12 +49,12 @@ function HomeRoute() {
   const data = Route.useLoaderData();
   return (
     <CatalogProvider initial={data.catalog}>
-      <Home homepage={data.homepage} journal={data.journal} />
+      <Home homepage={data.homepage} journal={data.journal} people={data.people} />
     </CatalogProvider>
   );
 }
 
-function Home({ homepage, journal }: { homepage: Awaited<ReturnType<typeof getPublicHomepage>>; journal: Awaited<ReturnType<typeof getHomepageJournal>> }) {
+function Home({ homepage, journal, people }: { homepage: Awaited<ReturnType<typeof getPublicHomepage>>; journal: Awaited<ReturnType<typeof getHomepageJournal>> }) {
   const catalog = useLiveCatalog();
   return (
     <main id="main">
@@ -98,6 +103,7 @@ function Home({ homepage, journal }: { homepage: Awaited<ReturnType<typeof getPu
       </section>
 
       <ThanksgivingCampPromo />
+      <InstructorChoices people={people} />
 
       <section className="bg-ink">
         <div className="mx-auto grid max-w-3xl grid-cols-4 gap-px border-t border-fg-inverse/10">

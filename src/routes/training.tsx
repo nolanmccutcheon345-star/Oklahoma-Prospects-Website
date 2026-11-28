@@ -1,3 +1,4 @@
+import { InstructorChoices } from "@/components/people-directory";
 import { CLUB } from "@/lib/club";
 import { pageHead } from "@/lib/seo";
 import { createFileRoute, Link } from "@tanstack/react-router";
@@ -70,7 +71,7 @@ function TrainingPage({ initialPeople }: { initialPeople: PublicPerson[] | null 
           actions={
             <>
               <Button asChild>
-                <a href="/training#find-training">Find My Training</a>
+                <Link to="/instructors">Book a Lesson</Link>
               </Button>
               <Button asChild variant="outline">
                 <a href="/training?view=plans#memberships">Compare Monthly Plans</a>
@@ -97,6 +98,7 @@ function TrainingPage({ initialPeople }: { initialPeople: PublicPerson[] | null 
           }
         />
         <TrainingNav current={search.view === "plans" ? "plans" : "lessons"} />
+        {!search.instructor && search.view !== "plans" && <InstructorChoices people={initialPeople} />}
         <CatalogAndBook
           view={search.view || "lessons"}
           instructor={search.instructor}
